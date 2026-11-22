@@ -87,8 +87,9 @@ impl Client {
         }
     }
 
+    /// A refused connection may be closed already; the answer (none) is what tests check.
     fn send(&mut self, v: &Value) {
-        writeln!(self.writer, "{v}").expect("write");
+        let _ = writeln!(self.writer, "{v}");
     }
 
     fn recv(&mut self) -> Option<Value> {
@@ -128,7 +129,10 @@ fn initialized(r: &Rig, g: &Grant) -> Client {
         json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}),
     );
     assert!(init["result"]["protocolVersion"].is_string(), "{init}");
-    assert!(init["result"]["capabilities"]["tools"].is_object(), "{init}");
+    assert!(
+        init["result"]["capabilities"]["tools"].is_object(),
+        "{init}"
+    );
     assert_eq!(init["result"]["serverInfo"]["name"], "skyelab");
     c.send(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}));
     c
@@ -169,13 +173,16 @@ fn each_tool_reaches_the_host_with_the_caller() {
     let r = rig();
     let g = grant(&r, 7);
     let mut c = initialized(&r, &g);
-    assert_eq!(c.tool("list_projects", json!({})).0, false);
+    assert!(!c.tool("list_projects", json!({})).0);
     let (err, text) = c.tool(
         "start_thread",
         json!({"project_id": 3, "prompt": "fix it", "worktree": true}),
     );
     assert!(!err, "{text}");
-    assert_eq!(serde_json::from_str::<Value>(&text).expect("json")["thread_id"], 42);
+    assert_eq!(
+        serde_json::from_str::<Value>(&text).expect("json")["thread_id"],
+        42
+    );
     c.tool("start_thread", json!({"project_id": 4, "prompt": "plain"}));
     c.tool("thread_status", json!({"thread_id": 5}));
     c.tool("read_thread", json!({"thread_id": 5, "since_seq": 3}));
@@ -238,18 +245,58 @@ fn bad_inputs_are_refused_before_the_host() {
     let long = "x".repeat(100_001);
     for (name, args, field) in [
         ("start_thread", json!({"prompt": "x"}), "project_id"),
-        ("start_thread", json!({"project_id": "3", "prompt": "x"}), "project_id"),
-        ("start_thread", json!({"project_id": 0, "prompt": "x"}), "project_id"),
-        ("start_thread", json!({"project_id": -2, "prompt": "x"}), "project_id"),
-        ("start_thread", json!({"project_id": 3, "prompt": ""}), "prompt"),
-        ("start_thread", json!({"project_id": 3, "prompt": "   "}), "prompt"),
-        ("start_thread", json!({"project_id": 3, "prompt": long}), "prompt"),
-        ("start_thread", json!({"project_id": 3, "prompt": "x", "worktree": "yes"}), "worktree"),
+        (
+            "start_thread",
+            json!({"project_id": "3", "prompt": "x"}),
+            "project_id",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 0, "prompt": "x"}),
+            "project_id",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": -2, "prompt": "x"}),
+            "project_id",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 3, "prompt": ""}),
+            "prompt",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 3, "prompt": "   "}),
+            "prompt",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 3, "prompt": long}),
+            "prompt",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 3, "prompt": "x", "worktree": "yes"}),
+            "worktree",
+        ),
         ("thread_status", json!({"thread_id": 1.5}), "thread_id"),
-        ("read_thread", json!({"thread_id": 1, "since_seq": -1}), "since_seq"),
+        (
+            "read_thread",
+            json!({"thread_id": 1, "since_seq": -1}),
+            "since_seq",
+        ),
         ("send_message", json!({"thread_id": 1}), "text"),
-        ("wait_thread", json!({"thread_id": 1, "timeout_s": 0}), "timeout_s"),
-        ("wait_thread", json!({"thread_id": 1, "timeout_s": 301}), "timeout_s"),
+        (
+            "wait_thread",
+            json!({"thread_id": 1, "timeout_s": 0}),
+            "timeout_s",
+        ),
+        (
+            "wait_thread",
+            json!({"thread_id": 1, "timeout_s": 301}),
+            "timeout_s",
+        ),
         ("wait_thread", json!({"thread_id": 1}), "timeout_s"),
         ("no_such_tool", json!({}), "no_such_tool"),
     ] {
@@ -258,7 +305,10 @@ fn bad_inputs_are_refused_before_the_host() {
         assert!(text.contains(field), "{name} {args}: {text}");
     }
     // Arguments that aren't an object at all.
-    let a = c.request("tools/call", json!({"name": "thread_status", "arguments": [1]}));
+    let a = c.request(
+        "tools/call",
+        json!({"name": "thread_status", "arguments": [1]}),
+    );
     assert_eq!(a["result"]["isError"], true, "{a}");
     assert!(r.host.calls.lock().expect("lock").is_empty());
 }
@@ -292,11 +342,21 @@ fn a_token_is_single_use_and_its_file_goes_on_connect() {
     let g = grant(&r, 7);
     assert!(g.config_path().exists());
     let mut first = initialized(&r, &g);
-    assert!(!g.config_path().exists(), "deleted once the session connected");
+    assert!(
+        !g.config_path().exists(),
+        "deleted once the session connected"
+    );
     let mut second = Client::connect(&r, g.token());
     second.send(&json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}));
-    assert_eq!(second.recv(), None, "a second connection with the same token is refused");
-    assert_eq!(first.tool("list_projects", json!({})).0, false, "the first keeps working");
+    assert_eq!(
+        second.recv(),
+        None,
+        "a second connection with the same token is refused"
+    );
+    assert!(
+        !first.tool("list_projects", json!({})).0,
+        "the first keeps working"
+    );
 }
 
 /// Dropping the grant (the agent ended) cuts an already open connection too.
@@ -306,7 +366,9 @@ fn an_open_connection_stops_when_its_grant_drops() {
     let g = grant(&r, 7);
     let mut c = initialized(&r, &g);
     drop(g);
-    c.send(&json!({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "list_projects", "arguments": {}}}));
+    // The server may already have closed (on the notification after the drop), so the write may fail.
+    let call = json!({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "list_projects", "arguments": {}}});
+    let _ = writeln!(c.writer, "{call}");
     assert_eq!(c.recv(), None);
     assert!(r.host.calls.lock().expect("lock").is_empty());
 }
@@ -319,13 +381,18 @@ fn grant_writes_a_private_config_naming_the_proxy() {
     let other = grant(&r, 8);
     assert_ne!(g.token(), other.token(), "tokens are per grant");
     assert!(g.token().len() >= 32);
-    let mode = |p: &std::path::Path| std::fs::metadata(p).expect("meta").permissions().mode() & 0o777;
+    let mode =
+        |p: &std::path::Path| std::fs::metadata(p).expect("meta").permissions().mode() & 0o777;
     assert_eq!(mode(g.config_path()), 0o600);
     assert_eq!(mode(r.server.socket_path().parent().expect("dir")), 0o700);
     let config: Value =
-        serde_json::from_str(&std::fs::read_to_string(g.config_path()).expect("read")).expect("json");
+        serde_json::from_str(&std::fs::read_to_string(g.config_path()).expect("read"))
+            .expect("json");
     let s = &config["mcpServers"]["skyelab"];
-    assert_eq!(s["type"], "stdio", "Claude Code's documented mcpServers format");
+    assert_eq!(
+        s["type"], "stdio",
+        "Claude Code's documented mcpServers format"
+    );
     assert_eq!(s["command"], "/usr/local/bin/skyelab");
     assert_eq!(s["args"], json!(["--mcp-proxy"]));
     assert_eq!(s["env"]["SKYELAB_MCP_TOKEN"], g.token());
