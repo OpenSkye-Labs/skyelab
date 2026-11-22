@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 rev=7548ebc4b24f00494af9976af8852c7163ded9ce
-patches=(upstream/0001-port-to-gpui-pre-0.3.12.patch upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch upstream/local-no-offscreen.patch)
+patches=(upstream/0001-port-to-gpui-pre-0.3.12.patch upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch upstream/0003-android-report-ime-insets.patch upstream/local-no-offscreen.patch)
 dest=target/gpui-mobile
 # Re-fetch when the rev or any patch changes.
 stamp="$rev $(cat "${patches[@]}" | git hash-object --stdin)"
