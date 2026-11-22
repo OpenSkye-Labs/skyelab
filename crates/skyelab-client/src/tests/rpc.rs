@@ -44,7 +44,7 @@ fn hello_then_every_method() {
         .expect("events");
     assert_eq!(events.iter().map(|e| e.seq).collect::<Vec<_>>(), [2, 3]);
 
-    // Each write comes back as the daemon's NotWired error.
+    // Each write comes back as NotWired.
     let not_wired = |r: Result<_, Error>| match r {
         Err(Error::Rpc(e)) => assert_eq!(e.code, ErrorCode::NotWired),
         other => panic!("expected NotWired, got {other:?}"),

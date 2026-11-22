@@ -128,22 +128,22 @@ impl DaemonBackend for Stall {
 #[gpui::test]
 fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     // The shared daemon never starts: this test serves the store through its own stalling backend.
-    let remote = RemoteSide::with(FakeTailnet::default(), "/remote/app", "fix the login bug");
+    let mut remote = unserved_remote_side(FakeTailnet::default());
     let (release_tx, release) = flume::unbounded();
     let inner: Arc<dyn DaemonBackend> = Arc::new(skyelab_daemon::StoreBackend::shared(
         remote.store.clone(),
         skyelab_daemon::NotWired,
     ));
-    let config = Config {
-        port: remote.port,
-        ..Config::default()
-    };
-    let _daemon = Daemon::start(
-        config,
+    let daemon = Daemon::start(
+        Config {
+            port: 0,
+            ..Config::default()
+        },
         remote.tailnet.clone(),
         Arc::new(Stall { inner, release }),
     )
     .expect("daemon");
+    remote.port = daemon.local_addrs()[0].port();
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");

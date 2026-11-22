@@ -36,10 +36,8 @@ fn fake_tailnet_is_configurable() {
     assert!(tailnet.whois(addr).is_err());
     assert_eq!(tailnet.whois_calls(), 4);
 
-    // The cert comes from the shared test CA and names this node.
     let cert = tailnet.cert(NODE_NAME).expect("cert");
     assert!(!cert.cert_pem.is_empty() && !cert.key_pem.is_empty());
-    let _ = ca();
 }
 
 #[test]

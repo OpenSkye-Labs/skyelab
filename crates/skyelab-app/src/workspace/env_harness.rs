@@ -10,9 +10,14 @@ use std::time::Duration;
 /// The other machine (the shared harness `Env`): one project "app" at /remote/app with one thread on account
 /// "work", served on a fixed loopback port.
 pub(super) fn remote_side(tailnet: FakeTailnet) -> RemoteSide {
-    let mut remote = RemoteSide::with(tailnet, "/remote/app", "fix the login bug");
+    let mut remote = unserved_remote_side(tailnet);
     remote.serve();
     remote
+}
+
+/// [`remote_side`] before its daemon starts.
+pub(super) fn unserved_remote_side(tailnet: FakeTailnet) -> RemoteSide {
+    RemoteSide::with(tailnet, "/remote/app", "fix the login bug")
 }
 
 /// What the switcher tests do with the other machine beyond the shared harness.

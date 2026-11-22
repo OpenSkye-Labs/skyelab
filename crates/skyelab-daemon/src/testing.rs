@@ -151,7 +151,8 @@ pub fn node(id: &str, dns: &str, user: u64, online: bool, tags: &[&str]) -> Node
 }
 
 /// The daemon's view of the tailnet: this node is `NODE_NAME` on `ips` (127.0.0.1), `peers` is what
-/// `tailscale status` lists, and whois answers as `peer` says. Every knob can change while a daemon uses it.
+/// `tailscale status` lists, and whois answers as `peer` says. The atomic and `Mutex` knobs can change while a
+/// daemon uses them.
 pub struct FakeTailnet {
     pub ips: Vec<IpAddr>,
     /// `self_node` fails like a stopped Tailscale.
@@ -324,6 +325,7 @@ impl Agents for RecordingAgents {
                 status: "running",
             })
             .expect("thread");
+        // The desktop's prompt row (`thread_model::Record::Prompt`): kind "prompt", the text as a JSON string.
         let payload = serde_json::Value::String(prompt.into()).to_string();
         store
             .append_event(thread.id, "prompt", &payload)
@@ -374,7 +376,6 @@ impl Backend for Flaky {
 /// Another machine: a store on disk (one project "app", one thread on account "work") and, once served, a daemon
 /// on a fixed loopback port with the recording agents backend.
 pub struct Env {
-    _dir: tempfile::TempDir,
     /// The store file, for tests that open their own connection.
     pub db: PathBuf,
     pub store: Arc<Mutex<Store>>,
@@ -384,10 +385,12 @@ pub struct Env {
     pub agents: Arc<Recorder>,
     /// How many of the next thread listings fail.
     pub fail_lists: Arc<AtomicUsize>,
-    /// Where `serve` listens, the same on every restart.
+    /// Where `serve` listens: picked by the first `serve`, then the same on every restart. 0 until then.
     pub port: u16,
     pub daemon: Option<Daemon>,
     cwd: PathBuf,
+    // Last, so the daemon and store let go of the files before the directory goes.
+    _dir: tempfile::TempDir,
 }
 
 impl Env {
@@ -419,9 +422,6 @@ impl Env {
                 status: "idle",
             })
             .expect("thread");
-        let free = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-        let port = free.local_addr().expect("addr").port();
-        drop(free);
         Self {
             _dir: dir,
             db,
@@ -431,7 +431,7 @@ impl Env {
             tailnet: Arc::new(tailnet),
             agents: Arc::default(),
             fail_lists: Arc::default(),
-            port,
+            port: 0,
             daemon: None,
             cwd,
         }
@@ -452,21 +452,26 @@ impl Env {
         })
     }
 
-    /// (Re)starts the daemon on `port`.
+    /// (Re)starts the daemon: on a free port the first time, then on that same port.
     pub fn serve(&mut self) {
         self.daemon = None;
         let backend = self.backend();
+        let mut last = None;
         for _ in 0..100 {
             match Daemon::start(config(self.port), self.tailnet.clone(), backend.clone()) {
                 Ok(d) => {
+                    self.port = d.local_addrs()[0].port();
                     self.daemon = Some(d);
                     return;
                 }
                 // The old listener's port can take a moment to free.
-                Err(_) => std::thread::sleep(Duration::from_millis(20)),
+                Err(e) => {
+                    last = Some(e);
+                    std::thread::sleep(Duration::from_millis(20));
+                }
             }
         }
-        panic!("daemon didn't start on port {}", self.port);
+        panic!("daemon didn't start on port {}: {last:?}", self.port);
     }
 
     pub fn stop(&mut self) {
