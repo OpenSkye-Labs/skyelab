@@ -256,13 +256,8 @@ fn main() {
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
                 ws.store_error = store_error.map(Into::into);
                 ws.set_remote(remote, calls, window, cx);
-                ws.set_environments(
-                    tailnet,
-                    AppSettings::default_path(),
-                    skyelab_client::Options::default(),
-                    window,
-                    cx,
-                );
+                let options = environment::client_options(tailnet.clone());
+                ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                 #[cfg(unix)]
                 if let Some(o) = orchestrate {
                     ws.set_orchestrator(o, window, cx);

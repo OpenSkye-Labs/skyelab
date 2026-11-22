@@ -118,7 +118,8 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
   with `tailscale whois`). Browser pages (any `Origin` header) are refused. A connected device can list and drive
   threads, but can't add projects, change accounts or bindings, or open terminals. The client checks the
-  certificate against the exact MagicDNS name it dialled.
+  certificate against the exact MagicDNS name it dialled, and the desktop app also asks its own Tailscale who it
+  dialled: only your own untagged devices, and the same Tailscale node it saw for that name before.
 
 The full rules are in [docs/architecture.md](docs/architecture.md) under "Remote" and "Decisions".
 

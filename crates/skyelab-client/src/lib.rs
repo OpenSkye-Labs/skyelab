@@ -48,6 +48,10 @@ pub struct Options {
     /// Reconnect delay: starts at `backoff_min`, doubles per failed attempt, capped at `backoff_max`.
     pub backoff_min: Duration,
     pub backoff_max: Duration,
+    /// Checks each dialled address with this machine's own Tailscale before TLS starts. `None` (mobile, where no
+    /// local Tailscale CLI exists) trusts the node id the server sends in hello, which a machine that took over the
+    /// name can fake.
+    pub verify_peer: Option<PeerVerifier>,
     /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) allow_loopback: bool,
@@ -76,6 +80,7 @@ impl Default for Options {
             request_timeout: Duration::from_secs(30),
             backoff_min: Duration::from_millis(250),
             backoff_max: Duration::from_secs(30),
+            verify_peer: None,
             #[cfg(any(test, feature = "test-support"))]
             allow_loopback: false,
             #[cfg(any(test, feature = "test-support"))]
@@ -87,6 +92,28 @@ impl Default for Options {
             #[cfg(any(test, feature = "test-support"))]
             resolve_to: None,
         }
+    }
+}
+
+/// Says who a dialled address is: `Ok` with the node StableID of one of the user's own devices, `Err` with why not.
+/// Runs on a blocking thread, so it may shell out; it must return within its own timeout (an error fails closed).
+///
+/// With a verifier the hello's node id must equal the verified one, and [`Update::Connected`] carries the verified
+/// id in `node_id`, so whatever the caller pins came from its own Tailscale.
+#[derive(Clone)]
+pub struct PeerVerifier(Arc<dyn Fn(std::net::SocketAddr) -> Result<String, String> + Send + Sync>);
+
+impl PeerVerifier {
+    pub fn new(
+        verify: impl Fn(std::net::SocketAddr) -> Result<String, String> + Send + Sync + 'static,
+    ) -> Self {
+        Self(Arc::new(verify))
+    }
+}
+
+impl std::fmt::Debug for PeerVerifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PeerVerifier")
     }
 }
 
@@ -170,6 +197,11 @@ pub enum DisconnectKind {
     Refused,
     /// The server's certificate didn't verify (chain, expiry, or not exactly the dialled name).
     Certificate,
+    /// The [`Options::verify_peer`] check refused the dialled address: this machine's Tailscale says it isn't one of
+    /// the user's own untagged devices, or couldn't say (whois failed or timed out). Nothing was sent to it.
+    NotYourDevice,
+    /// The hello named another node than this machine's Tailscale reports for the dialled address.
+    IdentityMismatch,
     /// Anything else: resolving, dialling, timeouts, a dropped connection, a malformed reply.
     Other,
 }

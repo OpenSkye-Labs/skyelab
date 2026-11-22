@@ -21,6 +21,11 @@ pub enum ConnState {
     Reconnecting(String),
     /// The remote's gate (whois) dropped us before the handshake. The client keeps retrying.
     Refused,
+    /// This machine's own Tailscale doesn't vouch for the dialled address as one of the user's own untagged devices
+    /// (or whois failed). Nothing was sent to it. The client keeps retrying.
+    NotYourDevice(String),
+    /// The remote's hello named another node than this machine's Tailscale reports for its address. Retrying.
+    IdentityMismatch(String),
     /// The name answered from another Tailscale node than the one trusted for it (a reused device name in a shared
     /// tailnet, or a replaced machine). Nothing is listed or sent until the user trusts `now`.
     NodeChanged {
@@ -40,6 +45,12 @@ impl ConnState {
     fn from_update(update: &Update) -> Option<Self> {
         Some(match update {
             Update::Disconnected(d) if d.kind == DisconnectKind::Refused => Self::Refused,
+            Update::Disconnected(d) if d.kind == DisconnectKind::NotYourDevice => {
+                Self::NotYourDevice(d.message.clone())
+            }
+            Update::Disconnected(d) if d.kind == DisconnectKind::IdentityMismatch => {
+                Self::IdentityMismatch(d.message.clone())
+            }
             Update::Disconnected(d) => Self::Reconnecting(d.message.clone()),
             Update::Fatal(Error::UnsupportedVersion(why)) => Self::VersionMismatch(why.clone()),
             Update::Fatal(e) => Self::Stopped(e.to_string()),
@@ -53,6 +64,14 @@ impl ConnState {
             Self::Connected => "Connected".into(),
             Self::Reconnecting(why) => format!("Reconnecting: {why}").into(),
             Self::Refused => "That machine didn't accept this device".into(),
+            Self::NotYourDevice(why) => format!(
+                "Not connected: your Tailscale can't confirm that machine is one of your own devices ({why})"
+            )
+            .into(),
+            Self::IdentityMismatch(why) => format!(
+                "Not connected: that machine's identity doesn't match what your Tailscale reports ({why})"
+            )
+            .into(),
             Self::NodeChanged { was, now } => format!(
                 "This name now answers from a different machine (node {now}, trusted: {was}). \
                  Trust it only if you replaced or renamed that machine."
@@ -77,6 +96,20 @@ impl ConnState {
             _ => theme.danger,
         }
     }
+}
+
+/// Checks each dialled environment with this machine's own Tailscale (whois), so the node pinned per name is the
+/// one the local tailnet sees at that address, never only what the server says about itself.
+fn peer_verifier(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::PeerVerifier {
+    skyelab_client::PeerVerifier::new(move |peer| skyelab_tailnet::verify_own_peer(&*tailnet, peer))
+}
+
+/// The desktop's client options: every connection checked with `tailnet`. Without a verifier the pin is only the
+/// server's word, so the app never builds them any other way.
+pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::Options {
+    let mut options = skyelab_client::Options::default();
+    options.verify_peer = Some(peer_verifier(tailnet));
+    options
 }
 
 pub enum EnvEvent {
@@ -377,6 +410,14 @@ mod tests {
         assert_eq!(
             state(gone(DisconnectKind::Other, reset)),
             Some(ConnState::Reconnecting(reset.into()))
+        );
+        assert_eq!(
+            state(gone(DisconnectKind::NotYourDevice, "tagged")),
+            Some(ConnState::NotYourDevice("tagged".into()))
+        );
+        assert_eq!(
+            state(gone(DisconnectKind::IdentityMismatch, "n1 vs n2")),
+            Some(ConnState::IdentityMismatch("n1 vs n2".into()))
         );
         assert!(matches!(
             state(Update::Fatal(Error::UnsupportedVersion("2.0".into()))),

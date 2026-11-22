@@ -538,6 +538,9 @@ mod env_followups_test;
 mod env_pin_test;
 
 #[cfg(test)]
+mod env_whois_test;
+
+#[cfg(test)]
 mod worktree_followups_test;
 
 #[cfg(test)]
