@@ -1,0 +1,17 @@
+{
+  "Version": "1.104.7-tfb3b9b296-g0651cc45e",
+  "BackendState": "NeedsLogin",
+  "AuthURL": "",
+  "TailscaleIPs": null,
+  "Self": {
+    "ID": "",
+    "HostName": "laptop",
+    "DNSName": "",
+    "OS": "macOS",
+    "UserID": 0,
+    "TailscaleIPs": null,
+    "Online": false
+  },
+  "Peer": null,
+  "User": null
+}

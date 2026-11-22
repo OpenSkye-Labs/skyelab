@@ -1,0 +1,13 @@
+{
+  "Node": {
+    "ID": 4,
+    "StableID": "nGuest44CNTRL",
+    "Name": "guest-laptop.example.ts.net.",
+    "User": 2002,
+    "Addresses": ["100.64.0.4/32"],
+    "Hostinfo": { "OS": "windows", "Hostname": "guest-laptop" },
+    "Online": true
+  },
+  "UserProfile": { "ID": 2002, "LoginName": "guest@example.com", "DisplayName": "Guest" },
+  "CapMap": null
+}

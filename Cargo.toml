@@ -21,6 +21,7 @@ serde_json = "1"
 flume = "0.12"
 rusqlite = { version = "0.43", features = ["bundled"] }
 tempfile = "3"
+thiserror = "2"
 skyelab-core = { path = "crates/skyelab-core" }
 
 [workspace.lints.rust]

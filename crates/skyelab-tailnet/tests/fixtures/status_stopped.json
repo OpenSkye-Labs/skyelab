@@ -1,0 +1,16 @@
+{
+  "Version": "1.104.7-tfb3b9b296-g0651cc45e",
+  "BackendState": "Stopped",
+  "TailscaleIPs": null,
+  "Self": {
+    "ID": "nSelf111CNTRL",
+    "HostName": "laptop",
+    "DNSName": "",
+    "OS": "macOS",
+    "UserID": 1001,
+    "TailscaleIPs": null,
+    "Online": false
+  },
+  "Peer": null,
+  "User": null
+}
