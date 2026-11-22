@@ -181,7 +181,8 @@ impl AccountsConfig {
         Ok(())
     }
 
-    /// Replace the label and config dir of the account with the same id.
+    /// Replace the label and config dirs of the account with the same id. Its provider stays: its
+    /// threads hold that provider's session ids, which the other CLI can't resume.
     pub fn update_account(&mut self, account: Account) -> Result<()> {
         check_account(&account)?;
         let slot = self
@@ -189,6 +190,13 @@ impl AccountsConfig {
             .iter_mut()
             .find(|a| a.id == account.id)
             .with_context(|| format!("unknown account '{}'", account.id))?;
+        if slot.provider != account.provider {
+            bail!(
+                "account '{}' is a {} account; its provider can't change. Add a new account instead",
+                account.id,
+                slot.provider.label()
+            );
+        }
         *slot = account;
         Ok(())
     }

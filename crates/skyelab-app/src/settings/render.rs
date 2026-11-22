@@ -47,6 +47,10 @@ impl Settings {
                                     .child(
                                         div()
                                             .id(SharedString::from(format!("provider-{}", a.id)))
+                                            .debug_selector({
+                                                let s = format!("provider-{}", a.id);
+                                                move || s
+                                            })
                                             .flex_shrink_0()
                                             .px_1p5()
                                             .rounded_sm()
@@ -64,13 +68,16 @@ impl Settings {
                             .children(github),
                     )
                     .children(codex_id.map(|id| {
+                        let selector = format!("codex-login-{id}");
+                        div().debug_selector(move || selector).child(
                         Button::new(SharedString::from(format!("codex-login-{id}")))
                             .label("Log in to Codex")
                             .tooltip("Opens a terminal running codex login with this account's CODEX_HOME")
                             .flex_shrink_0()
                             .small()
                             .ghost()
-                            .on_click(cx.listener(move |this, _, _, cx| this.codex_log_in(&id, cx)))
+                            .on_click(cx.listener(move |this, _, _, cx| this.codex_log_in(&id, cx))),
+                        )
                     }))
                     .when(has_gh, |d| {
                         d.child(
@@ -112,18 +119,10 @@ impl Settings {
                     .flex()
                     .flex_wrap()
                     .gap_2()
-                    .children(Provider::ALL.map(|p| {
-                        let picked = self.provider == p;
-                        Button::new(SharedString::from(format!("provider-pick-{}", p.label())))
-                            .label(p.label())
-                            .tooltip("Which agent CLI this account logs in to")
-                            .flex_shrink_0()
-                            .map(|b| if picked { b.primary() } else { b.ghost() })
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.provider = p;
-                                cx.notify();
-                            }))
-                    }))
+                    // An account's provider is fixed once added (core refuses the change).
+                    .when(self.editing.is_none(), |d| {
+                        d.children(Provider::ALL.map(|p| self.provider_toggle(p, cx)))
+                    })
                     .when(self.editing.is_none(), |d| {
                         d.child(div().w_40().child(Input::new(&self.id_input)))
                     })
@@ -298,5 +297,27 @@ impl Settings {
         section("Test folder", cx)
             .child(Input::new(&self.test_input))
             .children(result)
+    }
+}
+
+impl Settings {
+    /// One of the add form's provider buttons; the picked one is filled.
+    fn provider_toggle(&self, p: Provider, cx: &mut Context<Self>) -> gpui::Div {
+        let selector = format!("provider-pick-{}", p.label());
+        let button = Button::new(SharedString::from(selector.clone()))
+            .label(p.label())
+            .tooltip("Which agent CLI this account logs in to")
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.provider = p;
+                cx.notify();
+            }));
+        div()
+            .flex_shrink_0()
+            .debug_selector(move || selector)
+            .child(if self.provider == p {
+                button.primary()
+            } else {
+                button.ghost()
+            })
     }
 }

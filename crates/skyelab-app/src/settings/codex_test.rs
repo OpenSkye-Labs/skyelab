@@ -37,11 +37,27 @@ fn add_a_codex_account_and_log_in(cx: &mut TestAppContext) {
     set(&id, "oai", cx);
     set(&label, "OpenAI", cx);
     set(&dir, codex_home.to_str().expect("utf-8"), cx);
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.provider, Provider::Claude, "the form starts on Claude")
+    });
+    cx.run_until_parked();
+    let toggle = cx
+        .debug_bounds("provider-pick-Codex")
+        .expect("the Codex toggle is drawn");
+    cx.simulate_click(toggle.center(), gpui::Modifiers::none());
     view.update_in(cx, |v, window, cx| {
-        assert_eq!(v.provider, Provider::Claude, "the form starts on Claude");
-        v.provider = Provider::Codex; // what the "Codex" toggle does
+        assert_eq!(v.provider, Provider::Codex, "the toggle picks Codex");
         v.save_account(&SaveAccount, window, cx);
     });
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("provider-oai").is_some(),
+        "the row shows its provider"
+    );
+    assert!(
+        cx.debug_bounds("codex-login-oai").is_some(),
+        "a Codex row offers Log in to Codex"
+    );
     let saved = AccountsConfig::load(&path).expect("saved");
     assert_eq!(saved.accounts[0].provider, Provider::Codex);
     view.read_with(cx, |v, _| {
@@ -118,6 +134,12 @@ fn a_claude_account_has_no_codex_login(cx: &mut TestAppContext) {
             *seen.borrow_mut() += 1
         })
     });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("provider-acme").is_some());
+    assert!(
+        cx.debug_bounds("codex-login-acme").is_none(),
+        "no Codex login on a Claude row"
+    );
     view.update(cx, |v, cx| v.codex_log_in("acme", cx));
     cx.run_until_parked();
     assert_eq!(*asked.borrow(), 0);

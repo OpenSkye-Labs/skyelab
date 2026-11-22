@@ -29,7 +29,8 @@ A folder with no binding never runs an agent.
 For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). After adding it,
 press **Log in to Codex** on its row: that opens a terminal running `codex login` with `CODEX_HOME` set to that
 folder (SkyeLab creates the folder first, private to you). A config file written before Codex support has no
-`provider` key; those accounts are Claude.
+`provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's
+sessions); to switch, add a new account and re-bind the folder.
 
 Codex threads run `codex app-server` with approvals off and the `workspace-write` sandbox: Codex can edit files in
 the folder but not outside it, and has no network for its commands. A request for more is declined, since SkyeLab
