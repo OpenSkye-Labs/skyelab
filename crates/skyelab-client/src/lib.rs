@@ -40,8 +40,8 @@ pub struct Options {
     /// Reconnect delay: starts at `backoff_min`, doubles per failed attempt, capped at `backoff_max`.
     pub backoff_min: Duration,
     pub backoff_max: Duration,
-    /// Tests only: also dial loopback addresses. The field doesn't exist outside `cargo test`.
-    #[cfg(test)]
+    /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) allow_loopback: bool,
     /// Tests only: the protocol version sent in hello.
     #[cfg(test)]
@@ -59,11 +59,20 @@ impl Default for Options {
             request_timeout: Duration::from_secs(30),
             backoff_min: Duration::from_millis(250),
             backoff_max: Duration::from_secs(30),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             allow_loopback: false,
             #[cfg(test)]
             protocol: skyelab_protocol::VERSION,
         }
+    }
+}
+
+#[cfg(feature = "test-support")]
+impl Options {
+    /// Other crates' tests: also dial loopback, where their in-process daemon listens. Never in a real build.
+    pub fn allow_loopback(mut self) -> Self {
+        self.allow_loopback = true;
+        self
     }
 }
 

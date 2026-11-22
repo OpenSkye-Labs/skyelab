@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod app_settings;
-pub use app_settings::AppSettings;
+pub use app_settings::{AppSettings, MAX_RECENT_ENVIRONMENTS};
 
 /// One provider login. For Claude Code an account *is* its config dir.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -444,3 +444,6 @@ mod tests {
         assert!(c.validate().is_err());
     }
 }
+
+#[cfg(test)]
+mod recent_envs_test;
