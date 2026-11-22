@@ -6,6 +6,11 @@ on:
     paths: &paths
       - mobile/**
       - crates/skyelab-protocol/**
+      # The app uses skyelab-client; its tests run an in-process skyelab-daemon over skyelab-store and skyelab-tailnet.
+      - crates/skyelab-client/**
+      - crates/skyelab-daemon/**
+      - crates/skyelab-store/**
+      - crates/skyelab-tailnet/**
       # skyelab-protocol inherits package fields, deps and lints from the root manifest; clippy reads clippy.toml.
       - Cargo.toml
       - clippy.toml

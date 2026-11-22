@@ -1,20 +1,57 @@
-//! Where the screens get projects, threads and events from.
+//! Where the screens get projects, threads and events from: a cached view the app reads while it renders.
+//! [`crate::remote::RemoteSource`] fills it from an environment; [`FakeSource`] holds canned data for tests and
+//! the `demo` build.
 
 use skyelab_protocol::{Project, Thread, ThreadEvent};
 
-// later: replace with `skyelab-client` (docs/mobile.md step 1) once it lands on main. That client is async and
-// channel-based, so this trait becomes a view over its cached state plus requests sent down its channel.
-// The fake's event kinds and `{"text": ..}` payloads are made up; the real ones are the store's `prompt`/`agent` records
-// (skyelab-app `Record`), so `app::event_text` changes with it.
-pub trait ThreadSource {
-    fn projects(&self) -> Vec<Project>;
-    fn threads(&self, project_id: i64) -> Vec<Thread>;
-    fn events(&self, thread_id: i64) -> Vec<ThreadEvent>;
-    fn send_message(&mut self, thread_id: i64, text: &str);
-    fn interrupt(&mut self, thread_id: i64);
+/// The connection to the environment, as the screens show it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Connection {
+    Connecting,
+    Connected,
+    /// The connection dropped or never came up, with why. The client keeps retrying.
+    Reconnecting(String),
+    /// The machine dropped us at its gate: this device isn't one of the user's own untagged tailnet devices.
+    Refused,
+    /// The machine speaks another protocol version. The client has stopped.
+    VersionMismatch(String),
+    /// The client stopped for another reason.
+    Stopped(String),
 }
 
-/// Canned in-memory data, so the screens can be built and checked before the real client exists.
+/// Something that arrived for a source in the background. Hand it back with [`ThreadSource::apply`].
+pub struct Msg(pub(crate) crate::remote::Inbound);
+
+impl From<skyelab_client::Update> for Msg {
+    fn from(update: skyelab_client::Update) -> Self {
+        Self(crate::remote::Inbound::Update(update))
+    }
+}
+
+pub trait ThreadSource {
+    fn connection(&self) -> Connection;
+    /// The last failed request, in words.
+    fn error(&self) -> Option<String>;
+    fn projects(&self) -> Vec<Project>;
+    /// The threads of a project, once [`ThreadSource::load_threads`] has fetched them.
+    fn threads(&self, project_id: i64) -> Vec<Thread>;
+    /// A watched thread's events, in seq order.
+    fn events(&self, thread_id: i64) -> Vec<ThreadEvent>;
+    fn load_threads(&mut self, project_id: i64);
+    /// Follow this thread's events live, and stop following any other.
+    fn watch(&mut self, thread_id: i64);
+    fn send_message(&mut self, thread_id: i64, text: &str);
+    fn interrupt(&mut self, thread_id: i64);
+    /// Where background results arrive. Keep receiving from it and pass each to `apply`. `None`: the source
+    /// only changes when called.
+    fn inbox(&self) -> Option<flume::Receiver<Msg>> {
+        None
+    }
+    fn apply(&mut self, _msg: Msg) {}
+}
+
+/// Canned in-memory data, so the screens can be checked without an environment. Payloads use the desktop store's
+/// kinds: `prompt` (a JSON string) and `agent` (a Claude stream event).
 pub struct FakeSource {
     projects: Vec<Project>,
     threads: Vec<Thread>,
@@ -47,30 +84,38 @@ impl FakeSource {
             ],
             events: Vec::new(),
         };
-        for (thread_id, kind, text) in [
-            (
-                1,
-                "user",
-                "The login page redirects to / instead of the page I came from.",
-            ),
-            (
-                1,
-                "assistant",
-                "Found it: the redirect drops the `next` query parameter. Fixing auth/login.rs.",
-            ),
-            (1, "tool", "cargo test -p auth"),
-            (
-                2,
-                "user",
-                "Add a dark theme that follows the system setting.",
-            ),
-        ] {
-            fake.push(thread_id, kind, text);
-        }
+        fake.prompt(
+            1,
+            "The login page redirects to / instead of the page I came from.",
+        );
+        fake.agent_text(
+            1,
+            "Found it: the redirect drops the `next` query parameter. Fixing auth/login.rs.",
+        );
+        fake.push(
+            1,
+            "agent",
+            serde_json::json!({"type": "assistant", "content": [
+                {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "cargo test -p auth"}}
+            ]}),
+        );
+        fake.prompt(2, "Add a dark theme that follows the system setting.");
         fake
     }
 
-    fn push(&mut self, thread_id: i64, kind: &str, text: &str) {
+    fn prompt(&mut self, thread_id: i64, text: &str) {
+        self.push(thread_id, "prompt", serde_json::json!(text));
+    }
+
+    fn agent_text(&mut self, thread_id: i64, text: &str) {
+        self.push(
+            thread_id,
+            "agent",
+            serde_json::json!({"type": "assistant", "content": [{"type": "text", "text": text}]}),
+        );
+    }
+
+    fn push(&mut self, thread_id: i64, kind: &str, payload: serde_json::Value) {
         let seq = self
             .events
             .iter()
@@ -81,7 +126,7 @@ impl FakeSource {
             thread_id,
             seq,
             kind: kind.into(),
-            payload_json: serde_json::json!({ "text": text }).to_string(),
+            payload_json: payload.to_string(),
             created_at: 0,
         });
     }
@@ -100,6 +145,14 @@ impl Default for FakeSource {
 }
 
 impl ThreadSource for FakeSource {
+    fn connection(&self) -> Connection {
+        Connection::Connected
+    }
+
+    fn error(&self) -> Option<String> {
+        None
+    }
+
     fn projects(&self) -> Vec<Project> {
         self.projects.clone()
     }
@@ -120,13 +173,17 @@ impl ThreadSource for FakeSource {
             .collect()
     }
 
+    fn load_threads(&mut self, _project_id: i64) {}
+
+    fn watch(&mut self, _thread_id: i64) {}
+
     fn send_message(&mut self, thread_id: i64, text: &str) {
-        self.push(thread_id, "user", text);
+        self.prompt(thread_id, text);
         self.set_status(thread_id, "running");
     }
 
     fn interrupt(&mut self, thread_id: i64) {
-        self.push(thread_id, "interrupted", "Stopped from the phone.");
+        self.agent_text(thread_id, "Stopped from the phone.");
         self.set_status(thread_id, "interrupted");
     }
 }

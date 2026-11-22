@@ -105,7 +105,8 @@ Each step goes through `/loop`.
 3. **`mobile/` app crate**, outside the desktop workspace like the spike, with its own lockfile. It shares path deps
    (`skyelab-protocol`, `skyelab-client`) and the exact GPUI and gpui-component pins. CI builds it for
    `aarch64-apple-ios-sim` and `aarch64-linux-android` in its own job, so the desktop gate stays fast. *Started
-   (2026-11-23):* `mobile/` runs the step 5 screens on a fake `ThreadSource` until `skyelab-client` lands, and
+   (2026-11-23):* `mobile/` ran the step 5 screens on a fake `ThreadSource` until `skyelab-client` landed (now only the `demo`
+   feature and tests use it), and
    `.github/workflows/mobile.yml` builds both targets.
 4. **Connect over the tailnet.** v1 relies on the official Tailscale app's VPN being on and dials
    `ws://<machine>.<tailnet>.ts.net:<port>`. The daemon's `whois` check already accepts the same user's untagged
@@ -115,11 +116,21 @@ Each step goes through `/loop`.
    An embedded `libtailscale` node comes later, only if needing the VPN app is a real problem.
    **Done (address check):** `skyelab-client` resolves the name, dials only the tailnet addresses it got back
    (`is_tailnet_ip`), and never re-resolves. Loopback is refused too; the exception exists only under `cargo test`.
+   **Done (mobile, 2026-11-23):** `mobile/src/remote.rs` is a `ThreadSource` over `skyelab-client`. The picker takes
+   only `<machine>.<tailnet>.ts.net` names. The screens show Connecting, Connected, Reconnecting (with why), Refused
+   (the daemon's gate closed the socket: not one of your own untagged devices) and a version mismatch. It calls only
+   `Client::connect(host, Options::default())`, so the transport the client defaults to (`wss://` once it lands) is
+   what the phone uses. Tests run it against an in-process daemon with a fake tailnet through skyelab-client's
+   `test-loopback` feature, a dev-dependency only.
    **Still open:** 100.64.0.0/10 is also carrier-grade NAT space, so with the VPN off a hostile DNS on such a carrier
    can still point at another subscriber's 100.x host. `wss://` with the node's `tailscale cert` closes that and should
    land before the app goes to anyone but the developer. It needs the daemon to serve TLS.
 5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
    composer (send) and a stop button (interrupt). Handle safe areas on both platforms.
+   **Done (2026-11-23):** events stream live (the app drains the source's inbox in a task); the thread list's status
+   refreshes on connect and after send or stop, because the protocol pushes no thread status. Android reports the
+   keyboard inset (`mobile/upstream/0003`), so the composer stays above the soft keyboard. Build with
+   `SKYELAB_MOBILE_FEATURES=demo scripts/run-*.sh` for canned data (UI checks without an environment).
 6. **Packaging.** iOS: a generated Xcode project (or the spike's plist) with signing for device builds. Android: the
    Gradle host from gpui-mobile, cut down to `GpuiActivity` and text input, with a pinned
    `distributionSha256Sum`. `android_main` needs `#[unsafe(no_mangle)]`, so it goes in a tiny crate that allows

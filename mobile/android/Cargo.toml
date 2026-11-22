@@ -10,6 +10,9 @@ publish = false
 name = "skyelab_mobile_android"
 crate-type = ["cdylib"]
 
+[features]
+demo = ["skyelab-mobile/demo"]
+
 [target.'cfg(target_os = "android")'.dependencies]
 skyelab-mobile = { path = ".." }
 gpui.workspace = true
