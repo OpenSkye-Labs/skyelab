@@ -226,6 +226,7 @@ impl ThreadView {
             thread.id,
             thread.parent_thread_id,
         );
+        let turns = self.turns.clone();
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         let record = Record::Prompt(text.clone());
         self.push(&record, cx);
@@ -242,6 +243,10 @@ impl ThreadView {
                     let was = {
                         let store = lock(&store)?;
                         let was = store.thread(id)?.map(|t| t.status).unwrap_or_default();
+                        // Stop or an exit got here first: writing "running" would hold a slot with no process.
+                        if !matches!(was.as_str(), "idle" | "running" | "starting") {
+                            anyhow::bail!("the agent has ended; send again to resume it");
+                        }
                         if let Some(parent) = parent
                             && !skyelab_core::delegation::is_busy(&was)
                         {
@@ -250,9 +255,16 @@ impl ThreadView {
                         store.set_thread_status(id, "running")?;
                         was
                     };
+                    // Counted before it is sent, so a quick result can't find zero and mark the row idle early.
+                    turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     // Queued first, so a full queue stores no prompt claude never got.
                     if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
-                        let _ = lock(&store).and_then(|s| s.set_thread_status(id, &was));
+                        turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                        // Only if nothing (a result, Stop) has written since.
+                        let _ = lock(&store).and_then(|s| match s.thread(id)? {
+                            Some(t) if t.status == "running" => s.set_thread_status(id, &was),
+                            _ => Ok(()),
+                        });
                         return Err(e);
                     }
                     append(&mut *lock(&store)?, id, &record)

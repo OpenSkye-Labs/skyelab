@@ -125,7 +125,6 @@ fn claude_bin(env: Option<std::ffi::OsString>, debug: bool) -> std::path::PathBu
     }
 }
 
-/// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.
 /// This install's device key for connecting to other machines, which approve it. Release builds on macOS keep it
 /// in the keychain, where another program (an agent) can't read it without the user's yes. Debug builds and other
 /// OSes use a 0600 file in the config dir, so a throwaway `HOME` never touches the login keychain. `None` (logged)
@@ -143,6 +142,7 @@ fn device_key() -> Option<String> {
         .ok()
 }
 
+/// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.
 fn tailnet() -> skyelab_tailnet::TailscaleCli {
     let cli = skyelab_tailnet::TailscaleCli::default();
     // Local, not roaming, app data: a private key must not sync to a Windows roaming profile.

@@ -49,8 +49,7 @@ impl AccountsConfig {
     }
 }
 
-/// A thread with this store status is working on a turn, so it holds one of its parent's child slots. The one
-/// definition every count and wait uses.
+/// A thread with this store status is working on a turn, so it holds one of its parent's child slots.
 pub fn is_busy(status: &str) -> bool {
     matches!(status, "starting" | "running")
 }

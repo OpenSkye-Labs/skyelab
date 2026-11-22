@@ -33,6 +33,8 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
 
     loop {
         let step = tokio::select! {
+            // A revoke or Disconnect wins over a request that is already waiting to be read.
+            biased;
             () = kick.notified() => {
                 eprintln!("skyelab-daemon: closing {peer}: disconnected by the user");
                 Step::Close
@@ -168,7 +170,6 @@ fn on_text(
     }
 }
 
-/// An approved hello: the version decides the rest.
 fn hello(
     id: skyelab_protocol::RequestId,
     protocol: skyelab_protocol::Version,

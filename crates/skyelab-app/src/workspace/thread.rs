@@ -56,6 +56,9 @@ pub struct ThreadView {
     pub(super) prompt: Entity<TextareaState>,
     pub(super) thread: Option<Thread>,
     pub(super) session: Option<Arc<Mutex<Session>>>,
+    /// Prompts the session was sent that haven't had their result yet. The row says `idle` only at zero, so a
+    /// follow-up queued behind a running turn keeps its child slot until that one is done too.
+    pub(super) turns: Arc<std::sync::atomic::AtomicUsize>,
     /// The folder was unbound at send time; the view shows the bind call to action.
     pub(super) needs_binding: bool,
     pub(super) items: Vec<Item>,
@@ -225,6 +228,7 @@ impl ThreadView {
             read_only: false,
             wt: Default::default(),
             resume_refused: None,
+            turns: Arc::default(),
             parent: None,
             required_account: None,
             children: Vec::new(),

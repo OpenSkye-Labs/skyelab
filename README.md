@@ -118,7 +118,7 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
   with `tailscale whois`), and carry a device key you approved on this machine for that device (kept in the
-  macOS keychain on a Mac client). Browser pages (any `Origin` header) are refused. A connected device can list and drive
+  macOS keychain by release builds on a Mac). Browser pages (any `Origin` header) are refused. A connected device can list and drive
   threads, but can't add projects, change accounts or bindings, or open terminals. The client checks the
   certificate against the exact MagicDNS name it dialled.
 

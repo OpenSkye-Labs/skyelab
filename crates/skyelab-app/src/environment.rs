@@ -22,9 +22,9 @@ pub enum ConnState {
     /// The remote's gate (whois) dropped us before the handshake. The client keeps retrying.
     Refused,
     /// The remote hasn't approved this device yet; the user is asked there. Holds the client's words, which
-    /// name this device's code. The client keeps retrying every few seconds.
+    /// name this device's code.
     NotApproved(String),
-    /// The user turned this device down on the remote. The client keeps retrying, slowly.
+    /// The user turned this device down on the remote.
     Denied,
     /// The name answered from another Tailscale node than the one trusted for it (a reused device name in a shared
     /// tailnet, or a replaced machine). Nothing is listed or sent until the user trusts `now`.

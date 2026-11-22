@@ -42,11 +42,14 @@ sharing machine admits a hello only if `(whois node StableID, SHA-256 of the key
 `settings.toml`. The daemon enforces it (`Daemon::set_approved`, `Config.approved` from the first connection);
 the app only edits the list.
 
-- An unknown pair is refused `not_approved` and listed as a request (at most 16, each dropped 10 minutes after its
-  last try). The Remote tab and the status bar show "<device> (<user>) wants to connect" with a code, the first 8
-  hex chars of the key's hash. The client works the code out from its own key and shows it too, so the user can
-  tell their app's request from another program's. Allow saves the pair, then admits it. Deny drops the request and
-  answers `denied` until sharing restarts (in memory only: "not now").
+- An unknown pair is refused `not_approved` and listed as a request: at most 16, two per node (the newest
+  replaces the oldest, so one machine making keys can't push other devices off the list), each dropped 10 minutes
+  after its last try. The Remote tab and the status bar show "<device> (<user>) wants to connect" with a code: the
+  first 16 hex chars (64 bits) of the key's hash, too many to grind a look-alike key for a code seen on screen.
+  The client works the code out from its own key and shows it too, so the user can tell their app's request from
+  another program's. Allow saves the pair, then admits it. Deny drops the request and answers `denied` until
+  sharing restarts (in memory only: "not now"). A connection is listed under connected devices only once its
+  hello was approved.
 - Revoke applies first, then saves (an off switch works even when saving fails): `set_approved` closes every open
   connection whose pair is gone. The hello check and the record of which pair a connection used happen under one
   lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A call that was
@@ -73,9 +76,18 @@ can't read it:
 
 It stops: a script, tool or agent on one of your machines that dials the port without SkyeLab's key, including one
 that makes its own key (it gets a prompt with a different code, which you deny); a key replayed from another node.
-It doesn't stop: on Windows and Linux, a same-user process that reads the key file; on macOS, a user who answers
-"Always Allow" to that prompt, or a process that can debug or patch SkyeLab itself. TLS client certificates would
-add nothing here: their private key would sit in the same places.
+It doesn't stop:
+
+- on Windows and Linux, a same-user process that reads the key file;
+- on macOS, a user who answers "Always Allow" to that prompt, a process that can debug or patch SkyeLab itself,
+  or one that plants the keychain item (readable by every app) before SkyeLab's first release run;
+- a machine you connect to learns your key (it is sent in hello). A compromised one could replay it, but only
+  from your own approved node, since the node is part of the approval. A challenge-response (HMAC of the key over
+  a server nonce) would close that;
+- agents on the sharing machine itself: they run as you there and can edit `settings.toml`. The approval guards
+  the network, not the host.
+
+TLS client certificates would add nothing here: their private key would sit in the same places.
 
 The client (`skyelab-client`) checks the server in turn: it dials only addresses in Tailscale's ranges, speaks only
 `wss://`, and accepts only a certificate chain that verifies against the Mozilla roots (`webpki-roots`) whose leaf

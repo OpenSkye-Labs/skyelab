@@ -98,6 +98,14 @@ fn the_device_key_file_is_made_once_private_and_reused() {
         let mode = std::fs::metadata(&path).expect("meta").permissions().mode();
         assert_eq!(mode & 0o077, 0, "only the owner may read it: {mode:o}");
     }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+        assert_eq!(crate::load_or_create_device_key(&path).expect("load"), key);
+        let mode = std::fs::metadata(&path).expect("meta").permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "made private again: {mode:o}");
+    }
     // A file that isn't a key is an error, never silently replaced (that would un-approve the device).
     std::fs::write(&path, "garbage").expect("write");
     assert!(crate::load_or_create_device_key(&path).is_err());

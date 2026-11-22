@@ -129,6 +129,8 @@ pub struct Remote {
     pub approved: Vec<ApprovedDevice>,
     /// Why the last Allow or Revoke couldn't be saved.
     pub approval_error: Option<String>,
+    /// Revokes whose save failed: kept out of every later save, so a later Allow can't bring them back.
+    unsaved_revokes: Vec<Approval>,
     /// Bumped on every stop, so a start that finishes after it drops its daemon instead of sharing.
     generation: Arc<AtomicU64>,
     /// Held while binding and while dropping a daemon, so a quick off→on never finds port 7287 still taken.
@@ -150,6 +152,7 @@ impl Remote {
             requests: Vec::new(),
             approved: Vec::new(),
             approval_error: None,
+            unsaved_revokes: Vec::new(),
             generation: Arc::default(),
             bind: Arc::default(),
             _start: None,
@@ -208,10 +211,16 @@ impl Remote {
         );
         // From settings.toml as it is now. A file that can't be read approves nobody, never the last good list.
         let saved = self.host.settings_path.as_deref().map(AppSettings::load);
+        let unsaved = &self.unsaved_revokes;
         self.approved = match saved {
             Some(Ok(s)) => s.approved_devices,
             _ => Vec::new(),
         };
+        self.approved.retain(|d| {
+            !unsaved
+                .iter()
+                .any(|r| r.node_id == d.node_id && r.key_hash == d.key_hash)
+        });
         config.approved = approvals(&self.approved);
         // Shells out to tailscale (status, then cert, which can take tens of seconds the first time).
         let started = cx.background_spawn(async move {
@@ -240,6 +249,8 @@ impl Remote {
                 this.status = match started {
                     Ok((daemon, port)) => {
                         let cert = daemon.certificate();
+                        // The list may have changed while it started (a Revoke during "Starting").
+                        daemon.set_approved(approvals(&this.approved));
                         *lock_slot(&this.host.slot) = Some(daemon);
                         this.poll_peers(cx);
                         Status::Sharing {
@@ -344,13 +355,19 @@ impl Remote {
         cx.notify();
     }
 
-    /// Cuts the device off first, then forgets it: even if saving fails it is out until sharing restarts, and the
-    /// error says the file still lists it.
+    /// Cuts the device off first, then forgets it: even if saving fails it stays out until sharing restarts.
     pub fn revoke(&mut self, node_id: &str, key_hash: &str, cx: &mut Context<Self>) {
-        let keep = |d: &ApprovedDevice| !(d.node_id == node_id && d.key_hash == key_hash);
-        self.approved.retain(keep);
+        let gone = Approval {
+            node_id: node_id.to_owned(),
+            key_hash: key_hash.to_owned(),
+        };
+        self.approved
+            .retain(|d| !(d.node_id == node_id && d.key_hash == key_hash));
         self.apply_approved(cx);
-        self.save_approved(|list| list.retain(keep));
+        if !self.unsaved_revokes.contains(&gone) {
+            self.unsaved_revokes.push(gone);
+        }
+        self.save_approved(|_| {});
         cx.notify();
     }
 
@@ -365,9 +382,17 @@ impl Remote {
     /// Changes the saved list; on success `approved` is what the file now says. False (with the error shown) if
     /// it couldn't be saved.
     fn save_approved(&mut self, change: impl FnOnce(&mut Vec<ApprovedDevice>)) -> bool {
+        let revoked = self.unsaved_revokes.clone();
         let saved = match &self.host.settings_path {
-            Some(path) => AppSettings::update(path, |s| change(&mut s.approved_devices))
-                .map(|(s, ())| s.approved_devices),
+            Some(path) => AppSettings::update(path, |s| {
+                change(&mut s.approved_devices);
+                s.approved_devices.retain(|d| {
+                    !revoked
+                        .iter()
+                        .any(|r| r.node_id == d.node_id && r.key_hash == d.key_hash)
+                });
+            })
+            .map(|(s, ())| s.approved_devices),
             None => Err(anyhow::anyhow!(
                 "no config directory on this OS, so the device list can't be saved"
             )),
@@ -376,10 +401,13 @@ impl Remote {
             Ok(list) => {
                 self.approved = list;
                 self.approval_error = None;
+                self.unsaved_revokes.clear();
                 true
             }
             Err(e) => {
-                self.approval_error = Some(format!("{e:#}"));
+                self.approval_error = Some(format!(
+                    "Couldn't save the device list ({e:#}). A revoked device stays out until sharing restarts."
+                ));
                 false
             }
         }

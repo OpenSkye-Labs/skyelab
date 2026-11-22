@@ -561,6 +561,8 @@ mod delegation_cap_test;
 #[cfg(test)]
 mod delegation_resume_test;
 #[cfg(test)]
+mod delegation_turns_test;
+#[cfg(test)]
 mod env_approval_test;
 #[cfg(test)]
 mod env_queue_test;

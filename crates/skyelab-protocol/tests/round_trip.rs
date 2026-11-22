@@ -214,7 +214,14 @@ fn device_keys_hash_and_code() {
     let code = skyelab_protocol::device_code(&hash);
     assert_eq!(
         code,
-        format!("{}-{}", &hash[..4], &hash[4..8]).to_uppercase()
+        format!(
+            "{}-{}-{}-{}",
+            &hash[..4],
+            &hash[4..8],
+            &hash[8..12],
+            &hash[12..16]
+        )
+        .to_uppercase()
     );
     // SHA-256("abc"), so the hash is the standard one, not something only this code agrees with.
     assert!(skyelab_protocol::device_key_hash("abc").starts_with("ba7816bf"));

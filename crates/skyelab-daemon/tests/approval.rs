@@ -54,7 +54,12 @@ fn unknown_device_is_not_approved_and_asks() {
     assert_eq!(r.user, format!("user{ME}@example.com"));
     assert_eq!(r.key_hash, device_key_hash(KEY));
     assert_eq!(r.code, device_code(&device_key_hash(KEY)));
-    assert_eq!(r.code.len(), 9, "XXXX-XXXX: {}", r.code);
+    assert_eq!(
+        r.code.len(),
+        19,
+        "XXXX-XXXX-XXXX-XXXX (64 bits): {}",
+        r.code
+    );
     // A second try is the same request, not a new one.
     let mut ws = connect(daemon.local_addrs()[0]);
     assert_eq!(hello_code(&mut ws, Some(KEY)), Some(ErrorCode::NotApproved));
@@ -178,17 +183,58 @@ fn a_hello_without_a_valid_key_is_refused_and_asks_nothing() {
 }
 
 #[test]
-fn requests_are_capped() {
+fn one_node_cannot_crowd_out_another_devices_request() {
+    let tailnet = FakeTailnet::new(Peer::Own);
+    let daemon = start(
+        tailnet.clone(),
+        Arc::new(Counting::default()),
+        test_config(),
+    );
+    daemon.set_approved(vec![]);
+    for n in 0..40u32 {
+        let mut ws = connect(daemon.local_addrs()[0]);
+        let _ = hello_key(&mut ws, Some(&format!("{n:064x}")));
+    }
+    let from_phone = daemon.requests();
+    assert_eq!(from_phone.len(), 2, "two per node, the newest");
+    assert_eq!(
+        from_phone[1].key_hash,
+        device_key_hash(&format!("{:064x}", 39))
+    );
+    *tailnet.peer.lock().expect("test setup") = Peer::OwnNode("nTablet");
+    let mut ws = connect(daemon.local_addrs()[0]);
+    let _ = hello_key(&mut ws, Some(KEY));
+    assert!(
+        daemon.requests().iter().any(|r| r.node_id == "nTablet"),
+        "the tablet is still asked about"
+    );
+}
+
+#[test]
+fn only_approved_connections_are_listed() {
     let tailnet = FakeTailnet::new(Peer::Own);
     let daemon = start(tailnet, Arc::new(Counting::default()), test_config());
     daemon.set_approved(vec![]);
-    for n in 0..40u32 {
-        let key = format!("{n:064x}");
+    let _waiting = connect(daemon.local_addrs()[0]); // no hello yet
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(daemon.peers().is_empty(), "{:?}", daemon.peers());
+}
+
+#[test]
+fn requests_are_capped() {
+    let tailnet = FakeTailnet::new(Peer::Own);
+    let daemon = start(
+        tailnet.clone(),
+        Arc::new(Counting::default()),
+        test_config(),
+    );
+    daemon.set_approved(vec![]);
+    // Two per node, so it takes many nodes to fill the list.
+    for node in 0..20usize {
+        let id: &'static str = Box::leak(format!("n{node}").into_boxed_str());
+        *tailnet.peer.lock().expect("test setup") = Peer::OwnNode(id);
         let mut ws = connect(daemon.local_addrs()[0]);
-        assert_eq!(
-            hello_code(&mut ws, Some(&key)),
-            Some(ErrorCode::NotApproved)
-        );
+        assert_eq!(hello_code(&mut ws, Some(KEY)), Some(ErrorCode::NotApproved));
     }
     assert_eq!(daemon.requests().len(), 16);
 }

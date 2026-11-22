@@ -218,7 +218,6 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Some(view) = self.open_view(a.id, cx) {
-            // Asked for by name: a waiting tab comes out of the queue.
             if let Some(at) = self.queued_tabs.iter().position(|q| q == &view) {
                 self.queued_tabs.remove(at);
                 self.dock_thread(&view, window, cx);

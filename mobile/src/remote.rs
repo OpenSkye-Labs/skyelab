@@ -132,8 +132,11 @@ impl RemoteSource {
             Update::Disconnected(d) if d.kind == DisconnectKind::Refused => {
                 self.connection = Connection::Refused;
             }
-            // Not approved or denied there: the client's message says so (with this device's code) and it keeps
-            // trying, so the generic "reconnecting" line with that message is enough here.
+            Update::Disconnected(d)
+                if matches!(d.kind, DisconnectKind::NotApproved | DisconnectKind::Denied) =>
+            {
+                self.connection = Connection::Reconnecting(d.message)
+            }
             Update::Disconnected(d) => self.connection = Connection::Reconnecting(d.message),
             // A thread we stopped watching may still have a few in flight, and re-watching replays from seq 1 while
             // events from the earlier watch may still be queued: keep each seq once, in order.

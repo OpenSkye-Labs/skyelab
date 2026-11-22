@@ -27,6 +27,14 @@ fn not_a_key(what: &str) -> io::Error {
 pub fn load_or_create_device_key(path: &Path) -> io::Result<String> {
     match std::fs::read_to_string(path) {
         Ok(text) => {
+            // A copied or restored file may have come back readable by others; it is private from now on.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                if std::fs::metadata(path)?.permissions().mode() & 0o077 != 0 {
+                    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+                }
+            }
             let key = text.trim();
             return if is_device_key(key) {
                 Ok(key.to_owned())

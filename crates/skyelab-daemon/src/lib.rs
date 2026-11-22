@@ -7,7 +7,7 @@
 //! `whois(peer_addr)` must say it is one of the user's own untagged devices ([`is_own_device`]); TLS with this
 //! node's `tailscale cert` certificate (there is no plaintext mode); the WebSocket handshake must not come from a
 //! browser (no `Origin`); the first request must be a compatible `hello` carrying a device key the user approved
-//! for that node ([`Approval`]); anything else is answered `not_approved` or `denied` and closed. Any error, including Tailscale being
+//! for that node ([`Approval`]), and nothing but hello is answered before that. Any error, including Tailscale being
 //! down or slow, rejects the connection. Without a certificate the daemon doesn't start.
 
 mod access;
@@ -228,10 +228,11 @@ impl Daemon {
         self.tls.info()
     }
 
-    /// Connections that passed the gate and are still open, oldest first.
+    /// Connections whose hello was approved and that are still open, oldest first.
     pub fn peers(&self) -> Vec<Peer> {
         lock_peers(&self.peers)
             .values()
+            .filter(|e| e.approval.is_some())
             .map(|e| e.peer.clone())
             .collect()
     }

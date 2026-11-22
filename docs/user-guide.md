@@ -128,7 +128,7 @@ Only your own devices can connect: same Tailscale user, not tagged, and not this
 allowed here once:
 
 - The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and the Remote tab
-  lists it under **Waiting for approval** with a code such as `4F2A-91C3`. The device shows the same code. Click
+  lists it under **Waiting for approval** with a code such as `4F2A-91C3-07BE-55D1`. The device shows the same code. Click
   **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
   the app you just opened. **Deny** turns it down until sharing restarts here.
 - Allowed devices are listed under **Allowed devices** (saved in `settings.toml`). **Revoke** closes its connection

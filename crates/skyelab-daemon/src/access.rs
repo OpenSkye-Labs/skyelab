@@ -32,6 +32,8 @@ pub struct AccessRequest {
 
 /// Requests kept at once. A process that keeps making keys can't grow this; past the cap new ones are dropped.
 pub(crate) const MAX_REQUESTS: usize = 16;
+/// Requests kept per node; a newer one replaces the oldest.
+const MAX_REQUESTS_PER_NODE: usize = 2;
 /// Denials kept for the daemon's life; the oldest goes first.
 const MAX_DENIED: usize = 64;
 /// A request nobody answered is dropped after this long without a new try.
@@ -85,7 +87,6 @@ impl Access {
 
 /// Hello's check. An approved key is recorded on the peer while the lock is held, so [`set_approved`] sees it.
 pub(crate) fn check(access: &SharedAccess, peers: &Peers, who: &Who, key: Option<&str>) -> Verdict {
-    // A missing or malformed key can't be approved, so it isn't worth asking about.
     let Some(key) = key.filter(|k| is_device_key(k)) else {
         return Verdict::NotApproved;
     };
@@ -105,6 +106,17 @@ pub(crate) fn check(access: &SharedAccess, peers: &Peers, who: &Who, key: Option
     }
     access.expire();
     let now = Instant::now();
+    // A node that keeps making keys only replaces its own requests, so it can't push other devices off the list.
+    let known = access
+        .requests
+        .iter()
+        .any(|(r, _)| r.node_id == wanted.node_id && r.key_hash == wanted.key_hash);
+    let from_node: Vec<usize> = (0..access.requests.len())
+        .filter(|&i| access.requests[i].0.node_id == wanted.node_id)
+        .collect();
+    if !known && from_node.len() >= MAX_REQUESTS_PER_NODE {
+        access.requests.remove(from_node[0]);
+    }
     let full = access.requests.len() >= MAX_REQUESTS;
     match access
         .requests
