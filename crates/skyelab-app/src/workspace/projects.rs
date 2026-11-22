@@ -1,19 +1,13 @@
 //! Projects and thread tabs: the sidebar's two sections and what selecting a row does.
 
 use super::thread::{ThreadView, ThreadViewEvent};
-use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label};
+use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
 use gpui::{AppContext as _, Context, Entity, PathPromptOptions, SharedString, Window};
 use gpui_component::dock::{DockPlacement, panel_handle};
 use skyelab_store::Thread;
 use std::path::PathBuf;
-use std::sync::{Mutex, MutexGuard};
 
 use super::panels::{SidebarItem, SidebarSection};
-
-fn lock<T>(m: &Mutex<T>) -> anyhow::Result<MutexGuard<'_, T>> {
-    m.lock()
-        .map_err(|_| anyhow::anyhow!("a background task panicked holding the store"))
-}
 
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select` or else the first one.

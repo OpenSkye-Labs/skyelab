@@ -268,14 +268,14 @@ impl Render for ThreadView {
         let header = self.render_header(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let theme = cx.theme();
-        let note = if self.past {
-            Some("A past thread. Continuing it isn't supported yet; start a new thread.")
+        let note = if self.read_only {
+            Some("This thread has ended. Continuing it isn't supported yet, so start a new thread.")
         } else if self.starting {
             Some("Starting the agent…")
         } else {
             None
         };
-        let body = if self.items.is_empty() && !self.past {
+        let body = if self.items.is_empty() && !self.read_only {
             div()
                 .flex_1()
                 .flex()
@@ -336,7 +336,7 @@ impl Render for ThreadView {
                             .primary()
                             .small()
                             .label("Send")
-                            .disabled(self.past || self.starting)
+                            .disabled(self.read_only || self.starting)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.send_prompt(&SendPrompt, window, cx)
                             })),

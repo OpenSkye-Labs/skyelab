@@ -3,8 +3,8 @@
 //! Store writes and every Session call run on the background executor: a stdin write blocks
 //! when `claude` stops reading, and SQLite is file I/O. The UI thread only applies results.
 
-use super::Backend;
 use super::thread_model::{Item, Record, apply};
+use super::{Backend, SharedStore, lock};
 use anyhow::{Context as _, Result};
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, ListAlignment,
@@ -12,11 +12,11 @@ use gpui::{
 };
 use gpui_component::input::{InputEvent, TextareaState};
 use skyelab_agent::{Event, Session};
-use skyelab_core::AccountsConfig;
+use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::{NewThread, Store, Thread};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 actions!(skyelab, [SendPrompt, Interrupt, Stop]);
 
@@ -43,20 +43,16 @@ pub struct ThreadView {
     expanded: HashSet<String>,
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
-    stopping: bool,
-    /// Reopened from the store: shown, not continued (skyelab-agent can't resume a session yet).
-    pub(super) past: bool,
+    stop_requested: bool,
+    /// Reopened, or its agent ended. shortcut: no continuing, since skyelab-agent can't resume a session; add `--resume` there first.
+    pub(super) read_only: bool,
+    send_chain: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
     _subs: Vec<Subscription>,
 }
 
 impl EventEmitter<ThreadViewEvent> for ThreadView {}
-
-fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>> {
-    m.lock()
-        .map_err(|_| anyhow::anyhow!("a background task panicked holding the lock"))
-}
 
 fn append(store: &mut Store, thread_id: i64, record: &Record) -> Result<()> {
     let (kind, payload) = record.to_row();
@@ -107,7 +103,7 @@ impl ThreadView {
             window,
             cx,
         );
-        this.past = true;
+        this.read_only = true;
         this.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
         let (store, id) = (this.backend.store.clone(), thread.id);
         this.thread = Some(thread);
@@ -180,8 +176,9 @@ impl ThreadView {
             expanded: HashSet::new(),
             error: None,
             starting: false,
-            stopping: false,
-            past: false,
+            stop_requested: false,
+            read_only: false,
+            send_chain: None,
             _pump: None,
             _task: None,
             _subs: subs,
@@ -258,11 +255,7 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let text = self.prompt.read(cx).value().trim().to_string();
-        if text.is_empty() || self.past || self.starting {
-            return;
-        }
-        if self.session.is_some() {
-            self.follow_up(text, window, cx);
+        if text.is_empty() || self.read_only || self.starting {
             return;
         }
         // The folder decides the account. Unbound means ask the user, never pick one.
@@ -273,6 +266,10 @@ impl ThreadView {
         };
         self.needs_binding = false;
         self.error = None;
+        if self.session.is_some() {
+            self.follow_up(text, &account, window, cx);
+            return;
+        }
         self.starting = true;
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         self.push(&Record::Prompt(text.clone()), cx);
@@ -313,8 +310,16 @@ impl ThreadView {
                         this.thread = Some(thread.clone());
                         cx.emit(ThreadViewEvent::Started(thread.clone()));
                         match session {
-                            Ok(session) => this.run(session, pump_store, thread.id, cx),
-                            Err(e) => this.show_error(e.context("starting the agent"), cx),
+                            Ok(session) => {
+                                this.run(session, pump_store, thread.id, cx);
+                                if this.stop_requested {
+                                    this.kill(cx);
+                                }
+                            }
+                            Err(e) => {
+                                this.finish(cx);
+                                this.show_error(e.context("starting the agent"), cx);
+                            }
                         }
                     }
                     Err(e) => this.show_error(e, cx),
@@ -324,23 +329,52 @@ impl ThreadView {
         }));
     }
 
-    fn follow_up(&mut self, text: String, window: &mut Window, cx: &mut Context<Self>) {
+    fn follow_up(
+        &mut self,
+        text: String,
+        account: &Account,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let (Some(session), Some(thread)) = (self.session.clone(), &self.thread) else {
             return;
         };
+        // The running agent keeps the account it started with; a rebound folder needs a new thread.
+        if thread.account_id != account.id {
+            let msg = format!(
+                "This folder is now bound to {}. Start a new thread to run under it.",
+                account.label
+            );
+            self.error = Some(msg.into());
+            cx.notify();
+            return;
+        }
         let (store, id) = (self.backend.store.clone(), thread.id);
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         let record = Record::Prompt(text.clone());
         self.push(&record, cx);
-        self.in_background(cx, move || {
-            append(&mut *lock(&store)?, id, &record)?;
-            lock(&store)?.set_thread_status(id, "running")?;
-            lock(&session)?.send_user_message(&text)
-        });
+        // Chained, so quick follow-ups reach the store and claude in the order they were sent.
+        let prev = self.send_chain.take();
+        let write = cx.background_executor().clone();
+        self.send_chain = Some(cx.spawn(async move |this, cx| {
+            if let Some(prev) = prev {
+                prev.await;
+            }
+            let sent = write
+                .spawn(async move {
+                    append(&mut *lock(&store)?, id, &record)?;
+                    lock(&store)?.set_thread_status(id, "running")?;
+                    lock(&session)?.send_user_message(&text)
+                })
+                .await;
+            if let Err(e) = sent {
+                let _ = this.update(cx, |this, cx| this.show_error(e, cx));
+            }
+        }));
     }
 
-    /// Streams the session's events: each is stored first, then shown, so the store keeps their order.
-    fn run(&mut self, session: Session, store: Arc<Mutex<Store>>, id: i64, cx: &mut Context<Self>) {
+    /// Each event is stored before it is shown, so the store keeps stdout's order.
+    fn run(&mut self, session: Session, store: SharedStore, id: i64, cx: &mut Context<Self>) {
         let events = session.events().clone();
         self.session = Some(Arc::new(Mutex::new(session)));
         self._pump = Some(cx.spawn(async move |this, cx| {
@@ -374,24 +408,34 @@ impl ThreadView {
                     return;
                 }
             }
-            // stdout closed: claude and everything it started are gone.
             let _ = this.update(cx, |this, cx| this.ended(cx));
         }));
     }
 
+    /// claude's stdout closed and every event is stored: record how the thread ended.
     fn ended(&mut self, cx: &mut Context<Self>) {
-        if self.stopping {
-            return;
-        }
-        let (Some(session), Some(thread)) = (self.session.take(), &self.thread) else {
+        let Some(thread) = &self.thread else {
             return;
         };
         let (store, id) = (self.backend.store.clone(), thread.id);
-        // Dropping the session reaps the child, which waits; keep that off the UI thread.
+        let status = if self.stop_requested {
+            "stopped"
+        } else {
+            "exited"
+        };
+        let session = self.session.take();
+        self.finish(cx);
+        // Reaping the child waits, so the session is dropped off the UI thread.
         self.in_background(cx, move || {
             drop(session);
-            lock(&store)?.set_thread_status(id, "exited")
+            lock(&store)?.set_thread_status(id, status)
         });
+    }
+
+    /// The agent is gone; this tab now only shows what happened.
+    fn finish(&mut self, cx: &mut Context<Self>) {
+        self.read_only = true;
+        self.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
         cx.notify();
     }
 
@@ -402,11 +446,20 @@ impl ThreadView {
     }
 
     pub(super) fn stop(&mut self, _: &Stop, _: &mut Window, cx: &mut Context<Self>) {
+        self.stop_requested = true;
+        // While starting, the start task sees the flag and kills the new session.
+        if !self.starting {
+            self.kill(cx);
+        }
+        cx.notify();
+    }
+
+    /// Kills the agent. The pump keeps storing what it already printed, then `ended` runs.
+    fn kill(&mut self, cx: &mut Context<Self>) {
         let (Some(session), Some(thread)) = (self.session.clone(), &self.thread) else {
             return;
         };
         let (store, id) = (self.backend.store.clone(), thread.id);
-        self.stopping = true;
         self._task = Some(cx.spawn(async move |this, cx| {
             // shortcut: a stdin write blocked on a stuck claude holds this lock, so Stop waits for it; split stdin from kill in skyelab-agent if that shows up.
             let stopped = cx
@@ -416,13 +469,11 @@ impl ThreadView {
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
-                this.stopping = false;
                 if let Err(e) = stopped {
                     return this.show_error(e, cx);
                 }
-                this._pump = None;
-                this.session = None; // already killed and reaped, so dropping it is instant
-                cx.notify();
+                this.session = None; // killed and reaped, so dropping it doesn't wait
+                this.finish(cx);
             });
         }));
     }
@@ -452,10 +503,17 @@ impl Focusable for ThreadView {
 impl Drop for ThreadView {
     /// Closing the tab ends its agent. Killing and reaping waits, so it happens off the UI thread.
     fn drop(&mut self) {
-        if let Some(session) = self.session.take() {
-            let _ = std::thread::Builder::new()
-                .name("skyelab-agent-reaper".into())
-                .spawn(move || drop(session));
-        }
+        let (Some(session), Some(thread)) = (self.session.take(), &self.thread) else {
+            return;
+        };
+        let (store, id) = (self.backend.store.clone(), thread.id);
+        let _ = std::thread::Builder::new()
+            .name("skyelab-agent-reaper".into())
+            .spawn(move || {
+                drop(session);
+                if let Ok(store) = lock(&store) {
+                    let _ = store.set_thread_status(id, "stopped");
+                }
+            });
     }
 }

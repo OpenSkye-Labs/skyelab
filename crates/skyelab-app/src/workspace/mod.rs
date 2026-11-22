@@ -55,6 +55,11 @@ pub struct OpenThread {
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;
 
+pub(super) fn lock<T>(m: &Mutex<T>) -> anyhow::Result<std::sync::MutexGuard<'_, T>> {
+    m.lock()
+        .map_err(|_| anyhow::anyhow!("a background task panicked holding the lock"))
+}
+
 /// What threads need to run: where they persist and which binary they launch.
 #[derive(Clone)]
 pub struct Backend {
