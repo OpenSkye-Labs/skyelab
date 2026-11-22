@@ -289,7 +289,7 @@ fn connection_text(connection: &Connection) -> (SharedString, bool) {
         Connection::Reconnecting(why) => (format!("Reconnecting… ({why})").into(), true),
         Connection::Refused => (
             "That machine didn't accept this device. Sign this phone in to your tailnet as the same user, \
-             untagged."
+             untagged, and check Tailscale is running on that machine."
                 .into(),
             true,
         ),

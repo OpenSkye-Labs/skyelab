@@ -3,12 +3,12 @@
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use skyelab_daemon::{Agents, Config, Daemon, StoreBackend};
-use skyelab_protocol::{ErrorCode, RpcError, ThreadEvent};
+use skyelab_daemon::{Agents, Backend, Config, Daemon, StoreBackend};
+use skyelab_protocol::{ErrorCode, Project, RpcError, Thread, ThreadEvent};
 use skyelab_store::{NewThread, Store};
 use skyelab_tailnet::{Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 
@@ -94,6 +94,39 @@ impl Agents for RecordingAgents {
     }
 }
 
+/// The store backend, except that the next `fail_lists` thread listings fail.
+pub struct Flaky {
+    inner: StoreBackend<RecordingAgents>,
+    pub fail_lists: Arc<AtomicUsize>,
+}
+
+impl Backend for Flaky {
+    fn list_projects(&self) -> Result<Vec<Project>, RpcError> {
+        self.inner.list_projects()
+    }
+    fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
+        let failing = self
+            .fail_lists
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
+        if failing.is_ok() {
+            return Err(RpcError::new(ErrorCode::Internal, "store busy"));
+        }
+        self.inner.list_threads(project_id)
+    }
+    fn thread_events_since(&self, thread_id: i64, seq: i64) -> Result<Vec<ThreadEvent>, RpcError> {
+        self.inner.thread_events_since(thread_id, seq)
+    }
+    fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError> {
+        self.inner.start_thread(project_id, prompt)
+    }
+    fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError> {
+        self.inner.send_message(thread_id, text)
+    }
+    fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
+        self.inner.interrupt(thread_id)
+    }
+}
+
 pub struct Env {
     _dir: tempfile::TempDir,
     pub db: PathBuf,
@@ -101,6 +134,7 @@ pub struct Env {
     pub thread_id: i64,
     pub tailnet: Arc<FakeTailnet>,
     pub agents: Arc<Recorder>,
+    pub fail_lists: Arc<AtomicUsize>,
     pub daemon: Option<Daemon>,
 }
 
@@ -134,10 +168,14 @@ impl Env {
             .expect("event");
         let tailnet = Arc::new(FakeTailnet::default());
         let agents = Arc::new(Recorder::default());
-        let backend = Arc::new(StoreBackend::new(
-            Store::open(&db).expect("open store"),
-            RecordingAgents(agents.clone()),
-        ));
+        let fail_lists = Arc::new(AtomicUsize::new(0));
+        let backend = Arc::new(Flaky {
+            inner: StoreBackend::new(
+                Store::open(&db).expect("open store"),
+                RecordingAgents(agents.clone()),
+            ),
+            fail_lists: fail_lists.clone(),
+        });
         let config = Config {
             port: 0,
             gate_timeout: Duration::from_millis(500),
@@ -151,6 +189,7 @@ impl Env {
             thread_id: thread.id,
             tailnet,
             agents,
+            fail_lists,
             daemon: Some(daemon),
         }
     }

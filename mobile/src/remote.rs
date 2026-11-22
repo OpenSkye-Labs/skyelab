@@ -4,6 +4,7 @@
 //! one inbox; the app keeps receiving from it and hands each message to [`ThreadSource::apply`].
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use skyelab_client::{Client, Error, Options, Pending, Project, Thread, ThreadEvent, Update};
 
@@ -15,11 +16,22 @@ pub(crate) enum Inbound {
     Threads(i64, Result<Vec<Thread>, Error>),
     /// A send or stop finished; `what` names it for the error line.
     Done(&'static str, Result<(), Error>),
+    /// Time to retry the lists after one failed.
+    Retry,
 }
 
-/// The client says this when the server closed the socket before the WebSocket handshake, which is what the
-/// daemon's gate does to a device whois doesn't accept. tests/remote_source.rs pins it against a real daemon.
-const GATE_CLOSED: &str = "WebSocket handshake failed";
+/// The daemon's gate closes the socket without answering the WebSocket upgrade when it doesn't accept a device (or
+/// its whois fails). The client then reports a handshake that never finished, or a reset when the close found our
+/// request unread. An HTTP answer, such as a 404 from another server, reads differently and is not this.
+/// tests/remote_source.rs and tests/refused_only_at_gate.rs pin both sides.
+fn closed_at_gate(reason: &str) -> bool {
+    reason
+        .strip_prefix("WebSocket handshake failed: ")
+        .is_some_and(|e| e.contains("Handshake not finished") || e.contains("Connection reset"))
+}
+
+/// How long to wait before re-listing after a list request failed while connected.
+const LIST_RETRY: Duration = Duration::from_secs(2);
 
 pub struct RemoteSource {
     client: Client,
@@ -32,12 +44,12 @@ pub struct RemoteSource {
     /// The project whose threads are shown; refreshed on reconnect and after a send or stop.
     open_project: Option<i64>,
     watched: Option<i64>,
-    /// The watched thread's events.
     events: Vec<ThreadEvent>,
+    retry_pending: bool,
 }
 
 impl RemoteSource {
-    /// Starts dialing `host` in the background. Fails only if a thread can't be started.
+    /// Starts dialing `host` in the background. Fails on invalid `options` or when its threads can't start.
     pub fn connect(host: &str, options: Options) -> std::io::Result<Self> {
         let client = Client::connect(host, options)?;
         let (inbox_tx, inbox) = flume::unbounded();
@@ -65,6 +77,7 @@ impl RemoteSource {
             open_project: None,
             watched: None,
             events: Vec::new(),
+            retry_pending: false,
         })
     }
 
@@ -87,6 +100,25 @@ impl RemoteSource {
         }
     }
 
+    /// A list request failed: try again shortly, once, rather than wait for the next reconnect.
+    fn list_failed(&mut self, what: &str, e: Error) {
+        self.error = Some(format!("Couldn't list {what}: {e}"));
+        if self.retry_pending {
+            return;
+        }
+        self.retry_pending = true;
+        let tx = self.inbox_tx.clone();
+        let spawned = std::thread::Builder::new()
+            .name("skyelab-mobile-retry".into())
+            .spawn(move || {
+                std::thread::sleep(LIST_RETRY);
+                let _ = tx.send(Msg(Inbound::Retry));
+            });
+        if spawned.is_err() {
+            self.retry_pending = false; // the next failure tries again
+        }
+    }
+
     fn refresh(&mut self) {
         self.request(self.client.list_projects(), Inbound::Projects);
         if let Some(project_id) = self.open_project {
@@ -98,16 +130,19 @@ impl RemoteSource {
         match update {
             Update::Connected(_) => {
                 self.connection = Connection::Connected;
+                self.error = None;
                 self.refresh();
             }
-            Update::Disconnected(reason) if reason.starts_with(GATE_CLOSED) => {
+            Update::Disconnected(reason) if closed_at_gate(&reason) => {
                 self.connection = Connection::Refused;
             }
             Update::Disconnected(reason) => self.connection = Connection::Reconnecting(reason),
-            // The client delivers each watched event once, in order; a thread we stopped watching may still
-            // have a few in flight.
+            // A thread we stopped watching may still have a few in flight, and re-watching replays from seq 1 while
+            // events from the earlier watch may still be queued: keep each seq once, in order.
             Update::Event(event) if Some(event.thread_id) == self.watched => {
-                self.events.push(event)
+                if let Err(at) = self.events.binary_search_by_key(&event.seq, |e| e.seq) {
+                    self.events.insert(at, event);
+                }
             }
             Update::Event(_) => {}
             Update::Fatal(Error::UnsupportedVersion(why)) => {
@@ -179,9 +214,20 @@ impl ThreadSource for RemoteSource {
     fn apply(&mut self, msg: Msg) {
         match msg.0 {
             Inbound::Update(update) => self.on_update(update),
-            Inbound::Projects(Ok(projects)) => self.projects = projects,
+            Inbound::Projects(Ok(projects)) => {
+                self.projects = projects;
+                self.error = None;
+            }
             Inbound::Threads(project_id, Ok(threads)) => {
                 self.threads.insert(project_id, threads);
+                self.error = None;
+            }
+            Inbound::Retry => {
+                self.retry_pending = false;
+                // Not connected: the next Connected re-lists anyway.
+                if self.connection == Connection::Connected {
+                    self.refresh();
+                }
             }
             Inbound::Done(_, Ok(())) => {
                 // The thread's status changed; the protocol doesn't push that.
@@ -189,8 +235,8 @@ impl ThreadSource for RemoteSource {
                     self.load_threads(project_id);
                 }
             }
-            Inbound::Projects(Err(e)) => self.error = Some(format!("Couldn't list projects: {e}")),
-            Inbound::Threads(_, Err(e)) => self.error = Some(format!("Couldn't list threads: {e}")),
+            Inbound::Projects(Err(e)) => self.list_failed("projects", e),
+            Inbound::Threads(_, Err(e)) => self.list_failed("threads", e),
             Inbound::Done(what, Err(e)) => self.error = Some(format!("Couldn't {what}: {e}")),
         }
     }
