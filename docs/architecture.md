@@ -115,8 +115,11 @@ Only MagicDNS names can be typed (`skyelab_protocol::is_magicdns_name`, shared w
 **A name that moves.** In a shared tailnet a device name can be reused by another node. Hello carries the server's
 node StableID (1.1). The first connect to a name saves it as `environment_nodes` in `settings.toml`; a later connect
 or reconnect that presents another node closes that machine's tabs, lists nothing, sends nothing, and shows a warning
-with a "Trust it" button, which saves exactly the node shown (refused if a different one answers by then). A 1.0
-server sends no node id and isn't pinned. Local-only actions don't apply: no local terminal for a remote project, no
+with a "Trust it" button, which saves exactly the node shown (refused if a different one answers by then). A server
+that sends no node id (1.0) connects only to a name never pinned. A `settings.toml` that can't be read refuses the
+connection rather than trust an unchecked node. Limit: the id is what the server says about itself, backed only by
+its certificate for the name, so a node that took over the name and replays the old id passes; checking the dialled
+address with the local tailscaled (whois) would close that. Local-only actions don't apply: no local terminal for a remote project, no
 worktree controls. Switching machines closes every remote tab and drops the client, so local and remote data never mix.
 
 **Restrict the port in your tailnet policy.** The gate already refuses other users and tagged nodes, but an ACL keeps

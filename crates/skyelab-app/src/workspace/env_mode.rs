@@ -266,9 +266,8 @@ impl Workspace {
             }
             let saved = write
                 .spawn(async move {
-                    let mut settings = AppSettings::load(&path)?;
-                    settings.remember_environment(&host);
-                    settings.save(&path)?;
+                    let (settings, ()) =
+                        AppSettings::update(&path, |s| s.remember_environment(&host))?;
                     anyhow::Ok(settings.recent_environments)
                 })
                 .await;
@@ -310,7 +309,8 @@ impl Workspace {
             .collect();
         let connected = env.state == ConnState::Connected;
         let trust = match &env.state {
-            ConnState::NodeChanged { now, .. } => Some((
+            // Only a node the connection really presents can be trusted (none: an old server sent no id).
+            ConnState::NodeChanged { now, .. } if env.presented_node() == Some(now) => Some((
                 SharedString::from("Trust it"),
                 Box::new(TrustRemoteNode {
                     node_id: now.clone(),

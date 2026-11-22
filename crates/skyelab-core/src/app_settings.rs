@@ -58,6 +58,19 @@ impl AppSettings {
         toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))
     }
 
+    /// Load, change, save, under one process-wide lock, so two writers (recents, sharing, node pins) can't each
+    /// save what they read before the other's write and drop it. A file that doesn't parse is left alone.
+    pub fn update<T>(path: &Path, change: impl FnOnce(&mut Self) -> T) -> Result<(Self, T)> {
+        static WRITE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _held = WRITE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut settings = Self::load(path)?;
+        let out = change(&mut settings);
+        settings.save(path)?;
+        Ok((settings, out))
+    }
+
     pub fn save(&self, path: &Path) -> Result<()> {
         let text = toml::to_string_pretty(self).context("serializing settings")?;
         crate::write_atomic(path, &text)

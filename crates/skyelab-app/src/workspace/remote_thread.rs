@@ -220,6 +220,10 @@ impl RemoteThreadView {
     }
 
     pub(super) fn stop(&mut self, _: &RemoteStop, window: &mut Window, cx: &mut Context<Self>) {
+        // Like send: never to a machine that isn't connected and trusted.
+        if self.env.read(cx).state != ConnState::Connected {
+            return;
+        }
         if let Some(id) = self.thread_id {
             let pending = self.client.interrupt(id);
             self.await_reply(pending, None, window, cx, |_, _, _| {});

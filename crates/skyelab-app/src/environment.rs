@@ -27,6 +27,8 @@ pub enum ConnState {
         was: String,
         now: String,
     },
+    /// The settings file that holds the trusted nodes can't be read, so this machine can't be checked. Refused.
+    Unverified(String),
     /// The remote speaks another protocol. Fatal: the client stops and won't retry.
     VersionMismatch(String),
     /// Fatal for any other reason.
@@ -54,6 +56,10 @@ impl ConnState {
             Self::NodeChanged { was, now } => format!(
                 "This name now answers from a different machine (node {now}, trusted: {was}). \
                  Trust it only if you replaced or renamed that machine."
+            )
+            .into(),
+            Self::Unverified(why) => format!(
+                "Can't check which machine this is ({why}). Fix or remove settings.toml, then switch again."
             )
             .into(),
             Self::VersionMismatch(why) => format!(
@@ -99,6 +105,9 @@ pub struct RemoteEnv {
     _projects: Option<Task<()>>,
     _threads: Option<Task<()>>,
     _node: Option<Task<()>>,
+    _trust: Option<Task<()>>,
+    /// Events that came while the connection's node was being checked, delivered once it is trusted.
+    held: Vec<ThreadEvent>,
 }
 
 impl EventEmitter<EnvEvent> for RemoteEnv {}
@@ -138,6 +147,8 @@ impl RemoteEnv {
             _projects: None,
             _threads: None,
             _node: None,
+            _trust: None,
+            held: Vec::new(),
         }
     }
 
@@ -147,15 +158,18 @@ impl RemoteEnv {
 
     fn on_update(&mut self, update: Update, cx: &mut Context<Self>) {
         match update {
-            // Events reach the tabs only from a trusted connection.
+            // Events reach the tabs only from a trusted connection. Those that arrive while it is being
+            // checked are held: the client delivers each event once, so dropping them would lose them.
             Update::Event(event) if self.state == ConnState::Connected => {
                 cx.emit(EnvEvent::Thread(event))
             }
+            Update::Event(event) if self.state == ConnState::Connecting => self.held.push(event),
             Update::Event(_) => {}
             Update::Connected(hello) => self.on_connected(hello, cx),
             update => {
                 if let Some(state) = ConnState::from_update(&update) {
                     self.node = None;
+                    self.held.clear();
                     self.state = state;
                     cx.notify();
                 }
@@ -163,59 +177,70 @@ impl RemoteEnv {
         }
     }
 
+    /// The node the live connection presented. `None` while disconnected or when the server sent no id.
+    pub fn presented_node(&self) -> Option<&str> {
+        self.node.as_deref()
+    }
+
     /// A connection passed hello. It counts as connected once its node is the one trusted for this name: the
     /// first node a name answers from is trusted (and saved), a different one later is refused until trusted.
+    /// A server that sends no node id connects only to a name never pinned, so leaving the id out can't get
+    /// past a pin. Settings that can't be read refuse the connection: nothing to check against.
     fn on_connected(&mut self, hello: Hello, cx: &mut Context<Self>) {
-        self.node = hello.node_id.clone();
-        let (Some(node), Some(path)) = (hello.node_id, self.settings_path.clone()) else {
-            // A 1.0 server sends no node id, and without a settings file there is nowhere to pin it.
-            return self.up(cx);
+        self.node = hello.node_id;
+        self.held.clear();
+        let Some(path) = self.settings_path.clone() else {
+            return self.up(cx); // no config directory: nowhere to pin
         };
-        if self.trusted.as_ref() == Some(&node) {
+        if self.node.is_some() && self.trusted == self.node {
             return self.up(cx);
         }
         self.state = ConnState::Connecting;
         cx.notify();
         let host = self.host.clone();
+        let node = self.node.clone();
         let checking = node.clone();
         let check = cx.background_spawn(async move {
-            let mut settings = AppSettings::load(&path)?;
-            match settings.environment_node(&host) {
-                Some(was) if was != checking => Ok(Some(was.to_owned())),
-                Some(_) => Ok(None),
+            let (_, was) = AppSettings::update(&path, |s| match s.environment_node(&host) {
+                Some(was) if Some(was) != checking.as_deref() => Some(was.to_owned()),
+                Some(_) => None,
                 None => {
-                    settings.trust_environment_node(&host, &checking);
-                    settings.save(&path)?;
-                    anyhow::Ok(None)
+                    if let Some(id) = &checking {
+                        s.trust_environment_node(&host, id);
+                    }
+                    None
                 }
-            }
+            })?;
+            anyhow::Ok(was)
         });
         self._node = Some(cx.spawn(async move |this, cx| {
             let checked = check.await;
             let _ = this.update(cx, |this, cx| {
                 // The connection this check was for has gone (or another node answered since).
-                if this.node.as_ref() != Some(&node) || this.state != ConnState::Connecting {
+                if this.node != node || this.state != ConnState::Connecting {
                     return;
                 }
                 match checked {
                     Ok(None) => this.up(cx),
-                    Ok(Some(was)) => this.node_changed(was, node, cx),
-                    // Unreadable settings: nothing to compare with. Connect, but say the identity wasn't checked.
-                    Err(e) => {
-                        this.up(cx);
-                        this.error =
-                            Some(format!("couldn't check which machine this is: {e:#}").into());
+                    Ok(Some(was)) => {
+                        let now = node.unwrap_or_else(|| "none (it sent no node id)".into());
+                        this.node_changed(ConnState::NodeChanged { was, now }, cx)
                     }
+                    Err(e) => this.node_changed(ConnState::Unverified(format!("{e:#}")), cx),
                 }
             });
         }));
     }
 
-    fn node_changed(&mut self, was: String, now: String, cx: &mut Context<Self>) {
-        self.state = ConnState::NodeChanged { was, now };
+    /// Refuses this connection: nothing listed, nothing sent, and its tabs close.
+    fn node_changed(&mut self, state: ConnState, cx: &mut Context<Self>) {
+        self.state = state;
+        self.held.clear();
         self.projects.clear();
         self.threads.clear();
         self.project = None;
+        self._projects = None;
+        self._threads = None;
         cx.emit(EnvEvent::NodeChanged);
         cx.notify();
     }
@@ -233,20 +258,22 @@ impl RemoteEnv {
         };
         let (host, node) = (self.host.clone(), node_id.to_owned());
         let save = cx.background_spawn(async move {
-            let mut settings = AppSettings::load(&path)?;
-            settings.trust_environment_node(&host, &node);
-            settings.save(&path)
+            AppSettings::update(&path, |s| s.trust_environment_node(&host, &node)).map(drop)
         });
         let node = node_id.to_owned();
-        self._node = Some(cx.spawn(async move |this, cx| {
+        // Its own task: a reconnect starting a new check must not cancel the save.
+        self._trust = Some(cx.spawn(async move |this, cx| {
             let saved = save.await;
             let _ = this.update(cx, |this, cx| match saved {
                 Err(e) => {
                     this.error = Some(format!("couldn't trust that machine: {e:#}").into());
                     cx.notify();
                 }
-                // Still the node the user trusted, on a live connection.
-                Ok(()) if this.node.as_ref() == Some(&node) => {
+                // Still the refused node the user trusted, on a live connection.
+                Ok(())
+                    if this.node.as_ref() == Some(&node)
+                        && matches!(this.state, ConnState::NodeChanged { .. }) =>
+                {
                     this.error = None;
                     this.up(cx);
                 }
@@ -258,6 +285,9 @@ impl RemoteEnv {
     fn up(&mut self, cx: &mut Context<Self>) {
         self.trusted = self.node.clone();
         self.state = ConnState::Connected;
+        for event in std::mem::take(&mut self.held) {
+            cx.emit(EnvEvent::Thread(event));
+        }
         self.load_projects(cx);
         self.load_threads(cx);
         cx.notify();
@@ -277,10 +307,14 @@ impl RemoteEnv {
         cx.notify();
     }
 
+    /// Only from a trusted connection; `up` loads them once it is.
     pub fn load_threads(&mut self, cx: &mut Context<Self>) {
         let Some(id) = self.project else {
             return;
         };
+        if self.state != ConnState::Connected {
+            return;
+        }
         let pending = self.client.list_threads(id);
         self._threads = Some(self.await_reply(pending, cx, move |this, mut threads, _| {
             // A slow reply for a project no longer selected changes nothing.

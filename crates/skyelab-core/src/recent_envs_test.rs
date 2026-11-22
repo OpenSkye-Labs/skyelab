@@ -48,3 +48,31 @@ fn environment_nodes_are_kept_per_name_and_round_trip() {
     s.save(&path).expect("save");
     assert_eq!(AppSettings::load(&path).expect("load"), s);
 }
+
+#[test]
+fn concurrent_updates_keep_every_write() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    let threads: Vec<_> = (0..8)
+        .map(|i| {
+            let path = path.clone();
+            std::thread::spawn(move || {
+                for j in 0..10 {
+                    AppSettings::update(&path, |s| {
+                        s.trust_environment_node(&format!("m{i}-{j}.t.ts.net"), "n")
+                    })
+                    .expect("update");
+                }
+            })
+        })
+        .collect();
+    for t in threads {
+        t.join().expect("thread");
+    }
+    let saved = AppSettings::load(&path).expect("load");
+    assert_eq!(
+        saved.environment_nodes.len(),
+        80,
+        "no write lost to a racing one"
+    );
+}
