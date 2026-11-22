@@ -496,3 +496,6 @@ mod worktree_guard_test;
 
 #[cfg(test)]
 mod worktree_discard_test;
+
+#[cfg(test)]
+mod worktree_review_test;

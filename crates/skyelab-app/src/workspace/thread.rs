@@ -296,7 +296,6 @@ impl ThreadView {
         self._task = Some(cx.spawn(async move |this, cx| {
             let started = cx
                 .background_spawn(async move {
-                    // Refused before any thread row exists unless it lands on the project's account.
                     let worktree = use_worktree
                         .then(|| super::worktree::create(&config, &cwd, &account.id, &text))
                         .transpose()

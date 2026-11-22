@@ -259,7 +259,7 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The thread's Changes tab: selected if open, else added next to the thread.
+    /// The Changes tab for the thread's folder: refreshed and selected if one is open, else added.
     pub(super) fn open_changes(
         &mut self,
         view: &Entity<ThreadView>,

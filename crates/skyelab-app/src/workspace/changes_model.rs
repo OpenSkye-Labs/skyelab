@@ -6,8 +6,11 @@ use skyelab_git::{ChangeKind, Line};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
-/// Longest untracked file read for display; it comes from the repo, so it is untrusted.
-const MAX_UNTRACKED: u64 = 1 << 20;
+/// Untracked files come from the agent, so what is read of them for display is capped per file and in total.
+const MAX_UNTRACKED_FILE: u64 = 1 << 20;
+const MAX_UNTRACKED_TOTAL: u64 = 16 << 20;
+/// git's hash of the empty tree: what a repo with no commits yet is compared against.
+const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChangedFile {
@@ -52,7 +55,7 @@ pub struct Changes {
 pub fn load(dir: &Path) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
-    for d in skyelab_git::diff(dir, "HEAD")? {
+    for d in diff_head(dir)? {
         let Some(path) = d.new_path.clone().or(d.old_path.clone()) else {
             continue;
         };
@@ -89,8 +92,9 @@ pub fn load(dir: &Path) -> Result<Changes> {
             .flatten();
         entries.push((file(path, old_path, d.kind, d.binary), rows));
     }
+    let mut budget = MAX_UNTRACKED_TOTAL;
     for rel in skyelab_git::status(dir)?.untracked {
-        let (binary, rows) = untracked_rows(&root.join(&rel));
+        let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget);
         entries.push((file(rel, None, ChangeKind::Added, binary), rows));
     }
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
@@ -103,6 +107,18 @@ pub fn load(dir: &Path) -> Result<Changes> {
         changes.files.push(f);
     }
     Ok(changes)
+}
+
+/// `diff HEAD`, or against the empty tree while the repo has no commit to compare with.
+fn diff_head(dir: &Path) -> Result<Vec<skyelab_git::FileDiff>> {
+    match skyelab_git::diff(dir, "HEAD") {
+        Err(skyelab_git::Error::Git { stderr, .. })
+            if stderr.contains("bad revision") || stderr.contains("unknown revision") =>
+        {
+            Ok(skyelab_git::diff(dir, EMPTY_TREE)?)
+        }
+        other => Ok(other?),
+    }
 }
 
 fn file(path: PathBuf, old_path: Option<PathBuf>, kind: ChangeKind, binary: bool) -> ChangedFile {
@@ -126,7 +142,7 @@ fn line_row(old: Option<u32>, new: Option<u32>, kind: LineKind, text: &str) -> R
 
 /// An untracked file shown as all added lines. Never follows a link: it could point at any file
 /// on disk, another account's credentials included.
-fn untracked_rows(path: &Path) -> (bool, Vec<Row>) {
+fn untracked_rows(path: &Path, budget: &mut u64) -> (bool, Vec<Row>) {
     let placeholder = |p| (false, vec![Row::Placeholder(p)]);
     let Ok(meta) = std::fs::symlink_metadata(path) else {
         return placeholder("Can't read this file");
@@ -134,16 +150,25 @@ fn untracked_rows(path: &Path) -> (bool, Vec<Row>) {
     if !meta.is_file() {
         return placeholder("Not a regular file");
     }
-    if meta.len() > MAX_UNTRACKED {
+    if meta.len() > MAX_UNTRACKED_FILE {
         return placeholder("File too large to show");
     }
+    if meta.len() > *budget {
+        return placeholder("Not shown: too many new files");
+    }
     let mut bytes = Vec::new();
-    let read =
-        std::fs::File::open(path).and_then(|f| f.take(MAX_UNTRACKED).read_to_end(&mut bytes));
+    // shortcut: a FIFO swapped in after the lstat blocks this open; open with O_NONBLOCK if that shows up.
+    let read = std::fs::File::open(path).and_then(|f| {
+        if !same_file(&meta, &f.metadata()?) {
+            return Err(std::io::Error::other("the file changed while it was read"));
+        }
+        f.take(MAX_UNTRACKED_FILE).read_to_end(&mut bytes)
+    });
     if read.is_err() {
         return placeholder("Can't read this file");
     }
-    // git's own test: a NUL in the first 8000 bytes means binary.
+    *budget = budget.saturating_sub(bytes.len() as u64);
+    // The same probe git uses: a NUL in the first 8000 bytes means binary.
     if bytes.iter().take(8000).any(|b| *b == 0) {
         return (true, vec![Row::Placeholder("Binary file")]);
     }
@@ -154,4 +179,16 @@ fn untracked_rows(path: &Path) -> (bool, Vec<Row>) {
         .map(|(i, l)| line_row(None, Some(i as u32 + 1), LineKind::Added, l))
         .collect();
     (false, rows)
+}
+
+/// The file opened is the one checked with lstat, not a link swapped in between.
+#[cfg(unix)]
+fn same_file(checked: &std::fs::Metadata, opened: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt as _;
+    opened.is_file() && (checked.dev(), checked.ino()) == (opened.dev(), opened.ino())
+}
+
+#[cfg(not(unix))]
+fn same_file(_: &std::fs::Metadata, opened: &std::fs::Metadata) -> bool {
+    opened.is_file()
 }

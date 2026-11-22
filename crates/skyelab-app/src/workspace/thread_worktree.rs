@@ -23,7 +23,6 @@ actions!(
     ]
 );
 
-/// A thread's worktree UI state.
 #[derive(Default)]
 pub struct WorktreeState {
     /// "Run in a new worktree" in the composer; read when the first prompt starts the thread.
@@ -31,6 +30,8 @@ pub struct WorktreeState {
     /// A dirty worktree's status the user was asked to confirm discarding.
     pub discard_pending: Option<skyelab_git::Status>,
     task: Option<gpui::Task<()>>,
+    /// A discard is running; another click is ignored.
+    busy: bool,
 }
 
 impl ThreadView {
@@ -94,17 +95,20 @@ impl ThreadView {
         cx.notify();
     }
 
-    /// Off the UI thread: git status and worktree removal are file I/O.
     fn run_discard(&mut self, confirmed: Option<skyelab_git::Status>, cx: &mut Context<Self>) {
         let Some(thread) = &self.thread else { return };
         let Some(path) = thread.worktree_path.clone() else {
             return;
         };
+        if self.wt.busy {
+            return;
+        }
         if self.session.is_some() {
             self.error = Some("Stop the agent before discarding its worktree.".into());
             cx.notify();
             return;
         }
+        self.wt.busy = true;
         let (store, id, branch) = (
             self.backend.store.clone(),
             thread.id,
@@ -121,6 +125,7 @@ impl ThreadView {
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
+                this.wt.busy = false;
                 match done {
                     Ok(Discard::Removed) => {
                         this.wt.discard_pending = None;
@@ -129,7 +134,6 @@ impl ThreadView {
                         }
                         this.error = None;
                     }
-                    // Asked first, or the changes moved since the prompt: ask again about what is there now.
                     Ok(Discard::NeedsConfirm(st)) => this.wt.discard_pending = Some(st),
                     Err(e) => {
                         this.error =
@@ -141,7 +145,6 @@ impl ThreadView {
         }));
     }
 
-    /// The composer's opt-in, shown until the thread starts.
     pub(super) fn render_worktree_option(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if self.thread.is_some() || self.read_only {
             return None;
@@ -164,7 +167,6 @@ impl ThreadView {
         )
     }
 
-    /// Header buttons: Changes for any thread, terminal and discard for one with a worktree.
     pub(super) fn render_worktree_actions(&self, cx: &mut Context<Self>) -> AnyElement {
         let has_worktree = self
             .thread
@@ -208,12 +210,22 @@ impl ThreadView {
     pub(super) fn render_discard_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let st = self.wt.discard_pending.as_ref()?;
         let theme = cx.theme();
-        let n = worktree::changed_files(st);
-        let msg = if n == 1 {
-            "This worktree has 1 changed file. Discarding deletes it.".to_owned()
-        } else {
-            format!("This worktree has {n} changed files. Discarding deletes them.")
-        };
+        // The exact files the confirm covers; a confirm after they change is refused and asked again.
+        let files = worktree::changed_files(st);
+        let mut msg = format!(
+            "Discarding deletes {} uncommitted change{}: ",
+            files.len(),
+            if files.len() == 1 { "" } else { "s" }
+        );
+        let shown: Vec<String> = files
+            .iter()
+            .take(5)
+            .map(|p| p.display().to_string())
+            .collect();
+        msg.push_str(&shown.join(", "));
+        if files.len() > shown.len() {
+            msg.push_str(&format!(" and {} more", files.len() - shown.len()));
+        }
         Some(
             h_flex()
                 .mx_4()

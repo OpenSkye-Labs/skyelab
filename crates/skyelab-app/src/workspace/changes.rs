@@ -192,7 +192,6 @@ impl ChangesView {
     }
 }
 
-/// One letter per change kind, coloured like git's own short status.
 fn kind_badge(kind: ChangeKind, cx: &App) -> impl IntoElement {
     let theme = cx.theme();
     let (letter, color) = match kind {

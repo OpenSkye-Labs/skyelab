@@ -18,8 +18,8 @@ pub(super) struct Created {
     pub branch: String,
 }
 
-/// `fix-the-login-bug-k3x9`: up to 24 chars of the title, plus a time-based suffix so two
-/// threads with the same title get different branches.
+/// The title in lowercase ASCII words, plus a time-based suffix so two threads with the same
+/// title get different branches.
 pub(super) fn slug(title: &str, now_ms: u128) -> String {
     let mut s = String::new();
     for c in title.chars() {
@@ -71,7 +71,6 @@ pub(super) fn create(
     }
     let base = project.join(DIR);
     let parent = base.join("worktrees");
-    // A repo can commit `.skyelab` as a link to another folder, maybe one bound to another account.
     for dir in [&base, &parent] {
         if std::fs::symlink_metadata(dir).is_ok_and(|m| !m.is_dir()) {
             bail!("{} is not a plain folder; remove it first", dir.display());
@@ -84,11 +83,11 @@ pub(super) fn create(
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
     let path = skyelab_git::create_worktree(&project, &branch, "HEAD", Some(&dest), false)?;
-    let checked = check(config, &project, &path, account_id);
-    if let Err(e) = checked {
-        // Best effort: the refusal is the error that matters.
-        let _ = skyelab_git::remove_worktree(&project, &path, true);
-        return Err(e);
+    if let Err(e) = check(config, &project, &path, account_id) {
+        return Err(match skyelab_git::remove_worktree(&project, &path, true) {
+            Ok(()) => e,
+            Err(c) => e.context(format!("removing the refused worktree also failed: {c}")),
+        });
     }
     Ok(Created { path, branch })
 }
@@ -120,14 +119,22 @@ pub(super) fn check(
             real.display()
         );
     }
-    match config.resolve(&real) {
+    resolves_to(config, &real, account_id)
+}
+
+/// The one check behind every worktree launch: `dir` resolves to exactly the thread's account.
+fn resolves_to(config: &AccountsConfig, dir: &Path, account_id: &str) -> Result<()> {
+    match config.resolve(dir) {
         Some(a) if a.id == account_id => Ok(()),
         Some(a) => bail!(
             "{} is bound to {}, not this thread's account ({account_id})",
-            real.display(),
+            dir.display(),
             a.label
         ),
-        None => bail!("{} isn't bound to an account", real.display()),
+        None => bail!(
+            "{} isn't bound to this thread's account ({account_id})",
+            dir.display()
+        ),
     }
 }
 
@@ -138,13 +145,7 @@ pub(super) fn terminal_options(
     cwd: &Path,
     account_id: &str,
 ) -> Result<SpawnOptions> {
-    match config.resolve(cwd) {
-        Some(a) if a.id == account_id => {}
-        _ => bail!(
-            "{} no longer resolves to this thread's account ({account_id}); open a terminal from the project instead",
-            cwd.display()
-        ),
-    }
+    resolves_to(config, cwd, account_id)?;
     Ok(SpawnOptions {
         cwd: cwd.to_owned(),
         command: None,
@@ -163,6 +164,14 @@ pub(super) enum Discard {
 /// Removes the worktree at `path` (the branch stays). A dirty one is removed only when
 /// `confirmed` is the exact status it has now, so a confirm can't drop changes it never showed.
 pub(super) fn discard(path: &Path, confirmed: Option<&Status>) -> Result<Discard> {
+    match std::fs::symlink_metadata(path) {
+        // Deleted by hand: nothing left to lose, and git prunes its record of it on its own.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Discard::Removed),
+        Err(e) => return Err(e.into()),
+        // A link could lead into another repo's worktree, and removing would hit that one.
+        Ok(m) if !m.is_dir() => bail!("{} is no longer a folder", path.display()),
+        Ok(_) => {}
+    }
     let main = skyelab_git::list_worktrees(path)?
         .into_iter()
         .next()
@@ -180,8 +189,8 @@ pub(super) fn discard(path: &Path, confirmed: Option<&Status>) -> Result<Discard
     Ok(Discard::Removed)
 }
 
-/// Files a discard would lose, for the confirm prompt.
-pub(super) fn changed_files(st: &Status) -> usize {
+/// Files a discard would lose, for the confirm prompt, sorted.
+pub(super) fn changed_files(st: &Status) -> Vec<&Path> {
     let mut paths: Vec<&Path> = st
         .staged
         .iter()
@@ -191,7 +200,7 @@ pub(super) fn changed_files(st: &Status) -> usize {
         .collect();
     paths.sort();
     paths.dedup();
-    paths.len()
+    paths
 }
 
 fn now_ms() -> u128 {
