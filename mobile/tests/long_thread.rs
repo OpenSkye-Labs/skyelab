@@ -129,6 +129,17 @@ fn a_10k_event_thread_renders_only_visible_rows_and_appends_by_splice(cx: &mut T
         assert!(a.events_list.bounds_for_item(5_000).is_some());
     });
     assert!(append < 100, "append frame built {append} rows");
+    // Another thread replaces the rows (a reset), and coming back shows this one's again.
+    app.update(cx, |a, cx| a.back(cx));
+    app.update_in(cx, |a, window, cx| a.open_thread(2, window, cx));
+    frame(&app, cx);
+    app.read_with(cx, |a, _| assert_eq!(a.events_list.item_count(), 0));
+    app.update(cx, |a, cx| a.back(cx));
+    app.update_in(cx, |a, window, cx| a.open_thread(1, window, cx));
+    frame(&app, cx);
+    app.read_with(cx, |a, _| {
+        assert_eq!(a.events_list.item_count(), N as usize + 1)
+    });
     eprintln!(
         "mobile 10k: first frame {open_time:?} ({open} rows), append+frame {append_time:?} ({append} rows)"
     );
