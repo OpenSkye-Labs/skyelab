@@ -52,7 +52,7 @@ pub fn init(cx: &mut App) {
     let bindings: [(&str, Box<dyn Action>); 3] = [
         ("secondary-enter", Box::new(SaveAccount)),
         ("escape", Box::new(CancelEdit)),
-        ("secondary-b", Box::new(BindFolder)),
+        ("secondary-shift-b", Box::new(BindFolder)), // secondary-b toggles the sidebar everywhere
     ];
     let bindings: Vec<_> = bindings
         .into_iter()
@@ -69,7 +69,7 @@ type AccountSelect = SelectState<Vec<SharedString>>;
 pub struct Settings {
     path: Option<PathBuf>,
     config: AccountsConfig,
-    error: Option<String>,
+    pub(crate) error: Option<String>,
     /// Why saving is off. Set when the file failed to load, so an edit never overwrites it.
     locked: Option<String>,
     /// Id of the account the form is editing; `None` means the form adds a new one.
