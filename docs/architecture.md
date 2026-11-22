@@ -36,8 +36,8 @@ personal plan by mistake.
 | `skyelab-app` | GPUI desktop client (binary `skyelab`) | yes |
 | `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) | yes |
 | `skyelab-agent` | spawning/streaming agent processes | later |
-| `skyelab-daemon` | environment server + RPC | when remote ships |
-| `skyelab-tailnet` | `Tailnet` trait: `peers / dial / listen / whois` | when remote ships |
+| `skyelab-daemon` | environment server + RPC, hosted in the app | yes |
+| `skyelab-tailnet` | `Tailnet` trait over the Tailscale CLI: `self_node / peers / whois` | yes |
 | `skyelab-devices` | device hub core: list/boot/install/launch/screenshot on iOS Simulators and Android emulators (sync, shells out to simctl/adb/emulator) | yes |
 
 ## Tailscale plan
@@ -48,6 +48,50 @@ personal plan by mistake.
 - **Mobile / no Tailscale app:** embed a userspace node (libtailscale via the `libtailscale` crate, which needs Go to build). It needs
   no VPN entitlement, but each install becomes its own tailnet device.
 - **Later:** official `tailscale-rs` (pure Rust, currently v0.7, labelled unstable, no mobile or MagicDNS yet), once it hits 1.0.
+
+## Remote
+
+The app can serve this machine to your other devices. It is **off by default**: the Remote tab's "Share this machine
+on my tailnet" switch (`skyelab::ToggleSharing`) turns it on, and the choice is saved as `share_on_tailnet` in
+`settings.toml`, next to `accounts.toml` (never in it). The status bar then says `Sharing on <MagicDNS name>:7287`,
+or the exact reason it couldn't start (Tailscale not installed, not running, logged out). Turning it off stops the
+listener and closes every connection.
+
+**Trust model.** Every TCP connection goes through the daemon's gate, in order, before a single byte is read:
+
+1. The listener binds to this node's tailnet IPs only, never a wildcard. If Tailscale reports no IP, sharing fails.
+2. `tailscale whois` on the socket's peer address must name one of **your own, untagged** devices: the node's user
+   and the profile's user both equal this node's user, the node has no tags, and it isn't this node itself (another
+   OS user on this machine could reach the tailnet IP too). Tagged nodes belong to the tailnet, not to you, so they
+   are refused even if you tagged them. A whois error or timeout refuses the connection.
+3. A WebSocket handshake carrying an `Origin` header is refused: that is a web page open on one of your devices,
+   which would pass whois.
+4. The first message must be a compatible `hello`.
+
+**What a connected device can do.** List projects and threads, read thread events, start a thread in an existing
+project, send follow-ups and interrupt. It can't add projects, change accounts or bindings, open terminals or run
+anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
+identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
+the account is recorded on the thread row. A remote-started thread opens as a tab in the local window (without
+taking focus), and closing that tab stops its agent, as for any thread. Every stored event, local or remote, is
+pushed to connected clients. The Remote tab lists connected devices (MagicDNS name, login, address) with a
+Disconnect button.
+
+**Restrict the port in your tailnet policy.** The gate already refuses other users and tagged nodes, but an ACL keeps
+them from reaching the port at all. A grant that lets only your own devices reach SkyeLab on each other:
+
+```jsonc
+// Tailscale admin console → Access controls
+{
+  "grants": [
+    // Each user's own devices may reach SkyeLab on their other devices, and nothing else may.
+    { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["tcp:7287"] }
+  ]
+}
+```
+
+With the default "allow all" policy any tailnet member can open a TCP connection to the port; they are refused at
+whois, but replacing the default with grants like the one above is better.
 
 ## Platforms
 
@@ -84,3 +128,6 @@ Each item goes through `/loop` (see CLAUDE.md).
   ssh-agent, TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
 - **Project settings:** agents launch with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23)
+- **Remote calls reuse the thread view.** The daemon's agent calls are forwarded to the UI thread and run through
+  `ThreadView::send_prompt`, so there is one launch path and one place the account is resolved. Sharing is off by
+  default and only an explicit toggle turns it on. (2026-11-23)
