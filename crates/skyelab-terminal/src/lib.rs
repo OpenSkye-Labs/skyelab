@@ -4,6 +4,6 @@ mod keys;
 mod model;
 mod view;
 
-pub use keys::key_to_bytes;
+pub use keys::{OptionKey, key_to_bytes};
 pub use model::{Event, Listener, SpawnOptions, Terminal};
 pub use view::{Paste, TerminalView, init};

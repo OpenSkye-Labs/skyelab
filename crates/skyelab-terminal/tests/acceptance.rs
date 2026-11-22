@@ -6,7 +6,7 @@ use std::{
 use alacritty_terminal::term::TermMode;
 use futures::channel::mpsc::UnboundedReceiver;
 use gpui::Keystroke;
-use skyelab_terminal::{Event, SpawnOptions, Terminal, key_to_bytes};
+use skyelab_terminal::{Event, OptionKey, SpawnOptions, Terminal, key_to_bytes};
 
 /// Feeds events into the model until `done` holds or 10s pass.
 fn pump(term: &mut Terminal, rx: &mut UnboundedReceiver<Event>, done: impl Fn(&Terminal) -> bool) {
@@ -104,7 +104,7 @@ fn key_table() {
         let Ok(keystroke) = Keystroke::parse(s) else {
             panic!("bad keystroke {s}")
         };
-        key_to_bytes(&keystroke, mode)
+        key_to_bytes(&keystroke, mode, OptionKey::Meta)
     };
     let n = TermMode::NONE;
     assert_eq!(k("enter", n).as_deref(), Some(&b"\r"[..]));

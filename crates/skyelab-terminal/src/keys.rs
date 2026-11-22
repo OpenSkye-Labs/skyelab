@@ -3,9 +3,26 @@ use std::borrow::Cow;
 use alacritty_terminal::term::TermMode;
 use gpui::Keystroke;
 
+/// What Option (alt) does with a character key. Keys with their own encoding (arrows, backspace) ignore it.
+///
+/// shortcut: one setting for both Option keys. GPUI 0.3.12 reports a single `alt` flag, so "left Option = meta,
+/// right Option = characters" (as iTerm2 offers) needs the NSEvent device flags; add it when GPUI exposes them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OptionKey {
+    /// ESC + key, the way shells expect for word motions (alt-b, alt-f).
+    #[default]
+    Meta,
+    /// The character the keyboard layout composes with Option (German Option-L = `@`).
+    Characters,
+}
+
 /// The bytes a key press sends to the PTY, or `None` when the terminal doesn't handle it
 /// (cmd/super combos are left to app keybindings such as paste).
-pub fn key_to_bytes(key: &Keystroke, mode: TermMode) -> Option<Cow<'static, [u8]>> {
+pub fn key_to_bytes(
+    key: &Keystroke,
+    mode: TermMode,
+    option: OptionKey,
+) -> Option<Cow<'static, [u8]>> {
     let m = key.modifiers;
     if m.platform || m.function {
         return None;
@@ -81,10 +98,11 @@ pub fn key_to_bytes(key: &Keystroke, mode: TermMode) -> Option<Cow<'static, [u8]
         };
         return Some(alt_prefixed(m.alt, &[code]));
     }
+    if m.alt && option == OptionKey::Characters {
+        // `None` (a dead key) is left to the IME.
+        return key.key_char.clone().map(|c| Cow::Owned(c.into_bytes()));
+    }
     if m.alt {
-        // Option sends meta (ESC + key), the way shells expect for word motions.
-        // shortcut: layout-composed Option chars (German Option-L = `@`) can't be typed; add an
-        // option-as-meta setting when non-US layouts matter.
         let text = if m.shift {
             key.key.to_uppercase()
         } else {

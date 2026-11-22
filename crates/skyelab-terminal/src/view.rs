@@ -10,7 +10,7 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme as _, theme::ThemeColor};
 
-use crate::{Event, Terminal, key_to_bytes, keys::paste_bytes};
+use crate::{Event, OptionKey, Terminal, key_to_bytes, keys::paste_bytes};
 
 actions!(terminal, [Paste]);
 
@@ -31,6 +31,7 @@ pub fn init(cx: &mut App) {
 
 pub struct TerminalView {
     terminal: Terminal,
+    option_key: OptionKey,
     focus: FocusHandle,
     _events: Task<()>,
 }
@@ -62,14 +63,20 @@ impl TerminalView {
         });
         Self {
             terminal,
+            option_key: OptionKey::default(),
             focus: cx.focus_handle(),
             _events,
         }
     }
 
+    /// What Option does in this terminal; see [`OptionKey`].
+    pub fn set_option_key(&mut self, option_key: OptionKey) {
+        self.option_key = option_key;
+    }
+
     fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let mode = *self.terminal.term().mode();
-        if let Some(bytes) = key_to_bytes(&event.keystroke, mode) {
+        if let Some(bytes) = key_to_bytes(&event.keystroke, mode, self.option_key) {
             self.terminal.write(bytes);
             cx.stop_propagation();
         }
