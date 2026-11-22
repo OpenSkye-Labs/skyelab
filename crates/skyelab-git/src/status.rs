@@ -36,6 +36,8 @@ pub fn status(path: &Path) -> Result<Status> {
             "--porcelain=v2",
             "-z",
             "--untracked-files=all",
+            // Explicit, so a user's status.renames=false can't split a rename into add + delete.
+            "--renames",
         ],
     )?;
     Ok(parse(&out))
