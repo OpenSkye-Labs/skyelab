@@ -317,7 +317,8 @@ impl Workspace {
             }
             Err(e) => {
                 self.load_error = Some(format!("{e:#}"));
-                // A broken file binds nothing we can trust.
+                // A broken file binds nothing we can trust: terminals and threads then ask, too.
+                self.config = AccountsConfig::default();
                 self.account = None;
             }
         }
@@ -400,3 +401,9 @@ mod thread_model_test;
 
 #[cfg(test)]
 mod threads_test;
+
+#[cfg(test)]
+mod review_second_row_test;
+
+#[cfg(test)]
+mod review_stale_config_test;
