@@ -1,0 +1,14 @@
+{
+  "Node": {
+    "ID": 2,
+    "StableID": "nPhone22CNTRL",
+    "Name": "phone.example.ts.net.",
+    "User": 1001,
+    "Addresses": ["100.64.0.2/32", "fd7a:115c:a1e0::2/128"],
+    "Hostinfo": { "OS": "iOS", "Hostname": "localhost" },
+    "Online": false,
+    "ComputedName": "phone"
+  },
+  "UserProfile": { "ID": 1001, "LoginName": "me@example.com", "DisplayName": "Me" },
+  "CapMap": null
+}

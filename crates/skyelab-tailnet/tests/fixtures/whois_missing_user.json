@@ -1,0 +1,10 @@
+{
+  "Node": {
+    "ID": 5,
+    "StableID": "nOdd5555CNTRL",
+    "Name": "odd.example.ts.net.",
+    "Addresses": ["100.64.0.5/32"]
+  },
+  "UserProfile": {},
+  "CapMap": null
+}

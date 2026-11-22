@@ -1,0 +1,46 @@
+{
+  "Version": "1.104.7-tfb3b9b296-g0651cc45e",
+  "TUN": true,
+  "BackendState": "Running",
+  "HaveNodeKey": true,
+  "AuthURL": "",
+  "TailscaleIPs": ["100.64.0.1", "fd7a:115c:a1e0::1"],
+  "Self": {
+    "ID": "nSelf111CNTRL",
+    "NodeID": 1,
+    "HostName": "laptop",
+    "DNSName": "laptop.example.ts.net.",
+    "OS": "macOS",
+    "UserID": 1001,
+    "TailscaleIPs": ["100.64.0.1", "fd7a:115c:a1e0::1"],
+    "Online": true,
+    "Capabilities": ["https"]
+  },
+  "Health": [],
+  "MagicDNSSuffix": "example.ts.net",
+  "Peer": {
+    "nodekey:0002": {
+      "ID": "nPhone22CNTRL",
+      "HostName": "localhost",
+      "DNSName": "phone.example.ts.net.",
+      "OS": "iOS",
+      "UserID": 1001,
+      "TailscaleIPs": ["100.64.0.2", "fd7a:115c:a1e0::2"],
+      "Online": false,
+      "Tags": null
+    },
+    "nodekey:0003": {
+      "ID": "nServer3CNTRL",
+      "HostName": "ci-runner",
+      "DNSName": "ci-runner.example.ts.net.",
+      "OS": "linux",
+      "UserID": 9000,
+      "TailscaleIPs": ["100.64.0.3"],
+      "Online": true,
+      "Tags": ["tag:server"]
+    }
+  },
+  "User": {
+    "1001": { "ID": 1001, "LoginName": "me@example.com", "DisplayName": "Me" }
+  }
+}

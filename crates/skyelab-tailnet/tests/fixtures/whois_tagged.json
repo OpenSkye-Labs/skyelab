@@ -1,0 +1,14 @@
+{
+  "Node": {
+    "ID": 3,
+    "StableID": "nServer3CNTRL",
+    "Name": "ci-runner.example.ts.net.",
+    "User": 1001,
+    "Tags": ["tag:server"],
+    "Addresses": ["100.64.0.3/32"],
+    "Hostinfo": { "OS": "linux", "Hostname": "ci-runner" },
+    "Online": true
+  },
+  "UserProfile": { "ID": 1001, "LoginName": "me@example.com", "DisplayName": "Me" },
+  "CapMap": null
+}
