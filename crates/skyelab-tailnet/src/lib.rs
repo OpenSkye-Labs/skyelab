@@ -3,10 +3,12 @@
 //! No GPUI here: the settings UI calls [`Tailnet`] and matches on [`Error`].
 
 use std::collections::BTreeMap;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Child, Command, Output, Stdio};
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Deserializer};
 
@@ -86,6 +88,12 @@ pub enum Error {
         command: &'static str,
         stderr: String,
     },
+    /// The CLI didn't finish in time (a hung tailscaled) and was killed.
+    #[error("`tailscale {command}` did not answer within {after:?}")]
+    Timeout {
+        command: &'static str,
+        after: Duration,
+    },
     #[error("could not parse Tailscale's output")]
     Parse(#[from] serde_json::Error),
     #[error("could not run tailscale")]
@@ -150,7 +158,11 @@ const MACOS_APP_CLI: &str = "/Applications/Tailscale.app/Contents/MacOS/Tailscal
 /// upgrade to LocalAPI over the tailscaled socket, or tailscale-rs once it hits 1.0, when whois runs per connection.
 pub struct TailscaleCli {
     binaries: Vec<PathBuf>,
+    timeout: Duration,
 }
+
+/// Long enough for a busy tailscaled, short enough that a hung one doesn't stall a connection gate.
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl Default for TailscaleCli {
     fn default() -> Self {
@@ -160,20 +172,40 @@ impl Default for TailscaleCli {
             binaries.push(PathBuf::from(MACOS_APP_CLI));
         }
         binaries.push(PathBuf::from("tailscale"));
-        Self { binaries }
+        Self::with_binaries(binaries)
     }
 }
 
 impl TailscaleCli {
     /// Tries each binary in order, skipping ones that don't exist.
     pub fn with_binaries(binaries: Vec<PathBuf>) -> Self {
-        Self { binaries }
+        Self {
+            binaries,
+            timeout: DEFAULT_TIMEOUT,
+        }
     }
 
-    fn run(&self, args: &[&str]) -> Result<std::process::Output, Error> {
+    /// Bounds every CLI call; one that runs longer is killed and returns [`Error::Timeout`].
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    fn run(&self, command: &'static str, args: &[&str]) -> Result<Output, Error> {
         for bin in &self.binaries {
-            match Command::new(bin).args(args).output() {
-                Ok(out) => return Ok(out),
+            let spawned = Command::new(bin)
+                .arg(command)
+                .args(args)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn();
+            match spawned {
+                Ok(child) => return self.wait(child, command),
                 Err(e) if e.kind() == ErrorKind::NotFound => continue,
                 Err(e) => return Err(e.into()),
             }
@@ -181,8 +213,44 @@ impl TailscaleCli {
         Err(Error::NotInstalled)
     }
 
+    /// Waits for `child` until the timeout, then kills it: a hung tailscaled must fail closed, not hang the caller.
+    fn wait(&self, mut child: Child, command: &'static str) -> Result<Output, Error> {
+        let timeout = Error::Timeout {
+            command,
+            after: self.timeout,
+        };
+        let deadline = Instant::now() + self.timeout;
+        // Drain both pipes on their own threads, or a chatty child blocks on a full pipe and looks hung.
+        let stdout = drain(child.stdout.take());
+        let stderr = drain(child.stderr.take());
+        let status = loop {
+            if let Some(status) = child.try_wait()? {
+                break status;
+            }
+            if Instant::now() >= deadline {
+                // Best effort: it may have exited in between, and either way we fail closed.
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(timeout);
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        // A grandchild that inherited the pipes could hold them open past the exit; still bounded by the deadline.
+        let collect = |rx: mpsc::Receiver<Vec<u8>>| {
+            rx.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        };
+        match (collect(stdout), collect(stderr)) {
+            (Ok(stdout), Ok(stderr)) => Ok(Output {
+                status,
+                stdout,
+                stderr,
+            }),
+            _ => Err(timeout),
+        }
+    }
+
     pub fn status(&self) -> Result<Status, Error> {
-        let out = self.run(&["status", "--json"])?;
+        let out = self.run("status", &["--json"])?;
         // A stopped backend still prints JSON; an unreachable daemon prints only an error.
         match parse_status(&out.stdout) {
             Err(Error::Parse(_)) if !out.status.success() => Err(Error::NotRunning(
@@ -203,7 +271,7 @@ impl Tailnet for TailscaleCli {
     }
 
     fn whois(&self, addr: SocketAddr) -> Result<WhoIs, Error> {
-        let out = self.run(&["whois", "--json", &addr.to_string()])?;
+        let out = self.run("whois", &["--json", &addr.to_string()])?;
         if !out.status.success() {
             // Tell "Tailscale is down" (NotRunning) apart from "unknown peer".
             self.status()?;
@@ -223,4 +291,19 @@ where
     T: Default + Deserialize<'de>,
 {
     Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
+
+fn drain(pipe: Option<impl Read + Send + 'static>) -> mpsc::Receiver<Vec<u8>> {
+    let (tx, rx) = mpsc::channel();
+    if let Some(mut pipe) = pipe {
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            // A read error just ends the output early; the exit status still tells the caller what happened.
+            let _ = pipe.read_to_end(&mut buf);
+            let _ = tx.send(buf);
+        });
+    } else {
+        let _ = tx.send(Vec::new());
+    }
+    rx
 }
