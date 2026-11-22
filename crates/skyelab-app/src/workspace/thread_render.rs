@@ -330,7 +330,7 @@ impl Render for ThreadView {
         let theme = cx.theme();
         let note = if self.starting {
             Some("Starting the agent…")
-        } else if self.thread.is_none() || self.session.is_some() {
+        } else if self.thread.is_none() || self.session.is_some() || refused.is_some() {
             None
         } else if self.read_only {
             Some("This thread has ended and has no agent session to continue. Start a new thread.")

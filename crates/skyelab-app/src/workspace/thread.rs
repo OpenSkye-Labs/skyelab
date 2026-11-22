@@ -192,6 +192,7 @@ impl ThreadView {
     /// Accounts changed on disk (Settings saved). Used for the next start and the badge.
     pub fn set_config(&mut self, config: AccountsConfig, cx: &mut Context<Self>) {
         self.config = config;
+        self.resume_refused = None; // the next send checks the new bindings again
         if self.needs_binding && self.config.resolve(&self.cwd).is_some() {
             self.needs_binding = false;
         }
