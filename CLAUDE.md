@@ -30,6 +30,8 @@ and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, 
   crate with `#![allow(unsafe_code)]` and a `// SAFETY:` comment on every block.
 - Errors: `anyhow` in binaries and app glue; `thiserror` only when a caller actually matches on variants.
   Add `.context(..)` at I/O boundaries. No `unwrap()`/`expect()` outside tests, except for invariants, with a message saying why it can't fail.
+  In tests, `clippy.toml` allows unwrap/expect inside `#[test]` fns. Helper fns in test files use `.expect("why")`.
+  Never add `#![allow(clippy::unwrap_used)]` or any other lint allow to get past clippy.
 - Domain logic lives in `skyelab-core` and never imports GPUI. It must be unit-testable without a window.
 - Add a dependency to `[workspace.dependencies]` first, then `dep.workspace = true` in the crate.
 - Don't add a crate for a few lines. Don't add a new workspace crate until code actually needs the boundary.
