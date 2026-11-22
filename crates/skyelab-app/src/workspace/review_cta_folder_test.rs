@@ -56,6 +56,7 @@ fn start_a_new_thread_opens_in_the_refused_threads_folder(cx: &mut TestAppContex
                 id: id.into(),
                 label: label.into(),
                 config_dir: root.join(format!(".claude-{id}")),
+                gh_config_dir: None,
             })
             .expect("add account");
     }

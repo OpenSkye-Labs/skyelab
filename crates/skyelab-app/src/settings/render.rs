@@ -12,6 +12,24 @@ impl Settings {
             .children(self.config.accounts.iter().map(|a| {
                 let edit = EditAccount { id: a.id.clone() };
                 let remove = RemoveAccount { id: a.id.clone() };
+                let github = a.gh_config_dir.as_ref().map(|dir| {
+                    let login = match (self.gh_logins.get(&a.id), self.gh_errors.get(&a.id)) {
+                        (Some(Some(login)), _) => format!("logged in as {login}"),
+                        (Some(None), _) => "not logged in".to_string(),
+                        (None, Some(e)) => format!("couldn't check: {e}"),
+                        (None, None) => "checking…".to_string(),
+                    };
+                    div()
+                        .flex()
+                        .gap_1()
+                        .text_sm()
+                        .text_color(theme.muted_foreground)
+                        .child(div().flex_shrink_0().child("GitHub:"))
+                        .child(path_text(format!("gh-{}", a.id), dir))
+                        .child(div().flex_shrink_0().child(format!("· {login}")))
+                });
+                let log_in = GhLogIn { id: a.id.clone() };
+                let has_gh = github.is_some();
                 row(cx)
                     .child(
                         div()
@@ -24,8 +42,22 @@ impl Settings {
                                 path_text(format!("dir-{}", a.id), &a.config_dir)
                                     .text_sm()
                                     .text_color(theme.muted_foreground),
-                            ),
+                            )
+                            .children(github),
                     )
+                    .when(has_gh, |d| {
+                        d.child(
+                            Button::new(SharedString::from(format!("gh-login-{}", a.id)))
+                                .label("Log in")
+                                .tooltip("Opens a terminal running gh auth login for this account")
+                                .flex_shrink_0()
+                                .small()
+                                .ghost()
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.gh_log_in(&log_in, window, cx)
+                                })),
+                        )
+                    })
                     .child(
                         Button::new(SharedString::from(format!("edit-{}", a.id)))
                             .label("Edit")
@@ -58,6 +90,7 @@ impl Settings {
                     })
                     .child(div().w_56().child(Input::new(&self.label_input)))
                     .child(div().flex_1().min_w_64().child(Input::new(&self.dir_input)))
+                    .child(div().flex_1().min_w_64().child(Input::new(&self.gh_input)))
                     .child(
                         Button::new("save-account")
                             .label(if self.editing.is_some() {

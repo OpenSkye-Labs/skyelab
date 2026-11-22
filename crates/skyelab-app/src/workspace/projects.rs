@@ -286,7 +286,7 @@ impl Workspace {
             return;
         }
         let title = view.read(cx).title();
-        let changes = cx.new(|cx| ChangesView::new(dir, title, Some(view), cx));
+        let changes = cx.new(|cx| ChangesView::new(dir, title, Some(view), window, cx));
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
                 panel_handle(changes.clone()),

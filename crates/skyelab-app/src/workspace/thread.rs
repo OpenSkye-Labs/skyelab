@@ -42,7 +42,7 @@ pub struct ThreadView {
     pub(super) focus: FocusHandle,
     pub(super) project_id: i64,
     pub(super) cwd: PathBuf,
-    config: AccountsConfig,
+    pub(super) config: AccountsConfig,
     pub(super) backend: Backend,
     pub(super) prompt: Entity<TextareaState>,
     pub(super) thread: Option<Thread>,
@@ -210,6 +210,14 @@ impl ThreadView {
             self.needs_binding = false;
         }
         cx.notify();
+    }
+
+    /// A PR was opened from this thread (already stored on its row).
+    pub fn set_pr_url(&mut self, url: String, cx: &mut Context<Self>) {
+        if let Some(t) = self.thread.as_mut() {
+            t.pr_url = Some(url);
+            cx.notify();
+        }
     }
 
     pub fn focus_prompt(&self, window: &mut Window, cx: &mut App) {

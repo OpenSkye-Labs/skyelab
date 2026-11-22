@@ -131,6 +131,7 @@ fn load_error_locks_editing_so_the_file_is_not_overwritten(cx: &mut TestAppConte
                     id: "x".into(),
                     label: "X".into(),
                     config_dir: "/home/me/.claude-x".into(),
+                    gh_config_dir: None,
                 })
             },
             window,
@@ -168,6 +169,7 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
             id: "acme".into(),
             label: "Acme".into(),
             config_dir: "/home/me/.claude-acme".into(),
+            gh_config_dir: None,
         })
         .expect("account");
     config
