@@ -13,7 +13,8 @@ pub struct Account {
     pub id: String,
     pub label: String,
     pub config_dir: PathBuf,
-    /// This account's `gh` config dir (`GH_CONFIG_DIR`): its GitHub login. `None`: no GitHub identity.
+    /// This account's `gh` config dir (`GH_CONFIG_DIR`): its GitHub login. `None`: SkyeLab's own push and PR
+    /// refuse, and agents get gh's default config.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gh_config_dir: Option<PathBuf>,
 }

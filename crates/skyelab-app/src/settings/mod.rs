@@ -484,5 +484,5 @@ mod widgets;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake gh is a shell script
 mod github_test;

@@ -48,7 +48,7 @@ impl Settings {
                     .when(has_gh, |d| {
                         d.child(
                             Button::new(SharedString::from(format!("gh-login-{}", a.id)))
-                                .label("Log in")
+                                .label("Log in to GitHub")
                                 .tooltip("Opens a terminal running gh auth login for this account")
                                 .flex_shrink_0()
                                 .small()

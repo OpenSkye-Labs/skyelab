@@ -2,11 +2,13 @@
 
 use super::*;
 
-const TOKENS: [&str; 4] = [
+const TOKENS: [&str; 6] = [
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "GH_ENTERPRISE_TOKEN",
     "GITHUB_ENTERPRISE_TOKEN",
+    "GH_HOST",
+    "GH_REPO",
 ];
 
 /// The vars the child won't inherit, and the env it gets.

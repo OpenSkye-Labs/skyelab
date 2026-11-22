@@ -1,3 +1,4 @@
+#![cfg(unix)] // the fake gh is a shell script
 use std::path::Path;
 
 use skyelab_git::GitHub;

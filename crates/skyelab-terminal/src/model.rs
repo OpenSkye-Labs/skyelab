@@ -198,13 +198,15 @@ fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> Wind
 #[cfg(test)]
 const CLAUDE_CONFIG_DIR: &str = "CLAUDE_CONFIG_DIR";
 /// Vars that pick an account or carry a login. A terminal gets one only when the caller set it (the account env).
-const ACCOUNT_VARS: [&str; 6] = [
+const ACCOUNT_VARS: [&str; 8] = [
     "CLAUDE_CONFIG_DIR",
     "GH_CONFIG_DIR",
     "GH_TOKEN",
     "GITHUB_TOKEN",
     "GH_ENTERPRISE_TOKEN",
     "GITHUB_ENTERPRISE_TOKEN",
+    "GH_HOST",
+    "GH_REPO",
 ];
 
 /// The child's program, args and env: the caller's env plus `TERM`/`COLORTERM`, and none of the parent's
@@ -226,9 +228,7 @@ fn launch(
         .filter(|v| env.get(*v).is_none_or(|v| v.is_empty()))
         .collect();
     if cfg!(windows) {
-        // shortcut: the child sees VAR="" rather than no var. A tool that falls back only when it is
-        // absent (Node's `env.X ?? default`) would resolve "" against the cwd. Upgrade when alacritty's Options can
-        // remove a var, or by wrapping the command in a shell that unsets it.
+        // shortcut: on Windows the child sees VAR="" (alacritty can't remove a var); upgrade when its Options can.
         for v in unset {
             env.insert(v.into(), String::new());
         }

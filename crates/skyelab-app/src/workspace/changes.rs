@@ -109,7 +109,6 @@ impl ChangesView {
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok(c) => {
-                        // A ticked file that's no longer changed must not ride along in the next commit.
                         this.selected
                             .retain(|p| c.files.iter().any(|f| &f.path == p));
                         (this.changes, this.error) = (Some(c), None);

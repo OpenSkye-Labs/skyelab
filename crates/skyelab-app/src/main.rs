@@ -162,7 +162,6 @@ fn main() {
         settings::init(cx);
         skyelab_terminal::init(cx);
         workspace::init(cx);
-        // Debug builds only: `SKYELAB_GH_BIN` is a fake gh, for verification.
         cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
             Some(bin) if cfg!(debug_assertions) => bin.into(),
             _ => "gh".into(),

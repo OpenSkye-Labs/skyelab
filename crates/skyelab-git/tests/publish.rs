@@ -1,5 +1,6 @@
 //! Acceptance: commit, push and open a PR under one account's `gh` config dir.
 //! Pushes go to a local bare repo and `gh` is a fake. Nothing here reaches the network.
+#![cfg(unix)] // the fake gh is a shell script
 
 use std::fs;
 use std::path::{Path, PathBuf};

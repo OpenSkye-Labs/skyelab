@@ -1,5 +1,6 @@
 //! A push must authenticate only through the bound gh, never with credentials embedded in the remote URL.
 //! The "remote" is a local TCP listener on 127.0.0.1 that answers 401 and records Authorization headers.
+#![cfg(unix)] // the fake gh is a shell script
 
 use std::fs;
 use std::io::{Read, Write};

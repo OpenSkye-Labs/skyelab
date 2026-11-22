@@ -552,7 +552,7 @@ mod review_cta_folder_test;
 #[cfg(test)]
 mod env_harness;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake gh is a shell script
 mod publish_test;
 
 #[cfg(test)]

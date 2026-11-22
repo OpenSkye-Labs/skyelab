@@ -1,3 +1,4 @@
+#![cfg(unix)] // the fake gh is a shell script
 use std::fs;
 use std::path::Path;
 use std::process::Command;

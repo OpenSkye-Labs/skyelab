@@ -277,7 +277,13 @@ impl Workspace {
             .changes_views
             .iter()
             .filter_map(|c| c.upgrade())
-            .find(|c| c.read(cx).dir == dir);
+            .find(|c| {
+                let c = c.read(cx);
+                c.dir == dir
+                    && c.thread
+                        .as_ref()
+                        .is_some_and(|t| t.entity_id() == view.entity_id())
+            });
         if let Some(changes) = open {
             changes.update(cx, |c, cx| c.refresh(cx));
             let id = changes.entity_id().into();

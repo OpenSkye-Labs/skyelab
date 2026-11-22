@@ -1,7 +1,7 @@
 #!/bin/sh
 # Stand-in for `gh` (tests and SKYELAB_GH_BIN). Never touches the network. Records each call in the
 # GH_CONFIG_DIR it was given, so a missing or wrong dir shows up as a missing record:
-#   fake-gh.args  one arg per line     fake-gh.env  its env     fake-gh.body  stdin of `pr create`
+#   fake-gh.args  one arg per line     fake-gh.env  its GH_/GITHUB_/GIT_ env     fake-gh.body  stdin of `pr create`
 # Logged in when "$GH_CONFIG_DIR/fake-login" exists (its content is the login).
 dir="${GH_CONFIG_DIR:?fake gh: no GH_CONFIG_DIR}"
 case "$1 $2" in
@@ -19,7 +19,7 @@ case "$1 $2" in
   ;;
 "pr create")
   printf '%s\n' "$@" > "$dir/fake-gh.args"
-  env > "$dir/fake-gh.env"
+  env | grep -E '^(GH_|GITHUB_|GIT_)' > "$dir/fake-gh.env"
   cat > "$dir/fake-gh.body"
   head=""
   prev=""

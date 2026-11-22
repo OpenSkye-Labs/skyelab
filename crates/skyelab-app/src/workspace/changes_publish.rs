@@ -2,6 +2,7 @@
 //! thread's recorded account; Push and Open PR also need that account's GitHub login.
 
 use super::changes::ChangesView;
+use super::worktree::resolves_to;
 use super::{SharedStore, lock};
 use anyhow::{Context as _, Result, bail};
 use gpui::{AnyElement, App, Context, Window, div, prelude::*};
@@ -12,12 +13,15 @@ use gpui_component::{
     input::{Input, Textarea},
     v_flex,
 };
+use skyelab_core::AccountsConfig;
 use skyelab_git::GitHub;
 use std::path::PathBuf;
 
 /// What an action runs against, read from the thread at click time.
 struct Target {
     dir: PathBuf,
+    config: AccountsConfig,
+    account_id: String,
     thread_id: i64,
     store: SharedStore,
     /// The account's `GH_CONFIG_DIR`, when the action needs GitHub.
@@ -36,25 +40,21 @@ impl ChangesView {
             .thread
             .as_ref()
             .context("send a prompt first: the thread has no account yet")?;
-        let dir = self.dir.display();
-        match view.config.resolve(&self.dir) {
-            Some(a) if a.id == row.account_id => {}
-            Some(a) => bail!(
-                "{dir} is now bound to '{}', not this thread's account ('{}'); start a new thread to publish as '{}'",
-                a.id,
-                row.account_id,
-                a.id
-            ),
-            None => bail!(
-                "{dir} isn't bound to '{}' any more (unbound, or its binding needs re-confirming in Settings)",
-                row.account_id
-            ),
+        if row.cwd != self.dir {
+            bail!(
+                "this tab shows {}, but the thread runs in {}; open Changes from the thread again",
+                self.dir.display(),
+                row.cwd.display()
+            );
         }
+        resolves_to(&view.config, &self.dir, &row.account_id)?;
         let gh_dir = github
             .then(|| view.config.github_config_dir(&self.dir))
             .transpose()?;
         Ok(Target {
             dir: self.dir.clone(),
+            config: view.config.clone(),
+            account_id: row.account_id.clone(),
             thread_id: row.id,
             store: view.backend.store.clone(),
             gh_dir,
@@ -91,6 +91,9 @@ impl ChangesView {
                 gh: &gh_bin,
                 config_dir,
             });
+            // Commit all and Push act on the whole repo, so its root must be the thread's account too.
+            let root = skyelab_git::repo_root(&target.dir)?;
+            resolves_to(&target.config, &root, &target.account_id)?;
             work(&target, gh)
         });
         self._publish = Some(cx.spawn_in(window, async move |this, cx| {
@@ -160,8 +163,13 @@ impl ChangesView {
             move |t, gh| {
                 let url =
                     skyelab_git::create_pr(&t.dir, &gh.context("no GitHub login")?, &title, &body)?;
-                lock(&t.store)?.set_thread_pr_url(t.thread_id, Some(&url))?;
-                Ok(url)
+                let saved =
+                    lock(&t.store).and_then(|s| s.set_thread_pr_url(t.thread_id, Some(&url)));
+                saved.map(|()| url.clone()).map_err(|e| {
+                    e.context(format!(
+                        "opened {url}, but saving the link on the thread failed"
+                    ))
+                })
             },
             |this, url, _, cx| {
                 this.publish_note = Some(format!("Opened {url}").into());

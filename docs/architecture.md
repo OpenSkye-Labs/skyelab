@@ -149,10 +149,14 @@ Each item goes through `/loop` (see CLAUDE.md).
   Raw IPs, `localhost` and short names are rejected at input. (2026-11-23)
 - **GitHub identity per account:** an account may name a `gh` config dir (`gh_config_dir`, absolute). `launch_env` sets
   `GH_CONFIG_DIR` from it, and agents, terminals and every git/gh call SkyeLab runs drop the parent's `GH_TOKEN`,
-  `GITHUB_TOKEN`, enterprise tokens, `GH_HOST`, `GH_REPO` and `GH_CONFIG_DIR`. Push and Open PR (Changes tab) run only
+  `GITHUB_TOKEN`, enterprise tokens, `GH_HOST`, `GH_REPO` and `GH_CONFIG_DIR` (terminals keep a `GH_CONFIG_DIR` the
+  account sets). Push and Open PR (Changes tab) run only
   while the folder still resolves to the thread's account, and refuse when that account has no GitHub dir, never
-  falling back to the parent's `gh` login. A push resets git's credential helpers to the bound `gh auth git-credential`,
-  so an https push can't use the keychain's login. Settings' Log in runs `gh auth login --insecure-storage`: gh's
+  falling back to the parent's `gh` login. A push goes to the branch's same-named upstream, else `origin`, and only to
+  a plain https URL (no credentials in it, after `insteadOf` rewrites) or a local path: an ssh key or a token in the
+  URL can't be bound to an account, so those are refused. It resets git's credential helpers (and `http.extraHeader`)
+  to the bound `gh auth git-credential`, so an https push can't use the keychain's login. Settings' Log in runs `gh auth login --insecure-storage`: gh's
   keyring entry for the active user is shared by every config dir, so the token lives in `<dir>/hosts.yml` instead.
-  Limits: an ssh push authenticates with whatever key `SSH_AUTH_SOCK` offers; only `origin` is pushed to; an agent
-  whose account has no GitHub dir uses gh's default config. (2026-11-23)
+  Limits: a shell rc that exports `GH_TOKEN` sets it again inside a terminal; an agent whose account has no GitHub
+  dir uses gh's default config; a GitHub dir inside a project holds a plaintext token that Commit all would stage.
+  (2026-11-23)
