@@ -111,9 +111,10 @@ pub(super) fn save(
             .set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch))
             .and_then(|()| store.set_thread_worktree_base(thread.id, Some(&w.base)));
         if let Err(e) = recorded {
-            // Best effort: a row whose worktree is gone would only fail to start again.
-            let _ = store.delete_thread(thread.id);
-            return Err(e);
+            return Err(match store.delete_thread(thread.id) {
+                Ok(()) => e,
+                Err(d) => e.context(format!("deleting its half-saved row also failed: {d}")),
+            });
         }
         (thread.worktree_path, thread.worktree_branch) = (Some(w.path), Some(w.branch));
         thread.worktree_base = Some(w.base);
@@ -203,7 +204,6 @@ pub(super) fn discard(path: &Path, confirmed: Option<&Status>) -> Result<Discard
         .next()
         .context("git listed no worktrees")?
         .path;
-    // With ignored files: `.env` and local configs are what a discard would silently lose.
     let now = skyelab_git::status_with_ignored(path)?;
     if now.is_clean() {
         skyelab_git::remove_worktree(&main, path, false)?;

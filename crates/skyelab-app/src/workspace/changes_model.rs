@@ -52,7 +52,7 @@ pub struct Changes {
 }
 
 /// Tracked changes from `diff HEAD` (staged and unstaged together), untracked files from `status`.
-/// With a `base` commit, tracked changes are since its merge-base with `HEAD`, commits included.
+/// With a `base` commit, tracked changes are since that commit, commits included.
 pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();

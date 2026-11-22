@@ -29,7 +29,6 @@ fn remote_start_before_projects_load_waits_for_them(cx: &mut TestAppContext) {
     let (config, folder) = (f.config.clone(), f.project.clone());
     let (_ws, cx) = cx.add_window_view(|window, cx| {
         let mut ws = Workspace::new(folder, None, config, None, backend, window, cx);
-        // The first project load has not run yet: no task has been polled.
         assert!(ws.project_ids().is_empty());
         ws.remote_start(project_id, "hello", reply, window, cx);
         ws
