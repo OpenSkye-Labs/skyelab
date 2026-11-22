@@ -16,6 +16,9 @@ fn fake_tailnet_is_configurable() {
     let me = tailnet.self_node().expect("self node");
     assert_eq!(me.dns_name, format!("{NODE_NAME}."));
     assert_eq!(me.user_id, Some(ME));
+    assert_eq!(me.stable_id, "nSelf");
+    *tailnet.self_id.lock().expect("self id") = Some("nOther".into());
+    assert_eq!(tailnet.self_node().expect("self node").stable_id, "nOther");
     assert_eq!(
         tailnet.peers().expect("peers")[0].dns_name,
         "laptop.example.ts.net."
