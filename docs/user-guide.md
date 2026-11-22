@@ -142,8 +142,12 @@ one of your own devices (same Tailscale user, not tagged), and it remembers that
 name. If the name later answers from another node, its tabs close and a warning offers **Trust it**: trust it only if
 you replaced or renamed that machine. If your Tailscale says the machine isn't yours or can't answer, the status says
 so and nothing is sent to it. If the machine claims to be a different node than your Tailscale sees, the status says
-so and nothing is listed or sent after the handshake. The mobile app can't ask its local Tailscale yet and doesn't
-remember machines, so it trusts any machine with a valid certificate for the name.
+so and nothing is listed or sent after the handshake. After a reconnect nothing is asked of the machine until it is
+checked again, and a refusal clears its projects, threads and tabs from the window.
+
+The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
+you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:
+that catches a reused name or a replaced machine, but not a machine that lies about its id.
 
 ## Device hub
 

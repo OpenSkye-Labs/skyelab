@@ -29,8 +29,9 @@ fn settle(source: &mut RemoteSource, what: &str, done: impl Fn(&RemoteSource) ->
     }
 }
 
+/// Pins go in the env's own temp dir, which lives as long as the test.
 fn connect(env: &Env) -> RemoteSource {
-    RemoteSource::connect(NODE_NAME, options(env.port)).expect("client thread")
+    RemoteSource::connect(NODE_NAME, options(env.port), env._dir.path()).expect("client thread")
 }
 
 #[test]
@@ -147,7 +148,9 @@ fn an_unsupported_protocol_shows_version_mismatch() {
 #[cfg(not(feature = "demo"))]
 #[test]
 fn shipping_build_dials_the_real_client() {
-    let source = skyelab_mobile::app::source_for("laptop.tail1234.ts.net").expect("source");
+    let pins = tempfile::tempdir().expect("pin dir");
+    let source =
+        skyelab_mobile::app::source_for(pins.path(), "laptop.tail1234.ts.net").expect("source");
     assert_eq!(source.connection(), Connection::Connecting);
     assert!(source.inbox().is_some(), "the fake has no inbox");
 }

@@ -52,6 +52,11 @@ pub struct Options {
     /// local Tailscale CLI exists) trusts the node id the server sends in hello, which a machine that took over the
     /// name can fake.
     pub verify_peer: Option<PeerVerifier>,
+    /// Hold every connection after hello until [`Client::approve`] approves its hello: until then no request or
+    /// watch refill is sent (requests fail with [`Error::NotConnected`]; only keepalive pings go out) and no pushed
+    /// event is delivered.
+    /// For a caller that checks the server's identity (a pin) before trusting a connection, reconnects included.
+    pub approve_each_connection: bool,
     /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) allow_loopback: bool,
@@ -81,6 +86,7 @@ impl Default for Options {
             backoff_min: Duration::from_millis(250),
             backoff_max: Duration::from_secs(30),
             verify_peer: None,
+            approve_each_connection: false,
             #[cfg(any(test, feature = "test-support"))]
             allow_loopback: false,
             #[cfg(any(test, feature = "test-support"))]
@@ -166,7 +172,8 @@ pub enum Error {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Update {
-    /// A connection passed hello. Watched threads are being resynced.
+    /// A connection passed hello. Watched threads are being resynced, or with
+    /// [`Options::approve_each_connection`], will be once [`Client::approve`] approves this hello.
     Connected(Hello),
     /// The connection is gone (or never came up), with why. The client retries after a backoff.
     Disconnected(Disconnect),
@@ -373,6 +380,13 @@ impl Client {
             after_seq: after_seq.max(0), // seqs start at 1
         });
         id
+    }
+
+    /// Releases a connection held by [`Options::approve_each_connection`], if its hello is still `hello`. An
+    /// approval for a connection that has gone applies to its successor only when that one sent the same hello,
+    /// so the caller's decision (made from the hello alone) holds for it too.
+    pub fn approve(&self, hello: &Hello) {
+        self.command(conn::Command::Approve(hello.clone()));
     }
 
     /// Ends one watch. Unwatching the same id twice does nothing.

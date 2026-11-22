@@ -22,7 +22,9 @@ fn settle(source: &mut RemoteSource, done: impl Fn(&RemoteSource) -> bool) {
 #[test]
 fn rewatching_a_thread_does_not_duplicate_events() {
     let env = start();
-    let mut source = RemoteSource::connect(NODE_NAME, options(env.port)).expect("client");
+    let pins = tempfile::tempdir().expect("pin dir");
+    let mut source =
+        RemoteSource::connect(NODE_NAME, options(env.port), pins.path()).expect("client");
     let inbox = source.inbox().expect("inbox");
     settle(&mut source, |s| {
         s.connection() == Connection::Connected && !s.projects().is_empty()

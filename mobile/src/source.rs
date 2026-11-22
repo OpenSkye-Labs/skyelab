@@ -15,10 +15,28 @@ pub enum Connection {
     Reconnecting(String),
     /// The machine dropped us at its gate: this device isn't one of the user's own untagged tailnet devices.
     Refused,
+    /// The name answered from another node than the one pinned for it (`now`: the id its hello named, `None` if it
+    /// sent none). Nothing is listed or sent until the user trusts `now`.
+    NodeChanged {
+        was: String,
+        now: Option<String>,
+    },
+    /// The pins can't be read or saved (or the client couldn't confirm the node), so the machine can't be checked.
+    Unverified(String),
     /// The machine speaks another protocol version. The client has stopped.
     VersionMismatch(String),
     /// The client stopped for another reason.
     Stopped(String),
+}
+
+impl Connection {
+    /// Refused, or the machine's identity failed: nothing of it may stay on screen.
+    pub fn is_untrusted(&self) -> bool {
+        matches!(
+            self,
+            Self::Refused | Self::NodeChanged { .. } | Self::Unverified(_)
+        )
+    }
 }
 
 /// Something that arrived for a source in the background. Hand it back with [`ThreadSource::apply`].
@@ -44,6 +62,8 @@ pub trait ThreadSource {
     fn watch(&mut self, thread_id: i64);
     fn send_message(&mut self, thread_id: i64, text: &str);
     fn interrupt(&mut self, thread_id: i64);
+    /// Pins the name to `node_id` and connects, if that is still the node the `NodeChanged` warning shows.
+    fn trust(&mut self, _node_id: &str) {}
     /// Where background results arrive. Keep receiving from it and pass each to `apply`. `None`: the source
     /// only changes when called.
     fn inbox(&self) -> Option<flume::Receiver<Msg>> {

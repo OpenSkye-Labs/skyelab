@@ -27,7 +27,9 @@ fn a_plain_http_server_on_the_port_is_not_shown_as_refused() {
         }
     });
 
-    let mut source = RemoteSource::connect(NODE_NAME, options(port)).expect("client thread");
+    let pins = tempfile::tempdir().expect("pin dir");
+    let mut source =
+        RemoteSource::connect(NODE_NAME, options(port), pins.path()).expect("client thread");
     let inbox = source.inbox().expect("a remote source has an inbox");
     let deadline = Instant::now() + Duration::from_secs(5);
     while source.connection() == Connection::Connecting {

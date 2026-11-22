@@ -16,7 +16,7 @@ use gpui_component::{
     v_flex,
 };
 use skyelab_protocol::{Project, Thread, ThreadEvent};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -29,11 +29,11 @@ pub enum Screen {
 /// Opens a source for a validated MagicDNS name. The app uses [`source_for`]; tests pass their own.
 pub type Connect = Box<dyn Fn(&str) -> std::io::Result<Box<dyn ThreadSource>>>;
 
-/// The real client for every name; with the `demo` feature, canned data instead.
-pub fn source_for(name: &str) -> std::io::Result<Box<dyn ThreadSource>> {
+/// The real client for every name, pinning nodes in `data_dir`; with the `demo` feature, canned data instead.
+pub fn source_for(data_dir: &Path, name: &str) -> std::io::Result<Box<dyn ThreadSource>> {
     #[cfg(feature = "demo")]
     {
-        let _ = name;
+        let _ = (data_dir, name);
         Ok(Box::new(crate::source::FakeSource::new()))
     }
     #[cfg(not(feature = "demo"))]
@@ -42,6 +42,7 @@ pub fn source_for(name: &str) -> std::io::Result<Box<dyn ThreadSource>> {
         Ok(Box::new(crate::remote::RemoteSource::connect(
             name,
             skyelab_client::Options::default(),
+            data_dir,
         )?))
     }
 }
@@ -137,6 +138,15 @@ impl MobileApp {
                     let applied = this.update(cx, |app, cx| {
                         if let Some(source) = app.source.as_mut() {
                             source.apply(msg);
+                            // Nothing of a refused machine stays open: back to its (now empty) projects.
+                            if source.connection().is_untrusted()
+                                && matches!(
+                                    app.screen,
+                                    Screen::Threads { .. } | Screen::Thread { .. }
+                                )
+                            {
+                                app.screen = Screen::Projects;
+                            }
                         }
                         cx.notify();
                     });
@@ -202,6 +212,14 @@ impl MobileApp {
         self.composer
             .update(cx, |s, cx| s.set_value("", window, cx));
         cx.notify();
+    }
+
+    /// Trusts the node the "isn't the machine you connected to before" warning shows.
+    pub fn trust(&mut self, node_id: &str, cx: &mut Context<Self>) {
+        if let Some(source) = self.source.as_mut() {
+            source.trust(node_id);
+            cx.notify();
+        }
     }
 
     pub fn stop(&mut self, cx: &mut Context<Self>) {
@@ -437,7 +455,13 @@ impl Render for MobileApp {
             Screen::Threads { .. } => self.thread_list(cx),
             Screen::Thread { .. } => self.thread_view(cx),
         };
-        let status = self.connection().map(|c| connection_text(&c));
+        let connection = self.connection();
+        let status = connection.as_ref().map(connection_text);
+        // Only a node the hello really named can be trusted.
+        let trust = match connection {
+            Some(Connection::NodeChanged { now: Some(now), .. }) => Some(now),
+            _ => None,
+        };
         let source_error = self.source.as_ref().and_then(|s| s.error());
         let theme = cx.theme();
         v_flex()
@@ -477,17 +501,25 @@ impl Render for MobileApp {
                     })
                     .child(text)
             }))
+            .children(trust.map(|node| {
+                Button::new("trust")
+                    .warning()
+                    .label("Trust it")
+                    .on_click(cx.listener(move |this, _, _, cx| this.trust(&node, cx)))
+            }))
             .children(source_error.map(|e| div().text_sm().text_color(theme.danger).child(e)))
             .child(v_flex().flex_1().min_h_0().child(body))
     }
 }
 
-/// The app body both platform entry points run. `data_dir` is where the environment name is remembered.
+/// The app body both platform entry points run. `data_dir` is where the environment name and pinned nodes live.
 /// An error means the window never opened; the entry point logs it where that platform's logs go.
 pub fn run(data_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     gpui_component::init(cx);
     cx.open_window(WindowOptions::default(), |window, cx| {
-        let view = cx.new(|cx| MobileApp::new(data_dir, Box::new(source_for), window, cx));
+        let pins = data_dir.clone();
+        let connect: Connect = Box::new(move |name| source_for(&pins, name));
+        let view = cx.new(|cx| MobileApp::new(data_dir, connect, window, cx));
         cx.new(|cx| Root::new(view, window, cx))
     })?;
     cx.activate(true);

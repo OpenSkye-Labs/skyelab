@@ -1,6 +1,7 @@
 //! The environment the phone dials: one MagicDNS name, remembered in the app's data directory.
 
 use anyhow::Context as _;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 pub const FILE: &str = "environment.txt";
@@ -44,4 +45,37 @@ pub fn save(dir: &Path, name: &str) -> anyhow::Result<()> {
     let path = dir.join(FILE);
     std::fs::write(&path, format!("{name}\n"))
         .with_context(|| format!("writing {}", path.display()))
+}
+
+/// Where each name's pinned node lives: a JSON map, MagicDNS name → the node StableID its hello named when trusted.
+pub const NODES_FILE: &str = "nodes.json";
+
+/// The pinned nodes. A missing file is none pinned; any other read or parse failure is an error, so the caller
+/// refuses rather than trust (and re-pin) whatever answers.
+pub fn load_nodes(dir: &Path) -> anyhow::Result<BTreeMap<String, String>> {
+    let path = dir.join(NODES_FILE);
+    match std::fs::read_to_string(&path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(BTreeMap::new()),
+        Err(e) => Err(e).with_context(|| format!("reading {}", path.display())),
+        Ok(text) => {
+            serde_json::from_str(&text).with_context(|| format!("parsing {}", path.display()))
+        }
+    }
+}
+
+/// Pins `name` to `node_id`, keeping the other names. Fails (and pins nothing) if the file can't be read.
+pub fn trust_node(dir: &Path, name: &str, node_id: &str) -> anyhow::Result<()> {
+    let mut nodes = load_nodes(dir)?;
+    nodes.insert(name.to_owned(), node_id.to_owned());
+    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    let path = dir.join(NODES_FILE);
+    // Written beside it, then renamed over it, so a crash mid-write can't leave a file that refuses every name.
+    let tmp = dir.join(format!("{NODES_FILE}.tmp"));
+    let text = serde_json::to_string_pretty(&nodes).context("serializing pins")?;
+    let mut file =
+        std::fs::File::create(&tmp).with_context(|| format!("writing {}", tmp.display()))?;
+    std::io::Write::write_all(&mut file, text.as_bytes())
+        .and_then(|()| file.sync_all())
+        .with_context(|| format!("writing {}", tmp.display()))?;
+    std::fs::rename(&tmp, &path).with_context(|| format!("replacing {}", path.display()))
 }

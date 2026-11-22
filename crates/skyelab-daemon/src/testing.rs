@@ -344,17 +344,26 @@ impl Agents for RecordingAgents {
     }
 }
 
-/// The store backend, except that the next `fail_lists` thread listings fail.
+/// The store backend, except that the next `fail_lists` thread listings fail. Every call is logged in `asked`.
 struct Flaky {
     inner: StoreBackend<RecordingAgents>,
     fail_lists: Arc<AtomicUsize>,
+    asked: Arc<Mutex<Vec<&'static str>>>,
+}
+
+impl Flaky {
+    fn ask(&self, call: &'static str) {
+        self.asked.lock().expect("asked lock").push(call);
+    }
 }
 
 impl Backend for Flaky {
     fn list_projects(&self) -> Result<Vec<Project>, RpcError> {
+        self.ask("list_projects");
         self.inner.list_projects()
     }
     fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
+        self.ask("list_threads");
         let failing = self
             .fail_lists
             .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
@@ -364,15 +373,19 @@ impl Backend for Flaky {
         self.inner.list_threads(project_id)
     }
     fn thread_events_since(&self, thread_id: i64, seq: i64) -> Result<Vec<ThreadEvent>, RpcError> {
+        self.ask("thread_events_since");
         self.inner.thread_events_since(thread_id, seq)
     }
     fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError> {
+        self.ask("start_thread");
         self.inner.start_thread(project_id, prompt)
     }
     fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError> {
+        self.ask("send_message");
         self.inner.send_message(thread_id, text)
     }
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
+        self.ask("interrupt");
         self.inner.interrupt(thread_id)
     }
 }
@@ -389,6 +402,8 @@ pub struct Env {
     pub agents: Arc<Recorder>,
     /// How many of the next thread listings fail.
     pub fail_lists: Arc<AtomicUsize>,
+    /// Every backend call any client made, by name, across restarts. See [`Env::asked`].
+    pub asked_log: Arc<Mutex<Vec<&'static str>>>,
     /// Where `serve` listens: picked by the first `serve`, then the same on every restart. 0 until then.
     pub port: u16,
     pub daemon: Option<Daemon>,
@@ -437,6 +452,7 @@ impl Env {
             tailnet: Arc::new(tailnet),
             agents: Arc::default(),
             fail_lists: Arc::default(),
+            asked_log: Arc::default(),
             port: 0,
             daemon: None,
             accounts: None,
@@ -457,6 +473,7 @@ impl Env {
                 self.accounts.clone(),
             ),
             fail_lists: self.fail_lists.clone(),
+            asked: self.asked_log.clone(),
         })
     }
 
@@ -503,6 +520,11 @@ impl Env {
             daemon.push_event(event.clone());
         }
         event
+    }
+
+    /// The backend calls served so far (`list_projects`, `thread_events_since`, ...), oldest first.
+    pub fn asked(&self) -> Vec<&'static str> {
+        self.asked_log.lock().expect("asked lock").clone()
     }
 
     pub fn ran(&self) -> Vec<Ran> {

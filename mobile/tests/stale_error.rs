@@ -13,7 +13,8 @@ fn a_request_error_clears_once_the_reload_succeeds() {
     let mut env = start();
     let port = env.port;
     drop(env.daemon.take());
-    let mut source = RemoteSource::connect(NODE_NAME, options(port)).expect("client");
+    let pins = tempfile::tempdir().expect("pin dir");
+    let mut source = RemoteSource::connect(NODE_NAME, options(port), pins.path()).expect("client");
     let inbox = source.inbox().expect("inbox");
     source.load_threads(env.project_id); // offline: NotConnected
     let deadline = Instant::now() + Duration::from_secs(10);
