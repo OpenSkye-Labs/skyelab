@@ -15,14 +15,20 @@ use gpui_component::{
     status_bar::StatusBar,
     v_flex,
 };
-use panels::{Sidebar, SidebarSection, TerminalPanel, TerminalsEmpty, Welcome};
+use panels::{BrowserPanel, Sidebar, SidebarSection, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
 use std::path::{Path, PathBuf};
 
 actions!(
     skyelab,
-    [ToggleSidebar, ToggleBottomPanel, NewTerminal, OpenSettings]
+    [
+        ToggleSidebar,
+        ToggleBottomPanel,
+        NewTerminal,
+        OpenSettings,
+        OpenBrowser
+    ]
 );
 
 const CONTEXT: &str = "Workspace";
@@ -33,6 +39,7 @@ pub(crate) const TOGGLE_SIDEBAR_KEY: &str = if MAC { "cmd-b" } else { "ctrl-b" }
 pub(crate) const TOGGLE_BOTTOM_KEY: &str = if MAC { "cmd-j" } else { "ctrl-j" };
 pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-alt-t" };
 pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
+pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
 
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
@@ -41,6 +48,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(TOGGLE_BOTTOM_KEY, ToggleBottomPanel, Some(CONTEXT)),
         KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
         KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
+        KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
     ]);
     // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
     if !MAC {
@@ -68,6 +76,7 @@ pub struct Workspace {
     account: Option<SharedString>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
+    browsers: Vec<WeakEntity<BrowserPanel>>,
     settings: Option<WeakEntity<Settings>>,
     _settings_saved: Option<Subscription>,
     _appearance: Subscription,
@@ -146,6 +155,7 @@ impl Workspace {
             load_error,
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
+            browsers: Vec::new(),
             settings: None,
             _settings_saved: None,
             _appearance,
@@ -208,6 +218,24 @@ impl Workspace {
         self.terminals.push(panel);
         view.read(cx).focus_handle(cx).focus(window, cx);
         Ok(())
+    }
+
+    fn open_browser(&mut self, _: &OpenBrowser, window: &mut Window, cx: &mut Context<Self>) {
+        let url = std::env::var("SKYELAB_BROWSER_URL").ok();
+        let browser = cx.new(|cx| skyelab_browser::BrowserView::new(url.as_deref(), window, cx));
+        let panel = cx.new(|_| BrowserPanel { browser });
+        self.dock.update(cx, |dock, cx| {
+            dock.add_panel_view(
+                panel_handle(panel.clone()),
+                DockPlacement::Center,
+                None,
+                window,
+                cx,
+            );
+        });
+        panel.read(cx).focus_handle(cx).focus(window, cx);
+        self.browsers.retain(|b| b.upgrade().is_some());
+        self.browsers.push(panel.downgrade());
     }
 
     fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
@@ -306,6 +334,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::open_settings))
+            .on_action(cx.listener(Self::open_browser))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -319,3 +348,6 @@ mod tests;
 
 #[cfg(test)]
 mod stale_status_test;
+
+#[cfg(test)]
+mod browser_tests;

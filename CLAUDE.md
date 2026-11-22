@@ -17,7 +17,7 @@ and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, 
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
-  (debug builds: dispatches those actions on the first frame).
+  (debug builds: dispatches those actions from the first frame on, two seconds apart).
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo test --workspace`.
 - Commit small, on a branch, conventional-ish messages (`feat(core): …`). Don't push to `main` directly once CI exists.
@@ -48,7 +48,7 @@ and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, 
 
 ## Platform setup
 
-- macOS: full Xcode plus the Metal Toolchain (`xcodebuild -downloadComponent MetalToolchain`), or `gpui-pre-apple` fails
+- macOS: **14 or later** (`MACOSX_DEPLOYMENT_TARGET` in `.cargo/config.toml`). Full Xcode plus the Metal Toolchain (`xcodebuild -downloadComponent MetalToolchain`), or `gpui-pre-apple` fails
   with "metal shader compilation failed".
 - Linux: `libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake`.
 - Windows: MSVC toolchain, nothing else.

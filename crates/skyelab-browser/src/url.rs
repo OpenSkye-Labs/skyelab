@@ -1,6 +1,7 @@
 use anyhow::{Context as _, anyhow, bail};
 
-/// Parses user or agent input into a URL the preview may load: http, https or local file only.
+/// Parses the user's URL bar input into a URL the preview may load: http, https or local file only.
+/// Agents go through [`crate::parse_agent_url`] instead.
 /// A bare host gets `https://` (`example.com`), or `http://` for loopback (`localhost:5173`).
 /// An absolute path becomes a `file://` URL. Everything else, including `javascript:`, `data:`
 /// and `file://` on a remote host, is rejected.
