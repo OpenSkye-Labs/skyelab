@@ -1,0 +1,15 @@
+version: 2
+updates:
+  # Project rule: always the latest crate versions, major bumps included.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # gpui-pre must stay at the exact version gpui-component pins; bump them together by hand.
+      - dependency-name: gpui-pre
+      - dependency-name: gpui-pre-platform
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
