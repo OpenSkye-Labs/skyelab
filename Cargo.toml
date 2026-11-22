@@ -51,3 +51,8 @@ unwrap_used = "warn"
 
 [profile.dev.package."*"]
 opt-level = 2 # GPUI is unusably slow unoptimized; our own crates stay fast to compile.
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

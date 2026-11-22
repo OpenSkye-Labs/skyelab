@@ -1,0 +1,120 @@
+name: Release
+
+# Push a tag like v0.2.0 to build installers on all three OSes and attach them to a draft GitHub release.
+# Signing is optional: each signing step runs only when its secrets are set (see CLAUDE.md "Release").
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PACKAGER_VERSION: 0.11.8
+
+jobs:
+  package:
+    name: package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            formats: app,dmg
+            artifacts: target/release/*.dmg
+          - os: windows-latest
+            formats: nsis
+            artifacts: target/release/*-setup.exe
+          # Pinned, not -latest: an AppImage only runs on glibc at least as new as the build host's.
+          - os: ubuntu-24.04
+            formats: deb,appimage
+            artifacts: |
+              target/release/*.deb
+              target/release/*.AppImage
+    runs-on: ${{ matrix.os }}
+    env:
+      # Empty when the secret is absent, which keeps the signing steps below skipped.
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake \
+            libwebkit2gtk-4.1-dev libgtk-3-dev
+      - name: Ensure Metal Toolchain
+        if: runner.os == 'macOS'
+        run: |
+          if xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
+            echo "Metal Toolchain already installed"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+      - run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
+        shell: bash
+
+      # --- Code signing (secret-gated; skipped when the secrets are absent) ---
+      # macOS: cargo-packager imports APPLE_CERTIFICATE into a temporary keychain, signs with the identity below,
+      # then notarizes with APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID. All six secrets are needed together.
+      - name: Enable macOS signing and notarization
+        if: >-
+          runner.os == 'macOS' && env.APPLE_CERTIFICATE != '' && env.APPLE_CERTIFICATE_PASSWORD != '' &&
+          env.APPLE_SIGNING_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != ''
+        run: >-
+          perl -pi -e 's/^\[package\.metadata\.packager\.macos\]\n/$&signing-identity = "$ENV{APPLE_SIGNING_IDENTITY}"\n/'
+          crates/skyelab-app/Cargo.toml
+      # Windows: import the .pfx into the user store; cargo-packager signs the exe and installer by thumbprint.
+      - name: Enable Windows signing
+        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != '' && env.WINDOWS_CERTIFICATE_PASSWORD != ''
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP cert.pfx
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          $toml = 'crates/skyelab-app/Cargo.toml'
+          (Get-Content $toml -Raw) -replace '(?m)^\[package\.metadata\.packager\.windows\]\r?\n', "`$0certificate-thumbprint = `"$($cert.Thumbprint)`"`n" |
+            Set-Content $toml -NoNewline
+      # --- end code signing ---
+
+      - name: Package
+        shell: bash
+        env:
+          # linuxdeploy is itself an AppImage; runners have no FUSE.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: cargo packager --release -p skyelab-app -f "${{ matrix.formats }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: skyelab-${{ runner.os }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          generate_release_notes: true
+          files: dist/*

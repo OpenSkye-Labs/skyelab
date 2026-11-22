@@ -1,0 +1,13 @@
+<!-- PLACEHOLDER app icon for SkyeLab: replace with the real mark. Regenerate sizes with scripts/icons.sh. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f8ef7"/>
+      <stop offset="1" stop-color="#2a5bd7"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS grid: 824px rounded square centred on a 1024 canvas. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <path d="M640 360 C640 300 585 270 512 270 C430 270 380 310 380 370 C380 500 650 460 650 610 C650 680 590 730 505 730 C425 730 370 690 365 625"
+        fill="none" stroke="#ffffff" stroke-width="96" stroke-linecap="round"/>
+</svg>
