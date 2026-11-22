@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
 pub const VERSION: Version = Version { major: 1, minor: 0 };
 
+/// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
+pub const DEFAULT_PORT: u16 = 7287;
+
 pub type RequestId = u64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

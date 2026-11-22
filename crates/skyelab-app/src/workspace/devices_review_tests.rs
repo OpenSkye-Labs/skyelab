@@ -17,11 +17,12 @@ fn emulator(id: &str, state: DeviceState) -> Device {
     }
 }
 
-/// Lists whatever `android` holds now; records `open_url` calls.
+/// Lists whatever `android` holds now; records `open_url` calls; each screenshot differs.
 #[derive(Default)]
 struct Fake {
     android: Mutex<Vec<Device>>,
     opened: Mutex<Vec<String>>,
+    shots: std::sync::atomic::AtomicU8,
 }
 
 impl DeviceSource for Fake {
@@ -45,7 +46,9 @@ impl DeviceSource for Fake {
         Ok(())
     }
     fn screenshot(&self, _: &Device) -> anyhow::Result<Vec<u8>> {
-        Ok(Vec::new())
+        // Distinct bytes per shot: GPUI keys an image by a hash of its bytes.
+        let n = self.shots.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(vec![n])
     }
 }
 
@@ -117,5 +120,44 @@ fn open_url_while_busy_keeps_the_row_and_the_url(cx: &mut TestAppContext) {
         *fake.opened.lock().expect("opened lock"),
         ["https://example.com"],
         "opens once the device is free"
+    );
+}
+
+/// Takes a screenshot of `device` and loads it into GPUI's image cache, as drawing it would.
+fn cached_screenshot(
+    panel: &Entity<DevicesPanel>,
+    device: &Device,
+    cx: &mut gpui::VisualTestContext,
+) -> Arc<gpui::Image> {
+    panel.update(cx, |p, cx| p.screenshot(device, cx));
+    cx.run_until_parked();
+    let shot = panel.read_with(cx, |p, _| p.ops[&device.id].screenshot.clone());
+    let shot = shot.expect("the screenshot is stored");
+    cx.update(|window, cx| shot.clone().get_render_image(window, cx));
+    cx.run_until_parked();
+    assert!(cx.update(|_, cx| shot.is_asset_cached(cx)), "test setup: cached");
+    shot
+}
+
+#[gpui::test]
+fn screenshot_cache_drops_replaced_and_departed_images(cx: &mut TestAppContext) {
+    let fake = Arc::new(Fake::default());
+    let device = emulator("emulator-5554", DeviceState::Booted);
+    *fake.android.lock().expect("android lock") = vec![device.clone()];
+    let (panel, cx) = panel(cx, fake.clone());
+
+    let old = cached_screenshot(&panel, &device, cx);
+    let new = cached_screenshot(&panel, &device, cx);
+    assert!(
+        !cx.update(|_, cx| old.is_asset_cached(cx)),
+        "a replaced screenshot leaves the cache"
+    );
+
+    fake.android.lock().expect("android lock").clear();
+    panel.update(cx, |p, cx| p.refresh(cx));
+    cx.run_until_parked();
+    assert!(
+        !cx.update(|_, cx| new.is_asset_cached(cx)),
+        "a departed device's screenshot leaves the cache"
     );
 }

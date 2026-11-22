@@ -136,7 +136,7 @@ impl DevicesPanel {
             // The panel may be gone; nothing to update then.
             let _ = this.update(cx, |this, cx| {
                 let first = this.listing.is_none();
-                this.prune_ops(&listing);
+                this.prune_ops(&listing, cx);
                 this.listing = Some(listing);
                 this.refreshing = None;
                 if first {
@@ -200,21 +200,17 @@ impl DevicesPanel {
 
     /// Forgets ops of devices that left the list, and screenshots of devices no longer booted: an emulator
     /// serial is reused by the next AVD, so a kept entry would show on the wrong device.
-    fn prune_ops(&mut self, listing: &Listing) {
+    fn prune_ops(&mut self, listing: &Listing, cx: &mut App) {
         let devices = listing.devices();
         self.ops.retain(|id, ops| {
             if ops.busy.is_some() {
                 return true;
             }
-            match devices.iter().find(|d| &d.id == id) {
-                None => false,
-                Some(d) => {
-                    if d.state != DeviceState::Booted {
-                        ops.screenshot = None;
-                    }
-                    true
-                }
+            let device = devices.iter().find(|d| &d.id == id);
+            if device.is_none_or(|d| d.state != DeviceState::Booted) {
+                uncache(ops.screenshot.take(), cx);
             }
+            device.is_some()
         });
     }
 
@@ -283,9 +279,12 @@ impl DevicesPanel {
             device,
             "Taking screenshot…",
             |s, d| s.screenshot(d),
-            |this, id, png, _| {
+            |this, id, png, cx| {
                 let image = Arc::new(Image::from_bytes(ImageFormat::Png, png));
-                this.ops.entry(id.to_string()).or_default().screenshot = Some(image);
+                let new_id = image.id();
+                let old = this.ops.entry(id.to_string()).or_default().screenshot.replace(image);
+                // Same bytes, same cache entry: the new image is drawn from it.
+                uncache(old.filter(|old| old.id() != new_id), cx);
             },
             cx,
         );
@@ -363,6 +362,15 @@ impl DevicesPanel {
         );
     }
 }
+/// GPUI caches every image it has drawn until told otherwise.
+/// shortcut: frees the decoded image, not its window sprite-atlas texture (that needs the RenderImage, whose loader
+/// type gpui-pre 0.3.12 keeps private); upgrade if screenshot memory shows up in profiles.
+fn uncache(image: Option<Arc<Image>>, cx: &mut App) {
+    if let Some(image) = image {
+        image.remove_asset(cx);
+    }
+}
+
 impl Focusable for DevicesPanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus.clone()

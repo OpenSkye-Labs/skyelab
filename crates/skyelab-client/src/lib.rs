@@ -51,7 +51,7 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
-            port: 7287,
+            port: skyelab_protocol::DEFAULT_PORT,
             max_message_bytes: 16 << 20,
             // The daemon drops a connection idle for 5 minutes; any frame, a ping included, resets that.
             ping_interval: Duration::from_secs(30),

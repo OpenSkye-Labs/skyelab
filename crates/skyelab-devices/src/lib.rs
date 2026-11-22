@@ -199,8 +199,7 @@ impl DeviceHub {
         let mut devices = parse_adb_devices(&text(run(adb, &["devices", "-l"])?));
         for d in &mut devices {
             if d.kind == DeviceKind::Emulator
-                && let Ok(out) = self.adb(&d.id, &["emu", "avd", "name"])
-                && let Some(avd) = console_reply(&out)
+                && let Some(avd) = self.avd_name(&d.id)
             {
                 d.name = avd;
             }
@@ -249,6 +248,18 @@ impl DeviceHub {
         Ok(devices)
     }
 
+    /// The console needs `~/.emulator_console_auth_token`; without it (another `HOME`) adb prints nothing and exits 0,
+    /// so the boot property names the AVD instead.
+    fn avd_name(&self, serial: &str) -> Option<String> {
+        let console = self.adb(serial, &["emu", "avd", "name"]).ok();
+        console.as_deref().and_then(console_reply).or_else(|| {
+            let out = self
+                .adb(serial, &["shell", "getprop", "ro.boot.qemu.avd_name"])
+                .ok()?;
+            parse_avd_list(&text(out)).into_iter().next()
+        })
+    }
+
     /// Boots a simulator (returns `None`), or starts a stopped AVD and returns its process (`Some`).
     pub fn boot(&self, device: &Device) -> Result<Option<Emulator>, Error> {
         match device.platform {
@@ -275,7 +286,7 @@ impl DeviceHub {
                         path: emulator.to_owned(),
                         source,
                     })?;
-                Ok(Some(Emulator { child }))
+                Ok(Some(Emulator { child: Some(child) }))
             }
         }
     }
@@ -411,24 +422,39 @@ const DEFAULT_SDK: &str = if cfg!(target_os = "macos") {
     "Android/Sdk"
 };
 
-/// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running (and unreaped
-/// until this process exits); call [`Emulator::stop`] to end it.
+/// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running, and a thread reaps
+/// it when it exits; call [`Emulator::stop`] to end it.
 #[derive(Debug)]
 pub struct Emulator {
-    child: Child,
+    /// `None` only inside `drop`, which hands the child to the reaper thread.
+    child: Option<Child>,
+}
+
+const TAKEN_IN_DROP: &str = "only drop takes the child, and nothing runs after drop";
+
+impl Drop for Emulator {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take()
+            && matches!(child.try_wait(), Ok(None))
+        {
+            // Not reaping leaves a zombie until this process exits. The thread lives as long as the emulator does.
+            std::thread::spawn(move || child.wait());
+        }
+    }
 }
 
 impl Emulator {
     pub fn pid(&self) -> u32 {
-        self.child.id()
+        self.child.as_ref().expect(TAKEN_IN_DROP).id()
     }
 
     /// Asks the emulator to quit (SIGTERM on Unix, so it shuts the AVD down cleanly), waits up to 30 s, then kills it.
     pub fn stop(&mut self) -> io::Result<()> {
-        if cfg!(unix) && self.child.try_wait()?.is_none() {
+        let child = self.child.as_mut().expect(TAKEN_IN_DROP);
+        if cfg!(unix) && child.try_wait()?.is_none() {
             // std can only SIGKILL. An absolute path, so a planted `kill` on PATH can't skip the clean shutdown.
             let termed = Command::new("/bin/kill")
-                .args(["-TERM", &self.child.id().to_string()])
+                .args(["-TERM", &child.id().to_string()])
                 .stderr(Stdio::null())
                 .status()
                 .is_ok_and(|s| s.success());
@@ -440,14 +466,14 @@ impl Emulator {
             };
             let deadline = Instant::now() + wait;
             while Instant::now() < deadline {
-                if self.child.try_wait()?.is_some() {
+                if child.try_wait()?.is_some() {
                     return Ok(());
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
         }
-        self.child.kill()?;
-        self.child.wait().map(drop)
+        child.kill()?;
+        child.wait().map(drop)
     }
 }
 

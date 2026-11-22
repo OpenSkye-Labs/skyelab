@@ -59,7 +59,7 @@ jobs:
           else
             xcodebuild -downloadComponent MetalToolchain
           fi
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: release
       - run: cargo install cargo-packager --locked --version "$CARGO_PACKAGER_VERSION"
@@ -149,7 +149,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           draft: true
           generate_release_notes: true
