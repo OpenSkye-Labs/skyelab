@@ -144,7 +144,9 @@ Each step goes through `/loop`.
    - **Android** (`mobile/android-host/`): one activity, `SkyeLabActivity`, a `GpuiInputActivity` (NativeActivity
      plus gpui-mobile's keyboard bridge) that adds edge-to-edge keyboard insets. INTERNET is the only permission (no
      code reads network state), the launcher is the only component, no deep links. Gradle 9.9.2 with
-     `distributionSha256Sum`, and the wrapper jar's sha256 checked against Gradle's published one. AGP 9.5.2,
+     `distributionSha256Sum`, and the wrapper jar's sha256 checked against Gradle's published one. Every artifact
+     Gradle resolves (AGP and everything under it) is checked against `android-host/gradle/verification-metadata.xml`;
+     a mismatch or an artifact missing from it fails the build. AGP 9.5.2,
      compileSdk and targetSdk 37 (Android 17), minSdk 26 (what the cdylib links against, `cargo ndk -P 26`), arm64
      only. `scripts/build-android.sh release` signs only when all four `SKYELAB_ANDROID_KEYSTORE*` /
      `SKYELAB_ANDROID_KEY_*` variables are set, else writes `app-release-unsigned.apk`.
@@ -153,12 +155,27 @@ Each step goes through `/loop`.
      runs cargo (`ios/build-rust.sh`) and Xcode adds the asset catalog, Info.plist and signing. Deployment target
      iOS 15, what the binary has always been built for. No entitlements. `scripts/build-ios.sh release device`
      signs with `SKYELAB_IOS_TEAM_ID` (automatic signing); no team id is committed.
+   - **Updating the Gradle checksums** after bumping AGP, Gradle or adding a dependency: in `mobile/android-host/`,
+     `./gradlew --write-verification-metadata sha256 help assembleDebug assembleRelease` (it keeps existing entries
+     and adds new ones). Then read the diff: every new component should be one the bump explains (an AGP version,
+     a library it pulls in), from `google()` or `mavenCentral()`. aapt2 is one jar per OS and Gradle only records the
+     one it ran on, so add the other two by hand from `https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2/<version>/aapt2-<version>-<osx|linux|windows>.jar`
+     (`shasum -a 256`); `scripts/check-hosts.sh` fails until all three are there. Delete entries for versions you no
+     longer use. Never set `verify-metadata` to false to get past a mismatch: a mismatch means the downloaded bytes
+     changed.
+   - **Emoji.** On Android 13+ the system emoji font is COLR v1, which the text system (swash) can't render, so
+     gpui-mobile loads `assets/fonts/NotoColorEmoji.ttf` from the APK instead. We bundle Twemoji Mozilla 0.7.0
+     (COLR v0, every emoji to Emoji 15, CC BY 4.0, license in `assets/licenses/`) under that name:
+     `scripts/fetch-gpui-mobile.sh` downloads it by sha256 into `target/emoji/` and renames its PostScript name to
+     `NotoColorEmoji`, the only name gpui-pre-wgpu draws in colour. It adds 0.7 MB to the APK (Noto's own CBDT
+     font would add 10 MB). Below Android 13 the system font is CBDT and is used instead. Emoji therefore look like
+     Twitter's set, not Android's. `mobile/android/tests/emoji_font.rs` checks a face and a flag rasterise in colour.
    - **Release sizes** (`opt-level = "z"`, fat LTO, one codegen unit, strip): Android `libskyelab_mobile_android.so`
-     15.2 MiB, release APK 15.3 MiB (the .so is stored uncompressed so it can be mapped in place); iOS simulator
+     15.2 MiB, release APK 16.0 MiB (15.3 MiB before the emoji font; the .so is stored uncompressed so it can be
+     mapped in place); iOS simulator
      `SkyeLab.app` 9.2 MiB (9.1 MiB executable). Clean release builds take about 3 min (Android) and 1.5 min (iOS)
      on an M-series Mac.
-   - **Limits:** no bundled emoji font on Android (gpui-mobile's example shipped a 10 MB one), so emoji show as missing
-     glyphs; no splash screen; Android is arm64 only; iOS is iPhone only.
+   - **Limits:** no splash screen; Android is arm64 only; iOS is iPhone only.
 7. **Verify.** Logic is tested in `skyelab-client`. Views get `#[gpui::test]`s. Android is driven with `agent-device`.
    iOS can't be driven past taps until `gpui_ios` exposes accessibility, so confirm iOS typing by hand on the first build
    and track upstream accessibility work.

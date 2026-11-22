@@ -21,5 +21,9 @@ android-activity = { version = "0.6.1", features = ["native-activity"] }
 android_logger = "0.15.1"
 log = "0.4.35"
 
+[target.'cfg(not(target_os = "android"))'.dev-dependencies]
+gpui.workspace = true
+gpui_wgpu.workspace = true
+
 [lints]
 workspace = true

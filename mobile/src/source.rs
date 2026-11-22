@@ -93,7 +93,7 @@ impl FakeSource {
         );
         fake.agent_text(
             1,
-            "Found it: the redirect drops the `next` query parameter. Fixing auth/login.rs.",
+            "Found it 🔍 the redirect drops the `next` query parameter. Fixing auth/login.rs 🦀✅",
         );
         fake.push(
             1,
