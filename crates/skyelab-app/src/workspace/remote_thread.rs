@@ -40,7 +40,7 @@ pub struct RemoteThreadView {
     title: SharedString,
     account: Option<String>,
     pub(super) items: Vec<Item>,
-    list: ListState,
+    pub(super) list: ListState,
     expanded: HashSet<String>,
     /// The last seq shown. The client delivers each event once, but watching again replays from the start.
     last_seq: i64,
@@ -155,7 +155,7 @@ impl RemoteThreadView {
         self.prompt.read(cx).focus_handle(cx).focus(window, cx);
     }
 
-    fn on_event(&mut self, event: &ThreadEvent, cx: &mut Context<Self>) {
+    pub(super) fn on_event(&mut self, event: &ThreadEvent, cx: &mut Context<Self>) {
         if Some(event.thread_id) != self.thread_id || event.seq <= self.last_seq {
             return;
         }

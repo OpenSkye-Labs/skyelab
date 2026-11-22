@@ -3,8 +3,8 @@ use crate::{
     source::{Connection, ThreadSource},
 };
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, SharedString, Subscription, Task, Window,
-    WindowOptions, div, prelude::*, px,
+    AnyElement, App, Context, Entity, FontWeight, ListAlignment, ListState, SharedString,
+    Subscription, Task, Window, WindowOptions, div, list, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Root,
@@ -55,6 +55,12 @@ pub struct MobileApp {
     pub env_input: Entity<InputState>,
     pub composer: Entity<InputState>,
     pub error: Option<SharedString>,
+    /// The open thread's rows. Only the visible ones are built each frame.
+    pub events_list: ListState,
+    /// What `events_list` was last synced to: (thread, event count, last seq).
+    shown: (i64, usize, Option<i64>),
+    /// Event rows built so far, so tests can check a frame builds only the visible ones.
+    pub rows_built: usize,
     _enter: [Subscription; 2],
 }
 
@@ -95,6 +101,9 @@ impl MobileApp {
             env_input,
             composer,
             error: None,
+            events_list: ListState::new(0, ListAlignment::Top, px(600.)),
+            shown: (0, 0, None),
+            rows_built: 0,
             _enter,
         }
     }
@@ -229,11 +238,51 @@ impl MobileApp {
         self.threads().into_iter().find(|t| t.id == thread_id)
     }
 
-    pub fn events(&self) -> Vec<ThreadEvent> {
+    pub fn events(&self) -> &[ThreadEvent] {
         match (self.screen, &self.source) {
             (Screen::Thread { thread_id, .. }, Some(source)) => source.events(thread_id),
-            _ => Vec::new(),
+            _ => &[],
         }
+    }
+
+    /// Brings `events_list` up to date with the open thread's events. Events only ever get inserted in seq order
+    /// or cleared (a re-watch), so if the last row shown is still at its index, every new event came after it and
+    /// is spliced on the end; anything else re-lays out the list.
+    fn sync_events_list(&mut self) {
+        let Screen::Thread { thread_id, .. } = self.screen else {
+            return;
+        };
+        let events = self.events();
+        let (n, last) = (events.len(), events.last().map(|e| e.seq));
+        let (shown_thread, shown_len, shown_last) = self.shown;
+        let appended = shown_thread == thread_id
+            && shown_len <= n
+            && (shown_len == 0 || Some(events[shown_len - 1].seq) == shown_last);
+        if !appended {
+            self.events_list.reset(n);
+        } else if n > shown_len {
+            self.events_list.splice(shown_len..shown_len, n - shown_len);
+        }
+        self.shown = (thread_id, n, last);
+    }
+
+    fn event_row(&mut self, ix: usize, cx: &mut Context<Self>) -> AnyElement {
+        self.rows_built += 1;
+        let theme = cx.theme();
+        let Some(e) = self.events().get(ix) else {
+            return div().into_any_element();
+        };
+        v_flex()
+            .py_2()
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.muted_foreground)
+                    .child(e.kind.to_uppercase()),
+            )
+            .child(event_text(e))
+            .into_any_element()
     }
 }
 
@@ -383,21 +432,13 @@ impl MobileApp {
     }
 
     fn thread_view(&self, cx: &mut Context<Self>) -> AnyElement {
+        let events = list(
+            self.events_list.clone(),
+            cx.processor(|this, ix, _, cx| this.event_row(ix, cx)),
+        )
+        .flex_1()
+        .min_h_0();
         let theme = cx.theme();
-        // shortcut: renders every event as a child, fine for a few hundred; switch to gpui `list` + ListState
-        // when long threads lag.
-        let events = self.events().into_iter().map(|e| {
-            v_flex()
-                .py_2()
-                .child(
-                    div()
-                        .text_xs()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.muted_foreground)
-                        .child(e.kind.to_uppercase()),
-                )
-                .child(event_text(&e))
-        });
         v_flex()
             .flex_1()
             .min_h_0()
@@ -408,14 +449,7 @@ impl MobileApp {
                         .map(|t| format!("{} · {}", t.account_id, t.status)),
                 ),
             )
-            .child(
-                div()
-                    .id("events")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .child(v_flex().children(events)),
-            )
+            .child(events)
             .child(
                 h_flex()
                     .gap_2()
@@ -454,6 +488,7 @@ impl Render for MobileApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Keep clear of the status bar, notch, home indicator and (on iOS) the keyboard.
         let safe = window.insets().effective();
+        self.sync_events_list();
         let body = match self.screen {
             Screen::Picker => self.picker(cx),
             Screen::Projects => self.project_list(cx),
