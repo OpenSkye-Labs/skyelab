@@ -6,6 +6,7 @@ in a folder under the wrong Claude account.
 
 Read before working: [docs/architecture.md](docs/architecture.md) (what we're building, crate layout, roadmap)
 and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, not suggestions.
+What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-guide.md); update them when a feature changes.
 
 ## How to work
 
