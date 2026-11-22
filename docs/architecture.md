@@ -35,7 +35,7 @@ personal plan by mistake.
 | `skyelab-core` | accounts/bindings, domain types, no GPUI, no async runtime | yes |
 | `skyelab-app` | GPUI desktop client (binary `skyelab`) | yes |
 | `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) | yes |
-| `skyelab-agent` | spawning/streaming agent processes | later |
+| `skyelab-agent` | spawning/streaming agent processes, and SkyeLab's MCP server for orchestration | yes |
 | `skyelab-daemon` | environment server + RPC, hosted in the app | yes |
 | `skyelab-tailnet` | `Tailnet` trait over the Tailscale CLI: `self_node / peers / whois` | yes |
 | `skyelab-devices` | device hub core: list/boot/install/launch/screenshot on iOS Simulators and Android emulators (sync, shells out to simctl/adb/emulator) | yes |
@@ -95,6 +95,25 @@ them from reaching the port at all. A grant that lets only your own devices reac
 With the default "allow all" policy any tailnet member can open a TCP connection to the port; they are refused at
 whois, but replacing the default with grants like the one above is better.
 
+## Orchestration
+
+An agent can delegate work to other threads through SkyeLab's own MCP tools: `list_projects`, `start_thread`,
+`thread_status`, `read_thread`, `send_message` and `wait_thread`.
+
+- **Account rule.** A delegated thread runs under its target project's bound account, through the normal launch
+  path. An agent under account A can only list, start, read or drive threads in projects bound to A, and only
+  threads recorded under A. An unbound target is refused; there is never a default account. This keeps a work agent
+  from spending the personal plan, and the reverse.
+- **Limits.** Depth 2 at most (a user's thread is depth 0), and 4 running children per thread.
+- **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<data dir>/skyelab/run/<pid>/` (0700). Each agent
+  session gets a grant: a one-use random token and a 0600 `--mcp-config` file that runs `skyelab --mcp-proxy`. The
+  proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
+  connection. Never TCP.
+- **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
+  `parent_thread_id` (schema 3).
+- **Not yet:** Windows (no named-pipe transport, so threads there run without the tools) and delegation to other
+  machines.
+
 ## Platforms
 
 | | Status |
@@ -130,6 +149,10 @@ Each item goes through `/loop` (see CLAUDE.md).
   ssh-agent, TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
 - **Project settings:** agents launch with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23)
+- **Orchestration tools are ours, over a private socket.** No `rmcp` (it needs tokio; four JSON-RPC methods are
+  enough). Agents get `--mcp-config <grant file> --allowedTools mcp__skyelab`, and `--strict-mcp-config` keeps
+  every other server out. Starts and sends run on the UI thread through `ThreadView`, which re-checks the account rule
+  with the config the launch uses. (2026-11-23)
 - **Remote calls reuse the thread view.** The daemon's agent calls are forwarded to the UI thread and run through
   `ThreadView::send_prompt`, so there is one launch path and one place the account is resolved. Sharing is off by
   default and only an explicit toggle turns it on. (2026-11-23)
