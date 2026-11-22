@@ -1,4 +1,5 @@
-//! The Changes tab: a folder's changed files and their unified diff against `HEAD`.
+//! The Changes tab: a folder's changed files and their unified diff against `HEAD`, or against
+//! the commit a worktree thread started from.
 
 use super::changes_model::{self, Changes, LineKind, Row};
 use super::thread::{ThreadView, ThreadViewEvent};
@@ -19,6 +20,8 @@ const ROW_HEIGHT: f32 = 20.;
 pub struct ChangesView {
     focus: FocusHandle,
     pub(super) dir: PathBuf,
+    /// A worktree's base commit; `None` diffs against `HEAD`.
+    base: Option<String>,
     title: SharedString,
     pub(super) changes: Option<Changes>,
     pub(super) error: Option<SharedString>,
@@ -31,6 +34,7 @@ impl ChangesView {
     /// Shows `dir`'s changes, reloading whenever `thread`'s agent finishes a turn.
     pub fn new(
         dir: PathBuf,
+        base: Option<String>,
         title: SharedString,
         thread: Option<&Entity<ThreadView>>,
         cx: &mut Context<Self>,
@@ -45,6 +49,7 @@ impl ChangesView {
         let mut this = Self {
             focus: cx.focus_handle(),
             dir,
+            base,
             title,
             changes: None,
             error: None,
@@ -62,8 +67,8 @@ impl ChangesView {
 
     /// Re-reads status and diff off the UI thread. A newer refresh drops the older one.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        let dir = self.dir.clone();
-        let task = cx.background_spawn(async move { changes_model::load(&dir) });
+        let (dir, base) = (self.dir.clone(), self.base.clone());
+        let task = cx.background_spawn(async move { changes_model::load(&dir, base.as_deref()) });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -267,7 +272,11 @@ impl Render for ChangesView {
                 .p_4()
                 .text_sm()
                 .text_color(theme.muted_foreground)
-                .child("No changes against HEAD.")
+                .child(if self.base.is_some() {
+                    "No changes since this worktree was created."
+                } else {
+                    "No changes against HEAD."
+                })
                 .into_any_element()
         } else {
             h_flex()

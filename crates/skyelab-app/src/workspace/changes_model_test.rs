@@ -52,7 +52,7 @@ fn lists_every_kind_of_change_with_line_numbers() {
     std::fs::write(root.join("blob.bin"), b"\x00\x09\x09\x09").expect("binary change");
     std::fs::write(root.join("fresh.txt"), "hello\nworld\n").expect("untracked add");
 
-    let c = load(&root).expect("load");
+    let c = load(&root, None).expect("load");
     let kinds: Vec<(String, ChangeKind, bool)> = c
         .files
         .iter()
@@ -119,7 +119,7 @@ fn untracked_binary_and_links_show_placeholders() {
     #[cfg(unix)]
     std::os::unix::fs::symlink("/etc/hosts", root.join("link")).expect("symlink");
 
-    let c = load(&root).expect("load");
+    let c = load(&root, None).expect("load");
     let png = c
         .files
         .iter()

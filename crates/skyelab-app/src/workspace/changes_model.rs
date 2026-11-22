@@ -1,5 +1,5 @@
-//! What the Changes tab shows: every changed file in a folder's repo against `HEAD`, flattened
-//! into fixed-height rows so a long diff renders through `uniform_list`.
+//! What the Changes tab shows: every changed file in a folder's repo against `HEAD` (or a
+//! worktree's base), flattened into fixed-height rows so a long diff renders through `uniform_list`.
 
 use anyhow::Result;
 use skyelab_git::{ChangeKind, Line};
@@ -52,10 +52,15 @@ pub struct Changes {
 }
 
 /// Tracked changes from `diff HEAD` (staged and unstaged together), untracked files from `status`.
-pub fn load(dir: &Path) -> Result<Changes> {
+/// With a `base` commit, tracked changes are since its merge-base with `HEAD`, commits included.
+pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
-    for d in diff_head(dir)? {
+    let diffs = match base {
+        Some(base) => skyelab_git::diff_merge_base(dir, base)?,
+        None => diff_head(dir)?,
+    };
+    for d in diffs {
         let Some(path) = d.new_path.clone().or(d.old_path.clone()) else {
             continue;
         };

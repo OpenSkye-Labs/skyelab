@@ -80,3 +80,71 @@ fn failed_row_save_removes_the_new_worktree() {
         .expect_err("the row can't be saved");
     assert!(!path.exists(), "worktree left behind after: {err:#}");
 }
+
+fn head(dir: &Path) -> String {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .expect("git runs");
+    String::from_utf8(out.stdout)
+        .expect("utf-8")
+        .trim()
+        .to_owned()
+}
+
+#[gpui::test]
+fn changes_show_the_agents_commits_against_the_worktree_base(cx: &mut gpui::TestAppContext) {
+    use super::thread_worktree::{OpenChanges, ToggleWorktree};
+    use super::worktree_thread_test::{fixture, open_thread, send, wait_until};
+    let f = fixture();
+    // The fake agent commits a file when it starts in a checkout holding this marker.
+    std::fs::write(f.project.join(".fake-agent-commits"), "").expect("marker");
+    git(&f.project, &["add", "."]);
+    git(&f.project, &["commit", "-q", "-m", "marker"]);
+    let base = head(&f.project);
+
+    let (ws, thread, cx) = open_thread(&f, cx);
+    cx.dispatch_action(ToggleWorktree);
+    send(cx);
+    wait_until(cx, "thread row", |cx| {
+        thread.read_with(cx, |t, _| t.thread.is_some() || t.error.is_some())
+    });
+    let row = thread.read_with(cx, |t, _| t.thread.clone().expect("row"));
+    let wt = row.worktree_path.clone().expect("worktree");
+    assert_eq!(row.worktree_base.as_deref(), Some(base.as_str()));
+    let stored = f.store.lock().expect("lock").thread(row.id).expect("read");
+    assert_eq!(stored.expect("row").worktree_base, Some(base.clone()));
+    wait_until(cx, "the agent's commit", |_| head(&wt) != base);
+    std::fs::write(wt.join("README.md"), "# edited, not committed\n").expect("edit");
+
+    cx.dispatch_action(OpenChanges);
+    let view = ws
+        .read_with(&*cx, |ws, _| {
+            ws.changes_views.last().and_then(|c| c.upgrade())
+        })
+        .expect("changes tab");
+    wait_until(cx, "the diff", |cx| {
+        view.read_with(cx, |c, _| c.changes.is_some() || c.error.is_some())
+    });
+    view.read_with(cx, |c, _| {
+        assert_eq!(c.error, None);
+        let files: Vec<_> = c
+            .changes
+            .as_ref()
+            .expect("loaded")
+            .files
+            .iter()
+            .map(|f| f.path.clone())
+            .collect();
+        assert_eq!(
+            files,
+            [
+                PathBuf::from("README.md"),
+                PathBuf::from("agent-commit.txt")
+            ],
+            "committed and uncommitted changes both show"
+        );
+    });
+}

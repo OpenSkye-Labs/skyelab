@@ -280,7 +280,12 @@ impl Workspace {
             return;
         }
         let title = view.read(cx).title();
-        let changes = cx.new(|cx| ChangesView::new(dir, title, Some(view), cx));
+        let base = view
+            .read(cx)
+            .thread
+            .as_ref()
+            .and_then(|t| t.worktree_base.clone());
+        let changes = cx.new(|cx| ChangesView::new(dir, base, title, Some(view), cx));
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
                 panel_handle(changes.clone()),

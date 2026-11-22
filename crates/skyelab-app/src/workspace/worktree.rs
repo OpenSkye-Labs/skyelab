@@ -16,6 +16,8 @@ const DIR: &str = ".skyelab";
 pub(super) struct Created {
     pub path: PathBuf,
     pub branch: String,
+    /// The commit it started from, so its Changes still show what the agent committed.
+    pub base: String,
 }
 
 /// The title in lowercase ASCII words, plus a time-based suffix so two threads with the same
@@ -82,14 +84,15 @@ pub(super) fn create(
     let slug = slug(title, now_ms());
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
-    let path = skyelab_git::create_worktree(&project, &branch, "HEAD", Some(&dest), false)?;
+    let base = skyelab_git::rev_parse(&project, "HEAD")?;
+    let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;
     if let Err(e) = check(config, &project, &path, account_id) {
         return Err(match skyelab_git::remove_worktree(&project, &path, true) {
             Ok(()) => e,
             Err(c) => e.context(format!("removing the refused worktree also failed: {c}")),
         });
     }
-    Ok(Created { path, branch })
+    Ok(Created { path, branch, base })
 }
 
 /// Creates a new thread's row, with its worktree recorded on it. If that fails, the worktree is
@@ -104,12 +107,16 @@ pub(super) fn save(
     let saved = super::lock(store).and_then(|store| {
         let mut thread = store.create_thread(new)?;
         let Some(w) = worktree else { return Ok(thread) };
-        if let Err(e) = store.set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch)) {
+        let recorded = store
+            .set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch))
+            .and_then(|()| store.set_thread_worktree_base(thread.id, Some(&w.base)));
+        if let Err(e) = recorded {
             // Best effort: a row whose worktree is gone would only fail to start again.
             let _ = store.delete_thread(thread.id);
             return Err(e);
         }
         (thread.worktree_path, thread.worktree_branch) = (Some(w.path), Some(w.branch));
+        thread.worktree_base = Some(w.base);
         Ok(thread)
     });
     let Some(path) = path.filter(|_| saved.is_err()) else {

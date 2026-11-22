@@ -36,30 +36,36 @@ pub enum Line {
 /// The working tree at `path` against `against` (a commit-ish such as `HEAD` or `main`), per file.
 /// Untracked files are not included; see [`crate::status`] for those.
 pub fn diff(path: &Path, against: &str) -> Result<Vec<FileDiff>> {
-    let out = git(
-        path,
-        &[
-            "-c",
-            "core.quotePath=false",
-            // Otherwise a blank context line comes out as "" instead of " " and is lost.
-            "-c",
-            "diff.suppressBlankEmpty=false",
-            "diff",
-            "--no-color",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--no-relative",
-            "-M",
-            // diff.submodule=log prints submodule commits as indented lines that read as context.
-            "--submodule=short",
-            // Explicit prefixes beat a user's diff.noprefix / diff.mnemonicPrefix, which the parser relies on.
-            "--src-prefix=a/",
-            "--dst-prefix=b/",
-            "--end-of-options",
-            against,
-            "--",
-        ],
-    )?;
+    run(path, None, against)
+}
+
+/// The working tree at `path` against the merge-base of `base` and `HEAD`: everything done since
+/// the branch left `base`, committed or not. Untracked files are not included.
+pub fn diff_merge_base(path: &Path, base: &str) -> Result<Vec<FileDiff>> {
+    run(path, Some("--merge-base"), base)
+}
+
+fn run(path: &Path, mode: Option<&str>, rev: &str) -> Result<Vec<FileDiff>> {
+    let args = [
+        "-c",
+        "core.quotePath=false",
+        // Otherwise a blank context line comes out as "" instead of " " and is lost.
+        "-c",
+        "diff.suppressBlankEmpty=false",
+        "diff",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-relative",
+        "-M",
+        // diff.submodule=log prints submodule commits as indented lines that read as context.
+        "--submodule=short",
+        // Explicit prefixes beat a user's diff.noprefix / diff.mnemonicPrefix, which the parser relies on.
+        "--src-prefix=a/",
+        "--dst-prefix=b/",
+    ];
+    let rev = ["--end-of-options", rev, "--"];
+    let out = git(path, &[&args[..], mode.as_slice(), &rev[..]].concat())?;
     Ok(parse(&out))
 }
 
