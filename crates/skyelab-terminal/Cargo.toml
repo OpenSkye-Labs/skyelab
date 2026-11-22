@@ -12,5 +12,8 @@ futures.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+rustix-openpty.workspace = true
+
 [lints]
 workspace = true

@@ -6531,6 +6531,7 @@ dependencies = [
  "futures",
  "gpui-component",
  "gpui-pre",
+ "rustix-openpty",
 ]
 
 [[package]]

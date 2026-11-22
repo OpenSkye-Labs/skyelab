@@ -40,7 +40,16 @@ pub struct Terminal {
     pty: EventLoopSender,
     exit: Option<ExitStatus>,
     size: (u16, u16),
+    /// Held for the terminal's life. macOS throws away output the parent hasn't read once the child's last slave fd
+    /// closes (after a short drain wait), so a child that prints and exits under load lost its output. With this
+    /// open, the child's exit waits until the reader has drained it.
+    _slave: Slave,
 }
+
+#[cfg(unix)]
+type Slave = std::os::fd::OwnedFd;
+#[cfg(windows)]
+type Slave = ();
 
 impl Terminal {
     /// Spawns the child. Every event from the PTY thread arrives on the returned receiver;
@@ -63,7 +72,7 @@ impl Terminal {
             escape_args: true,
         };
         let window_size = window_size(opts.cols, opts.lines, 0.0, 0.0);
-        let pty = tty::new(&options, window_size, 0).context("spawning the terminal pty")?;
+        let (pty, slave) = open_pty(&options, window_size).context("spawning the terminal pty")?;
         let term = Term::new(
             Config::default(),
             &TermSize::new(opts.cols.into(), opts.lines.into()),
@@ -80,6 +89,7 @@ impl Terminal {
             pty,
             exit: None,
             size: (opts.cols, opts.lines),
+            _slave: slave,
         };
         Ok((this, rx))
     }
@@ -163,6 +173,25 @@ impl Drop for Terminal {
     }
 }
 
+/// The PTY plus a parent-held, close-on-exec fd of its slave side (`()` on Windows).
+#[cfg(unix)]
+fn open_pty(options: &tty::Options, size: WindowSize) -> std::io::Result<(tty::Pty, Slave)> {
+    let size = rustix_openpty::rustix::termios::Winsize {
+        ws_row: size.num_lines,
+        ws_col: size.num_cols,
+        ws_xpixel: size.num_cols.saturating_mul(size.cell_width),
+        ws_ypixel: size.num_lines.saturating_mul(size.cell_height),
+    };
+    let fds = rustix_openpty::openpty(None, Some(&size))?;
+    let slave = fds.user.try_clone()?;
+    Ok((tty::from_fd(options, 0, fds.controller, fds.user)?, slave))
+}
+
+#[cfg(windows)]
+fn open_pty(options: &tty::Options, size: WindowSize) -> std::io::Result<(tty::Pty, Slave)> {
+    tty::new(options, size, 0).map(|pty| (pty, ()))
+}
+
 fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> WindowSize {
     WindowSize {
         num_cols: cols,
@@ -210,5 +239,37 @@ fn login_args() -> Vec<String> {
         vec![]
     } else {
         vec!["-l".into()]
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::{io::Read, time::Duration};
+
+    use alacritty_terminal::tty::{ChildEvent, EventedPty, EventedReadWrite};
+
+    use super::*;
+
+    /// A child that prints and exits before anyone reads must not lose its output (macOS drops it otherwise).
+    #[test]
+    fn output_outlives_a_child_that_exits_before_the_first_read() {
+        let options = tty::Options {
+            shell: Some(tty::Shell::new("printf".into(), vec!["XYZ".into()])),
+            working_directory: None,
+            drain_on_exit: true,
+            env: HashMap::new(),
+        };
+        let (mut pty, _slave) = open_pty(&options, window_size(80, 24, 0.0, 0.0)).expect("pty");
+        // Read nothing until printf is long done: without the held slave its output is gone by then.
+        std::thread::sleep(Duration::from_secs(2));
+        let mut buf = [0u8; 64];
+        let n = pty.reader().read(&mut buf).expect("read after exit");
+        let mut waited = 0;
+        while !matches!(pty.next_child_event(), Some(ChildEvent::Exited(_))) {
+            waited += 1;
+            assert!(waited < 1000, "printf never exited");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(&buf[..n], b"XYZ");
     }
 }
