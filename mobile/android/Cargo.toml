@@ -1,0 +1,23 @@
+[package]
+name = "skyelab-mobile-android"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+# Loaded by gpui-mobile's GpuiActivity (scripts/run-android.sh). Empty on every other target.
+[lib]
+name = "skyelab_mobile_android"
+crate-type = ["cdylib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+skyelab-mobile = { path = ".." }
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui-mobile.workspace = true
+android-activity = { version = "0.6.1", features = ["native-activity"] }
+android_logger = "0.15.1"
+log = "0.4.35"
+
+[lints]
+workspace = true
