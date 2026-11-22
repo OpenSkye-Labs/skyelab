@@ -59,12 +59,18 @@ fn agent_calls_refuse_file_urls_and_unloaded_pages(cx: &mut TestAppContext) {
     let err = browser
         .update(cx, |b, cx| b.navigate("file:///etc/hosts", cx))
         .expect_err("agent navigate to a file");
-    assert!(format!("{err:#}").contains("http"), "agent refusal, got: {err:#}");
+    assert!(
+        format!("{err:#}").contains("http"),
+        "agent refusal, got: {err:#}"
+    );
 
     let eval = browser.read_with(cx, |b, cx| b.eval_js("document.title", cx));
     let err = cx
-        .background_executor
+        .foreground_executor()
         .block_test(eval)
         .expect_err("eval before the first load");
-    assert!(format!("{err:#}").contains("not loaded"), "agent refusal, got: {err:#}");
+    assert!(
+        format!("{err:#}").contains("not loaded"),
+        "agent refusal, got: {err:#}"
+    );
 }

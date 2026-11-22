@@ -12,6 +12,7 @@ use gpui_component::{
     kbd::Kbd,
     v_flex,
 };
+use skyelab_browser::BrowserView;
 use skyelab_terminal::TerminalView;
 
 /// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
@@ -297,6 +298,48 @@ impl Render for TerminalPanel {
 }
 
 panel!(Settings, "Settings", closable: true, |_this| "Settings");
+
+/// A browser tab in the center. The page is a native view that stays on screen unless told, so the
+/// tab hides it while another tab is shown and drops it on close.
+pub struct BrowserPanel {
+    pub browser: Entity<BrowserView>,
+}
+
+impl EventEmitter<PanelEvent> for BrowserPanel {}
+impl BasePanel for BrowserPanel {
+    fn panel_name(&self) -> &'static str {
+        "Browser"
+    }
+    fn zoomable(&self, _: &App) -> bool {
+        false
+    }
+    fn set_active(&mut self, active: bool, _: &mut Window, cx: &mut Context<Self>) {
+        self.browser.read(cx).set_visible(active, cx);
+    }
+    fn on_removed(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.browser.update(cx, |b, cx| b.close(cx));
+    }
+}
+impl Panel for BrowserPanel {
+    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        "Browser"
+    }
+    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
+        None
+    }
+}
+
+impl Focusable for BrowserPanel {
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.browser.read(cx).focus_handle(cx)
+    }
+}
+
+impl Render for BrowserPanel {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size_full().child(self.browser.clone())
+    }
+}
 
 macro_rules! focusable {
     ($($ty:ty),*) => {$(
