@@ -211,11 +211,19 @@ impl AccountsConfig {
 fn canonical(p: &Path) -> Option<PathBuf> {
     let mut missing = Vec::new();
     let mut cur = p;
+    let rejoin = |base: PathBuf, missing: &[&std::ffi::OsStr]| {
+        missing.iter().rev().fold(base, |acc, name| acc.join(name))
+    };
     loop {
         if let Ok(real) = std::fs::canonicalize(cur) {
-            return Some(missing.iter().rev().fold(real, |acc, name| acc.join(name)));
+            return Some(rejoin(real, &missing));
         }
-        missing.push(cur.file_name()?);
+        let Some(name) = cur.file_name() else {
+            // A root that can't be canonicalized (an unplugged Windows drive) is kept as written.
+            let root = cur.is_absolute() && !cur.ends_with("..");
+            return root.then(|| rejoin(cur.to_path_buf(), &missing));
+        };
+        missing.push(name);
         cur = cur.parent()?;
     }
 }
