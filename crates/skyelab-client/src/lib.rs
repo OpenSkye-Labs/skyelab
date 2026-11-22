@@ -17,6 +17,8 @@
 
 mod conn;
 mod guard;
+#[cfg(any(test, feature = "test-support"))]
+pub mod testing;
 #[cfg(test)]
 mod tests;
 mod tls;

@@ -3,7 +3,7 @@
 use std::io::Read;
 use std::net::{Ipv4Addr, TcpListener};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use rustls::pki_types::pem::PemObject as _;
@@ -12,6 +12,7 @@ use skyelab_tailnet::Cert;
 
 use super::*;
 use crate::Error;
+use skyelab_daemon::testing::TestCa;
 
 /// A TLS server on loopback serving `cert`. It records whether any handshake completed (so the client accepted
 /// the certificate) and then hangs up, since it speaks no WebSocket.
@@ -222,7 +223,7 @@ fn ip_host_is_refused() {
 #[test]
 fn oversized_message_over_tls_closes() {
     let env = Env::new();
-    env.append(200);
+    append(&env, 200);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let opts = Options {
         max_message_bytes: 1024,

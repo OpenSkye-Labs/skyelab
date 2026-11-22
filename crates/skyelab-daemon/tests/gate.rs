@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use common::*;
+use skyelab_daemon::testing::Peer;
 use skyelab_protocol::{Call, Reply, ServerMessage, VERSION};
 
 #[test]

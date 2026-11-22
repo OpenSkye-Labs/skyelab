@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use skyelab_daemon::Daemon;
+use skyelab_daemon::{Config, Daemon};
 
 use super::*;
 

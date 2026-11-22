@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use skyelab_daemon::Daemon;
+use skyelab_daemon::{Config, Daemon};
 use skyelab_protocol::{Project, RpcError, Thread, ThreadEvent};
 
 use super::*;
@@ -36,7 +36,7 @@ impl Backend for Slow {
 #[test]
 fn refused_fill_is_retried() {
     let env = Env::new();
-    env.append(3);
+    append(&env, 3);
     let config = Config {
         max_in_flight: 1,
         ..daemon_config(0)

@@ -27,7 +27,7 @@ fn tailnet() -> FakeTailnet {
 
 #[gpui::test]
 fn picker_offers_this_mac_and_only_your_online_devices(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, _local, cx) = local_workspace(Arc::new(tailnet()), None, remote.options(), cx);
     cx.dispatch_action(env_picker::ToggleEnvironments);
     let picker = ws.read_with(cx, |ws, _| ws.env_picker().expect("picker"));
@@ -52,7 +52,7 @@ fn picker_offers_this_mac_and_only_your_online_devices(cx: &mut TestAppContext) 
 
 #[gpui::test]
 fn picker_remembers_recent_environments_and_keeps_other_settings(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("settings.toml");
     AppSettings {

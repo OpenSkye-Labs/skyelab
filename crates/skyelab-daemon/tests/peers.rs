@@ -5,6 +5,7 @@ mod common;
 use std::sync::Arc;
 
 use common::*;
+use skyelab_daemon::testing::{ME, Peer};
 
 #[test]
 fn lists_gated_peers_and_disconnect_closes_only_that_socket() {

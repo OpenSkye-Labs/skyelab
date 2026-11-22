@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
 use common::*;
+use skyelab_daemon::testing::Peer;
 use skyelab_daemon::{Backend, Config};
 use skyelab_protocol::{
     Call, ErrorCode, Project, Reply, RpcError, ServerMessage, Thread, ThreadEvent,

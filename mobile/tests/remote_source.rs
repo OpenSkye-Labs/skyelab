@@ -5,7 +5,7 @@ pub mod common;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use common::{Env, NODE_NAME, options};
+use common::{Env, NODE_NAME, Peer, Ran, options, start};
 use skyelab_client::{Error, Update};
 use skyelab_mobile::{
     remote::RemoteSource,
@@ -30,12 +30,12 @@ fn settle(source: &mut RemoteSource, what: &str, done: impl Fn(&RemoteSource) ->
 }
 
 fn connect(env: &Env) -> RemoteSource {
-    RemoteSource::connect(NODE_NAME, options(env.port())).expect("client thread")
+    RemoteSource::connect(NODE_NAME, options(env.port)).expect("client thread")
 }
 
 #[test]
 fn connects_then_lists_projects_and_threads() {
-    let env = Env::start();
+    let env = start();
     let mut source = connect(&env);
     assert_eq!(source.connection(), Connection::Connecting);
     settle(&mut source, "projects", |s| !s.projects().is_empty());
@@ -51,7 +51,7 @@ fn connects_then_lists_projects_and_threads() {
 
 #[test]
 fn a_watched_thread_gets_stored_then_live_events() {
-    let env = Env::start();
+    let env = start();
     let mut source = connect(&env);
     settle(&mut source, "connected", |s| {
         s.connection() == Connection::Connected
@@ -74,7 +74,7 @@ fn a_watched_thread_gets_stored_then_live_events() {
 
 #[test]
 fn send_and_stop_reach_the_daemon_and_failures_show() {
-    let env = Env::start();
+    let env = start();
     let mut source = connect(&env);
     settle(&mut source, "connected", |s| {
         s.connection() == Connection::Connected
@@ -84,18 +84,18 @@ fn send_and_stop_reach_the_daemon_and_failures_show() {
     source.interrupt(env.thread_id);
     // The daemon serves requests concurrently, so they may land in either order.
     let mut want = vec![
-        format!("send {} run the tests", env.thread_id),
-        format!("interrupt {}", env.thread_id),
+        Ran::Send(env.thread_id, "run the tests".into()),
+        Ran::Interrupt(env.thread_id),
     ];
     want.sort();
     let sorted = || {
-        let mut calls = env.calls();
+        let mut calls = env.ran();
         calls.sort();
         calls
     };
     let deadline = Instant::now() + Duration::from_secs(5);
     while sorted() != want {
-        assert!(Instant::now() < deadline, "daemon saw {:?}", env.calls());
+        assert!(Instant::now() < deadline, "daemon saw {:?}", env.ran());
         std::thread::sleep(Duration::from_millis(20));
     }
     assert_eq!(source.error(), None);
@@ -109,8 +109,8 @@ fn send_and_stop_reach_the_daemon_and_failures_show() {
 
 #[test]
 fn a_device_the_daemon_rejects_shows_refused() {
-    let env = Env::start();
-    env.tailnet.tagged.store(true, Ordering::SeqCst);
+    let env = start();
+    env.tailnet.set_peer(Peer::Tagged);
     let mut source = connect(&env);
     settle(&mut source, "refused", |s| {
         s.connection() == Connection::Refused
@@ -119,7 +119,7 @@ fn a_device_the_daemon_rejects_shows_refused() {
 
 #[test]
 fn a_lost_daemon_shows_reconnecting() {
-    let mut env = Env::start();
+    let mut env = start();
     let mut source = connect(&env);
     settle(&mut source, "connected", |s| {
         s.connection() == Connection::Connected
@@ -132,7 +132,7 @@ fn a_lost_daemon_shows_reconnecting() {
 
 #[test]
 fn an_unsupported_protocol_shows_version_mismatch() {
-    let env = Env::start();
+    let env = start();
     let mut source = connect(&env);
     source.apply(Msg::from(Update::Fatal(Error::UnsupportedVersion(
         "the environment answered with protocol 9.0".into(),

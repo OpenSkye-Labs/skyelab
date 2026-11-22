@@ -8,7 +8,7 @@ use super::*;
 #[test]
 fn watch_pages_past_the_reply_cap() {
     let env = Env::new();
-    env.append(1200);
+    append(&env, 1200);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
@@ -20,7 +20,7 @@ fn watch_pages_past_the_reply_cap() {
 #[test]
 fn pushed_gap_is_filled_and_duplicates_dropped() {
     let env = Env::new();
-    env.append(2);
+    append(&env, 2);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
@@ -28,15 +28,15 @@ fn pushed_gap_is_filled_and_duplicates_dropped() {
     assert_eq!(seqs(&client, 2), [1, 2]);
 
     // In order: delivered straight from the push.
-    daemon.push_event(env.append(1));
+    daemon.push_event(append(&env, 1));
     assert_eq!(seqs(&client, 1), [3]);
 
     // Seqs 4 and 5 were never pushed: the push of 6 is a gap, filled from the store.
-    daemon.push_event(env.append(3));
+    daemon.push_event(append(&env, 3));
     assert_eq!(seqs(&client, 3), [4, 5, 6]);
 
     // A duplicate push of an old seq, and a push for an unwatched thread, deliver nothing.
-    let mut dup = env.append(1);
+    let mut dup = append(&env, 1);
     let seven = dup.clone();
     dup.seq = 3;
     daemon.push_event(dup);
@@ -51,13 +51,13 @@ fn pushed_gap_is_filled_and_duplicates_dropped() {
 #[test]
 fn watch_from_a_seq_and_unwatch() {
     let env = Env::new();
-    env.append(5);
+    append(&env, 5);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     client.watch(env.thread_id, 3);
     assert_eq!(seqs(&client, 2), [4, 5]);
     client.unwatch(env.thread_id);
-    daemon.push_event(env.append(1));
+    daemon.push_event(append(&env, 1));
     quiet(&client, Duration::from_millis(300));
 }

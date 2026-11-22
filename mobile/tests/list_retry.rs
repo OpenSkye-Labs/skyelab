@@ -5,7 +5,7 @@ pub mod common;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use common::{Env, NODE_NAME, options};
+use common::{NODE_NAME, options, start};
 use skyelab_mobile::{
     remote::RemoteSource,
     source::{Connection, ThreadSource},
@@ -13,8 +13,8 @@ use skyelab_mobile::{
 
 #[test]
 fn a_failed_thread_list_is_retried() {
-    let env = Env::start();
-    let mut source = RemoteSource::connect(NODE_NAME, options(env.port())).expect("client");
+    let env = start();
+    let mut source = RemoteSource::connect(NODE_NAME, options(env.port)).expect("client");
     let inbox = source.inbox().expect("inbox");
     let deadline = Instant::now() + Duration::from_secs(10);
     let settle = |source: &mut RemoteSource, what: &str, done: &dyn Fn(&RemoteSource) -> bool| {

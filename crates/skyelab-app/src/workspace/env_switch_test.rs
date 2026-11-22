@@ -29,7 +29,7 @@ fn only_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<Remote
 
 #[gpui::test]
 fn remote_projects_threads_and_live_events_with_a_gap(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     remote.store_texts(remote.thread_id, &["first answer"], false);
     let (ws, local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     connect(&ws, &remote, cx);
@@ -75,7 +75,7 @@ fn remote_projects_threads_and_live_events_with_a_gap(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn remote_send_start_and_interrupt_reach_the_backend(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     connect(&ws, &remote, cx);
     click_row(&ws, "app", cx);
@@ -124,7 +124,7 @@ fn remote_send_start_and_interrupt_reach_the_backend(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn remote_mode_hides_local_actions_and_switching_back_closes_remote_tabs(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     {
         let local = local.lock().expect("local store");
