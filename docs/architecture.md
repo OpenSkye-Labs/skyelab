@@ -34,6 +34,7 @@ personal plan by mistake.
 |---|---|---|
 | `skyelab-core` | accounts/bindings, domain types, no GPUI, no async runtime | yes |
 | `skyelab-app` | GPUI desktop client (binary `skyelab`) | yes |
+| `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) | yes |
 | `skyelab-agent` | spawning/streaming agent processes | later |
 | `skyelab-daemon` | environment server + RPC | when remote ships |
 | `skyelab-tailnet` | `Tailnet` trait: `peers / dial / listen / whois` | when remote ships |

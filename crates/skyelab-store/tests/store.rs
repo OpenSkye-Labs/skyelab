@@ -239,7 +239,9 @@ fn file_db_persists_across_reopen() {
     let path = dir.path().join("store.db");
     let (pid, tid) = {
         let mut store = Store::open(&path).unwrap();
-        let p = store.create_project("demo", Path::new("/work/demo")).unwrap();
+        let p = store
+            .create_project("demo", Path::new("/work/demo"))
+            .unwrap();
         let t = store
             .create_thread(p.id, "t", Path::new("/work/demo"), "work", "idle")
             .unwrap();

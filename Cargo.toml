@@ -20,7 +20,6 @@ dirs = "7"
 rusqlite = { version = "0.43", features = ["bundled"] }
 tempfile = "3"
 skyelab-core = { path = "crates/skyelab-core" }
-skyelab-store = { path = "crates/skyelab-store" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
