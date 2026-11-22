@@ -542,3 +542,6 @@ mod changes_follow_folder_test;
 
 #[cfg(test)]
 mod delegation_test;
+
+#[cfg(test)]
+mod delegation_resume_test;
