@@ -7,9 +7,14 @@ fn account(id: &str, dir: &str) -> String {
     format!("[[account]]\nid = \"{id}\"\nlabel = \"{id}\"\nconfig_dir = \"{dir}\"\n")
 }
 
+/// Written as the app writes it: with the snapshot taken at bind time.
 fn binding(path: &Path, id: &str) -> String {
+    let resolved = Binding::new(path.into(), id.into())
+        .resolved()
+        .map(|r| format!("resolved = {:?}\n", r.display().to_string()))
+        .unwrap_or_default();
     format!(
-        "[[binding]]\npath = {:?}\naccount = \"{id}\"\n",
+        "[[binding]]\npath = {:?}\naccount = \"{id}\"\n{resolved}",
         path.display().to_string()
     )
 }
@@ -109,10 +114,7 @@ fn empty_or_relative_binding_rejected() {
         let toml = format!("{accounts}[[binding]]\npath = {bad:?}\naccount = \"a\"\n");
         assert!(load(&toml).is_err(), "load accepted binding {bad:?}");
         let mut c = load(&accounts).expect("valid");
-        let b = Binding {
-            path: PathBuf::from(bad),
-            account: "a".into(),
-        };
+        let b = Binding::new(PathBuf::from(bad), "a".into());
         assert!(c.add_binding(b).is_err(), "add_binding accepted {bad:?}");
         assert!(c.resolve(Path::new("/anywhere")).is_none());
     }

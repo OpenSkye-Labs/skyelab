@@ -17,6 +17,33 @@ pub struct Account {
 pub struct Binding {
     pub path: PathBuf,
     pub account: String,
+    /// The real folder `path` was when the user confirmed it. Private so only an explicit
+    /// bind or re-confirm sets it; load and save carry it as is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    resolved: Option<PathBuf>,
+}
+
+impl Binding {
+    /// Snapshots the folder `path` resolves to now (`None`, so stale, if it can't be resolved).
+    pub fn new(path: PathBuf, account: String) -> Self {
+        let resolved = binding_root(&path).ok();
+        Self {
+            path,
+            account,
+            resolved,
+        }
+    }
+
+    /// The real folder confirmed at bind time. `None` for configs written before snapshots existed.
+    pub fn resolved(&self) -> Option<&Path> {
+        self.resolved.as_deref()
+    }
+
+    /// True when `path` no longer resolves to the confirmed folder (swapped for a symlink,
+    /// link retargeted), or was never confirmed. A stale binding never picks an account.
+    pub fn is_stale(&self) -> bool {
+        self.resolved.is_none() || binding_root(&self.path).ok() != self.resolved
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,7 +167,8 @@ impl AccountsConfig {
         Ok(())
     }
 
-    pub fn add_binding(&mut self, binding: Binding) -> Result<()> {
+    /// Binding is the user confirming the folder, so the snapshot is taken here whatever the caller passed.
+    pub fn add_binding(&mut self, mut binding: Binding) -> Result<()> {
         if !self.accounts.iter().any(|a| a.id == binding.account) {
             bail!("unknown account '{}'", binding.account);
         }
@@ -152,7 +180,19 @@ impl AccountsConfig {
         {
             bail!("{} is already bound", binding.path.display());
         }
+        binding.resolved = Some(new);
         self.bindings.push(binding);
+        Ok(())
+    }
+
+    /// The user confirmed that the bound folder, as it resolves now, is still the right one.
+    pub fn reconfirm_binding(&mut self, path: &Path) -> Result<()> {
+        let b = self
+            .bindings
+            .iter_mut()
+            .find(|b| b.path == path)
+            .with_context(|| format!("{} is not bound", path.display()))?;
+        b.resolved = Some(binding_root(&b.path)?);
         Ok(())
     }
 
@@ -178,6 +218,13 @@ impl AccountsConfig {
             .iter()
             .map(|b| binding_root(&b.path).ok().map(|root| (root, b)))
             .collect::<Option<_>>()?;
+        // A stale binding still matches, where it points now and where it pointed when confirmed,
+        // so it blocks a shallower binding from silently taking those folders over.
+        let stale_snapshots = roots.iter().filter_map(|(root, b)| {
+            let snap = b.resolved.as_ref().filter(|s| *s != root)?;
+            Some((snap.clone(), *b))
+        });
+        let roots: Vec<_> = roots.iter().cloned().chain(stale_snapshots).collect();
         let matching: Vec<_> = roots
             .iter()
             .filter(|(root, _)| dir.starts_with(root)) // component-wise, so /work/acme does not match /work/acme-old
@@ -192,6 +239,9 @@ impl AccountsConfig {
         let (_, b) = deepest.next()?;
         if deepest.next().is_some() {
             return None; // two bindings now name the same folder (a symlink appeared after binding): ask
+        }
+        if b.is_stale() {
+            return None; // the folder isn't the one the user confirmed: ask
         }
         self.accounts.iter().find(|a| a.id == b.account)
     }
@@ -272,10 +322,12 @@ mod tests {
 
         [[binding]]
         path = "/nonexistent/work/acme"
+        resolved = "/nonexistent/work/acme"
         account = "acme"
 
         [[binding]]
         path = "/nonexistent/work/acme/oss-fork"
+        resolved = "/nonexistent/work/acme/oss-fork"
         account = "personal"
     "#;
 

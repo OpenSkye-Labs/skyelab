@@ -12,10 +12,7 @@ fn acct(id: &str) -> Account {
 }
 
 fn bind(path: &str, account: &str) -> Binding {
-    Binding {
-        path: path.into(),
-        account: account.into(),
-    }
+    Binding::new(path.into(), account.into())
 }
 
 fn two_accounts_one_binding() -> AccountsConfig {

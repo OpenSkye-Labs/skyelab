@@ -36,6 +36,13 @@ pub struct RemoveBinding {
     pub path: PathBuf,
 }
 
+/// The user says the stale folder, as it resolves now, is still the one to bind.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct ReconfirmBinding {
+    pub path: PathBuf,
+}
+
 const CONTEXT: &str = "Settings";
 
 pub fn init(cx: &mut App) {
@@ -72,6 +79,8 @@ pub struct Settings {
     test_input: Entity<InputState>,
     /// Cached so render does no filesystem work (`resolve` canonicalizes).
     test_result: Option<Option<Account>>,
+    /// Paths of stale bindings, cached for the same reason.
+    stale: Vec<PathBuf>,
     account_select: Entity<AccountSelect>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,
@@ -115,9 +124,11 @@ impl Settings {
             )),
             (Some(_), None) => None,
         };
+        let stale = stale_paths(&config);
         Self {
             path,
             config,
+            stale,
             error: locked.clone(),
             locked,
             editing: None,
@@ -166,6 +177,7 @@ impl Settings {
                         s.set_selected_value(&id, window, cx);
                     }
                 });
+                self.stale = stale_paths(&self.config);
                 self.refresh_test(cx);
                 true
             }
@@ -251,6 +263,15 @@ impl Settings {
         self.apply(|c| c.remove_binding(&a.path), window, cx);
     }
 
+    fn reconfirm_binding(
+        &mut self,
+        a: &ReconfirmBinding,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.apply(|c| c.reconfirm_binding(&a.path), window, cx);
+    }
+
     fn bind_folder(&mut self, _: &BindFolder, window: &mut Window, cx: &mut Context<Self>) {
         let Some(account) = self.account_select.read(cx).selected_value().cloned() else {
             self.error = Some("add an account first, then pick it to bind a folder".into());
@@ -273,12 +294,7 @@ impl Settings {
             let _ = this.update_in(cx, |this, window, cx| match path {
                 Ok(path) => {
                     this.apply(
-                        |c| {
-                            c.add_binding(Binding {
-                                path,
-                                account: account.to_string(),
-                            })
-                        },
+                        |c| c.add_binding(Binding::new(path, account.to_string())),
                         window,
                         cx,
                     );
@@ -290,176 +306,15 @@ impl Settings {
             });
         }));
     }
+}
 
-    fn render_accounts(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let form_title = match &self.editing {
-            Some(id) => format!("Edit account '{id}'"),
-            None => "Add account".into(),
-        };
-        section("Accounts", cx)
-            .children(self.config.accounts.iter().map(|a| {
-                let edit = EditAccount { id: a.id.clone() };
-                let remove = RemoveAccount { id: a.id.clone() };
-                row(cx)
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .flex()
-                            .flex_col()
-                            .child(div().truncate().child(format!("{}  ({})", a.label, a.id)))
-                            .child(
-                                path_text(format!("dir-{}", a.id), &a.config_dir)
-                                    .text_sm()
-                                    .text_color(theme.muted_foreground),
-                            ),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("edit-{}", a.id)))
-                            .label("Edit")
-                            .flex_shrink_0()
-                            .small()
-                            .ghost()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.edit_account(&edit, window, cx)
-                            })),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("remove-account-{}", a.id)))
-                            .label("Remove")
-                            .flex_shrink_0()
-                            .small()
-                            .danger()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.remove_account(&remove, window, cx)
-                            })),
-                    )
-            }))
-            .child(div().pt_2().text_sm().child(form_title))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap_2()
-                    .when(self.editing.is_none(), |d| {
-                        d.child(div().w_40().child(Input::new(&self.id_input)))
-                    })
-                    .child(div().w_56().child(Input::new(&self.label_input)))
-                    .child(div().flex_1().min_w_64().child(Input::new(&self.dir_input)))
-                    .child(
-                        Button::new("save-account")
-                            .label(if self.editing.is_some() {
-                                "Update"
-                            } else {
-                                "Add"
-                            })
-                            .primary()
-                            .flex_shrink_0()
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.save_account(&SaveAccount, window, cx)
-                            })),
-                    )
-                    .when(self.editing.is_some(), |d| {
-                        d.child(
-                            Button::new("cancel-edit")
-                                .label("Cancel")
-                                .ghost()
-                                .flex_shrink_0()
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.cancel_edit(&CancelEdit, window, cx)
-                                })),
-                        )
-                    }),
-            )
-    }
-
-    fn render_bindings(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let label_of = |id: &str| {
-            self.config
-                .accounts
-                .iter()
-                .find(|a| a.id == id)
-                .map_or(id.to_string(), |a| a.label.clone())
-        };
-        section("Folder bindings", cx)
-            .when(self.config.bindings.is_empty(), |d| {
-                d.child(
-                    div().text_sm().text_color(theme.muted_foreground).child(
-                        "No folders bound yet. Agents won't start anywhere until you bind one.",
-                    ),
-                )
-            })
-            .children(self.config.bindings.iter().map(|b| {
-                let remove = RemoveBinding {
-                    path: b.path.clone(),
-                };
-                row(cx)
-                    .child(path_text(format!("path-{}", b.path.display()), &b.path).flex_1())
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .max_w_48()
-                            .truncate()
-                            .text_color(theme.muted_foreground)
-                            .child(format!("→  {}", label_of(&b.account))),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("unbind-{}", b.path.display())))
-                            .label("Remove")
-                            .flex_shrink_0()
-                            .small()
-                            .danger()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.remove_binding(&remove, window, cx)
-                            })),
-                    )
-            }))
-            .child(
-                div()
-                    .pt_2()
-                    .flex()
-                    .gap_2()
-                    .items_center()
-                    .child(
-                        div().w_56().child(
-                            Select::new(&self.account_select)
-                                .id("binding-account")
-                                .placeholder("Account")
-                                .accessibility_label("Account for new binding"),
-                        ),
-                    )
-                    .child(
-                        Button::new("bind-folder")
-                            .label("Bind folder…")
-                            .primary()
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.bind_folder(&BindFolder, window, cx)
-                            })),
-                    ),
-            )
-    }
-
-    fn render_test(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let result = match &self.test_result {
-            None => None,
-            Some(Some(a)) => Some(div().text_color(theme.success).child(format!(
-                "Runs as {} ({})",
-                a.label,
-                a.config_dir.display()
-            ))),
-            Some(None) => Some(
-                div()
-                    .text_color(theme.warning)
-                    .child("Unbound, agents won't start here"),
-            ),
-        };
-        section("Test folder", cx)
-            .child(Input::new(&self.test_input))
-            .children(result)
-    }
+fn stale_paths(config: &AccountsConfig) -> Vec<PathBuf> {
+    config
+        .bindings
+        .iter()
+        .filter(|b| b.is_stale())
+        .map(|b| b.path.clone())
+        .collect()
 }
 
 fn account_ids(config: &AccountsConfig) -> Vec<SharedString> {
@@ -489,6 +344,7 @@ impl Render for Settings {
             .on_action(cx.listener(Self::edit_account))
             .on_action(cx.listener(Self::remove_account))
             .on_action(cx.listener(Self::remove_binding))
+            .on_action(cx.listener(Self::reconfirm_binding))
             .size_full()
             .overflow_y_scroll()
             .p_4()
@@ -514,8 +370,8 @@ impl Render for Settings {
     }
 }
 
+mod render;
 mod widgets;
-use widgets::{path_text, row, section};
 
 #[cfg(test)]
 mod tests;

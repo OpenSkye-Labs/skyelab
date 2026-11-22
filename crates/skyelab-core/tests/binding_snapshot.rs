@@ -111,7 +111,11 @@ fn symlink_bound_as_symlink_still_resolves() {
     symlink(&other, &link).expect("symlink");
     assert!(c.bindings[0].is_stale());
     assert_eq!(id(&c, &other), None);
-    assert_eq!(id(&c, &real.join("src")), None, "where it pointed when confirmed");
+    assert_eq!(
+        id(&c, &real.join("src")),
+        None,
+        "where it pointed when confirmed"
+    );
 }
 
 #[test]
