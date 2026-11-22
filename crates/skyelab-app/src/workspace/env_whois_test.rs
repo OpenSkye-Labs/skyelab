@@ -49,9 +49,9 @@ fn verified(
     mut options: skyelab_client::Options,
     answer: fn() -> Result<WhoIs, TailnetError>,
 ) -> skyelab_client::Options {
-    options.verify_peer = Some(crate::environment::peer_verifier(Arc::new(ClientTailnet {
-        answer,
-    })));
+    // The verifier the app itself ships (`main` builds its options with `client_options`).
+    options.verify_peer =
+        crate::environment::client_options(Arc::new(ClientTailnet { answer })).verify_peer;
     options
 }
 

@@ -124,9 +124,10 @@ local only. Switching back to **This Mac** closes all remote tabs.
 Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
 one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
 name. If the name later answers from another node, its tabs close and a warning offers **Trust it**: trust it only if
-you replaced or renamed that machine. If your Tailscale says the machine isn't yours, or can't answer, or the machine
-claims to be a different node than your Tailscale sees, the status says so and nothing is sent to it. The mobile app
-can't ask its local Tailscale yet, so it trusts the node the other machine names, a weaker check.
+you replaced or renamed that machine. If your Tailscale says the machine isn't yours or can't answer, the status says
+so and nothing is sent to it. If the machine claims to be a different node than your Tailscale sees, the status says
+so and nothing is listed or sent after the handshake. The mobile app can't ask its local Tailscale yet and doesn't
+remember machines, so it trusts any machine with a valid certificate for the name.
 
 ## Device hub
 

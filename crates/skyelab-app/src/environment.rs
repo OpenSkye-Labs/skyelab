@@ -100,8 +100,16 @@ impl ConnState {
 
 /// Checks each dialled environment with this machine's own Tailscale (whois), so the node pinned per name is the
 /// one the local tailnet sees at that address, never only what the server says about itself.
-pub fn peer_verifier(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::PeerVerifier {
+fn peer_verifier(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::PeerVerifier {
     skyelab_client::PeerVerifier::new(move |peer| skyelab_tailnet::verify_own_peer(&*tailnet, peer))
+}
+
+/// The desktop's client options: every connection checked with `tailnet`. Without a verifier the pin is only the
+/// server's word, so the app never builds them any other way.
+pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::Options {
+    let mut options = skyelab_client::Options::default();
+    options.verify_peer = Some(peer_verifier(tailnet));
+    options
 }
 
 pub enum EnvEvent {

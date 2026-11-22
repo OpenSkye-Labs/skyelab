@@ -96,3 +96,20 @@ fn whois_errors_and_timeouts_fail_closed() {
     assert!(err.contains("did not answer"), "{err}");
     assert!(check(|| Err(Error::NotInstalled)).is_err());
 }
+
+#[test]
+fn a_self_node_without_an_id_proves_nothing() {
+    // Without this node's own id, "the peer isn't this machine" can't be shown.
+    let me = Node {
+        stable_id: String::new(),
+        ..Fake {
+            whois: || unreachable!(),
+        }
+        .self_node()
+        .expect("self")
+    };
+    assert!(!skyelab_tailnet::is_own_device(
+        &me,
+        &whois("nDesktop", ME, &[])
+    ));
+}

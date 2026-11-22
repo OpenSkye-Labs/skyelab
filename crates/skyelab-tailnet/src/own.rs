@@ -13,7 +13,8 @@ pub fn is_own_device(self_node: &Node, whois: &WhoIs) -> bool {
         return false;
     };
     self_node.tags.is_empty()
-        // An empty id can't prove the peer is a different node from this one.
+        // An empty id (either side) can't prove the peer is a different node from this one.
+        && !self_node.stable_id.is_empty()
         && !whois.node.stable_id.is_empty()
         && whois.node.stable_id != self_node.stable_id
         && whois.user_profile.id == Some(me)
@@ -28,9 +29,8 @@ pub fn verify_own_peer(tailnet: &dyn Tailnet, peer: SocketAddr) -> Result<String
     let who = tailnet.whois(peer).map_err(|e| e.to_string())?;
     if !is_own_device(&me, &who) {
         return Err(format!(
-            "{peer} is node {:?} of user {:?}{}, not one of your own untagged devices",
+            "{peer} is node {:?}{}, not one of your own untagged devices",
             who.node.stable_id,
-            who.user_profile.login_name,
             if who.node.tags.is_empty() {
                 String::new()
             } else {
