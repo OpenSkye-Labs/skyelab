@@ -32,7 +32,7 @@ pub enum ThreadViewEvent {
 
 pub struct ThreadView {
     pub(super) focus: FocusHandle,
-    project_id: i64,
+    pub(super) project_id: i64,
     pub(super) cwd: PathBuf,
     config: AccountsConfig,
     backend: Backend,

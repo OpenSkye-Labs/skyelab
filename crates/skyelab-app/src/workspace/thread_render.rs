@@ -2,7 +2,7 @@
 
 use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
 use super::thread_model::{Item, ToolItem};
-use super::{NewThread, OpenSettings};
+use super::{NewThread, OpenSettings, SelectProject};
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*, px,
 };
@@ -281,6 +281,7 @@ impl ThreadView {
 impl ThreadView {
     fn render_refused(&self, reason: SharedString, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
+        let project_id = self.project_id;
         v_flex()
             .mx_4()
             .mb_2()
@@ -310,8 +311,13 @@ impl ThreadView {
                             .primary()
                             .small()
                             .label("Start a new thread")
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(NewThread), cx)
+                            .on_click(move |_, window, cx| {
+                                // The sidebar may show another project by now; start in this thread's.
+                                window.dispatch_action(
+                                    Box::new(SelectProject { id: project_id }),
+                                    cx,
+                                );
+                                window.dispatch_action(Box::new(NewThread), cx);
                             }),
                     ),
             )

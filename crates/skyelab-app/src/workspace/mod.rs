@@ -444,3 +444,6 @@ mod review_second_row_test;
 
 #[cfg(test)]
 mod review_stale_config_test;
+
+#[cfg(test)]
+mod review_cta_folder_test;
