@@ -12,7 +12,7 @@ profile=debug flags=()
 mobile="$SRCROOT/.."
 env -i HOME="$HOME" PATH="$HOME/.cargo/bin:/usr/bin:/bin:/usr/sbin:/sbin" DEVELOPER_DIR="$DEVELOPER_DIR" \
     IPHONEOS_DEPLOYMENT_TARGET="$IPHONEOS_DEPLOYMENT_TARGET" \
-    cargo build --manifest-path "$mobile/Cargo.toml" -p skyelab-mobile --bin skyelab_mobile --target "$triple" \
-    "${flags[@]}" ${SKYELAB_MOBILE_FEATURES:+--features "$SKYELAB_MOBILE_FEATURES"}
+    cargo build --locked --manifest-path "$mobile/Cargo.toml" -p skyelab-mobile --bin skyelab_mobile --target "$triple" \
+    ${flags[@]+"${flags[@]}"} ${SKYELAB_MOBILE_FEATURES:+--features "$SKYELAB_MOBILE_FEATURES"}
 mkdir -p "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH"
 cp "$mobile/target/$triple/$profile/skyelab_mobile" "$TARGET_BUILD_DIR/$EXECUTABLE_PATH"

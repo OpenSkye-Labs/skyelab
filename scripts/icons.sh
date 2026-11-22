@@ -47,7 +47,10 @@ for d in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
   mkdir -p "$res"
   resvg -w "${d##*:}" -h "${d##*:}" "$tmp/full.svg" "$res/ic_launcher_background.png"
 done
-# iOS: one 1024 px image; Xcode makes the other sizes.
-resvg -w 1024 -h 1024 "$tmp/full.svg" "$mobile/ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png"
+# iOS: one 1024 px image; Xcode makes the other sizes. App Store Connect rejects an icon with an alpha channel, and
+# resvg always writes one, so flatten it through a full-quality JPEG.
+resvg -w 1024 -h 1024 "$tmp/full.svg" "$tmp/ios.png"
+sips -s format jpeg -s formatOptions 100 "$tmp/ios.png" --out "$tmp/ios.jpg" >/dev/null
+sips -s format png "$tmp/ios.jpg" --out "$mobile/ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png" >/dev/null
 
 echo "icons written to $dir, $mobile/android-host and $mobile/ios"
