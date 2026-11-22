@@ -33,6 +33,7 @@ impl FakeSource {
             project_id,
             title: title.into(),
             account_id: account.into(),
+            account_label: None,
             status: status.into(),
             created_at: 0,
             updated_at: 0,

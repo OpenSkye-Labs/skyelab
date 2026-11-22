@@ -21,7 +21,7 @@ macro_rules! panel {
     ($ty:ty, $name:literal, closable: $closable:literal, |$this:ident| $title:expr) => {
         panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
     };
-    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, |$this:ident| $title:expr) => {
+    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, $(removed: $removed:ident,)? |$this:ident| $title:expr) => {
         impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
@@ -33,6 +33,11 @@ macro_rules! panel {
             fn zoomable(&self, _: &App) -> bool {
                 false
             }
+            $(
+                fn on_removed(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+                    self.$removed(cx);
+                }
+            )?
         }
         impl Panel for $ty {
             fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -332,7 +337,7 @@ impl Render for TerminalPanel {
 panel!(Settings, "Settings", closable: true, |_this| "Settings");
 panel!(super::thread::ThreadView, "Thread", closable: true, |this| this.title());
 panel!(crate::remote::RemotePanel, "Remote", closable: true, |_this| "Remote");
-panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, |this| this.title());
+panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, title_bar: true, removed: closed, |this| this.title());
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).

@@ -5,24 +5,18 @@ use std::path::Path;
 
 pub const FILE: &str = "environment.txt";
 
-/// The name, trimmed and lowercased, if it is a plain DNS host name (`laptop` or `laptop.tail1234.ts.net`).
-/// No scheme, port or spaces: the client builds the URL itself (docs/mobile.md step 4).
+/// The name, trimmed and lowercased, if it is a MagicDNS name (`laptop.tail1234.ts.net`), the same rule as the
+/// desktop picker (`skyelab_protocol::is_magicdns_name`). No scheme, port or short name: TLS certificates exist
+/// only for MagicDNS names, and the client builds the URL itself (docs/mobile.md step 4).
 pub fn validate(name: &str) -> Result<String, &'static str> {
     let name = name.trim().to_ascii_lowercase();
     if name.is_empty() {
         return Err("Enter the machine's MagicDNS name.");
     }
-    if name.len() > 253 {
-        return Err("That name is too long.");
-    }
-    let label_ok = |l: &str| {
-        (1..=63).contains(&l.len())
-            && !l.starts_with('-')
-            && !l.ends_with('-')
-            && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-    };
-    if !name.split('.').all(label_ok) {
-        return Err("Use a host name like laptop.tail1234.ts.net, without ws:// or a port.");
+    if !skyelab_protocol::is_magicdns_name(&name) {
+        return Err(
+            "Use the machine's MagicDNS name, like laptop.tail1234.ts.net, without ws:// or a port.",
+        );
     }
     Ok(name)
 }

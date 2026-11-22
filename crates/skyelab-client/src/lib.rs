@@ -21,12 +21,15 @@ mod guard;
 mod tests;
 mod tls;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 pub use guard::is_tailnet_ip;
 use skyelab_protocol::{Call, Reply};
-pub use skyelab_protocol::{ErrorCode, Hello, Project, RpcError, Thread, ThreadEvent, Version};
+pub use skyelab_protocol::{
+    ErrorCode, Hello, Project, RpcError, Thread, ThreadEvent, Version, is_magicdns_name,
+};
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -137,10 +140,44 @@ pub enum Update {
     /// A connection passed hello. Watched threads are being resynced.
     Connected(Hello),
     /// The connection is gone (or never came up), with why. The client retries after a backoff.
-    Disconnected(String),
+    Disconnected(Disconnect),
     Event(ThreadEvent),
     /// The client stopped for good.
     Fatal(Error),
+}
+
+/// Why a connection went away or never came up. Match on `kind`; `message` is for people (and is `Display`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Disconnect {
+    pub kind: DisconnectKind,
+    pub message: String,
+}
+
+impl std::fmt::Display for Disconnect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+/// Add a `_` arm when matching: new kinds may come.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DisconnectKind {
+    /// TCP connected, then the server hung up before sending a single byte: its gate (whois) turned this device
+    /// away. A daemon that is too busy to check us, or whose whois call failed, hangs up the same way.
+    Refused,
+    /// The server's certificate didn't verify (chain, expiry, or not exactly the dialled name).
+    Certificate,
+    /// Anything else: resolving, dialling, timeouts, a dropped connection, a malformed reply.
+    Other,
+}
+
+/// One [`Client::watch`]. Pass it to [`Client::unwatch`] to end that watch, and only that one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[must_use = "unwatch with this id, or the thread stays watched"]
+pub struct WatchId {
+    pub thread_id: i64,
+    n: u64,
 }
 
 /// The reply to one request.
@@ -173,6 +210,7 @@ pub struct Client {
     commands: flume::Sender<conn::Command>,
     updates: flume::Receiver<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
+    next_watch: AtomicU64,
 }
 
 impl Client {
@@ -228,6 +266,7 @@ impl Client {
             commands,
             updates,
             hello,
+            next_watch: AtomicU64::new(1),
         })
     }
 
@@ -285,16 +324,26 @@ impl Client {
     }
 
     /// Delivers the thread's events after `after_seq` on [`Client::updates`], then every new one, each once, in
-    /// order, across reconnects. Watching again resets the starting point.
-    pub fn watch(&self, thread_id: i64, after_seq: i64) {
-        self.command(conn::Command::Watch {
+    /// order, across reconnects. Watching a thread again (a reopened tab) replays from the new `after_seq`, so a
+    /// watcher already following it sees those events again and must drop them by seq.
+    ///
+    /// The thread stays watched while any of its watches is live: a late [`Client::unwatch`] of an old watch
+    /// never ends a newer one.
+    pub fn watch(&self, thread_id: i64, after_seq: i64) -> WatchId {
+        let id = WatchId {
             thread_id,
+            n: self.next_watch.fetch_add(1, Ordering::Relaxed),
+        };
+        self.command(conn::Command::Watch {
+            id,
             after_seq: after_seq.max(0), // seqs start at 1
         });
+        id
     }
 
-    pub fn unwatch(&self, thread_id: i64) {
-        self.command(conn::Command::Unwatch { thread_id });
+    /// Ends one watch. Unwatching the same id twice does nothing.
+    pub fn unwatch(&self, id: WatchId) {
+        self.command(conn::Command::Unwatch(id));
     }
 
     fn call<T: Send + 'static>(

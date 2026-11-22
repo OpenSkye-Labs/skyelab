@@ -118,6 +118,7 @@ fn on_text(
                     result: Reply::Hello(Hello {
                         protocol,
                         capabilities: vec!["events".into()],
+                        node_id: Some(shared.node_id.clone()),
                     }),
                 })
             }

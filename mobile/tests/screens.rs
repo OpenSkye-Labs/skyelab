@@ -15,9 +15,11 @@ fn environment_name_is_validated() {
         env_store::validate("  Laptop.Tail1234.ts.net "),
         Ok("laptop.tail1234.ts.net".to_string())
     );
-    assert_eq!(env_store::validate("laptop"), Ok("laptop".to_string()));
     for bad in [
         "",
+        "laptop",
+        "localhost",
+        "100.64.0.1",
         "   ",
         "ws://laptop",
         "laptop:8080",

@@ -132,8 +132,12 @@ fn a_name_that_moved_to_another_machine_is_refused_until_trusted(cx: &mut TestAp
     let mut remote = RemoteSide::new(FakeTailnet::default());
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("settings.toml");
-    let (ws, _local, cx) =
-        local_workspace(remote.tailnet.clone(), Some(path.clone()), remote.options(), cx);
+    let (ws, _local, cx) = local_workspace(
+        remote.tailnet.clone(),
+        Some(path.clone()),
+        remote.options(),
+        cx,
+    );
 
     // First connect: the node is recorded.
     connect(&ws, &remote, cx);

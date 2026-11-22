@@ -106,8 +106,17 @@ On a remote machine the sidebar's projects and threads come from its daemon thro
 thread watches its events (the client fills gaps and replays after reconnects) into a remote thread tab that draws
 items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
 The status bar and the thread header say which machine you are on and its connection state (connecting, connected,
-reconnecting, version mismatch, or "that machine didn't accept this device" when its whois refuses you). The account
-shown is the id the remote reports. Local-only actions don't apply: no local terminal for a remote project, no
+reconnecting, version mismatch, or "that machine didn't accept this device" when its whois refuses you). That last
+one is the client's typed `DisconnectKind::Refused`: TCP connected, then the server hung up before sending a byte
+(a busy daemon or a failed whois look the same). A certificate problem is a separate kind and keeps reconnecting.
+The account shows as "Label · id" from the remote's own accounts.toml (protocol 1.1), or the id from a 1.0 server.
+Only MagicDNS names can be typed (`skyelab_protocol::is_magicdns_name`, shared with mobile).
+
+**A name that moves.** In a shared tailnet a device name can be reused by another node. Hello carries the server's
+node StableID (1.1). The first connect to a name saves it as `environment_nodes` in `settings.toml`; a later connect
+or reconnect that presents another node closes that machine's tabs, lists nothing, sends nothing, and shows a warning
+with a "Trust it" button, which saves exactly the node shown (refused if a different one answers by then). A 1.0
+server sends no node id and isn't pinned. Local-only actions don't apply: no local terminal for a remote project, no
 worktree controls. Switching machines closes every remote tab and drops the client, so local and remote data never mix.
 
 **Restrict the port in your tailnet policy.** The gate already refuses other users and tagged nodes, but an ACL keeps

@@ -95,6 +95,8 @@ pub struct Daemon {
 
 struct Shared {
     config: Config,
+    /// This node's Tailscale StableID, sent in hello so a client notices when its name moves to another node.
+    node_id: String,
     tailnet: SharedTailnet,
     backend: Arc<dyn Backend>,
     events: broadcast::Sender<ThreadEvent>,
@@ -172,6 +174,7 @@ impl Daemon {
             next_peer: AtomicU64::new(1),
             pending: Arc::new(Semaphore::new(config.max_pending)),
             tls: tls.clone(),
+            node_id: me.stable_id.clone(),
             config,
             tailnet,
             backend,

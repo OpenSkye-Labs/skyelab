@@ -78,7 +78,7 @@ fn no_accounts_file_means_no_labels() {
 
 #[test]
 fn the_label_round_trips_and_older_peers_still_parse() {
-    assert!(VERSION.minor >= 1, "an additive field is a minor bump");
+    const { assert!(VERSION.minor >= 1, "an additive field is a minor bump") };
     let thread = Thread {
         id: 1,
         project_id: 2,
@@ -103,8 +103,5 @@ fn the_label_round_trips_and_older_peers_still_parse() {
     let json = serde_json::to_string(&bare).expect("json");
     assert!(!json.contains("account_label"), "{json}");
     // And a 1.0 server's thread, with no such field, parses as no label.
-    assert_eq!(
-        serde_json::from_str::<Thread>(&json).expect("parse"),
-        bare
-    );
+    assert_eq!(serde_json::from_str::<Thread>(&json).expect("parse"), bare);
 }

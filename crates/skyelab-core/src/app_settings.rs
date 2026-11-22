@@ -2,6 +2,7 @@
 
 use anyhow::{Context as _, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,6 +12,9 @@ pub struct AppSettings {
     pub share_on_tailnet: bool,
     /// Remote environments (MagicDNS names or tailnet IPs) the user picked, most recent first.
     pub recent_environments: Vec<String>,
+    /// MagicDNS name (lowercase) → the Tailscale node StableID it answered from when it was trusted. A name that
+    /// later answers from another node (a reused device name in a shared tailnet) is refused until trusted again.
+    pub environment_nodes: BTreeMap<String, String>,
 }
 
 pub const MAX_RECENT_ENVIRONMENTS: usize = 8;
@@ -30,6 +34,18 @@ impl AppSettings {
             .retain(|h| !h.eq_ignore_ascii_case(host));
         self.recent_environments.insert(0, host.to_owned());
         self.recent_environments.truncate(MAX_RECENT_ENVIRONMENTS);
+    }
+
+    /// The node `host` was trusted as, if any.
+    pub fn environment_node(&self, host: &str) -> Option<&str> {
+        self.environment_nodes
+            .get(&host.trim().to_ascii_lowercase())
+            .map(String::as_str)
+    }
+
+    pub fn trust_environment_node(&mut self, host: &str, node_id: &str) {
+        self.environment_nodes
+            .insert(host.trim().to_ascii_lowercase(), node_id.to_owned());
     }
 
     /// A missing file is the defaults.

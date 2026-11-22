@@ -83,7 +83,7 @@ fn host(
             port: 0,
             ..Config::default()
         },
-        backend: Arc::new(skyelab_daemon::StoreBackend::shared(store, agents)),
+        backend: Arc::new(skyelab_daemon::StoreBackend::shared(store, agents, None)),
         slot,
     };
     (host, calls)

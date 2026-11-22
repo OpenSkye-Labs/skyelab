@@ -1,6 +1,6 @@
 //! One watched thread's delivery state.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use skyelab_protocol::ThreadEvent;
 
@@ -11,6 +11,8 @@ const MAX_AHEAD: usize = 1000;
 const MAX_AHEAD_BYTES: usize = 8 << 20;
 
 pub(super) struct Watched {
+    /// The live watches on this thread (`WatchId::n`). The thread is dropped when the last one ends.
+    pub(super) holders: HashSet<u64>,
     /// The last seq delivered.
     pub(super) last: i64,
     pub(super) filling: bool,
@@ -23,6 +25,7 @@ pub(super) struct Watched {
 impl Watched {
     pub(super) fn new(last: i64) -> Self {
         Self {
+            holders: HashSet::new(),
             last,
             filling: false,
             stale: false,
