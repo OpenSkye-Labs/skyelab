@@ -33,7 +33,6 @@ pub(crate) fn allowed(name: &OsStr, windows: bool) -> bool {
     }
 }
 
-/// The parent env to pass through, with PATH cut down to its absolute entries.
 pub(crate) fn inherited_env() -> Vec<(OsString, OsString)> {
     std::env::vars_os()
         .filter(|(k, _)| allowed(k, cfg!(windows)))
@@ -76,17 +75,18 @@ fn candidates(dir: &Path, bin: &Path) -> Vec<PathBuf> {
     vec![dir.join(bin)]
 }
 
+/// Like Windows itself: a name without an extension only matches with a PATHEXT one, so npm's
+/// extensionless sh shim next to `claude.cmd` is never picked.
 #[cfg(windows)]
 fn candidates(dir: &Path, bin: &Path) -> Vec<PathBuf> {
-    let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
-    let mut out = vec![dir.join(bin)];
-    if bin.extension().is_none() {
-        out.extend(
-            exts.split(';')
-                .map(|e| dir.join(format!("{}{e}", bin.display()))),
-        );
+    if bin.extension().is_some() {
+        return vec![dir.join(bin)];
     }
-    out
+    let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+    exts.split(';')
+        .filter(|e| !e.is_empty())
+        .map(|e| dir.join(format!("{}{e}", bin.display())))
+        .collect()
 }
 
 #[cfg(unix)]

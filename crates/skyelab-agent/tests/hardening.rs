@@ -47,7 +47,7 @@ fn next(rx: &flume::Receiver<Event>) -> Event {
         .expect("event within 10s")
 }
 
-/// The next line that isn't from the replayed fixture stream, as raw JSON.
+/// The next unmodelled line (of type `ty`, if given), as raw JSON.
 fn next_unknown(rx: &flume::Receiver<Event>, ty: Option<&str>) -> serde_json::Value {
     loop {
         if let Event::Unknown(v) = next(rx)
@@ -61,7 +61,7 @@ fn next_unknown(rx: &flume::Receiver<Event>, ty: Option<&str>) -> serde_json::Va
 const CHILD: &str = "SKYELAB_HARDENING_CHILD";
 const DIR: &str = "SKYELAB_HARDENING_DIR";
 
-/// Runs `test` in a copy of this binary with exactly `env` (nothing inherited).
+/// Runs `test` in a copy of this binary with only `env` and the child marker (nothing inherited).
 fn run_child(test: &str, env: &[(&str, &str)]) {
     let out = std::process::Command::new(std::env::current_exe().expect("test binary path"))
         .args([test, "--exact", "--nocapture", "--test-threads=1"])
@@ -80,7 +80,7 @@ fn in_child() -> bool {
     std::env::var_os(CHILD).is_some()
 }
 
-// Item 1: project settings and .mcp.json are untrusted, so only the account's own settings load.
+// Project settings and .mcp.json are untrusted, so only the account's own settings load.
 #[test]
 fn ignores_project_settings_and_mcp() {
     let dir = temp_dir("args");
@@ -97,7 +97,7 @@ fn ignores_project_settings_and_mcp() {
     assert!(args.contains("--strict-mcp-config"), "{args}");
 }
 
-// Item 2: the child env is an allowlist plus the bound account, nothing else.
+// The child env is an allowlist plus the bound account, nothing else.
 #[test]
 fn env_allowlist_in_child() {
     if !in_child() {
@@ -146,7 +146,7 @@ fn env_allowlist() {
     );
 }
 
-// Item 3: a relative PATH entry would resolve inside the untrusted project cwd.
+// A relative PATH entry would resolve inside the untrusted project cwd.
 #[test]
 fn path_lookup_in_child() {
     if !in_child() {
@@ -206,7 +206,7 @@ fn relative_bin_with_dirs_is_rejected() {
     assert!(!dir.join("ran-relative").exists());
 }
 
-// Items 4 and 6: a reaped child is never signalled again, and its exit status is visible.
+// A reaped child is never signalled again, and its exit status is visible.
 #[test]
 fn kill_once_in_child() {
     if !in_child() {
@@ -267,7 +267,7 @@ fn exit_status_of_self_exit() {
     assert_eq!(status.code(), Some(3));
 }
 
-// Item 7: one huge line is capped, not buffered whole, and the stream carries on after it.
+// One huge line is capped, not buffered whole, and the stream carries on after it.
 #[test]
 fn oversized_line_is_capped() {
     let dir = temp_dir("long");
@@ -285,7 +285,7 @@ fn oversized_line_is_capped() {
     assert_eq!(next_unknown(session.events(), None)["type"], "after");
 }
 
-// Item 9: the stream-json input format the SDK sends.
+// The stream-json input format the SDK sends.
 #[test]
 fn message_and_interrupt_format() {
     let dir = temp_dir("fmt");

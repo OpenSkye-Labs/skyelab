@@ -6,7 +6,7 @@ mod launch;
 
 pub use event::{Block, Event};
 
-use anyhow::{Context as _, Result};
+use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
 use skyelab_core::AccountsConfig;
 use std::io::{BufRead as _, BufReader, Read, Write as _};
@@ -43,6 +43,13 @@ pub fn start_with_bin(
     prompt: &str,
 ) -> Result<Session> {
     let env = config.launch_env(dir)?;
+    // A relative dir would resolve inside the untrusted project, and an empty one means ~/.claude.
+    if let Some((var, v)) = env.iter().find(|(_, v)| !v.is_absolute()) {
+        bail!(
+            "{var} for {} must be an absolute path, got {v:?}",
+            dir.display()
+        );
+    }
     let bin = launch::resolve_bin(bin)?;
     let mut cmd = Command::new(&bin);
     // Never inherit the parent's account or credentials: start empty, add the allowlist, then the bound account.
@@ -101,7 +108,11 @@ fn read_events(stdout: impl Read, tx: &flume::Sender<Event>) {
         let event = if buf.len() > MAX_LINE && buf.last() != Some(&b'\n') {
             buf.truncate(MAX_LINE);
             let _ = stdout.skip_until(b'\n');
-            Event::Unknown(Value::String(String::from_utf8_lossy(&buf).into_owned()))
+            let mut line = String::from_utf8_lossy(&buf).into_owned();
+            while line.len() > MAX_LINE {
+                line.pop(); // a cut mid-character becomes a 3-byte U+FFFD
+            }
+            Event::Unknown(Value::String(line))
         } else {
             let line = String::from_utf8_lossy(&buf);
             if line.trim().is_empty() {
@@ -159,15 +170,18 @@ impl Session {
     }
 
     /// Kills the process (and on unix its whole process group) and waits for it. Does nothing
-    /// once the process has been reaped.
-    // shortcut: a claude that exited on its own and was reaped leaves any survivors in its group running; fine while claude cleans up its own tools.
+    /// once the process has been reaped, by an earlier `kill` or a `try_wait` that returned `Some`.
+    // shortcut: after try_wait reaped a self-exited claude, survivors in its group keep running; fine while claude cleans up its own tools.
     pub fn kill(&mut self) -> Result<()> {
-        if self.try_wait()?.is_some() {
+        // Unreaped, even a zombie leader still holds its pid and process group id, so they are safe to signal.
+        if self.status.is_some() {
             return Ok(());
         }
         // `unsafe` is denied, so no libc::killpg: the kill binary signals the group instead.
         #[cfg(unix)]
-        if let Ok(kill) = launch::resolve_bin(Path::new("kill")) {
+        {
+            let kill =
+                launch::resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
             let _ = Command::new(kill)
                 .args(["-KILL", "--", &format!("-{}", self.child.id())])
                 .stderr(Stdio::null())
