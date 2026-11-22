@@ -2,6 +2,14 @@
 
 Shortcuts are shown for macOS. On Linux and Windows, use <kbd>Ctrl</kbd> for <kbd>⌘</kbd>.
 
+## Command palette
+
+Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with its shortcut), a project to switch to, a
+thread of the current project to open, or an open tab to go to. Type a few letters in order (`os` finds
+**Open Settings**), move with the arrow keys, press <kbd>↩</kbd> to run it and <kbd>Esc</kbd> to close. The action runs
+where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
+In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
+
 ## Accounts and bindings
 
 SkyeLab runs every agent on the Claude account its folder is bound to. A folder with no binding never runs an agent.

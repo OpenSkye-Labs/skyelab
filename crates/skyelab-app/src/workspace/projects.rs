@@ -72,6 +72,9 @@ impl Workspace {
     }
 
     pub(super) fn pick_project(&mut self, _: &AddProject, _: &mut Window, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            return; // a local folder picker would add to this machine while another one is shown
+        }
         let picked = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
@@ -197,6 +200,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.is_remote() {
+            return; // `project` is still the last local one: an agent would start here, not on the shown machine
+        }
         let Some(project) = self.project.clone() else {
             return;
         };
