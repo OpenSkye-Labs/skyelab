@@ -139,19 +139,7 @@ fn command(bin: &Path, dir: &Path) -> Command {
     cmd.arg("-C").arg(dir);
     // A repo's config can name a program for core.fsmonitor that every status would run.
     cmd.args(["-c", "core.fsmonitor=false"]);
-    // Set inside git hooks; any of them overrides `-C` and points us at a different repo.
-    for var in [
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_NAMESPACE",
-        "GIT_PREFIX",
-        "GIT_CONFIG_PARAMETERS",
-        "GIT_CONFIG_COUNT",
-    ] {
+    for var in GIT_REPO_VARS {
         cmd.env_remove(var);
     }
     for var in PARENT_LOGIN_VARS {
@@ -163,6 +151,20 @@ fn command(bin: &Path, dir: &Path) -> Command {
     cmd.env("GIT_OPTIONAL_LOCKS", "0");
     cmd
 }
+
+/// Set inside git hooks; any of them overrides `-C` and points git (or the git gh runs) at a different repo.
+const GIT_REPO_VARS: [&str; 10] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+];
 
 /// The parent's GitHub login and credential prompts. Every git and gh call drops them, so a repo's hooks never
 /// see a token and only the account's own `GH_CONFIG_DIR` (set by the caller) decides the GitHub user.

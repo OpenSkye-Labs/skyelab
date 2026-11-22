@@ -28,8 +28,10 @@ pub fn commit(dir: &Path, message: &str, paths: &[PathBuf]) -> Result<String> {
         ));
     }
     let root = repo_root(dir)?;
-    let mut add: Vec<&OsStr> = vec!["add".as_ref(), "-A".as_ref()];
-    let mut commit: Vec<&OsStr> = vec!["commit".as_ref(), "-F".as_ref(), "-".as_ref()];
+    // Literal, so a ticked file named `*` is that file, not a glob.
+    let literal: &OsStr = "--literal-pathspecs".as_ref();
+    let mut add: Vec<&OsStr> = vec![literal, "add".as_ref(), "-A".as_ref()];
+    let mut commit: Vec<&OsStr> = vec![literal, "commit".as_ref(), "-F".as_ref(), "-".as_ref()];
     if !paths.is_empty() {
         let tail = std::iter::once("--".as_ref()).chain(paths.iter().map(|p| p.as_os_str()));
         add.extend(tail.clone());
@@ -56,24 +58,25 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
             .success()
             .then(|| lossy(&out.stdout).trim().to_owned()))
     };
-    let upstream = match (
+    // Only an upstream of the same name: `switch -c fix origin/main` tracks main, and pushing there would land on main.
+    let remote = match (
         config(format!("branch.{branch}.remote"))?,
         config(format!("branch.{branch}.merge"))?,
     ) {
-        (Some(remote), Some(merge)) if remote != "." => Some((remote, merge)),
+        (Some(remote), Some(merge)) if remote != "." && merge == format!("refs/heads/{branch}") => {
+            Some(remote)
+        }
         _ => None,
     };
-    let (remote, refspec, set_upstream) = match upstream {
-        Some((remote, merge)) => {
-            if remote.starts_with('-') || !merge.starts_with("refs/heads/") {
-                return Err(invalid(format!(
-                    "branch {branch} tracks {remote} {merge}, which SkyeLab won't push to"
-                )));
-            }
-            (remote, format!("HEAD:{merge}"), false)
-        }
-        None => ("origin".into(), format!("HEAD:refs/heads/{branch}"), true),
-    };
+    let set_upstream = remote.is_none();
+    let remote = remote.unwrap_or_else(|| "origin".into());
+    if remote.starts_with('-') {
+        return Err(invalid(format!(
+            "SkyeLab won't push to a remote named {remote}"
+        )));
+    }
+    check_push_url(&root, &remote)?;
+    let refspec = format!("HEAD:refs/heads/{branch}");
     let mut cmd = command(Path::new("git"), &root);
     cmd.args(credential_args(gh)?)
         .arg("push")
@@ -82,8 +85,27 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
     checked(cmd, "git push", None)?;
-    let to = refspec.trim_start_matches("HEAD:refs/heads/");
-    Ok(format!("{remote}/{to}"))
+    Ok(format!("{remote}/{branch}"))
+}
+
+/// Only an https URL without credentials (the bound gh answers) or a local path (nothing to log in to). An ssh
+/// key, a token in the URL or a rewrite to either would push as someone no account binds.
+fn check_push_url(root: &Path, remote: &str) -> Result<()> {
+    let url = lossy(&git(root, &["remote", "get-url", "--push", remote])?)
+        .trim()
+        .to_owned();
+    let https = url.strip_prefix("https://").is_some_and(|rest| {
+        let authority = rest.split('/').next().unwrap_or_default();
+        !authority.is_empty() && !authority.contains('@')
+    });
+    if https || url.starts_with("file://") || Path::new(&url).is_absolute() {
+        return Ok(());
+    }
+    // The URL itself isn't shown: it may hold a token.
+    Err(invalid(format!(
+        "{remote}'s push URL isn't a plain https:// URL. SkyeLab pushes only over https, where the account's \
+         gh login answers; an ssh key or a token in the URL can't be bound to an account"
+    )))
 }
 
 /// The `-c` args that make git ask only the bound `gh` for https credentials: the empty helper drops every
@@ -101,6 +123,8 @@ pub fn credential_args(gh: &GitHub) -> Result<Vec<String>> {
         "-c".into(),
         "credential.helper=".into(),
         "-c".into(),
+        "http.extraHeader=".into(),
+        "-c".into(),
         format!("credential.helper=!'{bin}' auth git-credential"),
     ])
 }
@@ -108,8 +132,9 @@ pub fn credential_args(gh: &GitHub) -> Result<Vec<String>> {
 /// Opens a pull request for the current branch with `gh pr create`; the base is gh's default (the repo's
 /// default branch). The body goes through stdin. Returns the URL gh printed.
 pub fn create_pr(dir: &Path, gh: &GitHub, title: &str, body: &str) -> Result<String> {
+    let one_line = !title.contains(['\n', '\r', '\0']);
     let title = title.trim();
-    if title.is_empty() || title.contains(['\n', '\r', '\0']) || title.chars().count() > MAX_TITLE {
+    if title.is_empty() || !one_line || title.chars().count() > MAX_TITLE {
         return Err(invalid(
             "a PR title must be one line of 1 to 256 characters",
         ));
@@ -151,6 +176,9 @@ pub fn create_pr(dir: &Path, gh: &GitHub, title: &str, body: &str) -> Result<Str
 
 /// The github.com login active in `gh.config_dir`, `None` when nobody is logged in there.
 pub fn gh_login(gh: &GitHub) -> Result<Option<String>> {
+    if !gh.config_dir.is_dir() {
+        return Ok(None); // gh creates it at the first login
+    }
     let args = [
         "auth",
         "status",
@@ -183,7 +211,7 @@ pub fn gh_login(gh: &GitHub) -> Result<Option<String>> {
 /// `gh` in `dir` with nothing of the parent's GitHub env (see `command`), only the bound config dir.
 fn gh_command(gh: &GitHub, dir: &Path, args: &[&str]) -> Result<Command> {
     let mut cmd = Command::new(resolve(gh.gh)?);
-    for var in crate::PARENT_LOGIN_VARS {
+    for var in crate::PARENT_LOGIN_VARS.iter().chain(&crate::GIT_REPO_VARS) {
         cmd.env_remove(var);
     }
     cmd.args(args)
@@ -196,15 +224,16 @@ fn gh_command(gh: &GitHub, dir: &Path, args: &[&str]) -> Result<Command> {
 }
 
 fn current_branch(root: &Path) -> Result<String> {
-    let out = crate::output(
-        Path::new("git"),
-        root,
-        &["symbolic-ref", "--quiet", "--short", "HEAD"],
-    )?;
-    if !out.status.success() {
+    let out = crate::output(Path::new("git"), root, &["symbolic-ref", "--quiet", "HEAD"])?;
+    let full = lossy(&out.stdout).trim().to_owned();
+    // Not `--short`: with a tag of the same name it answers `heads/<branch>`.
+    let Some(branch) = full
+        .strip_prefix("refs/heads/")
+        .filter(|_| out.status.success())
+    else {
         return Err(invalid("HEAD is detached; check out a branch first"));
-    }
-    let branch = lossy(&out.stdout).trim().to_owned();
+    };
+    let branch = branch.to_owned();
     if branch.starts_with('-')
         || !git_succeeds(root, &["check-ref-format", &format!("refs/heads/{branch}")])?
     {
