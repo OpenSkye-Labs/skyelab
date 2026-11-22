@@ -1,5 +1,10 @@
 use super::*;
 
+/// Queues a prompt on a thread that opened.
+fn p(c: &mut Codex, text: &str) -> Vec<String> {
+    c.prompt(text).expect("thread is open")
+}
+
 fn parse(line: &str) -> Value {
     serde_json::from_str(line).expect("test line is JSON")
 }
@@ -43,12 +48,12 @@ fn start_sends_initialize_then_thread_start_with_hardening() {
 #[test]
 fn prompts_wait_for_the_thread_and_for_the_running_turn() {
     let (mut c, _) = Codex::new(Path::new("/w"), Some("thr"), None);
-    assert!(c.prompt("one").is_empty(), "no thread id yet");
+    assert!(p(&mut c, "one").is_empty(), "no thread id yet");
     let (_, writes) =
         c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" } } }));
     assert_eq!(method(&writes[0]), "turn/start");
     assert_eq!(parse(&writes[0])["params"]["input"][0]["text"], "one");
-    assert!(c.prompt("two").is_empty(), "one turn at a time");
+    assert!(p(&mut c, "two").is_empty(), "one turn at a time");
     let (events, writes) = c.on_line(json!({ "method": "turn/completed", "params": { "turn": { "id": "t1", "status": "completed" } } }));
     assert!(matches!(
         events[..],
@@ -63,7 +68,7 @@ fn prompts_wait_for_the_thread_and_for_the_running_turn() {
 #[test]
 fn interrupt_before_the_turn_id_waits_for_it() {
     let mut c = open();
-    let turn = c.prompt("go");
+    let turn = p(&mut c, "go");
     assert!(c.interrupt().is_empty());
     let id = parse(&turn[0])["id"].clone();
     let (_, writes) = c.on_line(json!({ "id": id, "result": { "turn": { "id": "t9" } } }));
@@ -99,8 +104,8 @@ fn approval_requests_are_declined_and_others_refused() {
 #[test]
 fn failed_turn_start_reports_and_frees_the_queue() {
     let mut c = open();
-    let turn = c.prompt("a");
-    c.prompt("b");
+    let turn = p(&mut c, "a");
+    p(&mut c, "b");
     let id = parse(&turn[0])["id"].clone();
     let (events, writes) =
         c.on_line(json!({ "id": id, "error": { "code": 1, "message": "nope" } }));
@@ -225,4 +230,26 @@ fn a_worktrees_main_repo_is_untrusted_too() {
     let args = args(&wt.join("sub")).expect("args");
     let main = json!(main.to_str().expect("utf-8")).to_string();
     assert!(args[2].to_str().expect("utf-8").contains(&main));
+}
+
+#[test]
+fn a_thread_that_never_opened_refuses_prompts() {
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None);
+    assert!(p(&mut c, "first").is_empty(), "waits for the thread");
+    let (events, writes) =
+        c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "gone" } }));
+    assert_eq!((events, writes), (vec![failed("gone".into())], vec![]));
+    assert!(c.prompt("again").is_err());
+}
+
+#[test]
+fn interrupt_while_the_thread_opens_stops_the_first_turn() {
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None);
+    p(&mut c, "go");
+    assert!(c.interrupt().is_empty());
+    let (_, writes) =
+        c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" } } }));
+    let turn_req = parse(&writes[0])["id"].clone();
+    let (_, writes) = c.on_line(json!({ "id": turn_req, "result": { "turn": { "id": "t1" } } }));
+    assert_eq!(parse(&writes[0])["method"], "turn/interrupt");
 }

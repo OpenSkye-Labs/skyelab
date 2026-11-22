@@ -66,6 +66,8 @@ pub(crate) struct Codex {
     interrupt_wanted: bool,
     queue: VecDeque<String>,
     last_text: Option<String>,
+    /// Why codex refused to open the thread. Every later prompt fails with it instead of waiting forever.
+    closed: Option<String>,
 }
 
 impl Codex {
@@ -82,6 +84,7 @@ impl Codex {
             interrupt_wanted: false,
             queue: VecDeque::new(),
             last_text: None,
+            closed: None,
         };
         let init = c.request(
             "initialize",
@@ -114,9 +117,12 @@ impl Codex {
         json!({ "id": id, "method": method, "params": params }).to_string()
     }
 
-    pub(crate) fn prompt(&mut self, text: &str) -> Vec<String> {
+    pub(crate) fn prompt(&mut self, text: &str) -> Result<Vec<String>> {
+        if let Some(why) = &self.closed {
+            anyhow::bail!("codex couldn't open this thread ({why}); start a new thread");
+        }
         self.queue.push_back(text.to_owned());
-        self.pump()
+        Ok(self.pump())
     }
 
     /// Starts the next queued turn once the thread is open and no turn runs.
@@ -146,7 +152,8 @@ impl Codex {
                 )]
             }
             _ => {
-                self.interrupt_wanted = self.busy;
+                // A prompt waiting for the thread to open is the turn the user means to stop.
+                self.interrupt_wanted = self.busy || !self.queue.is_empty();
                 Vec::new()
             }
         }
@@ -186,10 +193,12 @@ impl Codex {
                     };
                     (vec![init], self.pump())
                 }
-                (error, _) => (
-                    vec![failed(error.unwrap_or("codex opened no thread".into()))],
-                    Vec::new(),
-                ),
+                (error, _) => {
+                    let why = error.unwrap_or_else(|| "codex opened no thread".into());
+                    self.queue.clear(); // the Result below answers the prompt that was waiting
+                    self.closed = Some(why.clone());
+                    (vec![failed(why)], Vec::new())
+                }
             };
         }
         if id.is_none() || id != self.turn_req {

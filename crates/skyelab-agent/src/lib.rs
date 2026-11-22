@@ -271,7 +271,7 @@ impl Session {
     /// Sends a follow-up user turn. Codex queues it behind a running turn, as `claude` does.
     pub fn send_user_message(&mut self, text: &str) -> Result<()> {
         if let Some(state) = &self.codex {
-            let lines = lock(state).prompt(text);
+            let lines = lock(state).prompt(text)?;
             return lines.into_iter().try_for_each(|l| self.queue(l));
         }
         self.write(&json!({
