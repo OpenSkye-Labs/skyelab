@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Mutex};
+use std::{future::Future, rc::Rc};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
@@ -14,7 +14,9 @@ use gpui_component::{
 use gpui_webview::WebView;
 
 use crate::{
+    Engine,
     agent::{check_agent_eval, parse_agent_url},
+    engine::Wry,
     js, parse_url,
 };
 
@@ -23,6 +25,8 @@ use crate::{
 pub struct BrowserView {
     /// `None` when the native webview couldn't be built (e.g. a Wayland window); `error` says why.
     webview: Option<Entity<WebView>>,
+    /// What loads and runs scripts: the webview, or a test's fake. `None` with `webview`.
+    engine: Option<Rc<dyn Engine>>,
     url_bar: Entity<InputState>,
     error: Option<SharedString>,
     /// A page has committed (wry's `Started`). Until then wry queues scripts for the next page.
@@ -57,7 +61,30 @@ impl BrowserView {
                 None
             }
         };
+        let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
+        Self::build(webview, engine, loaded_rx, url, error, window, cx)
+    }
 
+    /// A pane on `engine` (a test's fake page). `loads` reports each page that commits, as wry's
+    /// `Started` does. Nothing is drawn for the page.
+    pub fn with_engine(
+        engine: Rc<dyn Engine>,
+        loads: flume::Receiver<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(None, Some(engine), loads, None, None, window, cx)
+    }
+
+    fn build(
+        webview: Option<Entity<WebView>>,
+        engine: Option<Rc<dyn Engine>>,
+        loaded_rx: flume::Receiver<String>,
+        url: Option<&str>,
+        error: Option<anyhow::Error>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let url_bar = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("localhost:3000")
@@ -88,6 +115,7 @@ impl BrowserView {
 
         Self {
             webview,
+            engine,
             url_bar,
             error: error.map(|e| format!("{e:#}").into()),
             loaded: false,
@@ -117,8 +145,12 @@ impl BrowserView {
         self.load(&url, cx)
     }
 
+    fn engine(&self) -> anyhow::Result<&dyn Engine> {
+        self.engine.as_deref().context("no webview in this window")
+    }
+
     fn load(&mut self, url: &url::Url, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        self.page(cx)?.raw().load_url(url.as_str())?;
+        self.engine()?.load(url.as_str(), cx)?;
         self.error = None;
         cx.notify();
         Ok(())
@@ -135,19 +167,25 @@ impl BrowserView {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         self.set_visible(false, cx);
         self.webview = None;
+        self.engine = None;
         self.loaded = false;
         cx.notify();
     }
 
+    /// A page has committed since the pane opened. Before that, agent scripts are refused.
+    pub fn is_loaded(&self) -> bool {
+        self.loaded
+    }
+
     /// The page for an agent call, and its URL as the engine reports it (which may be a pending load).
     /// Refused before the first load (wry panics on the nil URL then) and on non-http(s) pages.
-    fn agent_page<'a>(&self, cx: &'a gpui::App) -> anyhow::Result<(&'a WebView, String)> {
+    fn agent_page(&self, cx: &gpui::App) -> anyhow::Result<(&dyn Engine, String)> {
         let url = match self.loaded {
-            true => self.page(cx)?.url()?,
+            true => self.engine()?.url(cx)?,
             false => String::new(),
         };
         check_agent_eval(&url, self.loaded)?;
-        Ok((self.page(cx)?, url))
+        Ok((self.engine()?, url))
     }
 
     /// The URL the page is on now, as the engine reports it. Refused for local files, so an agent
@@ -166,14 +204,12 @@ impl BrowserView {
         cx: &gpui::App,
     ) -> impl Future<Output = anyhow::Result<serde_json::Value>> + use<> {
         let (tx, rx) = oneshot::channel();
-        let tx = Mutex::new(Some(tx));
         let started = self.agent_page(cx).and_then(|(page, _)| {
-            page.evaluate_script_with_callback(&js::wrap(expression), move |raw| {
-                if let Some(tx) = tx.lock().ok().and_then(|mut tx| tx.take()) {
-                    let _ = tx.send(raw);
-                }
-            })
-            .context("evaluate script")
+            page.eval(
+                &js::wrap(expression),
+                Box::new(move |raw| _ = tx.send(raw)),
+                cx,
+            )
         });
         async move {
             started?;

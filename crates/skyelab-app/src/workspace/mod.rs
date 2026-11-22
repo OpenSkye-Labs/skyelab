@@ -1,5 +1,8 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
+#[cfg(unix)]
+mod browser_agent;
+mod browser_tabs;
 mod changes;
 mod changes_model;
 mod changes_publish;
@@ -155,6 +158,9 @@ pub struct Workspace {
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
+    /// Tests' fake page engine for agent tabs (see `browser_tabs`).
+    #[cfg(test)]
+    browser_engine: Option<browser_tabs::FakeEngineFactory>,
     settings: Option<WeakEntity<Settings>>,
     backend: Backend,
     pub(crate) store_error: Option<SharedString>,
@@ -240,6 +246,8 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
             browsers: Vec::new(),
+            #[cfg(test)]
+            browser_engine: None,
             settings: None,
             backend,
             store_error: None,
@@ -341,24 +349,6 @@ impl Workspace {
         self.terminals.push(panel);
         view.read(cx).focus_handle(cx).focus(window, cx);
         Ok(())
-    }
-
-    fn open_browser(&mut self, _: &OpenBrowser, window: &mut Window, cx: &mut Context<Self>) {
-        let url = std::env::var("SKYELAB_BROWSER_URL").ok();
-        let browser = cx.new(|cx| skyelab_browser::BrowserView::new(url.as_deref(), window, cx));
-        let panel = cx.new(|_| BrowserPanel { browser });
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-        panel.read(cx).focus_handle(cx).focus(window, cx);
-        self.browsers.retain(|b| b.upgrade().is_some());
-        self.browsers.push(panel.downgrade());
     }
 
     fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
@@ -551,3 +541,6 @@ mod delegation_test;
 
 #[cfg(test)]
 mod delegation_resume_test;
+
+#[cfg(all(test, unix))]
+mod browser_agent_test;

@@ -49,6 +49,15 @@ impl Workspace {
                 }
                 let _ = reply.send(self.delegated_send(&caller, thread_id, &text, window, cx));
             }
+            OrchCall::Browser {
+                caller,
+                tool,
+                reply,
+            } => {
+                if !reply.is_disconnected() {
+                    self.browser_call(caller.thread_id, tool, reply, window, cx);
+                }
+            }
         }
     }
 

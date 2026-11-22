@@ -1,5 +1,6 @@
 //! The tools, their schemas, and input validation. Agent input is untrusted: every field is checked here.
 
+use super::browser::{self, BrowserTool};
 use serde_json::{Map, Value, json};
 
 /// Longest prompt or message an agent may send.
@@ -30,12 +31,13 @@ pub enum Tool {
         thread_id: i64,
         timeout_s: u64,
     },
+    Browser(BrowserTool),
 }
 
 pub(super) fn list() -> Value {
     let id = |what: &str| json!({"type": "integer", "minimum": 1, "description": what});
     let thread = id("A thread id, from start_thread.");
-    json!([
+    let mut tools = json!([
         {
             "name": "list_projects",
             "description": "Projects you can delegate to: those bound to the same account as you.",
@@ -91,7 +93,11 @@ pub(super) fn list() -> Value {
                 "required": ["thread_id", "timeout_s"],
             },
         },
-    ])
+    ]);
+    if let Value::Array(list) = &mut tools {
+        list.extend(browser::list());
+    }
+    tools
 }
 
 /// Parses a `tools/call`. The error names the bad field.
@@ -140,7 +146,10 @@ pub(super) fn parse(name: &str, args: &Value) -> Result<Tool, String> {
                     "timeout_s must be an integer from 1 to {MAX_WAIT_S}"
                 ))?,
         },
-        other => return Err(format!("unknown tool '{other}'")),
+        other => match browser::parse(other, args) {
+            Some(tool) => Tool::Browser(tool?),
+            None => return Err(format!("unknown tool '{other}'")),
+        },
     })
 }
 

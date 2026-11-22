@@ -306,7 +306,7 @@ fn respond(host: &dyn Host, caller: &Caller, line: &str) -> Option<Value> {
                 "capabilities": {"tools": {"listChanged": false}},
                 "serverInfo": {"name": "skyelab", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": "Delegate work to other SkyeLab threads. You can only reach projects bound \
-                    to your own account.",
+                    to your own account. Drive a SkyeLab browser tab (http and https only) with the browser_ tools.",
             })
         }
         "ping" => json!({}),
