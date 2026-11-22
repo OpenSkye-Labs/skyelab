@@ -352,6 +352,7 @@ impl Workspace {
             return;
         }
         self.reload_accounts();
+        self.push_config(cx); // orchestration and open threads check against what's on disk now
         let (path, config, error) = (
             self.accounts_path.clone(),
             self.config.clone(),

@@ -25,6 +25,8 @@ struct Entry {
     config: PathBuf,
     /// A connection took this token; a second one is refused.
     used: bool,
+    /// That connection, shut down when the grant drops.
+    conn: Option<UnixStream>,
 }
 
 struct Inner {
@@ -59,11 +61,17 @@ pub struct Grant {
 impl Server {
     /// Binds the socket in `dir`, made private (0700) first.
     pub fn start(dir: &Path, host: Arc<dyn Host>) -> Result<Server> {
+        // Emptied first: a crashed run with the same pid may have left grant files behind.
+        match std::fs::remove_dir_all(dir) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                return Err(e).with_context(|| format!("clearing {}", dir.display()));
+            }
+            _ => {}
+        }
         std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
             .with_context(|| format!("making {} private", dir.display()))?;
         let socket = dir.join("mcp.sock");
-        let _ = std::fs::remove_file(&socket); // a crashed run's leftover
         let listener = UnixListener::bind(&socket)
             .with_context(|| format!("listening on {}", socket.display()))?;
         let inner = Arc::new(Inner {
@@ -138,6 +146,7 @@ impl Server {
                     caller,
                     config: config.clone(),
                     used: false,
+                    conn: None,
                 },
             ),
         );
@@ -171,7 +180,10 @@ impl Grant {
 
 impl Drop for Grant {
     fn drop(&mut self) {
-        self.inner.grants().remove(&self.id);
+        let entry = self.inner.grants().remove(&self.id);
+        if let Some(conn) = entry.and_then(|(_, e)| e.conn) {
+            let _ = conn.shutdown(std::net::Shutdown::Both);
+        }
         let _ = std::fs::remove_file(&self.config);
     }
 }
@@ -194,12 +206,13 @@ fn same(a: &str, b: &str) -> bool {
 }
 
 /// Takes the grant `token` names, once: marks it used and deletes its config file.
-fn claim(inner: &Inner, token: &str) -> Option<(u64, Caller)> {
+fn claim(inner: &Inner, token: &str, conn: &UnixStream) -> Option<(u64, Caller)> {
     let mut grants = inner.grants();
     let (id, (_, entry)) = grants
         .iter_mut()
         .find(|(_, (t, e))| !e.used && same(t, token))?;
     entry.used = true;
+    entry.conn = conn.try_clone().ok();
     let _ = std::fs::remove_file(&entry.config);
     Some((*id, entry.caller.clone()))
 }
@@ -215,6 +228,22 @@ fn read_line(reader: &mut BufReader<UnixStream>, max: u64) -> Option<String> {
 }
 
 fn serve(stream: UnixStream, inner: &Inner, host: &dyn Host) {
+    let mut claimed = None;
+    serve_until_closed(stream, inner, host, &mut claimed);
+    // The grant holds a clone (to cut the connection); take it back so the socket really closes.
+    if let Some(id) = claimed
+        && let Some((_, entry)) = inner.grants().get_mut(&id)
+    {
+        entry.conn = None;
+    }
+}
+
+fn serve_until_closed(
+    stream: UnixStream,
+    inner: &Inner,
+    host: &dyn Host,
+    claimed: &mut Option<u64>,
+) {
     let Ok(mut writer) = stream.try_clone() else {
         return;
     };
@@ -223,9 +252,10 @@ fn serve(stream: UnixStream, inner: &Inner, host: &dyn Host) {
     let Some(token) = read_line(&mut reader, MAX_TOKEN_LINE) else {
         return;
     };
-    let Some((id, caller)) = claim(inner, token.trim_end()) else {
+    let Some((id, caller)) = claim(inner, token.trim_end(), &writer) else {
         return; // unknown, used or revoked: say nothing
     };
+    *claimed = Some(id);
     let _ = reader.get_ref().set_read_timeout(None);
     // shortcut: one request at a time per connection, so a wait_thread delays the agent's parallel calls; spawn per request if that hurts.
     while let Some(line) = read_line(&mut reader, MAX_LINE) {
@@ -238,6 +268,9 @@ fn serve(stream: UnixStream, inner: &Inner, host: &dyn Host) {
         let Some(answer) = respond(host, &caller, &line) else {
             continue;
         };
+        if !inner.grants().contains_key(&id) {
+            return; // revoked while the call ran (a long wait_thread): the answer goes nowhere
+        }
         if writeln!(writer, "{answer}")
             .and_then(|()| writer.flush())
             .is_err()
@@ -320,5 +353,5 @@ fn alive(pid: u32) -> bool {
         .args(["-0", &pid.to_string()])
         .stderr(std::process::Stdio::null())
         .status()
-        .is_ok_and(|s| s.success())
+        .map_or(true, |s| s.success()) // can't ask: keep the dir rather than break a live run
 }

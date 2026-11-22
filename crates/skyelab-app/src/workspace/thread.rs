@@ -38,7 +38,7 @@ pub enum ThreadViewEvent {
     },
 }
 
-/// A thread this one delegated, shown in its header.
+/// A thread this one delegated, listed under its header.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChildLink {
     pub id: i64,
@@ -72,6 +72,8 @@ pub struct ThreadView {
     pub(super) resume_refused: Option<SharedString>,
     /// The thread whose agent started this one: (id, title).
     pub(super) parent: Option<(i64, SharedString)>,
+    /// A delegated start runs only under the account its delegation was approved for.
+    pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
@@ -222,6 +224,7 @@ impl ThreadView {
             wt: Default::default(),
             resume_refused: None,
             parent: None,
+            required_account: None,
             children: Vec::new(),
             grant: None,
             send_chain: None,
@@ -307,6 +310,14 @@ impl ThreadView {
         }
         // The folder decides the account. Unbound means ask the user, never pick one.
         let resolved = self.config.resolve(&self.cwd).cloned();
+        if let (Some(want), Some(got)) = (&self.required_account, &resolved)
+            && got.id != *want
+        {
+            self.error =
+                Some(format!("This folder is now bound to {}, not {want}.", got.id).into());
+            cx.notify();
+            return;
+        }
         if self.session.is_none()
             && let Some(thread) = self.thread.clone()
         {

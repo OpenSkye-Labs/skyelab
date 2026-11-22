@@ -108,7 +108,7 @@ pub(super) fn parse(name: &str, args: &Value) -> Result<Tool, String> {
             project_id: id(args, "project_id")?,
             prompt: text(args, "prompt")?,
             worktree: match args.get("worktree") {
-                None | Some(Value::Null) => false,
+                None => false,
                 Some(Value::Bool(b)) => *b,
                 Some(_) => return Err("worktree must be true or false".into()),
             },
@@ -119,7 +119,7 @@ pub(super) fn parse(name: &str, args: &Value) -> Result<Tool, String> {
         "read_thread" => Tool::ReadThread {
             thread_id: id(args, "thread_id")?,
             since_seq: match args.get("since_seq") {
-                None | Some(Value::Null) => 0,
+                None => 0,
                 Some(v) => v
                     .as_i64()
                     .filter(|n| *n >= 0)

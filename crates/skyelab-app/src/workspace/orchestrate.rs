@@ -29,6 +29,8 @@ pub struct StartRequest {
     pub caller: Caller,
     /// The caller's delegation depth, from the store's parent chain.
     pub depth: u32,
+    /// The caller's children still starting or running.
+    pub live_children: usize,
     pub project_id: i64,
     pub prompt: String,
     pub worktree: bool,
@@ -122,9 +124,15 @@ impl AppHost {
         f(&store).map_err(|e| format!("{e:#}"))
     }
 
-    /// The thread `id` if this caller may read or drive it.
+    /// The thread `id` if this caller may read or drive it: one it delegated (directly or further down), still
+    /// under the caller's account. Never the user's other threads, nor the caller's own parent.
     fn drivable(&self, caller: &Caller, id: i64) -> Result<Thread, String> {
         let not_found = || format!("no thread {id} you can reach");
+        if !self.descends_from(id, caller.thread_id)? {
+            return Err(format!(
+                "thread {id} wasn't delegated by this thread; you can only reach threads you started"
+            ));
+        }
         let (thread, project) = self.store(|s| {
             let thread = s.thread(id)?;
             let project = match &thread {
@@ -140,6 +148,25 @@ impl AppHost {
             .check_drive(&caller.account_id, &thread.account_id, &project.path)
             .map_err(|why| format!("thread {id}: {why}"))?;
         Ok(thread)
+    }
+
+    /// Whether `ancestor` is on `id`'s parent chain (`id` itself doesn't count).
+    fn descends_from(&self, id: i64, ancestor: i64) -> Result<bool, String> {
+        let mut next = self
+            .store(|s| s.thread(id))?
+            .and_then(|t| t.parent_thread_id);
+        for _ in 0..MAX_CHAIN {
+            match next {
+                Some(p) if p == ancestor => return Ok(true),
+                Some(p) => {
+                    next = self
+                        .store(|s| s.thread(p))?
+                        .and_then(|t| t.parent_thread_id)
+                }
+                None => return Ok(false),
+            }
+        }
+        Ok(false)
     }
 
     /// How many delegations deep `thread` is: 0 for a user's own thread.
@@ -184,10 +211,7 @@ impl AppHost {
         }
         let mut text = text.join("\n\n");
         if text.len() > MAX_READ {
-            let mut cut = text.len() - MAX_READ;
-            while !text.is_char_boundary(cut) {
-                cut += 1;
-            }
+            let cut = text.ceil_char_boundary(text.len() - MAX_READ);
             text = format!("…{}", &text[cut..]);
         }
         Ok(json!({
@@ -233,10 +257,16 @@ impl Host for AppHost {
                 worktree,
             } => {
                 let depth = self.depth(&me)?;
-                skyelab_core::delegation::check_limits(depth, 0)?;
+                let live_children = self
+                    .store(|s| s.child_threads(me.id))?
+                    .iter()
+                    .filter(|t| busy(&t.status))
+                    .count();
+                skyelab_core::delegation::check_limits(depth, live_children)?;
                 let request = StartRequest {
                     caller: caller.clone(),
                     depth,
+                    live_children,
                     project_id,
                     prompt,
                     worktree,

@@ -2,7 +2,7 @@
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
-# in /loop-verify-ui); any other prompt gets a short answer. Never contacts a real account.
+# in /loop-verify-ui); `hold` never finishes its turn; any other prompt gets a short answer. Never contacts a real account.
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
@@ -13,13 +13,15 @@ started=
 n=0
 start_proxy() {
   cmd=$(sed -n 's/^ *"command": "\(.*\)",*$/\1/p' "$cfg")
-  args=$(sed -n '/"args": \[/,/\]/p' "$cfg" | sed -n 's/^ *"\(.*\)",*$/\1/p')
   sock=$(sed -n 's/^ *"SKYELAB_MCP_SOCKET": "\(.*\)",*$/\1/p' "$cfg")
   token=$(sed -n 's/^ *"SKYELAB_MCP_TOKEN": "\(.*\)",*$/\1/p' "$cfg")
   fifo=$(mktemp -d)
   mkfifo "$fifo/in" "$fifo/out"
-  # shellcheck disable=SC2086 # args are one per line, without spaces
-  env SKYELAB_MCP_SOCKET="$sock" SKYELAB_MCP_TOKEN="$token" "$cmd" $args <"$fifo/in" >"$fifo/out" &
+  set -- # the proxy's args, one per line in the pretty-printed config
+  while IFS= read -r a; do [ -n "$a" ] && set -- "$@" "$a"; done <<ARGS
+$(sed -n '/"args": \[/,/\]/p' "$cfg" | sed -n 's/^ *"\(.*\)",*$/\1/p')
+ARGS
+  env SKYELAB_MCP_SOCKET="$sock" SKYELAB_MCP_TOKEN="$token" "$cmd" "$@" <"$fifo/in" >"$fifo/out" &
   exec 3>"$fifo/in" 4<"$fifo/out"
   rpc '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"fake","version":"1"}}}' >/dev/null
   printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&3
@@ -29,7 +31,7 @@ start_proxy() {
 rpc() {
   printf '%s\n' "$1" >&3
   while IFS= read -r l <&4; do
-    case $l in '{"jsonrpc"'*) printf '%s\n' "$l"; return ;; esac
+    case $l in '{'*) printf '%s\n' "$l"; return ;; esac
   done
 }
 done_turn() {
@@ -38,6 +40,7 @@ done_turn() {
 while IFS= read -r line; do
   case $line in *'"type":"user"'*) ;; *) continue ;; esac
   # A JSON string value: ([^"\\]|\\.)* stops at its closing quote, whatever key comes next.
+  case $line in *'"content":"hold"'*) continue ;; esac # stays mid-turn
   call=$(printf '%s' "$line" | sed -nE 's/.*"content":"mcp:([a-z_]+):(([^"\\]|\\.)*)".*/\1 \2/p')
   project=$(printf '%s' "$line" | sed -nE 's/.*"content":"delegate ([0-9]+)".*/\1/p')
   [ -n "$project" ] && call="start_thread {\\\"project_id\\\":$project,\\\"prompt\\\":\\\"Write the release notes\\\"}"

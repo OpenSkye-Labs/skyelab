@@ -150,7 +150,7 @@ fn open_store() -> (Store, Option<String>) {
     }
 }
 
-/// SkyeLab's MCP tools for one agent session, on unix: `<data dir>/skyelab/run/<pid>`. `None` (with the reason
+/// The app's MCP server for agent orchestration, on unix: `<data dir>/skyelab/run/<pid>`. `None` (with the reason
 /// on stderr) means threads run without them.
 #[cfg(unix)]
 fn orchestration(
@@ -177,6 +177,7 @@ fn orchestration(
 }
 
 /// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
+#[cfg(unix)]
 const MCP_PROXY_FLAG: &str = "--mcp-proxy";
 
 fn main() {

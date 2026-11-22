@@ -22,7 +22,7 @@ impl Workspace {
                     .update_in(cx, |this, window, cx| this.orchestrate(call, window, cx))
                     .is_err()
                 {
-                    return; // window closed; dropping `call` tells the agent SkyeLab is closing
+                    return; // window closed; the agent's call times out
                 }
             }
         }));
@@ -52,19 +52,6 @@ impl Workspace {
         }
     }
 
-    /// Live (starting or running) children of `parent`, from the open tabs.
-    fn live_children(&self, parent: i64, cx: &Context<Self>) -> usize {
-        self.open_threads
-            .iter()
-            .filter_map(|t| t.upgrade())
-            .filter(|t| {
-                let t = t.read(cx);
-                t.parent.as_ref().is_some_and(|p| p.0 == parent)
-                    && (t.starting || t.session.is_some())
-            })
-            .count()
-    }
-
     fn delegate(
         &mut self,
         request: &StartRequest,
@@ -75,6 +62,7 @@ impl Workspace {
         let StartRequest {
             caller,
             depth,
+            live_children,
             project_id,
             prompt,
             worktree,
@@ -85,9 +73,12 @@ impl Workspace {
             .find(|p| p.id == *project_id)
             .cloned()
             .ok_or_else(|| format!("no project {project_id}; call list_projects"))?;
-        self.config
-            .delegation_account(&caller.account_id, &project.path)?;
-        check_limits(*depth, self.live_children(caller.thread_id, cx))?;
+        let account = self
+            .config
+            .delegation_account(&caller.account_id, &project.path)?
+            .id
+            .clone();
+        check_limits(*depth, *live_children)?;
         let parent_title: SharedString = self.open_view(caller.thread_id, cx).map_or_else(
             || format!("thread {}", caller.thread_id).into(),
             |v| v.read(cx).title(),
@@ -97,6 +88,7 @@ impl Workspace {
             let mut v = ThreadView::new(&project, config, backend, window, cx);
             v.parent = Some((caller.thread_id, parent_title));
             v.wt.use_worktree = *worktree;
+            v.required_account = Some(account);
             v
         });
         view.update(cx, |v, cx| v.submit_remote(prompt, window, cx))?;
@@ -116,11 +108,17 @@ impl Workspace {
         let view = self.open_view(thread_id, cx).ok_or_else(|| {
             format!("thread {thread_id} isn't running (it ended, or its tab was closed)")
         })?;
-        let thread = view
-            .read(cx)
-            .thread
-            .clone()
-            .ok_or("that thread is still starting")?;
+        let (thread, running) = {
+            let v = view.read(cx);
+            (v.thread.clone(), v.session.is_some() && !v.starting)
+        };
+        let thread = thread.ok_or("that thread is still starting")?;
+        // A message to an ended thread would resume it: past the children limit, and past the user's Stop.
+        if !running {
+            return Err(format!(
+                "thread {thread_id} isn't running (it ended or was stopped); start a new thread instead"
+            ));
+        }
         let project = self
             .projects
             .iter()

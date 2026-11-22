@@ -393,9 +393,9 @@ fn depth_and_children_limits_hold_through_the_app(cx: &mut TestAppContext) {
         worktree: false,
     };
 
-    // Four live children are allowed, the fifth is refused.
-    for n in 0..4 {
-        host_call(cx, caller(), start_tool(&format!("child {n}"))).expect("under the limit");
+    // Four live children are allowed, the fifth is refused. `hold` keeps each one mid-turn.
+    for _ in 0..4 {
+        host_call(cx, caller(), start_tool("hold")).expect("under the limit");
     }
     let err = host_call(cx, caller(), start_tool("child 5")).expect_err("fifth child");
     assert!(err.contains("children"), "{err}");
@@ -452,4 +452,114 @@ fn depth_and_children_limits_hold_through_the_app(cx: &mut TestAppContext) {
         account_id: "me".into(),
     };
     assert!(host_call(cx, liar, Tool::ListProjects).is_err());
+}
+
+fn statuses(store: &SharedStore, parent: i64) -> Vec<String> {
+    let s = store.lock().expect("lock");
+    s.child_threads(parent)
+        .expect("children")
+        .into_iter()
+        .map(|t| t.status)
+        .collect()
+}
+
+#[gpui::test]
+fn finished_children_free_their_slot_and_only_descendants_can_be_driven(cx: &mut TestAppContext) {
+    let (rig, accounts, config) = rig();
+    let (ws, cx) = open(&rig, accounts, config, cx);
+    let store = rig.store.clone();
+    let parent = start(&ws, rig.work_a, "plain work", cx);
+    let parent_id = thread_id(&parent, cx);
+    let other = start(&ws, rig.work_a, "the user's own work", cx);
+    let other_id = thread_id(&other, cx);
+    let caller = || Caller {
+        thread_id: parent_id,
+        account_id: "work".into(),
+    };
+    let start_tool = |p: &str| Tool::StartThread {
+        project_id: rig.work_b,
+        prompt: p.into(),
+        worktree: false,
+    };
+
+    // Children that finished their turn don't count against the limit.
+    for n in 0..4 {
+        host_call(cx, caller(), start_tool(&format!("child {n}"))).expect("under the limit");
+    }
+    wait_until(cx, "four idle children", |_| {
+        let s = statuses(&store, parent_id);
+        s.len() == 4 && s.iter().all(|s| s == "idle")
+    });
+    host_call(cx, caller(), start_tool("child 5")).expect("finished children don't count");
+
+    // A same-account thread the caller didn't start is out of reach.
+    for tool in [
+        Tool::ThreadStatus {
+            thread_id: other_id,
+        },
+        Tool::ReadThread {
+            thread_id: other_id,
+            since_seq: 0,
+        },
+        Tool::SendMessage {
+            thread_id: other_id,
+            text: "hi".into(),
+        },
+        Tool::WaitThread {
+            thread_id: other_id,
+            timeout_s: 1,
+        },
+    ] {
+        let what = format!("{tool:?}");
+        host_call(cx, caller(), tool).expect_err(&what);
+    }
+    let kid = store
+        .lock()
+        .expect("lock")
+        .child_threads(parent_id)
+        .expect("kids")[0]
+        .id;
+    let child_caller = Caller {
+        thread_id: kid,
+        account_id: "work".into(),
+    };
+    let to_parent = Tool::SendMessage {
+        thread_id: parent_id,
+        text: "loop".into(),
+    };
+    host_call(cx, child_caller, to_parent).expect_err("a child can't drive its parent");
+    let read = Tool::ReadThread {
+        thread_id: kid,
+        since_seq: 0,
+    };
+    host_call(cx, caller(), read).expect("a parent reads its own child");
+
+    // A child the user stopped isn't restarted by a message.
+    let kid_view = ws
+        .read_with(cx, |ws, cx| ws.open_view(kid, cx))
+        .expect("child tab");
+    kid_view.update_in(cx, |v, window, cx| v.stop(&Stop, window, cx));
+    wait_until(cx, "child stopped", |cx| {
+        let row = store
+            .lock()
+            .expect("lock")
+            .thread(kid)
+            .expect("row")
+            .expect("kid");
+        row.status == "stopped" && kid_view.read_with(cx, |v, _| v.session.is_none())
+    });
+    let again = Tool::SendMessage {
+        thread_id: kid,
+        text: "again".into(),
+    };
+    host_call(cx, caller(), again).expect_err("a stopped child stays stopped");
+    cx.run_until_parked();
+    let status = store
+        .lock()
+        .expect("lock")
+        .thread(kid)
+        .expect("row")
+        .expect("kid")
+        .status;
+    assert_eq!(status, "stopped");
 }

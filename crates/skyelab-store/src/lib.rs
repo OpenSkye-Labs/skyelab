@@ -290,7 +290,6 @@ impl Store {
         expect_one(n, "thread", id)
     }
 
-    /// Also deletes the thread's events.
     /// Links a delegated thread to the thread that started it. The parent must exist.
     pub fn set_thread_parent(&self, id: i64, parent: Option<i64>) -> Result<()> {
         self.update_thread(id, "parent_thread_id", parent)
@@ -306,6 +305,7 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Also deletes the thread's events.
     pub fn delete_thread(&self, id: i64) -> Result<()> {
         let n = self
             .conn
