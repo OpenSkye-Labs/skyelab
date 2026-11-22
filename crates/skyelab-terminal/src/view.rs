@@ -10,7 +10,7 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme as _, theme::ThemeColor};
 
-use crate::{Event, Terminal, key_to_bytes};
+use crate::{Event, Terminal, key_to_bytes, keys::paste_bytes};
 
 actions!(terminal, [Paste]);
 
@@ -79,19 +79,13 @@ impl TerminalView {
         let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
             return;
         };
-        let text = text.replace("\r\n", "\r").replace('\n', "\r");
-        let bytes = if self
+        let bracketed = self
             .terminal
             .term()
             .mode()
-            .contains(TermMode::BRACKETED_PASTE)
-        {
-            // Strip a pasted end marker so the clipboard can't break out of bracketed mode.
-            format!("\x1b[200~{}\x1b[201~", text.replace("\x1b[201~", ""))
-        } else {
-            text
-        };
-        self.terminal.write(bytes.into_bytes());
+            .contains(TermMode::BRACKETED_PASTE);
+        let bytes = paste_bytes(&text, bracketed);
+        self.terminal.write(bytes);
     }
 }
 

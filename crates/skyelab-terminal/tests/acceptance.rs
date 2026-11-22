@@ -110,6 +110,11 @@ fn key_table() {
         Some(&b"\x1bOA"[..])
     );
     assert_eq!(k("left", n).as_deref(), Some(&b"\x1b[D"[..]));
+    assert_eq!(k("ctrl-left", n).as_deref(), Some(&b"\x1b[1;5D"[..]));
+    assert_eq!(
+        k("shift-up", TermMode::APP_CURSOR).as_deref(),
+        Some(&b"\x1b[1;2A"[..])
+    );
     assert_eq!(k("alt-b", n).as_deref(), Some(&b"\x1bb"[..]));
     assert_eq!(k("a", n).as_deref(), Some(&b"a"[..]));
     assert_eq!(k("cmd-v", n), None);

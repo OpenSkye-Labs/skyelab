@@ -11,6 +11,20 @@ pub fn key_to_bytes(key: &Keystroke, mode: TermMode) -> Option<Cow<'static, [u8]
         return None;
     }
     let app_cursor = mode.contains(TermMode::APP_CURSOR);
+    // xterm encodes modified cursor keys as CSI 1;<1 + shift + 2·alt + 4·ctrl><final>.
+    let modifier = 1 + u8::from(m.shift) + 2 * u8::from(m.alt) + 4 * u8::from(m.control);
+    let cursor_final = match key.key.as_str() {
+        "up" => Some('A'),
+        "down" => Some('B'),
+        "right" => Some('C'),
+        "left" => Some('D'),
+        "home" => Some('H'),
+        "end" => Some('F'),
+        _ => None,
+    };
+    if let (Some(f), true) = (cursor_final, modifier > 1) {
+        return Some(Cow::Owned(format!("\x1b[1;{modifier}{f}").into_bytes()));
+    }
     let fixed: Option<&'static [u8]> = match (key.key.as_str(), m.shift) {
         ("enter", _) => Some(b"\r"),
         ("backspace", _) if m.control => Some(b"\x08"),
@@ -80,5 +94,39 @@ fn alt_prefixed(alt: bool, bytes: &[u8]) -> Cow<'static, [u8]> {
         Cow::Owned([b"\x1b", bytes].concat())
     } else {
         Cow::Owned(bytes.to_vec())
+    }
+}
+
+/// The bytes a paste sends. Newlines become CR, as typed. In bracketed mode every ESC and C1 CSI is
+/// dropped so pasted text can't end the bracket early and run as typed commands.
+pub(crate) fn paste_bytes(text: &str, bracketed: bool) -> Vec<u8> {
+    let text = text.replace("\r\n", "\r").replace('\n', "\r");
+    if !bracketed {
+        return text.into_bytes();
+    }
+    let body: String = text
+        .chars()
+        .filter(|c| !matches!(c, '\x1b' | '\u{9b}'))
+        .collect();
+    format!("\x1b[200~{body}\x1b[201~").into_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::paste_bytes;
+
+    #[test]
+    fn bracketed_paste_cannot_close_early() {
+        let out = paste_bytes("\x1b[20\x1b[201~1~rm -rf ~\n", true);
+        let out = String::from_utf8(out).expect("utf8");
+        assert_eq!(out.matches("\x1b[201~").count(), 1, "{out:?}");
+        assert!(out.ends_with("\x1b[201~"));
+        assert!(out.starts_with("\x1b[200~"));
+        assert_eq!(out.matches('\x1b').count(), 2, "{out:?}");
+    }
+
+    #[test]
+    fn plain_paste_maps_newlines() {
+        assert_eq!(paste_bytes("a\r\nb\nc", false), b"a\rb\rc");
     }
 }

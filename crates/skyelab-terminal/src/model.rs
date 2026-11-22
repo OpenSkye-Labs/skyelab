@@ -52,7 +52,10 @@ impl Terminal {
         env.entry("TERM".into()).or_insert("xterm-256color".into());
         env.entry("COLORTERM".into()).or_insert("truecolor".into());
         let options = tty::Options {
-            shell: Some(shell(opts.command, env.contains_key(CLAUDE_CONFIG_DIR))),
+            shell: Some(shell(
+                opts.command,
+                env.get(CLAUDE_CONFIG_DIR).is_some_and(|v| !v.is_empty()),
+            )),
             working_directory: Some(opts.cwd),
             drain_on_exit: true,
             env,
@@ -176,7 +179,8 @@ fn shell(command: Option<(String, Vec<String>)>, account_set: bool) -> tty::Shel
     let (program, args) = if account_set {
         (program, args)
     } else {
-        let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), program];
+        // `--` so a program name with `=` or a leading `-` is never read as an env argument.
+        let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), "--".into(), program];
         wrapped.extend(args);
         ("/usr/bin/env".to_string(), wrapped)
     };
