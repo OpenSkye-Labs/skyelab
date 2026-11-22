@@ -166,6 +166,7 @@ impl ChangesView {
                 let row = f.first_row;
                 h_flex()
                     .id(("file", ix))
+                    .w_full()
                     .h(px(ROW_HEIGHT))
                     .px_2()
                     .gap_2()

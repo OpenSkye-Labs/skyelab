@@ -127,8 +127,8 @@ impl DaemonBackend for Stall {
 
 #[gpui::test]
 fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
-    let mut remote = remote_side(FakeTailnet::default());
-    remote.stop();
+    // The shared daemon never starts: this test serves the store through its own stalling backend.
+    let remote = RemoteSide::with(FakeTailnet::default(), "/remote/app", "fix the login bug");
     let (release_tx, release) = flume::unbounded();
     let inner: Arc<dyn DaemonBackend> = Arc::new(skyelab_daemon::StoreBackend::shared(
         remote.store.clone(),
