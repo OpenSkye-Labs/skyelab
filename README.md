@@ -36,9 +36,12 @@ What's built today:
 - **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It connects to a
   shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
   and sends or stops. Not packaged for distribution yet.
+- **Agent orchestration.** An agent can start and drive other threads through SkyeLab's own MCP tools, only in
+  projects bound to its own account. A child shows "Delegated by" its parent, and the parent lists its delegated
+  threads. macOS and Linux only for now.
 
 Not built yet: binding a GitHub account per folder (only the Claude account is enforced today), other agents
-such as Codex, and agent orchestration.
+such as Codex, and delegation to other machines.
 
 | Changes tab | Accounts and bindings | Device hub |
 |---|---|---|
@@ -105,6 +108,8 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   inherited.
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks.
+- **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
+  read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
   with `tailscale whois`). Browser pages (any `Origin` header) are refused. A connected device can list and drive

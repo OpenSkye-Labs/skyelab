@@ -3,6 +3,8 @@ mod remote;
 mod settings;
 mod workspace;
 
+#[cfg(unix)]
+use anyhow::Context as _;
 use gpui::{
     App, AppContext as _, Bounds, Focusable as _, WindowBounds, WindowKind, WindowOptions, px, size,
 };
@@ -159,7 +161,48 @@ fn open_store() -> (Store, Option<String>) {
     }
 }
 
+/// The app's MCP server for agent orchestration, on unix: `<data dir>/skyelab/run/<pid>`. `None` (with the reason
+/// on stderr) means threads run without them.
+#[cfg(unix)]
+fn orchestration(
+    cx: &mut App,
+    store: workspace::SharedStore,
+    config: AccountsConfig,
+) -> Option<flume::Receiver<workspace::orchestrate::OrchCall>> {
+    let installed = (|| {
+        let runs = dirs::data_dir()
+            .context("no platform data dir")?
+            .join("skyelab")
+            .join("run");
+        skyelab_agent::mcp::remove_stale_runs(&runs);
+        let run = runs.join(std::process::id().to_string());
+        let proxy = skyelab_agent::mcp::Proxy {
+            program: std::env::current_exe().context("finding the skyelab binary")?,
+            args: vec![MCP_PROXY_FLAG.into()],
+        };
+        workspace::orchestrate::install(cx, &run, store, config, proxy)
+    })();
+    installed
+        .map_err(|e| eprintln!("skyelab: agent orchestration is off: {e:#}"))
+        .ok()
+}
+
+/// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
+#[cfg(unix)]
+const MCP_PROXY_FLAG: &str = "--mcp-proxy";
+
 fn main() {
+    #[cfg(unix)]
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|a| a == MCP_PROXY_FLAG)
+    {
+        if let Err(e) = skyelab_agent::mcp::proxy_main() {
+            eprintln!("skyelab --mcp-proxy: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let path = AccountsConfig::default_path();
     let (config, error) = match path.as_deref().map(AccountsConfig::load) {
         Some(Ok(c)) => (c, None),
@@ -195,6 +238,8 @@ fn main() {
                 cfg!(debug_assertions),
             ),
         };
+        #[cfg(unix)]
+        let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
         let bounds = Bounds::centered(None, size(px(1200.), px(800.)), cx);
         let opened = cx.open_window(window_options(bounds), |window, cx| {
             let view = cx.new(|cx| {
@@ -209,6 +254,10 @@ fn main() {
                     window,
                     cx,
                 );
+                #[cfg(unix)]
+                if let Some(o) = orchestrate {
+                    ws.set_orchestrator(o, window, cx);
+                }
                 ws
             });
             let focus = view.read(cx).focus_handle(cx);

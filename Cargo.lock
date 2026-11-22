@@ -7504,6 +7504,7 @@ dependencies = [
  "serde",
  "serde_json",
  "skyelab-core",
+ "tempfile",
 ]
 
 [[package]]

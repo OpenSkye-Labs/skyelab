@@ -2,7 +2,7 @@
 
 use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
 use super::thread_items::render_item;
-use super::{NewThread, OpenSettings, SelectProject};
+use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*, px,
 };
@@ -48,7 +48,15 @@ impl ThreadView {
                             .truncate()
                             .text_color(theme.muted_foreground)
                             .child(self.cwd.display().to_string()),
-                    ),
+                    )
+                    .children(self.parent.clone().map(|(id, title)| {
+                        h_flex()
+                            .gap_1()
+                            .text_xs()
+                            .text_color(theme.muted_foreground)
+                            .child("Delegated by")
+                            .child(thread_link("parent-link", id, title))
+                    })),
             )
             .children(self.badge().map(|badge| {
                 h_flex()
@@ -82,6 +90,37 @@ impl ThreadView {
                 )
             })
             .into_any_element()
+    }
+
+    /// The threads this one's agent delegated, each a link.
+    fn render_children(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if self.children.is_empty() {
+            return None;
+        }
+        let theme = cx.theme();
+        Some(
+            h_flex()
+                .flex_wrap()
+                .px_4()
+                .py_1()
+                .gap_1()
+                .border_b_1()
+                .border_color(theme.border)
+                .text_xs()
+                .child(
+                    div()
+                        .text_color(theme.muted_foreground)
+                        .child(format!("Delegated threads ({})", self.children.len())),
+                )
+                .children(self.children.iter().map(|c| {
+                    thread_link(
+                        SharedString::from(format!("child-{}", c.id)),
+                        c.id,
+                        c.title.clone(),
+                    )
+                }))
+                .into_any_element(),
+        )
     }
 
     fn render_cta(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -174,9 +213,19 @@ impl ThreadView {
     }
 }
 
+/// A button that opens thread `id`.
+fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedString) -> Button {
+    Button::new(element_id)
+        .ghost()
+        .xsmall()
+        .label(title)
+        .on_click(move |_, window, cx| window.dispatch_action(Box::new(OpenThread { id }), cx))
+}
+
 impl Render for ThreadView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
+        let children = self.render_children(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let worktree_option = self.render_worktree_option(cx);
         let discard_confirm = self.render_discard_confirm(cx);
@@ -228,6 +277,7 @@ impl Render for ThreadView {
             .size_full()
             .bg(theme.background)
             .child(header)
+            .children(children)
             .child(body)
             .children(cta)
             .children(discard_confirm)

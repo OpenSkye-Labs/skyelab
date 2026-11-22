@@ -5,6 +5,13 @@ mod changes_model;
 mod devices;
 mod env_mode;
 mod env_picker;
+#[cfg(unix)]
+pub(crate) mod orchestrate;
+#[cfg(not(unix))]
+#[path = "orchestrate_stub.rs"]
+pub(crate) mod orchestrate;
+#[cfg(unix)]
+mod orchestrate_ui;
 mod panels;
 mod projects;
 mod remote;
@@ -159,6 +166,8 @@ pub struct Workspace {
     _add: Option<Task<()>>,
     _threads: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
+    /// Answers delegated starts and sends (see `orchestrate_ui`).
+    _orchestrate: Option<Task<()>>,
     devices: Option<WeakEntity<devices::DevicesPanel>>,
     /// Created on first open; tests put a fake here first.
     device_source: Option<std::sync::Arc<dyn devices::DeviceSource>>,
@@ -240,6 +249,7 @@ impl Workspace {
             _add: None,
             _threads: None,
             _settings_saved: None,
+            _orchestrate: None,
             devices: None,
             device_source: None,
             _appearance,
@@ -354,6 +364,7 @@ impl Workspace {
             return;
         }
         self.reload_accounts();
+        self.push_config(cx); // orchestration and open threads check against what's on disk now
         let (path, config, error) = (
             self.accounts_path.clone(),
             self.config.clone(),
@@ -555,3 +566,6 @@ mod remote_start_test;
 
 #[cfg(test)]
 mod changes_follow_folder_test;
+
+#[cfg(test)]
+mod delegation_test;
