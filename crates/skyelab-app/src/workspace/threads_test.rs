@@ -22,6 +22,14 @@ fn setup(cx: &mut TestAppContext) {
     });
 }
 
+/// A backend for tests that never start an agent: an in-memory store, and the fake as the binary.
+pub(super) fn test_backend() -> Backend {
+    Backend {
+        store: Arc::new(Mutex::new(Store::open_in_memory().expect("store"))),
+        claude_bin: fake_bin(),
+    }
+}
+
 struct Fixture {
     _home: tempfile::TempDir,
     project_dir: PathBuf,
@@ -64,10 +72,10 @@ fn fixture(bound: bool) -> Fixture {
     }
 }
 
-fn open_workspace(
+fn open_workspace<'a>(
     f: &Fixture,
-    cx: &mut TestAppContext,
-) -> (Entity<Workspace>, &mut VisualTestContext) {
+    cx: &'a mut TestAppContext,
+) -> (Entity<Workspace>, &'a mut VisualTestContext) {
     let config = AccountsConfig::load(&f.accounts_path).expect("load");
     let backend = Backend {
         store: f.store.clone(),
@@ -85,7 +93,11 @@ fn open_workspace(
 }
 
 /// Runs the app until `done` holds, giving the fake agent's threads real time to write.
-fn wait_until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
+fn wait_until(
+    cx: &mut VisualTestContext,
+    what: &str,
+    mut done: impl FnMut(&mut VisualTestContext) -> bool,
+) {
     for _ in 0..1000 {
         cx.run_until_parked();
         if done(cx) {
@@ -97,7 +109,11 @@ fn wait_until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut 
 }
 
 /// Adds the fixture's folder through the workspace, selects it and opens a new thread tab.
-fn project_thread(f: &Fixture, ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<ThreadView> {
+fn project_thread(
+    f: &Fixture,
+    ws: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> Entity<ThreadView> {
     let dir = f.project_dir.clone();
     ws.update(cx, |ws, cx| ws.add_project(dir, cx));
     wait_until(cx, "project stored", |cx| {
@@ -116,7 +132,11 @@ fn project_thread(f: &Fixture, ws: &Entity<Workspace>, cx: &mut VisualTestContex
 fn type_and_send(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
     cx.simulate_keystrokes("h i enter t h e r e");
-    cx.simulate_keystrokes(if cfg!(target_os = "macos") { "cmd-enter" } else { "ctrl-enter" });
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-enter"
+    } else {
+        "ctrl-enter"
+    });
     cx.run_until_parked();
 }
 
@@ -170,7 +190,10 @@ fn terminal_env_is_the_bound_account_or_empty() {
 #[test]
 fn claude_bin_override_is_debug_only() {
     let fake = Some(std::ffi::OsString::from("/tmp/fake-claude"));
-    assert_eq!(crate::claude_bin(fake.clone(), true), Path::new("/tmp/fake-claude"));
+    assert_eq!(
+        crate::claude_bin(fake.clone(), true),
+        Path::new("/tmp/fake-claude")
+    );
     assert_eq!(crate::claude_bin(fake, false), Path::new("claude"));
     assert_eq!(crate::claude_bin(None, true), Path::new("claude"));
 }
@@ -194,7 +217,12 @@ fn unbound_project_shows_cta_and_starts_nothing(cx: &mut TestAppContext) {
         assert!(t.thread.is_none(), "no thread row");
     });
     let project = ws.read_with(cx, |ws, _| ws.projects[0].id);
-    let rows = f.store.lock().expect("lock").list_threads(project).expect("list");
+    let rows = f
+        .store
+        .lock()
+        .expect("lock")
+        .list_threads(project)
+        .expect("list");
     assert!(rows.is_empty(), "nothing stored for an unbound folder");
 
     let cta = cx.debug_bounds("bind-cta").expect("CTA button rendered");
@@ -216,19 +244,43 @@ fn bound_project_streams_and_persists(cx: &mut TestAppContext) {
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
     wait_until(cx, "the fake's result", |cx| {
-        thread.read_with(cx, |t, _| t.items.iter().any(|i| matches!(i, Item::Done { .. })))
+        thread.read_with(cx, |t, _| {
+            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
+        })
     });
 
-    let (row, items, badge) = thread.read_with(cx, |t, cx| {
-        (t.thread.clone().expect("thread row"), t.items.clone(), t.badge(cx))
+    let (row, items, badge) = thread.read_with(cx, |t, _| {
+        (
+            t.thread.clone().expect("thread row"),
+            t.items.clone(),
+            t.badge(),
+        )
     });
     assert_eq!(row.account_id, "acme", "the thread row records its account");
     assert_eq!(row.cwd, f.project_dir);
     assert_eq!(badge.as_deref(), Some("Acme Team · acme"));
-    assert_eq!(items[0], Item::Prompt("hi\nthere".into()), "enter adds a newline");
-    assert!(items.iter().any(|i| matches!(i, Item::Text(t) if t.contains("four crates"))));
-    assert!(items.iter().any(|i| matches!(i, Item::Tool(t) if t.result.is_some())));
-    assert!(items.iter().any(|i| matches!(i, Item::Done { duration_ms: 4210, .. })));
+    assert_eq!(
+        items[0],
+        Item::Prompt("hi\nthere".into()),
+        "enter adds a newline"
+    );
+    assert!(
+        items
+            .iter()
+            .any(|i| matches!(i, Item::Text(t) if t.contains("four crates")))
+    );
+    assert!(
+        items
+            .iter()
+            .any(|i| matches!(i, Item::Tool(t) if t.result.is_some()))
+    );
+    assert!(items.iter().any(|i| matches!(
+        i,
+        Item::Done {
+            duration_ms: 4210,
+            ..
+        }
+    )));
 
     wait_until(cx, "the fake's env report persisted", |_| {
         stored_records(&f.store, row.id).iter().any(|r| {
@@ -247,7 +299,9 @@ fn bound_project_streams_and_persists(cx: &mut TestAppContext) {
     assert_eq!(env["config_dir"], f.account_dir.to_str().expect("utf-8"));
     assert_eq!(env["cwd"], f.project_dir.to_str().expect("utf-8"));
     assert!(
-        records.iter().any(|r| matches!(r, Record::Agent(skyelab_agent::Event::Result { .. }))),
+        records
+            .iter()
+            .any(|r| matches!(r, Record::Agent(skyelab_agent::Event::Result { .. }))),
         "every agent event is stored"
     );
 
@@ -272,23 +326,27 @@ fn reopen_replays_from_store(cx: &mut TestAppContext) {
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
     wait_until(cx, "the fake's result", |cx| {
-        thread.read_with(cx, |t, _| t.items.iter().any(|i| matches!(i, Item::Done { .. })))
+        thread.read_with(cx, |t, _| {
+            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
+        })
     });
-    let (row, live) = thread.read_with(cx, |t, _| (t.thread.clone().expect("row"), t.items.clone()));
+    let (row, live) =
+        thread.read_with(cx, |t, _| (t.thread.clone().expect("row"), t.items.clone()));
 
     let config = AccountsConfig::load(&f.accounts_path).expect("load");
     let backend = Backend {
         store: f.store.clone(),
         claude_bin: fake_bin(),
     };
-    let reopened = cx.new_window_entity(|window, cx| ThreadView::open(row.clone(), config, backend, window, cx));
+    let reopened = cx
+        .new_window_entity(|window, cx| ThreadView::open(row.clone(), config, backend, window, cx));
     wait_until(cx, "replay", |cx| {
         reopened.read_with(cx, |t, _| t.items.len() >= live.len())
     });
-    reopened.read_with(cx, |t, cx| {
+    reopened.read_with(cx, |t, _| {
         assert_eq!(t.items, live, "replay rebuilds the same items");
         assert!(t.session.is_none(), "replay starts no agent");
-        assert_eq!(t.badge(cx).as_deref(), Some("Acme Team · acme"));
+        assert_eq!(t.badge().as_deref(), Some("Acme Team · acme"));
     });
 }
 
@@ -300,7 +358,9 @@ fn interrupt_is_sent_and_stop_kills(cx: &mut TestAppContext) {
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
     wait_until(cx, "the fake's result", |cx| {
-        thread.read_with(cx, |t, _| t.items.iter().any(|i| matches!(i, Item::Done { .. })))
+        thread.read_with(cx, |t, _| {
+            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
+        })
     });
     let row = thread.read_with(cx, |t, _| t.thread.clone().expect("row"));
 
@@ -317,9 +377,22 @@ fn interrupt_is_sent_and_stop_kills(cx: &mut TestAppContext) {
         .read_with(cx, |t, _| t.session.clone())
         .expect("session running");
     thread.update_in(cx, |t, window, cx| t.stop(&Stop, window, cx));
-    wait_until(cx, "the session to stop", |cx| thread.read_with(cx, |t, _| t.session.is_none()));
-    let exited = session.lock().expect("session lock").try_wait().expect("try_wait");
+    wait_until(cx, "the session to stop", |cx| {
+        thread.read_with(cx, |t, _| t.session.is_none())
+    });
+    let exited = session
+        .lock()
+        .expect("session lock")
+        .try_wait()
+        .expect("try_wait");
     assert!(exited.is_some(), "stop killed the agent");
-    let status = f.store.lock().expect("lock").thread(row.id).expect("read").expect("row").status;
+    let status = f
+        .store
+        .lock()
+        .expect("lock")
+        .thread(row.id)
+        .expect("read")
+        .expect("row")
+        .status;
     assert_eq!(status, "stopped");
 }

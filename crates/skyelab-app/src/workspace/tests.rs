@@ -1,3 +1,4 @@
+use super::threads_test::test_backend;
 use super::*;
 use gpui::TestAppContext;
 use skyelab_core::{Account, Binding};
@@ -19,7 +20,15 @@ fn keys_toggle_docks_open_settings_and_terminals(cx: &mut TestAppContext) {
     let home = tempfile::tempdir().expect("tempdir");
     let folder = home.path().to_path_buf();
     let (ws, cx) = cx.add_window_view(|window, cx| {
-        let ws = Workspace::new(folder, None, AccountsConfig::default(), None, window, cx);
+        let ws = Workspace::new(
+            folder,
+            None,
+            AccountsConfig::default(),
+            None,
+            test_backend(),
+            window,
+            cx,
+        );
         window.focus(&ws.focus, cx);
         ws
     });
@@ -95,7 +104,15 @@ fn shell_keys_reach_a_focused_terminal(cx: &mut TestAppContext) {
     let home = tempfile::tempdir().expect("tempdir");
     let folder = home.path().to_path_buf();
     let (ws, cx) = cx.add_window_view(|window, cx| {
-        Workspace::new(folder, None, AccountsConfig::default(), None, window, cx)
+        Workspace::new(
+            folder,
+            None,
+            AccountsConfig::default(),
+            None,
+            test_backend(),
+            window,
+            cx,
+        )
     });
     ws.update_in(cx, |ws, window, cx| {
         ws.new_terminal(&NewTerminal, window, cx)

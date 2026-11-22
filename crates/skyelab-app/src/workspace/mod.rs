@@ -1,11 +1,15 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
 mod panels;
+mod projects;
+mod thread;
+mod thread_model;
+mod thread_render;
 
 use crate::settings::Settings;
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString, Subscription,
-    WeakEntity, Window, actions, div, prelude::*, px,
+    Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString,
+    Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _, Theme,
@@ -15,15 +19,49 @@ use gpui_component::{
     status_bar::StatusBar,
     v_flex,
 };
-use panels::{Sidebar, SidebarSection, TerminalPanel, TerminalsEmpty, Welcome};
+use panels::{Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
+use skyelab_store::{Project, Store, Thread};
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use thread::ThreadView;
 
 actions!(
     skyelab,
-    [ToggleSidebar, ToggleBottomPanel, NewTerminal, OpenSettings]
+    [
+        ToggleSidebar,
+        ToggleBottomPanel,
+        NewTerminal,
+        OpenSettings,
+        AddProject,
+        NewThread
+    ]
 );
+
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct SelectProject {
+    pub id: i64,
+}
+
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenThread {
+    pub id: i64,
+}
+
+/// The store is sync and not `Sync`; every use goes through a background task holding this lock.
+pub type SharedStore = Arc<Mutex<Store>>;
+
+/// What threads need to run: where they persist and which binary they launch.
+#[derive(Clone)]
+pub struct Backend {
+    pub store: SharedStore,
+    /// `claude`, or a fake in tests and debug builds (`SKYELAB_CLAUDE_BIN`).
+    pub claude_bin: PathBuf,
+}
 
 const CONTEXT: &str = "Workspace";
 
@@ -51,6 +89,22 @@ pub fn init(cx: &mut App) {
     }
 }
 
+/// Env for a terminal in `dir`: the bound account's, or none, so skyelab-terminal clears the
+/// inherited `CLAUDE_CONFIG_DIR` and the shell never runs `claude` under the parent's account.
+fn terminal_env(config: &AccountsConfig, dir: &Path) -> anyhow::Result<HashMap<String, String>> {
+    if config.resolve(dir).is_none() {
+        return Ok(HashMap::new());
+    }
+    config
+        .launch_env(dir)?
+        .into_iter()
+        .map(|(k, v)| match v.to_str() {
+            Some(v) => Ok((k.to_owned(), v.to_owned())),
+            None => anyhow::bail!("{k} for {} is not valid UTF-8", dir.display()),
+        })
+        .collect()
+}
+
 /// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
 fn account_label(config: &AccountsConfig, folder: &Path) -> Option<SharedString> {
     config.resolve(folder).map(|a| a.label.clone().into())
@@ -59,7 +113,7 @@ fn account_label(config: &AccountsConfig, folder: &Path) -> Option<SharedString>
 pub struct Workspace {
     focus: FocusHandle,
     dock: Entity<DockArea>,
-    /// The folder the workspace is "in". Home for now; later the selected project.
+    /// The folder the workspace is "in": the selected project, or home before one is picked.
     folder: PathBuf,
     folder_label: SharedString,
     accounts_path: Option<PathBuf>,
@@ -69,6 +123,18 @@ pub struct Workspace {
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
     settings: Option<WeakEntity<Settings>>,
+    backend: Backend,
+    pub(crate) store_error: Option<SharedString>,
+    sidebar: Entity<Sidebar>,
+    projects: Vec<Project>,
+    project: Option<Project>,
+    /// The selected project's threads, newest first.
+    threads: Vec<Thread>,
+    open_threads: Vec<WeakEntity<ThreadView>>,
+    _thread_events: Vec<Subscription>,
+    _load: Option<Task<()>>,
+    _add: Option<Task<()>>,
+    _threads: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
     _appearance: Subscription,
 }
@@ -79,6 +145,7 @@ impl Workspace {
         accounts_path: Option<PathBuf>,
         config: AccountsConfig,
         load_error: Option<String>,
+        backend: Backend,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -87,26 +154,7 @@ impl Workspace {
             Theme::sync_system_appearance(Some(window), cx);
         });
 
-        let sidebar = cx.new(|cx| {
-            Sidebar::new(
-                vec![
-                    SidebarSection {
-                        title: "Projects".into(),
-                        items: Vec::new(),
-                        empty_title: "No projects yet".into(),
-                        empty_hint: "Add a folder to start. It runs on the account it is bound to."
-                            .into(),
-                    },
-                    SidebarSection {
-                        title: "Threads".into(),
-                        items: Vec::new(),
-                        empty_title: "No threads".into(),
-                        empty_hint: "Threads you start in a project show up here.".into(),
-                    },
-                ],
-                cx,
-            )
-        });
+        let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
         let welcome = cx.new(Welcome::new);
         let terminals_empty = cx.new(TerminalsEmpty::new);
 
@@ -117,7 +165,7 @@ impl Workspace {
             dock.set_center(tabs(panel_handle(welcome), cx), window, cx);
             dock.set_dock(
                 DockPlacement::Left,
-                tabs(panel_handle(sidebar), cx),
+                tabs(panel_handle(sidebar.clone()), cx),
                 window,
                 cx,
             );
@@ -132,7 +180,7 @@ impl Workspace {
             dock.toggle_dock(DockPlacement::Bottom, window, cx);
         });
 
-        Self {
+        let mut this = Self {
             focus: cx.focus_handle(),
             dock,
             account: account_label(&config, &folder),
@@ -147,9 +195,23 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
             settings: None,
+            backend,
+            store_error: None,
+            sidebar,
+            projects: Vec::new(),
+            project: None,
+            threads: Vec::new(),
+            open_threads: Vec::new(),
+            _thread_events: Vec::new(),
+            _load: None,
+            _add: None,
+            _threads: None,
             _settings_saved: None,
             _appearance,
-        }
+        };
+        this.refresh_sidebar(cx);
+        this.load_projects(None, cx);
+        this
     }
 
     fn toggle(&mut self, at: DockPlacement, window: &mut Window, cx: &mut Context<Self>) {
@@ -177,11 +239,10 @@ impl Workspace {
     }
 
     fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        // later: a project terminal must get `AccountsConfig::launch_env(dir)` in `env`, like every agent.
         let (terminal, events) = Terminal::spawn(SpawnOptions {
             cwd: self.folder.clone(),
             command: None,
-            env: Default::default(),
+            env: terminal_env(&self.config, &self.folder)?,
             cols: 80,
             lines: 24,
         })?;
@@ -238,6 +299,7 @@ impl Workspace {
         // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.
         self._settings_saved = Some(cx.observe(&settings, |this, _, cx| {
             this.reload_accounts();
+            this.push_config(cx);
             cx.notify();
         }));
         self.settings = Some(settings.downgrade());
@@ -280,10 +342,19 @@ impl Workspace {
             .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
         StatusBar::new()
             .left(
-                div()
+                h_flex()
+                    .gap_3()
                     .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(self.folder_label.clone()),
+                    .child(
+                        div()
+                            .text_color(theme.muted_foreground)
+                            .child(self.folder_label.clone()),
+                    )
+                    .children(self.store_error.clone().map(|e| {
+                        div()
+                            .text_color(theme.danger)
+                            .child(format!("Store error: {e}"))
+                    })),
             )
             .right(account)
     }
@@ -306,6 +377,10 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::open_settings))
+            .on_action(cx.listener(Self::pick_project))
+            .on_action(cx.listener(Self::select_project))
+            .on_action(cx.listener(Self::new_thread))
+            .on_action(cx.listener(Self::open_thread))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -319,3 +394,9 @@ mod tests;
 
 #[cfg(test)]
 mod stale_status_test;
+
+#[cfg(test)]
+mod thread_model_test;
+
+#[cfg(test)]
+mod threads_test;

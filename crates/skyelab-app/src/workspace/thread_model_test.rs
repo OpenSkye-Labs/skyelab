@@ -85,7 +85,10 @@ fn prompts_show_and_unknown_lines_do_not() {
         apply(&mut items, &Record::Prompt("hi\nthere".into())),
         Some(0)
     );
-    assert_eq!(apply(&mut items, &Record::Agent(Event::parse("garbage"))), None);
+    assert_eq!(
+        apply(&mut items, &Record::Agent(Event::parse("garbage"))),
+        None
+    );
     assert_eq!(items, vec![Item::Prompt("hi\nthere".into())]);
 }
 

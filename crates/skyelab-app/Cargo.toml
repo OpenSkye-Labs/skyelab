@@ -16,6 +16,9 @@ gpui-component.workspace = true
 anyhow.workspace = true
 skyelab-core.workspace = true
 skyelab-terminal.workspace = true
+skyelab-store.workspace = true
+skyelab-agent.workspace = true
+serde_json.workspace = true
 dirs.workspace = true
 
 [lints]

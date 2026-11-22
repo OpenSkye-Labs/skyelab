@@ -26,6 +26,8 @@ alacritty_terminal = "0.26"
 futures = "0.3"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-terminal = { path = "crates/skyelab-terminal" }
+skyelab-store = { path = "crates/skyelab-store" }
+skyelab-agent = { path = "crates/skyelab-agent" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

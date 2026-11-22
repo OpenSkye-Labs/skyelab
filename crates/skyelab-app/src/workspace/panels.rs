@@ -6,7 +6,8 @@ use gpui::{
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _,
+    ActiveTheme as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     kbd::Kbd,
@@ -51,6 +52,9 @@ macro_rules! panel {
 pub struct SidebarItem {
     pub id: SharedString,
     pub label: SharedString,
+    pub selected: bool,
+    /// Dispatched when the row is clicked.
+    pub action: Box<dyn Action>,
 }
 
 /// One titled group in the sidebar, with what to show while it is empty.
@@ -59,6 +63,8 @@ pub struct SidebarSection {
     pub items: Vec<SidebarItem>,
     pub empty_title: SharedString,
     pub empty_hint: SharedString,
+    /// A small button next to the title, e.g. "Add".
+    pub button: Option<(SharedString, Box<dyn Action>)>,
 }
 
 pub struct Sidebar {
@@ -105,25 +111,46 @@ impl Render for Sidebar {
                     )
             } else {
                 v_flex().gap_0p5().children(s.items.iter().map(|item| {
+                    let action = item.action.boxed_clone();
                     div()
                         .id(item.id.clone())
                         .px_2()
                         .py_1()
                         .rounded_md()
                         .text_sm()
+                        .truncate()
+                        .cursor_pointer()
+                        .when(item.selected, |this| this.bg(theme.sidebar_accent))
                         .hover(|this| this.bg(theme.sidebar_accent))
+                        .on_click(move |_, window, cx| {
+                            window.dispatch_action(action.boxed_clone(), cx)
+                        })
                         .child(item.label.clone())
                 }))
             };
             v_flex()
                 .gap_2()
                 .child(
-                    div()
-                        .px_1()
-                        .text_xs()
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(theme.muted_foreground)
-                        .child(s.title.to_uppercase()),
+                    h_flex()
+                        .justify_between()
+                        .child(
+                            div()
+                                .px_1()
+                                .text_xs()
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .text_color(theme.muted_foreground)
+                                .child(s.title.to_uppercase()),
+                        )
+                        .children(s.button.as_ref().map(|(label, action)| {
+                            let action = action.boxed_clone();
+                            Button::new(SharedString::from(format!("section-{}", s.title)))
+                                .ghost()
+                                .xsmall()
+                                .label(label.clone())
+                                .on_click(move |_, window, cx| {
+                                    window.dispatch_action(action.boxed_clone(), cx)
+                                })
+                        })),
                 )
                 .child(body)
         };
@@ -297,6 +324,7 @@ impl Render for TerminalPanel {
 }
 
 panel!(Settings, "Settings", closable: true, |_this| "Settings");
+panel!(super::thread::ThreadView, "Thread", closable: true, |this| this.title());
 
 macro_rules! focusable {
     ($($ty:ty),*) => {$(

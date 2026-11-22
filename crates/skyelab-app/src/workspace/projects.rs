@@ -1,0 +1,260 @@
+//! Projects and thread tabs: the sidebar's two sections and what selecting a row does.
+
+use super::thread::{ThreadView, ThreadViewEvent};
+use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label};
+use gpui::{AppContext as _, Context, Entity, PathPromptOptions, SharedString, Window};
+use gpui_component::dock::{DockPlacement, panel_handle};
+use skyelab_store::Thread;
+use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
+
+use super::panels::{SidebarItem, SidebarSection};
+
+fn lock<T>(m: &Mutex<T>) -> anyhow::Result<MutexGuard<'_, T>> {
+    m.lock()
+        .map_err(|_| anyhow::anyhow!("a background task panicked holding the store"))
+}
+
+impl Workspace {
+    /// Lists projects from the store (off the UI thread), selecting `select` or else the first one.
+    pub(super) fn load_projects(&mut self, select: Option<i64>, cx: &mut Context<Self>) {
+        let store = self.backend.store.clone();
+        let task = cx.background_spawn(async move { lock(&store)?.list_projects() });
+        self._load = Some(cx.spawn(async move |this, cx| {
+            let loaded = task.await;
+            let _ = this.update(cx, |this, cx| match loaded {
+                Ok(projects) => {
+                    this.projects = projects;
+                    let current = this.project.as_ref().map(|p| p.id);
+                    if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id)) {
+                        this.select(id, cx);
+                    }
+                    this.refresh_sidebar(cx);
+                }
+                Err(e) => this.store_error = Some(format!("{e:#}").into()),
+            });
+        }));
+    }
+
+    /// Stores `dir` as a project, or finds the one already stored there, and selects it.
+    pub fn add_project(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
+        let store = self.backend.store.clone();
+        let task = cx.background_spawn(async move {
+            let store = lock(&store)?;
+            let normalized: PathBuf = dir.components().collect();
+            if let Some(p) = store
+                .list_projects()?
+                .into_iter()
+                .find(|p| p.path == normalized)
+            {
+                return anyhow::Ok(p.id);
+            }
+            let name = dir.file_name().map_or_else(
+                || dir.display().to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            );
+            Ok(store.create_project(&name, &dir)?.id)
+        });
+        self._add = Some(cx.spawn(async move |this, cx| {
+            let added = task.await;
+            let _ = this.update(cx, |this, cx| match added {
+                Ok(id) => this.load_projects(Some(id), cx),
+                Err(e) => {
+                    this.store_error = Some(format!("{e:#}").into());
+                    cx.notify();
+                }
+            });
+        }));
+    }
+
+    pub(super) fn pick_project(&mut self, _: &AddProject, _: &mut Window, cx: &mut Context<Self>) {
+        let picked = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Add project".into()),
+        });
+        self._add = Some(cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = picked.await else {
+                return; // cancelled, or the platform has no picker
+            };
+            if let Some(dir) = paths.into_iter().next() {
+                let _ = this.update(cx, |this, cx| this.add_project(dir, cx));
+            }
+        }));
+    }
+
+    pub(super) fn select_project(
+        &mut self,
+        a: &SelectProject,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.select(a.id, cx);
+    }
+
+    fn select(&mut self, id: i64, cx: &mut Context<Self>) {
+        let Some(project) = self.projects.iter().find(|p| p.id == id).cloned() else {
+            return;
+        };
+        self.folder = project.path.clone();
+        self.folder_label = project.path.display().to_string().into();
+        self.account = account_label(&self.config, &self.folder);
+        self.project = Some(project);
+        self.load_threads(cx);
+        cx.notify();
+    }
+
+    pub(super) fn load_threads(&mut self, cx: &mut Context<Self>) {
+        let Some(project_id) = self.project.as_ref().map(|p| p.id) else {
+            return;
+        };
+        let store = self.backend.store.clone();
+        let task = cx.background_spawn(async move { lock(&store)?.list_threads(project_id) });
+        self._threads = Some(cx.spawn(async move |this, cx| {
+            let loaded = task.await;
+            let _ = this.update(cx, |this, cx| {
+                match loaded {
+                    // A slow load for a project that is no longer selected changes nothing.
+                    Ok(threads) if this.project.as_ref().map(|p| p.id) == Some(project_id) => {
+                        this.threads = threads
+                    }
+                    Ok(_) => {}
+                    Err(e) => this.store_error = Some(format!("{e:#}").into()),
+                }
+                this.refresh_sidebar(cx);
+            });
+        }));
+    }
+
+    pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
+        let current = self.project.as_ref().map(|p| p.id);
+        let projects = self
+            .projects
+            .iter()
+            .map(|p| SidebarItem {
+                id: format!("project-{}", p.id).into(),
+                label: p.name.clone().into(),
+                selected: Some(p.id) == current,
+                action: Box::new(SelectProject { id: p.id }),
+            })
+            .collect();
+        let threads = self
+            .threads
+            .iter()
+            .map(|t| SidebarItem {
+                id: format!("thread-{}", t.id).into(),
+                label: t.title.clone().into(),
+                selected: false,
+                action: Box::new(OpenThread { id: t.id }),
+            })
+            .collect();
+        let has_project = self.project.is_some();
+        self.sidebar.update(cx, |sidebar, cx| {
+            sidebar.sections = vec![
+                SidebarSection {
+                    title: "Projects".into(),
+                    items: projects,
+                    empty_title: "No projects yet".into(),
+                    empty_hint: "Add a folder to start. It runs on the account it is bound to."
+                        .into(),
+                    button: Some(("Add".into(), Box::new(AddProject))),
+                },
+                SidebarSection {
+                    title: "Threads".into(),
+                    items: threads,
+                    empty_title: "No threads".into(),
+                    empty_hint: if has_project {
+                        "Start one with New."
+                    } else {
+                        "Select a project to see its threads."
+                    }
+                    .into(),
+                    button: has_project
+                        .then(|| (SharedString::from("New"), Box::new(NewThread) as Box<_>)),
+                },
+            ];
+            cx.notify();
+        });
+    }
+
+    pub(super) fn new_thread(
+        &mut self,
+        _: &NewThread,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(project) = self.project.clone() else {
+            return;
+        };
+        let (config, backend) = (self.config.clone(), self.backend.clone());
+        let view = cx.new(|cx| ThreadView::new(&project, config, backend, window, cx));
+        self.add_thread_tab(view, window, cx);
+    }
+
+    pub(super) fn open_thread(
+        &mut self,
+        a: &OpenThread,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let open = self
+            .open_threads
+            .iter()
+            .filter_map(|t| t.upgrade())
+            .find(|t| t.read(cx).thread.as_ref().map(|t| t.id) == Some(a.id));
+        if let Some(view) = open {
+            let id = view.entity_id().into();
+            self.dock
+                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
+            return;
+        }
+        let Some(thread) = self.threads.iter().find(|t| t.id == a.id).cloned() else {
+            return;
+        };
+        let (config, backend) = (self.config.clone(), self.backend.clone());
+        let view = cx.new(|cx| ThreadView::open(thread, config, backend, window, cx));
+        self.add_thread_tab(view, window, cx);
+    }
+
+    fn add_thread_tab(
+        &mut self,
+        view: Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self._thread_events
+            .push(cx.subscribe(&view, |this, _, e: &ThreadViewEvent, cx| {
+                let ThreadViewEvent::Started(thread) = e;
+                this.thread_started(thread, cx);
+            }));
+        self.open_threads.retain(|t| t.upgrade().is_some());
+        self.open_threads.push(view.downgrade());
+        self.dock.update(cx, |dock, cx| {
+            dock.add_panel_view(
+                panel_handle(view.clone()),
+                DockPlacement::Center,
+                None,
+                window,
+                cx,
+            );
+        });
+        view.update(cx, |v, cx| v.focus_prompt(window, cx));
+        cx.notify();
+    }
+
+    fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
+        if self.project.as_ref().map(|p| p.id) == Some(thread.project_id) {
+            self.threads.insert(0, thread.clone());
+            self.refresh_sidebar(cx);
+        }
+    }
+
+    /// Settings saved: open threads start their next session from the new bindings.
+    pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
+        let config = self.config.clone();
+        for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {
+            view.update(cx, |t, cx| t.set_config(config.clone(), cx));
+        }
+    }
+}
