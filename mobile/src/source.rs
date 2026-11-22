@@ -51,7 +51,7 @@ pub trait ThreadSource {
 }
 
 /// Canned in-memory data, so the screens can be checked without an environment. Payloads use the desktop store's
-/// kinds: `prompt` (a JSON string) and `agent` (a Claude stream event).
+/// kinds: `prompt` (a JSON string) and `agent` (a `skyelab_agent::Event`, externally tagged).
 pub struct FakeSource {
     projects: Vec<Project>,
     threads: Vec<Thread>,
@@ -95,9 +95,9 @@ impl FakeSource {
         fake.push(
             1,
             "agent",
-            serde_json::json!({"type": "assistant", "content": [
+            serde_json::json!({"Assistant": {"content": [
                 {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "cargo test -p auth"}}
-            ]}),
+            ]}}),
         );
         fake.prompt(2, "Add a dark theme that follows the system setting.");
         fake
@@ -111,7 +111,7 @@ impl FakeSource {
         self.push(
             thread_id,
             "agent",
-            serde_json::json!({"type": "assistant", "content": [{"type": "text", "text": text}]}),
+            serde_json::json!({"Assistant": {"content": [{"type": "text", "text": text}]}}),
         );
     }
 

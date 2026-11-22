@@ -129,7 +129,7 @@ impl Env {
             .append_event(
                 thread.id,
                 "agent",
-                r#"{"type":"assistant","content":[{"type":"text","text":"on it"}]}"#,
+                r#"{"Assistant":{"content":[{"type":"text","text":"on it"}]}}"#,
             )
             .expect("event");
         let tailnet = Arc::new(FakeTailnet::default());

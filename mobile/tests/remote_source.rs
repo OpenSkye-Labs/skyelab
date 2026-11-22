@@ -63,7 +63,7 @@ fn a_watched_thread_gets_stored_then_live_events() {
 
     let live = env.push(
         "agent",
-        r#"{"type":"assistant","content":[{"type":"text","text":"done"}]}"#,
+        r#"{"Assistant":{"content":[{"type":"text","text":"done"}]}}"#,
     );
     settle(&mut source, "the live event", |s| {
         s.events(env.thread_id).len() == 3

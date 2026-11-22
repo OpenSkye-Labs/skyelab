@@ -52,7 +52,7 @@ fn pushed_events_appear_on_the_thread_screen(cx: &mut TestAppContext) {
 
     env.push(
         "agent",
-        r#"{"type":"assistant","content":[{"type":"text","text":"pushed while idle"}]}"#,
+        r#"{"Assistant":{"content":[{"type":"text","text":"pushed while idle"}]}}"#,
     );
     wait(cx, "the pushed event", &|a| a.events().len() == 3);
 }

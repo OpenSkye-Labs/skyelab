@@ -238,11 +238,20 @@ impl MobileApp {
 }
 
 /// What an event says: a prompt's text, an agent turn's text and tool calls, a result, else the raw payload.
-fn event_text(e: &ThreadEvent) -> String {
+pub fn event_text(e: &ThreadEvent) -> String {
     use serde_json::Value;
-    let Ok(v) = serde_json::from_str::<Value>(&e.payload_json) else {
+    let Ok(mut v) = serde_json::from_str::<Value>(&e.payload_json) else {
         return e.payload_json.clone();
     };
+    // Agent rows are `skyelab_agent::Event`, serde's default externally tagged enum: `{"Assistant": {..}}`.
+    if let Some((_, inner)) = v
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .and_then(|o| o.iter().next())
+        && inner.is_object()
+    {
+        v = inner.clone();
+    }
     if let Some(prompt) = v.as_str() {
         return prompt.to_owned();
     }
