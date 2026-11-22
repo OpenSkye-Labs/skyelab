@@ -410,7 +410,7 @@ impl Render for BrowserPanel {
                 .px_2()
                 .py_1()
                 .bg(theme.warning)
-                .text_color(theme.warning_foreground)
+                .text_color(gpui::black()) // the theme's warning_foreground is barely readable on warning
                 .text_sm()
                 .child(
                     div()

@@ -148,7 +148,8 @@ whois, but replacing the default with grants like the one above is better.
 ## Orchestration
 
 An agent can delegate work to other threads through SkyeLab's own MCP tools: `list_projects`, `start_thread`,
-`thread_status`, `read_thread`, `send_message` and `wait_thread`.
+`thread_status`, `read_thread`, `send_message` and `wait_thread`. It can also drive a browser tab of its own with
+`browser_open`, `browser_navigate`, `browser_url` and `browser_eval`.
 
 - **Account rule.** A delegated thread runs under its target project's bound account, through the normal launch
   path, pinned to the account the start was approved for. An agent under account A can only list and start in
@@ -162,6 +163,11 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   session gets a grant: a one-use random token and a 0600 `--mcp-config` file that runs `skyelab --mcp-proxy`. The
   proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
   connection. Never TCP.
+- **Browser tools.** A thread reaches only the tab it opened (`BrowserPanel::agent` names its thread); the user's
+  tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI
+  thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page
+  guard. Limits: one tab per thread (`browser_open` reuses it), URL 2048 chars, expression 32 000 chars, eval 10 s,
+  result 64 KiB (a bigger one is an error, never cut JSON).
 - **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
   `parent_thread_id` (schema 3).
 - **Not yet:** Windows (no named-pipe transport, so threads there run without the tools) and delegation to other
@@ -197,6 +203,12 @@ Each item goes through `/loop` (see CLAUDE.md).
 - **Browser, agent access:** agents may only navigate to http/https (no `file://`), because `eval_js` on a file page
   would let an agent read any local file, including other accounts' credentials. `file://` stays available to the user
   typing in the URL bar. (2026-11-23)
+- **Browser, localhost for agents:** allowed. `parse_agent_url` takes `http://localhost` and loopback IPs, since a
+  dev server is the point of the preview, and the agent process can already reach those over the network itself.
+  (2026-11-23)
+- **Browser, no screenshot tool:** wry has no snapshot API; WKWebView's `takeSnapshotWithConfiguration` is an
+  `unsafe fn` in objc2-web-kit (it would need a `-sys` crate); a window capture needs Screen Recording permission and
+  shows whatever is drawn in the tab's rect, which can be the user's content. (2026-11-23)
 - **Minimum macOS: 14.** wry crashes on macOS < 14 for URLs with unusual characters. (2026-11-23)
 - **Agent env:** parent env is cleared, then an allowlist passes through. Network and session plumbing (proxy, CA certs,
   ssh-agent, TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
