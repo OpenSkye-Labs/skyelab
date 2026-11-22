@@ -13,8 +13,18 @@ skyelab-store.workspace = true
 skyelab-tailnet.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+x509-parser.workspace = true
+rcgen = { workspace = true, optional = true }
+
+[features]
+# Test certificates and a TLS test client for dependents' tests. Never in a shipped build.
+test-support = ["dep:rcgen"]
 
 [dev-dependencies]
+skyelab-daemon = { workspace = true, features = ["test-support"] }
+rustls.workspace = true
 serde_json.workspace = true
 tungstenite.workspace = true
 
