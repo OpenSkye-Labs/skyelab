@@ -544,3 +544,9 @@ mod delegation_resume_test;
 
 #[cfg(all(test, unix))]
 mod browser_agent_test;
+
+#[cfg(all(test, unix))]
+mod browser_agent_cap_test;
+
+#[cfg(all(test, unix))]
+mod browser_agent_review_test;

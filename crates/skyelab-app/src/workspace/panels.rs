@@ -392,9 +392,11 @@ impl Focusable for BrowserPanel {
 }
 
 impl BrowserPanel {
-    /// The user takes the tab: the agent loses it for good (its next call opens a new tab).
+    /// The user takes the tab: the agent's calls fail from now on, and the reload ends the scripts it
+    /// left running in the page.
     pub fn take_over(&mut self, cx: &mut Context<Self>) {
         self.agent = None;
+        self.browser.update(cx, |b, cx| b.reload(cx));
         cx.notify();
     }
 }

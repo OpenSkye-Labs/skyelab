@@ -17,6 +17,10 @@ pub trait Engine {
     /// Runs `js` and calls `done` with its result. An engine may drop `done` (wry does for a script
     /// it queued for the next load).
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()>;
+    /// Loads the current page again.
+    fn reload(&self, cx: &App) -> anyhow::Result<()> {
+        self.load(&self.url(cx)?, cx)
+    }
 }
 
 pub(crate) struct Wry(pub Entity<WebView>);
@@ -28,6 +32,10 @@ impl Engine for Wry {
 
     fn url(&self, cx: &App) -> anyhow::Result<String> {
         Ok(self.0.read(cx).url()?)
+    }
+
+    fn reload(&self, cx: &App) -> anyhow::Result<()> {
+        Ok(self.0.read(cx).reload()?)
     }
 
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()> {

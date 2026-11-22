@@ -39,7 +39,7 @@ impl Workspace {
             let (engine, loads) = make();
             return cx.new(|cx| BrowserView::with_engine(engine, loads, window, cx));
         }
-        cx.new(|cx| BrowserView::new(None, window, cx))
+        cx.new(|cx| BrowserView::new_agent(window, cx))
     }
 
     /// Adds `browser` as a center tab, owned by `agent`'s thread or (`None`) the user's.

@@ -161,6 +161,15 @@ fn id(args: &Map<String, Value>, field: &str) -> Result<i64, String> {
 }
 
 fn text(args: &Map<String, Value>, field: &str) -> Result<String, String> {
+    bounded(args, field, MAX_TEXT)
+}
+
+/// A non-blank string `field` of at most `max` characters.
+pub(super) fn bounded(
+    args: &Map<String, Value>,
+    field: &str,
+    max: usize,
+) -> Result<String, String> {
     let s = args
         .get(field)
         .and_then(Value::as_str)
@@ -168,8 +177,8 @@ fn text(args: &Map<String, Value>, field: &str) -> Result<String, String> {
     if s.trim().is_empty() {
         return Err(format!("{field} must not be empty"));
     }
-    if s.chars().count() > MAX_TEXT {
-        return Err(format!("{field} is longer than {MAX_TEXT} characters"));
+    if s.chars().count() > max {
+        return Err(format!("{field} is longer than {max} characters"));
     }
     Ok(s.to_owned())
 }

@@ -83,8 +83,10 @@ local file page. Each thread has one tab, titled **Agent browser**, with a bar s
 - **Take over** makes it your tab. The agent can't reach it any more; its next `browser_open` opens a new tab.
 - **Close** closes the tab.
 
-An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or another thread's tab. There is no screenshot
-tool yet.
+An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or another thread's tab. Its tab has private,
+in-memory cookies and storage, so it is not signed in to anything you are, and nothing it sets reaches your tabs.
+Take over reloads the page, which stops any script the agent left running. While the agent still has the tab,
+don't sign in to anything in it: the agent can read that page. macOS and Linux only. There is no screenshot tool yet.
 
 ### Delegated threads
 

@@ -77,7 +77,7 @@ fn fetch_title(url: &str) -> Option<String> {
     Some(body[start..end].to_owned())
 }
 
-/// Serves one test page on 127.0.0.1 until the test ends; returns its URL.
+/// Serves one test page on 127.0.0.1 for the rest of the test run; returns its URL.
 fn serve_page(title: &str) -> String {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().expect("addr").port();

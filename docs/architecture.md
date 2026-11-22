@@ -167,7 +167,10 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI
   thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page
   guard. Limits: one tab per thread (`browser_open` reuses it), URL 2048 chars, expression 32 000 chars, eval 10 s,
-  result 64 KiB (a bigger one is an error, never cut JSON).
+  result 64 KiB (a bigger one is an error, never cut JSON; a thrown message is cut). Each agent tab has its own
+  non-persistent WebKit data store (`with_incognito`), so it shares no cookies or storage with the user's tabs (on the
+  default persistent store) or other threads' tabs. Open and navigate answer once the new page commits. Take over
+  reloads the page, ending the agent's scripts, and an eval still running answers with an error.
 - **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
   `parent_thread_id` (schema 3).
 - **Not yet:** Windows (no named-pipe transport, so threads there run without the tools) and delegation to other

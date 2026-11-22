@@ -32,7 +32,8 @@ What's built today:
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
-  **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's. No screenshots yet.
+  **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
+  its own cookies and storage. macOS and Linux only (like delegation). No screenshots yet.
 - **Device hub.** Lists iOS Simulators and Android emulators. Boot, shut down, take screenshots, open URLs and
   install apps.
 - **Share a machine over your tailnet.** Off by default. When on, the app serves this machine over `wss://` with its

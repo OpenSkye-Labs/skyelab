@@ -1,12 +1,13 @@
 //! The browser tools: an agent drives browser tabs its own thread opened. Input is checked here for shape and
 //! size; the app checks the URL scheme (http and https only) and which tab the thread owns.
 
+use super::tools::bounded;
 use serde_json::{Map, Value, json};
 
 /// Longest URL an agent may pass.
-pub const MAX_URL: usize = 2048;
+pub(super) const MAX_URL: usize = 2048;
 /// Longest JS expression an agent may evaluate.
-pub const MAX_EXPRESSION: usize = 32_000;
+pub(super) const MAX_EXPRESSION: usize = 32_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BrowserTool {
@@ -55,7 +56,6 @@ pub(super) fn list() -> [Value; 4] {
     ]
 }
 
-/// `None` when `name` is not a browser tool.
 pub(super) fn parse(name: &str, args: &Map<String, Value>) -> Option<Result<BrowserTool, String>> {
     Some(match name {
         "browser_open" => bounded(args, "url", MAX_URL).map(|url| BrowserTool::Open { url }),
@@ -67,20 +67,6 @@ pub(super) fn parse(name: &str, args: &Map<String, Value>) -> Option<Result<Brow
             .map(|expression| BrowserTool::Eval { expression }),
         _ => return None,
     })
-}
-
-fn bounded(args: &Map<String, Value>, field: &str, max: usize) -> Result<String, String> {
-    let s = args
-        .get(field)
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("{field} must be a string"))?;
-    if s.trim().is_empty() {
-        return Err(format!("{field} must not be empty"));
-    }
-    if s.chars().count() > max {
-        return Err(format!("{field} is longer than {max} characters"));
-    }
-    Ok(s.to_owned())
 }
 
 #[cfg(test)]

@@ -25,12 +25,14 @@ use crate::{
 pub struct BrowserView {
     /// `None` when the native webview couldn't be built (e.g. a Wayland window); `error` says why.
     webview: Option<Entity<WebView>>,
-    /// What loads and runs scripts: the webview, or a test's fake. `None` with `webview`.
+    /// What loads and runs scripts: the webview, or a test's fake. `None` once closed.
     engine: Option<Rc<dyn Engine>>,
     url_bar: Entity<InputState>,
     error: Option<SharedString>,
     /// A page has committed (wry's `Started`). Until then wry queues scripts for the next page.
     loaded: bool,
+    /// Pages committed so far, so a caller can wait for the next one.
+    loads: u64,
     focus: FocusHandle,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
@@ -41,9 +43,25 @@ impl BrowserView {
     /// native webview attached to `window`. A rejected URL or a webview that can't be built shows
     /// as an error in the pane.
     pub fn new(url: Option<&str>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_wry(url, false, window, cx)
+    }
+
+    /// A blank pane for an agent, on a private, in-memory web data store of its own: no cookies,
+    /// storage or cache shared with the user's tabs, other agents' tabs or later runs.
+    pub fn new_agent(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_wry(None, true, window, cx)
+    }
+
+    fn with_wry(
+        url: Option<&str>,
+        private: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
-        let mut builder =
-            wry::WebViewBuilder::new().with_on_page_load_handler(move |event, url| {
+        let mut builder = wry::WebViewBuilder::new()
+            .with_incognito(private)
+            .with_on_page_load_handler(move |event, url| {
                 if matches!(event, wry::PageLoadEvent::Started) {
                     let _ = loaded_tx.send(url);
                 }
@@ -104,6 +122,7 @@ impl BrowserView {
             while let Ok(url) = loaded_rx.recv_async().await {
                 let updated = this.update_in(cx, |this, window, cx| {
                     this.loaded = true;
+                    this.loads += 1;
                     this.url_bar
                         .update(cx, |bar, cx| bar.set_value(url, window, cx));
                 });
@@ -119,6 +138,7 @@ impl BrowserView {
             url_bar,
             error: error.map(|e| format!("{e:#}").into()),
             loaded: false,
+            loads: 0,
             focus: cx.focus_handle(),
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
@@ -172,9 +192,9 @@ impl BrowserView {
         cx.notify();
     }
 
-    /// A page has committed since the pane opened. Before that, agent scripts are refused.
-    pub fn is_loaded(&self) -> bool {
-        self.loaded
+    /// How many pages have committed since the pane opened; one more after a load the caller started.
+    pub fn load_count(&self) -> u64 {
+        self.loads
     }
 
     /// The page for an agent call, and its URL as the engine reports it (which may be a pending load).
@@ -235,8 +255,9 @@ impl BrowserView {
         self.report(result, cx);
     }
 
-    fn reload(&mut self, cx: &mut Context<Self>) {
-        let result = self.page(cx).and_then(|p| Ok(p.reload()?));
+    /// Reloads the page, which also ends every script running in it.
+    pub fn reload(&mut self, cx: &mut Context<Self>) {
+        let result = self.engine().and_then(|e| e.reload(cx));
         self.report(result, cx);
     }
 
