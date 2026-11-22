@@ -320,7 +320,7 @@ fn a_running_avd_is_listed_once() {
         &format!(
             r#"case "$3" in
   emu) printf 'Test_AVD_One\r\nOK\r\n' ;;
-  shell) printf '16\r\n' ;;
+  shell) [ "$5" = sys.boot_completed ] && printf '1\r\n' || printf '16\r\n' ;;
   *) cat '{FIXTURES}/adb_devices.txt' ;;
 esac"#
         ),

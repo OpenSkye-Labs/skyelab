@@ -35,7 +35,9 @@ impl fmt::Display for Platform {
 pub enum DeviceState {
     Booted,
     Shutdown,
-    /// Known but not usable now: an offline or unauthorized adb device, a simulator mid-boot.
+    /// Starting up and not usable yet: a simulator mid-boot, or an emulator adb sees before `sys.boot_completed`.
+    Booting,
+    /// Known but not usable now: an offline or unauthorized adb device, a simulator shutting down.
     Offline,
 }
 
@@ -199,6 +201,18 @@ impl DeviceHub {
                 && let Some(avd) = console_reply(&out)
             {
                 d.name = avd;
+            }
+            // adb lists an emulator as `device` well before Android finishes booting.
+            if d.kind == DeviceKind::Emulator
+                && d.state == DeviceState::Booted
+                && self
+                    .adb(&d.id, &["shell", "getprop", "sys.boot_completed"])
+                    .ok()
+                    .and_then(|out| first_line(&out))
+                    .as_deref()
+                    != Some("1")
+            {
+                d.state = DeviceState::Booting;
             }
             if d.state == DeviceState::Booted {
                 d.os_version = self
