@@ -4,6 +4,7 @@ edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
 license.workspace = true
+description = "An agentic development environment where every folder is bound to one provider account."
 
 [[bin]]
 name = "skyelab"
@@ -29,3 +30,18 @@ workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
+
+[package.metadata.packager]
+product-name = "SkyeLab"
+identifier = "dev.openskye.skyelab"
+publisher = "OpenSkye"
+category = "DeveloperTool"
+before-packaging-command = "cargo build --release -p skyelab-app"
+icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/256x256.png", "icons/512x512.png", "icons/icon.icns", "icons/icon.ico"]
+
+[package.metadata.packager.macos]
+minimum-system-version = "14.0"
+
+[package.metadata.packager.deb]
+# webkit2gtk and gtk for wry's webview, the rest for GPUI.
+depends = ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libxkbcommon-x11-0", "libvulkan1"]
