@@ -1,6 +1,7 @@
 //! SQLite persistence for projects, threads and thread events.
 //!
-//! Synchronous on purpose: the app calls it from a background task.
+//! Synchronous on purpose: the app calls it from a background task. Timestamps are Unix milliseconds.
+//! Ids are `AUTOINCREMENT`, so a stale id of a deleted row never points at a new one.
 //!
 //! Delete rules: a project that still has threads can't be deleted (`ON DELETE RESTRICT`),
 //! because each thread records which account ran it and that audit must not vanish as a
@@ -15,13 +16,13 @@ use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 /// Index `i` upgrades the schema from `user_version` `i` to `i + 1`. Only append.
 const MIGRATIONS: &[&str] = &["
 CREATE TABLE projects (
-    id         INTEGER PRIMARY KEY,
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL,
     path       TEXT NOT NULL UNIQUE,
     created_at INTEGER NOT NULL
 );
 CREATE TABLE threads (
-    id               INTEGER PRIMARY KEY,
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
     title            TEXT NOT NULL,
     cwd              TEXT NOT NULL,
@@ -42,7 +43,6 @@ CREATE TABLE events (
 ) WITHOUT ROWID;
 "];
 
-/// Timestamps are Unix milliseconds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
     pub id: i64,
@@ -120,18 +120,20 @@ impl Store {
         Ok(Self { conn })
     }
 
+    /// `path` is stored normalized (`/repo/` and `/repo` are the same project).
     pub fn create_project(&self, name: &str, path: &Path) -> Result<Project> {
+        let path: PathBuf = path.components().collect();
         let created_at = now_ms();
         self.conn
             .execute(
                 "INSERT INTO projects (name, path, created_at) VALUES (?1, ?2, ?3)",
-                params![name, path_str(path)?, created_at],
+                params![name, path_str(&path)?, created_at],
             )
             .with_context(|| format!("create project at {}", path.display()))?;
         Ok(Project {
             id: self.conn.last_insert_rowid(),
             name: name.to_owned(),
-            path: path.to_owned(),
+            path,
             created_at,
         })
     }
@@ -228,8 +230,12 @@ impl Store {
         self.update_thread(id, "agent_session_id", session_id)
     }
 
-    /// `column` is always one of our literals, never caller input.
-    fn update_thread(&self, id: i64, column: &str, value: impl rusqlite::ToSql) -> Result<()> {
+    fn update_thread(
+        &self,
+        id: i64,
+        column: &'static str,
+        value: impl rusqlite::ToSql,
+    ) -> Result<()> {
         let sql = format!("UPDATE threads SET {column} = ?2, updated_at = ?3 WHERE id = ?1");
         let n = self.conn.execute(&sql, params![id, value, now_ms()])?;
         expect_one(n, "thread", id)
@@ -335,7 +341,6 @@ fn expect_one(changed: usize, what: &str, id: i64) -> Result<()> {
 }
 
 fn now_ms() -> i64 {
-    // A clock before 1970 is a broken machine, not a case to handle; 0 keeps the store usable.
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))

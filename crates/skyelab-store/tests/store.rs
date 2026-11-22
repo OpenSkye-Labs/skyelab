@@ -32,7 +32,7 @@ fn migrates_empty_db() {
         .unwrap();
     assert_eq!(version, 1);
     let tables: Vec<String> = raw
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
         .unwrap()
         .query_map([], |r| r.get(0))
         .unwrap()
