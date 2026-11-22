@@ -30,6 +30,19 @@ fn default_sdk_dir_is_searched_when_no_sdk_var_is_set() {
     assert_eq!(h.adb.as_deref(), Some(adb.as_path()));
     assert_eq!(h.emulator.as_deref(), Some(emulator.as_path()));
 
+    let empty = std::ffi::OsStr::new("");
+    let h = DeviceHub::discover_with(
+        None,
+        Some(empty),
+        Some(empty),
+        Some(home.path().as_os_str()),
+    );
+    assert_eq!(
+        h.adb.as_deref(),
+        Some(adb.as_path()),
+        "an empty SDK var counts as unset"
+    );
+
     let other = tempfile::tempdir().expect("test setup");
     let h = DeviceHub::discover_with(
         None,

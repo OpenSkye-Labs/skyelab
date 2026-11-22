@@ -136,7 +136,7 @@ impl DeviceHub {
     }
 
     /// The Android SDK dirs are searched before `PATH`, `ANDROID_HOME` first: the SDK the user pointed at wins.
-    /// Only when neither var is set, the default SDK dir under `user_dir` is searched instead: `$HOME` on Unix
+    /// Only when neither var is set (or both are empty), the default SDK dir under `user_dir` is searched instead: `$HOME` on Unix
     /// (`Library/Android/sdk` on macOS, `Android/Sdk` on Linux), `%LOCALAPPDATA%` on Windows (`Android\Sdk`).
     pub fn discover_with(
         path: Option<&OsStr>,
@@ -148,6 +148,8 @@ impl DeviceHub {
         let path_dirs: Vec<PathBuf> = path
             .map(|p| env::split_paths(p).filter(|d| d.is_absolute()).collect())
             .unwrap_or_default();
+        let android_home = android_home.filter(|v| !v.is_empty());
+        let android_sdk_root = android_sdk_root.filter(|v| !v.is_empty());
         let default_sdk = (android_home.is_none() && android_sdk_root.is_none())
             .then(|| user_dir.map(|d| Path::new(d).join(DEFAULT_SDK)))
             .flatten();
