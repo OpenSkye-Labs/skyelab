@@ -5,7 +5,7 @@ fn ranked<'a>(query: &str, labels: &[&'a str]) -> Vec<&'a str> {
         .iter()
         .filter_map(|l| score(query, l).map(|s| (s, *l)))
         .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
     scored.into_iter().map(|(_, l)| l).collect()
 }
 
