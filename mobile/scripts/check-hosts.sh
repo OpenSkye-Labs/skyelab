@@ -4,6 +4,9 @@
 # Usage: scripts/check-hosts.sh [built.apk | built.app]...  With no arguments only the sources are checked.
 # A built APK is checked with aapt2 (the merged manifest), a built .app with plutil.
 set -euo pipefail
+# Artifact paths are relative to the caller's directory; resolve them before moving to mobile/.
+args=()
+for f in "$@"; do [[ $f == /* ]] && args+=("$f") || args+=("$PWD/$f"); done
 cd "$(dirname "$0")/.."
 fail=0
 bad() { echo "check-hosts: $*" >&2; fail=1; }
@@ -57,7 +60,7 @@ aapt2() {
     local sdk=${ANDROID_HOME:-$HOME/Library/Android/sdk}
     "$(find "$sdk/build-tools" -name aapt2 -maxdepth 2 | sort -V | tail -1)" "$@"
 }
-for f in "$@"; do
+for f in ${args[@]+"${args[@]}"}; do
     case $f in
     *.apk)
         got=$(aapt2 dump permissions "$f" | sort | tr '\n' ' ')
