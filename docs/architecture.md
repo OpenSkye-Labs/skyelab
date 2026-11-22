@@ -79,6 +79,17 @@ taking focus), and closing that tab stops its agent, as for any thread. Every st
 pushed to connected clients. The Remote tab lists connected devices (MagicDNS name, login, address) with a
 Disconnect button.
 
+**Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window
+shows: "This Mac", your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this
+node), recent ones, or a MagicDNS name typed by hand. Recents are saved as `recent_environments` in `settings.toml`.
+On a remote machine the sidebar's projects and threads come from its daemon through `skyelab-client`, and opening a
+thread watches its events (the client fills gaps and replays after reconnects) into a remote thread tab that draws
+items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
+The status bar and the thread header say which machine you are on and its connection state (connecting, connected,
+reconnecting, version mismatch, or "that machine didn't accept this device" when its whois refuses you). The account
+shown is the id the remote reports. Local-only actions don't apply: no local terminal for a remote project, no
+worktree controls. Switching machines closes every remote tab and drops the client, so local and remote data never mix.
+
 **Restrict the port in your tailnet policy.** The gate already refuses other users and tagged nodes, but an ACL keeps
 them from reaching the port at all. A grant that lets only your own devices reach SkyeLab on each other:
 
