@@ -81,12 +81,15 @@ fn account_update_changes_label_and_dir_and_rejects_unknown() {
 fn account_remove_refuses_while_bound_and_does_not_cascade() {
     let mut c = two_accounts_one_binding();
     let before = c.clone();
-    let err = c.remove_account("acme").expect_err("acme still has a binding");
+    let err = c
+        .remove_account("acme")
+        .expect_err("acme still has a binding");
     assert!(format!("{err:#}").contains("/nonexistent/work/acme"));
     assert_eq!(c, before);
     assert!(c.remove_account("ghost").is_err());
 
-    c.remove_account("personal").expect("unbound account removes");
+    c.remove_account("personal")
+        .expect("unbound account removes");
     assert_eq!(c.accounts.len(), 1);
     assert_eq!(c.bindings.len(), 1);
 }
@@ -96,7 +99,10 @@ fn binding_add_rejects_unknown_account_and_duplicate_path() {
     let mut c = two_accounts_one_binding();
     let before = c.clone();
     assert!(c.add_binding(bind("/nonexistent/other", "typo")).is_err());
-    assert!(c.add_binding(bind("/nonexistent/work/acme", "personal")).is_err());
+    assert!(
+        c.add_binding(bind("/nonexistent/work/acme", "personal"))
+            .is_err()
+    );
     assert_eq!(c, before);
 
     c.add_binding(bind("/nonexistent/work/acme/fork", "personal"))

@@ -57,6 +57,83 @@ impl AccountsConfig {
         Ok(())
     }
 
+    /// Validate, then write atomically (temp file in the same dir, then rename), creating the parent dir.
+    pub fn save(&self, path: &Path) -> Result<()> {
+        self.validate()?;
+        let text = toml::to_string_pretty(self).context("serializing accounts config")?;
+        let dir = path
+            .parent()
+            .with_context(|| format!("{} has no parent dir", path.display()))?;
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, text).with_context(|| format!("writing {}", tmp.display()))?;
+        std::fs::rename(&tmp, path).with_context(|| format!("replacing {}", path.display()))
+    }
+
+    pub fn add_account(&mut self, account: Account) -> Result<()> {
+        if account.id.trim().is_empty() {
+            bail!("account id can't be empty");
+        }
+        if self.accounts.iter().any(|a| a.id == account.id) {
+            bail!("account '{}' already exists", account.id);
+        }
+        self.accounts.push(account);
+        Ok(())
+    }
+
+    /// Replace the label and config dir of the account with the same id.
+    pub fn update_account(&mut self, account: Account) -> Result<()> {
+        let slot = self
+            .accounts
+            .iter_mut()
+            .find(|a| a.id == account.id)
+            .with_context(|| format!("unknown account '{}'", account.id))?;
+        *slot = account;
+        Ok(())
+    }
+
+    /// Refuses while any binding still uses the account. Never cascades.
+    pub fn remove_account(&mut self, id: &str) -> Result<()> {
+        let bound: Vec<_> = self
+            .bindings
+            .iter()
+            .filter(|b| b.account == id)
+            .map(|b| b.path.display().to_string())
+            .collect();
+        if !bound.is_empty() {
+            bail!(
+                "account '{id}' is still bound to {}; remove those bindings first",
+                bound.join(", ")
+            );
+        }
+        let before = self.accounts.len();
+        self.accounts.retain(|a| a.id != id);
+        if self.accounts.len() == before {
+            bail!("unknown account '{id}'");
+        }
+        Ok(())
+    }
+
+    pub fn add_binding(&mut self, binding: Binding) -> Result<()> {
+        if !self.accounts.iter().any(|a| a.id == binding.account) {
+            bail!("unknown account '{}'", binding.account);
+        }
+        if self.bindings.iter().any(|b| b.path == binding.path) {
+            bail!("{} is already bound", binding.path.display());
+        }
+        self.bindings.push(binding);
+        Ok(())
+    }
+
+    pub fn remove_binding(&mut self, path: &Path) -> Result<()> {
+        let before = self.bindings.len();
+        self.bindings.retain(|b| b.path != path);
+        if self.bindings.len() == before {
+            bail!("{} is not bound", path.display());
+        }
+        Ok(())
+    }
+
     /// The account bound to `dir`: deepest binding wins. `None` means unbound, and the
     /// caller must ask the user. Never fall back to a default account, that is the bug we exist to prevent.
     pub fn resolve(&self, dir: &Path) -> Option<&Account> {
