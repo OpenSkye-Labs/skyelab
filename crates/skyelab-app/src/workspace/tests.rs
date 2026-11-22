@@ -3,6 +3,8 @@ use gpui::TestAppContext;
 use skyelab_core::{Account, Binding};
 
 fn setup(cx: &mut TestAppContext) {
+    // Terminals run a real shell, whose PTY reader thread wakes the UI from outside the test scheduler.
+    cx.executor().allow_parking();
     cx.update(|cx| {
         gpui_component::init(cx);
         crate::settings::init(cx);
@@ -85,4 +87,31 @@ fn status_shows_the_bound_account_and_never_a_fallback() {
         account_label(&config, home.path()).as_deref(),
         Some("Acme Team")
     );
+}
+
+#[gpui::test]
+fn shell_keys_reach_a_focused_terminal(cx: &mut TestAppContext) {
+    setup(cx);
+    let home = tempfile::tempdir().expect("tempdir");
+    let folder = home.path().to_path_buf();
+    let (ws, cx) = cx.add_window_view(|window, cx| {
+        Workspace::new(folder, None, AccountsConfig::default(), None, window, cx)
+    });
+    ws.update_in(cx, |ws, window, cx| {
+        ws.new_terminal(&NewTerminal, window, cx)
+    });
+    cx.run_until_parked();
+    // Readline and tmux need these; off macOS they are also the dock keys.
+    cx.simulate_keystrokes("ctrl-b ctrl-j");
+    ws.read_with(cx, |ws, cx| {
+        let dock = ws.dock.read(cx);
+        assert!(
+            dock.is_dock_open(DockPlacement::Left),
+            "ctrl-b stayed in the terminal"
+        );
+        assert!(
+            dock.is_dock_open(DockPlacement::Bottom),
+            "ctrl-j stayed in the terminal"
+        );
+    });
 }

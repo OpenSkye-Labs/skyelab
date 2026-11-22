@@ -4,7 +4,7 @@ mod panels;
 
 use crate::settings::Settings;
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, KeyBinding, SharedString, Subscription,
+    App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString, Subscription,
     WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
@@ -42,6 +42,13 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
         KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
     ]);
+    // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
+    if !MAC {
+        cx.bind_keys([
+            KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
+            KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
+        ]);
+    }
 }
 
 /// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
