@@ -24,6 +24,8 @@ pub enum Error {
     NotARepo(PathBuf),
     #[error("branch `{0}` already exists")]
     BranchExists(String),
+    #[error("`{0}` is not a valid branch name")]
+    InvalidBranch(String),
     #[error("worktree {} has uncommitted or untracked changes", .0.display())]
     Dirty(PathBuf),
     #[error("no platform data directory to put worktrees in")]
@@ -58,7 +60,6 @@ fn git<S: AsRef<OsStr>>(dir: &Path, args: &[S]) -> Result<Vec<u8>> {
     git_with(Path::new("git"), dir, args)
 }
 
-/// Runs `git -C dir args…` directly (never through a shell) and returns stdout, or a typed error.
 fn git_with<S: AsRef<OsStr>>(bin: &Path, dir: &Path, args: &[S]) -> Result<Vec<u8>> {
     let out = output(bin, dir, args)?;
     if out.status.success() {
@@ -76,24 +77,47 @@ fn git_with<S: AsRef<OsStr>>(bin: &Path, dir: &Path, args: &[S]) -> Result<Vec<u
     Err(Error::Git { args, stderr })
 }
 
-/// Spawns git and returns its raw output, whatever the exit status.
+/// For questions git answers with its exit status (does this ref exist?).
+fn git_succeeds(dir: &Path, args: &[&str]) -> Result<bool> {
+    Ok(output(Path::new("git"), dir, args)?.status.success())
+}
+
 fn output<S: AsRef<OsStr>>(bin: &Path, dir: &Path, args: &[S]) -> Result<Output> {
-    Command::new(bin)
-        .arg("-C")
-        .arg(dir)
-        .args(args)
-        // English messages so the "not a git repository" match holds in any locale.
-        .env("LC_ALL", "C")
-        // Read-only calls like status must not take index.lock while an agent is committing.
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .output()
-        .map_err(|e| {
-            if e.kind() == io::ErrorKind::NotFound {
-                Error::GitNotInstalled
-            } else {
-                Error::Io(e)
-            }
-        })
+    command(bin, dir).args(args).output().map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
+            Error::GitNotInstalled
+        } else {
+            Error::Io(e)
+        }
+    })
+}
+
+/// Git never through a shell, always on `dir`, isolated from what the parent process carries.
+fn command(bin: &Path, dir: &Path) -> Command {
+    let mut cmd = Command::new(bin);
+    cmd.arg("-C").arg(dir);
+    // A repo's config can name a program for core.fsmonitor that every status would run.
+    cmd.args(["-c", "core.fsmonitor=false"]);
+    // Set inside git hooks; any of them overrides `-C` and points us at a different repo.
+    for var in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+        "GIT_PREFIX",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+    ] {
+        cmd.env_remove(var);
+    }
+    // English messages so the "not a git repository" match holds in any locale.
+    cmd.env("LC_ALL", "C");
+    // Read-only calls like status must not take index.lock while an agent is committing.
+    cmd.env("GIT_OPTIONAL_LOCKS", "0");
+    cmd
 }
 
 // shortcut: non-UTF-8 path bytes become U+FFFD; switch to OsStr-from-bytes if a user hits it.

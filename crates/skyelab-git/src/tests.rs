@@ -34,3 +34,46 @@ worktree /r/wt with space\0HEAD 2222222222222222222222222222222222222222\0detach
     assert!(list[1].detached);
     assert_eq!(list[1].branch, None);
 }
+
+#[test]
+fn command_strips_inherited_repo_env() {
+    let cmd = command(Path::new("git"), Path::new("."));
+    let envs: Vec<_> = cmd.get_envs().collect();
+    for var in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_CONFIG_PARAMETERS",
+    ] {
+        assert!(
+            envs.contains(&(std::ffi::OsStr::new(var), None)),
+            "{var} not removed"
+        );
+    }
+}
+
+#[test]
+fn default_dest_is_per_repo_and_stable() {
+    // Pinned values: changing the hash would orphan every existing default worktree directory.
+    assert_eq!(worktree::fnv1a(b""), 0xcbf2_9ce4_8422_2325);
+    assert_eq!(worktree::fnv1a(b"a"), 0xaf63_dc4c_8601_ec8c);
+    let Ok(a) = worktree::default_dest(Path::new("/one/repo"), "t/1") else {
+        return;
+    }; // no data dir on this host
+    let b = worktree::default_dest(Path::new("/two/repo"), "t/1").expect("data dir");
+    assert_ne!(a, b);
+    assert!(a.ends_with("t/1"));
+    assert!(
+        a.starts_with(
+            dirs::data_dir()
+                .expect("data dir")
+                .join("skyelab/worktrees")
+        )
+    );
+    let dir = a
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .expect("repo dir");
+    assert!(dir.to_string_lossy().starts_with("repo-"), "{dir:?}");
+}

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::{Error, Result, git, lossy, output, repo_root, status};
+use crate::{Error, Result, git, git_succeeds, lossy, repo_root, status};
 
 /// One entry of `git worktree list`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,16 +26,22 @@ pub fn create_worktree(
     reuse_branch: bool,
 ) -> Result<PathBuf> {
     let root = repo_root(repo)?;
+    // Validated before any use: a name like `-D` would reach the `git branch` that `worktree add -b` runs
+    // internally as an option, and a `..` component would let the default dest escape its directory.
+    let ref_name = format!("refs/heads/{branch}");
+    if branch.starts_with('-') || !git_succeeds(&root, &["check-ref-format", &ref_name])? {
+        return Err(Error::InvalidBranch(branch.to_owned()));
+    }
     let dest = match dest {
         Some(d) => d.to_owned(),
         None => default_dest(&root, branch)?,
     };
-    let exists = branch_exists(&root, branch)?;
+    let exists = git_succeeds(&root, &["show-ref", "--verify", "--quiet", &ref_name])?;
     if exists && !reuse_branch {
         return Err(Error::BranchExists(branch.to_owned()));
     }
     let dest_arg = dest.as_os_str();
-    // `--` keeps a branch, base or path that starts with `-` from being read as an option.
+    // `--` keeps a dest starting with `-` from being read as an option.
     if exists {
         git(
             &root,
@@ -48,6 +54,17 @@ pub fn create_worktree(
             ],
         )?;
     } else {
+        // Resolved to a SHA first, so `base` can't reach the internal `git branch` as an option either.
+        let base = git(
+            &root,
+            &[
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                &format!("{base}^{{commit}}"),
+            ],
+        )?;
+        let base = lossy(&base);
         let args = [
             "worktree".as_ref(),
             "add".as_ref(),
@@ -55,7 +72,7 @@ pub fn create_worktree(
             branch.as_ref(),
             "--".as_ref(),
             dest_arg,
-            base.as_ref(),
+            base.trim().as_ref(),
         ];
         git(&root, &args)?;
     }
@@ -73,6 +90,8 @@ pub fn list_worktrees(repo: &Path) -> Result<Vec<Worktree>> {
 /// Removes the worktree at `path`. Refuses with [`Error::Dirty`] if it has any changes, untracked files
 /// included, unless `force`. The branch is kept.
 pub fn remove_worktree(repo: &Path, path: &Path, force: bool) -> Result<()> {
+    // Absolute, so the dirty check (run in `path`) and the removal (run in `repo`) see the same directory.
+    let path = &std::path::absolute(path)?;
     if !force && !status(path)?.is_clean() {
         return Err(Error::Dirty(path.to_owned()));
     }
@@ -85,27 +104,11 @@ pub fn remove_worktree(repo: &Path, path: &Path, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn branch_exists(root: &Path, branch: &str) -> Result<bool> {
-    // The exit status is the answer, so this skips `git()`, which turns non-zero into an error.
-    let out = output(
-        Path::new("git"),
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            "--quiet",
-            format!("refs/heads/{branch}").as_str(),
-        ],
-    )?;
-    Ok(out.status.success())
-}
-
-fn default_dest(root: &Path, branch: &str) -> Result<PathBuf> {
+pub(crate) fn default_dest(root: &Path, branch: &str) -> Result<PathBuf> {
     let name = root
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "repo".into());
-    // Hash the full path so two repos with the same folder name don't share a directory.
     let dir = format!("{name}-{:016x}", fnv1a(root.as_os_str().as_encoded_bytes()));
     let data = dirs::data_dir().ok_or(Error::NoDataDir)?;
     Ok(data
@@ -116,7 +119,7 @@ fn default_dest(root: &Path, branch: &str) -> Result<PathBuf> {
 }
 
 /// FNV-1a: stable across Rust releases, unlike `DefaultHasher`, so the default paths stay put.
-fn fnv1a(bytes: &[u8]) -> u64 {
+pub(crate) fn fnv1a(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
         (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
     })
@@ -155,7 +158,7 @@ pub(crate) fn parse_list(out: &[u8]) -> Vec<Worktree> {
                     }
                     "detached" => w.detached = true,
                     "bare" => w.bare = true,
-                    _ => {} // locked, prunable: not needed yet
+                    _ => {}
                 }
             }
         }

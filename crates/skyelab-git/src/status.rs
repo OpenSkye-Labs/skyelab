@@ -81,14 +81,19 @@ fn parse(out: &[u8]) -> Status {
                     st.staged.push(change(kind));
                 }
                 if let Some(kind) = kind(y) {
-                    // The rename lives in the index; the worktree side is a plain edit of the new path.
+                    // The source belongs to whichever side did the rename (`.R` happens for intent-to-add files).
+                    let renamed_here = matches!(y, 'R' | 'C');
                     st.unstaged.push(FileChange {
-                        orig_path: None,
+                        orig_path: if renamed_here {
+                            orig_path.clone()
+                        } else {
+                            None
+                        },
                         ..change(kind)
                     });
                 }
             }
-            _ => {} // "" after the last NUL, or "!" ignored entries
+            _ => {}
         }
     }
     st

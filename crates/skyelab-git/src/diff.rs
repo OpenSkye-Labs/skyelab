@@ -41,12 +41,17 @@ pub fn diff(path: &Path, against: &str) -> Result<Vec<FileDiff>> {
         &[
             "-c",
             "core.quotePath=false",
+            // Otherwise a blank context line comes out as "" instead of " " and is lost.
+            "-c",
+            "diff.suppressBlankEmpty=false",
             "diff",
             "--no-color",
             "--no-ext-diff",
             "--no-textconv",
             "--no-relative",
             "-M",
+            // diff.submodule=log prints submodule commits as indented lines that read as context.
+            "--submodule=short",
             // Explicit prefixes beat a user's diff.noprefix / diff.mnemonicPrefix, which the parser relies on.
             "--src-prefix=a/",
             "--dst-prefix=b/",
@@ -87,7 +92,6 @@ fn parse(out: &[u8]) -> Vec<FileDiff> {
             let Some(hunk) = file.hunks.last_mut() else {
                 continue;
             };
-            // "\ No newline at end of file" and the trailing empty split are skipped.
             match line.split_at_checked(1) {
                 Some((" ", text)) => hunk.lines.push(Line::Context(text.into())),
                 Some(("+", text)) => hunk.lines.push(Line::Added(text.into())),
@@ -122,8 +126,7 @@ fn parse(out: &[u8]) -> Vec<FileDiff> {
 }
 
 /// Paths from `diff --git a/X b/Y`. Unambiguous only when X == Y, which is every case without a
-/// rename or copy, and those carry `rename from/to` lines that overwrite this. Splitting at the
-/// middle is how `git apply` reads the same line.
+/// rename or copy, and those carry `rename from/to` lines that overwrite this.
 fn header_paths(rest: &str) -> (Option<PathBuf>, Option<PathBuf>) {
     let mid = rest.len() / 2;
     let (Some(a), Some(b)) = (
@@ -200,7 +203,7 @@ pub(crate) fn unquote(s: &str) -> String {
                 };
                 ((e - b'0') << 6) | (d2 << 3) | d3
             }
-            other => other, // \\ and \"
+            other => other,
         });
     }
     lossy(&out)
