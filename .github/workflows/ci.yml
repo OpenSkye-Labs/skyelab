@@ -23,6 +23,15 @@ jobs:
       # rustup installs the channel and components named in rust-toolchain.toml.
       - run: rustup toolchain install
       - run: cargo fmt --all --check
+      # Test-only knobs (loopback dialing, test CAs, plaintext) must never reach the shipped app.
+      - name: No test-support in the shipping build
+        run: |
+          for c in skyelab-client skyelab-daemon; do
+            if cargo tree --locked -e normal,build -p skyelab-app -i "$c" -f '{p} {f}' | grep test-support; then
+              echo "the shipping skyelab-app enables $c/test-support" >&2
+              exit 1
+            fi
+          done
 
   check:
     name: ${{ matrix.job }} (${{ matrix.os }})
