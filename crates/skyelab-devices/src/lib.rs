@@ -388,11 +388,18 @@ impl Emulator {
     pub fn stop(&mut self) -> io::Result<()> {
         if cfg!(unix) && self.child.try_wait()?.is_none() {
             // std can only SIGKILL. An absolute path, so a planted `kill` on PATH can't skip the clean shutdown.
-            let _ = Command::new("/bin/kill")
+            let termed = Command::new("/bin/kill")
                 .args(["-TERM", &self.child.id().to_string()])
                 .stderr(Stdio::null())
-                .status();
-            let deadline = Instant::now() + Duration::from_secs(30);
+                .status()
+                .is_ok_and(|s| s.success());
+            // No `/bin/kill` (NixOS): don't wait 30 s for a signal that was never sent.
+            let wait = if termed {
+                Duration::from_secs(30)
+            } else {
+                Duration::ZERO
+            };
+            let deadline = Instant::now() + wait;
             while Instant::now() < deadline {
                 if self.child.try_wait()?.is_some() {
                     return Ok(());
