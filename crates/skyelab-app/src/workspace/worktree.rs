@@ -92,17 +92,36 @@ pub(super) fn create(
     Ok(Created { path, branch })
 }
 
-/// Stores a new thread's worktree on its row.
-pub(super) fn record(
-    store: &skyelab_store::Store,
-    thread: &mut skyelab_store::Thread,
+/// Creates a new thread's row, with its worktree recorded on it. If that fails, the worktree is
+/// removed again: nothing would point at it, so it would sit in the project forever.
+pub(super) fn save(
+    store: &super::SharedStore,
+    project: &Path,
+    new: &skyelab_store::NewThread,
     worktree: Option<Created>,
-) -> Result<()> {
-    if let Some(w) = worktree {
-        store.set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch))?;
+) -> Result<skyelab_store::Thread> {
+    let path = worktree.as_ref().map(|w| w.path.clone());
+    let saved = super::lock(store).and_then(|store| {
+        let mut thread = store.create_thread(new)?;
+        let Some(w) = worktree else { return Ok(thread) };
+        if let Err(e) = store.set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch)) {
+            // Best effort: a row whose worktree is gone would only fail to start again.
+            let _ = store.delete_thread(thread.id);
+            return Err(e);
+        }
         (thread.worktree_path, thread.worktree_branch) = (Some(w.path), Some(w.branch));
-    }
-    Ok(())
+        Ok(thread)
+    });
+    let Some(path) = path.filter(|_| saved.is_err()) else {
+        return saved;
+    };
+    saved.map_err(|e| {
+        // Forced: the worktree is brand new, so all it holds is the checkout.
+        match skyelab_git::remove_worktree(project, &path, true) {
+            Ok(()) => e,
+            Err(c) => e.context(format!("removing its new worktree also failed: {c}")),
+        }
+    })
 }
 
 /// The worktree sits under the project and resolves to the thread's account.

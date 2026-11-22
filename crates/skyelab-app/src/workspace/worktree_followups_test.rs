@@ -61,3 +61,22 @@ fn discard_asks_before_deleting_ignored_files() {
     ));
     assert!(!wt.exists());
 }
+
+#[test]
+fn failed_row_save_removes_the_new_worktree() {
+    let f = super::worktree_thread_test::fixture();
+    let created = worktree::create(&f.config, &f.project, "acme", "doomed").expect("create");
+    let path = created.path.clone();
+    assert!(path.exists());
+    // No project 999 in the store, so the row insert fails on its foreign key.
+    let new = skyelab_store::NewThread {
+        project_id: 999,
+        title: "doomed",
+        cwd: &path,
+        account_id: "acme",
+        status: "starting",
+    };
+    let err = worktree::save(&f.store, &f.project, &new, Some(created))
+        .expect_err("the row can't be saved");
+    assert!(!path.exists(), "worktree left behind after: {err:#}");
+}
