@@ -1,0 +1,77 @@
+# The iOS and Android client in mobile/. Separate from ci.yml so the desktop gate stays fast, and only runs when
+# something the mobile build reads changes.
+name: Mobile
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - mobile/**
+      - crates/skyelab-protocol/**
+      - rust-toolchain.toml
+      - .github/workflows/mobile.yml
+  pull_request:
+    paths: *paths
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  ios:
+    name: iOS simulator build + host checks
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install && rustup target add aarch64-apple-ios-sim
+      # GPUI compiles Metal shaders; download the toolchain only if this Xcode image lacks it.
+      - name: Ensure Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
+            echo "Metal Toolchain already installed"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile
+          key: ios
+      - run: scripts/fetch-gpui-mobile.sh
+      # -p, not --all: --all would also check the fetched gpui-mobile and skyelab-protocol (the desktop checks it).
+      - run: cargo fmt --check -p skyelab-mobile -p skyelab-mobile-android
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build -p skyelab-mobile --bin skyelab_mobile --target aarch64-apple-ios-sim
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+
+  android:
+    name: Android arm64 build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install && rustup target add aarch64-linux-android
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile
+          key: android
+      - run: scripts/fetch-gpui-mobile.sh
+      # The runner image ships the Android SDK and NDK; cargo-ndk reads ANDROID_NDK_HOME.
+      - name: Build and lint for arm64-v8a
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          cargo ndk -t arm64-v8a -P 26 build -p skyelab-mobile-android
+          cargo ndk -t arm64-v8a -P 26 clippy -p skyelab-mobile-android -- -D warnings

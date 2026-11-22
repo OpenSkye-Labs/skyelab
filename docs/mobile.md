@@ -60,6 +60,9 @@ Screenshots are in `.agent/screens/` of the spike worktree (not committed).
    ```
    The upstream example crashes the same way (logcat trace above is from it). The workaround is `[profile.dev] debug-assertions = false`. Real devices
    were not tested.
+   The real client (`mobile/`) found a second debug-only crash: typing the first character into a field panics on an
+   integer underflow in `accesskit_android` 0.7.5. `mobile/Cargo.toml` turns off overflow checks for that crate in
+   dev; see `mobile/UPSTREAM.md`.
 2. **iOS has no accessibility tree.** `gpui_ios` gives XCTest a 1-node tree (just the application), so VoiceOver
    can't read the UI and `agent-device type` fails with `TEXT_INPUT_NOT_FOCUSED`. `gpui_ios` implements `UITextInput`,
    so keyboard input should work. No software keyboard appeared in the simulator, so typing on iOS is still unproven.
@@ -93,11 +96,15 @@ Each step goes through `/loop`.
    `list_threads`, `thread_events_since`, `send_message`, `interrupt`, and pushed `Event`s, with gap fill by `seq`. It
    runs tokio on its own thread and talks to the UI through channels (the `docs/gpui.md` async rule). Test it against a
    real `skyelab-daemon` in-process. The desktop environment switcher uses it too.
-2. **Fork `gpui-pre-mobile`.** Fork longbridge/gpui-mobile, apply the 0.3.12 patch, pin it by git rev, and send the
-   patch upstream. Add "re-port gpui-mobile" to the GPUI bump rule in `docs/gpui.md`.
+2. **Pin `gpui-pre-mobile`.** *Done (2026-11-23), without a fork for now:* `mobile/scripts/fetch-gpui-mobile.sh`
+   fetches the pinned commit and applies our patches. The two upstream-ready ones are described in
+   [`mobile/UPSTREAM.md`](../mobile/UPSTREAM.md), which also says why fetch + patch beats vendoring. Fork and pin by
+   rev once our remote is live. The GPUI bump rule in `docs/gpui.md` now includes re-porting it.
 3. **`mobile/` app crate**, outside the desktop workspace like the spike, with its own lockfile. It shares path deps
    (`skyelab-protocol`, `skyelab-client`) and the exact GPUI and gpui-component pins. CI builds it for
-   `aarch64-apple-ios-sim` and `aarch64-linux-android` in its own job, so the desktop gate stays fast.
+   `aarch64-apple-ios-sim` and `aarch64-linux-android` in its own job, so the desktop gate stays fast. *Started
+   (2026-11-23):* `mobile/` runs the step 5 screens on a fake `ThreadSource` until `skyelab-client` lands, and
+   `.github/workflows/mobile.yml` builds both targets.
 4. **Connect over the tailnet.** v1 relies on the official Tailscale app's VPN being on and dials
    `ws://<machine>.<tailnet>.ts.net:<port>`. The daemon's `whois` check already accepts the same user's untagged
    phone. The client must check the server too: if the VPN is off, the name resolves through whatever DNS the phone

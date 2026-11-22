@@ -66,6 +66,11 @@ debug-assertions = false
 [profile.dev.package."*"]
 opt-level = 2 # GPUI is unusably slow unoptimized.
 
+# accesskit_android 0.7.5 (event.rs, text-changed events) computes `old.len() - 1` on an empty string. Release wraps it to
+# -1 as a jint, which is the value its algorithm expects; dev's overflow check panics on the first typed character.
+[profile.dev.package.accesskit_android]
+overflow-checks = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

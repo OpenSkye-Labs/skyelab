@@ -1,0 +1,66 @@
+# gpui-mobile: what we pin and what we send upstream
+
+Android runs on longbridge's [gpui-mobile](https://github.com/longbridge/gpui-mobile) (crate `gpui-pre-mobile`).
+We pin commit `7548ebc4b24f00494af9976af8852c7163ded9ce`, which targets `gpui-pre =0.3.10`. Our GPUI is
+`=0.3.12`, so [`scripts/fetch-gpui-mobile.sh`](scripts/fetch-gpui-mobile.sh) fetches that exact commit into
+`target/gpui-mobile` and applies three patches in order. Every cargo command in `mobile/` needs it first, because
+cargo resolves the Android-only path dependency on every target.
+
+We take gpui-mobile under **Apache-2.0**, one of its three licenses (GPL-3.0+ OR AGPL-3.0+ OR Apache-2.0). None of its
+code is in our git. The Android package will carry its Apache-2.0 notice once packaging exists (docs/mobile.md step 6).
+
+## Why fetch and patch, not vendor
+
+- **Reproducible.** The fetch names a full commit sha, which is content-addressed, and `git apply` fails loudly if a
+  patch stops fitting. Every build gets the same bytes.
+- **Small.** gpui-mobile is 51k lines of Rust. Vendoring it would add 2 MB of someone else's code to every review and
+  every GPUI bump. The patches are about 20 KB.
+- **The risk** is that the GitHub repo or commit goes away. If it does, or once our own remote is live, fork it and
+  pin the fork by rev (docs/mobile.md step 2).
+
+## The patches
+
+| File | Send upstream? | What it does |
+|---|---|---|
+| `upstream/0001-port-to-gpui-pre-0.3.12.patch` | Yes | Raises the `gpui-pre` / `gpui-pre-wgpu` pins to `=0.3.12`. Passes the new `&WgpuSurfaceConfig` argument to `WgpuContext::new` on Android (`src/android/window.rs`) and iOS (`src/ios/window.rs`). Implements `PlatformWindow::insets` on Android from the safe area gpui-mobile already tracks, so `window.insets()` works there as it does on `gpui_ios`. |
+| `upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch` | Yes | Rebases the vendored `gpui-pre-wgpu` (the `offscreen` feature) from 0.3.10 onto 0.3.12. Its own changes apply to 0.3.12 without edits. |
+| `upstream/local-no-offscreen.patch` | No | Ours only. A `[patch]` in a dependency is ignored, so as a path dependency gpui-mobile gets crates.io `gpui-pre-wgpu`, which has no `offscreen` feature. This drops that feature reference and the unused `[patch]`. We don't use `offscreen`. |
+
+0001 + 0002 were checked in gpui-mobile's own workspace with `--features offscreen`:
+`cargo ndk -t arm64-v8a -P 26 check --lib` and `cargo check --lib --target aarch64-apple-ios-sim` both pass.
+
+## Sending it
+
+Plain `git diff` output, no author line. From a clone at the pinned commit:
+
+```sh
+git apply ../skyelab/mobile/upstream/0001-port-to-gpui-pre-0.3.12.patch
+git commit -am "Port to gpui-pre 0.3.12; implement PlatformWindow::insets on Android"
+git apply ../skyelab/mobile/upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch
+git commit -am "Refresh vendored gpui-pre-wgpu to 0.3.12"
+```
+
+Then open a PR against longbridge/gpui-mobile with this description:
+
+> Ports gpui-mobile to `gpui-pre` 0.3.12, the version `gpui-component` 0.10 pins.
+> `WgpuContext::new` gained a `&WgpuSurfaceConfig` argument in 0.3.12; the Android and iOS windows now pass theirs.
+> The vendored `gpui-pre-wgpu` is rebased onto 0.3.12 with the `offscreen` changes unchanged.
+> Android's `PlatformWindow` now implements `insets()` from the content-rect safe area, so apps can read
+> `window.insets().safe_area` on both platforms.
+> Checked: `cargo ndk -t arm64-v8a check --lib --features offscreen` and
+> `cargo check --lib --target aarch64-apple-ios-sim --features offscreen`.
+
+When upstream merges it, move the pin to their merge commit and delete 0001 and 0002.
+
+## On every GPUI bump
+
+The pins in `mobile/Cargo.toml` follow the desktop's. Port gpui-mobile to the new `gpui-pre` (update or regenerate
+these patches against a new upstream rev), then build both targets (`scripts/run-ios.sh`, `scripts/run-android.sh`).
+
+## Also worth reporting: accesskit_android 0.7.5
+
+Typing the first character into an empty field panicked in debug builds: `accesskit_android::event` computes
+`old_u16.len() - 1` on an empty string (`panic_const_sub_overflow` in `QueuedEvents::raise`, called from
+gpui-mobile's TalkBack adapter). Release wraps it to `-1` as a `jint`, which is what the algorithm expects, so
+`mobile/Cargo.toml` turns off overflow checks for that one crate in dev. Check whether a newer accesskit_android
+(0.9.x at the time of writing) fixes it when gpui-mobile moves to it; if not, report it to AccessKit.

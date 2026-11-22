@@ -309,8 +309,8 @@ impl MobileApp {
 
 impl Render for MobileApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // Keep clear of the status bar, notch and home indicator; 16px is the margin past them.
-        let safe = window.insets().safe_area;
+        // Keep clear of the status bar, notch, home indicator and keyboard; 16px is the margin past them.
+        let safe = window.insets().effective();
         let body = match self.screen {
             Screen::Picker => self.picker(cx),
             Screen::Projects => self.project_list(cx),
