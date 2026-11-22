@@ -85,6 +85,8 @@ impl ThreadView {
         );
         // A resumed thread keeps the folder it started in (its worktree, if it had one).
         let use_worktree = resume.is_none() && self.wt.use_worktree;
+        let parent = self.parent.as_ref().map(|p| p.0);
+        let tools = crate::workspace::orchestrate::Tools::get(cx);
         let is_new = resume.is_none();
         let pump_store = store.clone();
         self._task = Some(cx.spawn(async move |this, cx| {
@@ -112,6 +114,10 @@ impl ThreadView {
                                 &mut thread,
                                 worktree,
                             )?;
+                            if let Some(parent) = parent {
+                                lock(&store)?.set_thread_parent(thread.id, Some(parent))?;
+                                thread.parent_thread_id = Some(parent);
+                            }
                             thread
                         }
                     };
@@ -120,23 +126,25 @@ impl ThreadView {
                         thread.id,
                         &Record::Prompt(text.clone()),
                     )?;
+                    let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                     // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                     let launch = Launch {
                         account: &account,
                         dir: &cwd,
                         resume: thread.agent_session_id.as_deref(), // a new row has none
                         prompt: &text,
+                        mcp_config: grant.as_ref().map(|g| g.config_path()),
                     };
                     let session = skyelab_agent::start_with_bin(&bin, &config, &launch);
                     let status = if session.is_ok() { "running" } else { "failed" };
                     lock(&store)?.set_thread_status(thread.id, status)?;
-                    anyhow::Ok((thread, session))
+                    anyhow::Ok((thread, session, grant))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
                 this.starting = false;
                 match started {
-                    Ok((thread, session)) => {
+                    Ok((thread, session, grant)) => {
                         this.cwd = thread.cwd.clone();
                         this.thread = Some(thread.clone());
                         if is_new {
@@ -147,6 +155,7 @@ impl ThreadView {
                         }
                         match session {
                             Ok(session) => {
+                                this.grant = grant;
                                 this.run(session, pump_store, thread.id, cx);
                                 if this.stop_requested {
                                     this.kill(cx);

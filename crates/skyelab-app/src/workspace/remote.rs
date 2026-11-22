@@ -116,11 +116,7 @@ impl Workspace {
         }
     }
 
-    pub(super) fn open_view(
-        &self,
-        thread_id: i64,
-        cx: &Context<Self>,
-    ) -> Option<Entity<ThreadView>> {
+    pub(super) fn open_view(&self, thread_id: i64, cx: &gpui::App) -> Option<Entity<ThreadView>> {
         self.open_threads
             .iter()
             .filter_map(|t| t.upgrade())
@@ -195,25 +191,38 @@ impl Workspace {
             return;
         }
         self.add_thread_tab(view.clone(), false, window, cx);
-        let mut reply = Some(reply);
-        let mut answer = move |view: &ThreadView| {
-            // The details (paths, store errors) stay in this machine's log and the thread's tab.
-            let result = match (&view.thread, view.starting) {
-                (Some(t), _) if view.session.is_some() => Ok(t.id),
-                (Some(_), _) if view.read_only => Err("the agent didn't start"),
-                (None, false) => Err("the thread couldn't be created"),
-                _ => return,
-            };
-            let result = result.map_err(|why| {
-                eprintln!("skyelab: remote start failed: {why}: {:?}", view.error);
-                crate::remote::internal(why)
-            });
-            if let Some(reply) = reply.take() {
-                let _ = reply.send(result);
-            }
-        };
+        self.reply_when_started(
+            &view,
+            move |r| _ = reply.send(r.map_err(crate::remote::internal)),
+            cx,
+        );
+    }
+
+    /// Calls `done` once `view`'s thread has a running agent (`Ok(id)`), or with why it didn't start.
+    pub(super) fn reply_when_started(
+        &mut self,
+        view: &Entity<ThreadView>,
+        done: impl FnOnce(Result<i64, &'static str>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
+        let mut done = Some(done);
         self._thread_events
-            .push(cx.observe(&view, move |_, view, cx| answer(view.read(cx))));
+            .push(cx.observe(view, move |_, view, cx| {
+                let view = view.read(cx);
+                // The details (paths, store errors) stay in this machine's log and the thread's tab.
+                let result = match (&view.thread, view.starting) {
+                    (Some(t), _) if view.session.is_some() => Ok(t.id),
+                    (Some(_), _) if view.read_only => Err("the agent didn't start"),
+                    (None, false) => Err("the thread couldn't be created"),
+                    _ => return,
+                };
+                if let Err(why) = result {
+                    eprintln!("skyelab: start failed: {why}: {:?}", view.error);
+                }
+                if let Some(done) = done.take() {
+                    done(result);
+                }
+            }));
     }
 
     pub(super) fn render_remote_status(&self, cx: &Context<Self>) -> Option<impl IntoElement> {

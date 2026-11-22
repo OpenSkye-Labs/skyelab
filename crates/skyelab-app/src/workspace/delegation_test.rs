@@ -1,10 +1,10 @@
 //! End to end: a fake claude calls SkyeLab's MCP tools through the real proxy and server, and the account rule holds.
 #![cfg(unix)]
 
+use super::orchestrate::{self, Orchestration};
 use super::thread::{Stop, ThreadView};
 use super::thread_model::Record;
 use super::*;
-use crate::orchestrate::{self, Orchestration};
 use gpui::{TestAppContext, VisualTestContext};
 use skyelab_agent::mcp::{Caller, Host as _, Proxy, Tool};
 use skyelab_agent::{Block, Event};
@@ -127,13 +127,21 @@ fn open<'a>(
     let (ws, cx) = cx.add_window_view(|window, cx| {
         let mut ws = Workspace::new(folder, Some(accounts), config, None, backend, window, cx);
         ws.set_orchestrator(calls, window, cx);
+        window.focus(&ws.focus, cx);
         ws
     });
     cx.run_until_parked();
+    wait_until(cx, "projects loaded", |cx| {
+        ws.read_with(cx, |ws, _| ws.projects.len() == 4)
+    });
     (ws, cx)
 }
 
-fn wait_until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
+fn wait_until(
+    cx: &mut VisualTestContext,
+    what: &str,
+    mut done: impl FnMut(&mut VisualTestContext) -> bool,
+) {
     for _ in 0..1500 {
         cx.run_until_parked();
         if done(cx) {
@@ -145,10 +153,17 @@ fn wait_until(cx: &mut VisualTestContext, what: &str, mut done: impl FnMut(&mut 
 }
 
 /// A thread tab in `project`, with `prompt` sent from it.
-fn start(ws: &Entity<Workspace>, project: i64, prompt: &str, cx: &mut VisualTestContext) -> Entity<ThreadView> {
+fn start(
+    ws: &Entity<Workspace>,
+    project: i64,
+    prompt: &str,
+    cx: &mut VisualTestContext,
+) -> Entity<ThreadView> {
     cx.dispatch_action(SelectProject { id: project });
     wait_until(cx, "project selected", |cx| {
-        ws.read_with(cx, |ws, _| ws.project.as_ref().map(|p| p.id) == Some(project))
+        ws.read_with(cx, |ws, _| {
+            ws.project.as_ref().map(|p| p.id) == Some(project)
+        })
     });
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
@@ -166,7 +181,11 @@ fn send(view: &Entity<ThreadView>, prompt: &str, cx: &mut VisualTestContext) {
 
 /// The `n`th MCP tool result the thread stored: (is_error, text).
 fn tool_result(store: &SharedStore, thread: i64, n: usize) -> Option<(bool, String)> {
-    let rows = store.lock().expect("lock").events_since(thread, 0).expect("events");
+    let rows = store
+        .lock()
+        .expect("lock")
+        .events_since(thread, 0)
+        .expect("events");
     rows.iter()
         .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
         .filter_map(|r| match r {
@@ -185,7 +204,12 @@ fn tool_result(store: &SharedStore, thread: i64, n: usize) -> Option<(bool, Stri
         .nth(n)
 }
 
-fn wait_result(cx: &mut VisualTestContext, store: &SharedStore, thread: i64, n: usize) -> (bool, String) {
+fn wait_result(
+    cx: &mut VisualTestContext,
+    store: &SharedStore,
+    thread: i64,
+    n: usize,
+) -> (bool, String) {
     let mut got = None;
     wait_until(cx, "the MCP tool result", |_| {
         got = tool_result(store, thread, n);
@@ -213,13 +237,20 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
     let parent = start(
         &ws,
         rig.work_a,
-        &format!(r#"mcp:start_thread:{{"project_id":{},"prompt":"write the docs"}}"#, rig.work_b),
+        &format!(
+            r#"mcp:start_thread:{{"project_id":{},"prompt":"write the docs"}}"#,
+            rig.work_b
+        ),
         cx,
     );
     let parent_id = thread_id(&parent, cx);
     let (err, text) = wait_result(cx, &store, parent_id, 0);
     assert!(!err, "same-account start refused: {text}");
-    let child = store.lock().expect("lock").list_threads(rig.work_b).expect("threads");
+    let child = store
+        .lock()
+        .expect("lock")
+        .list_threads(rig.work_b)
+        .expect("threads");
     assert_eq!(child.len(), 1, "one child in work-b");
     assert_eq!(child[0].account_id, "work");
     assert_eq!(child[0].parent_thread_id, Some(parent_id));
@@ -227,28 +258,59 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
     assert!(text.contains(&child[0].id.to_string()), "{text}");
 
     // The parent can read and wait on its child.
-    send(&parent, &format!(r#"mcp:wait_thread:{{"thread_id":{},"timeout_s":20}}"#, child[0].id), cx);
+    send(
+        &parent,
+        &format!(
+            r#"mcp:wait_thread:{{"thread_id":{},"timeout_s":20}}"#,
+            child[0].id
+        ),
+        cx,
+    );
     let (err, text) = wait_result(cx, &store, parent_id, 1);
     assert!(!err && text.contains("done"), "{text}");
-    send(&parent, &format!(r#"mcp:read_thread:{{"thread_id":{}}}"#, child[0].id), cx);
+    send(
+        &parent,
+        &format!(r#"mcp:read_thread:{{"thread_id":{}}}"#, child[0].id),
+        cx,
+    );
     let (err, text) = wait_result(cx, &store, parent_id, 2);
-    assert!(!err && text.contains("Done with the delegated task"), "{text}");
+    assert!(
+        !err && text.contains("Done with the delegated task"),
+        "{text}"
+    );
 
     // Another account's project: refused, nothing created.
-    send(&parent, &format!(r#"mcp:start_thread:{{"project_id":{},"prompt":"spend it"}}"#, rig.personal), cx);
+    send(
+        &parent,
+        &format!(
+            r#"mcp:start_thread:{{"project_id":{},"prompt":"spend it"}}"#,
+            rig.personal
+        ),
+        cx,
+    );
     let (err, text) = wait_result(cx, &store, parent_id, 3);
     assert!(err, "cross-account start allowed: {text}");
     assert!(text.contains("work") && text.contains("me"), "{text}");
 
     // An unbound project: refused, nothing created.
-    send(&parent, &format!(r#"mcp:start_thread:{{"project_id":{},"prompt":"anything"}}"#, rig.unbound), cx);
+    send(
+        &parent,
+        &format!(
+            r#"mcp:start_thread:{{"project_id":{},"prompt":"anything"}}"#,
+            rig.unbound
+        ),
+        cx,
+    );
     let (err, text) = wait_result(cx, &store, parent_id, 4);
     assert!(err && text.contains("not bound"), "{text}");
 
     // Another account's thread can't be read or driven.
     for (n, call) in [
         format!(r#"mcp:read_thread:{{"thread_id":{}}}"#, rig.other_thread),
-        format!(r#"mcp:send_message:{{"thread_id":{},"text":"hi"}}"#, rig.other_thread),
+        format!(
+            r#"mcp:send_message:{{"thread_id":{},"text":"hi"}}"#,
+            rig.other_thread
+        ),
         format!(r#"mcp:thread_status:{{"thread_id":{}}}"#, rig.other_thread),
     ]
     .iter()
@@ -264,11 +326,18 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
     let (err, text) = wait_result(cx, &store, parent_id, 8);
     assert!(!err, "{text}");
     assert!(text.contains("work-a") && text.contains("work-b"), "{text}");
-    assert!(!text.contains("personal") && !text.contains("loose"), "{text}");
+    assert!(
+        !text.contains("personal") && !text.contains("loose"),
+        "{text}"
+    );
 
     let guard = store.lock().expect("lock");
     assert!(guard.list_threads(rig.unbound).expect("threads").is_empty());
-    assert_eq!(guard.list_threads(rig.personal).expect("threads").len(), 1, "only the pre-made one");
+    assert_eq!(
+        guard.list_threads(rig.personal).expect("threads").len(),
+        1,
+        "only the pre-made one"
+    );
     let events = guard.events_since(rig.other_thread, 0).expect("events");
     assert!(events.is_empty(), "the other account's thread got nothing");
     drop(guard);
@@ -281,12 +350,14 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
         assert_eq!(v.parent.as_ref().map(|p| p.0), Some(parent_id));
     });
     parent.read_with(cx, |v, _| {
-        assert!(v.children.iter().any(|c| c.id == child[0].id), "parent lists its child");
+        assert!(
+            v.children.iter().any(|c| c.id == child[0].id),
+            "parent lists its child"
+        );
     });
 
     // The grant ends with the parent's agent.
-    let grants = || cx.update(|_, cx| cx.global::<Orchestration>().server.active_grants());
-    let before = grants();
+    let before = cx.update(|_, cx| cx.global::<Orchestration>().server.active_grants());
     parent.update_in(cx, |v, window, cx| v.stop(&Stop, window, cx));
     wait_until(cx, "the parent's grant dropped", |cx| {
         cx.update(|_, cx| cx.global::<Orchestration>().server.active_grants()) < before
@@ -294,7 +365,11 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
 }
 
 /// Runs a host call off the UI thread (it waits for the UI's answer) while the test keeps the UI running.
-fn host_call(cx: &mut VisualTestContext, caller: Caller, tool: Tool) -> Result<serde_json::Value, String> {
+fn host_call(
+    cx: &mut VisualTestContext,
+    caller: Caller,
+    tool: Tool,
+) -> Result<serde_json::Value, String> {
     let host = cx.update(|_, cx| cx.global::<Orchestration>().host.clone());
     let call = std::thread::spawn(move || host.call(&caller, tool));
     wait_until(cx, "the host call", |_| call.is_finished());
@@ -324,10 +399,22 @@ fn depth_and_children_limits_hold_through_the_app(cx: &mut TestAppContext) {
     }
     let err = host_call(cx, caller(), start_tool("child 5")).expect_err("fifth child");
     assert!(err.contains("children"), "{err}");
-    assert_eq!(store.lock().expect("lock").list_threads(rig.work_b).expect("list").len(), 4);
+    assert_eq!(
+        store
+            .lock()
+            .expect("lock")
+            .list_threads(rig.work_b)
+            .expect("list")
+            .len(),
+        4
+    );
 
     // A grandchild (depth 2) can't delegate further.
-    let kids = store.lock().expect("lock").child_threads(parent_id).expect("kids");
+    let kids = store
+        .lock()
+        .expect("lock")
+        .child_threads(parent_id)
+        .expect("kids");
     let child = kids[0].id;
     let grandchild = {
         let s = store.lock().expect("lock");
@@ -349,7 +436,15 @@ fn depth_and_children_limits_hold_through_the_app(cx: &mut TestAppContext) {
     };
     let err = host_call(cx, deep, start_tool("too deep")).expect_err("depth 3");
     assert!(err.contains("depth"), "{err}");
-    assert_eq!(store.lock().expect("lock").child_threads(grandchild).expect("kids").len(), 0);
+    assert_eq!(
+        store
+            .lock()
+            .expect("lock")
+            .child_threads(grandchild)
+            .expect("kids")
+            .len(),
+        0
+    );
 
     // A caller claiming an account its thread wasn't recorded under is refused.
     let liar = Caller {

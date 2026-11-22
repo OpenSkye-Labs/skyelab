@@ -38,6 +38,13 @@ pub enum ThreadViewEvent {
     },
 }
 
+/// A thread this one delegated, shown in its header.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChildLink {
+    pub id: i64,
+    pub title: SharedString,
+}
+
 pub struct ThreadView {
     pub(super) focus: FocusHandle,
     pub(super) project_id: i64,
@@ -63,6 +70,11 @@ pub struct ThreadView {
     pub(super) wt: super::thread_worktree::WorktreeState,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
+    /// The thread whose agent started this one: (id, title).
+    pub(super) parent: Option<(i64, SharedString)>,
+    pub(super) children: Vec<ChildLink>,
+    /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
+    grant: Option<super::orchestrate::Grant>,
     send_chain: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
@@ -120,20 +132,34 @@ impl ThreadView {
                 .background_spawn(async move {
                     // The sidebar's copy can predate the init event that stored the session id.
                     let row = lock(&store)?.thread(id)?;
+                    let parent = match row.as_ref().and_then(|t| t.parent_thread_id) {
+                        Some(p) => lock(&store)?.thread(p)?.map(|t| (t.id, t.title.into())),
+                        None => None,
+                    };
+                    let children: Vec<ChildLink> = lock(&store)?
+                        .child_threads(id)?
+                        .into_iter()
+                        .map(|t| ChildLink {
+                            id: t.id,
+                            title: t.title.into(),
+                        })
+                        .collect();
                     let rows = lock(&store)?.events_since(id, 0)?;
                     // One unreadable row (an older format) must not hide the rest of the thread.
                     let records: Vec<_> = rows
                         .iter()
                         .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
                         .collect();
-                    anyhow::Ok((row, rows.len() - records.len(), records))
+                    anyhow::Ok((row, (parent, children), rows.len() - records.len(), records))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok((row, skipped, records)) => {
+                Ok((row, (parent, children), skipped, records)) => {
                     if let Some(row) = row {
                         this.thread = Some(row);
                     }
+                    this.parent = parent;
+                    this.children = children;
                     this.finish(cx);
                     for r in &records {
                         apply(&mut this.items, r);
@@ -195,6 +221,9 @@ impl ThreadView {
             read_only: false,
             wt: Default::default(),
             resume_refused: None,
+            parent: None,
+            children: Vec::new(),
+            grant: None,
             send_chain: None,
             _pump: None,
             _task: None,
@@ -379,6 +408,7 @@ impl ThreadView {
 
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     fn finish(&mut self, cx: &mut Context<Self>) {
+        self.grant = None; // revokes the token and cuts the MCP connection
         self.read_only = self
             .thread
             .as_ref()
