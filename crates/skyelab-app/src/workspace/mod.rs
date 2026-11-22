@@ -61,6 +61,7 @@ pub struct Workspace {
     dock: Entity<DockArea>,
     /// The folder the workspace is "in". Home for now; later the selected project.
     folder: PathBuf,
+    folder_label: SharedString,
     accounts_path: Option<PathBuf>,
     config: AccountsConfig,
     load_error: Option<String>,
@@ -68,6 +69,7 @@ pub struct Workspace {
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
     settings: Option<WeakEntity<Settings>>,
+    _settings_saved: Option<Subscription>,
     _appearance: Subscription,
 }
 
@@ -134,6 +136,10 @@ impl Workspace {
             focus: cx.focus_handle(),
             dock,
             account: account_label(&config, &folder),
+            folder_label: match dirs::home_dir() {
+                Some(home) if folder == home => "~".into(),
+                _ => folder.display().to_string().into(),
+            },
             folder,
             accounts_path,
             config,
@@ -141,6 +147,7 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
             settings: None,
+            _settings_saved: None,
             _appearance,
         }
     }
@@ -211,14 +218,7 @@ impl Workspace {
             settings.read(cx).focus_handle(cx).focus(window, cx);
             return;
         }
-        // A closed settings tab may have saved changes, so start from disk.
-        if let Some(path) = &self.accounts_path {
-            match AccountsConfig::load(path) {
-                Ok(config) => (self.config, self.load_error) = (config, None),
-                Err(e) => self.load_error = Some(format!("{e:#}")),
-            }
-            self.account = account_label(&self.config, &self.folder);
-        }
+        self.reload_accounts();
         let (path, config, error) = (
             self.accounts_path.clone(),
             self.config.clone(),
@@ -235,16 +235,34 @@ impl Workspace {
             );
         });
         settings.read(cx).focus_handle(cx).focus(window, cx);
+        // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.
+        self._settings_saved = Some(cx.observe(&settings, |this, _, cx| {
+            this.reload_accounts();
+            cx.notify();
+        }));
         self.settings = Some(settings.downgrade());
         cx.notify();
     }
 
+    fn reload_accounts(&mut self) {
+        let Some(path) = &self.accounts_path else {
+            return;
+        };
+        match AccountsConfig::load(path) {
+            Ok(config) => {
+                (self.config, self.load_error) = (config, None);
+                self.account = account_label(&self.config, &self.folder);
+            }
+            Err(e) => {
+                self.load_error = Some(format!("{e:#}"));
+                // A broken file binds nothing we can trust.
+                self.account = None;
+            }
+        }
+    }
+
     fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let folder = match dirs::home_dir() {
-            Some(home) if self.folder == home => "~".to_string(),
-            _ => self.folder.display().to_string(),
-        };
         let (dot, label) = match &self.account {
             Some(label) => (theme.success, label.clone()),
             None => (theme.warning, "No account bound".into()),
@@ -265,7 +283,7 @@ impl Workspace {
                 div()
                     .text_xs()
                     .text_color(theme.muted_foreground)
-                    .child(folder),
+                    .child(self.folder_label.clone()),
             )
             .right(account)
     }
@@ -298,3 +316,6 @@ impl Render for Workspace {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod stale_status_test;

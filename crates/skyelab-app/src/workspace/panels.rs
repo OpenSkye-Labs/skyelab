@@ -1,4 +1,4 @@
-//! The workspace's dock panels. Each only renders what the workspace hands it.
+//! The workspace's dock panels and the dock traits each one needs.
 
 use crate::settings::Settings;
 use gpui::{
@@ -14,8 +14,7 @@ use gpui_component::{
 };
 use skyelab_terminal::TerminalView;
 
-/// The boilerplate every panel shares: a name for persisted layouts, a tab title,
-/// and whether the user may close it.
+/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
 macro_rules! panel {
     ($ty:ty, $name:literal, closable: $closable:literal, |$this:ident| $title:expr) => {
         panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
