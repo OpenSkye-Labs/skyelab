@@ -2,7 +2,7 @@
 
 ## What we're building
 
-A native ADE: run Claude Code (and later Codex etc.) agents in threads over your projects, with worktrees, diffs,
+A native ADE: run Claude Code and OpenAI Codex agents in threads over your projects, with worktrees, diffs,
 a terminal, a browser preview, a device hub and agent orchestration, the way T3 Code does
 ([pingdotgg/t3code](https://github.com/pingdotgg/t3code), MIT). It shares environments between your machines over Tailscale.
 
@@ -25,8 +25,8 @@ personal plan by mistake.
 - **Execution and credentials never leave the environment that runs them.** A client on your laptop driving your
   desktop's environment sends commands. The desktop's daemon launches the agent with the desktop's account dirs.
 - The desktop app embeds the daemon in-process for v1. It becomes a separate process only when remote access ships.
-- Agents: launch the `claude` CLI in stream-json mode (or the Agent SDK) with `launch_env(dir)` applied. That is the
-  only place `CLAUDE_CONFIG_DIR` is set.
+- Agents: launch the `claude` CLI in stream-json mode, or `codex app-server`, with `launch_env(dir)` applied. That is
+  the only place `CLAUDE_CONFIG_DIR` / `CODEX_HOME` is set. The account's `provider` picks which.
 
 ## Crates (add each only when its code exists)
 
@@ -34,7 +34,7 @@ personal plan by mistake.
 |---|---|
 | `skyelab-core` | accounts/bindings, app settings, domain types; no GPUI, no async runtime |
 | `skyelab-app` | GPUI desktop client (binary `skyelab`) |
-| `skyelab-agent` | launching Claude Code sessions under the bound account; stream-json events; resume; SkyeLab's MCP server for orchestration |
+| `skyelab-agent` | launching Claude Code and Codex sessions under the bound account; one event stream for both; resume; SkyeLab's MCP server for orchestration |
 | `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) |
 | `skyelab-git` | worktrees, status, structured diff (shells out to `git`) |
 | `skyelab-terminal` | PTY + terminal grid model and GPUI view (alacritty_terminal) |
@@ -174,6 +174,7 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   connection. Never TCP.
 - **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
   `parent_thread_id` (schema 3).
+- **Codex** sessions get the same tools and grant; see [codex.md](codex.md).
 - **Not yet:** Windows (no named-pipe transport, so threads there run without the tools) and delegation to other
   machines.
 
@@ -239,3 +240,5 @@ Each item goes through `/loop` (see CLAUDE.md).
   Limits: a shell rc that exports `GH_TOKEN` sets it again inside a terminal; an agent whose account has no GitHub
   dir uses gh's default config; a GitHub dir inside a project holds a plaintext token that Commit all would stage.
   (2026-11-23)
+- **Codex provider:** `codex app-server` under `CODEX_HOME`, the folder's account picks the provider. Protocol,
+  event mapping, hardening and limits: [codex.md](codex.md). (2026-11-23)

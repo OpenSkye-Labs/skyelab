@@ -12,7 +12,8 @@ In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kb
 
 ## Accounts and bindings
 
-SkyeLab runs every agent on the Claude account its folder is bound to. A folder with no binding never runs an agent.
+SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
+A folder with no binding never runs an agent.
 
 ### Add an account
 
@@ -22,8 +23,18 @@ SkyeLab runs every agent on the Claude account its folder is bound to. A folder 
    CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
    ```
 
-2. Open Settings (<kbd>⌘,</kbd>). Under **Add account**, enter an id (`work`), a label (`Work (Team)`) and the
-   absolute config folder (`/Users/you/.claude-work`), then click **Add**.
+2. Open Settings (<kbd>⌘,</kbd>). Under **Add account**, pick **Claude** or **Codex**, enter an id (`work`), a label
+   (`Work (Team)`) and the absolute config folder (`/Users/you/.claude-work`), then click **Add**.
+
+For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). After adding it,
+press **Log in to Codex** on its row: that opens a terminal running `codex login` with `CODEX_HOME` set to that
+folder (SkyeLab creates the folder first, private to you). A config file written before Codex support has no
+`provider` key; those accounts are Claude.
+
+Codex threads run `codex app-server` with approvals off and the `workspace-write` sandbox: Codex can edit files in
+the folder but not outside it, and has no network for its commands. A request for more is declined, since SkyeLab
+has no approval prompt yet. The repo's own `.codex/` config, hooks and rules never load; your account's own
+`CODEX_HOME/config.toml` (MCP servers, model) does.
 
 Accounts and bindings are saved in `accounts.toml` in the platform config folder:
 `~/Library/Application Support/skyelab/` on macOS, `~/.config/skyelab/` on Linux, `%APPDATA%\skyelab\` on Windows.
@@ -67,8 +78,9 @@ an account.
 2. Select the project and click **New** under Threads.
 3. Type a prompt and press <kbd>⌘↩</kbd> (or click **Send**).
 
-The thread header shows the account it runs on. **Interrupt** stops the current turn. **Stop** ends the agent.
-Threads are saved, and opening an old one and sending a follow-up resumes the same Claude session.
+The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
+current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
+same session (Claude's `--resume`, or Codex's `thread/resume`).
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
@@ -79,7 +91,8 @@ An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread
 `wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
 parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
-delegate once more (two levels), and a thread can have four children running at a time. Not available on Windows yet.
+delegate once more (two levels), and a thread can have four children running at a time. Codex threads get the same
+tools, with the same account rule. Not available on Windows yet.
 
 ## Worktrees
 
