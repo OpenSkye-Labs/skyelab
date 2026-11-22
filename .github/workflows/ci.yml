@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # rustup installs the channel and components named in rust-toolchain.toml.
+      - run: rustup toolchain install
+      - run: cargo fmt --all --check
+
+  check:
+    name: ${{ matrix.job }} (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        job: [clippy, test]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install
+      - name: Install Linux GPUI deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake
+      # GPUI compiles Metal shaders; download the toolchain only if this Xcode image lacks it.
+      - name: Ensure Metal Toolchain
+        if: runner.os == 'macOS'
+        run: |
+          if xcodebuild -showComponent MetalToolchain 2>/dev/null | grep -q 'Status: installed'; then
+            echo "Metal Toolchain already installed"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.job }}
+      - if: matrix.job == 'clippy'
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - if: matrix.job == 'test'
+        run: cargo test --workspace
