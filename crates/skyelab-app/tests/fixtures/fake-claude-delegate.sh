@@ -1,0 +1,55 @@
+#!/bin/sh
+# Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
+# `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
+# tool_use + tool_result pair; any other prompt gets a short answer. Never contacts a real account.
+head -n 1 "$(dirname "$0")/session.jsonl"
+cfg=
+while [ $# -gt 0 ]; do
+  [ "$1" = "--mcp-config" ] && cfg=$2
+  shift
+done
+started=
+n=0
+start_proxy() {
+  cmd=$(sed -n 's/^ *"command": "\(.*\)",*$/\1/p' "$cfg")
+  args=$(sed -n '/"args": \[/,/\]/p' "$cfg" | sed -n 's/^ *"\(.*\)",*$/\1/p')
+  sock=$(sed -n 's/^ *"SKYELAB_MCP_SOCKET": "\(.*\)",*$/\1/p' "$cfg")
+  token=$(sed -n 's/^ *"SKYELAB_MCP_TOKEN": "\(.*\)",*$/\1/p' "$cfg")
+  fifo=$(mktemp -d)
+  mkfifo "$fifo/in" "$fifo/out"
+  # shellcheck disable=SC2086 # args are one per line, without spaces
+  env SKYELAB_MCP_SOCKET="$sock" SKYELAB_MCP_TOKEN="$token" "$cmd" $args <"$fifo/in" >"$fifo/out" &
+  exec 3>"$fifo/in" 4<"$fifo/out"
+  rpc '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"fake","version":"1"}}}' >/dev/null
+  printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/initialized"}' >&3
+  started=1
+}
+# One request, its answer; the proxy's other stdout lines (a test harness's) are skipped.
+rpc() {
+  printf '%s\n' "$1" >&3
+  while IFS= read -r l <&4; do
+    case $l in '{"jsonrpc"'*) printf '%s\n' "$l"; return ;; esac
+  done
+}
+done_turn() {
+  printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"num_turns":1,"result":"%s","session_id":"fake-sess-1","total_cost_usd":0}\n' "$1"
+}
+while IFS= read -r line; do
+  case $line in *'"type":"user"'*) ;; *) continue ;; esac
+  call=$(printf '%s' "$line" | sed -n 's/.*"content":"mcp:\([a-z_]*\):\(.*\)","role".*/\1 \2/p')
+  if [ -z "$call" ] || [ -z "$cfg" ]; then
+    printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"Done with the delegated task."}]}}'
+    done_turn "done"
+    continue
+  fi
+  [ -n "$started" ] || start_proxy
+  n=$((n + 1))
+  tool=${call%% *}
+  json=$(printf '%s' "${call#* }" | sed 's/\\"/"/g')
+  printf '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"toolu_mcp%s","name":"mcp__skyelab__%s","input":%s}]}}\n' "$n" "$tool" "$json"
+  resp=$(rpc "{\"jsonrpc\":\"2.0\",\"id\":$n,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$json}}")
+  text=$(printf '%s' "$resp" | sed -n 's/.*"text":"\(.*\)","type":"text".*/\1/p')
+  err=$(printf '%s' "$resp" | sed -n 's/.*"isError":\([a-z]*\).*/\1/p')
+  printf '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_mcp%s","content":"%s","is_error":%s}]}}\n' "$n" "$text" "${err:-true}"
+  done_turn "called $tool"
+done
