@@ -1,15 +1,20 @@
 //! A folder that doesn't exist yet, written through a symlink or `..`, must resolve to the binding that owns its real location.
 
-use skyelab_core::AccountsConfig;
+use skyelab_core::{AccountsConfig, Binding};
 use std::path::Path;
 
 fn account(id: &str, dir: &str) -> String {
     format!("[[account]]\nid = \"{id}\"\nlabel = \"{id}\"\nconfig_dir = \"{dir}\"\n")
 }
 
+/// Written as the app writes it: with the snapshot taken at bind time.
 fn binding(path: &Path, id: &str) -> String {
+    let resolved = Binding::new(path.into(), id.into())
+        .resolved()
+        .map(|r| format!("resolved = {:?}\n", r.display().to_string()))
+        .unwrap_or_default();
     format!(
-        "[[binding]]\npath = {:?}\naccount = \"{id}\"\n",
+        "[[binding]]\npath = {:?}\naccount = \"{id}\"\n{resolved}",
         path.display().to_string()
     )
 }

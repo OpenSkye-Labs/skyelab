@@ -68,12 +68,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
             .expect("acme preselected");
         let path = work.clone();
         v.apply(
-            |c| {
-                c.add_binding(Binding {
-                    path,
-                    account: account.to_string(),
-                })
-            },
+            |c| c.add_binding(Binding::new(path, account.to_string())),
             window,
             cx,
         );
@@ -84,7 +79,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
     );
 
     set(&test, &work.join("api").display().to_string(), cx);
-    view.update(cx, |v, cx| v.refresh_test(cx));
+    view.update(cx, |v, cx| v.refresh_fs(cx));
     view.read_with(cx, |v, _| {
         assert_eq!(
             v.test_result.clone().flatten().map(|a| a.id),
@@ -92,7 +87,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
         );
     });
     set(&test, "/nonexistent/elsewhere", cx);
-    view.update(cx, |v, cx| v.refresh_test(cx));
+    view.update(cx, |v, cx| v.refresh_fs(cx));
     view.read_with(cx, |v, _| assert_eq!(v.test_result, Some(None)));
 
     // Removing a bound account is refused inline.
@@ -150,5 +145,65 @@ fn load_error_locks_editing_so_the_file_is_not_overwritten(cx: &mut TestAppConte
                 .as_deref()
                 .is_some_and(|e| e.contains("Editing is off"))
         );
+    });
+}
+
+#[cfg(unix)]
+#[gpui::test]
+fn reconfirm_stale_binding(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = std::fs::canonicalize(dir.path()).expect("canonicalize");
+    let path = root.join("accounts.toml");
+    let acme = root.join("acme");
+    let other = root.join("other");
+    std::fs::create_dir(&acme).expect("mkdir");
+    std::fs::create_dir(&other).expect("mkdir");
+    let mut config = AccountsConfig::default();
+    config
+        .add_account(Account {
+            id: "acme".into(),
+            label: "Acme".into(),
+            config_dir: "/home/me/.claude-acme".into(),
+        })
+        .expect("account");
+    config
+        .add_binding(Binding::new(acme.clone(), "acme".into()))
+        .expect("bind");
+    std::fs::remove_dir(&acme).expect("rm");
+    std::os::unix::fs::symlink(&other, &acme).expect("swap for a symlink");
+
+    let (view, cx) = cx
+        .add_window_view(|window, cx| Settings::new(Some(path.clone()), config, None, window, cx));
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.stale, vec![(acme.clone(), Some(other.clone()))])
+    });
+
+    let reconfirm = ReconfirmBinding {
+        path: acme.clone(),
+        now: other.clone(),
+    };
+    view.update_in(cx, |v, window, cx| {
+        v.reconfirm_binding(&reconfirm, window, cx)
+    });
+    view.read_with(cx, |v, _| {
+        assert!(v.stale.is_empty());
+        assert_eq!(
+            v.config.resolve(&other).map(|a| a.id.as_str()),
+            Some("acme")
+        );
+    });
+    let saved = AccountsConfig::load(&path).expect("saved");
+    assert_eq!(saved.bindings[0].resolved(), Some(other.as_path()));
+
+    // Swapped again while the screen is open: the next refresh shows it.
+    std::fs::remove_file(&acme).expect("rm link");
+    std::os::unix::fs::symlink(&root, &acme).expect("retarget");
+    view.update(cx, |v, cx| v.refresh_fs(cx));
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.stale, vec![(acme.clone(), Some(root.clone()))])
     });
 }

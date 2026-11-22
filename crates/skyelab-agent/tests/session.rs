@@ -16,10 +16,7 @@ fn bound(dir: &Path, config_dir: &Path) -> AccountsConfig {
             label: "Acme".into(),
             config_dir: config_dir.into(),
         }],
-        bindings: vec![Binding {
-            path: dir.into(),
-            account: "acme".into(),
-        }],
+        bindings: vec![Binding::new(dir.into(), "acme".into())],
     }
 }
 

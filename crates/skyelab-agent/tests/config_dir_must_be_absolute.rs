@@ -10,10 +10,7 @@ fn cfg(dir: &Path, config_dir: &str) -> AccountsConfig {
             label: "A".into(),
             config_dir: config_dir.into(),
         }],
-        bindings: vec![Binding {
-            path: dir.into(),
-            account: "a".into(),
-        }],
+        bindings: vec![Binding::new(dir.into(), "a".into())],
     }
 }
 

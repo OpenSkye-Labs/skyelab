@@ -67,16 +67,6 @@ fn binding_the_same_folder_via_a_symlink_is_a_duplicate() {
         .expect("add a");
     c.add_account(acct("b", "/home/me/.claude-b"))
         .expect("add b");
-    c.add_binding(Binding {
-        path: real,
-        account: "a".into(),
-    })
-    .expect("bind");
-    assert!(
-        c.add_binding(Binding {
-            path: link,
-            account: "b".into()
-        })
-        .is_err()
-    );
+    c.add_binding(Binding::new(real, "a".into())).expect("bind");
+    assert!(c.add_binding(Binding::new(link, "b".into())).is_err());
 }

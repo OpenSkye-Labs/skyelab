@@ -17,6 +17,40 @@ pub struct Account {
 pub struct Binding {
     pub path: PathBuf,
     pub account: String,
+    /// The real folder `path` was when the user confirmed it. Private so callers can't write
+    /// one by hand; load and save carry it as is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    resolved: Option<PathBuf>,
+}
+
+impl Binding {
+    /// Snapshots the folder `path` resolves to now (`None`, so stale, if it can't be resolved).
+    /// `add_binding` takes the snapshot again, so the bind moment is what counts.
+    pub fn new(path: PathBuf, account: String) -> Self {
+        let resolved = binding_root(&path).ok();
+        Self {
+            path,
+            account,
+            resolved,
+        }
+    }
+
+    /// The real folder last confirmed (bind or re-confirm). `None` when never confirmed: an
+    /// older config, or a path that couldn't be resolved when the `Binding` was built.
+    pub fn resolved(&self) -> Option<&Path> {
+        self.resolved.as_deref()
+    }
+
+    /// The real folder `path` resolves to right now. `None` when it can't be resolved (a broken link).
+    pub fn current_root(&self) -> Option<PathBuf> {
+        binding_root(&self.path).ok()
+    }
+
+    /// True when `path` no longer resolves to the confirmed folder (swapped for a symlink,
+    /// link retargeted, broken), or was never confirmed. A stale binding never picks an account.
+    pub fn is_stale(&self) -> bool {
+        self.resolved.is_none() || self.current_root() != self.resolved
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,7 +88,7 @@ impl AccountsConfig {
         }
         let mut paths = std::collections::HashMap::new();
         for b in &self.bindings {
-            let real = binding_root(&b.path)?;
+            check_bound_path(&b.path)?;
             if !self.accounts.iter().any(|a| a.id == b.account) {
                 bail!(
                     "binding {} points at unknown account '{}'",
@@ -62,6 +96,10 @@ impl AccountsConfig {
                     b.account
                 );
             }
+            // A path that can't be resolved now (a broken link) loads as stale, so the user can fix it.
+            let Some(real) = canonical(&b.path) else {
+                continue;
+            };
             if let Some(first) = paths.insert(real, &b.path) {
                 bail!(
                     "{} and {} are the same folder, bound twice",
@@ -140,19 +178,64 @@ impl AccountsConfig {
         Ok(())
     }
 
-    pub fn add_binding(&mut self, binding: Binding) -> Result<()> {
+    /// Binding is the user confirming the folder, so the snapshot is taken here whatever the caller passed.
+    pub fn add_binding(&mut self, mut binding: Binding) -> Result<()> {
         if !self.accounts.iter().any(|a| a.id == binding.account) {
             bail!("unknown account '{}'", binding.account);
         }
         let new = binding_root(&binding.path)?;
-        if self
+        self.check_unclaimed(&new, None)?;
+        binding.resolved = Some(new);
+        self.bindings.push(binding);
+        Ok(())
+    }
+
+    /// The user saw that `path` now resolves to `now` and says that's right. Refused if it
+    /// resolves elsewhere by now, is the disk root, contains the folder confirmed before, or
+    /// is a folder another binding owns or owned.
+    pub fn reconfirm_binding(&mut self, path: &Path, now: &Path) -> Result<()> {
+        let i = self
             .bindings
             .iter()
-            .any(|b| binding_root(&b.path).ok() == Some(new.clone()))
-        {
-            bail!("{} is already bound", binding.path.display());
+            .position(|b| b.path == path)
+            .with_context(|| format!("{} is not bound", path.display()))?;
+        let root = binding_root(path)?;
+        if root != now {
+            bail!(
+                "{} now resolves to {}, not {}; check it again",
+                path.display(),
+                root.display(),
+                now.display()
+            );
         }
-        self.bindings.push(binding);
+        let old = self.bindings[i].resolved.as_deref();
+        if root.parent().is_none() || old.is_some_and(|old| old != root && old.starts_with(&root)) {
+            bail!(
+                "{} now resolves to {}, which would cover far more than the folder you confirmed; \
+                 remove the binding and bind the folder again if that's really what you want",
+                path.display(),
+                root.display()
+            );
+        }
+        self.check_unclaimed(&root, Some(i))?;
+        self.bindings[i].resolved = Some(root);
+        Ok(())
+    }
+
+    /// `root` isn't where another binding points now, or pointed when confirmed (a stale one
+    /// still blocks there, so a new binding on it could never resolve).
+    fn check_unclaimed(&self, root: &Path, except: Option<usize>) -> Result<()> {
+        let other = self.bindings.iter().enumerate().find(|(j, b)| {
+            Some(*j) != except
+                && (b.current_root().as_deref() == Some(root) || b.resolved() == Some(root))
+        });
+        if let Some((_, b)) = other {
+            bail!(
+                "{} is already bound by {}; re-confirm or remove that binding first",
+                root.display(),
+                b.path.display()
+            );
+        }
         Ok(())
     }
 
@@ -172,26 +255,32 @@ impl AccountsConfig {
             return None;
         }
         let dir = canonical(dir)?;
-        // Any invalid binding (an unvalidated config) means nothing resolves, rather than a shallower one winning.
-        let roots: Vec<_> = self
-            .bindings
-            .iter()
-            .map(|b| binding_root(&b.path).ok().map(|root| (root, b)))
-            .collect::<Option<_>>()?;
+        let mut roots = Vec::new();
+        for b in &self.bindings {
+            // A malformed binding (an unvalidated config) means nothing resolves, rather than a shallower one winning.
+            check_bound_path(&b.path).ok()?;
+            // Resolved once, so the match and the stale check can't see two different filesystems.
+            let now = canonical(&b.path);
+            let stale = b.resolved.is_none() || now != b.resolved;
+            // A stale binding still matches where it points now and where it pointed when
+            // confirmed, so a shallower binding can't silently take those folders over.
+            let snapshot = b.resolved.clone().filter(|_| stale);
+            roots.extend(now.into_iter().chain(snapshot).map(|r| (r, b, stale)));
+        }
         let matching: Vec<_> = roots
             .iter()
-            .filter(|(root, _)| dir.starts_with(root)) // component-wise, so /work/acme does not match /work/acme-old
+            .filter(|(root, ..)| dir.starts_with(root)) // component-wise, so /work/acme does not match /work/acme-old
             .collect();
         let depth = matching
             .iter()
-            .map(|(root, _)| root.components().count())
+            .map(|(root, ..)| root.components().count())
             .max()?;
         let mut deepest = matching
             .iter()
-            .filter(|(root, _)| root.components().count() == depth);
-        let (_, b) = deepest.next()?;
-        if deepest.next().is_some() {
-            return None; // two bindings now name the same folder (a symlink appeared after binding): ask
+            .filter(|(root, ..)| root.components().count() == depth);
+        let (_, b, stale) = deepest.next()?;
+        if *stale || deepest.next().is_some() {
+            return None; // not the folder the user confirmed, or two bindings now name the same folder: ask
         }
         self.accounts.iter().find(|a| a.id == b.account)
     }
@@ -207,7 +296,8 @@ impl AccountsConfig {
 }
 
 /// Resolves symlinks in the part of `p` that exists and re-appends the rest, so a folder
-/// that doesn't exist yet compares like one that does. `None` when `..` follows a missing folder.
+/// that doesn't exist yet compares like one that does. `None` when `..` follows a missing
+/// folder, or when an entry exists but can't be resolved (a broken symlink): that is not "missing".
 fn canonical(p: &Path) -> Option<PathBuf> {
     let mut missing = Vec::new();
     let mut cur = p;
@@ -217,6 +307,10 @@ fn canonical(p: &Path) -> Option<PathBuf> {
     loop {
         if let Ok(real) = std::fs::canonicalize(cur) {
             return Some(rejoin(real, &missing));
+        }
+        // Some Windows volumes can't canonicalize a real folder, so only a link counts as broken.
+        if std::fs::symlink_metadata(cur).is_ok_and(|m| m.file_type().is_symlink()) {
+            return None;
         }
         let Some(name) = cur.file_name() else {
             // A root that can't be canonicalized (an unplugged Windows drive) is kept as written.
@@ -231,13 +325,18 @@ fn canonical(p: &Path) -> Option<PathBuf> {
 /// The canonical folder a binding covers. An empty path is a prefix of every folder, and a
 /// relative one resolves against the app's cwd, so both are refused.
 fn binding_root(p: &Path) -> Result<PathBuf> {
+    check_bound_path(p)?;
+    canonical(p).with_context(|| format!("can't resolve {}", p.display()))
+}
+
+fn check_bound_path(p: &Path) -> Result<()> {
     if !p.is_absolute() || p.components().any(|c| c == std::path::Component::ParentDir) {
         bail!(
             "bound folder must be an absolute path without '..', got '{}'",
             p.display()
         );
     }
-    canonical(p).with_context(|| format!("can't resolve {}", p.display()))
+    Ok(())
 }
 
 /// An empty or relative `CLAUDE_CONFIG_DIR` would run the agent under some other account.
@@ -272,10 +371,12 @@ mod tests {
 
         [[binding]]
         path = "/nonexistent/work/acme"
+        resolved = "/nonexistent/work/acme"
         account = "acme"
 
         [[binding]]
         path = "/nonexistent/work/acme/oss-fork"
+        resolved = "/nonexistent/work/acme/oss-fork"
         account = "personal"
     "#;
 

@@ -16,16 +16,10 @@ fn bindings_that_become_the_same_folder_do_not_silently_pick_one() {
     }
     let d = real.join("d");
     let l = real.join("l");
-    c.add_binding(Binding {
-        path: d.clone(),
-        account: "a".into(),
-    })
-    .expect("bind d");
-    c.add_binding(Binding {
-        path: l.clone(),
-        account: "b".into(),
-    })
-    .expect("bind l (not yet an alias)");
+    c.add_binding(Binding::new(d.clone(), "a".into()))
+        .expect("bind d");
+    c.add_binding(Binding::new(l.clone(), "b".into()))
+        .expect("bind l (not yet an alias)");
     std::fs::create_dir(&d).expect("mkdir");
     std::os::unix::fs::symlink(&d, &l).expect("symlink");
     assert_eq!(

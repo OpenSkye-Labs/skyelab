@@ -23,10 +23,7 @@ fn drop_after_self_exit_kills_group() {
             label: "A".into(),
             config_dir: dir.join("acct"),
         }],
-        bindings: vec![Binding {
-            path: dir.clone(),
-            account: "a".into(),
-        }],
+        bindings: vec![Binding::new(dir.clone(), "a".into())],
     };
     let session = start_with_bin(&bin, &cfg, &dir, "hi").expect("start");
     loop {
