@@ -241,11 +241,7 @@ async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
         let tls = tokio_rustls::TlsConnector::from(cx.tls.clone())
             .connect(name, stream)
             .await
-            .map_err(|e| {
-                lost(format!(
-                    "TLS with {host} failed, not the real environment? {e}"
-                ))
-            })?;
+            .map_err(|e| lost(format!("TLS with {host} failed: {e}")))?;
         (Box::new(tls), "wss")
     };
     // The URL only names the Host header; the socket is already connected to a checked address.
