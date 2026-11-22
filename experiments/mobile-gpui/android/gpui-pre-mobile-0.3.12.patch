@@ -1,0 +1,80 @@
+--- a/Cargo.toml	2026-11-03 11:20:49
++++ b/Cargo.toml	2026-11-23 03:55:27
+@@ -50,7 +50,7 @@
+ media_session = []
+ # Render GPUI windows into images (`gpui_mobile::offscreen`). Needs the vendored
+ # `gpui-pre-wgpu` (see `[patch.crates-io]`), which exposes its headless renderer.
+-offscreen = ["gpui_wgpu/offscreen", "dep:image"]
++offscreen = ["dep:image"]
+ 
+ [lib]
+ name = "gpui_mobile"
+@@ -68,7 +68,7 @@
+ image        = { version = "0.25", default-features = false, optional = true }
+ 
+ # ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
+-gpui = { package = "gpui-pre", version = "=0.3.10", default-features = false }
++gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false }
+ 
+ # ── iOS ──────────────────────────────────────────────────────────────────────
+ 
+@@ -91,7 +91,7 @@
+ libc = "=0.2.189"
+ 
+ # wgpu renderer (Metal backend on iOS/Android)
+-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.10", features = ["font-kit"] }
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12", features = ["font-kit"] }
+ wgpu = "30.0.1"
+ 
+ # Text / font stack
+@@ -122,7 +122,7 @@
+ 
+ # wgpu renderer (Vulkan backend on Android)
+ # Android uses Cosmic Text and system fonts; font-kit pulls in desktop Fontconfig.
+-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.10" }
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12" }
+ 
+ # TalkBack: exposes GPUI's AccessKit tree (accesskit 0.24, as gpui-pre).
+ accesskit_android = "0.7.5"
+@@ -134,7 +134,7 @@
+ # ── dev ──────────────────────────────────────────────────────────────────────
+ 
+ [dev-dependencies]
+-gpui = { package = "gpui-pre", version = "=0.3.10", default-features = false, features = ["test-support"] }
++gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false, features = ["test-support"] }
+ 
+ # ── profiles ─────────────────────────────────────────────────────────────────
+ 
+@@ -154,4 +154,3 @@
+ # clear its sprite atlas between captures. Applications that enable `offscreen`
+ # must patch it the same way.
+ [patch.crates-io]
+-gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }
+--- a/src/android/window.rs	2026-11-03 11:20:49
++++ b/src/android/window.rs	2026-11-23 03:56:53
+@@ -1337,7 +1337,7 @@
+         config: WgpuSurfaceConfig,
+         backends: wgpu::Backends,
+     ) -> std::result::Result<WgpuRenderer, FreshRendererError> {
+-        let context = Self::create_context(raw, backends).map_err(|error| FreshRendererError {
++        let context = Self::create_context(raw, backends, &config).map_err(|error| FreshRendererError {
+             backend: wgpu::Backend::Noop,
+             error,
+         })?;
+@@ -1383,6 +1383,7 @@
+     fn create_context(
+         raw: &RawAndroidWindow,
+         backends: wgpu::Backends,
++        config: &WgpuSurfaceConfig,
+     ) -> Result<gpui_wgpu::WgpuContext> {
+         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+             backends,
+@@ -1402,7 +1403,7 @@
+         // releases the window before the renderer creates its own surface.
+         let surface = unsafe { instance.create_surface_unsafe(target) }
+             .context("failed to create a probe surface")?;
+-        gpui_wgpu::WgpuContext::new(instance, &surface, None)
++        gpui_wgpu::WgpuContext::new(instance, &surface, config, None)
+     }
+ }
+ 

@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+# Mobile spikes build for iOS/Android only and must never break the desktop gate. See docs/mobile.md.
+exclude = ["experiments"]
 
 [workspace.package]
 edition = "2024"
