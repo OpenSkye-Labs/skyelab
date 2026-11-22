@@ -1,7 +1,7 @@
 //! A thread tab: a prompt, and the agent session it starts under the folder's bound account.
 //!
-//! Store writes and every Session call run on the background executor: a stdin write blocks
-//! when `claude` stops reading, and SQLite is file I/O. The UI thread only applies results.
+//! Store writes and the blocking Session calls (start, stdin writes, kill) run off the UI
+//! thread: a stdin write blocks when `claude` stops reading, and SQLite is file I/O.
 
 use super::thread_model::{Item, Record, apply};
 use super::{Backend, SharedStore, lock};

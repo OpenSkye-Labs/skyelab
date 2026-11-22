@@ -172,6 +172,13 @@ fn add_project_lists_it_and_selecting_sets_folder_and_account(cx: &mut TestAppCo
         assert_eq!(ws.folder, f.project_dir);
         assert_eq!(ws.account.as_deref(), Some("Acme Team"));
     });
+    let opts = ws.read_with(cx, |ws, _| ws.terminal_options().expect("options"));
+    assert_eq!(opts.cwd, f.project_dir, "terminals open in the project");
+    assert_eq!(
+        opts.env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+        f.account_dir.to_str(),
+        "terminals run under the project's account"
+    );
     let listed = f.store.lock().expect("lock").list_projects().expect("list");
     assert_eq!(listed.len(), 1, "the project is in the store");
     assert_eq!(listed[0].path, f.project_dir);
@@ -246,6 +253,7 @@ fn unbound_project_shows_cta_and_starts_nothing(cx: &mut TestAppContext) {
     });
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn bound_project_streams_and_persists(cx: &mut TestAppContext) {
     setup(cx);
@@ -324,6 +332,7 @@ fn bound_project_streams_and_persists(cx: &mut TestAppContext) {
     thread.read_with(cx, |t, _| assert!(t.is_expanded(&tool_id)));
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn reopen_replays_from_store(cx: &mut TestAppContext) {
     setup(cx);
@@ -359,6 +368,7 @@ fn reopen_replays_from_store(cx: &mut TestAppContext) {
     });
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn interrupt_is_sent_and_stop_kills(cx: &mut TestAppContext) {
     setup(cx);

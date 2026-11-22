@@ -81,6 +81,9 @@ fn open_store() -> (Store, Option<String>) {
         .and_then(|path| {
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir)?;
+                // The store holds prompts and tool output, which can include secrets.
+                #[cfg(unix)]
+                std::fs::set_permissions(dir, std::os::unix::fs::PermissionsExt::from_mode(0o700))?;
             }
             Store::open(&path)
         });

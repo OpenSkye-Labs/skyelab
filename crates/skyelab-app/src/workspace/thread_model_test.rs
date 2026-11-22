@@ -108,3 +108,25 @@ fn records_round_trip_through_the_store_row() {
         );
     }
 }
+
+#[test]
+fn agent_links_open_only_web_pages() {
+    use super::thread_render::opens_in_browser;
+    for ok in [
+        "https://example.com",
+        "HTTP://example.com/x",
+        "  https://a.b",
+    ] {
+        assert!(opens_in_browser(ok), "{ok}");
+    }
+    for bad in [
+        "file:///Applications/Calculator.app",
+        "javascript:alert(1)",
+        "vscode://file/etc/passwd",
+        "slack://open",
+        "/etc/passwd",
+        "httpsx://evil",
+    ] {
+        assert!(!opens_in_browser(bad), "{bad}");
+    }
+}

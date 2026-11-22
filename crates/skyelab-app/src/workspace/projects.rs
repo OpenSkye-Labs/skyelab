@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use super::panels::{SidebarItem, SidebarSection};
 
 impl Workspace {
-    /// Lists projects from the store (off the UI thread), selecting `select` or else the first one.
+    /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
     pub(super) fn load_projects(&mut self, select: Option<i64>, cx: &mut Context<Self>) {
         let store = self.backend.store.clone();
         let task = cx.background_spawn(async move { lock(&store)?.list_projects() });
@@ -25,7 +25,10 @@ impl Workspace {
                     }
                     this.refresh_sidebar(cx);
                 }
-                Err(e) => this.store_error = Some(format!("{e:#}").into()),
+                Err(e) => {
+                    this.store_error = Some(format!("{e:#}").into());
+                    cx.notify();
+                }
             });
         }));
     }
@@ -95,6 +98,8 @@ impl Workspace {
         self.folder_label = project.path.display().to_string().into();
         self.account = account_label(&self.config, &self.folder);
         self.project = Some(project);
+        self.threads.clear(); // never list another project's threads while this one's load
+        self.refresh_sidebar(cx);
         self.load_threads(cx);
         cx.notify();
     }
@@ -117,6 +122,7 @@ impl Workspace {
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
                 }
                 this.refresh_sidebar(cx);
+                cx.notify();
             });
         }));
     }

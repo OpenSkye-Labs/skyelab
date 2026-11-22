@@ -25,6 +25,13 @@ fn clip(s: &str) -> String {
     }
 }
 
+/// Agent text is untrusted (a repo can steer it), so its links only open web pages, never
+/// `file://` paths or app URL schemes.
+pub(super) fn opens_in_browser(url: &str) -> bool {
+    let lower = url.trim_start().to_ascii_lowercase();
+    lower.starts_with("https://") || lower.starts_with("http://")
+}
+
 impl ThreadView {
     fn render_item(&mut self, ix: usize, _: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
@@ -48,7 +55,15 @@ impl ThreadView {
                 .flex()
                 .into_any_element(),
             Item::Text(text) => row
-                .child(TextView::markdown(("md", ix), text.clone()).selectable(true))
+                .child(
+                    TextView::markdown(("md", ix), text.clone())
+                        .selectable(true)
+                        .on_link_click(|url, _, _, cx| {
+                            if opens_in_browser(url) {
+                                cx.open_url(url);
+                            }
+                        }),
+                )
                 .into_any_element(),
             Item::Tool(tool) => row.child(self.render_tool(tool, cx)).into_any_element(),
             Item::Done {

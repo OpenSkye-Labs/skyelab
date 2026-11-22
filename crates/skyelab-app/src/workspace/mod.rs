@@ -95,7 +95,7 @@ pub fn init(cx: &mut App) {
 }
 
 /// Env for a terminal in `dir`: the bound account's, or none, so skyelab-terminal clears the
-/// inherited `CLAUDE_CONFIG_DIR` and the shell never runs `claude` under the parent's account.
+/// inherited `CLAUDE_CONFIG_DIR` (unix only so far, see its `shell`).
 fn terminal_env(config: &AccountsConfig, dir: &Path) -> anyhow::Result<HashMap<String, String>> {
     if config.resolve(dir).is_none() {
         return Ok(HashMap::new());
@@ -133,7 +133,7 @@ pub struct Workspace {
     sidebar: Entity<Sidebar>,
     projects: Vec<Project>,
     project: Option<Project>,
-    /// The selected project's threads, newest first.
+    /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
     open_threads: Vec<WeakEntity<ThreadView>>,
     _thread_events: Vec<Subscription>,
@@ -243,14 +243,19 @@ impl Workspace {
         }
     }
 
-    fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        let (terminal, events) = Terminal::spawn(SpawnOptions {
+    /// What a new terminal runs with: the current folder, under its bound account or none.
+    fn terminal_options(&self) -> anyhow::Result<SpawnOptions> {
+        Ok(SpawnOptions {
             cwd: self.folder.clone(),
             command: None,
             env: terminal_env(&self.config, &self.folder)?,
             cols: 80,
             lines: 24,
-        })?;
+        })
+    }
+
+    fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
+        let (terminal, events) = Terminal::spawn(self.terminal_options()?)?;
         let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
         let title = format!("Terminal {}", self.terminals.len() + 1).into();
         let panel = cx.new(|_| TerminalPanel::new(view.clone(), title));

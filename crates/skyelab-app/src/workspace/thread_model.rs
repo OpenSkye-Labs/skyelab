@@ -19,8 +19,11 @@ impl Record {
     pub fn to_row(&self) -> (&'static str, String) {
         match self {
             Record::Prompt(text) => (PROMPT, Value::String(text.clone()).to_string()),
-            // Event holds only strings, numbers and JSON values, so serializing can't fail.
-            Record::Agent(event) => (AGENT, serde_json::to_string(event).unwrap_or_default()),
+            Record::Agent(event) => (
+                AGENT,
+                serde_json::to_string(event)
+                    .expect("an Event holds only strings, numbers and JSON values"),
+            ),
         }
     }
 
