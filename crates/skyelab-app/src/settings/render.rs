@@ -1,5 +1,3 @@
-//! The three settings sections. Kept apart from the state and actions in `mod.rs`.
-
 use super::widgets::{path_text, row, section};
 use super::*;
 
@@ -108,16 +106,27 @@ impl Settings {
                 let remove = RemoveBinding {
                     path: b.path.clone(),
                 };
-                let reconfirm = ReconfirmBinding {
+                let stale = self.stale.iter().find(|(p, _)| *p == b.path);
+                let now = stale.and_then(|(_, now)| now.clone());
+                let reconfirm = now.clone().map(|now| ReconfirmBinding {
                     path: b.path.clone(),
-                };
-                let stale = self.stale.contains(&b.path).then(|| {
-                    let what = b.resolved().map_or(
-                        "Not confirmed yet: an older SkyeLab wrote this binding.".into(),
-                        |r| format!("Now points somewhere else. You confirmed {}.", r.display()),
-                    );
-                    format!("{what} Agents won't start under it until you re-confirm.")
+                    now,
                 });
+                let warning = stale.map(|_| match (b.resolved(), &now) {
+                    (_, None) => "Can't be resolved now (a broken link?). Agents won't start under it; fix the folder or remove the binding.",
+                    (None, Some(_)) => "Not confirmed yet: an older SkyeLab wrote this binding. Agents won't start under it until you re-confirm the folder below.",
+                    (Some(_), Some(_)) => "Not the folder you confirmed any more. Agents won't start under it until you re-confirm the folder below.",
+                });
+                let id = b.path.display().to_string();
+                let labelled = |label: &str, key: &str, path: &Path| {
+                    div()
+                        .flex()
+                        .gap_1()
+                        .text_sm()
+                        .text_color(theme.muted_foreground)
+                        .child(div().flex_shrink_0().child(label.to_string()))
+                        .child(path_text(format!("{key}-{id}"), path))
+                };
                 row(cx)
                     .child(
                         div()
@@ -127,9 +136,15 @@ impl Settings {
                             .flex_col()
                             .child(path_text(format!("path-{}", b.path.display()), &b.path))
                             .children(
-                                stale.clone().map(|why| {
+                                warning.map(|why| {
                                     div().text_sm().text_color(theme.warning).child(why)
                                 }),
+                            )
+                            .children(now.as_deref().map(|now| labelled("Now:", "now", now)))
+                            .children(
+                                stale
+                                    .and(b.resolved())
+                                    .map(|was| labelled("Confirmed:", "was", was)),
                             ),
                     )
                     .child(
@@ -140,7 +155,7 @@ impl Settings {
                             .text_color(theme.muted_foreground)
                             .child(format!("→  {}", label_of(&b.account))),
                     )
-                    .when(stale.is_some(), |d| {
+                    .when_some(reconfirm, |d, reconfirm| {
                         d.child(
                             Button::new(SharedString::from(format!(
                                 "reconfirm-{}",

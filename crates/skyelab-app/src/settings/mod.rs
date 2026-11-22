@@ -36,11 +36,12 @@ pub struct RemoveBinding {
     pub path: PathBuf,
 }
 
-/// The user says the stale folder, as it resolves now, is still the one to bind.
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct ReconfirmBinding {
     pub path: PathBuf,
+    /// The folder the row showed; core refuses if the path resolves elsewhere by the click.
+    pub now: PathBuf,
 }
 
 const CONTEXT: &str = "Settings";
@@ -79,8 +80,8 @@ pub struct Settings {
     test_input: Entity<InputState>,
     /// Cached so render does no filesystem work (`resolve` canonicalizes).
     test_result: Option<Option<Account>>,
-    /// Paths of stale bindings, cached for the same reason.
-    stale: Vec<PathBuf>,
+    /// Stale bindings' paths and where each resolves now (`None`: can't be resolved).
+    stale: Vec<(PathBuf, Option<PathBuf>)>,
     account_select: Entity<AccountSelect>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,
@@ -112,7 +113,7 @@ impl Settings {
         let account_select = cx.new(|cx| SelectState::new(ids, selected, window, cx));
         let subs = vec![cx.subscribe(&test_input, |this, _, e: &InputEvent, cx| {
             if matches!(e, InputEvent::Change) {
-                this.refresh_test(cx);
+                this.refresh_fs(cx);
                 cx.notify();
             }
         })];
@@ -124,7 +125,7 @@ impl Settings {
             )),
             (Some(_), None) => None,
         };
-        let stale = stale_paths(&config);
+        let stale = stale_bindings(&config);
         Self {
             path,
             config,
@@ -177,8 +178,7 @@ impl Settings {
                         s.set_selected_value(&id, window, cx);
                     }
                 });
-                self.stale = stale_paths(&self.config);
-                self.refresh_test(cx);
+                self.refresh_fs(cx);
                 true
             }
             Err(e) => {
@@ -190,7 +190,10 @@ impl Settings {
         ok
     }
 
-    fn refresh_test(&mut self, cx: &App) {
+    /// Re-reads everything that depends on the filesystem, so a folder swapped while this
+    /// screen is open shows up on the next edit or keystroke in the test field.
+    fn refresh_fs(&mut self, cx: &App) {
+        self.stale = stale_bindings(&self.config);
         let text = self.test_input.read(cx).value();
         let text = text.trim();
         self.test_result =
@@ -269,7 +272,7 @@ impl Settings {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.apply(|c| c.reconfirm_binding(&a.path), window, cx);
+        self.apply(|c| c.reconfirm_binding(&a.path, &a.now), window, cx);
     }
 
     fn bind_folder(&mut self, _: &BindFolder, window: &mut Window, cx: &mut Context<Self>) {
@@ -308,12 +311,12 @@ impl Settings {
     }
 }
 
-fn stale_paths(config: &AccountsConfig) -> Vec<PathBuf> {
+fn stale_bindings(config: &AccountsConfig) -> Vec<(PathBuf, Option<PathBuf>)> {
     config
         .bindings
         .iter()
         .filter(|b| b.is_stale())
-        .map(|b| b.path.clone())
+        .map(|b| (b.path.clone(), b.current_root()))
         .collect()
 }
 

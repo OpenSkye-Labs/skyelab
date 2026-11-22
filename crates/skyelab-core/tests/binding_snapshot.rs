@@ -130,11 +130,15 @@ fn reconfirm_updates_snapshot() {
     symlink(&moved, &acme).expect("symlink");
     assert_eq!(id(&c, &moved), None);
 
-    c.reconfirm_binding(&acme).expect("reconfirm");
+    assert!(
+        c.reconfirm_binding(&acme, &acme).is_err(),
+        "must match what the user saw"
+    );
+    c.reconfirm_binding(&acme, &moved).expect("reconfirm");
     assert!(!c.bindings[0].is_stale());
     assert_eq!(c.bindings[0].resolved(), Some(moved.as_path()));
     assert_eq!(id(&c, &moved).as_deref(), Some("acme"));
-    assert!(c.reconfirm_binding(&root.join("unbound")).is_err());
+    assert!(c.reconfirm_binding(&root.join("unbound"), &root).is_err());
 }
 
 #[test]
@@ -189,7 +193,7 @@ fn legacy_config_is_stale() {
     assert!(c.bindings[0].is_stale());
     assert_eq!(c.bindings[0].resolved(), None);
     assert_eq!(id(&c, &acme), None);
-    c.reconfirm_binding(&acme).expect("reconfirm");
+    c.reconfirm_binding(&acme, &acme).expect("reconfirm");
     assert_eq!(id(&c, &acme).as_deref(), Some("acme"));
 }
 

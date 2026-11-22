@@ -79,7 +79,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
     );
 
     set(&test, &work.join("api").display().to_string(), cx);
-    view.update(cx, |v, cx| v.refresh_test(cx));
+    view.update(cx, |v, cx| v.refresh_fs(cx));
     view.read_with(cx, |v, _| {
         assert_eq!(
             v.test_result.clone().flatten().map(|a| a.id),
@@ -87,7 +87,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
         );
     });
     set(&test, "/nonexistent/elsewhere", cx);
-    view.update(cx, |v, cx| v.refresh_test(cx));
+    view.update(cx, |v, cx| v.refresh_fs(cx));
     view.read_with(cx, |v, _| assert_eq!(v.test_result, Some(None)));
 
     // Removing a bound account is refused inline.
@@ -178,9 +178,14 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
 
     let (view, cx) = cx
         .add_window_view(|window, cx| Settings::new(Some(path.clone()), config, None, window, cx));
-    view.read_with(cx, |v, _| assert_eq!(v.stale, vec![acme.clone()]));
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.stale, vec![(acme.clone(), Some(other.clone()))])
+    });
 
-    let reconfirm = ReconfirmBinding { path: acme.clone() };
+    let reconfirm = ReconfirmBinding {
+        path: acme.clone(),
+        now: other.clone(),
+    };
     view.update_in(cx, |v, window, cx| {
         v.reconfirm_binding(&reconfirm, window, cx)
     });
@@ -193,4 +198,12 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
     });
     let saved = AccountsConfig::load(&path).expect("saved");
     assert_eq!(saved.bindings[0].resolved(), Some(other.as_path()));
+
+    // Swapped again while the screen is open: the next refresh shows it.
+    std::fs::remove_file(&acme).expect("rm link");
+    std::os::unix::fs::symlink(&root, &acme).expect("retarget");
+    view.update(cx, |v, cx| v.refresh_fs(cx));
+    view.read_with(cx, |v, _| {
+        assert_eq!(v.stale, vec![(acme.clone(), Some(root.clone()))])
+    });
 }
