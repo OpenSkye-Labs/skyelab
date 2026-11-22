@@ -117,7 +117,6 @@ impl Agents for Recorder {
 /// The other machine: its store (one project "app" with one thread on account "work") and its daemon.
 pub(super) struct RemoteSide {
     pub _dir: tempfile::TempDir,
-    pub db: PathBuf,
     pub store: SharedStore,
     pub tailnet: Arc<FakeTailnet>,
     pub ran: Arc<Mutex<Vec<Ran>>>,
@@ -149,7 +148,6 @@ impl RemoteSide {
         drop(free);
         let mut this = Self {
             _dir: dir,
-            db,
             store: Arc::new(Mutex::new(store)),
             tailnet: Arc::new(tailnet),
             ran: Arc::default(),
@@ -205,7 +203,11 @@ impl RemoteSide {
                     }],
                 });
                 let (kind, payload) = record.to_row();
-                last = Some(store.append_event(thread_id, kind, &payload).expect("append"));
+                last = Some(
+                    store
+                        .append_event(thread_id, kind, &payload)
+                        .expect("append"),
+                );
             }
         }
         if push && let (Some(last), Some(daemon)) = (last, &self.daemon) {
@@ -218,13 +220,11 @@ impl RemoteSide {
     }
 
     pub fn options(&self) -> skyelab_client::Options {
-        skyelab_client::Options {
-            port: self.port,
-            backoff_min: Duration::from_millis(50),
-            backoff_max: Duration::from_millis(200),
-            ..skyelab_client::Options::default()
-        }
-        .allow_loopback()
+        let mut options = skyelab_client::Options::default().allow_loopback();
+        options.port = self.port;
+        options.backoff_min = Duration::from_millis(50);
+        options.backoff_max = Duration::from_millis(200);
+        options
     }
 }
 
@@ -240,12 +240,12 @@ pub(super) fn setup(cx: &mut TestAppContext) {
 }
 
 /// A local workspace with an empty store of its own, wired to `tailnet` for the picker.
-pub(super) fn local_workspace<'a>(
+pub(super) fn local_workspace(
     tailnet: Arc<FakeTailnet>,
     settings: Option<PathBuf>,
     options: skyelab_client::Options,
-    cx: &'a mut TestAppContext,
-) -> (Entity<Workspace>, SharedStore, &'a mut VisualTestContext) {
+    cx: &mut TestAppContext,
+) -> (Entity<Workspace>, SharedStore, &mut VisualTestContext) {
     setup(cx);
     let store: SharedStore = Arc::new(Mutex::new(Store::open_in_memory().expect("store")));
     let backend = Backend {
@@ -289,7 +289,9 @@ pub(super) fn switch(ws: &Entity<Workspace>, host: Option<&str>, cx: &mut Visual
     let action = env_mode::SwitchEnvironment {
         host: host.map(str::to_owned),
     };
-    ws.update_in(cx, |ws, window, cx| ws.switch_environment(&action, window, cx));
+    ws.update_in(cx, |ws, window, cx| {
+        ws.switch_environment(&action, window, cx)
+    });
 }
 
 pub(super) fn state(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> String {
@@ -301,7 +303,10 @@ pub(super) fn state(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Strin
 }
 
 /// The sidebar's sections as (title, row labels).
-pub(super) fn sidebar(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<(String, Vec<String>)> {
+pub(super) fn sidebar(
+    ws: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> Vec<(String, Vec<String>)> {
     ws.read_with(cx, |ws, cx| {
         ws.sidebar
             .read(cx)
@@ -329,15 +334,11 @@ pub(super) fn click_row(ws: &Entity<Workspace>, label: &str, cx: &mut VisualTest
             .map(|i| i.action.boxed_clone())
             .unwrap_or_else(|| panic!("no sidebar row {label}"))
     });
-    cx.dispatch_action(action);
+    ws.update_in(cx, |_, window, cx| window.dispatch_action(action, cx));
 }
 
 /// Connected to `remote` and showing its projects.
-pub(super) fn connect(
-    ws: &Entity<Workspace>,
-    remote: &RemoteSide,
-    cx: &mut VisualTestContext,
-) {
+pub(super) fn connect(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut VisualTestContext) {
     let _ = remote;
     switch(ws, Some("127.0.0.1"), cx);
     wait_until(cx, "connected", |cx| state(ws, cx) == "Connected");

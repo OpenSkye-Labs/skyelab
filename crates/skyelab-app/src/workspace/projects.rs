@@ -130,6 +130,12 @@ impl Workspace {
     }
 
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
+        if let Some(sections) = self.remote_sections(cx) {
+            return self.sidebar.update(cx, |sidebar, cx| {
+                sidebar.sections = sections;
+                cx.notify();
+            });
+        }
         let current = self.project.as_ref().map(|p| p.id);
         let projects = self
             .projects

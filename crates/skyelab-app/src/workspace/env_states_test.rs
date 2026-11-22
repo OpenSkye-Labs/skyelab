@@ -19,14 +19,20 @@ fn remote_connecting_connected_reconnecting_recovered(cx: &mut TestAppContext) {
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");
 
     remote.stop();
-    wait_until(cx, "reconnecting", |cx| state(&ws, cx).starts_with("Reconnecting"));
-    let badge = ws.read_with(cx, |ws, cx| ws.env_badge_text(cx)).expect("badge");
+    wait_until(cx, "reconnecting", |cx| {
+        state(&ws, cx).starts_with("Reconnecting")
+    });
+    let badge = ws
+        .read_with(cx, |ws, cx| ws.env_badge_text(cx))
+        .expect("badge");
     assert!(badge.contains("Reconnecting"), "{badge}");
 
     remote.start();
     wait_until(cx, "recovered", |cx| state(&ws, cx) == "Connected");
     // And it lists again after the reconnect.
-    wait_until(cx, "projects", |cx| sidebar(&ws, cx)[0].1 == vec!["app".to_owned()]);
+    wait_until(cx, "projects", |cx| {
+        sidebar(&ws, cx)[0].1 == vec!["app".to_owned()]
+    });
 }
 
 #[gpui::test]
@@ -74,17 +80,16 @@ fn newer_server() -> u16 {
 #[gpui::test]
 fn remote_version_mismatch_is_fatal_and_clear(cx: &mut TestAppContext) {
     let port = newer_server();
-    let options = skyelab_client::Options {
-        port,
-        backoff_min: Duration::from_millis(50),
-        ..skyelab_client::Options::default()
-    }
-    .allow_loopback();
+    let mut options = skyelab_client::Options::default().allow_loopback();
+    options.port = port;
+    options.backoff_min = Duration::from_millis(50);
     let (ws, _local, cx) = local_workspace(Arc::default(), None, options, cx);
     switch(&ws, Some("127.0.0.1"), cx);
-    wait_until(cx, "mismatch", |cx| state(&ws, cx).starts_with("Version mismatch"));
+    wait_until(cx, "mismatch", |cx| {
+        state(&ws, cx).starts_with("Version mismatch")
+    });
     let label = state(&ws, cx);
-    assert!(label.contains("update SkyeLab"), "{label}");
+    assert!(label.contains("Update SkyeLab"), "{label}");
     // Fatal: it stays there.
     for _ in 0..20 {
         cx.run_until_parked();
@@ -155,5 +160,7 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     assert!(sidebar(&ws, cx)[0].1.is_empty(), "the reply hasn't come");
 
     release_tx.send(()).expect("release");
-    wait_until(cx, "projects", |cx| sidebar(&ws, cx)[0].1 == vec!["app".to_owned()]);
+    wait_until(cx, "projects", |cx| {
+        sidebar(&ws, cx)[0].1 == vec!["app".to_owned()]
+    });
 }

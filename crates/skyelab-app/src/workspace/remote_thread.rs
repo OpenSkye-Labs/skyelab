@@ -1,0 +1,371 @@
+//! A thread on another machine: its events arrive through the environment's client (watched, gaps filled by the
+//! client), are mapped with the same `thread_model::apply` and drawn with the same item renderer as a local thread.
+//! Sending and Stop go to the remote daemon; nothing here touches the local store or launches anything.
+
+use super::thread_items::{ItemsView, render_item};
+use super::thread_model::{Item, Record, apply};
+use crate::environment::{EnvEvent, RemoteEnv};
+use gpui::{
+    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
+    IntoElement, ListAlignment, ListState, SharedString, Subscription, Task, Window, actions, div,
+    list, prelude::*, px,
+};
+use gpui_component::{
+    ActiveTheme as _, Disableable as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+    input::{InputEvent, Textarea, TextareaState},
+    v_flex,
+};
+use skyelab_client::{Client, Pending, ThreadEvent};
+use std::collections::HashSet;
+use std::rc::Rc;
+
+actions!(skyelab, [SendRemotePrompt, RemoteStop]);
+
+const CONTEXT: &str = "RemoteThread";
+
+pub enum RemoteThreadEvent {
+    /// A thread was started on the remote, so its project's thread list is stale.
+    Started,
+}
+
+pub struct RemoteThreadView {
+    focus: FocusHandle,
+    env: Entity<RemoteEnv>,
+    client: Rc<Client>,
+    host: SharedString,
+    project_id: i64,
+    thread_id: Option<i64>,
+    title: SharedString,
+    pub(super) items: Vec<Item>,
+    list: ListState,
+    expanded: HashSet<String>,
+    /// The last seq shown. The client delivers each event once, but watching again replays from the start.
+    last_seq: i64,
+    skipped: usize,
+    pub(super) prompt: Entity<TextareaState>,
+    error: Option<SharedString>,
+    starting: bool,
+    _subs: Vec<Subscription>,
+    _start: Option<Task<()>>,
+}
+
+impl EventEmitter<RemoteThreadEvent> for RemoteThreadView {}
+
+impl RemoteThreadView {
+    /// A view of `thread` (id, title), or a new thread in `project_id` when `None`.
+    pub fn new(
+        env: Entity<RemoteEnv>,
+        project_id: i64,
+        thread: Option<(i64, String)>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let prompt = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .auto_grow(2, 10)
+                .placeholder("Ask the agent on the other machine… (⌘↩ to send)")
+        });
+        let subs = vec![
+            cx.subscribe_in(&prompt, window, |this, _, e: &InputEvent, window, cx| {
+                if let InputEvent::PressEnter {
+                    secondary: true, ..
+                } = e
+                {
+                    this.send(&SendRemotePrompt, window, cx);
+                }
+            }),
+            cx.subscribe(&env, |this, _, e: &EnvEvent, cx| match e {
+                EnvEvent::Thread(event) => this.on_event(event, cx),
+            }),
+            // The header's state and account follow the environment.
+            cx.observe(&env, |_, _, cx| cx.notify()),
+        ];
+        let (thread_id, title) = match thread {
+            Some((id, title)) => (Some(id), title.into()),
+            None => (None, "New remote thread".into()),
+        };
+        let client = env.read(cx).client();
+        if let Some(id) = thread_id {
+            client.watch(id, 0);
+        }
+        Self {
+            focus: cx.focus_handle(),
+            host: env.read(cx).host.clone().into(),
+            client,
+            env,
+            project_id,
+            thread_id,
+            title,
+            items: Vec::new(),
+            list: ListState::new(0, ListAlignment::Top, px(600.)),
+            expanded: HashSet::new(),
+            last_seq: 0,
+            skipped: 0,
+            prompt,
+            error: None,
+            starting: false,
+            _subs: subs,
+            _start: None,
+        }
+    }
+
+    pub fn thread_id(&self) -> Option<i64> {
+        self.thread_id
+    }
+
+    pub fn title(&self) -> SharedString {
+        self.title.clone()
+    }
+
+    pub fn env_badge(&self) -> String {
+        format!("Remote · {}", self.host)
+    }
+
+    /// The account the remote reports for this thread (its id; the protocol carries no label).
+    pub fn account(&self, cx: &App) -> Option<String> {
+        let id = self.thread_id?;
+        let env = self.env.read(cx);
+        env.threads
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.account_id.clone())
+    }
+
+    pub fn focus_prompt(&self, window: &mut Window, cx: &mut App) {
+        self.prompt.read(cx).focus_handle(cx).focus(window, cx);
+    }
+
+    fn on_event(&mut self, event: &ThreadEvent, cx: &mut Context<Self>) {
+        if Some(event.thread_id) != self.thread_id || event.seq <= self.last_seq {
+            return;
+        }
+        self.last_seq = event.seq;
+        let Ok(record) = Record::from_row(&event.kind, &event.payload_json) else {
+            // One unreadable event (a newer format) must not hide the rest.
+            self.skipped += 1;
+            self.error = Some(format!("{} events couldn't be read", self.skipped).into());
+            return cx.notify();
+        };
+        let old = self.items.len();
+        if let Some(first) = apply(&mut self.items, &record) {
+            self.list.splice(first..old, self.items.len() - first);
+            cx.notify();
+        }
+    }
+
+    #[cfg(test)]
+    /// The composer's text, sent as if typed: tests and ⌘↩ both come here.
+    pub fn submit(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.prompt
+            .update(cx, |p, cx| p.set_value(text, window, cx));
+        self.send(&SendRemotePrompt, window, cx);
+    }
+
+    fn send(&mut self, _: &SendRemotePrompt, window: &mut Window, cx: &mut Context<Self>) {
+        let text = self.prompt.read(cx).value().trim().to_string();
+        if text.is_empty() || self.starting {
+            return;
+        }
+        self.error = None;
+        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        let client = self.client.clone();
+        // The prompt shows when the remote stores it and its event comes back, so it is never shown twice.
+        match self.thread_id {
+            Some(id) => self.await_ok(client.send_message(id, text), cx),
+            None => {
+                self.starting = true;
+                let pending = client.start_thread(self.project_id, text.clone());
+                self._start = Some(cx.spawn(async move |this, cx| {
+                    let started = pending.recv_async().await;
+                    let _ = this.update(cx, |this, cx| {
+                        this.starting = false;
+                        match started {
+                            Ok(id) => {
+                                this.thread_id = Some(id);
+                                let line = text.lines().next().unwrap_or_default();
+                                this.title = line.chars().take(60).collect::<String>().into();
+                                this.client.watch(id, 0);
+                                cx.emit(RemoteThreadEvent::Started);
+                            }
+                            Err(e) => this.error = Some(e.to_string().into()),
+                        }
+                        cx.notify();
+                    });
+                }));
+            }
+        }
+        cx.notify();
+    }
+
+    pub(super) fn stop(&mut self, _: &RemoteStop, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(id) = self.thread_id {
+            let pending = self.client.interrupt(id);
+            self.await_ok(pending, cx);
+        }
+    }
+
+    /// Shows the call's error, if any, when its reply comes; never waits on the UI thread.
+    fn await_ok(&mut self, pending: Pending<()>, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            if let Err(e) = pending.recv_async().await {
+                let _ = this.update(cx, |this, cx| {
+                    this.error = Some(e.to_string().into());
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    fn render_header(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let theme = cx.theme();
+        let env = self.env.read(cx);
+        let state = env.state.clone();
+        let account = self.account(cx);
+        let pill = |child: SharedString, dot| {
+            h_flex()
+                .gap_1p5()
+                .px_2()
+                .py_0p5()
+                .rounded_md()
+                .border_1()
+                .border_color(theme.border)
+                .text_xs()
+                .child(div().size(px(6.)).rounded_full().bg(dot))
+                .child(child)
+        };
+        h_flex()
+            .px_4()
+            .py_2()
+            .gap_3()
+            .border_b_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_sm()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .truncate()
+                    .child(self.title.clone()),
+            )
+            .child(pill(self.env_badge().into(), state.color(theme)))
+            .children(account.map(|a| pill(a.into(), theme.success)))
+            .when(self.thread_id.is_some(), |this| {
+                this.child(
+                    Button::new("remote-stop")
+                        .danger()
+                        .xsmall()
+                        .label("Stop")
+                        .tooltip("Interrupt the agent on the other machine")
+                        .on_click(
+                            cx.listener(|this, _, window, cx| this.stop(&RemoteStop, window, cx)),
+                        ),
+                )
+            })
+            .into_any_element()
+    }
+}
+
+impl ItemsView for RemoteThreadView {
+    fn items(&self) -> &[Item] {
+        &self.items
+    }
+    fn is_expanded(&self, tool_id: &str) -> bool {
+        self.expanded.contains(tool_id)
+    }
+    fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>) {
+        if !self.expanded.remove(tool_id) {
+            self.expanded.insert(tool_id.to_owned());
+        }
+        if let Some(ix) = self
+            .items
+            .iter()
+            .position(|i| matches!(i, Item::Tool(t) if t.id == tool_id))
+        {
+            self.list.splice(ix..ix + 1, 1);
+        }
+        cx.notify();
+    }
+}
+
+impl Focusable for RemoteThreadView {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
+impl Drop for RemoteThreadView {
+    /// A closed tab stops following its thread, so the client stops fetching its events.
+    fn drop(&mut self) {
+        if let Some(id) = self.thread_id {
+            self.client.unwatch(id);
+        }
+    }
+}
+
+impl Render for RemoteThreadView {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let header = self.render_header(cx);
+        let theme = cx.theme();
+        let connected = self.env.read(cx).state == crate::environment::ConnState::Connected;
+        let body = if self.items.is_empty() {
+            div()
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_sm()
+                .text_color(theme.muted_foreground)
+                .child(if self.thread_id.is_some() {
+                    "Loading the thread from the other machine…"
+                } else {
+                    "Write a prompt below. It runs on the other machine, under its bound account there."
+                })
+                .into_any_element()
+        } else {
+            list(self.list.clone(), cx.processor(render_item))
+                .flex_1()
+                .py_2()
+                .into_any_element()
+        };
+        v_flex()
+            .id("remote-thread")
+            .key_context(CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(Self::send))
+            .on_action(cx.listener(Self::stop))
+            .size_full()
+            .bg(theme.background)
+            .child(header)
+            .child(body)
+            .children(self.error.clone().map(|e| {
+                div()
+                    .mx_4()
+                    .mb_2()
+                    .text_xs()
+                    .text_color(theme.danger)
+                    .child(e)
+            }))
+            .child(
+                h_flex()
+                    .px_4()
+                    .pb_3()
+                    .gap_2()
+                    .items_end()
+                    .child(div().flex_1().child(Textarea::new(&self.prompt)))
+                    .child(
+                        Button::new("remote-send")
+                            .primary()
+                            .small()
+                            .label("Send")
+                            .disabled(self.starting || !connected)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.send(&SendRemotePrompt, window, cx)
+                            })),
+                    ),
+            )
+    }
+}

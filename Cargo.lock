@@ -7405,6 +7405,7 @@ dependencies = [
  "serde_json",
  "skyelab-agent",
  "skyelab-browser",
+ "skyelab-client",
  "skyelab-core",
  "skyelab-daemon",
  "skyelab-devices",

@@ -46,7 +46,9 @@ fn remote_projects_threads_and_live_events_with_a_gap(cx: &mut TestAppContext) {
         ws.read_with(cx, |ws, _| ws.remote_tabs().len()) == 1
     });
     let view = only_tab(&ws, cx);
-    wait_until(cx, "stored events", |cx| texts(&view, cx) == ["first answer"]);
+    wait_until(cx, "stored events", |cx| {
+        texts(&view, cx) == ["first answer"]
+    });
 
     // Live: three new events, only the last pushed. The client fills the gap; each shows once, in order.
     remote.store_texts(remote.thread_id, &["two", "three", "four"], true);
@@ -88,7 +90,9 @@ fn remote_send_start_and_interrupt_reach_the_backend(cx: &mut TestAppContext) {
     view.update_in(cx, |v, window, cx| {
         v.stop(&super::remote_thread::RemoteStop, window, cx)
     });
-    wait_until(cx, "interrupt", |_| remote.ran().contains(&Ran::Interrupt(id)));
+    wait_until(cx, "interrupt", |_| {
+        remote.ran().contains(&Ran::Interrupt(id))
+    });
 
     // New on a remote project: start_thread, then the view follows the new thread's events.
     ws.update_in(cx, |ws, window, cx| {
@@ -100,14 +104,18 @@ fn remote_send_start_and_interrupt_reach_the_backend(cx: &mut TestAppContext) {
     new.update_in(cx, |v, window, cx| v.submit("add tests", window, cx));
     let project = remote.project_id;
     wait_until(cx, "start_thread", |_| {
-        remote.ran().contains(&Ran::Start(project, "add tests".into()))
+        remote
+            .ran()
+            .contains(&Ran::Start(project, "add tests".into()))
     });
     wait_until(cx, "the new thread's prompt", |cx| {
         texts(&new, cx) == ["> add tests"]
     });
     let new_id = new.read_with(cx, |v, _| v.thread_id().expect("started"));
     remote.store_texts(new_id, &["on it"], true);
-    wait_until(cx, "its answer", |cx| texts(&new, cx) == ["> add tests", "on it"]);
+    wait_until(cx, "its answer", |cx| {
+        texts(&new, cx) == ["> add tests", "on it"]
+    });
 }
 
 #[gpui::test]
@@ -127,12 +135,16 @@ fn remote_mode_hides_local_actions_and_switching_back_closes_remote_tabs(cx: &mu
     });
     connect(&ws, &remote, cx);
     assert!(
-        !sidebar(&ws, cx).iter().any(|(_, rows)| rows.contains(&"mine".to_owned())),
+        !sidebar(&ws, cx)
+            .iter()
+            .any(|(_, rows)| rows.contains(&"mine".to_owned())),
         "no local project in remote mode"
     );
 
     // No local terminal for a remote project.
-    ws.update_in(cx, |ws, window, cx| ws.new_terminal(&NewTerminal, window, cx));
+    ws.update_in(cx, |ws, window, cx| {
+        ws.new_terminal(&NewTerminal, window, cx)
+    });
     assert_eq!(ws.read_with(cx, |ws, _| ws.terminals.len()), 0);
 
     click_row(&ws, "app", cx);
