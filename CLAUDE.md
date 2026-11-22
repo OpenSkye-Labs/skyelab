@@ -17,7 +17,8 @@ and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, 
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
-  (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element). Fake the agent with
+  (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point,
+  measured from below the title bar, so subtract its 32 pt from a window screenshot's y at 1x). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path). Both are debug builds only.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo test --workspace`.

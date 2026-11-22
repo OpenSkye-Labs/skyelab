@@ -58,6 +58,8 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         resume,
         prompt,
     } = launch;
+    // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
+    let dir = &std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
     match config.resolve(dir) {
         Some(now) if now == account => {}
         Some(now) => bail!(
@@ -133,7 +135,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     Ok(session)
 }
 
-/// Claude Code session ids are UUIDs. Anything flag-like or odd never reaches the command line.
+/// Claude Code's session ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
 fn valid_session_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
@@ -143,7 +145,7 @@ fn valid_session_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-/// Owns claude's stdin. Ends when the session drops its sender or a write fails (claude exited).
+// shortcut: a tool that left claude's process group and kept its stdin can block this thread after kill(); it leaks one thread, add a close handle if that shows up.
 fn write_lines(mut stdin: ChildStdin, lines: &flume::Receiver<String>) {
     while let Ok(line) = lines.recv() {
         if writeln!(stdin, "{line}")

@@ -52,7 +52,7 @@ pub fn init(cx: &mut App) {
     let bindings: [(&str, Box<dyn Action>); 3] = [
         ("secondary-enter", Box::new(SaveAccount)),
         ("escape", Box::new(CancelEdit)),
-        ("secondary-shift-b", Box::new(BindFolder)), // secondary-b toggles the sidebar everywhere
+        ("secondary-shift-b", Box::new(BindFolder)), // secondary-b is the workspace's sidebar key
     ];
     let bindings: Vec<_> = bindings
         .into_iter()

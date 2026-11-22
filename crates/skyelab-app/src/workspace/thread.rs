@@ -1,7 +1,7 @@
 //! A thread tab: a prompt, and the agent session it starts under the folder's bound account.
 //!
-//! Store writes and the blocking Session calls (start, kill) run off the UI thread: killing
-//! reaps the child, and SQLite is file I/O. Stdin writes only queue, so they never block.
+//! Store writes and every Session call run off the UI thread: SQLite is file I/O, and killing
+//! reaps the child while holding the session lock.
 
 use super::thread_model::{Item, Record, apply};
 use super::{Backend, SharedStore, lock};

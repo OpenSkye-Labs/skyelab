@@ -191,20 +191,8 @@ fn stop_while_starting_stops_the_new_agent(cx: &mut TestAppContext) {
 #[cfg(unix)]
 #[gpui::test]
 fn a_late_end_of_the_stopped_session_leaves_the_resumed_one_running(cx: &mut TestAppContext) {
-    use std::os::unix::fs::PermissionsExt as _;
-    let (_, cx, store, project_id, config, home) = bound_view(cx);
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let bin = home.path().join("lingering-claude.sh");
-    std::fs::write(
-        &bin,
-        format!(
-            "#!/bin/sh\ncat '{}'\nperl -e 'setpgrp(0,0); sleep 3' &\n\
-             while IFS= read -r line; do printf '%s\\n' \"$line\"; done\n",
-            fixtures.join("session.jsonl").display()
-        ),
-    )
-    .expect("write fake");
-    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    let (_, cx, store, project_id, config, _home) = bound_view(cx);
+    let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/lingering-claude.sh");
     let project = store
         .lock()
         .expect("lock")
@@ -232,7 +220,7 @@ fn a_late_end_of_the_stopped_session_leaves_the_resumed_one_running(cx: &mut Tes
         .expect("resumed session");
     for _ in 0..40 {
         cx.run_until_parked();
-        std::thread::sleep(Duration::from_millis(100)); // past the lingering 3 s
+        std::thread::sleep(Duration::from_millis(100)); // past lingering-claude.sh's 3 s
     }
     let current = view.read_with(cx, |t, _| t.session.clone());
     assert!(
