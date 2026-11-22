@@ -308,7 +308,8 @@ fn canonical(p: &Path) -> Option<PathBuf> {
         if let Ok(real) = std::fs::canonicalize(cur) {
             return Some(rejoin(real, &missing));
         }
-        if std::fs::symlink_metadata(cur).is_ok() {
+        // Some Windows volumes can't canonicalize a real folder, so only a link counts as broken.
+        if std::fs::symlink_metadata(cur).is_ok_and(|m| m.file_type().is_symlink()) {
             return None;
         }
         let Some(name) = cur.file_name() else {
