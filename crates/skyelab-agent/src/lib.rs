@@ -12,7 +12,21 @@ use std::io::{BufRead as _, BufReader, Write as _};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, Stdio};
 
+/// Parent env that would pick an account or credential other than the bound one.
+const ACCOUNT_ENV: &[&str] = &[
+    "CLAUDE_CONFIG_DIR",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+];
+
 /// A running `claude` process. Dropping it kills the process.
+///
+/// Writes to stdin block if `claude` stops reading, so call `send_user_message` and `interrupt`
+/// off the UI thread (e.g. GPUI's background executor).
 pub struct Session {
     child: Child,
     stdin: ChildStdin,
@@ -34,6 +48,12 @@ pub fn start_with_bin(
 ) -> Result<Session> {
     let env = config.launch_env(dir)?;
     let mut cmd = Command::new(bin);
+    // Never inherit the parent's account: clear it, then set the bound one.
+    for var in ACCOUNT_ENV {
+        cmd.env_remove(var);
+    }
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
     cmd.args([
         "-p",
         "--input-format",
@@ -43,8 +63,6 @@ pub fn start_with_bin(
         "--verbose",
     ])
     .current_dir(dir)
-    // Never inherit the parent's account: clear it, then set the bound one.
-    .env_remove("CLAUDE_CONFIG_DIR")
     .envs(env)
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
@@ -60,14 +78,14 @@ pub fn start_with_bin(
     std::thread::Builder::new()
         .name("skyelab-agent-reader".into())
         .spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let Ok(line) = line else { break };
-                if line.trim().is_empty() {
-                    continue;
-                }
-                if tx.send(Event::parse(&line)).is_err() {
+            let mut stdout = BufReader::new(stdout);
+            let mut buf = Vec::new();
+            while matches!(stdout.read_until(b'\n', &mut buf), Ok(n) if n > 0) {
+                let line = String::from_utf8_lossy(&buf);
+                if !line.trim().is_empty() && tx.send(Event::parse(line.trim_end())).is_err() {
                     break;
                 }
+                buf.clear();
             }
         })
         .context("spawning reader thread")?;
@@ -107,8 +125,14 @@ impl Session {
         }))
     }
 
-    /// Kills the process and waits for it.
+    /// Kills the process (and on unix its whole process group) and waits for it.
     pub fn kill(&mut self) -> Result<()> {
+        // `unsafe` is denied, so no libc::killpg: the kill binary signals the group instead.
+        #[cfg(unix)]
+        let _ = Command::new("kill")
+            .args(["-KILL", "--", &format!("-{}", self.child.id())])
+            .stderr(Stdio::null())
+            .status();
         // An already-exited child makes kill() error; wait() still reaps it.
         let _ = self.child.kill();
         self.child.wait().context("waiting for claude to exit")?;

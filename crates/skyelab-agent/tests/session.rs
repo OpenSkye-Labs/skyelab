@@ -71,6 +71,7 @@ fn env_check_in_child() {
     let cfg = bound(&dir, &account_dir);
     let session = start_with_bin(&fake_bin(), &cfg, &dir, "hi").expect("start");
     let env = fake_env(session.events());
+    assert_eq!(env["api_key"], "", "parent ANTHROPIC_API_KEY leaked");
     assert_eq!(env["config_dir"], account_dir.to_str().expect("utf-8 path"));
     assert_eq!(env["cwd"], dir.to_str().expect("utf-8 path"));
     let args = env["args"].as_str().expect("args");
@@ -90,6 +91,7 @@ fn child_gets_bound_config_dir() {
         .args(["env_check_in_child", "--exact", "--nocapture"])
         .env(CHILD_MARKER, "1")
         .env("CLAUDE_CONFIG_DIR", "/wrong/parent/value")
+        .env("ANTHROPIC_API_KEY", "parent-key")
         .output()
         .expect("run child test");
     let log =
@@ -115,8 +117,9 @@ fn send_and_kill() {
     session.send_user_message("second").expect("send");
     assert_eq!(echoed(&rx), "second");
     session.kill().expect("kill");
-    assert!(
-        rx.recv_timeout(Duration::from_secs(10)).is_err(),
-        "stream ends after kill"
+    assert_eq!(
+        rx.recv_timeout(Duration::from_secs(10)).map(|_| ()),
+        Err(flume::RecvTimeoutError::Disconnected),
+        "stream ends after kill, even with a grandchild holding stdout"
     );
 }
