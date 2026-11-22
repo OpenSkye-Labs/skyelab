@@ -16,8 +16,9 @@ pub enum ConnState {
     Reconnecting(String),
     /// The remote's gate (whois) dropped us before the handshake. The client keeps retrying.
     Refused,
-    /// Fatal: the client stopped.
+    /// The remote speaks another protocol. Fatal: the client stops and won't retry.
     VersionMismatch(String),
+    /// Fatal for any other reason.
     Stopped(String),
 }
 

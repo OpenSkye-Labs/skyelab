@@ -29,7 +29,7 @@ pub struct EnvPicker {
     pub recents: Vec<String>,
     /// Why the device list is empty (Tailscale off, not installed).
     pub peers_error: Option<SharedString>,
-    /// Why the last pick didn't connect (a malformed name).
+    /// Why the last pick, connection start or recents save failed.
     pub error: Option<SharedString>,
     typed: Entity<InputState>,
     tailnet: SharedTailnet,

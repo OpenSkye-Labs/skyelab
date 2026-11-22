@@ -538,3 +538,6 @@ mod env_states_test;
 
 #[cfg(test)]
 mod env_picker_test;
+
+#[cfg(test)]
+mod env_prompt_loss_test;

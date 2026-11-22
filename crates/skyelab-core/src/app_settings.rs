@@ -9,11 +9,10 @@ use std::path::{Path, PathBuf};
 pub struct AppSettings {
     /// Serve this machine to the user's own tailnet devices. Off unless the user turns it on.
     pub share_on_tailnet: bool,
-    /// Remote environments (MagicDNS names) the user picked, most recent first.
+    /// Remote environments (MagicDNS names or tailnet IPs) the user picked, most recent first.
     pub recent_environments: Vec<String>,
 }
 
-/// How many recent environments the picker remembers.
 pub const MAX_RECENT_ENVIRONMENTS: usize = 8;
 
 impl AppSettings {

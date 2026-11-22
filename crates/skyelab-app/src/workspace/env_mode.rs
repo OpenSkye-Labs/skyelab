@@ -48,7 +48,8 @@ pub struct OpenRemoteThread {
 pub(super) struct EnvMode {
     picker: Option<Entity<EnvPicker>>,
     remote: Option<Entity<RemoteEnv>>,
-    tabs: Vec<WeakEntity<RemoteThreadView>>,
+    /// Each remote tab with its subscription, which goes when the tab does.
+    tabs: Vec<(WeakEntity<RemoteThreadView>, Subscription)>,
     settings_path: Option<PathBuf>,
     options: Options,
     subs: Vec<Subscription>,
@@ -66,20 +67,21 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let picker = cx.new(|cx| EnvPicker::new(tailnet, window, cx));
-        if let Some(path) = settings_path.clone() {
+        // Kept as the first link of the save chain, so a save made right after startup can't be overwritten by it.
+        let load = settings_path.clone().map(|path| {
             let load = cx.background_spawn(async move { AppSettings::load(&path) });
             let weak = picker.downgrade();
             cx.spawn(async move |_, cx| {
-                // A broken file shows no recents; the sharing toggle reports the parse error.
+                // A broken file shows no recents (the save path then reports it, and leaves the file alone).
                 if let Ok(settings) = load.await {
                     let _ = weak.update(cx, |p, cx| {
                         p.recents = settings.recent_environments;
+                        p.recents.retain(|h| valid_host(h));
                         cx.notify();
                     });
                 }
             })
-            .detach();
-        }
+        });
         self.sidebar.update(cx, |s, cx| {
             s.picker = Some(picker.clone());
             cx.notify();
@@ -88,6 +90,7 @@ impl Workspace {
             picker: Some(picker),
             settings_path,
             options,
+            _save: load,
             ..EnvMode::default()
         };
     }
@@ -120,7 +123,11 @@ impl Workspace {
     }
 
     pub(crate) fn remote_tabs(&self) -> Vec<Entity<RemoteThreadView>> {
-        self.env.tabs.iter().filter_map(|t| t.upgrade()).collect()
+        self.env
+            .tabs
+            .iter()
+            .filter_map(|(t, _)| t.upgrade())
+            .collect()
     }
 
     fn toggle_environments(
@@ -156,6 +163,22 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let current = self.env.remote.as_ref().map(|e| e.read(cx).host.clone());
+        let same = match (&a.host, &current) {
+            (Some(new), Some(cur)) => new.eq_ignore_ascii_case(cur),
+            (None, None) => true,
+            _ => false,
+        };
+        if same {
+            // Already there: keep the connection and its tabs, just close the list.
+            if let Some(picker) = &self.env.picker {
+                picker.update(cx, |p, cx| {
+                    p.open = false;
+                    cx.notify();
+                });
+            }
+            return;
+        }
         // Leaving an environment closes all of its tabs and drops its client: nothing remote stays around.
         for tab in self.remote_tabs() {
             self.dock
@@ -255,10 +278,10 @@ impl Workspace {
             SidebarSection {
                 title: "Projects".into(),
                 items: projects,
-                empty_title: if connected {
-                    "No projects there".into()
-                } else {
-                    env.state.label()
+                empty_title: match (&env.error, connected) {
+                    (Some(e), true) => format!("Couldn't list projects: {e}").into(),
+                    (None, true) => "No projects there".into(),
+                    _ => env.state.label(),
                 },
                 empty_hint: format!("Projects on {}. Add them on that machine.", env.host).into(),
                 button: None,
@@ -266,7 +289,10 @@ impl Workspace {
             SidebarSection {
                 title: "Threads".into(),
                 items: threads,
-                empty_title: "No threads".into(),
+                empty_title: match (&env.error, has_project) {
+                    (Some(e), true) => format!("Couldn't list threads: {e}").into(),
+                    _ => "No threads".into(),
+                },
                 empty_hint: if has_project {
                     "Start one with New. It runs on the other machine."
                 } else {
@@ -350,17 +376,15 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.env.subs.push(
-            cx.subscribe(&view, |this, _, e: &RemoteThreadEvent, cx| match e {
-                RemoteThreadEvent::Started => {
-                    if let Some(env) = &this.env.remote {
-                        env.update(cx, |e, cx| e.load_threads(cx));
-                    }
+        let sub = cx.subscribe(&view, |this, _, e: &RemoteThreadEvent, cx| match e {
+            RemoteThreadEvent::Started => {
+                if let Some(env) = &this.env.remote {
+                    env.update(cx, |e, cx| e.load_threads(cx));
                 }
-            }),
-        );
-        self.env.tabs.retain(|t| t.upgrade().is_some());
-        self.env.tabs.push(view.downgrade());
+            }
+        });
+        self.env.tabs.retain(|(t, _)| t.upgrade().is_some());
+        self.env.tabs.push((view.downgrade(), sub));
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
                 panel_handle(view.clone()),

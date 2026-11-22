@@ -4,11 +4,11 @@
 
 use super::thread_items::{ItemsView, render_item};
 use super::thread_model::{Item, Record, apply};
-use crate::environment::{EnvEvent, RemoteEnv};
+use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    IntoElement, ListAlignment, ListState, SharedString, Subscription, Task, Window, actions, div,
-    list, prelude::*, px,
+    IntoElement, ListAlignment, ListState, SharedString, Subscription, Window, actions, div, list,
+    prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Disableable as _, Sizable as _,
@@ -38,6 +38,7 @@ pub struct RemoteThreadView {
     project_id: i64,
     thread_id: Option<i64>,
     title: SharedString,
+    account: Option<String>,
     pub(super) items: Vec<Item>,
     list: ListState,
     expanded: HashSet<String>,
@@ -48,7 +49,6 @@ pub struct RemoteThreadView {
     error: Option<SharedString>,
     starting: bool,
     _subs: Vec<Subscription>,
-    _start: Option<Task<()>>,
 }
 
 impl EventEmitter<RemoteThreadEvent> for RemoteThreadView {}
@@ -79,13 +79,26 @@ impl RemoteThreadView {
             cx.subscribe(&env, |this, _, e: &EnvEvent, cx| match e {
                 EnvEvent::Thread(event) => this.on_event(event, cx),
             }),
-            // The header's state and account follow the environment.
-            cx.observe(&env, |_, _, cx| cx.notify()),
+            // The header's state and account follow the environment. The account is kept once seen, since
+            // the list it comes from changes with the selected project.
+            cx.observe(&env, |this, _, cx| {
+                if let Some(account) = this.listed_account(cx) {
+                    this.account = Some(account);
+                }
+                cx.notify()
+            }),
         ];
         let (thread_id, title) = match thread {
             Some((id, title)) => (Some(id), title.into()),
             None => (None, "New remote thread".into()),
         };
+        let account = thread_id.and_then(|id| {
+            let env = env.read(cx);
+            env.threads
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| t.account_id.clone())
+        });
         let client = env.read(cx).client();
         if let Some(id) = thread_id {
             client.watch(id, 0);
@@ -98,6 +111,7 @@ impl RemoteThreadView {
             project_id,
             thread_id,
             title,
+            account,
             items: Vec::new(),
             list: ListState::new(0, ListAlignment::Top, px(600.)),
             expanded: HashSet::new(),
@@ -107,7 +121,6 @@ impl RemoteThreadView {
             error: None,
             starting: false,
             _subs: subs,
-            _start: None,
         }
     }
 
@@ -125,6 +138,11 @@ impl RemoteThreadView {
 
     /// The account the remote reports for this thread (its id; the protocol carries no label).
     pub fn account(&self, cx: &App) -> Option<String> {
+        self.listed_account(cx).or_else(|| self.account.clone())
+    }
+
+    /// The account in the environment's list, which only holds the selected project's threads.
+    fn listed_account(&self, cx: &App) -> Option<String> {
         let id = self.thread_id?;
         let env = self.env.read(cx);
         env.threads
@@ -156,7 +174,7 @@ impl RemoteThreadView {
     }
 
     #[cfg(test)]
-    /// The composer's text, sent as if typed: tests and ⌘↩ both come here.
+    /// Types `text` into the composer and sends it, as the Send button does.
     pub fn submit(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
@@ -168,53 +186,75 @@ impl RemoteThreadView {
         if text.is_empty() || self.starting {
             return;
         }
+        // The client would refuse it anyway (not connected); say so and keep what was typed.
+        if self.env.read(cx).state != ConnState::Connected {
+            self.error = Some(format!("Not connected to {}. Your text is kept.", self.host).into());
+            return cx.notify();
+        }
         self.error = None;
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        let client = self.client.clone();
         // The prompt shows when the remote stores it and its event comes back, so it is never shown twice.
         match self.thread_id {
-            Some(id) => self.await_ok(client.send_message(id, text), cx),
+            Some(id) => {
+                let pending = self.client.send_message(id, text.clone());
+                self.await_reply(pending, Some(text), window, cx, |_, _, _| {});
+            }
             None => {
                 self.starting = true;
-                let pending = client.start_thread(self.project_id, text.clone());
-                self._start = Some(cx.spawn(async move |this, cx| {
-                    let started = pending.recv_async().await;
-                    let _ = this.update(cx, |this, cx| {
-                        this.starting = false;
-                        match started {
-                            Ok(id) => {
-                                this.thread_id = Some(id);
-                                let line = text.lines().next().unwrap_or_default();
-                                this.title = line.chars().take(60).collect::<String>().into();
-                                this.client.watch(id, 0);
-                                cx.emit(RemoteThreadEvent::Started);
-                            }
-                            Err(e) => this.error = Some(e.to_string().into()),
-                        }
-                        cx.notify();
-                    });
-                }));
+                let pending = self.client.start_thread(self.project_id, text.clone());
+                let title: String = text
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .chars()
+                    .take(60)
+                    .collect();
+                self.await_reply(pending, Some(text), window, cx, move |this, id, cx| {
+                    this.thread_id = Some(id);
+                    this.title = title.into();
+                    this.client.watch(id, 0);
+                    cx.emit(RemoteThreadEvent::Started);
+                });
             }
         }
         cx.notify();
     }
 
-    pub(super) fn stop(&mut self, _: &RemoteStop, _: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn stop(&mut self, _: &RemoteStop, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = self.thread_id {
             let pending = self.client.interrupt(id);
-            self.await_ok(pending, cx);
+            self.await_reply(pending, None, window, cx, |_, _, _| {});
         }
     }
 
-    /// Shows the call's error, if any, when its reply comes; never waits on the UI thread.
-    fn await_ok(&mut self, pending: Pending<()>, cx: &mut Context<Self>) {
-        cx.spawn(async move |this, cx| {
-            if let Err(e) = pending.recv_async().await {
-                let _ = this.update(cx, |this, cx| {
-                    this.error = Some(e.to_string().into());
-                    cx.notify();
-                });
-            }
+    /// Applies the reply when it comes, never waiting on the UI thread. On an error it shows why and puts `text`
+    /// back in the composer, unless the user has typed something new meanwhile.
+    fn await_reply<T: 'static>(
+        &mut self,
+        pending: Pending<T>,
+        text: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        on_ok: impl FnOnce(&mut Self, T, &mut Context<Self>) + 'static,
+    ) {
+        cx.spawn_in(window, async move |this, cx| {
+            let reply = pending.recv_async().await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                this.starting = false;
+                match reply {
+                    Ok(value) => on_ok(this, value, cx),
+                    Err(e) => {
+                        this.error = Some(e.to_string().into());
+                        if let Some(text) = text
+                            && this.prompt.read(cx).value().is_empty()
+                        {
+                            this.prompt
+                                .update(cx, |p, cx| p.set_value(text, window, cx));
+                        }
+                    }
+                }
+                cx.notify();
+            });
         })
         .detach();
     }
@@ -310,7 +350,7 @@ impl Render for RemoteThreadView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
         let theme = cx.theme();
-        let connected = self.env.read(cx).state == crate::environment::ConnState::Connected;
+        let connected = self.env.read(cx).state == ConnState::Connected;
         let body = if self.items.is_empty() {
             div()
                 .flex_1()

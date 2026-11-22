@@ -191,7 +191,7 @@ impl RemoteSide {
         self.daemon = None;
     }
 
-    /// Stores agent text events on the thread; pushes only the last one (so a client must fill the rest).
+    /// Stores agent text events on the thread. With `push`, pushes only the last one, so a client must fill the rest.
     pub fn store_texts(&self, thread_id: i64, texts: &[&str], push: bool) {
         let mut last = None;
         {
