@@ -2,14 +2,21 @@
 //!
 //! Nothing here blocks the caller. Updates (connection changes, watched events) and request results all land in
 //! one inbox; the app keeps receiving from it and hands each message to [`ThreadSource::apply`].
+//!
+//! Node pinning: the first node id a name's hello names is saved in the data dir (`env_store::NODES_FILE`), and
+//! every connection, reconnects included, is held by the client until its hello matches the pin. This trusts the
+//! server's word about itself: the phone has no local Tailscale to ask (docs/mobile.md, step 4).
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use skyelab_client::{
-    Client, DisconnectKind, Error, Options, Pending, Project, Thread, ThreadEvent, Update, WatchId,
+    Client, DisconnectKind, Error, Hello, Options, Pending, Project, Thread, ThreadEvent, Update,
+    WatchId,
 };
 
+use crate::env_store;
 use crate::source::{Connection, Msg, ThreadSource};
 
 pub(crate) enum Inbound {
@@ -27,6 +34,11 @@ const LIST_RETRY: Duration = Duration::from_secs(2);
 
 pub struct RemoteSource {
     client: Client,
+    host: String,
+    /// Where the pins live (the app's data dir).
+    data_dir: PathBuf,
+    /// The current connection's hello, `None` while disconnected. The client holds it until approved.
+    hello: Option<Hello>,
     inbox_tx: flume::Sender<Msg>,
     inbox: flume::Receiver<Msg>,
     connection: Connection,
@@ -43,8 +55,10 @@ pub struct RemoteSource {
 }
 
 impl RemoteSource {
-    /// Starts dialing `host` in the background. Fails on invalid `options` or when its threads can't start.
-    pub fn connect(host: &str, options: Options) -> std::io::Result<Self> {
+    /// Starts dialing `host` in the background, checking each connection against the node pinned for it in
+    /// `data_dir`. Fails on invalid `options` or when its threads can't start.
+    pub fn connect(host: &str, mut options: Options, data_dir: &Path) -> std::io::Result<Self> {
+        options.approve_each_connection = true;
         let client = Client::connect(host, options)?;
         let (inbox_tx, inbox) = flume::unbounded();
         // The client's update channel is unbounded: drain it for as long as the source lives, whatever the
@@ -62,6 +76,9 @@ impl RemoteSource {
             })?;
         Ok(Self {
             client,
+            host: host.trim().to_ascii_lowercase(),
+            data_dir: data_dir.to_path_buf(),
+            hello: None,
             inbox_tx,
             inbox,
             connection: Connection::Connecting,
@@ -121,21 +138,87 @@ impl RemoteSource {
         }
     }
 
+    /// Whether this hello's node may be trusted for the name: the pinned one, or the first one seen (then pinned).
+    /// A pinned name whose hello names no node, or pins that can't be read or saved, is refused.
+    fn check(&self, hello: &Hello) -> Connection {
+        let nodes = match env_store::load_nodes(&self.data_dir) {
+            Ok(nodes) => nodes,
+            Err(e) => return Connection::Unverified(format!("{e:#}")),
+        };
+        match (nodes.get(&self.host), &hello.node_id) {
+            (Some(was), Some(now)) if was == now => Connection::Connected,
+            (Some(was), now) => Connection::NodeChanged {
+                was: was.clone(),
+                now: now.clone(),
+            },
+            (None, Some(now)) => match env_store::trust_node(&self.data_dir, &self.host, now) {
+                Ok(()) => Connection::Connected,
+                Err(e) => Connection::Unverified(format!("couldn't pin it: {e:#}")),
+            },
+            // Never pinned and no id to pin (an old server): nothing to check against, as on desktop.
+            (None, None) => Connection::Connected,
+        }
+    }
+
+    /// Trusted: release the held connection and list.
+    fn up(&mut self) {
+        self.connection = Connection::Connected;
+        self.error = None;
+        if let Some(hello) = &self.hello {
+            self.client.approve(hello);
+        }
+        self.refresh();
+    }
+
+    /// Refused or not trusted: nothing of this machine stays, and its watch ends (the thread screen re-watches
+    /// from the start once trusted again, so no event is lost).
+    fn refuse(&mut self, connection: Connection) {
+        self.connection = connection;
+        self.projects.clear();
+        self.threads.clear();
+        self.events.clear();
+        self.watched = None;
+        if let Some(old) = self.watch_id.take() {
+            self.client.unwatch(old);
+        }
+    }
+
     fn on_update(&mut self, update: Update) {
         match update {
-            Update::Connected(_) => {
-                self.connection = Connection::Connected;
+            Update::Connected(hello) => {
+                let checked = self.check(&hello);
+                self.hello = Some(hello);
                 self.error = None;
-                self.refresh();
+                match checked {
+                    Connection::Connected => self.up(),
+                    refused => self.refuse(refused),
+                }
             }
             // The daemon's gate hung up before answering: not one of the user's own untagged devices.
             Update::Disconnected(d) if d.kind == DisconnectKind::Refused => {
-                self.connection = Connection::Refused;
+                self.hello = None;
+                self.refuse(Connection::Refused);
             }
-            Update::Disconnected(d) => self.connection = Connection::Reconnecting(d.message),
+            // Only with a verifier, which the phone doesn't have; refused all the same.
+            Update::Disconnected(d)
+                if matches!(
+                    d.kind,
+                    DisconnectKind::NotYourDevice | DisconnectKind::IdentityMismatch
+                ) =>
+            {
+                self.hello = None;
+                self.refuse(Connection::Unverified(d.message));
+            }
+            Update::Disconnected(d) => {
+                self.hello = None;
+                self.connection = Connection::Reconnecting(d.message);
+            }
             // A thread we stopped watching may still have a few in flight, and re-watching replays from seq 1 while
             // events from the earlier watch may still be queued: keep each seq once, in order.
-            Update::Event(event) if Some(event.thread_id) == self.watched => {
+            Update::Event(event)
+                if Some(event.thread_id) == self.watched
+                    && self.connection == Connection::Connected =>
+            {
                 if let Err(at) = self.events.binary_search_by_key(&event.seq, |e| e.seq) {
                     self.events.insert(at, event);
                 }
@@ -204,6 +287,19 @@ impl ThreadSource for RemoteSource {
         self.request(pending, |r| Inbound::Done("stop", r));
     }
 
+    fn trust(&mut self, node_id: &str) {
+        let shown = matches!(&self.connection, Connection::NodeChanged { now: Some(now), .. } if now == node_id);
+        let live = self.hello.as_ref().and_then(|h| h.node_id.as_deref()) == Some(node_id);
+        if !shown || !live {
+            self.error = Some("That machine changed again. Check the new warning.".into());
+            return;
+        }
+        match env_store::trust_node(&self.data_dir, &self.host, node_id) {
+            Ok(()) => self.up(),
+            Err(e) => self.error = Some(format!("Couldn't trust that machine: {e:#}")),
+        }
+    }
+
     fn inbox(&self) -> Option<flume::Receiver<Msg>> {
         Some(self.inbox.clone())
     }
@@ -228,7 +324,9 @@ impl ThreadSource for RemoteSource {
             }
             Inbound::Done(_, Ok(())) => {
                 // The thread's status changed; the protocol doesn't push that.
-                if let Some(project_id) = self.open_project {
+                if let Some(project_id) = self.open_project
+                    && self.connection == Connection::Connected
+                {
                     self.load_threads(project_id);
                 }
             }

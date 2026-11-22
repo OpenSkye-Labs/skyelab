@@ -19,8 +19,12 @@ fn pushed_events_appear_on_the_thread_screen(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().expect("temp dir");
     let data = dir.path().to_path_buf();
     let (app, cx) = cx.add_window_view(|window, cx| {
+        let pins = data.clone();
         let connect = Box::new(move |_: &str| {
-            Ok(Box::new(RemoteSource::connect(NODE_NAME, options(port))?) as Box<dyn ThreadSource>)
+            Ok(
+                Box::new(RemoteSource::connect(NODE_NAME, options(port), &pins)?)
+                    as Box<dyn ThreadSource>,
+            )
         });
         MobileApp::new(data.clone(), connect, window, cx)
     });

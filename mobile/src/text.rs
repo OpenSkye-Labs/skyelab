@@ -60,6 +60,22 @@ pub(crate) fn connection_text(connection: &Connection) -> (SharedString, bool) {
                 .into(),
             true,
         ),
+        Connection::NodeChanged { was, now } => {
+            // The id is the server's word; keep a hostile one from flooding the screen.
+            let now: String = now.as_deref().unwrap_or("none").chars().take(64).collect();
+            (
+                format!(
+                    "This isn't the machine you connected to before (node {now}, trusted: {was}). Trust it only \
+                     if you replaced or renamed that machine."
+                )
+                .into(),
+                true,
+            )
+        }
+        Connection::Unverified(why) => (
+            format!("Can't check which machine this is ({why}). Nothing was sent to it.").into(),
+            true,
+        ),
         Connection::VersionMismatch(why) => (
             format!("That machine runs another SkyeLab version ({why}). Update both to the same release.")
                 .into(),

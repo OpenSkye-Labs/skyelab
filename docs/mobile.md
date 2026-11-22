@@ -124,7 +124,19 @@ Each step goes through `/loop`.
    only `<machine>.<tailnet>.ts.net` names. The screens show Connecting, Connected, Reconnecting (with why), Refused
    (the daemon's gate closed the socket: not one of your own untagged devices) and a version mismatch. It calls only
    `Client::connect(host, Options::default())`, so the transport the client defaults to (`wss://` once it lands) is
-   what the phone uses. Tests run it against an in-process daemon with a fake tailnet: the shared harness in
+   what the phone uses.
+   **Done (node pinning, 2026-11-23):** the phone pins the node StableID per MagicDNS name in `nodes.json` in its
+   data dir, from the hello: the phone has no Tailscale CLI, and the official app's LocalAPI is sandboxed, so it
+   can't ask its own Tailscale who it dialled as the desktop does (`tailscale whois`). The first id a name reports
+   is pinned. Another id later shows "This isn't the machine you connected to before" with **Trust it** (which
+   re-pins exactly the node shown, and only while that node is still connected). A pinned name whose hello has no id,
+   and a pin file that can't be read or parsed, are refused. Until a connection passes, the client holds it
+   (`approve_each_connection`): nothing is listed, watched or sent. A refusal empties the projects, threads and
+   events and leaves the thread screen. **This is weaker than the desktop:** it trusts the server's report about
+   itself, so it catches a reused device name or a replaced machine, but a node that took over the name and replays
+   the old id passes. Upgrade path: an embedded `libtailscale`/tsnet node, or the Tailscale app's LocalAPI if it is
+   ever exposed, then pass a `PeerVerifier` like the desktop's.
+   Tests run it against an in-process daemon with a fake tailnet: the shared harness in
    `skyelab_daemon::testing` and `skyelab_client::testing::options`, both behind `test-support`, dev-dependencies only.
 5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
    composer (send) and a stop button (interrupt). Handle safe areas on both platforms.

@@ -14,7 +14,9 @@ use skyelab_mobile::{
 #[test]
 fn a_failed_thread_list_is_retried() {
     let env = start();
-    let mut source = RemoteSource::connect(NODE_NAME, options(env.port)).expect("client");
+    let pins = tempfile::tempdir().expect("pin dir");
+    let mut source =
+        RemoteSource::connect(NODE_NAME, options(env.port), pins.path()).expect("client");
     let inbox = source.inbox().expect("inbox");
     let deadline = Instant::now() + Duration::from_secs(10);
     let settle = |source: &mut RemoteSource, what: &str, done: &dyn Fn(&RemoteSource) -> bool| {

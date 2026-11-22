@@ -119,7 +119,8 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   with `tailscale whois`). Browser pages (any `Origin` header) are refused. A connected device can list and drive
   threads, but can't add projects, change accounts or bindings, or open terminals. The client checks the
   certificate against the exact MagicDNS name it dialled, and the desktop app also asks its own Tailscale who it
-  dialled: only your own untagged devices, and the same Tailscale node it saw for that name before.
+  dialled: only your own untagged devices, and the same Tailscale node it saw for that name before. The phone
+  remembers the node too, but only from what the machine says about itself (it has no Tailscale CLI to ask).
 
 The full rules are in [docs/architecture.md](docs/architecture.md) under "Remote" and "Decisions".
 
