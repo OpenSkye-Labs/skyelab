@@ -35,6 +35,7 @@ tokio-tungstenite = "0.30"
 tungstenite = "0.30"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-browser = { path = "crates/skyelab-browser" }
+skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }
 skyelab-store = { path = "crates/skyelab-store" }
 skyelab-tailnet = { path = "crates/skyelab-tailnet" }

@@ -7403,6 +7403,7 @@ dependencies = [
  "gpui-pre-platform",
  "skyelab-browser",
  "skyelab-core",
+ "skyelab-devices",
  "skyelab-terminal",
  "tempfile",
 ]
