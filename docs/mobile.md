@@ -93,6 +93,8 @@ Each step goes through `/loop`.
    `list_threads`, `thread_events_since`, `send_message`, `interrupt`, and pushed `Event`s, with gap fill by `seq`. It
    runs tokio on its own thread and talks to the UI through channels (the `docs/gpui.md` async rule). Test it against a
    real `skyelab-daemon` in-process. The desktop environment switcher uses it too.
+   **Done:** `crates/skyelab-client`. Only watched threads get events (`Client::watch(thread, after_seq)`). A request
+   is never re-sent after a dropped connection; it fails with `ConnectionLost`, because `send_message` may have run.
 2. **Fork `gpui-pre-mobile`.** Fork longbridge/gpui-mobile, apply the 0.3.12 patch, pin it by git rev, and send the
    patch upstream. Add "re-port gpui-mobile" to the GPUI bump rule in `docs/gpui.md`.
 3. **`mobile/` app crate**, outside the desktop workspace like the spike, with its own lockfile. It shares path deps
@@ -104,6 +106,11 @@ Each step goes through `/loop`.
    has, so `skyelab-client` refuses any address outside Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48), or
    better, uses `wss://` with the node's `tailscale cert`. A lost phone is revoked by removing it from the tailnet.
    An embedded `libtailscale` node comes later, only if needing the VPN app is a real problem.
+   **Done (address check):** `skyelab-client` resolves the name, dials only the tailnet addresses it got back
+   (`is_tailnet_ip`), and never re-resolves. Loopback is refused too; the exception exists only under `cargo test`.
+   **Still open:** 100.64.0.0/10 is also carrier-grade NAT space, so with the VPN off a hostile DNS on such a carrier
+   can still point at another subscriber's 100.x host. `wss://` with the node's `tailscale cert` closes that and should
+   land before the app goes to anyone but the developer. It needs the daemon to serve TLS.
 5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
    composer (send) and a stop button (interrupt). Handle safe areas on both platforms.
 6. **Packaging.** iOS: a generated Xcode project (or the spike's plist) with signing for device builds. Android: the

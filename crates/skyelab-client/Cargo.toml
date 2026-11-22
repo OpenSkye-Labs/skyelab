@@ -1,0 +1,25 @@
+[package]
+name = "skyelab-client"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+flume.workspace = true
+futures.workspace = true
+serde_json.workspace = true
+skyelab-protocol.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+skyelab-daemon.workspace = true
+skyelab-store.workspace = true
+skyelab-tailnet.workspace = true
+tempfile.workspace = true
+tungstenite.workspace = true
+
+[lints]
+workspace = true
