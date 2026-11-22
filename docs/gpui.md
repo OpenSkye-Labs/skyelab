@@ -52,7 +52,7 @@ and how Zed uses it, not blog posts or memory.
 
 ## Keyboard and focus
 
-- Commands are `actions!(skyelab, [NewThread, ..])`, bound with `KeyBinding::new("cmd-n", NewThread, Some("Workspace"))`.
+- Commands are `actions!(skyelab, [NewThread, ..])`, bound with `KeyBinding::new("cmd-n", NewThread, Some("Workspace"))`. `KeyBinding::new` panics on `secondary-` (it has no OS to resolve it): use `KeyBinding::load(.., cx)` for those.
   Use `secondary-` (cmd on mac, ctrl elsewhere) for cross-platform bindings.
 - Handlers: `.key_context("Workspace").on_action(cx.listener(Self::new_thread))`. Every user command is an action,
   so it is bindable and shows in the command palette. No ad-hoc `on_key_down` for commands.

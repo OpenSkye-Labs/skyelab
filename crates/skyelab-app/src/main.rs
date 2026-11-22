@@ -1,59 +1,31 @@
-use gpui::{App, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px, size};
-use gpui_component::{ActiveTheme as _, Root};
+mod settings;
+
+use gpui::{App, AppContext as _, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui_component::Root;
 use skyelab_core::AccountsConfig;
 
-struct Shell {
-    config: AccountsConfig,
-    error: Option<String>,
-}
-
-impl Render for Shell {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        div()
-            .size_full()
-            .p_4()
-            .flex()
-            .flex_col()
-            .gap_2()
-            .bg(theme.background)
-            .text_color(theme.foreground)
-            .child(div().text_xl().child("SkyeLab"))
-            .children(
-                self.error
-                    .clone()
-                    .map(|e| div().text_color(theme.danger).child(e)),
-            )
-            .children(
-                self.config
-                    .bindings
-                    .iter()
-                    .map(|b| div().child(format!("{}  →  {}", b.path.display(), b.account))),
-            )
-    }
-}
-
 fn main() {
-    let (config, error) = match AccountsConfig::default_path().map(|p| AccountsConfig::load(&p)) {
+    let path = AccountsConfig::default_path();
+    let (config, error) = match path.as_deref().map(AccountsConfig::load) {
         Some(Ok(c)) => (c, None),
         Some(Err(e)) => (AccountsConfig::default(), Some(format!("{e:#}"))),
-        None => (
-            AccountsConfig::default(),
-            Some("no config directory on this OS".into()),
-        ),
+        None => (AccountsConfig::default(), None),
     };
 
     gpui_platform::application().run(move |cx: &mut App| {
         gpui_component::init(cx);
-        let bounds = Bounds::centered(None, size(px(900.), px(600.)), cx);
+        settings::init(cx);
+        let bounds = Bounds::centered(None, size(px(900.), px(700.)), cx);
         let opened = cx.open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
             |window, cx| {
-                let shell = cx.new(|_| Shell { config, error });
-                cx.new(|cx| Root::new(shell, window, cx))
+                let view = cx.new(|cx| settings::Settings::new(path, config, error, window, cx));
+                let focus = gpui::Focusable::focus_handle(view.read(cx), cx);
+                window.focus(&focus, cx);
+                cx.new(|cx| Root::new(view, window, cx))
             },
         );
         if let Err(e) = opened {

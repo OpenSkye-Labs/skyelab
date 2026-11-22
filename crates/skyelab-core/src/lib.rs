@@ -45,6 +45,9 @@ impl AccountsConfig {
     }
 
     fn validate(&self) -> Result<()> {
+        for a in &self.accounts {
+            check_account(a)?;
+        }
         for b in &self.bindings {
             if !self.accounts.iter().any(|a| a.id == b.account) {
                 bail!(
@@ -57,15 +60,102 @@ impl AccountsConfig {
         Ok(())
     }
 
+    /// Validate, then write atomically (temp file in the same dir, then rename), creating the parent dir.
+    pub fn save(&self, path: &Path) -> Result<()> {
+        self.validate()?;
+        let text = toml::to_string_pretty(self).context("serializing accounts config")?;
+        let dir = path
+            .parent()
+            .with_context(|| format!("{} has no parent dir", path.display()))?;
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        // Write through a symlinked config (dotfiles) instead of replacing the link.
+        let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        // Unique per process, so two running apps never interleave writes into one temp file.
+        let tmp = target.with_extension(format!("toml.{}.tmp", std::process::id()));
+        let written = (|| {
+            let mut f = std::fs::File::create(&tmp)?;
+            std::io::Write::write_all(&mut f, text.as_bytes())?;
+            f.sync_all()?;
+            std::fs::rename(&tmp, &target)
+        })();
+        if written.is_err() {
+            let _ = std::fs::remove_file(&tmp); // best effort; the original file is untouched
+        }
+        written.with_context(|| format!("saving {}", target.display()))
+    }
+
+    pub fn add_account(&mut self, account: Account) -> Result<()> {
+        check_account(&account)?;
+        if self.accounts.iter().any(|a| a.id == account.id) {
+            bail!("account '{}' already exists", account.id);
+        }
+        self.accounts.push(account);
+        Ok(())
+    }
+
+    /// Replace the label and config dir of the account with the same id.
+    pub fn update_account(&mut self, account: Account) -> Result<()> {
+        check_account(&account)?;
+        let slot = self
+            .accounts
+            .iter_mut()
+            .find(|a| a.id == account.id)
+            .with_context(|| format!("unknown account '{}'", account.id))?;
+        *slot = account;
+        Ok(())
+    }
+
+    /// Refuses while any binding still uses the account. Never cascades.
+    pub fn remove_account(&mut self, id: &str) -> Result<()> {
+        let bound: Vec<_> = self
+            .bindings
+            .iter()
+            .filter(|b| b.account == id)
+            .map(|b| b.path.display().to_string())
+            .collect();
+        if !bound.is_empty() {
+            bail!(
+                "account '{id}' is still bound to {}; remove those bindings first",
+                bound.join(", ")
+            );
+        }
+        let before = self.accounts.len();
+        self.accounts.retain(|a| a.id != id);
+        if self.accounts.len() == before {
+            bail!("unknown account '{id}'");
+        }
+        Ok(())
+    }
+
+    pub fn add_binding(&mut self, binding: Binding) -> Result<()> {
+        if !self.accounts.iter().any(|a| a.id == binding.account) {
+            bail!("unknown account '{}'", binding.account);
+        }
+        let new = canonical(&binding.path);
+        if self.bindings.iter().any(|b| canonical(&b.path) == new) {
+            bail!("{} is already bound", binding.path.display());
+        }
+        self.bindings.push(binding);
+        Ok(())
+    }
+
+    pub fn remove_binding(&mut self, path: &Path) -> Result<()> {
+        let before = self.bindings.len();
+        self.bindings.retain(|b| b.path != path);
+        if self.bindings.len() == before {
+            bail!("{} is not bound", path.display());
+        }
+        Ok(())
+    }
+
     /// The account bound to `dir`: deepest binding wins. `None` means unbound, and the
     /// caller must ask the user. Never fall back to a default account, that is the bug we exist to prevent.
     pub fn resolve(&self, dir: &Path) -> Option<&Account> {
-        let dir = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+        let dir = canonical(dir);
         self.bindings
             .iter()
             .filter(|b| {
-                let bp = std::fs::canonicalize(&b.path).unwrap_or_else(|_| b.path.clone());
-                dir.starts_with(bp) // component-wise, so /work/acme does not match /work/acme-old
+                dir.starts_with(canonical(&b.path)) // component-wise, so /work/acme does not match /work/acme-old
             })
             .max_by_key(|b| b.path.components().count())
             .and_then(|b| self.accounts.iter().find(|a| a.id == b.account))
@@ -78,6 +168,25 @@ impl AccountsConfig {
             .with_context(|| format!("{} is not bound to an account", dir.display()))?;
         Ok(vec![("CLAUDE_CONFIG_DIR", account.config_dir.clone())])
     }
+}
+
+fn canonical(p: &Path) -> PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+}
+
+/// An empty or relative `CLAUDE_CONFIG_DIR` would run the agent under some other account.
+fn check_account(a: &Account) -> Result<()> {
+    if a.id.trim().is_empty() {
+        bail!("account id can't be empty");
+    }
+    if !a.config_dir.is_absolute() {
+        bail!(
+            "config dir for '{}' must be an absolute path, got '{}'",
+            a.id,
+            a.config_dir.display()
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]
