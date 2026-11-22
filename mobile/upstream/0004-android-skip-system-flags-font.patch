@@ -2,7 +2,7 @@ diff --git a/src/android/platform.rs b/src/android/platform.rs
 index 7c93b06..4057ed9 100644
 --- a/src/android/platform.rs
 +++ b/src/android/platform.rs
-@@ -366,12 +366,9 @@ impl AndroidPlatform {
+@@ -366,12 +366,10 @@ impl AndroidPlatform {
                  "/system/fonts/NotoSansArabic-Regular.ttf",
                  "/system/fonts/NotoSansHebrew-Regular.ttf",
                  "/system/fonts/NotoSansThai-Regular.ttf",
@@ -14,7 +14,8 @@ index 7c93b06..4057ed9 100644
 -                "/system/fonts/NotoColorEmojiFlags.ttf",
 +                // No NotoColorEmojiFlags.ttf: the text system draws colour only
 +                // for the PostScript name NotoColorEmoji, so flags falling back
-+                // to it were not drawn in colour. The emoji font loaded below has flags.
++                // to it were not drawn in colour. Stock Android before 13 has flags
++                // in its one CBDT emoji font, and the bundled fallback has them too.
                  // Serif (fallback)
                  "/system/fonts/NotoSerif-Regular.ttf",
                  "/system/fonts/NotoSerif-Bold.ttf",

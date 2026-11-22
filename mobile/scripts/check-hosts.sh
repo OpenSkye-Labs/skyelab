@@ -38,8 +38,14 @@ sha=$(shasum -a 256 "$host/gradle/wrapper/gradle-wrapper.jar" | cut -d' ' -f1)
 meta=$host/gradle/verification-metadata.xml
 grep -q '<verify-metadata>true</verify-metadata>' "$meta" 2>/dev/null && grep -q '<sha256 value="[0-9a-f]\{64\}"' "$meta" ||
     bad "$meta missing or has no sha256 checksums"
+# Anything that exempts artifacts or switches checking off: trust rules, comments (a commented-out true), lenient mode.
+! grep -qE '<trust|<ignored-key|<!--|>false</verify-metadata>' "$meta" 2>/dev/null || bad "$meta exempts artifacts or turns checking off"
+! grep -rqE 'dependency[.-]verification' $host/gradle.properties scripts ../.github/workflows/mobile.yml --exclude=check-hosts.sh ||
+    bad "something sets Gradle's dependency-verification mode (it must stay strict)"
 # aapt2 is one jar per OS; --write-verification-metadata records only the one it ran on, and CI is Linux.
-for v in $(grep -oE '<component group="com.android.tools.build" name="aapt2" version="[^"]+"' "$meta" | cut -d'"' -f6); do
+aapt2=$(grep -oE '<component group="com.android.tools.build" name="aapt2" version="[^"]+"' "$meta" | cut -d'"' -f6 || true)
+[[ -n $aapt2 ]] || bad "$meta has no aapt2 entry"
+for v in $aapt2; do
     for os in osx linux windows; do
         grep -q "<artifact name=\"aapt2-$v-$os.jar\">" "$meta" || bad "$meta has no aapt2-$v-$os.jar (docs/mobile.md step 6)"
     done
