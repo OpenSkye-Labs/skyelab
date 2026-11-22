@@ -101,10 +101,13 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
 `thread_status`, `read_thread`, `send_message` and `wait_thread`.
 
 - **Account rule.** A delegated thread runs under its target project's bound account, through the normal launch
-  path. An agent under account A can only list, start, read or drive threads in projects bound to A, and only
-  threads recorded under A. An unbound target is refused; there is never a default account. This keeps a work agent
-  from spending the personal plan, and the reverse.
-- **Limits.** Depth 2 at most (a user's thread is depth 0), and 4 running children per thread.
+  path, pinned to the account the start was approved for. An agent under account A can only list and start in
+  projects bound to A. It can read, wait on and message only threads it delegated itself (its descendants), recorded
+  under A, and only while they run: a message never restarts a thread that ended or that the user stopped. An unbound
+  target is refused; there is never a default account. This keeps a work agent from spending the personal plan, and
+  the reverse, and keeps an agent out of the user's other threads.
+- **Limits.** Depth 2 at most (a user's thread is depth 0), and 4 children starting or running per thread (a child
+  that finished its turn frees its slot).
 - **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<data dir>/skyelab/run/<pid>/` (0700). Each agent
   session gets a grant: a one-use random token and a 0600 `--mcp-config` file that runs `skyelab --mcp-proxy`. The
   proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
