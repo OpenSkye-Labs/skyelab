@@ -2,6 +2,7 @@
 //! "Work (Team)" rather than `work`. The label is additive on the wire (protocol 1.1).
 
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_daemon::{Backend, NotWired, StoreBackend};
@@ -51,7 +52,7 @@ fn threads_carry_the_label_from_accounts_toml() {
     .save(&path)
     .expect("save accounts");
     let (store, project) = store();
-    let backend = StoreBackend::new(store, NotWired).with_accounts(Some(path.clone()));
+    let backend = StoreBackend::shared(Arc::new(Mutex::new(store)), NotWired, Some(path.clone()));
     assert_eq!(
         labels(&backend, project),
         [
@@ -71,7 +72,7 @@ fn threads_carry_the_label_from_accounts_toml() {
 #[test]
 fn no_accounts_file_means_no_labels() {
     let (store, project) = store();
-    let backend = StoreBackend::new(store, NotWired).with_accounts(None);
+    let backend = StoreBackend::shared(Arc::new(Mutex::new(store)), NotWired, None);
     assert!(labels(&backend, project).iter().all(|(_, l)| l.is_none()));
 }
 
