@@ -122,7 +122,7 @@ index c72bf2f..3ab5481 100644
  ///
  /// # Safety
 diff --git a/src/android/window.rs b/src/android/window.rs
-index 92b28c7..8a3bc1e 100644
+index 92b28c7..e8a7fac 100644
 --- a/src/android/window.rs
 +++ b/src/android/window.rs
 @@ -346,6 +346,10 @@ struct WindowState {
@@ -152,17 +152,23 @@ index 92b28c7..8a3bc1e 100644
              appearance: WindowAppearance::Light,
              is_active: false,
              transparent: false,
-@@ -1122,6 +1128,31 @@ impl AndroidWindow {
+@@ -1120,6 +1126,35 @@ impl AndroidWindow {
+             insets.right,
+         );
          state.safe_area_insets = insets;
-     }
- 
++        // The content rect can't tell the keyboard apart; `update_insets` sets it when `WindowInsets` can.
++        state.ime_bottom = 0.0;
++    }
++
 +    /// Replace the content-rect estimate with the window's own insets, in
 +    /// physical pixels: `bars` (left, top, right, bottom) from
 +    /// `systemBars() | displayCutout()`, `ime_bottom` from `ime()`.
 +    ///
 +    /// The content rect only shrinks for the keyboard while the system still
 +    /// resizes for it (`adjustResize` below target SDK 35); `WindowInsets`
-+    /// reports it either way, and separately from the navigation bar.
++    /// reports it either way, and separately from the navigation bar. It is
++    /// read when the content rect or insets change, so under edge-to-edge it
++    /// depends on the activity reporting such a change for the keyboard.
 +    pub fn update_insets(&self, bars: [i32; 4], ime_bottom: i32) {
 +        let mut state = self.state.lock();
 +        let [left, top, right, bottom] = bars.map(|v| v.max(0) as f32);
@@ -179,12 +185,10 @@ index 92b28c7..8a3bc1e 100644
 +    pub fn ime_bottom_logical(&self) -> f32 {
 +        let state = self.state.lock();
 +        state.ime_bottom / state.scale_factor
-+    }
-+
-     // ── state queries ─────────────────────────────────────────────────────────
+     }
  
-     /// Whether the window currently has an active wgpu surface.
-@@ -1520,6 +1551,10 @@ impl PlatformWindow for AndroidPlatformWindow {
+     // ── state queries ─────────────────────────────────────────────────────────
+@@ -1520,6 +1555,10 @@ impl PlatformWindow for AndroidPlatformWindow {
                  bottom: gpui::px(s.bottom),
                  left: gpui::px(s.left),
              },

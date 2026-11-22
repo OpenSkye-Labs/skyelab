@@ -57,6 +57,13 @@ jobs:
           key: ios
       - run: scripts/fetch-gpui-mobile.sh
       - run: scripts/check-pins.sh
+      # skyelab-client's loopback exception is for tests only: fail if a shipping build turns it on.
+      - name: No test-loopback in shipping builds
+        run: |
+          if cargo tree --locked -e normal,build -p skyelab-mobile -p skyelab-mobile-android -i skyelab-client -f '{p} {f}' | grep test-loopback; then
+            echo "a shipping build enables skyelab-client/test-loopback" >&2
+            exit 1
+          fi
       # -p, not --all: --all would also check the fetched gpui-mobile and skyelab-protocol (the desktop checks it).
       - run: cargo fmt --check -p skyelab-mobile -p skyelab-mobile-android
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings

@@ -79,6 +79,9 @@ gpui-mobile's TalkBack adapter). Release wraps it to `-1` as a `jint`, which is 
   already shrank for the soft keyboard, so the composer was never covered there; what was missing was `ime` (zero)
   and a safe area that carried the keyboard height. With 0003 logcat shows `bars=[0, 132, 0, 63] ime_bottom=883`
   with the keyboard up. No keyboard animation tracking: the layout jumps once the insets settle.
+  Still untested: edge-to-edge (target SDK 35+). There the content rect stops changing for the keyboard, and 0003
+  reads `WindowInsets` only on a content-rect or insets change, so it relies on NativeActivity reporting one. Our own
+  Gradle host (docs/mobile.md step 6) should check this, or add an `OnApplyWindowInsetsListener`.
 - **The Gradle host** in `scripts/run-android.sh` is gpui-mobile's example. Its manifest asks for camera, microphone,
   contacts, calendar, media and notification permissions and exports a `gpui://` deep link, and its Gradle wrapper has
   no `distributionSha256Sum`. Fine for a dev build on an emulator; our own cut-down host is docs/mobile.md step 6 and
