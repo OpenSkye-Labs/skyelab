@@ -22,8 +22,8 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
     }
 }
 
-/// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,..` dispatches those actions on the
-/// first frame, because `/loop-verify-ui` can't send input to a topmost window.
+/// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,..` dispatches those actions from the
+/// first frame on, two seconds apart, because `/loop-verify-ui` can't send input to a topmost window.
 fn dispatch_verify_actions(window: &mut gpui::Window) {
     let Some(names) = std::env::var("SKYELAB_VERIFY_ACTIONS")
         .ok()
@@ -32,12 +32,20 @@ fn dispatch_verify_actions(window: &mut gpui::Window) {
         return;
     };
     window.on_next_frame(move |window, cx| {
-        for name in names.split(',') {
-            match cx.build_action(name, None) {
-                Ok(action) => window.dispatch_action(action, cx),
-                Err(e) => eprintln!("SKYELAB_VERIFY_ACTIONS: {name}: {e:#}"),
-            }
-        }
+        // Two seconds apart, so each action's result (a page loading, a tab switch) gets drawn first.
+        window
+            .spawn(cx, async move |cx| {
+                for name in names.split(',') {
+                    let _ = cx.update(|window, cx| match cx.build_action(name, None) {
+                        Ok(action) => window.dispatch_action(action, cx),
+                        Err(e) => eprintln!("SKYELAB_VERIFY_ACTIONS: {name}: {e:#}"),
+                    });
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs(2))
+                        .await;
+                }
+            })
+            .detach();
     });
 }
 
