@@ -27,7 +27,10 @@ fn parent_round_trips_and_children_list() {
     let a = thread(&store, p.id, "a");
     let b = thread(&store, p.id, "b");
     let _other = thread(&store, p.id, "other");
-    assert_eq!(store.thread(a).expect("read").expect("a").parent_thread_id, None);
+    assert_eq!(
+        store.thread(a).expect("read").expect("a").parent_thread_id,
+        None
+    );
     store.set_thread_parent(a, Some(parent)).expect("set a");
     store.set_thread_parent(b, Some(parent)).expect("set b");
     assert_eq!(
@@ -43,10 +46,16 @@ fn parent_round_trips_and_children_list() {
     kids.sort();
     assert_eq!(kids, vec![a, b]);
     assert!(store.child_threads(a).expect("none").is_empty());
-    assert!(store.set_thread_parent(a, Some(9999)).is_err(), "parent must exist");
+    assert!(
+        store.set_thread_parent(a, Some(9999)).is_err(),
+        "parent must exist"
+    );
     // Deleting a parent keeps its children, unlinked.
     store.delete_thread(parent).expect("delete parent");
-    assert_eq!(store.thread(a).expect("read").expect("a").parent_thread_id, None);
+    assert_eq!(
+        store.thread(a).expect("read").expect("a").parent_thread_id,
+        None
+    );
 }
 
 #[test]
@@ -62,7 +71,7 @@ fn v2_database_upgrades_with_no_parents() {
     }
     // Roll the file back to schema 2, as an older build left it.
     let conn = Connection::open(&path).expect("open raw");
-    conn.execute_batch("ALTER TABLE threads DROP COLUMN parent_thread_id; PRAGMA user_version = 2;")
+    conn.execute_batch("DROP INDEX threads_by_parent; ALTER TABLE threads DROP COLUMN parent_thread_id; PRAGMA user_version = 2;")
         .expect("downgrade");
     drop(conn);
     let store = Store::open(&path).expect("migrates");

@@ -47,6 +47,10 @@ CREATE TABLE events (
 ALTER TABLE threads ADD COLUMN worktree_path TEXT;
 ALTER TABLE threads ADD COLUMN worktree_branch TEXT;
 ",
+    "
+ALTER TABLE threads ADD COLUMN parent_thread_id INTEGER REFERENCES threads(id) ON DELETE SET NULL;
+CREATE INDEX threads_by_parent ON threads(parent_thread_id);
+",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +78,8 @@ pub struct Thread {
     pub worktree_path: Option<PathBuf>,
     /// The worktree's branch. Kept after a discard, like the branch itself.
     pub worktree_branch: Option<String>,
+    /// The thread whose agent delegated this one, if any.
+    pub parent_thread_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,7 +112,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch";
+const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, parent_thread_id";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it.
@@ -225,6 +231,7 @@ impl Store {
             updated_at: now,
             worktree_path: None,
             worktree_branch: None,
+            parent_thread_id: None,
         })
     }
 
@@ -284,6 +291,21 @@ impl Store {
     }
 
     /// Also deletes the thread's events.
+    /// Links a delegated thread to the thread that started it. The parent must exist.
+    pub fn set_thread_parent(&self, id: i64, parent: Option<i64>) -> Result<()> {
+        self.update_thread(id, "parent_thread_id", parent)
+            .with_context(|| format!("link thread {id} to parent {parent:?}"))
+    }
+
+    /// The threads `parent` delegated, oldest first.
+    pub fn child_threads(&self, parent: i64) -> Result<Vec<Thread>> {
+        let sql =
+            format!("SELECT {THREAD_COLS} FROM threads WHERE parent_thread_id = ?1 ORDER BY id");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([parent], thread_from_row)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn delete_thread(&self, id: i64) -> Result<()> {
         let n = self
             .conn
@@ -377,6 +399,7 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         updated_at: r.get(8)?,
         worktree_path: r.get::<_, Option<String>>(9)?.map(PathBuf::from),
         worktree_branch: r.get(10)?,
+        parent_thread_id: r.get(11)?,
     })
 }
 

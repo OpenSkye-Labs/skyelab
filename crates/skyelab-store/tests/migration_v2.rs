@@ -54,7 +54,7 @@ fn v1_database_migrates_to_v2_and_keeps_threads() {
         .expect("reopen")
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 2);
+    assert!(version >= 2, "migrated past v2, got {version}");
 
     // Discarding clears the path and keeps the branch; reopening an upgraded file is a no-op.
     let store = Store::open(&path).expect("reopen at v2");

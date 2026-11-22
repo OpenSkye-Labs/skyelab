@@ -21,8 +21,12 @@ fn fixture() -> Fixture {
         std::fs::create_dir_all(&d).expect("mkdir");
         d
     };
-    let (work_a, work_b, personal, unbound) =
-        (dir("work-a"), dir("work-b"), dir("personal"), dir("unbound"));
+    let (work_a, work_b, personal, unbound) = (
+        dir("work-a"),
+        dir("work-b"),
+        dir("personal"),
+        dir("unbound"),
+    );
     let mut config = AccountsConfig::default();
     for (id, label) in [("work", "Work"), ("me", "Personal")] {
         config

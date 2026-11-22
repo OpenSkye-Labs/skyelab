@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod app_settings;
+pub mod delegation;
 pub use app_settings::AppSettings;
 
 /// One provider login. For Claude Code an account *is* its config dir.
