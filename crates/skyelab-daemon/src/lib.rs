@@ -56,7 +56,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            port: 7287,
+            port: skyelab_protocol::DEFAULT_PORT,
             max_message_bytes: 1 << 20,
             max_in_flight: 16,
             idle_timeout: Duration::from_secs(300),
