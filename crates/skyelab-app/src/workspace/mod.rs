@@ -351,6 +351,7 @@ impl Workspace {
 
     fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
+            settings.update(cx, |s, cx| s.check_gh_logins(cx)); // a login may have finished since
             let id = settings.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));

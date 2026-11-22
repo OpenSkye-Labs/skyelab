@@ -147,3 +147,12 @@ Each item goes through `/loop` (see CLAUDE.md).
 - **Remote machine names:** clients (mobile and desktop switcher) accept only MagicDNS names (`<machine>.<tailnet>.ts.net`).
   TLS certs from `tailscale cert` exist only for those names, and the client checks the cert against the exact name.
   Raw IPs, `localhost` and short names are rejected at input. (2026-11-23)
+- **GitHub identity per account:** an account may name a `gh` config dir (`gh_config_dir`, absolute). `launch_env` sets
+  `GH_CONFIG_DIR` from it, and agents, terminals and every git/gh call SkyeLab runs drop the parent's `GH_TOKEN`,
+  `GITHUB_TOKEN`, enterprise tokens, `GH_HOST`, `GH_REPO` and `GH_CONFIG_DIR`. Push and Open PR (Changes tab) run only
+  while the folder still resolves to the thread's account, and refuse when that account has no GitHub dir, never
+  falling back to the parent's `gh` login. A push resets git's credential helpers to the bound `gh auth git-credential`,
+  so an https push can't use the keychain's login. Settings' Log in runs `gh auth login --insecure-storage`: gh's
+  keyring entry for the active user is shared by every config dir, so the token lives in `<dir>/hosts.yml` instead.
+  Limits: an ssh push authenticates with whatever key `SSH_AUTH_SOCK` offers; only `origin` is pushed to; an agent
+  whose account has no GitHub dir uses gh's default config. (2026-11-23)
