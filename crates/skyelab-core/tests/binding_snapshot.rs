@@ -215,3 +215,31 @@ fn missing_folder_stays_valid_until_it_appears_elsewhere() {
     assert!(c.bindings[0].is_stale());
     assert_eq!(id(&c, &elsewhere), None);
 }
+
+#[test]
+fn stale_link_still_blocks_where_it_pointed_when_confirmed() {
+    let (_tmp, root) = real_tempdir();
+    let real = root.join("real");
+    let other = root.join("other");
+    let link = root.join("link");
+    std::fs::create_dir_all(real.join("src")).expect("mkdir");
+    std::fs::create_dir(&other).expect("mkdir");
+    symlink(&real, &link).expect("symlink");
+    // acme covers the whole root; personal is bound through the link.
+    let mut c = config(&root);
+    c.add_account(Account {
+        id: "personal".into(),
+        label: "Personal".into(),
+        config_dir: "/home/me/.claude".into(),
+    })
+    .expect("account");
+    c.add_binding(Binding::new(link.clone(), "personal".into()))
+        .expect("bind");
+    assert_eq!(id(&c, &real.join("src")).as_deref(), Some("personal"));
+
+    std::fs::remove_file(&link).expect("rm link");
+    symlink(&other, &link).expect("retarget");
+    // real/src was personal's; acme must not quietly take it over.
+    assert_eq!(id(&c, &real.join("src")), None, "OLD_TARGET_FELL_BACK");
+    assert_eq!(id(&c, &other), None);
+}
