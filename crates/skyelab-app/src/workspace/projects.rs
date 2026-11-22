@@ -1,6 +1,8 @@
 //! Projects and thread tabs: the sidebar's two sections and what selecting a row does.
 
+use super::changes::ChangesView;
 use super::thread::{ThreadView, ThreadViewEvent};
+use super::worktree;
 use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
 use gpui::{AppContext as _, Context, Entity, PathPromptOptions, SharedString, Window};
 use gpui_component::dock::{DockPlacement, panel_handle};
@@ -223,11 +225,25 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self._thread_events
-            .push(cx.subscribe(&view, |this, _, e: &ThreadViewEvent, cx| {
-                let ThreadViewEvent::Started(thread) = e;
-                this.thread_started(thread, cx);
-            }));
+        self._thread_events.push(cx.subscribe_in(
+            &view,
+            window,
+            |this, view, e: &ThreadViewEvent, window, cx| match e {
+                ThreadViewEvent::Started(thread) => this.thread_started(thread, cx),
+                ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
+                ThreadViewEvent::OpenTerminal { cwd, account_id } => {
+                    let opened = worktree::terminal_options(&this.config, cwd, account_id)
+                        .and_then(|o| this.add_terminal_with(o, window, cx));
+                    if let Err(e) = opened {
+                        view.update(cx, |v, cx| {
+                            v.error = Some(format!("{e:#}").into());
+                            cx.notify();
+                        });
+                    }
+                }
+                ThreadViewEvent::TurnDone => {}
+            },
+        ));
         self.open_threads.retain(|t| t.upgrade().is_some());
         self.open_threads.push(view.downgrade());
         self.dock.update(cx, |dock, cx| {
@@ -240,6 +256,42 @@ impl Workspace {
             );
         });
         view.update(cx, |v, cx| v.focus_prompt(window, cx));
+        cx.notify();
+    }
+
+    /// The thread's Changes tab: selected if open, else added next to the thread.
+    pub(super) fn open_changes(
+        &mut self,
+        view: &Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let dir = view.read(cx).cwd.clone();
+        self.changes_views.retain(|c| c.upgrade().is_some());
+        let open = self
+            .changes_views
+            .iter()
+            .filter_map(|c| c.upgrade())
+            .find(|c| c.read(cx).dir == dir);
+        if let Some(changes) = open {
+            changes.update(cx, |c, cx| c.refresh(cx));
+            let id = changes.entity_id().into();
+            self.dock
+                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
+            return;
+        }
+        let title = view.read(cx).title();
+        let changes = cx.new(|cx| ChangesView::new(dir, title, Some(view), cx));
+        self.dock.update(cx, |dock, cx| {
+            dock.add_panel_view(
+                panel_handle(changes.clone()),
+                DockPlacement::Center,
+                None,
+                window,
+                cx,
+            );
+        });
+        self.changes_views.push(changes.downgrade());
         cx.notify();
     }
 

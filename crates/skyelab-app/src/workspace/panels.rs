@@ -326,6 +326,7 @@ impl Render for TerminalPanel {
 
 panel!(Settings, "Settings", closable: true, |_this| "Settings");
 panel!(super::thread::ThreadView, "Thread", closable: true, |this| this.title());
+panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
 pub struct BrowserPanel {

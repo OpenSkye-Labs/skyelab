@@ -56,6 +56,39 @@ pub fn repo_root(path: &Path) -> Result<PathBuf> {
     Ok(PathBuf::from(lossy(&out).trim_end_matches('\n')))
 }
 
+/// Adds `pattern` to the repo's own `info/exclude` (shared by all its worktrees, never committed), once.
+pub fn exclude_locally(repo: &Path, pattern: &str) -> Result<()> {
+    let out = git(
+        repo,
+        &["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    )?;
+    let file = PathBuf::from(lossy(&out).trim_end_matches('\n'))
+        .join("info")
+        .join("exclude");
+    let text = match std::fs::read_to_string(&file) {
+        Ok(t) => t,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e.into()),
+    };
+    if text.lines().any(|l| l.trim() == pattern) {
+        return Ok(());
+    }
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let sep = if text.is_empty() || text.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    let mut f = std::fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(&file)?;
+    io::Write::write_all(&mut f, format!("{sep}{pattern}\n").as_bytes())?;
+    Ok(())
+}
+
 fn git<S: AsRef<OsStr>>(dir: &Path, args: &[S]) -> Result<Vec<u8>> {
     git_with(Path::new("git"), dir, args)
 }

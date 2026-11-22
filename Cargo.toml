@@ -43,6 +43,7 @@ skyelab-store = { path = "crates/skyelab-store" }
 skyelab-tailnet = { path = "crates/skyelab-tailnet" }
 skyelab-terminal = { path = "crates/skyelab-terminal" }
 skyelab-agent = { path = "crates/skyelab-agent" }
+skyelab-git = { path = "crates/skyelab-git" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

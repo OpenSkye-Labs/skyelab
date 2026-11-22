@@ -214,6 +214,7 @@ impl ThreadView {
                     .child(div().size(px(6.)).rounded_full().bg(theme.success))
                     .child(badge)
             }))
+            .child(self.render_worktree_actions(cx))
             .when(running, |this| {
                 this.child(
                     Button::new("interrupt")
@@ -282,6 +283,8 @@ impl Render for ThreadView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
+        let worktree_option = self.render_worktree_option(cx);
+        let discard_confirm = self.render_discard_confirm(cx);
         let theme = cx.theme();
         let note = if self.read_only {
             Some("This thread has ended. Continuing it isn't supported yet, so start a new thread.")
@@ -318,11 +321,18 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::send_prompt))
             .on_action(cx.listener(Self::interrupt))
             .on_action(cx.listener(Self::stop))
+            .on_action(cx.listener(Self::toggle_worktree))
+            .on_action(cx.listener(Self::open_changes))
+            .on_action(cx.listener(Self::open_worktree_terminal))
+            .on_action(cx.listener(Self::discard_worktree))
+            .on_action(cx.listener(Self::confirm_discard))
+            .on_action(cx.listener(Self::cancel_discard))
             .size_full()
             .bg(theme.background)
             .child(header)
             .child(body)
             .children(cta)
+            .children(discard_confirm)
             .children(self.error.clone().map(|e| {
                 div()
                     .mx_4()
@@ -339,6 +349,7 @@ impl Render for ThreadView {
                     .text_color(theme.muted_foreground)
                     .child(n)
             }))
+            .children(worktree_option)
             .child(
                 h_flex()
                     .px_4()
