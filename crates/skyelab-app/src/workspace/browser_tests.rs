@@ -1,3 +1,4 @@
+use super::threads_test::test_backend;
 use super::*;
 use gpui::TestAppContext;
 
@@ -16,7 +17,15 @@ fn open_browser_adds_center_tabs_and_close_drops_them(cx: &mut TestAppContext) {
     let home = tempfile::tempdir().expect("tempdir");
     let folder = home.path().to_path_buf();
     let (ws, cx) = cx.add_window_view(|window, cx| {
-        let ws = Workspace::new(folder, None, AccountsConfig::default(), None, window, cx);
+        let ws = Workspace::new(
+            folder,
+            None,
+            AccountsConfig::default(),
+            None,
+            test_backend(),
+            window,
+            cx,
+        );
         window.focus(&ws.focus, cx);
         ws
     });

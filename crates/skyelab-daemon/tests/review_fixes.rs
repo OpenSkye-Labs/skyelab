@@ -77,7 +77,13 @@ fn thread_events_since_pages() {
         .create_project("app", std::path::Path::new("/src/app"))
         .expect("test setup");
     let t = store
-        .create_thread(p.id, "t", std::path::Path::new("/src/app"), "work", "idle")
+        .create_thread(&skyelab_store::NewThread {
+            project_id: p.id,
+            title: "t",
+            cwd: std::path::Path::new("/src/app"),
+            account_id: "work",
+            status: "idle",
+        })
         .expect("test setup");
     for _ in 0..MAX_EVENTS_PER_REPLY + 3 {
         store.append_event(t.id, "k", "{}").expect("test setup");

@@ -7401,8 +7401,11 @@ dependencies = [
  "gpui-component",
  "gpui-pre",
  "gpui-pre-platform",
+ "serde_json",
+ "skyelab-agent",
  "skyelab-browser",
  "skyelab-core",
+ "skyelab-store",
  "skyelab-terminal",
  "tempfile",
 ]

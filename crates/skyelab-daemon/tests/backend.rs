@@ -14,7 +14,13 @@ fn seeded() -> (Store, i64, i64) {
         .create_project("app", Path::new("/src/app"))
         .expect("test setup");
     let t = store
-        .create_thread(p.id, "fix it", Path::new("/src/app"), "work", "idle")
+        .create_thread(&skyelab_store::NewThread {
+            project_id: p.id,
+            title: "fix it",
+            cwd: Path::new("/src/app"),
+            account_id: "work",
+            status: "idle",
+        })
         .expect("test setup");
     for i in 1..=3 {
         store

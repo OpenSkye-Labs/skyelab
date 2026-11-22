@@ -77,6 +77,17 @@ pub struct Event {
     pub created_at: i64,
 }
 
+/// A thread to create. Named fields, so title, cwd and account can't be swapped silently.
+#[derive(Debug, Clone, Copy)]
+pub struct NewThread<'a> {
+    pub project_id: i64,
+    pub title: &'a str,
+    pub cwd: &'a Path,
+    /// The account the thread runs under, recorded as the audit.
+    pub account_id: &'a str,
+    pub status: &'a str,
+}
+
 pub struct Store {
     conn: Connection,
 }
@@ -171,30 +182,30 @@ impl Store {
         expect_one(n, "project", id)
     }
 
-    pub fn create_thread(
-        &self,
-        project_id: i64,
-        title: &str,
-        cwd: &Path,
-        account_id: &str,
-        status: &str,
-    ) -> Result<Thread> {
+    pub fn create_thread(&self, new: &NewThread) -> Result<Thread> {
         let now = now_ms();
         self.conn
             .execute(
                 "INSERT INTO threads (project_id, title, cwd, account_id, status, created_at, updated_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
-                params![project_id, title, path_str(cwd)?, account_id, status, now],
+                params![
+                    new.project_id,
+                    new.title,
+                    path_str(new.cwd)?,
+                    new.account_id,
+                    new.status,
+                    now
+                ],
             )
-            .with_context(|| format!("create thread in project {project_id}"))?;
+            .with_context(|| format!("create thread in project {}", new.project_id))?;
         Ok(Thread {
             id: self.conn.last_insert_rowid(),
-            project_id,
-            title: title.to_owned(),
-            cwd: cwd.to_owned(),
-            account_id: account_id.to_owned(),
+            project_id: new.project_id,
+            title: new.title.to_owned(),
+            cwd: new.cwd.to_owned(),
+            account_id: new.account_id.to_owned(),
             agent_session_id: None,
-            status: status.to_owned(),
+            status: new.status.to_owned(),
             created_at: now,
             updated_at: now,
         })

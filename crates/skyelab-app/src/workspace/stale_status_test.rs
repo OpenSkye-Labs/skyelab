@@ -1,3 +1,4 @@
+use super::threads_test::test_backend;
 use super::*;
 use crate::settings::RemoveBinding;
 use gpui::TestAppContext;
@@ -34,6 +35,7 @@ fn status_follows_an_unbind_made_in_settings(cx: &mut TestAppContext) {
             Some(accounts_path.clone()),
             config,
             None,
+            test_backend(),
             window,
             cx,
         );
