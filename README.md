@@ -35,7 +35,8 @@ What's built today:
 - **Device hub.** Lists iOS Simulators and Android emulators. Boot, shut down, take screenshots, open URLs and
   install apps.
 - **Share a machine over your tailnet.** Off by default. When on, the app serves this machine over `wss://` with its
-  Tailscale HTTPS certificate, and only your own, untagged devices may connect.
+  Tailscale HTTPS certificate, and only your own, untagged devices may connect, each one after you allow it once
+  (matching a code shown on both screens). Revoke cuts a device off at once.
 - **Environment switcher.** Pick another of your machines at the top of the sidebar to see its projects and threads,
   start threads there and send follow-ups. Its agents run there, on its own accounts.
 - **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It connects to a
@@ -116,7 +117,8 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
-  with `tailscale whois`). Browser pages (any `Origin` header) are refused. A connected device can list and drive
+  with `tailscale whois`), and carry a device key you approved on this machine for that device (kept in the
+  macOS keychain on a Mac client). Browser pages (any `Origin` header) are refused. A connected device can list and drive
   threads, but can't add projects, change accounts or bindings, or open terminals. The client checks the
   certificate against the exact MagicDNS name it dialled.
 

@@ -184,8 +184,7 @@ impl Env {
         });
         let config = Config {
             port: 0,
-            gate_timeout: Duration::from_millis(500),
-            ..Config::default()
+            ..daemon_config()
         };
         let daemon = Daemon::start(config, tailnet.clone(), backend).expect("start daemon");
         Self {
@@ -224,6 +223,21 @@ impl Env {
     }
 }
 
+/// The phone's test device key; [`daemon_config`] approves it for "nPhone".
+pub const PHONE_KEY: &str = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+/// A test daemon's config: quick gate, the phone already allowed.
+pub fn daemon_config() -> Config {
+    Config {
+        gate_timeout: Duration::from_millis(500),
+        approved: vec![skyelab_daemon::Approval {
+            node_id: "nPhone".into(),
+            key_hash: skyelab_protocol::device_key_hash(PHONE_KEY),
+        }],
+        ..Config::default()
+    }
+}
+
 /// Client options for the loopback daemon (test-only feature): trusts the test CA and dials `NODE_NAME` on loopback,
 /// so TLS still checks the name. Quick retries.
 pub fn options(port: u16) -> skyelab_client::Options {
@@ -236,5 +250,6 @@ pub fn options(port: u16) -> skyelab_client::Options {
     options.port = port;
     options.backoff_min = Duration::from_millis(50);
     options.backoff_max = Duration::from_millis(200);
+    options.device_key = Some(PHONE_KEY.into());
     options
 }

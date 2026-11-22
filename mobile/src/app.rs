@@ -27,22 +27,31 @@ pub enum Screen {
 /// Opens a source for a validated MagicDNS name. The app uses [`source_for`]; tests pass their own.
 pub type Connect = Box<dyn Fn(&str) -> std::io::Result<Box<dyn ThreadSource>>>;
 
-/// The real client for every name; with the `demo` feature, canned data instead.
-pub fn source_for(name: &str) -> std::io::Result<Box<dyn ThreadSource>> {
+/// The real client for every name; with the `demo` feature, canned data instead. The device key lives in
+/// `data_dir` (the app's sandbox, out of reach of other apps): the machine dialled must approve it once.
+pub fn source_for(
+    data_dir: &std::path::Path,
+    name: &str,
+) -> std::io::Result<Box<dyn ThreadSource>> {
     #[cfg(feature = "demo")]
     {
-        let _ = name;
+        let _ = (data_dir, name);
         Ok(Box::new(crate::source::FakeSource::new()))
     }
     #[cfg(not(feature = "demo"))]
     {
-        // Options::default() keeps whatever transport skyelab-client defaults to (wss:// once it lands).
+        let mut options = skyelab_client::Options::default();
+        options.device_key = Some(skyelab_client::load_or_create_device_key(
+            &data_dir.join(DEVICE_KEY_FILE),
+        )?);
         Ok(Box::new(crate::remote::RemoteSource::connect(
-            name,
-            skyelab_client::Options::default(),
+            name, options,
         )?))
     }
 }
+
+/// This install's device key, in the app's data directory.
+pub const DEVICE_KEY_FILE: &str = "device-key";
 
 pub struct MobileApp {
     data_dir: PathBuf,
@@ -510,7 +519,9 @@ impl Render for MobileApp {
 pub fn run(data_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     gpui_component::init(cx);
     cx.open_window(WindowOptions::default(), |window, cx| {
-        let view = cx.new(|cx| MobileApp::new(data_dir, Box::new(source_for), window, cx));
+        let dir = data_dir.clone();
+        let connect: Connect = Box::new(move |name| source_for(&dir, name));
+        let view = cx.new(|cx| MobileApp::new(data_dir, connect, window, cx));
         cx.new(|cx| Root::new(view, window, cx))
     })?;
     cx.activate(true);

@@ -3,7 +3,7 @@ pub mod common;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use common::{Env, NODE_NAME, RecordingAgents, options};
+use common::{Env, NODE_NAME, RecordingAgents, daemon_config, options};
 use skyelab_daemon::{Config, Daemon, StoreBackend};
 use skyelab_mobile::{
     remote::RemoteSource,
@@ -30,8 +30,7 @@ fn a_request_error_clears_once_the_reload_succeeds() {
     ));
     let config = Config {
         port,
-        gate_timeout: Duration::from_millis(500),
-        ..Config::default()
+        ..daemon_config()
     };
     let _daemon = Daemon::start(config, env.tailnet.clone(), backend).expect("restart daemon");
     while source.connection() != Connection::Connected || source.threads(env.project_id).is_empty()

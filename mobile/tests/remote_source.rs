@@ -147,7 +147,13 @@ fn an_unsupported_protocol_shows_version_mismatch() {
 #[cfg(not(feature = "demo"))]
 #[test]
 fn shipping_build_dials_the_real_client() {
-    let source = skyelab_mobile::app::source_for("laptop.tail1234.ts.net").expect("source");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let source =
+        skyelab_mobile::app::source_for(dir.path(), "laptop.tail1234.ts.net").expect("source");
     assert_eq!(source.connection(), Connection::Connecting);
     assert!(source.inbox().is_some(), "the fake has no inbox");
+    // The phone made its device key in its own data dir, once.
+    let key_file = dir.path().join(skyelab_mobile::app::DEVICE_KEY_FILE);
+    let key = std::fs::read_to_string(&key_file).expect("device key");
+    assert!(skyelab_protocol::is_device_key(key.trim()), "{key}");
 }

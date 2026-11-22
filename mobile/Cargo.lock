@@ -6493,6 +6493,7 @@ dependencies = [
  "futures",
  "rustls",
  "rustls-webpki",
+ "security-framework",
  "serde_json",
  "skyelab-protocol",
  "thiserror 2.0.21",
@@ -6565,6 +6566,7 @@ dependencies = [
 name = "skyelab-protocol"
 version = "0.1.0"
 dependencies = [
+ "ring",
  "serde",
  "serde_json",
 ]
