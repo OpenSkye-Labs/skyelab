@@ -71,6 +71,8 @@ fn another_node_is_refused_and_asked_nothing() {
     let dir = tempfile::tempdir().expect("dir");
     env_store::trust_node(dir.path(), NODE_NAME, "nOld").expect("pin");
     let mut source = connect(&env, dir.path());
+    // An open thread, as on a reconnect: its refill must wait for the check too.
+    source.watch(env.thread_id);
     settle(&mut source, "the warning", changed);
     linger(&mut source);
     assert_eq!(
@@ -129,11 +131,16 @@ fn a_pin_file_that_cant_be_parsed_refuses() {
     assert_eq!(env.asked(), Vec::<&str>::new());
 }
 
+/// Unreadable but replaceable, so only the read can refuse it (a save would succeed).
+#[cfg(unix)]
 #[test]
 fn a_pin_file_that_cant_be_read_refuses() {
+    use std::os::unix::fs::PermissionsExt as _;
     let env = start();
     let dir = tempfile::tempdir().expect("dir");
-    std::fs::create_dir(dir.path().join(env_store::NODES_FILE)).expect("a directory there");
+    let path = dir.path().join(env_store::NODES_FILE);
+    std::fs::write(&path, "{}").expect("write");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
     let mut source = connect(&env, dir.path());
     settle(&mut source, "the refusal", |s| {
         matches!(s.connection(), Connection::Unverified(_))
