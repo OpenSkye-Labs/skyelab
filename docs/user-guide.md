@@ -73,6 +73,14 @@ Threads are saved, and opening an old one and sending a follow-up resumes the sa
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
 
+### Delegated threads
+
+An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
+`wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
+parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
+account; a start into a project on another account is refused and no thread is created. A delegated thread can
+delegate once more (two levels), and a thread can have four children running at a time. Not available on Windows yet.
+
 ## Worktrees
 
 Tick **Run in a new worktree** in the composer before you send the first prompt. The thread then works in its own

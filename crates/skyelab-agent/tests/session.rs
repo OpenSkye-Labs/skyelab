@@ -59,6 +59,7 @@ fn unbound_folder_errors() {
         dir: &dir,
         resume: None,
         prompt: "hi",
+        mcp_config: None,
     };
     let err = start_with_bin(&fake_bin(), &AccountsConfig::default(), &launch)
         .err()

@@ -70,6 +70,7 @@ fn resume_passes_flag_and_id() {
         dir: &dir,
         resume: Some("sess-1"),
         prompt: "again",
+        mcp_config: None,
     };
     let session = start_with_bin(&fixture("fake-claude.sh"), &cfg, &launch).expect("start");
     let env = next_unknown(session.events(), "fake_env");
@@ -89,6 +90,7 @@ fn resume_rejects_flag_like_id() {
             dir: &dir,
             resume: Some(id),
             prompt: "hi",
+            mcp_config: None,
         };
         assert!(
             start_with_bin(&marker_bin(&dir), &cfg, &launch).is_err(),
@@ -108,6 +110,7 @@ fn binding_changed_between_plan_and_spawn_aborts() {
         dir: &dir,
         resume: None,
         prompt: "hi",
+        mcp_config: None,
     };
     let err = start_with_bin(&marker_bin(&dir), &config(&dir, "b"), &launch)
         .err()
@@ -143,6 +146,7 @@ fn kill_does_not_wait_behind_a_blocked_write() {
         dir: &dir,
         resume: None,
         prompt: "hi",
+        mcp_config: None,
     };
     let mut session = start_with_bin(&fixture("no-stdin.sh"), &cfg, &launch).expect("start");
     let pgid = next_unknown(session.events(), "fake_pid")["pid"]

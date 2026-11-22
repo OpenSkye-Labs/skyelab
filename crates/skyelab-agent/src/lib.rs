@@ -3,6 +3,8 @@
 
 mod event;
 mod launch;
+#[cfg(unix)]
+pub mod mcp;
 
 pub use event::{Block, Event};
 
@@ -39,6 +41,8 @@ pub struct Launch<'a> {
     /// `claude`'s session id (from [`Event::Init`]) to continue with `--resume`.
     pub resume: Option<&'a str>,
     pub prompt: &'a str,
+    /// A `--mcp-config` file for SkyeLab's own tools (an [`mcp::Grant`]'s), or `None` for no tools.
+    pub mcp_config: Option<&'a Path>,
 }
 
 /// Starts `claude` per `launch` and sends its prompt as the first turn.
@@ -57,6 +61,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         dir,
         resume,
         prompt,
+        mcp_config,
     } = launch;
     // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
     let dir = &std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
@@ -101,6 +106,15 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         "user",
         "--strict-mcp-config",
     ])
+    // Our own server only (--strict-mcp-config keeps every other out); its tools enforce their own rules.
+    .args(mcp_config.into_iter().flat_map(|path| {
+        [
+            "--mcp-config".as_ref(),
+            path.as_os_str(),
+            "--allowedTools".as_ref(),
+            "mcp__skyelab".as_ref(),
+        ]
+    }))
     .args(resume.into_iter().flat_map(|id| ["--resume", id]))
     .current_dir(dir)
     .stdin(Stdio::piped())

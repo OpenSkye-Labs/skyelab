@@ -18,6 +18,7 @@ pub fn start_in(
         dir,
         resume: None,
         prompt,
+        mcp_config: None,
     };
     start_with_bin(bin, cfg, &launch)
 }

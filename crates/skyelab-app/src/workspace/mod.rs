@@ -7,11 +7,19 @@ mod devices;
 mod env_mode;
 mod env_picker;
 mod github;
+#[cfg(unix)]
+pub(crate) mod orchestrate;
+#[cfg(not(unix))]
+#[path = "orchestrate_stub.rs"]
+pub(crate) mod orchestrate;
+#[cfg(unix)]
+mod orchestrate_ui;
 mod palette_items;
 mod panels;
 mod projects;
 mod remote;
 mod remote_thread;
+mod status_bar;
 mod thread;
 mod thread_items;
 mod thread_model;
@@ -27,11 +35,8 @@ use gpui::{
     Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, Theme,
-    button::{Button, ButtonVariants as _},
+    ActiveTheme as _, Theme,
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
-    h_flex,
-    status_bar::StatusBar,
     v_flex,
 };
 use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
@@ -165,6 +170,8 @@ pub struct Workspace {
     _add: Option<Task<()>>,
     _threads: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
+    /// Answers delegated starts and sends (see `orchestrate_ui`).
+    _orchestrate: Option<Task<()>>,
     _settings_events: Option<Subscription>,
     devices: Option<WeakEntity<devices::DevicesPanel>>,
     /// Created on first open; tests put a fake here first.
@@ -247,6 +254,7 @@ impl Workspace {
             _add: None,
             _threads: None,
             _settings_saved: None,
+            _orchestrate: None,
             _settings_events: None,
             devices: None,
             device_source: None,
@@ -363,6 +371,7 @@ impl Workspace {
             return;
         }
         self.reload_accounts();
+        self.push_config(cx); // orchestration and open threads check against what's on disk now
         let (path, config, error) = (
             self.accounts_path.clone(),
             self.config.clone(),
@@ -417,59 +426,6 @@ impl Workspace {
                 self.account = None;
             }
         }
-    }
-
-    fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let (dot, label) = match &self.account {
-            Some(label) => (theme.success, label.clone()),
-            None => (theme.warning, "No account bound".into()),
-        };
-        let account = Button::new("status-account")
-            .ghost()
-            .xsmall()
-            .tooltip("Accounts and folder bindings")
-            .child(
-                h_flex()
-                    .gap_1p5()
-                    .child(div().size(px(6.)).rounded_full().bg(dot))
-                    .child(label),
-            )
-            .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
-        let remote = self.is_remote();
-        StatusBar::new()
-            .left(
-                h_flex()
-                    .gap_3()
-                    .text_xs()
-                    .children(self.render_env_badge(cx))
-                    .when(!remote, |el| {
-                        el.child(
-                            div()
-                                .text_color(theme.muted_foreground)
-                                .child(self.folder_label.clone()),
-                        )
-                    })
-                    .children(self.store_error.clone().map(|e| {
-                        div()
-                            .text_color(theme.danger)
-                            .child(format!("Store error: {e}"))
-                    })),
-            )
-            .right(
-                Button::new("status-devices")
-                    .ghost()
-                    .xsmall()
-                    .label("Devices")
-                    .tooltip("iOS Simulators and Android emulators")
-                    .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenDevices), cx)),
-            )
-            .right(
-                h_flex()
-                    .gap_2()
-                    .children(self.render_remote_status(cx))
-                    .when(!remote, |el| el.child(account)),
-            )
     }
 }
 
@@ -589,3 +545,9 @@ mod remote_start_test;
 
 #[cfg(test)]
 mod changes_follow_folder_test;
+
+#[cfg(test)]
+mod delegation_test;
+
+#[cfg(test)]
+mod delegation_resume_test;

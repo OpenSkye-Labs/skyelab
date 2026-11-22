@@ -223,9 +223,30 @@ impl Workspace {
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));
             return;
         }
-        let Some(thread) = self.threads.iter().find(|t| t.id == a.id).cloned() else {
-            return;
-        };
+        if let Some(thread) = self.threads.iter().find(|t| t.id == a.id).cloned() {
+            return self.open_stored(thread, window, cx);
+        }
+        // A parent or child link can name a thread in another project.
+        let (store, id) = (self.backend.store.clone(), a.id);
+        cx.spawn_in(window, async move |this, cx| {
+            let row = cx
+                .background_spawn(async move { lock(&store)?.thread(id) })
+                .await;
+            let _ = this.update_in(cx, |this, window, cx| match row {
+                Ok(Some(thread)) if this.open_view(id, cx).is_none() => {
+                    this.open_stored(thread, window, cx)
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    this.store_error = Some(format!("{e:#}").into());
+                    cx.notify();
+                }
+            });
+        })
+        .detach(); // one short read; `this` is weak, so a closed window just drops it
+    }
+
+    fn open_stored(&mut self, thread: Thread, window: &mut Window, cx: &mut Context<Self>) {
         let (config, backend) = (self.config.clone(), self.backend.clone());
         let view = cx.new(|cx| ThreadView::open(thread, config, backend, window, cx));
         self.add_thread_tab(view, true, window, cx);
@@ -333,6 +354,8 @@ impl Workspace {
     }
 
     fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
+        #[cfg(unix)]
+        self.child_started(thread, cx);
         if self.project.as_ref().map(|p| p.id) == Some(thread.project_id) {
             self.threads.insert(0, thread.clone());
             self.refresh_sidebar(cx);
@@ -341,6 +364,7 @@ impl Workspace {
 
     /// Settings saved: open threads start their next session from the new bindings.
     pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
+        super::orchestrate::set_config(cx, &self.config);
         let config = self.config.clone();
         for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {
             view.update(cx, |t, cx| t.set_config(config.clone(), cx));

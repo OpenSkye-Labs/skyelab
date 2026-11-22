@@ -29,7 +29,7 @@ mod session;
 
 pub enum ThreadViewEvent {
     /// The thread got its store row (the first prompt was sent).
-    Started(Thread),
+    Started(Box<Thread>),
     /// The agent's Result event arrived: its changes may be on disk now.
     TurnDone,
     OpenChanges,
@@ -38,6 +38,13 @@ pub enum ThreadViewEvent {
         cwd: PathBuf,
         account_id: String,
     },
+}
+
+/// A thread this one delegated, listed under its header.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChildLink {
+    pub id: i64,
+    pub title: SharedString,
 }
 
 pub struct ThreadView {
@@ -65,6 +72,13 @@ pub struct ThreadView {
     pub(super) wt: super::thread_worktree::WorktreeState,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
+    /// The thread whose agent started this one: (id, title).
+    pub(super) parent: Option<(i64, SharedString)>,
+    /// A delegated start runs only under the account its delegation was approved for.
+    pub(super) required_account: Option<String>,
+    pub(super) children: Vec<ChildLink>,
+    /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
+    grant: Option<super::orchestrate::Grant>,
     send_chain: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
@@ -122,20 +136,34 @@ impl ThreadView {
                 .background_spawn(async move {
                     // The sidebar's copy can predate the init event that stored the session id.
                     let row = lock(&store)?.thread(id)?;
+                    let parent = match row.as_ref().and_then(|t| t.parent_thread_id) {
+                        Some(p) => lock(&store)?.thread(p)?.map(|t| (t.id, t.title.into())),
+                        None => None,
+                    };
+                    let children: Vec<ChildLink> = lock(&store)?
+                        .child_threads(id)?
+                        .into_iter()
+                        .map(|t| ChildLink {
+                            id: t.id,
+                            title: t.title.into(),
+                        })
+                        .collect();
                     let rows = lock(&store)?.events_since(id, 0)?;
                     // One unreadable row (an older format) must not hide the rest of the thread.
                     let records: Vec<_> = rows
                         .iter()
                         .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
                         .collect();
-                    anyhow::Ok((row, rows.len() - records.len(), records))
+                    anyhow::Ok((row, (parent, children), rows.len() - records.len(), records))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok((row, skipped, records)) => {
+                Ok((row, (parent, children), skipped, records)) => {
                     if let Some(row) = row {
                         this.thread = Some(row);
                     }
+                    this.parent = parent;
+                    this.children = children;
                     this.finish(cx);
                     for r in &records {
                         apply(&mut this.items, r);
@@ -197,6 +225,10 @@ impl ThreadView {
             read_only: false,
             wt: Default::default(),
             resume_refused: None,
+            parent: None,
+            required_account: None,
+            children: Vec::new(),
+            grant: None,
             send_chain: None,
             _pump: None,
             _task: None,
@@ -288,6 +320,14 @@ impl ThreadView {
         }
         // The folder decides the account. Unbound means ask the user, never pick one.
         let resolved = self.config.resolve(&self.cwd).cloned();
+        if let (Some(want), Some(got)) = (&self.required_account, &resolved)
+            && got.id != *want
+        {
+            self.error =
+                Some(format!("This folder is now bound to {}, not {want}.", got.id).into());
+            cx.notify();
+            return;
+        }
         if self.session.is_none()
             && let Some(thread) = self.thread.clone()
         {

@@ -96,6 +96,7 @@ impl ThreadView {
 
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
+        self.grant = None; // revokes the token and cuts the MCP connection
         self.read_only = self
             .thread
             .as_ref()
