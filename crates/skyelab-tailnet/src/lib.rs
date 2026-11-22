@@ -95,17 +95,23 @@ pub enum Error {
 pub trait Tailnet {
     fn self_node(&self) -> Result<Node, Error>;
     fn peers(&self) -> Result<Vec<Node>, Error>;
+    /// `addr` must be the accepted socket's `peer_addr()`, never a value the client supplied.
     fn whois(&self, addr: SocketAddr) -> Result<WhoIs, Error>;
 }
 
 /// The security core: accept `whois` only if it is one of the user's own, untagged devices.
 ///
 /// Tagged nodes belong to the tailnet, not a person, so they are rejected even when the same user tagged them.
+/// A tagged self has no personal owner, and this node itself is rejected (another OS user here could reach it).
 pub fn is_own_device(self_node: &Node, whois: &WhoIs) -> bool {
     let Some(me) = self_node.user_id.filter(|&id| id != 0) else {
         return false;
     };
-    whois.user_profile.id == Some(me) && whois.node.user == Some(me) && whois.node.tags.is_empty()
+    self_node.tags.is_empty()
+        && whois.node.stable_id != self_node.stable_id
+        && whois.user_profile.id == Some(me)
+        && whois.node.user == Some(me)
+        && whois.node.tags.is_empty()
 }
 
 /// Parses `tailscale status --json`. Anything but `BackendState: Running` is [`Error::NotRunning`].
@@ -148,11 +154,12 @@ pub struct TailscaleCli {
 
 impl Default for TailscaleCli {
     fn default() -> Self {
-        let mut binaries = vec![PathBuf::from("tailscale")];
+        let mut binaries = Vec::new();
         if cfg!(target_os = "macos") {
-            // The Mac App Store / standalone app doesn't put its CLI on PATH.
+            // The app doesn't put its CLI on PATH. Tried first: an absolute path can't be shadowed by PATH.
             binaries.push(PathBuf::from(MACOS_APP_CLI));
         }
+        binaries.push(PathBuf::from("tailscale"));
         Self { binaries }
     }
 }
@@ -198,6 +205,8 @@ impl Tailnet for TailscaleCli {
     fn whois(&self, addr: SocketAddr) -> Result<WhoIs, Error> {
         let out = self.run(&["whois", "--json", &addr.to_string()])?;
         if !out.status.success() {
+            // Tell "Tailscale is down" (NotRunning) apart from "unknown peer".
+            self.status()?;
             return Err(Error::Command {
                 command: "whois",
                 stderr: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
