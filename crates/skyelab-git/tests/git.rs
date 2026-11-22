@@ -12,11 +12,22 @@ fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
         .arg("-C")
         .arg(dir)
-        .args(["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"])
+        .args([
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@example.com",
+            "-c",
+            "commit.gpgsign=false",
+        ])
         .args(args)
         .output()
         .expect("git runs");
-    assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 /// A repo on branch `main` with one commit holding `a.txt`.
@@ -51,15 +62,22 @@ fn repo_root_outside_a_repo_is_not_a_repo() {
 fn worktree_round_trip() {
     let (tmp, root) = repo();
     let dest = tmp.path().join("wt one");
-    let wt = skyelab_git::create_worktree(&root, "thread/1", "main", Some(&dest), false).expect("create");
+    let wt = skyelab_git::create_worktree(&root, "thread/1", "main", Some(&dest), false)
+        .expect("create");
     assert!(wt.join("a.txt").exists());
 
     let list = skyelab_git::list_worktrees(&root).expect("list");
     assert_eq!(list.len(), 2, "{list:?}");
     assert_eq!(list[0].path, root);
     assert_eq!(list[0].branch.as_deref(), Some("main"));
-    let made = list.iter().find(|w| w.branch.as_deref() == Some("thread/1")).expect("new worktree listed");
-    assert_eq!(fs::canonicalize(&made.path).expect("canon"), fs::canonicalize(&wt).expect("canon"));
+    let made = list
+        .iter()
+        .find(|w| w.branch.as_deref() == Some("thread/1"))
+        .expect("new worktree listed");
+    assert_eq!(
+        fs::canonicalize(&made.path).expect("canon"),
+        fs::canonicalize(&wt).expect("canon")
+    );
     assert_eq!(made.head.as_ref().map(String::len), Some(40));
 
     skyelab_git::remove_worktree(&root, &wt, false).expect("remove clean worktree");
@@ -72,18 +90,24 @@ fn branch_exists_refused_unless_reused() {
     let (tmp, root) = repo();
     git(&root, &["branch", "taken"]);
     let dest = tmp.path().join("wt");
-    let err = skyelab_git::create_worktree(&root, "taken", "main", Some(&dest), false).expect_err("exists");
-    assert!(matches!(&err, Error::BranchExists(b) if b == "taken"), "{err:?}");
+    let err = skyelab_git::create_worktree(&root, "taken", "main", Some(&dest), false)
+        .expect_err("exists");
+    assert!(
+        matches!(&err, Error::BranchExists(b) if b == "taken"),
+        "{err:?}"
+    );
     assert!(!dest.exists());
 
-    let wt = skyelab_git::create_worktree(&root, "taken", "main", Some(&dest), true).expect("reuse");
+    let wt =
+        skyelab_git::create_worktree(&root, "taken", "main", Some(&dest), true).expect("reuse");
     assert!(wt.join("a.txt").exists());
 }
 
 #[test]
 fn dirty_worktree_refused() {
     let (tmp, root) = repo();
-    let wt = skyelab_git::create_worktree(&root, "t", "main", Some(&tmp.path().join("wt")), false).expect("create");
+    let wt = skyelab_git::create_worktree(&root, "t", "main", Some(&tmp.path().join("wt")), false)
+        .expect("create");
     fs::write(wt.join("new.txt"), "x").expect("write");
 
     let err = skyelab_git::remove_worktree(&root, &wt, false).expect_err("dirty");
@@ -112,7 +136,10 @@ fn status_tricky_paths() {
     assert_eq!(st.staged.len(), 1, "{st:?}");
     assert_eq!(st.staged[0].kind, ChangeKind::Renamed);
     assert_eq!(st.staged[0].path, Path::new("renamed space.txt"));
-    assert_eq!(st.staged[0].orig_path.as_deref(), Some(Path::new("with space.txt")));
+    assert_eq!(
+        st.staged[0].orig_path.as_deref(),
+        Some(Path::new("with space.txt"))
+    );
     assert_eq!(st.unstaged.len(), 1, "{st:?}");
     assert_eq!(st.unstaged[0].kind, ChangeKind::Modified);
     assert_eq!(st.unstaged[0].path, Path::new("ünï cødé.txt"));
@@ -124,7 +151,11 @@ fn status_tricky_paths() {
 fn diff_kinds() {
     let (_tmp, root) = repo();
     fs::write(root.join("gone.txt"), "bye\n").expect("write");
-    fs::write(root.join("old name ü.txt"), "alpha\nbeta\ngamma\ndelta\nepsilon\n").expect("write");
+    fs::write(
+        root.join("old name ü.txt"),
+        "alpha\nbeta\ngamma\ndelta\nepsilon\n",
+    )
+    .expect("write");
     fs::write(root.join("blob.bin"), [0u8, 1, 2, 3]).expect("write");
     git(&root, &["add", "."]);
     git(&root, &["commit", "-q", "-m", "base"]);
@@ -132,7 +163,11 @@ fn diff_kinds() {
     fs::write(root.join("a.txt"), "one\nTWO\nthree\n").expect("write");
     fs::remove_file(root.join("gone.txt")).expect("rm");
     git(&root, &["mv", "old name ü.txt", "new name ü.txt"]);
-    fs::write(root.join("new name ü.txt"), "alpha\nbeta\ngamma\ndelta\nepsilon!\n").expect("write");
+    fs::write(
+        root.join("new name ü.txt"),
+        "alpha\nbeta\ngamma\ndelta\nepsilon!\n",
+    )
+    .expect("write");
     fs::write(root.join("blob.bin"), [0u8, 9, 9, 9]).expect("write");
     fs::write(root.join("added file.txt"), "hi\n").expect("write");
     git(&root, &["add", "-N", "added file.txt"]);
@@ -141,7 +176,10 @@ fn diff_kinds() {
     let find = |p: &str| {
         diffs
             .iter()
-            .find(|d| d.new_path.as_deref() == Some(Path::new(p)) || d.old_path.as_deref() == Some(Path::new(p)))
+            .find(|d| {
+                d.new_path.as_deref() == Some(Path::new(p))
+                    || d.old_path.as_deref() == Some(Path::new(p))
+            })
             .unwrap_or_else(|| panic!("{p} missing from {diffs:#?}"))
     };
 
@@ -149,7 +187,10 @@ fn diff_kinds() {
     assert_eq!(m.kind, ChangeKind::Modified);
     assert_eq!(m.hunks.len(), 1);
     let h = &m.hunks[0];
-    assert_eq!((h.old_start, h.old_lines, h.new_start, h.new_lines), (1, 3, 1, 3));
+    assert_eq!(
+        (h.old_start, h.old_lines, h.new_start, h.new_lines),
+        (1, 3, 1, 3)
+    );
     assert_eq!(
         h.lines,
         vec![
