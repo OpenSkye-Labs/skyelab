@@ -4,16 +4,20 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use skyelab_tailnet::{
-    Error, Node, TailscaleCli, Tailnet, WhoIs, is_own_device, parse_status, parse_whois,
+    Error, Node, Tailnet, TailscaleCli, WhoIs, is_own_device, parse_status, parse_whois,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name);
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name);
     std::fs::read(&path).unwrap()
 }
 
 fn self_node() -> Node {
-    parse_status(&fixture("status_running.json")).unwrap().self_node
+    parse_status(&fixture("status_running.json"))
+        .unwrap()
+        .self_node
 }
 
 fn whois(name: &str) -> WhoIs {
@@ -40,10 +44,18 @@ fn parses_running_status() {
     assert!(me.tags.is_empty());
 
     assert_eq!(status.peers.len(), 2);
-    let phone = status.peers.iter().find(|n| n.stable_id == "nPhone22CNTRL").unwrap();
+    let phone = status
+        .peers
+        .iter()
+        .find(|n| n.stable_id == "nPhone22CNTRL")
+        .unwrap();
     assert!(phone.tags.is_empty(), "null Tags parse as no tags");
     assert!(!phone.online);
-    let server = status.peers.iter().find(|n| n.stable_id == "nServer3CNTRL").unwrap();
+    let server = status
+        .peers
+        .iter()
+        .find(|n| n.stable_id == "nServer3CNTRL")
+        .unwrap();
     assert_eq!(server.tags, vec!["tag:server"]);
 }
 
@@ -59,13 +71,19 @@ fn parses_whois() {
 #[test]
 fn stopped_status_is_not_running() {
     let err = parse_status(&fixture("status_stopped.json")).unwrap_err();
-    assert!(matches!(err, Error::NotRunning(ref s) if s == "Stopped"), "{err:?}");
+    assert!(
+        matches!(err, Error::NotRunning(ref s) if s == "Stopped"),
+        "{err:?}"
+    );
 }
 
 #[test]
 fn needs_login_status_is_not_running() {
     let err = parse_status(&fixture("status_needs_login.json")).unwrap_err();
-    assert!(matches!(err, Error::NotRunning(ref s) if s == "NeedsLogin"), "{err:?}");
+    assert!(
+        matches!(err, Error::NotRunning(ref s) if s == "NeedsLogin"),
+        "{err:?}"
+    );
 }
 
 #[test]
@@ -80,12 +98,18 @@ fn own_device_rejects_tagged_node_even_for_same_user() {
 
 #[test]
 fn own_device_rejects_other_user() {
-    assert!(!is_own_device(&self_node(), &whois("whois_other_user.json")));
+    assert!(!is_own_device(
+        &self_node(),
+        &whois("whois_other_user.json")
+    ));
 }
 
 #[test]
 fn own_device_rejects_missing_user_fields() {
-    assert!(!is_own_device(&self_node(), &whois("whois_missing_user.json")));
+    assert!(!is_own_device(
+        &self_node(),
+        &whois("whois_missing_user.json")
+    ));
 
     let mut me = self_node();
     me.user_id = None;
@@ -93,7 +117,10 @@ fn own_device_rejects_missing_user_fields() {
 
     let mut w = whois("whois_own.json");
     w.node.user = None;
-    assert!(!is_own_device(&self_node(), &w), "node owner must be present");
+    assert!(
+        !is_own_device(&self_node(), &w),
+        "node owner must be present"
+    );
 }
 
 #[test]
