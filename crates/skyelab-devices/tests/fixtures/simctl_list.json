@@ -1,0 +1,50 @@
+{
+  "devices" : {
+    "com.apple.CoreSimulator.SimRuntime.iOS-27-1" : [
+      {
+        "dataPath" : "\/Users\/someone\/Library\/Developer\/CoreSimulator\/Devices\/00000000-0000-0000-0000-000000000001\/data",
+        "dataPathSize" : 18337792,
+        "logPath" : "\/Users\/someone\/Library\/Logs\/CoreSimulator\/00000000-0000-0000-0000-000000000001",
+        "udid" : "00000000-0000-0000-0000-000000000001",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-Test",
+        "state" : "Shutdown",
+        "name" : "Test Phone A"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.iOS-27-0" : [
+      {
+        "dataPath" : "\/Users\/someone\/Library\/Developer\/CoreSimulator\/Devices\/00000000-0000-0000-0000-000000000002\/data",
+        "dataPathSize" : 5285957632,
+        "logPath" : "\/Users\/someone\/Library\/Logs\/CoreSimulator\/00000000-0000-0000-0000-000000000002",
+        "udid" : "00000000-0000-0000-0000-000000000002",
+        "lastUsedAt" : "2026-11-16T20:29:04Z",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-Test",
+        "state" : "Booted",
+        "name" : "Test Phone B"
+      },
+      {
+        "dataPath" : "\/Users\/someone\/Library\/Developer\/CoreSimulator\/Devices\/00000000-0000-0000-0000-000000000003\/data",
+        "dataPathSize" : 18337792,
+        "logPath" : "\/Users\/someone\/Library\/Logs\/CoreSimulator\/00000000-0000-0000-0000-000000000003",
+        "udid" : "00000000-0000-0000-0000-000000000003",
+        "isAvailable" : true,
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPad-Test",
+        "state" : "Shutting Down",
+        "name" : "Test Tablet"
+      },
+      {
+        "udid" : "00000000-0000-0000-0000-000000000004",
+        "isAvailable" : false,
+        "availabilityError" : "runtime profile not found",
+        "deviceTypeIdentifier" : "com.apple.CoreSimulator.SimDeviceType.iPhone-Test",
+        "state" : "Shutdown",
+        "name" : "Broken Phone"
+      }
+    ],
+    "com.apple.CoreSimulator.SimRuntime.watchOS-12-0" : [
+
+    ]
+  }
+}

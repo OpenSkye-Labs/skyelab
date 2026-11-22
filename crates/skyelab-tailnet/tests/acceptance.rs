@@ -1,5 +1,3 @@
-#![allow(clippy::unwrap_used)]
-
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
@@ -11,22 +9,22 @@ fn fixture(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(name);
-    std::fs::read(&path).unwrap()
+    std::fs::read(&path).expect("test setup")
 }
 
 fn self_node() -> Node {
     parse_status(&fixture("status_running.json"))
-        .unwrap()
+        .expect("test setup")
         .self_node
 }
 
 fn whois(name: &str) -> WhoIs {
-    parse_whois(&fixture(name)).unwrap()
+    parse_whois(&fixture(name)).expect("test setup")
 }
 
 #[test]
 fn parses_running_status() {
-    let status = parse_status(&fixture("status_running.json")).unwrap();
+    let status = parse_status(&fixture("status_running.json")).expect("test setup");
     let me = &status.self_node;
     assert_eq!(me.stable_id, "nSelf111CNTRL");
     assert_eq!(me.hostname, "laptop");
@@ -34,8 +32,10 @@ fn parses_running_status() {
     assert_eq!(
         me.tailscale_ips,
         vec![
-            "100.64.0.1".parse::<std::net::IpAddr>().unwrap(),
-            "fd7a:115c:a1e0::1".parse().unwrap()
+            "100.64.0.1"
+                .parse::<std::net::IpAddr>()
+                .expect("test setup"),
+            "fd7a:115c:a1e0::1".parse().expect("test setup")
         ]
     );
     assert_eq!(me.os, "macOS");
@@ -48,14 +48,14 @@ fn parses_running_status() {
         .peers
         .iter()
         .find(|n| n.stable_id == "nPhone22CNTRL")
-        .unwrap();
+        .expect("test setup");
     assert!(phone.tags.is_empty(), "null Tags parse as no tags");
     assert!(!phone.online);
     let server = status
         .peers
         .iter()
         .find(|n| n.stable_id == "nServer3CNTRL")
-        .unwrap();
+        .expect("test setup");
     assert_eq!(server.tags, vec!["tag:server"]);
 }
 
@@ -156,15 +156,15 @@ fn fake_cli(status_fixture: &str, whois_fixture: &str) -> (TailscaleCli, PathBuf
         "skyelab-tailnet-{}-{status_fixture}-{whois_fixture}",
         std::process::id()
     ));
-    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::create_dir_all(&dir).expect("test setup");
     let bin = dir.join("tailscale");
     let script = format!(
         "#!/bin/sh\ncase \"$1\" in\n  status) cat '{s}' ;;\n  whois) [ \"$2\" = --json ] && [ \"$3\" = 100.64.0.2:4000 ] && cat '{w}' || {{ echo 'peer not found' >&2; exit 1; }} ;;\nesac\n",
         s = fixtures.join(status_fixture).display(),
         w = fixtures.join(whois_fixture).display(),
     );
-    std::fs::write(&bin, script).unwrap();
-    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::write(&bin, script).expect("test setup");
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("test setup");
     (
         TailscaleCli::with_binaries(vec![PathBuf::from("/nonexistent/tailscale"), bin]),
         dir,
@@ -175,16 +175,16 @@ fn fake_cli(status_fixture: &str, whois_fixture: &str) -> (TailscaleCli, PathBuf
 #[test]
 fn cli_backend_through_trait() {
     let (cli, dir) = fake_cli("status_running.json", "whois_own.json");
-    let me = cli.self_node().unwrap();
+    let me = cli.self_node().expect("test setup");
     assert_eq!(me.hostname, "laptop");
-    assert_eq!(cli.peers().unwrap().len(), 2);
-    let addr: SocketAddr = "100.64.0.2:4000".parse().unwrap();
-    let w = cli.whois(addr).unwrap();
+    assert_eq!(cli.peers().expect("test setup").len(), 2);
+    let addr: SocketAddr = "100.64.0.2:4000".parse().expect("test setup");
+    let w = cli.whois(addr).expect("test setup");
     assert!(is_own_device(&me, &w));
 
-    let unknown: SocketAddr = "100.64.0.9:4000".parse().unwrap();
+    let unknown: SocketAddr = "100.64.0.9:4000".parse().expect("test setup");
     assert!(matches!(cli.whois(unknown), Err(Error::Command { .. })));
-    std::fs::remove_dir_all(dir).unwrap();
+    std::fs::remove_dir_all(dir).expect("test setup");
 }
 
 #[cfg(unix)]
@@ -192,5 +192,5 @@ fn cli_backend_through_trait() {
 fn cli_backend_stopped() {
     let (cli, dir) = fake_cli("status_stopped.json", "whois_own.json");
     assert!(matches!(cli.peers(), Err(Error::NotRunning(_))));
-    std::fs::remove_dir_all(dir).unwrap();
+    std::fs::remove_dir_all(dir).expect("test setup");
 }

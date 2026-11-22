@@ -182,7 +182,12 @@ mod tests {
                 assert!(!ok(n, windows), "{n} windows={windows}");
             }
         }
-        for n in ["https_proxy", "no_proxy", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR"] {
+        for n in [
+            "https_proxy",
+            "no_proxy",
+            "XDG_CONFIG_HOME",
+            "XDG_RUNTIME_DIR",
+        ] {
             assert!(ok(n, false), "{n}");
         }
         for n in [
