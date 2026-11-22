@@ -16,6 +16,8 @@ const DIR: &str = ".skyelab";
 pub(super) struct Created {
     pub path: PathBuf,
     pub branch: String,
+    /// The commit it started from, so its Changes still show what the agent committed.
+    pub base: String,
 }
 
 /// The title in lowercase ASCII words, plus a time-based suffix so two threads with the same
@@ -82,27 +84,52 @@ pub(super) fn create(
     let slug = slug(title, now_ms());
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
-    let path = skyelab_git::create_worktree(&project, &branch, "HEAD", Some(&dest), false)?;
+    let base = skyelab_git::rev_parse(&project, "HEAD")?;
+    let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;
     if let Err(e) = check(config, &project, &path, account_id) {
         return Err(match skyelab_git::remove_worktree(&project, &path, true) {
             Ok(()) => e,
             Err(c) => e.context(format!("removing the refused worktree also failed: {c}")),
         });
     }
-    Ok(Created { path, branch })
+    Ok(Created { path, branch, base })
 }
 
-/// Stores a new thread's worktree on its row.
-pub(super) fn record(
-    store: &skyelab_store::Store,
-    thread: &mut skyelab_store::Thread,
+/// Creates a new thread's row, with its worktree recorded on it. If that fails, the worktree is
+/// removed again: nothing would point at it, so it would sit in the project forever.
+pub(super) fn save(
+    store: &super::SharedStore,
+    project: &Path,
+    new: &skyelab_store::NewThread,
     worktree: Option<Created>,
-) -> Result<()> {
-    if let Some(w) = worktree {
-        store.set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch))?;
+) -> Result<skyelab_store::Thread> {
+    let path = worktree.as_ref().map(|w| w.path.clone());
+    let saved = super::lock(store).and_then(|store| {
+        let mut thread = store.create_thread(new)?;
+        let Some(w) = worktree else { return Ok(thread) };
+        let recorded = store
+            .set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch))
+            .and_then(|()| store.set_thread_worktree_base(thread.id, Some(&w.base)));
+        if let Err(e) = recorded {
+            return Err(match store.delete_thread(thread.id) {
+                Ok(()) => e,
+                Err(d) => e.context(format!("deleting its half-saved row also failed: {d}")),
+            });
+        }
         (thread.worktree_path, thread.worktree_branch) = (Some(w.path), Some(w.branch));
-    }
-    Ok(())
+        thread.worktree_base = Some(w.base);
+        Ok(thread)
+    });
+    let Some(path) = path.filter(|_| saved.is_err()) else {
+        return saved;
+    };
+    saved.map_err(|e| {
+        // Forced: the worktree is brand new, so all it holds is the checkout.
+        match skyelab_git::remove_worktree(project, &path, true) {
+            Ok(()) => e,
+            Err(c) => e.context(format!("removing its new worktree also failed: {c}")),
+        }
+    })
 }
 
 /// The worktree sits under the project and resolves to the thread's account.
@@ -177,7 +204,7 @@ pub(super) fn discard(path: &Path, confirmed: Option<&Status>) -> Result<Discard
         .next()
         .context("git listed no worktrees")?
         .path;
-    let now = skyelab_git::status(path)?;
+    let now = skyelab_git::status_with_ignored(path)?;
     if now.is_clean() {
         skyelab_git::remove_worktree(&main, path, false)?;
         return Ok(Discard::Removed);
@@ -201,6 +228,43 @@ pub(super) fn changed_files(st: &Status) -> Vec<&Path> {
     paths.sort();
     paths.dedup();
     paths
+}
+
+/// The confirm prompt: what a discard deletes, ignored files (`.env`, local configs) named apart.
+pub(super) fn discard_message(st: &Status) -> String {
+    fn list(paths: &[&Path]) -> String {
+        let shown: Vec<String> = paths
+            .iter()
+            .take(5)
+            .map(|p| p.display().to_string())
+            .collect();
+        let mut s = shown.join(", ");
+        if paths.len() > shown.len() {
+            s.push_str(&format!(" and {} more", paths.len() - shown.len()));
+        }
+        s
+    }
+    let plural = |n: usize| if n == 1 { "" } else { "s" };
+    let files = changed_files(st);
+    let mut parts = Vec::new();
+    if !files.is_empty() {
+        parts.push(format!(
+            "{} uncommitted change{}: {}",
+            files.len(),
+            plural(files.len()),
+            list(&files)
+        ));
+    }
+    let ignored: Vec<&Path> = st.ignored.iter().map(PathBuf::as_path).collect();
+    if !ignored.is_empty() {
+        parts.push(format!(
+            "{} ignored file{} git won't keep: {}",
+            ignored.len(),
+            plural(ignored.len()),
+            list(&ignored)
+        ));
+    }
+    format!("Discarding deletes {}", parts.join("; and "))
 }
 
 fn now_ms() -> u128 {

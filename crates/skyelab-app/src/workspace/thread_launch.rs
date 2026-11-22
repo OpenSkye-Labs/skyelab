@@ -96,24 +96,24 @@ impl ThreadView {
                         })
                         .transpose()
                         .context("creating the thread's worktree")?;
-                    let cwd = worktree.as_ref().map_or(cwd, |w| w.path.clone());
+                    let project = cwd;
+                    let cwd = worktree
+                        .as_ref()
+                        .map_or(project.clone(), |w| w.path.clone());
                     let thread = match resume {
                         Some(thread) => thread,
-                        None => {
-                            let mut thread = lock(&store)?.create_thread(&NewThread {
+                        None => crate::workspace::worktree::save(
+                            &store,
+                            &project,
+                            &NewThread {
                                 project_id,
                                 title: &title(&text),
                                 cwd: &cwd,
                                 account_id: &account.id,
                                 status: "starting",
-                            })?;
-                            crate::workspace::worktree::record(
-                                &*lock(&store)?,
-                                &mut thread,
-                                worktree,
-                            )?;
-                            thread
-                        }
+                            },
+                            worktree,
+                        )?,
                     };
                     append(
                         &mut *lock(&store)?,

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::{Error, Result, git, git_succeeds, lossy, repo_root, status};
+use crate::{Error, Result, git, git_succeeds, lossy, repo_root, status_with_ignored};
 
 /// One entry of `git worktree list`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,12 +87,13 @@ pub fn list_worktrees(repo: &Path) -> Result<Vec<Worktree>> {
     )?))
 }
 
-/// Removes the worktree at `path`. Refuses with [`Error::Dirty`] if it has any changes, untracked files
-/// included, unless `force`. The branch is kept.
+/// Removes the worktree at `path`. Refuses with [`Error::Dirty`] if it has any changes, untracked and
+/// ignored files included (`git worktree remove` deletes ignored files without asking), unless `force`.
+/// The branch is kept.
 pub fn remove_worktree(repo: &Path, path: &Path, force: bool) -> Result<()> {
     // Absolute, so the dirty check (run in `path`) and the removal (run in `repo`) see the same directory.
     let path = &std::path::absolute(path)?;
-    if !force && !status(path)?.is_clean() {
+    if !force && !status_with_ignored(path)?.is_clean() {
         return Err(Error::Dirty(path.to_owned()));
     }
     let mut args = vec!["worktree".as_ref(), "remove".as_ref()];

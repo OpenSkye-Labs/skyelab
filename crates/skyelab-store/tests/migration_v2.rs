@@ -48,13 +48,17 @@ fn v1_database_migrates_to_v2_and_keeps_threads() {
     let thread = store.thread(1).expect("read").expect("thread");
     assert_eq!(thread.worktree_path.as_deref(), Some(wt));
     assert_eq!(thread.worktree_branch.as_deref(), Some("skyelab/fix-1"));
+    assert_eq!(
+        thread.worktree_base, None,
+        "rows from before v3 have no base"
+    );
     drop(store);
 
     let version: i64 = Connection::open(&path)
         .expect("reopen")
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
 
     // Discarding clears the path and keeps the branch; reopening an upgraded file is a no-op.
     let store = Store::open(&path).expect("reopen at v2");

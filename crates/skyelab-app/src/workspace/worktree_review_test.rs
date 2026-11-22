@@ -14,7 +14,7 @@ fn changes_of_a_repo_without_commits_lists_new_files() {
     git(&root, &["add", "staged.txt"]);
     std::fs::write(root.join("loose.txt"), "b\n").expect("write");
 
-    let c = load(&root).expect("an unborn HEAD still loads");
+    let c = load(&root, None).expect("an unborn HEAD still loads");
     let paths: Vec<&Path> = c.files.iter().map(|f| f.path.as_path()).collect();
     assert_eq!(paths, [Path::new("loose.txt"), Path::new("staged.txt")]);
     assert!(c.rows.contains(&Row::Line {

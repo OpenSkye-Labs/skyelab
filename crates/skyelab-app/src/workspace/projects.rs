@@ -18,18 +18,23 @@ impl Workspace {
         let task = cx.background_spawn(async move { lock(&store)?.list_projects() });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
-            let _ = this.update(cx, |this, cx| match loaded {
-                Ok(projects) => {
-                    this.projects = projects;
-                    let current = this.project.as_ref().map(|p| p.id);
-                    if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id)) {
-                        this.select(id, cx);
+            let _ = this.update(cx, |this, cx| {
+                // Remote starts waiting for this resolve now, found or not.
+                this.starts.loaded();
+                match loaded {
+                    Ok(projects) => {
+                        this.projects = projects;
+                        let current = this.project.as_ref().map(|p| p.id);
+                        if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id))
+                        {
+                            this.select(id, cx);
+                        }
+                        this.refresh_sidebar(cx);
                     }
-                    this.refresh_sidebar(cx);
-                }
-                Err(e) => {
-                    this.store_error = Some(format!("{e:#}").into());
-                    cx.notify();
+                    Err(e) => {
+                        this.store_error = Some(format!("{e:#}").into());
+                        cx.notify();
+                    }
                 }
             });
         }));
@@ -244,7 +249,7 @@ impl Workspace {
                         });
                     }
                 }
-                ThreadViewEvent::TurnDone => {}
+                ThreadViewEvent::TurnDone => this.refresh_changes(view, cx),
             },
         ));
         self.open_threads.retain(|t| t.upgrade().is_some());
@@ -272,12 +277,17 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let dir = view.read(cx).cwd.clone();
+        let base = view
+            .read(cx)
+            .thread
+            .as_ref()
+            .and_then(|t| t.worktree_base.clone());
         self.changes_views.retain(|c| c.upgrade().is_some());
         let open = self
             .changes_views
             .iter()
             .filter_map(|c| c.upgrade())
-            .find(|c| c.read(cx).dir == dir);
+            .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
         if let Some(changes) = open {
             changes.update(cx, |c, cx| c.refresh(cx));
             let id = changes.entity_id().into();
@@ -286,7 +296,7 @@ impl Workspace {
             return;
         }
         let title = view.read(cx).title();
-        let changes = cx.new(|cx| ChangesView::new(dir, title, Some(view), cx));
+        let changes = cx.new(|cx| ChangesView::new(dir, base, title, cx));
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
                 panel_handle(changes.clone()),
@@ -298,6 +308,16 @@ impl Workspace {
         });
         self.changes_views.push(changes.downgrade());
         cx.notify();
+    }
+
+    /// A thread's turn ended: every Changes tab on its folder may be out of date.
+    fn refresh_changes(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
+        let dir = view.read(cx).cwd.clone();
+        for changes in self.changes_views.iter().filter_map(|c| c.upgrade()) {
+            if changes.read(cx).dir == dir {
+                changes.update(cx, |c, cx| c.refresh(cx));
+            }
+        }
     }
 
     fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {

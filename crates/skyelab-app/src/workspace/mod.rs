@@ -167,6 +167,7 @@ pub struct Workspace {
     remote: Option<remote::RemoteHook>,
     /// Which machine the sidebar and remote tabs show (this one unless the picker chose another).
     env: env_mode::EnvMode,
+    starts: remote::StartQueue,
 }
 
 impl Workspace {
@@ -244,6 +245,7 @@ impl Workspace {
             _appearance,
             remote: None,
             env: Default::default(),
+            starts: remote::StartQueue::new(),
         };
         this.refresh_sidebar(cx);
         this.load_projects(None, cx);
@@ -544,3 +546,12 @@ mod env_picker_test;
 
 #[cfg(test)]
 mod env_prompt_loss_test;
+
+#[cfg(test)]
+mod worktree_followups_test;
+
+#[cfg(test)]
+mod remote_start_test;
+
+#[cfg(test)]
+mod changes_follow_folder_test;

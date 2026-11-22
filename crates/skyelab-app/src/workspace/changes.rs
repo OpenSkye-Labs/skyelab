@@ -1,11 +1,10 @@
-//! The Changes tab: a folder's changed files and their unified diff against `HEAD`.
+//! The Changes tab: a folder's changed files and their unified diff against `HEAD`, or against
+//! the commit a worktree thread started from.
 
 use super::changes_model::{self, Changes, LineKind, Row};
-use super::thread::{ThreadView, ThreadViewEvent};
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString,
-    Subscription, Task, UniformListScrollHandle, Window, actions, div, prelude::*, px,
-    uniform_list,
+    App, Context, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString, Task,
+    UniformListScrollHandle, Window, actions, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{ActiveTheme as _, Sizable as _, button::Button, h_flex, v_flex};
 use skyelab_git::ChangeKind;
@@ -19,38 +18,31 @@ const ROW_HEIGHT: f32 = 20.;
 pub struct ChangesView {
     focus: FocusHandle,
     pub(super) dir: PathBuf,
+    /// `None` diffs against `HEAD`.
+    pub(super) base: Option<String>,
     title: SharedString,
     pub(super) changes: Option<Changes>,
     pub(super) error: Option<SharedString>,
     scroll: UniformListScrollHandle,
     _load: Option<Task<()>>,
-    _thread: Option<Subscription>,
 }
 
 impl ChangesView {
-    /// Shows `dir`'s changes, reloading whenever `thread`'s agent finishes a turn.
     pub fn new(
         dir: PathBuf,
+        base: Option<String>,
         title: SharedString,
-        thread: Option<&Entity<ThreadView>>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let _thread = thread.map(|t| {
-            cx.subscribe(t, |this, _, e: &ThreadViewEvent, cx| {
-                if matches!(e, ThreadViewEvent::TurnDone) {
-                    this.refresh(cx);
-                }
-            })
-        });
         let mut this = Self {
             focus: cx.focus_handle(),
             dir,
+            base,
             title,
             changes: None,
             error: None,
             scroll: UniformListScrollHandle::new(),
             _load: None,
-            _thread,
         };
         this.refresh(cx);
         this
@@ -62,8 +54,8 @@ impl ChangesView {
 
     /// Re-reads status and diff off the UI thread. A newer refresh drops the older one.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        let dir = self.dir.clone();
-        let task = cx.background_spawn(async move { changes_model::load(&dir) });
+        let (dir, base) = (self.dir.clone(), self.base.clone());
+        let task = cx.background_spawn(async move { changes_model::load(&dir, base.as_deref()) });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -267,7 +259,11 @@ impl Render for ChangesView {
                 .p_4()
                 .text_sm()
                 .text_color(theme.muted_foreground)
-                .child("No changes against HEAD.")
+                .child(if self.base.is_some() {
+                    "No changes since this worktree was created."
+                } else {
+                    "No changes against HEAD."
+                })
                 .into_any_element()
         } else {
             h_flex()

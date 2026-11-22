@@ -12,8 +12,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-pub use diff::{FileDiff, Hunk, Line, diff};
-pub use status::{FileChange, Status, status};
+pub use diff::{FileDiff, Hunk, Line, diff, diff_merge_base};
+pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
 
 #[derive(Debug, thiserror::Error)]
@@ -26,7 +26,7 @@ pub enum Error {
     BranchExists(String),
     #[error("`{0}` is not a valid branch name")]
     InvalidBranch(String),
-    #[error("worktree {} has uncommitted or untracked changes", .0.display())]
+    #[error("worktree {} has uncommitted, untracked or ignored files", .0.display())]
     Dirty(PathBuf),
     #[error("no platform data directory to put worktrees in")]
     NoDataDir,
@@ -54,6 +54,20 @@ pub enum ChangeKind {
 pub fn repo_root(path: &Path) -> Result<PathBuf> {
     let out = git(path, &["rev-parse", "--show-toplevel"])?;
     Ok(PathBuf::from(lossy(&out).trim_end_matches('\n')))
+}
+
+/// The full SHA of commit-ish `rev` in the repo at `dir`.
+pub fn rev_parse(dir: &Path, rev: &str) -> Result<String> {
+    let out = git(
+        dir,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &format!("{rev}^{{commit}}"),
+        ],
+    )?;
+    Ok(lossy(&out).trim().to_owned())
 }
 
 /// Adds `pattern` to the repo's own `info/exclude` (shared by all its worktrees, never committed), once.
