@@ -1,3 +1,4 @@
+INFO    | Storing crashdata in: /tmp/android-someone/emu-crash.db
 Test_AVD_One
 Test_AVD_Two
 

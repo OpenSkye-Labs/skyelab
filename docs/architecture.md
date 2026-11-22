@@ -38,6 +38,7 @@ personal plan by mistake.
 | `skyelab-agent` | spawning/streaming agent processes | later |
 | `skyelab-daemon` | environment server + RPC | when remote ships |
 | `skyelab-tailnet` | `Tailnet` trait: `peers / dial / listen / whois` | when remote ships |
+| `skyelab-devices` | device hub core: list/boot/install/launch/screenshot on iOS Simulators and Android emulators (sync, shells out to simctl/adb/emulator) | yes |
 
 ## Tailscale plan
 
