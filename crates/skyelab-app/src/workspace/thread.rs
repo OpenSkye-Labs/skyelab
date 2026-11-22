@@ -47,6 +47,8 @@ pub struct ThreadView {
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
     stop_requested: bool,
+    /// Bumped by every launch; a pump from an earlier launch never ends a later one.
+    pub(super) launches: u64,
     /// Nothing to send to: the agent never reported a session id to resume, or a reopened
     /// thread's row is still loading.
     pub(super) read_only: bool,
@@ -180,6 +182,7 @@ impl ThreadView {
             error: None,
             starting: false,
             stop_requested: false,
+            launches: 0,
             read_only: false,
             resume_refused: None,
             send_chain: None,
@@ -288,7 +291,11 @@ impl ThreadView {
     fn run(&mut self, session: Session, store: SharedStore, id: i64, cx: &mut Context<Self>) {
         let events = session.events().clone();
         self.session = Some(Arc::new(Mutex::new(session)));
-        // Replacing the pump drops the stopped session's one, so its late end can't touch this session.
+        let launch = self.launches;
+        // A stopped session's pump keeps storing what it already printed.
+        if let Some(old) = self._pump.take() {
+            old.detach();
+        }
         self._pump = Some(cx.spawn(async move |this, cx| {
             while let Ok(event) = events.recv_async().await {
                 let record = Record::Agent(event);
@@ -318,6 +325,9 @@ impl ThreadView {
                         (&record, &mut this.thread)
                     {
                         t.agent_session_id = Some(session_id.clone());
+                        if this.session.is_none() && !this.starting {
+                            this.finish(cx); // stopped before this arrived: it's resumable now
+                        }
                     }
                     this.push(&record, cx);
                 });
@@ -325,15 +335,14 @@ impl ThreadView {
                     return;
                 }
             }
-            let _ = this.update(cx, |this, cx| this.ended(cx));
+            let _ = this.update(cx, |this, cx| this.ended(launch, cx));
         }));
     }
 
     /// claude's stdout closed and every event is stored: record how the thread ended.
-    fn ended(&mut self, cx: &mut Context<Self>) {
-        // A stopped session's stream ended while its resume is starting: leave the resume alone.
-        if self.starting {
-            return;
+    fn ended(&mut self, launch: u64, cx: &mut Context<Self>) {
+        if launch != self.launches {
+            return; // a stopped session's stream; Stop already recorded it
         }
         let Some(thread) = &self.thread else {
             return;
@@ -346,10 +355,12 @@ impl ThreadView {
         };
         let session = self.session.take();
         self.finish(cx);
-        // Reaping the child waits, so the session is dropped off the UI thread.
+        // Reaping the child waits, so it happens off the UI thread, after the status is written
+        // (so a quick resume's "running" can't be overwritten by it).
         self.in_background(cx, move || {
+            lock(&store)?.set_thread_status(id, status)?;
             drop(session);
-            lock(&store)?.set_thread_status(id, status)
+            Ok(())
         });
     }
 

@@ -71,6 +71,7 @@ impl ThreadView {
     ) {
         self.starting = true;
         self.stop_requested = false;
+        self.launches += 1;
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         self.push(&Record::Prompt(text.clone()), cx);
 
@@ -105,7 +106,7 @@ impl ThreadView {
                     let launch = Launch {
                         account: &account,
                         dir: &cwd,
-                        resume: thread.agent_session_id.as_deref().filter(|_| !is_new),
+                        resume: thread.agent_session_id.as_deref(), // a new row has none
                         prompt: &text,
                     };
                     let session = skyelab_agent::start_with_bin(&bin, &config, &launch);
@@ -178,9 +179,10 @@ impl ThreadView {
             }
             let sent = write
                 .spawn(async move {
+                    // Queued first, so a full queue stores no prompt claude never got.
+                    lock(&session)?.send_user_message(&text)?;
                     append(&mut *lock(&store)?, id, &record)?;
-                    lock(&store)?.set_thread_status(id, "running")?;
-                    lock(&session)?.send_user_message(&text)
+                    lock(&store)?.set_thread_status(id, "running")
                 })
                 .await;
             if let Err(e) = sent {
