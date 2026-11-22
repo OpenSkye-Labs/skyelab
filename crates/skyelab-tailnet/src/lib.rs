@@ -326,3 +326,40 @@ fn drain(pipe: Option<impl Read + Send + 'static>) -> mpsc::Receiver<Vec<u8>> {
     }
     rx
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_cli_is_tried_before_path() {
+        let want: &[&str] = if cfg!(target_os = "macos") {
+            &[MACOS_APP_CLI, "tailscale"]
+        } else {
+            &["tailscale"]
+        };
+        let want: Vec<PathBuf> = want.iter().map(PathBuf::from).collect();
+        assert_eq!(TailscaleCli::default().binaries, want);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn app_cli_wins_when_both_exist() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().expect("test setup");
+        let fake = |name: &str| {
+            let bin = dir.path().join(name);
+            let marker = dir.path().join(format!("{name}.ran"));
+            std::fs::write(&bin, format!("#!/bin/sh\ntouch '{}'\n", marker.display()))
+                .expect("test setup");
+            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755))
+                .expect("test setup");
+            (bin, marker)
+        };
+        let (app, app_ran) = fake("app-cli");
+        let (path, path_ran) = fake("path-cli");
+        // The fakes print no JSON, so status fails to parse; only which one ran matters.
+        let _ = TailscaleCli::with_binaries(vec![app, path]).status();
+        assert!(app_ran.exists() && !path_ran.exists());
+    }
+}
