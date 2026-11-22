@@ -24,10 +24,7 @@ fn status_follows_an_unbind_made_in_settings(cx: &mut TestAppContext) {
         })
         .expect("add account");
     config
-        .add_binding(Binding {
-            path: folder.clone(),
-            account: "acme".into(),
-        })
+        .add_binding(Binding::new(folder.clone(), "acme".into()))
         .expect("bind");
     config.save(&accounts_path).expect("save");
 

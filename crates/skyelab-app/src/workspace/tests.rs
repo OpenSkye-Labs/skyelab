@@ -78,10 +78,7 @@ fn status_shows_the_bound_account_and_never_a_fallback() {
         .expect("add account");
     assert_eq!(account_label(&config, home.path()), None, "unbound folder");
     config
-        .add_binding(Binding {
-            path: home.path().to_path_buf(),
-            account: "acme".into(),
-        })
+        .add_binding(Binding::new(home.path().to_path_buf(), "acme".into()))
         .expect("bind");
     assert_eq!(
         account_label(&config, home.path()).as_deref(),
