@@ -1,32 +1,30 @@
 //! The tokio side: one task owns the connection, the request table and every watched thread's seq.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use rustls::ClientConfig;
-use rustls::pki_types::ServerName;
-use skyelab_protocol::{Call, ErrorCode, Hello, Reply, Request, RequestId, ServerMessage, Version};
+use skyelab_protocol::{Call, Hello, Reply, Request, RequestId, ServerMessage, Version};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpStream;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
-use crate::{Error, Options, Update, guard};
+use crate::{Disconnect, DisconnectKind, Error, Options, Update, WatchId};
 
+mod connect;
 mod watched;
+use connect::{Target, connect};
 use watched::Watched;
 
 pub(crate) type ReplyFn = Box<dyn FnOnce(Result<Reply, Error>) + Send>;
 
 pub(crate) enum Command {
     Call { call: Call, reply: ReplyFn },
-    Watch { thread_id: i64, after_seq: i64 },
-    Unwatch { thread_id: i64 },
+    Watch { id: WatchId, after_seq: i64 },
+    Unwatch(WatchId),
 }
 
 enum End {
@@ -35,16 +33,23 @@ enum End {
     Fatal(Error),
     /// Retry. `was_up`: the connection got past hello, so the backoff starts over.
     Lost {
-        reason: String,
+        why: Disconnect,
         was_up: bool,
     },
 }
 
-fn lost(reason: impl Into<String>) -> End {
+fn lost_as(kind: DisconnectKind, message: impl Into<String>) -> End {
     End::Lost {
-        reason: reason.into(),
+        why: Disconnect {
+            kind,
+            message: message.into(),
+        },
         was_up: false,
     }
+}
+
+fn lost(message: impl Into<String>) -> End {
+    lost_as(DisconnectKind::Other, message)
 }
 
 struct Ctx {
@@ -67,17 +72,29 @@ impl Ctx {
         match command {
             Err(_) => return false,
             Ok(Command::Call { reply, .. }) => reply(Err(Error::NotConnected)),
-            Ok(Command::Watch {
-                thread_id,
-                after_seq,
-            }) => {
-                self.watched.insert(thread_id, Watched::new(after_seq));
-            }
-            Ok(Command::Unwatch { thread_id }) => {
-                self.watched.remove(&thread_id);
-            }
+            Ok(Command::Watch { id, after_seq }) => self.watch(id, after_seq),
+            Ok(Command::Unwatch(id)) => self.unwatch(id),
         }
         true
+    }
+
+    /// Starts the thread over from `after_seq`, keeping its other watches.
+    fn watch(&mut self, id: WatchId, after_seq: i64) {
+        let mut w = Watched::new(after_seq);
+        if let Some(old) = self.watched.remove(&id.thread_id) {
+            w.holders = old.holders;
+        }
+        w.holders.insert(id.n);
+        self.watched.insert(id.thread_id, w);
+    }
+
+    fn unwatch(&mut self, id: WatchId) {
+        if let Some(w) = self.watched.get_mut(&id.thread_id) {
+            w.holders.remove(&id.n);
+            if w.holders.is_empty() {
+                self.watched.remove(&id.thread_id);
+            }
+        }
     }
 
     fn allow_loopback(&self) -> bool {
@@ -128,16 +145,16 @@ pub(crate) async fn run(
     };
     let mut backoff = cx.options.backoff_min;
     loop {
-        let (reason, was_up) = match session(&mut cx).await {
+        let (why, was_up) = match session(&mut cx).await {
             End::Stopped => return,
             End::Fatal(e) => {
                 let _ = cx.updates.send(Update::Fatal(e));
                 return;
             }
-            End::Lost { reason, was_up } => (reason, was_up),
+            End::Lost { why, was_up } => (why, was_up),
         };
         cx.set_hello(None);
-        let _ = cx.updates.send(Update::Disconnected(reason));
+        let _ = cx.updates.send(Update::Disconnected(why));
         if was_up {
             backoff = cx.options.backoff_min;
         }
@@ -198,122 +215,9 @@ async fn session(cx: &mut Ctx) -> End {
     }
     let _ = timeout(Duration::from_secs(1), live.ws.close(None)).await;
     match end {
-        End::Lost { reason, .. } => End::Lost {
-            reason,
-            was_up: true,
-        },
+        End::Lost { why, .. } => End::Lost { why, was_up: true },
         end => end,
     }
-}
-
-/// Resolve, refuse non-tailnet addresses, dial the checked addresses, TLS, handshake, hello.
-struct Target {
-    host: String,
-    options: Options,
-    tls: Arc<ClientConfig>,
-    allow_loopback: bool,
-    plaintext: bool,
-    resolve_to: Option<std::net::IpAddr>,
-    protocol: Version,
-}
-
-async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
-    let port = cx.options.port;
-    let addrs = match cx.resolve_to {
-        Some(ip) => guard::allowed(&cx.host, [SocketAddr::new(ip, port)], cx.allow_loopback),
-        None => guard::resolve(&cx.host, port, cx.allow_loopback).await,
-    }
-    .map_err(lost)?;
-    // Each address gets a share of the budget, so a black-holed first one can't starve the rest.
-    let per_addr = cx.options.connect_timeout / addrs.len().max(1) as u32;
-    let stream = dial(&addrs, per_addr).await.map_err(lost)?;
-    let limit = cx.options.max_message_bytes;
-    let config = WebSocketConfig::default()
-        .max_message_size(Some(limit))
-        .max_frame_size(Some(limit));
-    let host = &cx.host;
-    let (stream, scheme): (Box<dyn Io>, _) = if cx.plaintext {
-        (Box::new(stream), "ws")
-    } else {
-        // Connect checked the host is a DNS name, so this can't fail; refuse rather than skip TLS if it ever does.
-        let name = ServerName::try_from(host.clone())
-            .map_err(|e| lost(format!("{host} isn't a DNS name: {e}")))?;
-        let tls = tokio_rustls::TlsConnector::from(cx.tls.clone())
-            .connect(name, stream)
-            .await
-            .map_err(|e| lost(format!("TLS with {host} failed: {e}")))?;
-        (Box::new(tls), "wss")
-    };
-    // The URL only names the Host header; the socket is already connected to a checked address.
-    let (mut ws, _) = tokio_tungstenite::client_async_with_config(
-        format!("{scheme}://{host}:{port}/"),
-        stream,
-        Some(config),
-    )
-    .await
-    .map_err(|e| lost(format!("WebSocket handshake failed: {e}")))?;
-
-    let hello = Request {
-        id: 0,
-        call: Call::Hello {
-            protocol: cx.protocol,
-            capabilities: vec![],
-        },
-    };
-    send_json(&mut ws, &hello).await.map_err(lost)?;
-    loop {
-        let text = match ws.next().await {
-            Some(Ok(Message::Text(text))) => text,
-            Some(Ok(Message::Close(_))) | None => return Err(lost("closed during hello")),
-            Some(Ok(Message::Binary(_))) => return Err(lost("binary frame during hello")),
-            Some(Ok(_)) => continue,
-            Some(Err(e)) => return Err(lost(format!("hello failed: {e}"))),
-        };
-        return match serde_json::from_str::<ServerMessage>(&text) {
-            Ok(ServerMessage::Response {
-                id: 0,
-                result: Reply::Hello(h),
-            }) if h.protocol.major == cx.protocol.major => Ok((ws, h)),
-            Ok(ServerMessage::Response {
-                id: 0,
-                result: Reply::Hello(h),
-            }) => Err(End::Fatal(Error::UnsupportedVersion(format!(
-                "the environment answered with protocol {}.{}",
-                h.protocol.major, h.protocol.minor
-            )))),
-            Ok(ServerMessage::Error { id: Some(0), error })
-                if error.code == ErrorCode::UnsupportedVersion =>
-            {
-                Err(End::Fatal(Error::UnsupportedVersion(error.message)))
-            }
-            Ok(other) => Err(lost(format!("unexpected answer to hello: {other:?}"))),
-            Err(e) => Err(lost(format!("malformed answer to hello: {e}"))),
-        };
-    }
-}
-
-async fn dial(addrs: &[SocketAddr], per_addr: Duration) -> Result<TcpStream, String> {
-    let mut errors = Vec::new();
-    for addr in addrs {
-        match timeout(per_addr, TcpStream::connect(addr)).await {
-            Ok(Ok(stream)) => {
-                let _ = stream.set_nodelay(true);
-                return Ok(stream);
-            }
-            Ok(Err(e)) => errors.push(format!("{addr}: {e}")),
-            Err(_) => errors.push(format!("{addr}: timed out")),
-        }
-    }
-    Err(format!("can't connect: {}", errors.join("; ")))
-}
-
-async fn send_json(ws: &mut Ws, request: &Request) -> Result<(), String> {
-    // Plain structs, strings and integers: serializing can't fail.
-    let text = serde_json::to_string(request)
-        .unwrap_or_else(|_| unreachable!("Request always serializes"));
-    ws.send(Message::text(text))
-        .await
-        .map_err(|e| format!("send failed: {e}"))
 }
 
 enum Waiter {
@@ -388,15 +292,12 @@ impl Live {
     async fn command(&mut self, cx: &mut Ctx, command: Command) -> Result<(), End> {
         match command {
             Command::Call { call, reply } => self.request(cx, call, Waiter::User(reply)).await,
-            Command::Watch {
-                thread_id,
-                after_seq,
-            } => {
-                cx.watched.insert(thread_id, Watched::new(after_seq));
-                self.fill(cx, thread_id).await
+            Command::Watch { id, after_seq } => {
+                cx.watch(id, after_seq);
+                self.fill(cx, id.thread_id).await
             }
-            Command::Unwatch { thread_id } => {
-                cx.watched.remove(&thread_id);
+            Command::Unwatch(id) => {
+                cx.unwatch(id);
                 Ok(())
             }
         }

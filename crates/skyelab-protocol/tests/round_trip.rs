@@ -41,7 +41,7 @@ fn round_trip_hello() {
             protocol: VERSION,
             capabilities: vec!["events".into()],
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 0}, "capabilities": ["events"]}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 1}, "capabilities": ["events"]}}),
     );
 }
 
@@ -116,6 +116,7 @@ fn round_trip_every_reply() {
         Reply::Hello(Hello {
             protocol: VERSION,
             capabilities: vec![],
+            node_id: Some("nSelf".into()),
         }),
         Reply::Projects(vec![Project {
             id: 1,
@@ -127,6 +128,7 @@ fn round_trip_every_reply() {
             project_id: 1,
             title: "t".into(),
             account_id: "work".into(),
+            account_label: Some("Work (Team)".into()),
             status: "idle".into(),
             created_at: 1,
             updated_at: 2,

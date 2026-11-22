@@ -2,6 +2,7 @@
 //! They live in the crate because the loopback exception only exists under `cfg(test)`.
 
 mod backoff;
+mod disconnect_kind;
 mod events;
 mod fill_retry;
 mod guard;
@@ -11,6 +12,7 @@ mod keepalive;
 mod reconnect;
 mod rpc;
 mod tls;
+mod watch_handles;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
