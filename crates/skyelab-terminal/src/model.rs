@@ -40,9 +40,8 @@ pub struct Terminal {
     pty: EventLoopSender,
     exit: Option<ExitStatus>,
     size: (u16, u16),
-    /// Held for the terminal's life. macOS throws away output the parent hasn't read once the child's last slave fd
-    /// closes (after a short drain wait), so a child that prints and exits under load lost its output. With this
-    /// open, the child's exit waits until the reader has drained it.
+    /// macOS discards unread PTY output when the last slave fd closes; holding one makes the child's exit wait for
+    /// the reader to drain it.
     _slave: Slave,
 }
 
@@ -168,7 +167,7 @@ impl Drop for Terminal {
     }
 }
 
-/// The PTY plus a parent-held, close-on-exec fd of its slave side (`()` on Windows).
+/// The PTY plus a parent-held fd of its slave side (`()` on Windows).
 #[cfg(unix)]
 fn open_pty(options: &tty::Options, size: WindowSize) -> std::io::Result<(tty::Pty, Slave)> {
     let size = rustix_openpty::rustix::termios::Winsize {
@@ -216,12 +215,14 @@ fn launch(
         return (program, args, env);
     }
     if cfg!(windows) {
-        // shortcut: the child sees CLAUDE_CONFIG_DIR defined but empty, not absent; a tool that treats "set" as
-        // "configured" would still differ. Upgrade if alacritty's Options gains env removal.
+        // shortcut: the child sees CLAUDE_CONFIG_DIR="" rather than no var. A tool that falls back only when it is
+        // absent (Node's `env.X ?? default`) would resolve "" against the cwd. Upgrade when alacritty's Options can
+        // remove a var, or by wrapping the command in a shell that unsets it.
         env.insert(CLAUDE_CONFIG_DIR.into(), String::new());
         return (program, args, env);
     }
-    // `--` so a program name with `=` or a leading `-` is never read as an env argument.
+    // `--` so a program name with a leading `-` is never read as an env option. env(1) still reads a program name
+    // containing `=` as an assignment; no caller passes one.
     let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), "--".into(), program];
     wrapped.extend(args);
     env.remove(CLAUDE_CONFIG_DIR);
@@ -252,7 +253,6 @@ mod tests {
 
     use super::*;
 
-    /// A child that prints and exits before anyone reads must not lose its output (macOS drops it otherwise).
     #[test]
     fn output_outlives_a_child_that_exits_before_the_first_read() {
         let options = tty::Options {
@@ -286,7 +286,6 @@ mod env_tests {
         let (program, args, env) = launch(cmd(), HashMap::new());
         assert_eq!(env["TERM"], "xterm-256color");
         if cfg!(windows) {
-            // The empty value overrides the inherited one: alacritty's env block can't remove a var.
             assert_eq!(
                 (program.as_str(), args.as_slice()),
                 ("prog", &["a".to_string()][..])

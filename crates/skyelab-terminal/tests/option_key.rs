@@ -1,5 +1,3 @@
-//! Option as meta (ESC + key, for shell word motions) or as the layout's composed character (German Option-L = `@`).
-
 use alacritty_terminal::term::TermMode;
 use gpui::{Keystroke, Modifiers};
 use skyelab_terminal::{OptionKey, OptionKeys, key_to_bytes};
@@ -33,7 +31,6 @@ fn option_key_characters_sends_the_composed_char() {
     assert_eq!(bytes.as_deref(), Some("@".as_bytes()));
     let bytes = key_to_bytes(&option("5", "["), n, OptionKey::Characters);
     assert_eq!(bytes.as_deref(), Some("[".as_bytes()));
-    // Keys with their own encoding keep it: alt-left is still a modified cursor key.
     let Ok(left) = Keystroke::parse("alt-left") else {
         panic!("bad keystroke")
     };
