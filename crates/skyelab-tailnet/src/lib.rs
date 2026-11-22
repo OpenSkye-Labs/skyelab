@@ -358,8 +358,7 @@ mod tests {
         };
         let (app, app_ran) = fake("app-cli");
         let (path, path_ran) = fake("path-cli");
-        // The fakes print no JSON, so status fails to parse; only which one ran matters.
-        let _ = TailscaleCli::with_binaries(vec![app, path]).status();
+        assert!(TailscaleCli::with_binaries(vec![app, path]).status().is_err());
         assert!(app_ran.exists() && !path_ran.exists());
     }
 }
