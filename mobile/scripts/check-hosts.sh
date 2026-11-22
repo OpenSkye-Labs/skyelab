@@ -48,7 +48,9 @@ ids=$(grep -o 'PRODUCT_BUNDLE_IDENTIFIER = [^;]*' "$pbx" | sort -u)
 ! grep -qE 'DEVELOPMENT_TEAM = [^";]|DEVELOPMENT_TEAM = "[^"]' "$pbx" || bad "$pbx commits a team id (use SKYELAB_IOS_TEAM_ID)"
 ! grep -q CODE_SIGN_ENTITLEMENTS "$pbx" || bad "$pbx sets entitlements"
 [[ -z $(find ios -name '*.entitlements') ]] || bad "ios/ has an .entitlements file"
-[[ -s ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png ]] || bad "no iOS app icon (scripts/icons.sh)"
+icon=ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png
+# PNG colour type (IHDR byte 25): 2 is RGB. App Store Connect rejects an icon with alpha (6).
+[[ -s $icon && $(od -An -tu1 -j25 -N1 "$icon" | tr -d ' ') == 2 ]] || bad "$icon missing or has alpha (scripts/icons.sh)"
 
 # Built artifacts
 aapt2() {
