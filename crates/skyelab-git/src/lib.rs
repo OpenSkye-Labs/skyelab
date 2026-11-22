@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 pub use diff::{FileDiff, Hunk, Line, diff};
-pub use status::{FileChange, Status, status};
+pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
 
 #[derive(Debug, thiserror::Error)]
@@ -26,7 +26,7 @@ pub enum Error {
     BranchExists(String),
     #[error("`{0}` is not a valid branch name")]
     InvalidBranch(String),
-    #[error("worktree {} has uncommitted or untracked changes", .0.display())]
+    #[error("worktree {} has uncommitted, untracked or ignored files", .0.display())]
     Dirty(PathBuf),
     #[error("no platform data directory to put worktrees in")]
     NoDataDir,

@@ -358,7 +358,11 @@ mod tests {
         };
         let (app, app_ran) = fake("app-cli");
         let (path, path_ran) = fake("path-cli");
-        assert!(TailscaleCli::with_binaries(vec![app, path]).status().is_err());
+        assert!(
+            TailscaleCli::with_binaries(vec![app, path])
+                .status()
+                .is_err()
+        );
         assert!(app_ran.exists() && !path_ran.exists());
     }
 }

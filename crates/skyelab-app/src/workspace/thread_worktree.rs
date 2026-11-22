@@ -211,21 +211,7 @@ impl ThreadView {
         let st = self.wt.discard_pending.as_ref()?;
         let theme = cx.theme();
         // The exact files the confirm covers; a confirm after they change is refused and asked again.
-        let files = worktree::changed_files(st);
-        let mut msg = format!(
-            "Discarding deletes {} uncommitted change{}: ",
-            files.len(),
-            if files.len() == 1 { "" } else { "s" }
-        );
-        let shown: Vec<String> = files
-            .iter()
-            .take(5)
-            .map(|p| p.display().to_string())
-            .collect();
-        msg.push_str(&shown.join(", "));
-        if files.len() > shown.len() {
-            msg.push_str(&format!(" and {} more", files.len() - shown.len()));
-        }
+        let msg = worktree::discard_message(st);
         Some(
             h_flex()
                 .mx_4()

@@ -514,3 +514,6 @@ mod worktree_review_test;
 
 #[cfg(test)]
 mod review_cta_folder_test;
+
+#[cfg(test)]
+mod worktree_followups_test;

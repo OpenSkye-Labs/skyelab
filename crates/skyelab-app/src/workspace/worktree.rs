@@ -177,7 +177,8 @@ pub(super) fn discard(path: &Path, confirmed: Option<&Status>) -> Result<Discard
         .next()
         .context("git listed no worktrees")?
         .path;
-    let now = skyelab_git::status(path)?;
+    // With ignored files: `.env` and local configs are what a discard would silently lose.
+    let now = skyelab_git::status_with_ignored(path)?;
     if now.is_clean() {
         skyelab_git::remove_worktree(&main, path, false)?;
         return Ok(Discard::Removed);
@@ -201,6 +202,43 @@ pub(super) fn changed_files(st: &Status) -> Vec<&Path> {
     paths.sort();
     paths.dedup();
     paths
+}
+
+/// The confirm prompt: what a discard deletes, ignored files (`.env`, local configs) named apart.
+pub(super) fn discard_message(st: &Status) -> String {
+    fn list(paths: &[&Path]) -> String {
+        let shown: Vec<String> = paths
+            .iter()
+            .take(5)
+            .map(|p| p.display().to_string())
+            .collect();
+        let mut s = shown.join(", ");
+        if paths.len() > shown.len() {
+            s.push_str(&format!(" and {} more", paths.len() - shown.len()));
+        }
+        s
+    }
+    let plural = |n: usize| if n == 1 { "" } else { "s" };
+    let files = changed_files(st);
+    let mut parts = Vec::new();
+    if !files.is_empty() {
+        parts.push(format!(
+            "{} uncommitted change{}: {}",
+            files.len(),
+            plural(files.len()),
+            list(&files)
+        ));
+    }
+    let ignored: Vec<&Path> = st.ignored.iter().map(PathBuf::as_path).collect();
+    if !ignored.is_empty() {
+        parts.push(format!(
+            "{} ignored file{} git won't keep: {}",
+            ignored.len(),
+            plural(ignored.len()),
+            list(&ignored)
+        ));
+    }
+    format!("Discarding deletes {}", parts.join("; and "))
 }
 
 fn now_ms() -> u128 {

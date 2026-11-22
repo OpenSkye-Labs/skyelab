@@ -47,7 +47,9 @@ impl DeviceSource for Fake {
     }
     fn screenshot(&self, _: &Device) -> anyhow::Result<Vec<u8>> {
         // Distinct bytes per shot: GPUI keys an image by a hash of its bytes.
-        let n = self.shots.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let n = self
+            .shots
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Ok(vec![n])
     }
 }
@@ -135,7 +137,10 @@ fn cached_screenshot(
     let shot = shot.expect("the screenshot is stored");
     cx.update(|window, cx| shot.clone().get_render_image(window, cx));
     cx.run_until_parked();
-    assert!(cx.update(|_, cx| shot.is_asset_cached(cx)), "test setup: cached");
+    assert!(
+        cx.update(|_, cx| shot.is_asset_cached(cx)),
+        "test setup: cached"
+    );
     shot
 }
 

@@ -10,11 +10,17 @@ pub struct Status {
     /// Working tree vs index. Merge conflicts land here as [`ChangeKind::Unmerged`].
     pub unstaged: Vec<FileChange>,
     pub untracked: Vec<PathBuf>,
+    /// Ignored files, and folders ignored as a whole (with a trailing `/`). Only
+    /// [`status_with_ignored`] fills this.
+    pub ignored: Vec<PathBuf>,
 }
 
 impl Status {
     pub fn is_clean(&self) -> bool {
-        self.staged.is_empty() && self.unstaged.is_empty() && self.untracked.is_empty()
+        self.staged.is_empty()
+            && self.unstaged.is_empty()
+            && self.untracked.is_empty()
+            && self.ignored.is_empty()
     }
 }
 
@@ -27,6 +33,16 @@ pub struct FileChange {
 }
 
 pub fn status(path: &Path) -> Result<Status> {
+    run(path, "--ignored=no")
+}
+
+/// [`status`] plus ignored files: what removing the worktree would also delete. A folder ignored
+/// as a whole (`node_modules/`) is one entry, not every file in it.
+pub fn status_with_ignored(path: &Path) -> Result<Status> {
+    run(path, "--ignored=matching")
+}
+
+fn run(path: &Path, ignored: &str) -> Result<Status> {
     let out = git(
         path,
         &[
@@ -36,6 +52,7 @@ pub fn status(path: &Path) -> Result<Status> {
             "--porcelain=v2",
             "-z",
             "--untracked-files=all",
+            ignored,
             // Explicit, so a user's status.renames=false can't split a rename into add + delete.
             "--renames",
         ],
@@ -52,6 +69,7 @@ fn parse(out: &[u8]) -> Status {
         let (tag, rest) = entry.split_once(' ').unwrap_or((&entry, ""));
         match tag {
             "?" => st.untracked.push(rest.into()),
+            "!" => st.ignored.push(rest.into()),
             "1" | "2" | "u" => {
                 let skip = match tag {
                     "1" => 7,
