@@ -13,23 +13,30 @@ use gpui_component::{
 };
 use gpui_webview::WebView;
 
-use crate::{js, parse_url};
+use crate::{
+    agent::{check_agent_eval, parse_agent_url},
+    js, parse_url,
+};
 
-/// A browser pane. Agents drive it with `navigate`, `current_url` and `eval_js`.
+/// A browser pane. Agents drive it with `navigate`, `current_url` and `eval_js`, which only reach
+/// http and https pages. The URL bar is the user's path and also opens local files.
 pub struct BrowserView {
     /// `None` when the native webview couldn't be built (e.g. a Wayland window); `error` says why.
     webview: Option<Entity<WebView>>,
     url_bar: Entity<InputState>,
     error: Option<SharedString>,
+    /// The first page committed. Until then wry queues scripts for whatever page loads next.
+    loaded: bool,
     focus: FocusHandle,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
 }
 
 impl BrowserView {
-    /// Opens `url` (validated with [`parse_url`]) in a new native webview attached to `window`.
-    /// A rejected URL or a webview that can't be built shows as an error in the pane.
-    pub fn new(url: &str, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    /// Opens `url` (the user's, validated with [`parse_url`]), or a blank page for `None`, in a new
+    /// native webview attached to `window`. A rejected URL or a webview that can't be built shows
+    /// as an error in the pane.
+    pub fn new(url: Option<&str>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
         let mut builder =
             wry::WebViewBuilder::new().with_on_page_load_handler(move |event, url| {
@@ -38,9 +45,10 @@ impl BrowserView {
                 }
             });
         let mut error = None;
-        match parse_url(url) {
-            Ok(url) => builder = builder.with_url(url.as_str()),
-            Err(e) => error = Some(e),
+        match url.map(parse_url) {
+            Some(Ok(url)) => builder = builder.with_url(url.as_str()),
+            Some(Err(e)) => error = Some(e),
+            None => {}
         }
         let webview = match WebView::build(builder, window, cx).context("create the webview") {
             Ok(webview) => Some(cx.new(|_| webview)),
@@ -53,12 +61,12 @@ impl BrowserView {
         let url_bar = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("localhost:3000")
-                .default_value(url.trim().to_string())
+                .default_value(url.unwrap_or_default().trim().to_string())
         });
         let subscription = cx.subscribe_in(&url_bar, window, |this, input, e, _, cx| {
             if matches!(e, InputEvent::PressEnter { .. }) {
                 let typed = input.read(cx).value();
-                if let Err(e) = this.navigate(&typed, cx) {
+                if let Err(e) = this.open_typed(&typed, cx) {
                     this.error = Some(format!("{e:#}").into());
                 }
                 cx.notify();
@@ -68,6 +76,7 @@ impl BrowserView {
         let sync_url_bar = cx.spawn_in(window, async move |this, cx| {
             while let Ok(url) = loaded_rx.recv_async().await {
                 let updated = this.update_in(cx, |this, window, cx| {
+                    this.loaded = true;
                     this.url_bar
                         .update(cx, |bar, cx| bar.set_value(url, window, cx));
                 });
@@ -81,6 +90,7 @@ impl BrowserView {
             webview,
             url_bar,
             error: error.map(|e| format!("{e:#}").into()),
+            loaded: false,
             focus: cx.focus_handle(),
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
@@ -95,13 +105,38 @@ impl BrowserView {
             .read(cx))
     }
 
-    /// Loads `input` after [`parse_url`] accepts it. Rejected input never reaches the webview.
+    /// The agent path: loads `input` after [`parse_agent_url`] accepts it (http or https only).
+    /// Rejected input never reaches the webview.
     pub fn navigate(&mut self, input: &str, cx: &mut Context<Self>) -> anyhow::Result<()> {
+        let url = parse_agent_url(input)?;
+        self.load(&url, cx)
+    }
+
+    /// The user path (the URL bar): also opens local files.
+    fn open_typed(&mut self, input: &str, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let url = parse_url(input)?;
+        self.load(&url, cx)
+    }
+
+    fn load(&mut self, url: &url::Url, cx: &mut Context<Self>) -> anyhow::Result<()> {
         self.page(cx)?.raw().load_url(url.as_str())?;
         self.error = None;
         cx.notify();
         Ok(())
+    }
+
+    /// Shows or hides the native view, which otherwise stays on screen when its pane isn't drawn.
+    pub fn set_visible(&self, visible: bool, cx: &gpui::App) {
+        if let Some(page) = &self.webview {
+            let _ = page.read(cx).set_visible(visible);
+        }
+    }
+
+    /// Hides and drops the native webview, for when the pane closes.
+    pub fn close(&mut self, cx: &mut Context<Self>) {
+        self.set_visible(false, cx);
+        self.webview = None;
+        cx.notify();
     }
 
     /// The URL the page is on now, as the engine reports it.
@@ -109,8 +144,8 @@ impl BrowserView {
         Ok(self.page(cx)?.url()?)
     }
 
-    /// Evaluates a JS *expression* in the page and returns its JSON value. A thrown exception is an
-    /// `Err` with its message. Values JSON can't hold (DOM nodes, functions) come back as `{}` or `null`;
+    /// Evaluates a JS *expression* in the page and returns its JSON value. Refused before the first
+    /// load and on any page that isn't http or https. A thrown exception is an `Err` with its message. Values JSON can't hold (DOM nodes, functions) come back as `{}` or `null`;
     /// a Promise is not awaited.
     pub fn eval_js(
         &self,
@@ -119,14 +154,22 @@ impl BrowserView {
     ) -> impl Future<Output = anyhow::Result<serde_json::Value>> + use<> {
         let (tx, rx) = oneshot::channel();
         let tx = Mutex::new(Some(tx));
-        let started = self.page(cx).and_then(|page| {
-            page.evaluate_script_with_callback(&js::wrap(expression), move |raw| {
-                if let Some(tx) = tx.lock().ok().and_then(|mut tx| tx.take()) {
-                    let _ = tx.send(raw);
-                }
-            })
-            .context("evaluate script")
-        });
+        let page = self.page(cx);
+        let url = page
+            .as_ref()
+            .ok()
+            .and_then(|p| p.url().ok())
+            .unwrap_or_default();
+        let started = check_agent_eval(&url, self.loaded)
+            .and(page)
+            .and_then(|page| {
+                page.evaluate_script_with_callback(&js::wrap(expression), move |raw| {
+                    if let Some(tx) = tx.lock().ok().and_then(|mut tx| tx.take()) {
+                        let _ = tx.send(raw);
+                    }
+                })
+                .context("evaluate script")
+            });
         async move {
             started?;
             // Before the first load, wry queues the script and drops the callback, cancelling `rx`.
