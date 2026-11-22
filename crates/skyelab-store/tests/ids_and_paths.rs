@@ -1,17 +1,29 @@
 use std::path::Path;
 
-use skyelab_store::Store;
+use skyelab_store::{NewThread, Store};
 
 #[test]
 fn deleted_ids_are_not_reused() {
     let s = Store::open_in_memory().unwrap();
     let p1 = s.create_project("p1", Path::new("/p1")).unwrap();
     let t1 = s
-        .create_thread(p1.id, "a", Path::new("/p1"), "acct-a", "idle")
+        .create_thread(&NewThread {
+            project_id: p1.id,
+            title: "a",
+            cwd: Path::new("/p1"),
+            account_id: "acct-a",
+            status: "idle",
+        })
         .unwrap();
     s.delete_thread(t1.id).unwrap();
     let t2 = s
-        .create_thread(p1.id, "b", Path::new("/p1"), "acct-b", "idle")
+        .create_thread(&NewThread {
+            project_id: p1.id,
+            title: "b",
+            cwd: Path::new("/p1"),
+            account_id: "acct-b",
+            status: "idle",
+        })
         .unwrap();
     assert_ne!(
         t1.id, t2.id,

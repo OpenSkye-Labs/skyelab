@@ -1,8 +1,8 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// One line of `claude --output-format stream-json`.
-#[derive(Debug, Clone, PartialEq)]
+/// One line of `claude --output-format stream-json`. Serializes so callers can store and replay it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Event {
     Init {
         session_id: String,
@@ -25,7 +25,7 @@ pub enum Event {
     Unknown(Value),
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Block {
     Text {

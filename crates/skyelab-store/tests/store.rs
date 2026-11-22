@@ -3,7 +3,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use rusqlite::Connection;
-use skyelab_store::Store;
+use skyelab_store::{NewThread, Store};
 
 fn store_with_project() -> (Store, i64) {
     let store = Store::open_in_memory().expect("test setup");
@@ -70,7 +70,13 @@ fn open_file_sets_wal_and_fk() {
     let store = Store::open(&path).expect("test setup");
     assert!(
         store
-            .create_thread(12345, "t", Path::new("/x"), "acct", "idle")
+            .create_thread(&NewThread {
+                project_id: 12345,
+                title: "t",
+                cwd: Path::new("/x"),
+                account_id: "acct",
+                status: "idle"
+            })
             .is_err()
     );
 }
@@ -119,7 +125,13 @@ fn project_crud() {
 fn thread_crud() {
     let (store, pid) = store_with_project();
     let t = store
-        .create_thread(pid, "first", Path::new("/work/demo"), "work", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "first",
+            cwd: Path::new("/work/demo"),
+            account_id: "work",
+            status: "idle",
+        })
         .expect("test setup");
     assert_eq!(t.project_id, pid);
     assert_eq!(t.title, "first");
@@ -169,15 +181,33 @@ fn list_threads_orders_by_updated_desc() {
         .expect("test setup");
     let cwd = Path::new("/work/demo");
     let t1 = store
-        .create_thread(pid, "1", cwd, "a", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "1",
+            cwd,
+            account_id: "a",
+            status: "idle",
+        })
         .expect("test setup");
     tick();
     let t2 = store
-        .create_thread(pid, "2", cwd, "a", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "2",
+            cwd,
+            account_id: "a",
+            status: "idle",
+        })
         .expect("test setup");
     tick();
     store
-        .create_thread(other.id, "elsewhere", cwd, "a", "idle")
+        .create_thread(&NewThread {
+            project_id: other.id,
+            title: "elsewhere",
+            cwd,
+            account_id: "a",
+            status: "idle",
+        })
         .expect("test setup");
 
     let ids = |s: &Store| -> Vec<i64> {
@@ -203,10 +233,22 @@ fn seq_monotonic_per_thread() {
     let (mut store, pid) = store_with_project();
     let cwd = Path::new("/work/demo");
     let a = store
-        .create_thread(pid, "a", cwd, "x", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "a",
+            cwd,
+            account_id: "x",
+            status: "idle",
+        })
         .expect("test setup");
     let b = store
-        .create_thread(pid, "b", cwd, "x", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "b",
+            cwd,
+            account_id: "x",
+            status: "idle",
+        })
         .expect("test setup");
 
     let seqs: Vec<i64> = (0..3)
@@ -229,7 +271,13 @@ fn seq_monotonic_per_thread() {
 fn events_since_is_incremental() {
     let (mut store, pid) = store_with_project();
     let t = store
-        .create_thread(pid, "t", Path::new("/work/demo"), "x", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "t",
+            cwd: Path::new("/work/demo"),
+            account_id: "x",
+            status: "idle",
+        })
         .expect("test setup");
     for i in 0..5 {
         store
@@ -257,7 +305,13 @@ fn events_since_is_incremental() {
 fn project_delete_restricted_thread_delete_cascades() {
     let (mut store, pid) = store_with_project();
     let t = store
-        .create_thread(pid, "t", Path::new("/work/demo"), "x", "idle")
+        .create_thread(&NewThread {
+            project_id: pid,
+            title: "t",
+            cwd: Path::new("/work/demo"),
+            account_id: "x",
+            status: "idle",
+        })
         .expect("test setup");
     store.append_event(t.id, "msg", "{}").expect("test setup");
 
@@ -282,7 +336,13 @@ fn file_db_persists_across_reopen() {
             .create_project("demo", Path::new("/work/demo"))
             .expect("test setup");
         let t = store
-            .create_thread(p.id, "t", Path::new("/work/demo"), "work", "idle")
+            .create_thread(&NewThread {
+                project_id: p.id,
+                title: "t",
+                cwd: Path::new("/work/demo"),
+                account_id: "work",
+                status: "idle",
+            })
             .expect("test setup");
         store.append_event(t.id, "msg", "{}").expect("test setup");
         (p.id, t.id)

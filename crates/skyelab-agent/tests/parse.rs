@@ -50,3 +50,21 @@ fn parses_fixture() {
         }
     );
 }
+
+#[test]
+fn events_round_trip_through_json() {
+    let line = r#"{"type":"assistant","message":{"content":[{"type":"thinking","thinking":"x"},{"type":"text","text":"hi"},{"type":"tool_use","id":"t","name":"Bash","input":{"command":"ls"}}]}}"#;
+    for event in [
+        skyelab_agent::Event::parse(line),
+        skyelab_agent::Event::parse("not json"),
+        skyelab_agent::Event::parse(
+            r#"{"type":"result","is_error":true,"duration_ms":1,"result":null}"#,
+        ),
+    ] {
+        let json = serde_json::to_string(&event).expect("serialize");
+        assert_eq!(
+            serde_json::from_str::<skyelab_agent::Event>(&json).expect("parse"),
+            event
+        );
+    }
+}
