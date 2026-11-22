@@ -66,6 +66,30 @@ fn env_reaches_child() {
     pump(&mut term, &mut rx, |t| t.text().contains("bound-account"));
 }
 
+#[cfg(unix)]
+#[test]
+fn account_env_survives_the_config_dir_scrub() {
+    let env = HashMap::from([(
+        "CLAUDE_CONFIG_DIR".to_string(),
+        "/accounts/work".to_string(),
+    )]);
+    let (mut term, mut rx) = spawn("printenv", &["CLAUDE_CONFIG_DIR"], env);
+    pump(&mut term, &mut rx, |t| t.text().contains("/accounts/work"));
+}
+
+#[cfg(unix)]
+#[test]
+/// Only bites when the test runs with `CLAUDE_CONFIG_DIR` set (as it is under Claude Code, or `CLAUDE_CONFIG_DIR=/x cargo test`).
+fn unbound_terminal_has_no_config_dir() {
+    let (mut term, mut rx) = spawn(
+        "sh",
+        &["-c", "echo \"dir=[$CLAUDE_CONFIG_DIR]\""],
+        HashMap::new(),
+    );
+    pump(&mut term, &mut rx, |t| t.text().contains("dir=["));
+    assert!(term.text().contains("dir=[]"), "{}", term.text());
+}
+
 #[test]
 fn key_table() {
     let k = |s: &'static str, mode: TermMode| {

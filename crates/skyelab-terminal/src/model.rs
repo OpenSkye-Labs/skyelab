@@ -52,7 +52,7 @@ impl Terminal {
         env.entry("TERM".into()).or_insert("xterm-256color".into());
         env.entry("COLORTERM".into()).or_insert("truecolor".into());
         let options = tty::Options {
-            shell: Some(shell(opts.command)),
+            shell: Some(shell(opts.command, env.contains_key(CLAUDE_CONFIG_DIR))),
             working_directory: Some(opts.cwd),
             drain_on_exit: true,
             env,
@@ -162,19 +162,26 @@ fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> Wind
     }
 }
 
-/// The child's command line. On unix it goes through `env -u CLAUDE_CONFIG_DIR` so the parent's account never
-/// leaks into the terminal; the caller's env still sets it when the folder is bound.
-fn shell(command: Option<(String, Vec<String>)>) -> tty::Shell {
+const CLAUDE_CONFIG_DIR: &str = "CLAUDE_CONFIG_DIR";
+
+/// The child's command line. Without a caller-set `CLAUDE_CONFIG_DIR` it goes through
+/// `env -u CLAUDE_CONFIG_DIR` (unix), so the parent's account never leaks into the terminal.
+/// With one, the caller's value already replaces the parent's, and `env -u` would strip it.
+fn shell(command: Option<(String, Vec<String>)>, account_set: bool) -> tty::Shell {
     let (program, args) = command.unwrap_or_else(|| {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell().into());
         (shell, login_args())
     });
     #[cfg(unix)]
-    let (program, args) = {
-        let mut wrapped = vec!["-u".into(), "CLAUDE_CONFIG_DIR".into(), program];
+    let (program, args) = if account_set {
+        (program, args)
+    } else {
+        let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), program];
         wrapped.extend(args);
         ("/usr/bin/env".to_string(), wrapped)
     };
+    #[cfg(not(unix))]
+    let _ = account_set;
     // shortcut: on Windows an inherited CLAUDE_CONFIG_DIR is not cleared; fix when Windows terminals ship.
     tty::Shell::new(program, args)
 }
