@@ -293,3 +293,32 @@ fn respond(host: &dyn Host, caller: &Caller, line: &str) -> Option<Value> {
     };
     Some(json!({"jsonrpc": "2.0", "id": id, "result": result}))
 }
+
+/// Removes `<root>/<pid>` dirs of SkyeLab runs that are gone: a crash or a kill skips `Drop`, which would leave
+/// dead sockets and config files of dead tokens behind.
+pub fn remove_stale_runs(root: &Path) {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|n| n.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        if pid != std::process::id() && !alive(pid) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
+/// `unsafe` is denied, so no `libc::kill(pid, 0)`: the kill binary asks instead. A reused pid only keeps a dead dir.
+fn alive(pid: u32) -> bool {
+    std::process::Command::new("/bin/kill")
+        .args(["-0", &pid.to_string()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}

@@ -1,7 +1,8 @@
 #!/bin/sh
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
-# tool_use + tool_result pair; any other prompt gets a short answer. Never contacts a real account.
+# tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
+# in /loop-verify-ui); any other prompt gets a short answer. Never contacts a real account.
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
@@ -38,6 +39,8 @@ while IFS= read -r line; do
   case $line in *'"type":"user"'*) ;; *) continue ;; esac
   # A JSON string value: ([^"\\]|\\.)* stops at its closing quote, whatever key comes next.
   call=$(printf '%s' "$line" | sed -nE 's/.*"content":"mcp:([a-z_]+):(([^"\\]|\\.)*)".*/\1 \2/p')
+  project=$(printf '%s' "$line" | sed -nE 's/.*"content":"delegate ([0-9]+)".*/\1/p')
+  [ -n "$project" ] && call="start_thread {\\\"project_id\\\":$project,\\\"prompt\\\":\\\"Write the release notes\\\"}"
   if [ -z "$call" ] || [ -z "$cfg" ]; then
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"Done with the delegated task."}]}}'
     done_turn "done"

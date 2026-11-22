@@ -159,11 +159,12 @@ fn orchestration(
     config: AccountsConfig,
 ) -> Option<flume::Receiver<workspace::orchestrate::OrchCall>> {
     let installed = (|| {
-        let run = dirs::data_dir()
+        let runs = dirs::data_dir()
             .context("no platform data dir")?
             .join("skyelab")
-            .join("run")
-            .join(std::process::id().to_string());
+            .join("run");
+        skyelab_agent::mcp::remove_stale_runs(&runs);
+        let run = runs.join(std::process::id().to_string());
         let proxy = skyelab_agent::mcp::Proxy {
             program: std::env::current_exe().context("finding the skyelab binary")?,
             args: vec![MCP_PROXY_FLAG.into()],
