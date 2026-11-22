@@ -90,6 +90,14 @@ fn unbound_terminal_has_no_config_dir() {
     assert!(term.text().contains("dir=[]"), "{}", term.text());
 }
 
+#[cfg(unix)]
+#[test]
+fn wide_chars_read_back_without_spacers() {
+    let (mut term, mut rx) = spawn("printf", &["\u{4e2d}\u{6587}|"], HashMap::new());
+    pump(&mut term, &mut rx, |t| t.text().contains('|'));
+    assert!(term.text().contains("\u{4e2d}\u{6587}|"), "{}", term.text());
+}
+
 #[test]
 fn key_table() {
     let k = |s: &'static str, mode: TermMode| {
@@ -115,6 +123,9 @@ fn key_table() {
         k("shift-up", TermMode::APP_CURSOR).as_deref(),
         Some(&b"\x1b[1;2A"[..])
     );
+    assert_eq!(k("f1", n).as_deref(), Some(&b"\x1bOP"[..]));
+    assert_eq!(k("f5", n).as_deref(), Some(&b"\x1b[15~"[..]));
+    assert_eq!(k("ctrl-/", n).as_deref(), Some(&b"\x1f"[..]));
     assert_eq!(k("alt-b", n).as_deref(), Some(&b"\x1bb"[..]));
     assert_eq!(k("a", n).as_deref(), Some(&b"a"[..]));
     assert_eq!(k("cmd-v", n), None);

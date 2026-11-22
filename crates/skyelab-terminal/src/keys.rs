@@ -49,6 +49,18 @@ pub fn key_to_bytes(key: &Keystroke, mode: TermMode) -> Option<Cow<'static, [u8]
         ("insert", _) => Some(b"\x1b[2~"),
         ("delete", _) => Some(b"\x1b[3~"),
         ("space", _) if m.control => Some(b"\x00"),
+        ("f1", _) => Some(b"\x1bOP"),
+        ("f2", _) => Some(b"\x1bOQ"),
+        ("f3", _) => Some(b"\x1bOR"),
+        ("f4", _) => Some(b"\x1bOS"),
+        ("f5", _) => Some(b"\x1b[15~"),
+        ("f6", _) => Some(b"\x1b[17~"),
+        ("f7", _) => Some(b"\x1b[18~"),
+        ("f8", _) => Some(b"\x1b[19~"),
+        ("f9", _) => Some(b"\x1b[20~"),
+        ("f10", _) => Some(b"\x1b[21~"),
+        ("f11", _) => Some(b"\x1b[23~"),
+        ("f12", _) => Some(b"\x1b[24~"),
         _ => None,
     };
     if let Some(bytes) = fixed {
@@ -64,13 +76,15 @@ pub fn key_to_bytes(key: &Keystroke, mode: TermMode) -> Option<Cow<'static, [u8]
             b'\\' | b'4' => 0x1c,
             b']' | b'5' => 0x1d,
             b'^' | b'6' => 0x1e,
-            b'_' | b'-' | b'7' => 0x1f,
+            b'_' | b'-' | b'/' | b'7' => 0x1f,
             _ => return None,
         };
         return Some(alt_prefixed(m.alt, &[code]));
     }
     if m.alt {
         // Option sends meta (ESC + key), the way shells expect for word motions.
+        // shortcut: layout-composed Option chars (German Option-L = `@`) can't be typed; add an
+        // option-as-meta setting when non-US layouts matter.
         let text = if m.shift {
             key.key.to_uppercase()
         } else {

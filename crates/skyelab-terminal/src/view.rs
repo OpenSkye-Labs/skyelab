@@ -212,6 +212,7 @@ fn layout(
 
     let mut rects: Vec<(Bounds<Pixels>, Hsla)> = Vec::new();
     let mut runs: Vec<Run> = Vec::new();
+    let mut cursor_cells = 1;
     for cell in content.display_iter {
         if cell
             .flags
@@ -234,6 +235,9 @@ fn layout(
         }
         if cell.flags.contains(Flags::DIM) {
             fg = fg.opacity(0.7);
+        }
+        if (row, col) == cursor_at {
+            cursor_cells = width;
         }
         if block_cursor && (row, col) == cursor_at {
             fg = palette.background;
@@ -260,6 +264,7 @@ fn layout(
                     && r.flags == flags =>
             {
                 r.text.push(cell.c);
+                r.text.extend(cell.zerowidth().into_iter().flatten());
                 r.cells += width;
                 r.ends = width == 2;
             }
@@ -267,7 +272,9 @@ fn layout(
                 row,
                 col,
                 cells: width,
-                text: cell.c.to_string(),
+                text: std::iter::once(cell.c)
+                    .chain(cell.zerowidth().into_iter().flatten().copied())
+                    .collect(),
                 fg,
                 flags,
                 // Shape a wide char on its own so cells after it stay on the grid.
@@ -278,10 +285,10 @@ fn layout(
 
     let cursor = (content.cursor.shape != CursorShape::Hidden).then(|| {
         let (row, col) = cursor_at;
-        let full = size(cell_width, line_height);
+        let full = size(cell_width * cursor_cells as f32, line_height);
         let size = match content.cursor.shape {
             CursorShape::Beam => size(px(2.), line_height),
-            CursorShape::Underline => size(cell_width, px(2.)),
+            CursorShape::Underline => size(full.width, px(2.)),
             _ => full,
         };
         let mut at = origin(row, col);

@@ -5,7 +5,7 @@ use alacritty_terminal::{
     event_loop::{EventLoop, EventLoopSender, Msg},
     grid::Dimensions,
     sync::FairMutex,
-    term::{Config, Term, test::TermSize},
+    term::{Config, Term, cell::Flags, test::TermSize},
     tty,
 };
 use anyhow::Context as _;
@@ -138,8 +138,15 @@ impl Terminal {
         let mut lines = vec![String::new(); grid.screen_lines()];
         for cell in grid.display_iter() {
             let row = (cell.point.line.0 + grid.display_offset() as i32) as usize;
+            if cell
+                .flags
+                .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
+            {
+                continue;
+            }
             if let Some(line) = lines.get_mut(row) {
                 line.push(cell.c);
+                line.extend(cell.zerowidth().into_iter().flatten());
             }
         }
         lines
