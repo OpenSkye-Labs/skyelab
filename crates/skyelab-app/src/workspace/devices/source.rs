@@ -1,8 +1,9 @@
 //! The device tools seen through a trait, so tests can swap in a fake.
 
 use anyhow::Context as _;
-use skyelab_devices::{Device, DeviceHub, Listing};
+use skyelab_devices::{Device, DeviceHub, DeviceState, Listing, Platform};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 /// What the panel needs from the device tools. Blocking calls: the panel runs them on the background executor.
 /// The seam lets tests swap in a fake instead of running `xcrun` and `adb`.
@@ -24,7 +25,20 @@ impl DeviceSource for HubSource {
     }
     fn boot(&self, device: &Device) -> anyhow::Result<()> {
         // Dropping the AVD's `Emulator` leaves it running; Shutdown stops it through adb, not this handle.
-        self.0.boot(device).map(drop).map_err(Into::into)
+        drop(self.0.boot(device)?);
+        if device.platform == Platform::Android {
+            // `emulator` returns at once; hold the spinner until adb lists it, or Boot looks clickable again.
+            let deadline = Instant::now() + Duration::from_secs(90);
+            while still_stopped(&self.0.list_devices(), &device.id) {
+                anyhow::ensure!(
+                    Instant::now() < deadline,
+                    "{} did not show up in adb within 90 s",
+                    device.name
+                );
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        }
+        Ok(())
     }
     fn shutdown(&self, device: &Device) -> anyhow::Result<()> {
         Ok(self.0.shutdown(device)?)
@@ -44,4 +58,11 @@ impl DeviceSource for HubSource {
         self.0.screenshot(device, file.path())?;
         std::fs::read(file.path()).context("read the screenshot")
     }
+}
+
+fn still_stopped(listing: &Listing, avd: &str) -> bool {
+    listing
+        .devices()
+        .iter()
+        .any(|d| d.id == avd && d.state == DeviceState::Shutdown)
 }

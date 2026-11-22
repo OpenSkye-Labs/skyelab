@@ -345,3 +345,6 @@ mod stale_status_test;
 
 #[cfg(test)]
 mod devices_tests;
+
+#[cfg(test)]
+mod devices_review_tests;

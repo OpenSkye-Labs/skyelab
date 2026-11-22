@@ -68,6 +68,7 @@ impl DevicesPanel {
                         .small()
                         .primary()
                         .label("Open")
+                        .disabled(busy.is_some())
                         .on_click(cx.listener(|this, _, _, cx| this.submit_url(cx))),
                 )
                 .child(

@@ -59,10 +59,12 @@ pub struct DevicesPanel {
     source: Arc<dyn DeviceSource>,
     pub(super) listing: Option<Listing>,
     pub(super) ops: HashMap<String, DeviceOps>,
-    url_input: Entity<InputState>,
+    pub(super) url_input: Entity<InputState>,
     /// The device whose "Open URL" row is showing.
-    url_for: Option<String>,
+    pub(super) url_for: Option<String>,
     refreshing: Option<Task<()>>,
+    /// A refresh was asked for while one ran: its listing may predate an op that just finished, so list again.
+    stale: bool,
     pub(super) poll: Option<Task<()>>,
     /// Set by every render, cleared by every poll tick: a tick that finds it clear means the tab is hidden.
     rendered: bool,
@@ -90,6 +92,7 @@ impl DevicesPanel {
             url_input,
             url_for: None,
             refreshing: None,
+            stale: false,
             poll: None,
             rendered: false,
             _pick: None,
@@ -123,6 +126,7 @@ impl DevicesPanel {
 
     pub(super) fn refresh(&mut self, cx: &mut Context<Self>) {
         if self.refreshing.is_some() {
+            self.stale = true;
             return;
         }
         let source = self.source.clone();
@@ -132,10 +136,14 @@ impl DevicesPanel {
             // The panel may be gone; nothing to update then.
             let _ = this.update(cx, |this, cx| {
                 let first = this.listing.is_none();
+                this.prune_ops(&listing);
                 this.listing = Some(listing);
                 this.refreshing = None;
                 if first {
                     this.verify_screenshot(cx);
+                }
+                if std::mem::take(&mut this.stale) {
+                    this.refresh(cx);
                 }
                 cx.notify();
             });
@@ -188,6 +196,26 @@ impl DevicesPanel {
             Some(device) => self.screenshot(&device, cx),
             None => eprintln!("SKYELAB_VERIFY_DEVICE_SCREENSHOT: no booted device named {name}"),
         }
+    }
+
+    /// Forgets ops of devices that left the list, and screenshots of devices no longer booted: an emulator
+    /// serial is reused by the next AVD, so a kept entry would show on the wrong device.
+    fn prune_ops(&mut self, listing: &Listing) {
+        let devices = listing.devices();
+        self.ops.retain(|id, ops| {
+            if ops.busy.is_some() {
+                return true;
+            }
+            match devices.iter().find(|d| &d.id == id) {
+                None => false,
+                Some(d) => {
+                    if d.state != DeviceState::Booted {
+                        ops.screenshot = None;
+                    }
+                    true
+                }
+            }
+        });
     }
 
     fn device(&self, id: &str) -> Option<Device> {
@@ -309,19 +337,20 @@ impl DevicesPanel {
         }));
     }
 
-    fn show_url_row(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn show_url_row(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.url_for = Some(id.to_string());
         self.url_input
             .update(cx, |input, cx| input.focus(window, cx));
         cx.notify();
     }
 
-    fn submit_url(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn submit_url(&mut self, cx: &mut Context<Self>) {
         let url = self.url_input.read(cx).value().trim().to_string();
         let Some(device) = self.url_for.as_deref().and_then(|id| self.device(id)) else {
             return;
         };
-        if url.is_empty() {
+        // Keep the row (and the typed URL) until the running op ends; `run` would drop it silently.
+        if url.is_empty() || self.ops.get(&device.id).is_some_and(|o| o.busy.is_some()) {
             return;
         }
         self.url_for = None;
