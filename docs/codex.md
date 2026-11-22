@@ -52,3 +52,5 @@ token is never on a command line or in codex's own env (the agent's shell). The 
 - Cost isn't reported (`total_cost_usd` is 0).
 - Remote clients see the account, not the provider.
 - Windows: no MCP tools, as for Claude.
+- A terminal in a Codex-bound folder sets `CODEX_HOME` only, so `claude` typed there uses its default `~/.claude`
+  (and `codex` in a Claude-bound folder uses `~/.codex`), as in any folder outside a binding of that provider.
