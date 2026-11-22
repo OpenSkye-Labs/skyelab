@@ -133,3 +133,6 @@ Each item goes through `/loop` (see CLAUDE.md).
 - **Remote calls reuse the thread view.** The daemon's agent calls are forwarded to the UI thread and run through
   `ThreadView::send_prompt`, so there is one launch path and one place the account is resolved. Sharing is off by
   default and only an explicit toggle turns it on. (2026-11-23)
+- **Remote machine names:** clients (mobile and desktop switcher) accept only MagicDNS names (`<machine>.<tailnet>.ts.net`).
+  TLS certs from `tailscale cert` exist only for those names, and the client checks the cert against the exact name.
+  Raw IPs, `localhost` and short names are rejected at input. (2026-11-23)
