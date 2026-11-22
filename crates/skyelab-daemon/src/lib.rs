@@ -12,8 +12,8 @@ mod backend;
 mod peers;
 
 use std::net::{SocketAddr, TcpListener as StdListener};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
 

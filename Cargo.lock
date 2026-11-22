@@ -7398,6 +7398,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dirs 7.0.0",
+ "flume 0.12.0",
  "gpui-component",
  "gpui-pre",
  "gpui-pre-platform",
@@ -7405,9 +7406,13 @@ dependencies = [
  "skyelab-agent",
  "skyelab-browser",
  "skyelab-core",
+ "skyelab-daemon",
+ "skyelab-protocol",
  "skyelab-store",
+ "skyelab-tailnet",
  "skyelab-terminal",
  "tempfile",
+ "tungstenite",
 ]
 
 [[package]]

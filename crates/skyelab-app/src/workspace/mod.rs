@@ -2,6 +2,7 @@
 
 mod panels;
 mod projects;
+mod remote;
 mod thread;
 mod thread_model;
 mod thread_render;
@@ -146,6 +147,8 @@ pub struct Workspace {
     _threads: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
     _appearance: Subscription,
+    /// Sharing on the tailnet; `None` until `set_remote` (tests that don't share).
+    remote: Option<remote::RemoteHook>,
 }
 
 impl Workspace {
@@ -218,6 +221,7 @@ impl Workspace {
             _threads: None,
             _settings_saved: None,
             _appearance,
+            remote: None,
         };
         this.refresh_sidebar(cx);
         this.load_projects(None, cx);
@@ -390,7 +394,12 @@ impl Workspace {
                             .child(format!("Store error: {e}"))
                     })),
             )
-            .right(account)
+            .right(
+                h_flex()
+                    .gap_2()
+                    .children(self.render_remote_status(cx))
+                    .child(account),
+            )
     }
 }
 
@@ -416,6 +425,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
             .on_action(cx.listener(Self::open_thread))
+            .on_action(cx.listener(Self::open_remote))
+            .on_action(cx.listener(Self::toggle_sharing))
+            .on_action(cx.listener(Self::disconnect_peer))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)

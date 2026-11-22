@@ -1,3 +1,4 @@
+mod remote;
 mod settings;
 mod workspace;
 
@@ -5,7 +6,7 @@ use gpui::{
     App, AppContext as _, Bounds, Focusable as _, WindowBounds, WindowKind, WindowOptions, px, size,
 };
 use gpui_component::Root;
-use skyelab_core::AccountsConfig;
+use skyelab_core::{AccountsConfig, AppSettings};
 use skyelab_store::Store;
 use std::sync::{Arc, Mutex};
 
@@ -112,9 +113,21 @@ fn main() {
         workspace::init(cx);
         // Home until a project is selected.
         let folder = dirs::home_dir().unwrap_or_default();
-        let (store, store_error) = open_store();
+        let (mut store, store_error) = open_store();
+        let slot = remote::DaemonSlot::default();
+        remote::push_events(&mut store, slot.clone());
+        let store = Arc::new(Mutex::new(store));
+        let (agents, calls) = remote::UiAgents::new();
+        let host = remote::Host {
+            settings_path: AppSettings::default_path(),
+            tailnet: Arc::new(skyelab_tailnet::TailscaleCli::default()),
+            config: skyelab_daemon::Config::default(),
+            backend: Arc::new(skyelab_daemon::StoreBackend::shared(store.clone(), agents)),
+            slot,
+        };
+        let remote = cx.new(|cx| remote::Remote::new(host, cx));
         let backend = workspace::Backend {
-            store: Arc::new(Mutex::new(store)),
+            store,
             claude_bin: claude_bin(
                 std::env::var_os("SKYELAB_CLAUDE_BIN"),
                 cfg!(debug_assertions),
@@ -126,6 +139,7 @@ fn main() {
                 let mut ws =
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
                 ws.store_error = store_error.map(Into::into);
+                ws.set_remote(remote, calls, window, cx);
                 ws
             });
             let focus = view.read(cx).focus_handle(cx);
