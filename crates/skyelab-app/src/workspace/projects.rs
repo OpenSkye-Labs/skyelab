@@ -273,7 +273,10 @@ impl Workspace {
             .filter_map(|c| c.upgrade())
             .find(|c| c.read(cx).dir == dir);
         if let Some(changes) = open {
-            changes.update(cx, |c, cx| c.refresh(cx));
+            changes.update(cx, |c, cx| {
+                c.follow(view, cx);
+                c.refresh(cx);
+            });
             let id = changes.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));

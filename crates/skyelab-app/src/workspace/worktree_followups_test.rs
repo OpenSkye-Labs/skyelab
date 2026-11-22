@@ -148,3 +148,43 @@ fn changes_show_the_agents_commits_against_the_worktree_base(cx: &mut gpui::Test
         );
     });
 }
+
+#[gpui::test]
+fn changes_tab_refreshes_for_every_thread_of_its_folder(cx: &mut gpui::TestAppContext) {
+    use super::thread::ThreadViewEvent;
+    use super::worktree_thread_test::{fixture, open_thread, wait_until};
+    let f = fixture();
+    let (ws, first, cx) = open_thread(&f, cx);
+    cx.dispatch_action(super::NewThread);
+    cx.run_until_parked();
+    let second = ws
+        .read_with(&*cx, |ws, _| {
+            ws.open_threads.last().and_then(|t| t.upgrade())
+        })
+        .expect("second thread tab");
+    assert_ne!(first, second);
+    // Both threads run in the project folder, so they share one Changes tab.
+    for t in [&first, &second] {
+        t.update(cx, |_, cx| cx.emit(ThreadViewEvent::OpenChanges));
+        cx.run_until_parked();
+    }
+    let tabs: Vec<_> = ws.read_with(&*cx, |ws, _| {
+        ws.changes_views
+            .iter()
+            .filter_map(|c| c.upgrade())
+            .collect()
+    });
+    assert_eq!(tabs.len(), 1, "one tab per folder");
+    let view = tabs[0].clone();
+    wait_until(cx, "first load", |cx| {
+        view.read_with(cx, |c, _| c.changes.is_some())
+    });
+
+    std::fs::write(f.project.join("second.txt"), "from the second thread\n").expect("write");
+    second.update(cx, |_, cx| cx.emit(ThreadViewEvent::TurnDone));
+    wait_until(cx, "reload on the second thread's TurnDone", |cx| {
+        view.read_with(cx, |c, _| {
+            c.changes.as_ref().is_some_and(|c| c.files.len() == 1)
+        })
+    });
+}

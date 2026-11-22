@@ -4,9 +4,9 @@
 use super::changes_model::{self, Changes, LineKind, Row};
 use super::thread::{ThreadView, ThreadViewEvent};
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString,
-    Subscription, Task, UniformListScrollHandle, Window, actions, div, prelude::*, px,
-    uniform_list,
+    App, Context, Entity, EntityId, FocusHandle, Focusable, FontWeight, ScrollStrategy,
+    SharedString, Subscription, Task, UniformListScrollHandle, Window, actions, div, prelude::*,
+    px, uniform_list,
 };
 use gpui_component::{ActiveTheme as _, Sizable as _, button::Button, h_flex, v_flex};
 use skyelab_git::ChangeKind;
@@ -27,7 +27,8 @@ pub struct ChangesView {
     pub(super) error: Option<SharedString>,
     scroll: UniformListScrollHandle,
     _load: Option<Task<()>>,
-    _thread: Option<Subscription>,
+    /// One per thread that opened this tab: any of their turns can change the folder.
+    _threads: Vec<(EntityId, Subscription)>,
 }
 
 impl ChangesView {
@@ -39,13 +40,6 @@ impl ChangesView {
         thread: Option<&Entity<ThreadView>>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let _thread = thread.map(|t| {
-            cx.subscribe(t, |this, _, e: &ThreadViewEvent, cx| {
-                if matches!(e, ThreadViewEvent::TurnDone) {
-                    this.refresh(cx);
-                }
-            })
-        });
         let mut this = Self {
             focus: cx.focus_handle(),
             dir,
@@ -55,10 +49,27 @@ impl ChangesView {
             error: None,
             scroll: UniformListScrollHandle::new(),
             _load: None,
-            _thread,
+            _threads: Vec::new(),
         };
+        if let Some(thread) = thread {
+            this.follow(thread, cx);
+        }
         this.refresh(cx);
         this
+    }
+
+    /// Also reloads whenever `thread`'s agent finishes a turn. Following a thread twice is a no-op.
+    pub fn follow(&mut self, thread: &Entity<ThreadView>, cx: &mut Context<Self>) {
+        let id = thread.entity_id();
+        if self._threads.iter().any(|(t, _)| *t == id) {
+            return;
+        }
+        let sub = cx.subscribe(thread, |this, _, e: &ThreadViewEvent, cx| {
+            if matches!(e, ThreadViewEvent::TurnDone) {
+                this.refresh(cx);
+            }
+        });
+        self._threads.push((id, sub));
     }
 
     pub fn title(&self) -> SharedString {
