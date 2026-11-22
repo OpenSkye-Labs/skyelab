@@ -199,8 +199,7 @@ impl DeviceHub {
         let mut devices = parse_adb_devices(&text(run(adb, &["devices", "-l"])?));
         for d in &mut devices {
             if d.kind == DeviceKind::Emulator
-                && let Ok(out) = self.adb(&d.id, &["emu", "avd", "name"])
-                && let Some(avd) = console_reply(&out)
+                && let Some(avd) = self.avd_name(&d.id)
             {
                 d.name = avd;
             }
@@ -247,6 +246,18 @@ impl DeviceHub {
             );
         }
         Ok(devices)
+    }
+
+    /// The console needs `~/.emulator_console_auth_token`; without it (another `HOME`) adb prints nothing and exits 0,
+    /// so the boot property names the AVD instead.
+    fn avd_name(&self, serial: &str) -> Option<String> {
+        let console = self.adb(serial, &["emu", "avd", "name"]).ok();
+        console.as_deref().and_then(console_reply).or_else(|| {
+            let out = self
+                .adb(serial, &["shell", "getprop", "ro.boot.qemu.avd_name"])
+                .ok()?;
+            parse_avd_list(&text(out)).into_iter().next()
+        })
     }
 
     /// Boots a simulator (returns `None`), or starts a stopped AVD and returns its process (`Some`).

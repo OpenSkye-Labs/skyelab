@@ -22,7 +22,7 @@ fn a_ko_console_reply_does_not_rename_the_emulator() {
         "adb",
         r#"case "$3" in
   emu) printf 'KO: unknown command\r\n' ;;
-  shell) printf '16\r\n' ;;
+  shell) [ "$5" = ro.boot.qemu.avd_name ] || printf '16\r\n' ;;
   *) printf 'List of devices attached\nemulator-5554 device model:sdk_phone\n' ;;
 esac"#,
     );
