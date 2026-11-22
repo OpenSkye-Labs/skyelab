@@ -5,19 +5,29 @@ use super::*;
 use crate::workspace::{self, Workspace};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use skyelab_core::{Account, AccountsConfig, Binding};
+use skyelab_daemon::testing::{NODE_NAME, TestCa, TlsStream, tls_connect};
 use skyelab_protocol::{Call, Reply as Answer, Request, ServerMessage, VERSION};
-use skyelab_tailnet::{Error, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
+use skyelab_tailnet::{Cert, Error, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tungstenite::Message;
 
 const ME: u64 = 7;
 
+/// Issues this node's certificate; the test client trusts only it.
+fn ca() -> &'static TestCa {
+    static CA: OnceLock<TestCa> = OnceLock::new();
+    CA.get_or_init(TestCa::new)
+}
+
 /// This node is 127.0.0.1; every peer is the user's own phone, unless the tailnet is down.
 #[derive(Default)]
 struct FakeTailnet {
     down: AtomicBool,
+    /// `cert` fails like a tailnet with HTTPS certificates off.
+    certs_off: AtomicBool,
 }
 
 impl Tailnet for FakeTailnet {
@@ -38,6 +48,12 @@ impl Tailnet for FakeTailnet {
     }
     fn peers(&self) -> Result<Vec<Node>, Error> {
         Ok(vec![])
+    }
+    fn cert(&self, name: &str) -> Result<Cert, Error> {
+        if self.certs_off.load(Ordering::SeqCst) {
+            return Err(Error::CertsDisabled);
+        }
+        Ok(ca().issue(name))
     }
     fn whois(&self, _: SocketAddr) -> Result<WhoIs, Error> {
         Ok(WhoIs {
@@ -112,17 +128,14 @@ struct Client {
 impl Client {
     fn connect(port: u16) -> Self {
         let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-        let tcp = TcpStream::connect(addr).expect("connect");
-        let (mut ws, _) = tungstenite::client(
-            format!("ws://{addr}/"),
-            tungstenite::stream::MaybeTlsStream::Plain(tcp),
-        )
-        .expect("handshake");
+        let tls: TlsStream = tls_connect(addr, NODE_NAME, ca().root()).expect("tls");
+        let (mut ws, _) =
+            tungstenite::client(format!("wss://{NODE_NAME}/"), tls).expect("handshake");
         // Short reads after the handshake, so the loop can also send.
-        if let tungstenite::stream::MaybeTlsStream::Plain(tcp) = ws.get_ref() {
-            tcp.set_read_timeout(Some(std::time::Duration::from_millis(20)))
-                .expect("read timeout");
-        }
+        ws.get_ref()
+            .sock
+            .set_read_timeout(Some(std::time::Duration::from_millis(20)))
+            .expect("read timeout");
         let (out, outbox) = flume::unbounded::<Request>();
         let (inbox_tx, inbox) = flume::unbounded();
         std::thread::spawn(move || {
@@ -209,7 +222,9 @@ fn remote_toggle_starts_and_stops_the_daemon_and_persists(cx: &mut TestAppContex
     let port = sharing_port(&remote, cx).expect("sharing");
     assert_eq!(
         remote.read_with(cx, |r, _| r.status.label()),
-        format!("Sharing on desktop.example.ts.net:{port}")
+        format!(
+            "Sharing on desktop.example.ts.net:{port} · certificate valid until 2099-01-01 00:00 UTC"
+        )
     );
     let saved = AppSettings::load(&dir.path().join("settings.toml")).expect("settings");
     assert!(saved.share_on_tailnet, "the toggle is saved");
@@ -361,3 +376,4 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
 }
 
 mod calls;
+mod tls_tests;
