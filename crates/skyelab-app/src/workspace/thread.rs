@@ -114,19 +114,25 @@ impl ThreadView {
         this._task = Some(cx.spawn(async move |this, cx| {
             let loaded = cx
                 .background_spawn(async move {
-                    lock(&store)?
-                        .events_since(id, 0)?
+                    let rows = lock(&store)?.events_since(id, 0)?;
+                    // One unreadable row (an older format) must not hide the rest of the thread.
+                    let records: Vec<_> = rows
                         .iter()
-                        .map(|e| Record::from_row(&e.kind, &e.payload_json))
-                        .collect::<Result<Vec<_>>>()
+                        .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
+                        .collect();
+                    anyhow::Ok((rows.len() - records.len(), records))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok(records) => {
+                Ok((skipped, records)) => {
                     for r in &records {
                         apply(&mut this.items, r);
                     }
                     this.list.reset(this.items.len());
+                    if skipped > 0 {
+                        this.error =
+                            Some(format!("{skipped} stored events couldn't be read").into());
+                    }
                     cx.notify();
                 }
                 Err(e) => this.show_error(e, cx),

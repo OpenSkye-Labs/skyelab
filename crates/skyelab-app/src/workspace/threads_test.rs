@@ -108,6 +108,16 @@ fn wait_until(
     panic!("timed out waiting for {what}");
 }
 
+/// Waits for the fake's result, failing with the view's own error if the start or a write failed.
+fn wait_done(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
+    wait_until(cx, "the fake's result", |cx| {
+        thread.read_with(cx, |t, _| {
+            assert_eq!(t.error, None, "the thread showed an error");
+            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
+        })
+    });
+}
+
 /// Adds the fixture's folder through the workspace, selects it and opens a new thread tab.
 fn project_thread(
     f: &Fixture,
@@ -243,11 +253,7 @@ fn bound_project_streams_and_persists(cx: &mut TestAppContext) {
     let (ws, cx) = open_workspace(&f, cx);
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
-    wait_until(cx, "the fake's result", |cx| {
-        thread.read_with(cx, |t, _| {
-            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
-        })
-    });
+    wait_done(&thread, cx);
 
     let (row, items, badge) = thread.read_with(cx, |t, _| {
         (
@@ -325,14 +331,16 @@ fn reopen_replays_from_store(cx: &mut TestAppContext) {
     let (ws, cx) = open_workspace(&f, cx);
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
-    wait_until(cx, "the fake's result", |cx| {
-        thread.read_with(cx, |t, _| {
-            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
-        })
-    });
+    wait_done(&thread, cx);
     let (row, live) =
         thread.read_with(cx, |t, _| (t.thread.clone().expect("row"), t.items.clone()));
 
+    // A row this build can't read (say, an older format) is skipped, not fatal to the replay.
+    f.store
+        .lock()
+        .expect("lock")
+        .append_event(row.id, "from-the-future", "{}")
+        .expect("append");
     let config = AccountsConfig::load(&f.accounts_path).expect("load");
     let backend = Backend {
         store: f.store.clone(),
@@ -346,6 +354,7 @@ fn reopen_replays_from_store(cx: &mut TestAppContext) {
     reopened.read_with(cx, |t, _| {
         assert_eq!(t.items, live, "replay rebuilds the same items");
         assert!(t.session.is_none(), "replay starts no agent");
+        assert_eq!(t.error.as_deref(), Some("1 stored events couldn't be read"));
         assert_eq!(t.badge().as_deref(), Some("Acme Team · acme"));
     });
 }
@@ -357,11 +366,7 @@ fn interrupt_is_sent_and_stop_kills(cx: &mut TestAppContext) {
     let (ws, cx) = open_workspace(&f, cx);
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
-    wait_until(cx, "the fake's result", |cx| {
-        thread.read_with(cx, |t, _| {
-            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
-        })
-    });
+    wait_done(&thread, cx);
     let row = thread.read_with(cx, |t, _| t.thread.clone().expect("row"));
 
     thread.update_in(cx, |t, window, cx| t.interrupt(&Interrupt, window, cx));
