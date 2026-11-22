@@ -19,6 +19,9 @@ mod watched;
 use connect::{Target, connect};
 use watched::Watched;
 
+/// The longest wait between tries while the machine hasn't approved this device yet.
+const NOT_APPROVED_RETRY: Duration = Duration::from_secs(3);
+
 pub(crate) type ReplyFn = Box<dyn FnOnce(Result<Reply, Error>) + Send>;
 
 pub(crate) enum Command {
@@ -154,9 +157,14 @@ pub(crate) async fn run(
             End::Lost { why, was_up } => (why, was_up),
         };
         cx.set_hello(None);
+        // Waiting for the user to click Allow there: try again soon, so it connects within seconds of that.
+        let waiting = why.kind == DisconnectKind::NotApproved;
         let _ = cx.updates.send(Update::Disconnected(why));
         if was_up {
             backoff = cx.options.backoff_min;
+        }
+        if waiting {
+            backoff = backoff.min(NOT_APPROVED_RETRY);
         }
         let retry_at = Instant::now() + backoff;
         loop {

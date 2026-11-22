@@ -19,9 +19,14 @@ use tungstenite::{Message, WebSocket};
 
 pub const ME: u64 = 1001;
 
+/// The test client's device key; [`start`] approves it for the phone ("nPhone").
+pub const KEY: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 #[derive(Clone, Copy)]
 pub enum Peer {
     Own,
+    /// Another of the user's own untagged devices, with this StableID.
+    OwnNode(&'static str),
     OtherUser,
     Tagged,
     WhoisError,
@@ -80,9 +85,13 @@ pub fn self_node(ips: Vec<IpAddr>) -> Node {
 }
 
 fn whois(user: u64, tags: Vec<String>) -> WhoIs {
+    whois_node("nPhone", user, tags)
+}
+
+fn whois_node(stable_id: &str, user: u64, tags: Vec<String>) -> WhoIs {
     WhoIs {
         node: WhoIsNode {
-            stable_id: "nPhone".into(),
+            stable_id: stable_id.into(),
             name: "phone.example.ts.net.".into(),
             user: Some(user),
             tags,
@@ -116,6 +125,7 @@ impl Tailnet for FakeTailnet {
         let peer = *self.peer.lock().expect("test setup");
         match peer {
             Peer::Own => Ok(whois(ME, vec![])),
+            Peer::OwnNode(id) => Ok(whois_node(id, ME, vec![])),
             Peer::OtherUser => Ok(whois(2002, vec![])),
             Peer::Tagged => Ok(whois(ME, vec!["tag:server".into()])),
             Peer::WhoisError => Err(Error::Command {
@@ -177,10 +187,15 @@ impl Backend for Counting {
     }
 }
 
+/// Approves [`KEY`] on the phone, so tests about other things get past hello.
 pub fn test_config() -> Config {
     Config {
         port: 0,
         gate_timeout: Duration::from_millis(500),
+        approved: vec![skyelab_daemon::Approval {
+            node_id: "nPhone".into(),
+            key_hash: skyelab_protocol::device_key_hash(KEY),
+        }],
         ..Config::default()
     }
 }
@@ -269,12 +284,22 @@ pub fn recv(ws: &mut Client) -> Option<ServerMessage> {
 }
 
 pub fn hello_with(ws: &mut Client, protocol: Version) -> Option<ServerMessage> {
+    hello_as(ws, protocol, Some(KEY))
+}
+
+/// Hello with this device key, or none.
+pub fn hello_key(ws: &mut Client, key: Option<&str>) -> Option<ServerMessage> {
+    hello_as(ws, VERSION, key)
+}
+
+fn hello_as(ws: &mut Client, protocol: Version, key: Option<&str>) -> Option<ServerMessage> {
     send(
         ws,
         1,
         Call::Hello {
             protocol,
             capabilities: vec![],
+            device_key: key.map(str::to_owned),
         },
     );
     recv(ws)

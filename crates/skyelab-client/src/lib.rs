@@ -16,6 +16,7 @@
 //! `thread_events_since`, page by page.
 
 mod conn;
+mod device_key;
 mod guard;
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
+pub use device_key::load_or_create_device_key;
+#[cfg(target_os = "macos")]
+pub use device_key::{keychain_device_key, keychain_device_key_in};
 pub use guard::is_tailnet_ip;
 use skyelab_protocol::{Call, Reply};
 pub use skyelab_protocol::{
@@ -46,6 +50,9 @@ pub struct Options {
     /// Reconnect delay: starts at `backoff_min`, doubles per failed attempt, capped at `backoff_max`.
     pub backoff_min: Duration,
     pub backoff_max: Duration,
+    /// This install's device key, sent in hello; the machine dialled admits only keys approved there. `None`
+    /// can never be approved. Load it with [`load_or_create_device_key`] (or the keychain on macOS).
+    pub device_key: Option<String>,
     /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) allow_loopback: bool,
@@ -74,6 +81,7 @@ impl Default for Options {
             request_timeout: Duration::from_secs(30),
             backoff_min: Duration::from_millis(250),
             backoff_max: Duration::from_secs(30),
+            device_key: None,
             #[cfg(any(test, feature = "test-support"))]
             allow_loopback: false,
             #[cfg(any(test, feature = "test-support"))]
@@ -168,6 +176,11 @@ pub enum DisconnectKind {
     Refused,
     /// The server's certificate didn't verify (chain, expiry, or not exactly the dialled name).
     Certificate,
+    /// The machine hasn't approved this device's key yet; the user is asked there, and the client keeps trying
+    /// every few seconds. The message names the code that machine shows.
+    NotApproved,
+    /// The user turned this device down on that machine. The client keeps trying, slowly.
+    Denied,
     /// Anything else: resolving, dialling, timeouts, a dropped connection, a malformed reply.
     Other,
 }
@@ -211,6 +224,7 @@ pub struct Client {
     updates: flume::Receiver<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
     next_watch: AtomicU64,
+    device_code: Option<String>,
 }
 
 impl Client {
@@ -241,6 +255,7 @@ impl Client {
         #[cfg(not(any(test, feature = "test-support")))]
         let roots = tls::webpki_roots();
         let tls = tls::config(roots)?;
+        let device_code = options.device_key.as_deref().map(device_key::code);
         let (commands, commands_rx) = flume::unbounded();
         let (updates_tx, updates) = flume::unbounded();
         let hello = Arc::new(Mutex::new(None));
@@ -267,7 +282,13 @@ impl Client {
             updates,
             hello,
             next_watch: AtomicU64::new(1),
+            device_code,
         })
+    }
+
+    /// The code the machine dialled shows for this device's approval request, `ABCD-1234`. `None` without a key.
+    pub fn device_code(&self) -> Option<String> {
+        self.device_code.clone()
     }
 
     /// Connection changes and watched threads' events, in order.

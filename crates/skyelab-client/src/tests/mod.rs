@@ -1,6 +1,7 @@
 //! Tests against a real in-process `skyelab-daemon` (fake tailnet, loopback sockets) and hostile fake servers.
 //! They live in the crate because the loopback exception only exists under `cfg(test)`.
 
+mod approval;
 mod backoff;
 mod disconnect_kind;
 mod events;
@@ -9,6 +10,7 @@ mod guard;
 mod hello;
 mod hostile;
 mod keepalive;
+mod keychain;
 mod reconnect;
 mod rpc;
 mod tls;
@@ -153,10 +155,17 @@ impl Env {
     }
 }
 
+/// The device key [`options`] sends; [`daemon_config`] approves it for the phone.
+pub const TEST_KEY: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
 pub fn daemon_config(port: u16) -> Config {
     Config {
         port,
         gate_timeout: Duration::from_millis(500),
+        approved: vec![skyelab_daemon::Approval {
+            node_id: "nPhone".into(),
+            key_hash: skyelab_protocol::device_key_hash(TEST_KEY),
+        }],
         ..Config::default()
     }
 }
@@ -174,6 +183,7 @@ pub fn options(port: u16) -> Options {
         roots: Some(roots_of(ca())),
         backoff_min: Duration::from_millis(50),
         backoff_max: Duration::from_millis(200),
+        device_key: Some(TEST_KEY.into()),
         ..Options::default()
     }
 }

@@ -67,7 +67,11 @@ fn allowing_a_waiting_device_connects_it_within_seconds() {
             other => panic!("expected to connect, got {other:?}"),
         }
     }
-    assert!(allowed.elapsed() < Duration::from_secs(4), "{:?}", allowed.elapsed());
+    assert!(
+        allowed.elapsed() < Duration::from_secs(4),
+        "{:?}",
+        allowed.elapsed()
+    );
 }
 
 #[test]

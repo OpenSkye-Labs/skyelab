@@ -153,7 +153,10 @@ fn a_denied_device_is_told_so_and_not_asked_again() {
     let mut ws = connect(daemon.local_addrs()[0]);
     assert_eq!(hello_code(&mut ws, Some(KEY)), Some(ErrorCode::Denied));
     assert_closed(&mut ws);
-    assert!(daemon.requests().is_empty(), "a denied device isn't asked about again");
+    assert!(
+        daemon.requests().is_empty(),
+        "a denied device isn't asked about again"
+    );
 }
 
 #[test]
@@ -182,7 +185,10 @@ fn requests_are_capped() {
     for n in 0..40u32 {
         let key = format!("{n:064x}");
         let mut ws = connect(daemon.local_addrs()[0]);
-        assert_eq!(hello_code(&mut ws, Some(&key)), Some(ErrorCode::NotApproved));
+        assert_eq!(
+            hello_code(&mut ws, Some(&key)),
+            Some(ErrorCode::NotApproved)
+        );
     }
     assert_eq!(daemon.requests().len(), 16);
 }

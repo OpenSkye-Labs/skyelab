@@ -12,6 +12,7 @@ use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::tungstenite::Message;
 
+use crate::access::{self, Verdict, Who};
 use crate::{Backend, Shared, Ws};
 
 enum Step {
@@ -21,7 +22,7 @@ enum Step {
     Close,
 }
 
-pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, kick: &Notify) {
+pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, kick: &Notify) {
     let config = &shared.config;
     let (mut sink, mut stream) = ws.split();
     let in_flight = Arc::new(Semaphore::new(config.max_in_flight));
@@ -44,7 +45,7 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, kick: &Noti
                 idle_at = Instant::now() + config.idle_timeout;
                 match incoming {
                     Some(Ok(Message::Text(text))) => {
-                        on_text(&text, shared, &mut events, &in_flight, &replies_tx, &mut running)
+                        on_text(&text, shared, who, &mut events, &in_flight, &replies_tx, &mut running)
                     }
                     Some(Ok(Message::Binary(_))) => Step::Send(ServerMessage::Error {
                         id: None,
@@ -95,6 +96,7 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, kick: &Noti
 fn on_text(
     text: &str,
     shared: &Shared,
+    who: &Who,
     events: &mut Option<broadcast::Receiver<ThreadEvent>>,
     in_flight: &Arc<Semaphore>,
     replies: &mpsc::Sender<ServerMessage>,
@@ -110,22 +112,26 @@ fn on_text(
         error: RpcError::new(code, message),
     };
     match (req.call, events.is_some()) {
-        (Call::Hello { protocol, .. }, false) => match negotiate(protocol) {
-            Ok(protocol) => {
-                *events = Some(shared.events.subscribe());
-                Step::Send(ServerMessage::Response {
-                    id,
-                    result: Reply::Hello(Hello {
-                        protocol,
-                        capabilities: vec!["events".into()],
-                        node_id: Some(shared.node_id.clone()),
-                    }),
-                })
+        (
+            Call::Hello {
+                protocol,
+                device_key,
+                ..
+            },
+            false,
+        ) => match access::check(&shared.access, &shared.peers, who, device_key.as_deref()) {
+            Verdict::Approved => hello(id, protocol, shared, events),
+            Verdict::NotApproved => {
+                eprintln!("skyelab-daemon: {:?} isn't approved yet", who.device);
+                Step::SendAndClose(error(
+                    ErrorCode::NotApproved,
+                    "this device isn't approved on this machine yet: allow it in SkyeLab's Remote tab there",
+                ))
             }
-            Err(error) => Step::SendAndClose(ServerMessage::Error {
-                id: Some(id),
-                error,
-            }),
+            Verdict::Denied => Step::SendAndClose(error(
+                ErrorCode::Denied,
+                "this device was turned down on this machine",
+            )),
         },
         (Call::Hello { .. }, true) => {
             Step::Send(error(ErrorCode::BadRequest, "already said hello"))
@@ -159,6 +165,32 @@ fn on_text(
             });
             Step::Nothing
         }
+    }
+}
+
+/// An approved hello: the version decides the rest.
+fn hello(
+    id: skyelab_protocol::RequestId,
+    protocol: skyelab_protocol::Version,
+    shared: &Shared,
+    events: &mut Option<broadcast::Receiver<ThreadEvent>>,
+) -> Step {
+    match negotiate(protocol) {
+        Ok(protocol) => {
+            *events = Some(shared.events.subscribe());
+            Step::Send(ServerMessage::Response {
+                id,
+                result: Reply::Hello(Hello {
+                    protocol,
+                    capabilities: vec!["events".into()],
+                    node_id: Some(shared.node_id.clone()),
+                }),
+            })
+        }
+        Err(error) => Step::SendAndClose(ServerMessage::Error {
+            id: Some(id),
+            error,
+        }),
     }
 }
 

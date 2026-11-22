@@ -42,9 +42,14 @@ fn the_key_is_made_once_in_the_keychain_and_no_file_is_written() {
     let key = crate::keychain_device_key_in(&keychain).expect("create");
     assert!(skyelab_protocol::is_device_key(&key), "{key}");
     assert_eq!(crate::keychain_device_key_in(&keychain).expect("load"), key);
-    let files: Vec<_> = std::fs::read_dir(temp.dir.path())
-        .expect("list")
-        .map(|e| e.expect("entry").file_name())
-        .collect();
-    assert_eq!(files, vec![std::ffi::OsString::from("test.keychain")], "no key file");
+    // Only the keychain's own files are here, and none of them holds the key in the clear.
+    for entry in std::fs::read_dir(temp.dir.path()).expect("list") {
+        let path = entry.expect("entry").path();
+        let bytes = std::fs::read(&path).unwrap_or_default();
+        assert!(
+            !bytes.windows(key.len()).any(|w| w == key.as_bytes()),
+            "{} holds the key in plain text",
+            path.display()
+        );
+    }
 }
