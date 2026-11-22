@@ -9,7 +9,28 @@ use std::path::{Path, PathBuf};
 const UNIX_ENV: &[&str] = &[
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TERM",
 ];
+/// Network and session plumbing from the user's own (trusted) env, on every OS. None of these
+/// choose the account or provider; without them agents fail behind proxies or on `git push`.
+const SHARED_ENV: &[&str] = &[
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "ALL_PROXY",
+    "NODE_EXTRA_CA_CERTS",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "SSH_AUTH_SOCK",
+    "TZ",
+];
 const WINDOWS_ENV: &[&str] = &[
+    "SystemDrive",
+    "WINDIR",
+    "ProgramFiles",
+    "ProgramFiles(x86)",
+    "ProgramData",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "CLAUDE_CODE_GIT_BASH_PATH",
     "PATH",
     "SystemRoot",
     "USERPROFILE",
@@ -27,9 +48,16 @@ pub(crate) fn allowed(name: &OsStr, windows: bool) -> bool {
         return false;
     };
     if windows {
-        WINDOWS_ENV.iter().any(|a| a.eq_ignore_ascii_case(name))
+        WINDOWS_ENV
+            .iter()
+            .chain(SHARED_ENV)
+            .any(|a| a.eq_ignore_ascii_case(name))
     } else {
-        UNIX_ENV.contains(&name) || name.starts_with("LC_")
+        UNIX_ENV.contains(&name)
+            || name.starts_with("LC_")
+            || name.starts_with("XDG_")
+            // unix tools read both spellings of the proxy vars
+            || SHARED_ENV.iter().any(|a| *a == name || a.to_ascii_lowercase() == name)
     }
 }
 
@@ -125,6 +153,49 @@ mod tests {
             "SystemRoot",
         ] {
             assert!(!ok(n, false), "{n}");
+        }
+    }
+
+    /// Network and session plumbing from the user's own env must reach the agent (proxies,
+    /// corporate CAs, ssh-agent for `git push`), but never anything that picks the account.
+    #[test]
+    fn network_and_session_vars_pass_auth_vars_do_not() {
+        for windows in [false, true] {
+            for n in [
+                "HTTPS_PROXY",
+                "HTTP_PROXY",
+                "NO_PROXY",
+                "ALL_PROXY",
+                "NODE_EXTRA_CA_CERTS",
+                "SSL_CERT_FILE",
+                "SSL_CERT_DIR",
+                "SSH_AUTH_SOCK",
+                "TZ",
+            ] {
+                assert!(ok(n, windows), "{n} windows={windows}");
+            }
+            for n in [
+                "ANTHROPIC_BASE_URL",
+                "CLAUDE_CODE_USE_BEDROCK",
+                "CLAUDE_CODE_OAUTH_TOKEN",
+            ] {
+                assert!(!ok(n, windows), "{n} windows={windows}");
+            }
+        }
+        for n in ["https_proxy", "no_proxy", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR"] {
+            assert!(ok(n, false), "{n}");
+        }
+        for n in [
+            "SystemDrive",
+            "WINDIR",
+            "ProgramFiles",
+            "ProgramFiles(x86)",
+            "ProgramData",
+            "HOMEDRIVE",
+            "HOMEPATH",
+            "CLAUDE_CODE_GIT_BASH_PATH",
+        ] {
+            assert!(ok(n, true), "{n}");
         }
     }
 
