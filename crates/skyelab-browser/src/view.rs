@@ -25,7 +25,7 @@ pub struct BrowserView {
     webview: Option<Entity<WebView>>,
     url_bar: Entity<InputState>,
     error: Option<SharedString>,
-    /// The first page committed. Until then wry queues scripts for whatever page loads next.
+    /// A page has committed (wry's `Started`). Until then wry queues scripts for the next page.
     loaded: bool,
     focus: FocusHandle,
     _subscription: Subscription,
@@ -66,7 +66,7 @@ impl BrowserView {
         let subscription = cx.subscribe_in(&url_bar, window, |this, input, e, _, cx| {
             if matches!(e, InputEvent::PressEnter { .. }) {
                 let typed = input.read(cx).value();
-                if let Err(e) = this.open_typed(&typed, cx) {
+                if let Err(e) = this.open_from_url_bar(&typed, cx) {
                     this.error = Some(format!("{e:#}").into());
                 }
                 cx.notify();
@@ -112,8 +112,7 @@ impl BrowserView {
         self.load(&url, cx)
     }
 
-    /// The user path (the URL bar): also opens local files.
-    fn open_typed(&mut self, input: &str, cx: &mut Context<Self>) -> anyhow::Result<()> {
+    fn open_from_url_bar(&mut self, input: &str, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let url = parse_url(input)?;
         self.load(&url, cx)
     }
@@ -136,17 +135,31 @@ impl BrowserView {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         self.set_visible(false, cx);
         self.webview = None;
+        self.loaded = false;
         cx.notify();
     }
 
-    /// The URL the page is on now, as the engine reports it.
+    /// The page for an agent call, and its URL as the engine reports it (which may be a pending load).
+    /// Refused before the first load (wry panics on the nil URL then) and on non-http(s) pages.
+    fn agent_page<'a>(&self, cx: &'a gpui::App) -> anyhow::Result<(&'a WebView, String)> {
+        let url = match self.loaded {
+            true => self.page(cx)?.url()?,
+            false => String::new(),
+        };
+        check_agent_eval(&url, self.loaded)?;
+        Ok((self.page(cx)?, url))
+    }
+
+    /// The URL the page is on now, as the engine reports it. Refused for local files, so an agent
+    /// doesn't learn the user's paths.
     pub fn current_url(&self, cx: &gpui::App) -> anyhow::Result<String> {
-        Ok(self.page(cx)?.url()?)
+        Ok(self.agent_page(cx)?.1)
     }
 
     /// Evaluates a JS *expression* in the page and returns its JSON value. Refused before the first
-    /// load and on any page that isn't http or https. A thrown exception is an `Err` with its message. Values JSON can't hold (DOM nodes, functions) come back as `{}` or `null`;
-    /// a Promise is not awaited.
+    /// load and in any page that isn't http or https, checked again inside the page itself. A thrown
+    /// exception is an `Err` with its message. Values JSON can't hold (DOM nodes, functions) come
+    /// back as `{}` or `null`; a Promise is not awaited.
     pub fn eval_js(
         &self,
         expression: &str,
@@ -154,28 +167,20 @@ impl BrowserView {
     ) -> impl Future<Output = anyhow::Result<serde_json::Value>> + use<> {
         let (tx, rx) = oneshot::channel();
         let tx = Mutex::new(Some(tx));
-        let page = self.page(cx);
-        let url = page
-            .as_ref()
-            .ok()
-            .and_then(|p| p.url().ok())
-            .unwrap_or_default();
-        let started = check_agent_eval(&url, self.loaded)
-            .and(page)
-            .and_then(|page| {
-                page.evaluate_script_with_callback(&js::wrap(expression), move |raw| {
-                    if let Some(tx) = tx.lock().ok().and_then(|mut tx| tx.take()) {
-                        let _ = tx.send(raw);
-                    }
-                })
-                .context("evaluate script")
-            });
+        let started = self.agent_page(cx).and_then(|(page, _)| {
+            page.evaluate_script_with_callback(&js::wrap(expression), move |raw| {
+                if let Some(tx) = tx.lock().ok().and_then(|mut tx| tx.take()) {
+                    let _ = tx.send(raw);
+                }
+            })
+            .context("evaluate script")
+        });
         async move {
             started?;
-            // Before the first load, wry queues the script and drops the callback, cancelling `rx`.
+            // wry drops the callback of a script it queued for the next load.
             let raw = rx
                 .await
-                .context("page not loaded yet: the script was queued and runs on the next load")?;
+                .context("the webview queued the script instead of running it")?;
             js::decode(&raw)
         }
     }

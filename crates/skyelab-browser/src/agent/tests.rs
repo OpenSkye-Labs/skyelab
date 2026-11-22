@@ -33,7 +33,6 @@ fn agent_eval_refuses_file_pages() {
 
 #[test]
 fn agent_eval_refuses_before_the_first_load() {
-    // wry queues the script and runs it in whatever page commits next, which may be a file the user opens.
     let err = check_agent_eval("https://example.com/", false).expect_err("not loaded");
     assert!(format!("{err:#}").contains("not loaded"), "{err:#}");
 }

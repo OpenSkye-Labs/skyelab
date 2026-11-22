@@ -10,12 +10,14 @@
 //!   GPUI, which we don't allow.)
 //! - The native view also stays on screen when its pane isn't drawn. Whoever hosts the pane calls
 //!   [`BrowserView::set_visible`] when it is shown or hidden and [`BrowserView::close`] when it goes
-//!   away. The workspace does this from the dock's `set_active`, which arrives a tick late, so the
-//!   page can sit over the next tab for one frame.
+//!   away.
 //! - Two paths in: the user's URL bar ([`parse_url`]: http, https, local file) and the agent API
 //!   (`navigate`, `current_url`, `eval_js`; [`parse_agent_url`]: http and https only). `eval_js`
-//!   refuses before the first load and on any page that isn't http or https, since a script in a
-//!   `file://` page can read local files. Only that input is checked. wry's
+//!   refuses before the first load and in any page that isn't http or https, since a script in a
+//!   `file://` page can read local files. The script itself checks `location` first, because the
+//!   engine's URL names a pending load while the old page still runs scripts. This limits the
+//!   preview, not the agent: an agent process can still read files directly or serve them over
+//!   `http://localhost`. Only that input is checked. wry's
 //!   navigation handler also fires for iframes, so filtering there would break `about:`, `data:`
 //!   and `blob:` frames that real web apps use; links and scripts in the page go unfiltered.
 //! - No screenshot API: wry has none. Capture the window instead.

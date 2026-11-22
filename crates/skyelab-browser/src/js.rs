@@ -5,9 +5,15 @@
 use anyhow::{Context as _, anyhow};
 use serde_json::Value;
 
+/// Agents may only run scripts in http and https pages. Checked in the page the script runs in,
+/// since the engine's URL can name a load still pending over a `file://` page. `location` can't be
+/// redefined by the page, and a top-level throw stops the rest of the script.
+const PAGE_GUARD: &str =
+    "if (location.protocol !== \"http:\" && location.protocol !== \"https:\") throw 0;\n";
+
 pub(crate) fn wrap(expression: &str) -> String {
     format!(
-        "(() => {{ try {{ const v = (\n{expression}\n); \
+        "{PAGE_GUARD}(() => {{ try {{ const v = (\n{expression}\n); \
          return `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; }} \
          catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}` }})}}`; }} }})()"
     )
@@ -15,6 +21,11 @@ pub(crate) fn wrap(expression: &str) -> String {
 
 /// wry hands back the page's string JSON-encoded, so the envelope is encoded twice.
 pub(crate) fn decode(raw: &str) -> anyhow::Result<Value> {
+    if raw.is_empty() {
+        return Err(anyhow!(
+            "script refused: the page is not http or https, or the script did not compile"
+        ));
+    }
     let envelope_json: String = serde_json::from_str(raw)
         .with_context(|| format!("unexpected eval result from the webview: {raw:?}"))?;
     let mut envelope: Value =
@@ -63,6 +74,23 @@ mod tests {
     fn wrap_survives_trailing_line_comment() {
         let js = wrap("document.title // the title");
         assert!(js.contains("\ndocument.title // the title\n)"), "{js}");
+    }
+
+    #[test]
+    fn wrap_checks_the_running_page_scheme_before_anything_else() {
+        // `WKWebView.URL` reports a pending load, so only the page itself knows where the script runs.
+        // A top-level throw aborts the whole script, including anything appended by breaking out.
+        let js = wrap("1)})(); steal(); (() => {(1");
+        assert!(js.starts_with(PAGE_GUARD), "{js}");
+        // The only parenthesis is the `if`'s: no calls the page could replace.
+        assert_eq!(PAGE_GUARD.matches('(').count(), 1, "{PAGE_GUARD}");
+        assert!(PAGE_GUARD.starts_with("if ("), "{PAGE_GUARD}");
+    }
+
+    #[test]
+    fn empty_result_is_a_refusal() {
+        let err = decode("").expect_err("guard threw").to_string();
+        assert!(err.contains("http or https"), "{err}");
     }
 
     #[test]

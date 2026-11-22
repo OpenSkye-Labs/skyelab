@@ -1,6 +1,4 @@
-//! The agent path into the browser. Agents may only reach http and https pages, and may not run
-//! scripts in a `file://` page: `eval_js` there could read any local file, including other accounts'
-//! credentials (docs/architecture.md, "Decisions"). The user's URL bar keeps `file://`.
+//! The agent path into the browser: http and https only (docs/architecture.md, "Decisions").
 
 use anyhow::bail;
 
