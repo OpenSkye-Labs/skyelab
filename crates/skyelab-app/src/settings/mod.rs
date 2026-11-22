@@ -305,19 +305,20 @@ impl Settings {
                     .child(
                         div()
                             .flex_1()
+                            .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(format!("{}  ({})", a.label, a.id))
+                            .child(div().truncate().child(format!("{}  ({})", a.label, a.id)))
                             .child(
-                                div()
+                                path_text(format!("dir-{}", a.id), &a.config_dir)
                                     .text_sm()
-                                    .text_color(theme.muted_foreground)
-                                    .child(a.config_dir.display().to_string()),
+                                    .text_color(theme.muted_foreground),
                             ),
                     )
                     .child(
                         Button::new(SharedString::from(format!("edit-{}", a.id)))
                             .label("Edit")
+                            .flex_shrink_0()
                             .small()
                             .ghost()
                             .on_click(cx.listener(move |this, _, window, cx| {
@@ -327,6 +328,7 @@ impl Settings {
                     .child(
                         Button::new(SharedString::from(format!("remove-account-{}", a.id)))
                             .label("Remove")
+                            .flex_shrink_0()
                             .small()
                             .danger()
                             .on_click(cx.listener(move |this, _, window, cx| {
@@ -338,12 +340,13 @@ impl Settings {
             .child(
                 div()
                     .flex()
+                    .flex_wrap()
                     .gap_2()
                     .when(self.editing.is_none(), |d| {
                         d.child(div().w_40().child(Input::new(&self.id_input)))
                     })
                     .child(div().w_56().child(Input::new(&self.label_input)))
-                    .child(div().flex_1().child(Input::new(&self.dir_input)))
+                    .child(div().flex_1().min_w_64().child(Input::new(&self.dir_input)))
                     .child(
                         Button::new("save-account")
                             .label(if self.editing.is_some() {
@@ -352,16 +355,21 @@ impl Settings {
                                 "Add"
                             })
                             .primary()
+                            .flex_shrink_0()
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.save_account(&SaveAccount, window, cx)
                             })),
                     )
                     .when(self.editing.is_some(), |d| {
-                        d.child(Button::new("cancel-edit").label("Cancel").ghost().on_click(
-                            cx.listener(|this, _, window, cx| {
-                                this.cancel_edit(&CancelEdit, window, cx)
-                            }),
-                        ))
+                        d.child(
+                            Button::new("cancel-edit")
+                                .label("Cancel")
+                                .ghost()
+                                .flex_shrink_0()
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.cancel_edit(&CancelEdit, window, cx)
+                                })),
+                        )
                     }),
             )
     }
@@ -388,15 +396,19 @@ impl Settings {
                     path: b.path.clone(),
                 };
                 row(cx)
-                    .child(div().flex_1().child(b.path.display().to_string()))
+                    .child(path_text(format!("path-{}", b.path.display()), &b.path).flex_1())
                     .child(
                         div()
+                            .flex_shrink_0()
+                            .max_w_48()
+                            .truncate()
                             .text_color(theme.muted_foreground)
                             .child(format!("→  {}", label_of(&b.account))),
                     )
                     .child(
                         Button::new(SharedString::from(format!("unbind-{}", b.path.display())))
                             .label("Remove")
+                            .flex_shrink_0()
                             .small()
                             .danger()
                             .on_click(cx.listener(move |this, _, window, cx| {
@@ -458,28 +470,6 @@ fn account_ids(config: &AccountsConfig) -> Vec<SharedString> {
         .collect()
 }
 
-fn section(title: &str, cx: &App) -> gpui::Div {
-    div()
-        .flex()
-        .flex_col()
-        .gap_1()
-        .p_3()
-        .border_1()
-        .border_color(cx.theme().border)
-        .rounded_md()
-        .child(div().text_lg().pb_1().child(title.to_string()))
-}
-
-fn row(cx: &App) -> gpui::Div {
-    div()
-        .flex()
-        .items_center()
-        .gap_2()
-        .py_1()
-        .border_b_1()
-        .border_color(cx.theme().border)
-}
-
 impl Focusable for Settings {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus.clone()
@@ -523,6 +513,9 @@ impl Render for Settings {
             .child(self.render_test(cx))
     }
 }
+
+mod widgets;
+use widgets::{path_text, row, section};
 
 #[cfg(test)]
 mod tests;
