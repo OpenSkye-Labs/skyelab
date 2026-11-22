@@ -7,12 +7,27 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 0 };
+pub const VERSION: Version = Version { major: 1, minor: 1 };
 
 /// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7287;
 
 pub type RequestId = u64;
+
+/// True for a MagicDNS name, `<machine>.<tailnet>.ts.net` (any case, no trailing dot): the only names a person may
+/// type for another machine. `tailscale cert` issues certificates only for these, and the client checks the
+/// certificate against the exact name, so an IP, `localhost` or a short name could never connect anyway.
+pub fn is_magicdns_name(name: &str) -> bool {
+    let label = |l: &str| {
+        (1..=63).contains(&l.len())
+            && !l.starts_with('-')
+            && !l.ends_with('-')
+            && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    };
+    let labels: Vec<&str> = name.split('.').collect();
+    matches!(labels.as_slice(), [machine, tailnet, ts, net]
+        if label(machine) && label(tailnet) && ts.eq_ignore_ascii_case("ts") && net.eq_ignore_ascii_case("net"))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Version {
@@ -131,6 +146,10 @@ pub enum Reply {
 pub struct Hello {
     pub protocol: Version,
     pub capabilities: Vec<String>,
+    /// The serving machine's Tailscale node StableID (1.1). A client pins it per name, so a name that moves to
+    /// another node is noticed. `None` from a 1.0 server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -178,6 +197,10 @@ pub struct Thread {
     pub title: String,
     /// The account the thread runs under.
     pub account_id: String,
+    /// That account's label in the serving machine's accounts.toml (1.1). `None` from a 1.0 server, or when the
+    /// account isn't there any more.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_label: Option<String>,
     pub status: String,
     /// Unix milliseconds.
     pub created_at: i64,

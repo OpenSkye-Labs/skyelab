@@ -6,7 +6,9 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use skyelab_client::{Client, Error, Options, Pending, Project, Thread, ThreadEvent, Update};
+use skyelab_client::{
+    Client, DisconnectKind, Error, Options, Pending, Project, Thread, ThreadEvent, Update, WatchId,
+};
 
 use crate::source::{Connection, Msg, ThreadSource};
 
@@ -18,29 +20,6 @@ pub(crate) enum Inbound {
     Done(&'static str, Result<(), Error>),
     /// Time to retry the lists after one failed.
     Retry,
-}
-
-/// The daemon's gate closes the socket without answering the WebSocket upgrade when it doesn't accept a device (or
-/// its whois fails). The client then reports a handshake that never finished, or a reset when the close found our
-/// request unread. An HTTP answer, such as a 404 from another server, reads differently and is not this.
-/// tests/remote_source.rs and tests/refused_only_at_gate.rs pin both sides.
-// shortcut: text matching, mirrored in skyelab-app's environment.rs; replace both when skyelab-client exposes a typed refusal.
-fn closed_at_gate(reason: &str) -> bool {
-    let ws_closed = reason
-        .strip_prefix("WebSocket handshake failed: ")
-        .is_some_and(|e| e.contains("Handshake not finished") || e.contains("Connection reset"));
-    // TLS era: the gate closes the socket before any TLS reply. A certificate problem is not a refusal.
-    let tls_closed = reason.starts_with("TLS with ")
-        && !reason.contains("certificate")
-        && [
-            "reset by peer",
-            "unexpected end of file",
-            "early eof",
-            "closed",
-        ]
-        .iter()
-        .any(|m| reason.contains(m));
-    ws_closed || tls_closed
 }
 
 /// How long to wait before re-listing after a list request failed while connected.
@@ -57,6 +36,8 @@ pub struct RemoteSource {
     /// The project whose threads are shown; refreshed on reconnect and after a send or stop.
     open_project: Option<i64>,
     watched: Option<i64>,
+    /// The client's handle for `watched`, so only that watch is ended on switching threads.
+    watch_id: Option<WatchId>,
     events: Vec<ThreadEvent>,
     retry_pending: bool,
 }
@@ -89,6 +70,7 @@ impl RemoteSource {
             threads: HashMap::new(),
             open_project: None,
             watched: None,
+            watch_id: None,
             events: Vec::new(),
             retry_pending: false,
         })
@@ -146,10 +128,11 @@ impl RemoteSource {
                 self.error = None;
                 self.refresh();
             }
-            Update::Disconnected(reason) if closed_at_gate(&reason) => {
+            // The daemon's gate hung up before answering: not one of the user's own untagged devices.
+            Update::Disconnected(d) if d.kind == DisconnectKind::Refused => {
                 self.connection = Connection::Refused;
             }
-            Update::Disconnected(reason) => self.connection = Connection::Reconnecting(reason),
+            Update::Disconnected(d) => self.connection = Connection::Reconnecting(d.message),
             // A thread we stopped watching may still have a few in flight, and re-watching replays from seq 1 while
             // events from the earlier watch may still be queued: keep each seq once, in order.
             Update::Event(event) if Some(event.thread_id) == self.watched => {
@@ -201,11 +184,12 @@ impl ThreadSource for RemoteSource {
         if self.watched == Some(thread_id) {
             return;
         }
-        if let Some(old) = self.watched.replace(thread_id) {
+        self.watched = Some(thread_id);
+        if let Some(old) = self.watch_id.take() {
             self.client.unwatch(old);
         }
         self.events.clear();
-        self.client.watch(thread_id, 0);
+        self.watch_id = Some(self.client.watch(thread_id, 0));
     }
 
     fn send_message(&mut self, thread_id: i64, text: &str) {

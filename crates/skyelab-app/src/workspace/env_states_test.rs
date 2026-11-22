@@ -70,6 +70,7 @@ fn newer_server() -> u16 {
                         minor: 0,
                     },
                     capabilities: vec![],
+                    node_id: None,
                 }),
             };
             let _ = ws.send(tungstenite::Message::text(hello.to_json()));
@@ -136,17 +137,23 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     let inner: Arc<dyn DaemonBackend> = Arc::new(skyelab_daemon::StoreBackend::shared(
         remote.store.clone(),
         skyelab_daemon::NotWired,
+        None,
     ));
     let config = Config {
         port: remote.port,
         ..Config::default()
     };
-    let _daemon = Daemon::start(
-        config,
-        remote.tailnet.clone(),
-        Arc::new(Stall { inner, release }),
-    )
-    .expect("daemon");
+    let backend: Arc<dyn DaemonBackend> = Arc::new(Stall { inner, release });
+    // The stopped daemon's port can take a moment to free (as in `RemoteSide::start`).
+    let _daemon = (0..100)
+        .find_map(|_| {
+            let started = Daemon::start(config.clone(), remote.tailnet.clone(), backend.clone());
+            if started.is_err() {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            started.ok()
+        })
+        .expect("daemon");
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");

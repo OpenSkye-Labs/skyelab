@@ -26,16 +26,25 @@ pub(super) fn node(id: &str, dns: &str, user: u64, online: bool, tags: &[&str]) 
     }
 }
 
-/// This node is 127.0.0.1. `peers` is what `tailscale status` lists; whois admits everyone unless `refuse`.
+/// This node is 127.0.0.1 (StableID `nSelf` unless `self_id` says otherwise). `peers` is what `tailscale status`
+/// lists; whois admits everyone unless `refuse`.
 #[derive(Default)]
 pub(super) struct FakeTailnet {
     pub peers: Vec<Node>,
     pub refuse: AtomicBool,
+    pub self_id: Mutex<Option<String>>,
 }
 
 impl Tailnet for FakeTailnet {
     fn self_node(&self) -> Result<Node, TailnetError> {
-        Ok(node("nSelf", NODE_NAME, ME, true, &[]))
+        let id = self.self_id.lock().expect("self id lock").clone();
+        Ok(node(
+            id.as_deref().unwrap_or("nSelf"),
+            NODE_NAME,
+            ME,
+            true,
+            &[],
+        ))
     }
     fn peers(&self) -> Result<Vec<Node>, TailnetError> {
         Ok(self.peers.clone())
@@ -126,6 +135,8 @@ pub(super) struct RemoteSide {
     pub ran: Arc<Mutex<Vec<Ran>>>,
     pub daemon: Option<Daemon>,
     pub port: u16,
+    /// This machine's accounts.toml, for account labels. Takes effect on the next `start`.
+    pub accounts: Option<PathBuf>,
     pub project_id: i64,
     pub thread_id: i64,
 }
@@ -157,6 +168,7 @@ impl RemoteSide {
             ran: Arc::default(),
             daemon: None,
             port,
+            accounts: None,
             project_id: project.id,
             thread_id: thread.id,
         };
@@ -172,6 +184,7 @@ impl RemoteSide {
                 store: self.store.clone(),
                 ran: self.ran.clone(),
             },
+            self.accounts.clone(),
         ));
         let config = Config {
             port: self.port,

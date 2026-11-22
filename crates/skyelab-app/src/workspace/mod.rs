@@ -526,6 +526,12 @@ mod env_picker_test;
 mod env_prompt_loss_test;
 
 #[cfg(test)]
+mod env_followups_test;
+
+#[cfg(test)]
+mod env_pin_test;
+
+#[cfg(test)]
 mod worktree_followups_test;
 
 #[cfg(test)]

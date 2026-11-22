@@ -231,7 +231,11 @@ fn main() {
             settings_path: AppSettings::default_path(),
             tailnet: tailnet.clone(),
             config: skyelab_daemon::Config::default(),
-            backend: Arc::new(skyelab_daemon::StoreBackend::shared(store.clone(), agents)),
+            backend: Arc::new(skyelab_daemon::StoreBackend::shared(
+                store.clone(),
+                agents,
+                path.clone(),
+            )),
             slot,
         };
         let remote = cx.new(|cx| remote::Remote::new(host, cx));
