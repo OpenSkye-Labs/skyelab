@@ -2,7 +2,6 @@
 //! unmangled symbol (CLAUDE.md: FFI lives in one tiny crate).
 #![allow(unsafe_code)]
 
-/// Called by `android-activity` on its native thread; returns when the activity is destroyed.
 #[cfg(target_os = "android")]
 // SAFETY: `android-activity` looks this symbol up by name and calls it once, on its own thread, with the
 // `AndroidApp` it owns; no other item in the cdylib exports `android_main`, and the signature matches its contract.
@@ -23,6 +22,9 @@ fn android_main(native: android_activity::AndroidApp) {
         log::error!("gpui-mobile did not create its platform");
         return;
     };
-    gpui::Application::with_platform(shared.into_rc())
-        .run(move |cx| skyelab_mobile::app::run(data_dir, cx));
+    gpui::Application::with_platform(shared.into_rc()).run(move |cx| {
+        if let Err(e) = skyelab_mobile::app::run(data_dir, cx) {
+            log::error!("could not open the window: {e:#}");
+        }
+    });
 }

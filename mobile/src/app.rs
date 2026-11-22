@@ -1,5 +1,3 @@
-//! The screens: environment picker → projects → threads → thread (events, composer, stop).
-
 use crate::{env_store, source::ThreadSource};
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, SharedString, Subscription, Window,
@@ -72,7 +70,6 @@ impl MobileApp {
         }
     }
 
-    /// Validates and remembers the environment name, then shows its projects.
     // later: dial it with skyelab-client (docs/mobile.md step 4); today the source is the fake.
     pub fn connect(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let name = self.env_input.read(cx).value();
@@ -94,8 +91,11 @@ impl MobileApp {
         cx.notify();
     }
 
-    pub fn open_thread(&mut self, thread_id: i64, cx: &mut Context<Self>) {
+    pub fn open_thread(&mut self, thread_id: i64, window: &mut Window, cx: &mut Context<Self>) {
         if let Screen::Threads { project_id } = self.screen {
+            // A draft belongs to the thread it was typed in.
+            self.composer
+                .update(cx, |s, cx| s.set_value("", window, cx));
             self.screen = Screen::Thread {
                 project_id,
                 thread_id,
@@ -235,7 +235,7 @@ impl MobileApp {
                 format!("{} · {}", t.account_id, t.status),
                 cx,
             )
-            .on_click(cx.listener(move |this, _, _, cx| this.open_thread(id, cx)))
+            .on_click(cx.listener(move |this, _, window, cx| this.open_thread(id, window, cx)))
         });
         v_flex().children(rows).into_any_element()
     }
@@ -309,7 +309,7 @@ impl MobileApp {
 
 impl Render for MobileApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // Keep clear of the status bar, notch, home indicator and keyboard; 16px is the margin past them.
+        // Keep clear of the status bar, notch, home indicator and (on iOS) the keyboard.
         let safe = window.insets().effective();
         let body = match self.screen {
             Screen::Picker => self.picker(cx),
@@ -350,17 +350,14 @@ impl Render for MobileApp {
 }
 
 /// The app body both platform entry points run. `data_dir` is where the environment name is remembered.
-pub fn run(data_dir: PathBuf, cx: &mut App) {
+/// An error means the window never opened; the entry point logs it where that platform's logs go.
+pub fn run(data_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     gpui_component::init(cx);
     let source = Box::new(crate::source::FakeSource::new());
-    let opened = cx.open_window(WindowOptions::default(), |window, cx| {
+    cx.open_window(WindowOptions::default(), |window, cx| {
         let view = cx.new(|cx| MobileApp::new(data_dir, source, window, cx));
         cx.new(|cx| Root::new(view, window, cx))
-    });
-    if let Err(e) = opened {
-        // Nothing to fall back to on a phone: log it for logcat / the simulator console.
-        eprintln!("skyelab-mobile: could not open its window: {e:#}");
-        return;
-    }
+    })?;
     cx.activate(true);
+    Ok(())
 }

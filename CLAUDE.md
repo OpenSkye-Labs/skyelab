@@ -63,6 +63,10 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
+`mobile/` (iOS/Android client) is its own workspace, outside this gate and checked by `.github/workflows/mobile.yml`.
+In `mobile/`, run `scripts/fetch-gpui-mobile.sh` before any cargo command, then `cargo clippy --workspace --all-targets -- -D warnings`
+and `cargo test --workspace`; run it with `scripts/run-ios.sh` / `scripts/run-android.sh`. See `mobile/UPSTREAM.md`.
+
 ## Release
 
 Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager); its config is

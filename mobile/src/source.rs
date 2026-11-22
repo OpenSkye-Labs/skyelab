@@ -4,6 +4,8 @@ use skyelab_protocol::{Project, Thread, ThreadEvent};
 
 // later: replace with `skyelab-client` (docs/mobile.md step 1) once it lands on main. That client is async and
 // channel-based, so this trait becomes a view over its cached state plus requests sent down its channel.
+// The fake's event kinds and `{"text": ..}` payloads are made up; the real ones are the store's `prompt`/`agent` records
+// (skyelab-app `Record`), so `app::event_text` changes with it.
 pub trait ThreadSource {
     fn projects(&self) -> Vec<Project>;
     fn threads(&self, project_id: i64) -> Vec<Thread>;

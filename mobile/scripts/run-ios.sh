@@ -2,6 +2,7 @@
 # Build, bundle and launch on an iOS Simulator. Usage: scripts/run-ios.sh [simulator-udid] (default: booted).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+[[ "${1:-}" != -* ]] || { echo "usage: scripts/run-ios.sh [simulator-udid]" >&2; exit 2; }
 scripts/fetch-gpui-mobile.sh # cargo resolves the Android-only path dependency on every target
 IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build -p skyelab-mobile --bin skyelab_mobile --target aarch64-apple-ios-sim
 app=target/SkyeLab.app

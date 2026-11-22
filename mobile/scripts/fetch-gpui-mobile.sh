@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 rev=7548ebc4b24f00494af9976af8852c7163ded9ce
 patches=(upstream/0001-port-to-gpui-pre-0.3.12.patch upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch upstream/local-no-offscreen.patch)
 dest=target/gpui-mobile
-# Re-fetch when the rev or either patch changes.
+# Re-fetch when the rev or any patch changes.
 stamp="$rev $(cat "${patches[@]}" | git hash-object --stdin)"
 [[ "$(cat "$dest/.ported" 2>/dev/null)" == "$stamp" ]] && exit 0
 rm -rf "$dest" && mkdir -p target

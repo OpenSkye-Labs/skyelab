@@ -100,7 +100,7 @@ fn walks_picker_to_thread_then_sends_and_stops(cx: &mut TestAppContext) {
     });
 
     let thread = app.read_with(cx, |a, _| a.threads()[0].id);
-    app.update(cx, |a, cx| a.open_thread(thread, cx));
+    app.update_in(cx, |a, window, cx| a.open_thread(thread, window, cx));
     app.read_with(cx, |a, _| {
         assert_eq!(
             a.screen,

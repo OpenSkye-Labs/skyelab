@@ -64,3 +64,14 @@ Typing the first character into an empty field panicked in debug builds: `access
 gpui-mobile's TalkBack adapter). Release wraps it to `-1` as a `jint`, which is what the algorithm expects, so
 `mobile/Cargo.toml` turns off overflow checks for that one crate in dev. Check whether a newer accesskit_android
 (0.9.x at the time of writing) fixes it when gpui-mobile moves to it; if not, report it to AccessKit.
+
+## Known gaps in what we borrow
+
+- **Android keyboard.** 0001's `insets()` reports only the safe area, with `ime` left at zero, and gpui-mobile fires no
+  `on_insets_changed`. If the soft keyboard doesn't shrink the content rect, it can cover the composer. The emulator
+  used so far has a hardware keyboard, so this is untested. Fill `ime` from `WindowInsets.Type.ime()` and call the
+  insets callback before sending 0001 upstream.
+- **The Gradle host** in `scripts/run-android.sh` is gpui-mobile's example. Its manifest asks for camera, microphone,
+  contacts, calendar, media and notification permissions and exports a `gpui://` deep link, and its Gradle wrapper has
+  no `distributionSha256Sum`. Fine for a dev build on an emulator; our own cut-down host is docs/mobile.md step 6 and
+  must fix all three before anything is distributed.
