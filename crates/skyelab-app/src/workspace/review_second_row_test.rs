@@ -185,3 +185,60 @@ fn stop_while_starting_stops_the_new_agent(cx: &mut TestAppContext) {
         .expect("list");
     assert_eq!(rows[0].status, "stopped");
 }
+
+/// After a Stop, the old session's event stream can stay open (a tool that left claude's process
+/// group still holds stdout). When it finally closes, it must not end a session resumed meanwhile.
+#[cfg(unix)]
+#[gpui::test]
+fn a_late_end_of_the_stopped_session_leaves_the_resumed_one_running(cx: &mut TestAppContext) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let (_, cx, store, project_id, config, home) = bound_view(cx);
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let bin = home.path().join("lingering-claude.sh");
+    std::fs::write(
+        &bin,
+        format!(
+            "#!/bin/sh\ncat '{}'\nperl -e 'setpgrp(0,0); sleep 3' &\n\
+             while IFS= read -r line; do printf '%s\\n' \"$line\"; done\n",
+            fixtures.join("session.jsonl").display()
+        ),
+    )
+    .expect("write fake");
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    let project = store
+        .lock()
+        .expect("lock")
+        .project(project_id)
+        .expect("read")
+        .expect("project");
+    let backend = Backend {
+        store,
+        claude_bin: bin,
+    };
+    let view =
+        cx.new_window_entity(|window, cx| ThreadView::new(&project, config, backend, window, cx));
+    send(&view, "one", cx);
+    wait(cx, |cx| {
+        view.read_with(cx, |t, _| {
+            t.items.iter().any(|i| matches!(i, Item::Done { .. }))
+        })
+    });
+    view.update_in(cx, |t, window, cx| t.stop(&Stop, window, cx));
+    wait(cx, |cx| view.read_with(cx, |t, _| t.session.is_none()));
+    send(&view, "two", cx); // resumes while the stopped session's stdout is still open
+    wait(cx, |cx| view.read_with(cx, |t, _| t.session.is_some()));
+    let resumed = view
+        .read_with(cx, |t, _| t.session.clone())
+        .expect("resumed session");
+    for _ in 0..40 {
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(100)); // past the lingering 3 s
+    }
+    let current = view.read_with(cx, |t, _| t.session.clone());
+    assert!(
+        current.is_some_and(|s| Arc::ptr_eq(&s, &resumed)),
+        "the stopped session's late end dropped the resumed one"
+    );
+    let exited = resumed.lock().expect("lock").try_wait().expect("try_wait");
+    assert!(exited.is_none(), "the resumed agent was killed");
+}

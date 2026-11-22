@@ -16,7 +16,7 @@ use skyelab_core::AccountsConfig;
 use skyelab_store::{Store, Thread};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 actions!(skyelab, [SendPrompt, Interrupt, Stop]);
 
@@ -287,9 +287,8 @@ impl ThreadView {
     /// Each event is stored before it is shown, so the store keeps stdout's order.
     fn run(&mut self, session: Session, store: SharedStore, id: i64, cx: &mut Context<Self>) {
         let events = session.events().clone();
-        let session = Arc::new(Mutex::new(session));
-        let mine = Arc::downgrade(&session);
-        self.session = Some(session);
+        self.session = Some(Arc::new(Mutex::new(session)));
+        // Replacing the pump drops the stopped session's one, so its late end can't touch this session.
         self._pump = Some(cx.spawn(async move |this, cx| {
             while let Ok(event) = events.recv_async().await {
                 let record = Record::Agent(event);
@@ -326,18 +325,14 @@ impl ThreadView {
                     return;
                 }
             }
-            let _ = this.update(cx, |this, cx| this.ended(&mine, cx));
+            let _ = this.update(cx, |this, cx| this.ended(cx));
         }));
     }
 
     /// claude's stdout closed and every event is stored: record how the thread ended.
-    fn ended(&mut self, mine: &Weak<Mutex<Session>>, cx: &mut Context<Self>) {
-        // After a Stop, a resumed session may already be starting or running: leave it alone.
-        let replaced = self
-            .session
-            .as_ref()
-            .is_some_and(|s| Arc::as_ptr(s) != mine.as_ptr());
-        if self.starting || replaced {
+    fn ended(&mut self, cx: &mut Context<Self>) {
+        // A stopped session's stream ended while its resume is starting: leave the resume alone.
+        if self.starting {
             return;
         }
         let Some(thread) = &self.thread else {
