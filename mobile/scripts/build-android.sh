@@ -17,11 +17,10 @@ if [[ ${SKYELAB_MOBILE_FEATURES:-} == *demo* && -n ${SKYELAB_ANDROID_KEYSTORE:-}
 fi
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 scripts/fetch-gpui-mobile.sh
-# -P 26 must match minSdk in android-host/app/build.gradle.kts (scripts/check-hosts.sh checks both).
 cargo ndk -t arm64-v8a -P 26 -o "target/jniLibs/$profile" build --locked ${cargo_profile[@]+"${cargo_profile[@]}"} -p skyelab-mobile-android \
     ${SKYELAB_MOBILE_FEATURES:+--features "$SKYELAB_MOBILE_FEATURES"} >&2
 task=assemble$(tr '[:lower:]' '[:upper:]' <<<"${profile:0:1}")${profile:1}
 (cd android-host && ./gradlew -q "$task" >&2)
-# Signed release: app-release.apk; unsigned: app-release-unsigned.apk. An older one of the other kind may remain.
-apk=$(ls -t target/android-host/app/outputs/apk/"$profile"/app-"$profile"*.apk | head -1)
+apk=target/android-host/app/outputs/apk/$profile/app-$profile.apk
+[[ $profile == debug || -n ${SKYELAB_ANDROID_KEYSTORE:-} ]] || apk=${apk%.apk}-unsigned.apk
 echo "$PWD/$apk"

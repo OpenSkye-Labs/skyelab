@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Xcode's "Build Rust" phase: builds skyelab_mobile with cargo and puts it in the bundle as the executable.
-# Runs cargo in a clean environment: Xcode's SDKROOT (the iOS SDK) would break host build scripts.
+# Xcode's "Build Rust" phase. cargo runs in a clean environment: Xcode's SDKROOT (the iOS SDK) would break host
+# build scripts.
 set -euo pipefail
 case $PLATFORM_NAME in
 iphonesimulator) triple=aarch64-apple-ios-sim ;;
-iphoneos) triple=aarch64-apple-ios ;;
+iphoneos)
+    triple=aarch64-apple-ios
+    [[ ${SKYELAB_MOBILE_FEATURES:-} != *demo* ]] || { echo "error: refusing a device build with demo data" >&2; exit 1; }
+    ;;
 *) echo "error: unsupported platform $PLATFORM_NAME" >&2; exit 1 ;;
 esac
 profile=debug flags=()

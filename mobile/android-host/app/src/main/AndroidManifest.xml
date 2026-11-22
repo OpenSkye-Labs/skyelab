@@ -1,15 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  SkyeLab is a remote client: it dials the user's desktop over the tailnet (wss://) and nothing else.
-  Keep this file to one permission, one activity and no deep links; mobile/scripts/check-hosts.sh enforces it.
--->
+<!-- One permission, one activity, no deep links: mobile/scripts/check-hosts.sh enforces it. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- The only permission: sockets to the desktop environment. Nothing reads network state, so no
-         ACCESS_NETWORK_STATE. -->
+    <!-- Sockets to the desktop. Nothing reads network state, so no ACCESS_NETWORK_STATE. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- wgpu renders through Vulkan; GLES 3 is the floor gpui-mobile needs either way. -->
+    <!-- From gpui-mobile's example manifest: wgpu falls back to GLES 3 where Vulkan is missing. -->
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
 
     <application
@@ -20,9 +16,11 @@
         android:supportsRtl="true"
         android:theme="@style/SkyeLabTheme">
 
-        <!-- singleTask: the Rust side starts once per process (android_main), so never stack a second instance. -->
+        <!-- singleTask: the Rust side starts once per process (android_main), so never stack a second instance.
+             An empty taskAffinity keeps other apps' tasks from claiming it (task hijacking before Android 11). -->
         <activity
             android:name=".SkyeLabActivity"
+            android:taskAffinity=""
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|uiMode|density"
             android:exported="true"
             android:launchMode="singleTask"

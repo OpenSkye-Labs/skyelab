@@ -68,9 +68,7 @@ jobs:
       - run: cargo fmt --check -p skyelab-mobile -p skyelab-mobile-android
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
-      # Both shells: INTERNET only, one exported activity, pinned Gradle wrapper, no committed team id.
       - run: scripts/check-hosts.sh
-      # The shipping build through our Xcode project (cargo runs inside it), unsigned for the simulator.
       - name: Release build (simulator)
         run: |
           app=$(scripts/build-ios.sh release simulator)
@@ -103,7 +101,8 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           cargo ndk -t arm64-v8a -P 26 clippy --locked -p skyelab-mobile-android -- -D warnings
-      # The shipping APK through our Gradle host. Unsigned: CI holds no keystore.
+      # Before anything runs ./gradlew: checks the committed wrapper jar against the pinned checksum.
+      - run: scripts/check-hosts.sh
       - name: Release APK (unsigned)
         run: |
           export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"

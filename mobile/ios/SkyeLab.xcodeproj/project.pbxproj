@@ -1,6 +1,4 @@
 // !$*UTF8*$!
-// Checked in by hand, not generated: one app target, no sources (cargo builds the executable in the
-// "Build Rust" phase, build-rust.sh), the asset catalog and Info.plist. mobile/scripts/check-hosts.sh checks it.
 {
 	archiveVersion = 1;
 	classes = {
@@ -119,7 +117,6 @@
 			buildSettings = {
 				ARCHS = arm64;
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				// iOS 15: what the Rust side has always been built against; covers every iPhone since the 6s.
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -145,7 +142,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				// Device builds: scripts/build-ios.sh passes SKYELAB_IOS_TEAM_ID. Never commit a team id here.
 				DEVELOPMENT_TEAM = "";
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = Info.plist;

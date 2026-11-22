@@ -84,7 +84,8 @@ gpui-mobile's TalkBack adapter). Release wraps it to `-1` as a `jint`, which is 
   Edge-to-edge (target SDK 35+): there the content rect stops changing for the keyboard, so 0003 alone never
   re-reads the insets. Our host's `SkyeLabActivity` pads its content view by the IME inset from an
   `OnApplyWindowInsetsListener`; the view resizes, NativeActivity reports a content-rect change, and 0003 reads the
-  real `WindowInsets`. No Rust change. Worth upstreaming into gpui-mobile's example host.
+  real `WindowInsets`. No Rust change. Not yet seen on a device (docs/mobile.md step 6). Worth upstreaming into
+  gpui-mobile's example host once it is.
 - **The Gradle host** is ours since docs/mobile.md step 6 (`android-host/`). gpui-mobile's example host asked for
   camera, microphone, contacts, calendar, media and notification permissions, exported a `gpui://` deep link and had no
   `distributionSha256Sum`; ours has none of that (`scripts/check-hosts.sh`). What we dropped from it: the splash

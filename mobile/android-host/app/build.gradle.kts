@@ -1,18 +1,16 @@
-// The APK around the Rust cdylib. cargo-ndk writes the .so into ../target/jniLibs/<debug|release>/<abi>/
-// first (../scripts/build-android.sh). Outputs go to ../target/android-host so the source tree stays clean.
+// The APK around the Rust cdylib, which ../scripts/build-android.sh puts in ../target/jniLibs/<debug|release>/ first.
 plugins {
     id("com.android.application")
 }
 
 val mobile = rootDir.parentFile
-// gpui-mobile, fetched and patched by ../scripts/fetch-gpui-mobile.sh. Its code stays out of our git.
 val gpuiMobile = mobile.resolve("target/gpui-mobile")
 val buildDir = mobile.resolve("target/android-host/app")
 layout.buildDirectory.set(buildDir)
 
 // gpui-mobile's Rust side binds to dev.gpui.mobile.GpuiInputActivity by JNI name, so we build that one class from
 // the checkout, and ship its Apache-2.0 license in the APK's assets.
-// Plain Files, not Providers: AGP's source-set DSL refuses Providers. preBuild runs the copy first.
+// A plain File: AGP's source-set DSL refuses a Provider ("You cannot add Provider instances").
 val gpuiGenerated = buildDir.resolve("generated/gpui-mobile")
 val copyGpuiMobile = tasks.register<Copy>("copyGpuiMobile") {
     from(gpuiMobile.resolve("example/android/gradle/app/src/main/java")) {
@@ -24,14 +22,15 @@ val copyGpuiMobile = tasks.register<Copy>("copyGpuiMobile") {
         into("assets/licenses")
     }
     into(gpuiGenerated)
-    doFirst {
-        check(gpuiMobile.resolve(".ported").exists()) { "run mobile/scripts/fetch-gpui-mobile.sh first" }
-    }
 }
-tasks.named("preBuild") { dependsOn(copyGpuiMobile) }
+tasks.named("preBuild") {
+    dependsOn(copyGpuiMobile)
+    // Here, not on the copy: a Copy task with no source files is skipped, doFirst included.
+    doFirst { check(gpuiMobile.resolve(".ported").exists()) { "run mobile/scripts/fetch-gpui-mobile.sh first" } }
+}
 
-// Release signing reads only the environment, never a committed file. All four or none: with none the release
-// APK comes out unsigned (app-release-unsigned.apk), which is what CI builds.
+// Release signing reads only the environment, never a committed file. With none set, the APK is unsigned (CI).
+// SKYELAB_ANDROID_KEYSTORE must be an absolute path.
 val signingEnv = listOf(
     "SKYELAB_ANDROID_KEYSTORE",
     "SKYELAB_ANDROID_KEYSTORE_PASSWORD",
@@ -49,12 +48,11 @@ android {
 
     defaultConfig {
         applicationId = "dev.openskye.skyelab"
-        // The cdylib links against API 26 (cargo ndk -P 26), gpui-mobile's floor; older devices lack the symbols.
+        // The cdylib links against this API level (cargo ndk -P 26), gpui-mobile's floor.
         minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
-        // Only arm64 is built. Every 64-bit Android phone and the Apple-silicon emulator run it.
         ndk { abiFilters += listOf("arm64-v8a") }
     }
 
@@ -71,7 +69,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false // one small class; nothing worth shrinking
+            isMinifyEnabled = false // two small classes; R8 would save nothing next to the 15 MB .so
             if (signRelease) signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -91,7 +89,7 @@ android {
     }
 
     packaging {
-        // cargo already strips release builds; this also spares Gradle from needing the NDK to strip.
+        // Gradle never strips our .so: cargo strips release builds, and stripping would need the NDK on Gradle's side.
         jniLibs {
             keepDebugSymbols += listOf("**/libskyelab_mobile_android.so")
             // cargo-ndk also copies gpui-mobile's own cdylib; ours links gpui-mobile statically and never loads it.
