@@ -299,8 +299,7 @@ impl Render for TerminalPanel {
 
 panel!(Settings, "Settings", closable: true, |_this| "Settings");
 
-/// A browser tab in the center. The page is a native view that stays on screen unless told, so the
-/// tab hides it while another tab is shown and drops it on close.
+/// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
 pub struct BrowserPanel {
     pub browser: Entity<BrowserView>,
 }

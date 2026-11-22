@@ -76,7 +76,6 @@ pub struct Workspace {
     account: Option<SharedString>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
-    /// Weak, so closing a tab (the dock drops it) frees its webview.
     browsers: Vec<WeakEntity<BrowserPanel>>,
     settings: Option<WeakEntity<Settings>>,
     _settings_saved: Option<Subscription>,
@@ -221,7 +220,6 @@ impl Workspace {
         Ok(())
     }
 
-    /// A new browser tab on `SKYELAB_BROWSER_URL` (e.g. `localhost:5173`), or a blank page.
     fn open_browser(&mut self, _: &OpenBrowser, window: &mut Window, cx: &mut Context<Self>) {
         let url = std::env::var("SKYELAB_BROWSER_URL").ok();
         let browser = cx.new(|cx| skyelab_browser::BrowserView::new(url.as_deref(), window, cx));
