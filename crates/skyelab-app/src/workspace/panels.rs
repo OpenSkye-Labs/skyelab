@@ -343,8 +343,20 @@ panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
 pub struct BrowserPanel {
     pub browser: Entity<BrowserView>,
+    /// The thread whose agent drives this tab. `None` for the user's tabs, and after Take over: an agent
+    /// only ever reaches a tab whose owner is its own thread.
+    pub agent: Option<AgentOwner>,
 }
 
+pub struct AgentOwner {
+    pub thread_id: i64,
+    pub title: SharedString,
+}
+
+/// The tab's Close button was pressed; the workspace removes it from the dock.
+pub struct CloseBrowser;
+
+impl EventEmitter<CloseBrowser> for BrowserPanel {}
 impl EventEmitter<PanelEvent> for BrowserPanel {}
 impl BasePanel for BrowserPanel {
     fn panel_name(&self) -> &'static str {
@@ -362,7 +374,11 @@ impl BasePanel for BrowserPanel {
 }
 impl Panel for BrowserPanel {
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        "Browser"
+        if self.agent.is_some() {
+            "Agent browser"
+        } else {
+            "Browser"
+        }
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None
@@ -375,9 +391,51 @@ impl Focusable for BrowserPanel {
     }
 }
 
+impl BrowserPanel {
+    /// The user takes the tab: the agent's calls fail from now on, and the reload ends the scripts it
+    /// left running in the page.
+    pub fn take_over(&mut self, cx: &mut Context<Self>) {
+        self.agent = None;
+        self.browser.update(cx, |b, cx| b.reload(cx));
+        cx.notify();
+    }
+}
+
 impl Render for BrowserPanel {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.browser.clone())
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        // Drawn above the page: the native webview covers anything inside its own bounds.
+        let bar = self.agent.as_ref().map(|a| {
+            h_flex()
+                .id("agent-bar")
+                .gap_2()
+                .px_2()
+                .py_1()
+                .bg(theme.warning)
+                .text_color(gpui::black()) // the theme's warning_foreground is barely readable on warning
+                .text_sm()
+                .child(
+                    div()
+                        .flex_1()
+                        .child(format!("Agent is controlling this tab ({})", a.title)),
+                )
+                .child(
+                    Button::new("take-over")
+                        .label("Take over")
+                        .small()
+                        .on_click(cx.listener(|this, _, _, cx| this.take_over(cx))),
+                )
+                .child(
+                    Button::new("close-agent-tab")
+                        .label("Close")
+                        .small()
+                        .on_click(cx.listener(|_, _, _, cx| cx.emit(CloseBrowser))),
+                )
+        });
+        v_flex()
+            .size_full()
+            .children(bar)
+            .child(div().flex_1().min_h_0().child(self.browser.clone()))
     }
 }
 

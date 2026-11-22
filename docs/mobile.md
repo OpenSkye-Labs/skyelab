@@ -119,7 +119,7 @@ Each step goes through `/loop`.
    **Done (TLS):** the daemon serves only `wss://` with the node's `tailscale cert` certificate, and the client
    accepts only a chain to the Mozilla roots whose leaf names exactly the dialled MagicDNS name. That closes the
    carrier-grade NAT hole (100.64.0.0/10 is also CGNAT space, so a hostile DNS with the VPN off could point at
-   another subscriber's 100.x host). The tailnet needs MagicDNS and HTTPS Certificates on (architecture.md, Remote).
+   another subscriber's 100.x host). The tailnet needs MagicDNS and HTTPS Certificates on (remote.md).
    **Done (mobile, 2026-11-23):** `mobile/src/remote.rs` is a `ThreadSource` over `skyelab-client`. The picker takes
    only `<machine>.<tailnet>.ts.net` names. The screens show Connecting, Connected, Reconnecting (with why), Refused
    (the daemon's gate closed the socket: not one of your own untagged devices) and a version mismatch. It calls

@@ -20,13 +20,16 @@
 //!   `http://localhost`. Only that input is checked. wry's
 //!   navigation handler also fires for iframes, so filtering there would break `about:`, `data:`
 //!   and `blob:` frames that real web apps use; links and scripts in the page go unfiltered.
-//! - No screenshot API: wry has none. Capture the window instead.
+//! - No screenshot API: wry has none, and WKWebView's snapshot is an `unsafe` call. Capture the window instead.
+//! - [`Engine`] is the seam under the agent path: [`BrowserView::with_engine`] runs it on a test's fake page.
 
 mod agent;
+mod engine;
 mod js;
 mod url;
 mod view;
 
 pub use agent::parse_agent_url;
+pub use engine::{Engine, EvalDone};
 pub use url::parse_url;
 pub use view::BrowserView;

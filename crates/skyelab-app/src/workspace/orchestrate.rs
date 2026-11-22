@@ -7,7 +7,7 @@ use super::{SharedStore, lock};
 use anyhow::Result;
 use gpui::{App, Global};
 use serde_json::{Value, json};
-use skyelab_agent::mcp::{Caller, Host, Proxy, Server, Tool};
+use skyelab_agent::mcp::{BrowserTool, Caller, Host, Proxy, Server, Tool};
 use skyelab_agent::{Block, Event};
 use skyelab_core::AccountsConfig;
 use skyelab_store::Thread;
@@ -47,6 +47,12 @@ pub enum OrchCall {
         thread_id: i64,
         text: String,
         reply: Reply<()>,
+    },
+    /// A browser tool, run against the caller's own tab (`browser_agent`).
+    Browser {
+        caller: Caller,
+        tool: BrowserTool,
+        reply: Reply<Value>,
     },
 }
 
@@ -305,6 +311,11 @@ impl Host for AppHost {
                 })?;
                 Ok(json!({"ok": true}))
             }
+            Tool::Browser(tool) => ask(&self.calls, |reply| OrchCall::Browser {
+                caller: caller.clone(),
+                tool,
+                reply,
+            }),
             Tool::WaitThread {
                 thread_id,
                 timeout_s,

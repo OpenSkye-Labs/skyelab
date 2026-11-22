@@ -30,8 +30,10 @@ What's built today:
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
   switches project, opens a thread or goes to an open tab.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
-- **Browser preview.** A browser tab for your dev server. Agents can't drive it yet: the crate has the
-  navigate/eval API (http and https only) but it isn't wired to agents.
+- **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
+  URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
+  **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
+  its own cookies and storage. macOS and Linux only (like delegation). No screenshots yet.
 - **Device hub.** Lists iOS Simulators and Android emulators. Boot, shut down, take screenshots, open URLs and
   install apps.
 - **Share a machine over your tailnet.** Off by default. When on, the app serves this machine over `wss://` with its
@@ -122,7 +124,7 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   dialled: only your own untagged devices, and the same Tailscale node it saw for that name before. The phone
   remembers the node too, but only from what the machine says about itself (it has no Tailscale CLI to ask).
 
-The full rules are in [docs/architecture.md](docs/architecture.md) under "Remote" and "Decisions".
+The full rules are in [docs/remote.md](docs/remote.md) and [docs/decisions.md](docs/decisions.md).
 
 ## Platform support
 

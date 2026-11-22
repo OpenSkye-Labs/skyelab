@@ -139,7 +139,7 @@ fn initialized(r: &Rig, g: &Grant) -> Client {
 }
 
 #[test]
-fn lists_all_six_tools_with_schemas() {
+fn lists_all_tools_with_schemas() {
     let r = rig();
     let g = grant(&r, 7);
     let mut c = initialized(&r, &g);
@@ -150,6 +150,10 @@ fn lists_all_six_tools_with_schemas() {
     assert_eq!(
         names,
         [
+            "browser_eval",
+            "browser_navigate",
+            "browser_open",
+            "browser_url",
             "list_projects",
             "read_thread",
             "send_message",

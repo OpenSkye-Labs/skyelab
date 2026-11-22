@@ -73,6 +73,21 @@ Threads are saved, and opening an old one and sending a follow-up resumes the sa
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
 
+### Agent browser tabs
+
+An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read
+`browser_url` and run `browser_eval` (a JavaScript expression; the JSON result comes back, up to 64 KiB, within 10
+seconds). Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
+local file page. Each thread has one tab, titled **Agent browser**, with a bar saying the agent controls it:
+
+- **Take over** makes it your tab. The agent can't reach it any more; its next `browser_open` opens a new tab.
+- **Close** closes the tab.
+
+An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or another thread's tab. Its tab has private,
+in-memory cookies and storage, so it is not signed in to anything you are, and nothing it sets reaches your tabs.
+Take over reloads the page, which stops any script the agent left running. While the agent still has the tab,
+don't sign in to anything in it: the agent can read that page. macOS and Linux only. There is no screenshot tool yet.
+
 ### Delegated threads
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,

@@ -25,6 +25,7 @@ skyelab-protocol.workspace = true
 skyelab-client.workspace = true
 skyelab-tailnet.workspace = true
 flume.workspace = true
+futures.workspace = true
 serde_json.workspace = true
 skyelab-devices.workspace = true
 skyelab-git.workspace = true
