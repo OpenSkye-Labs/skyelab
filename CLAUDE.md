@@ -19,6 +19,9 @@ and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, 
 ## Rust rules
 
 - Edition 2024, stable toolchain (`rust-toolchain.toml`). Lints live in `[workspace.lints]`, and each crate opts in with `[lints] workspace = true`.
+- **Always the latest versions.** Rust: latest stable (`rustup update`, then raise `rust-version` in `Cargo.toml`).
+  Crates: the newest release on crates.io (`cargo search <crate>`), including major bumps. The one exception is
+  `gpui-pre`, which stays at whatever exact version the latest `gpui-component` pins. Older duplicates pulled in transitively are fine.
 - `unsafe` is denied workspace-wide. If FFI ever needs it (e.g. libtailscale), it goes in one `-sys`-style
   crate with `#![allow(unsafe_code)]` and a `// SAFETY:` comment on every block.
 - Errors: `anyhow` in binaries and app glue; `thiserror` only when a caller actually matches on variants.
