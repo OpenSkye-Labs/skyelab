@@ -7503,6 +7503,8 @@ dependencies = [
  "futures",
  "gpui-component",
  "gpui-pre",
+ "objc2-app-kit 0.3.2",
+ "rustix-openpty",
 ]
 
 [[package]]

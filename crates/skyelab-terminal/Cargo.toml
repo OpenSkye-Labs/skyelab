@@ -12,5 +12,11 @@ futures.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+rustix-openpty.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit.workspace = true
+
 [lints]
 workspace = true

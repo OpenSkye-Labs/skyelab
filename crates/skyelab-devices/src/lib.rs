@@ -35,7 +35,9 @@ impl fmt::Display for Platform {
 pub enum DeviceState {
     Booted,
     Shutdown,
-    /// Known but not usable now: an offline or unauthorized adb device, a simulator mid-boot.
+    /// Starting up and not usable yet: a simulator mid-boot, or an emulator adb sees before `sys.boot_completed`.
+    Booting,
+    /// Known but not usable now: an offline or unauthorized adb device, a simulator shutting down.
     Offline,
 }
 
@@ -117,29 +119,45 @@ pub struct DeviceHub {
 }
 
 impl DeviceHub {
-    /// Finds the tools from `PATH`, `ANDROID_HOME` and `ANDROID_SDK_ROOT`.
+    /// Finds the tools from `PATH`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and else the SDK's default install dir
+    /// (a Dock-launched app has a minimal `PATH` and no SDK vars).
     pub fn discover() -> Self {
+        let user_dir = if cfg!(windows) {
+            "LOCALAPPDATA"
+        } else {
+            "HOME"
+        };
         Self::discover_with(
             env::var_os("PATH").as_deref(),
             env::var_os("ANDROID_HOME").as_deref(),
             env::var_os("ANDROID_SDK_ROOT").as_deref(),
+            env::var_os(user_dir).as_deref(),
         )
     }
 
     /// The Android SDK dirs are searched before `PATH`, `ANDROID_HOME` first: the SDK the user pointed at wins.
+    /// Only when neither var is set (or both are empty), the default SDK dir under `user_dir` is searched instead: `$HOME` on Unix
+    /// (`Library/Android/sdk` on macOS, `Android/Sdk` on Linux), `%LOCALAPPDATA%` on Windows (`Android\Sdk`).
     pub fn discover_with(
         path: Option<&OsStr>,
         android_home: Option<&OsStr>,
         android_sdk_root: Option<&OsStr>,
+        user_dir: Option<&OsStr>,
     ) -> Self {
         // Relative entries (`.`, an empty ANDROID_HOME) would resolve against the cwd, which may be a project folder.
         let path_dirs: Vec<PathBuf> = path
             .map(|p| env::split_paths(p).filter(|d| d.is_absolute()).collect())
             .unwrap_or_default();
+        let android_home = android_home.filter(|v| !v.is_empty());
+        let android_sdk_root = android_sdk_root.filter(|v| !v.is_empty());
+        let default_sdk = (android_home.is_none() && android_sdk_root.is_none())
+            .then(|| user_dir.map(|d| Path::new(d).join(DEFAULT_SDK)))
+            .flatten();
         let sdks: Vec<PathBuf> = [android_home, android_sdk_root]
             .into_iter()
             .flatten()
             .map(PathBuf::from)
+            .chain(default_sdk)
             .filter(|d| d.is_absolute())
             .collect();
         let find = |sdk_subdir: Option<&str>, name: &str| {
@@ -185,6 +203,18 @@ impl DeviceHub {
                 && let Some(avd) = console_reply(&out)
             {
                 d.name = avd;
+            }
+            // adb lists an emulator as `device` well before Android finishes booting.
+            if d.kind == DeviceKind::Emulator
+                && d.state == DeviceState::Booted
+                && self
+                    .adb(&d.id, &["shell", "getprop", "sys.boot_completed"])
+                    .ok()
+                    .and_then(|out| first_line(&out))
+                    .as_deref()
+                    != Some("1")
+            {
+                d.state = DeviceState::Booting;
             }
             if d.state == DeviceState::Booted {
                 d.os_version = self
@@ -371,6 +401,15 @@ impl DeviceHub {
         self.adb(serial, &args)
     }
 }
+
+/// Where Android Studio installs the SDK, under `$HOME` (`%LOCALAPPDATA%` on Windows).
+const DEFAULT_SDK: &str = if cfg!(target_os = "macos") {
+    "Library/Android/sdk"
+} else if cfg!(windows) {
+    "Android\\Sdk"
+} else {
+    "Android/Sdk"
+};
 
 /// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running (and unreaped
 /// until this process exits); call [`Emulator::stop`] to end it.

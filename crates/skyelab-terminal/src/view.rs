@@ -10,7 +10,7 @@ use gpui::{
 };
 use gpui_component::{ActiveTheme as _, theme::ThemeColor};
 
-use crate::{Event, Terminal, key_to_bytes, keys::paste_bytes};
+use crate::{Event, OptionKeys, Terminal, key_to_bytes, keys::paste_bytes};
 
 actions!(terminal, [Paste]);
 
@@ -31,6 +31,7 @@ pub fn init(cx: &mut App) {
 
 pub struct TerminalView {
     terminal: Terminal,
+    option_keys: OptionKeys,
     focus: FocusHandle,
     _events: Task<()>,
 }
@@ -62,14 +63,23 @@ impl TerminalView {
         });
         Self {
             terminal,
+            option_keys: OptionKeys::default(),
             focus: cx.focus_handle(),
             _events,
         }
     }
 
+    pub fn set_option_keys(&mut self, option_keys: OptionKeys) {
+        self.option_keys = option_keys;
+    }
+
     fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let mode = *self.terminal.term().mode();
-        if let Some(bytes) = key_to_bytes(&event.keystroke, mode) {
+        if let Some(bytes) = key_to_bytes(
+            &event.keystroke,
+            mode,
+            self.option_keys.resolve(device_flags()),
+        ) {
             self.terminal.write(bytes);
             cx.stop_propagation();
         }
@@ -427,6 +437,18 @@ fn rgb(c: Rgb) -> Hsla {
         a: 1.,
     }
     .into()
+}
+
+/// macOS's device-dependent modifier bits, which tell left from right Option; GPUI's keystroke has one `alt` flag.
+/// This reads the live state, which still holds the key while its key-down event is handled.
+#[cfg(target_os = "macos")]
+fn device_flags() -> usize {
+    objc2_app_kit::NSEvent::modifierFlags_class().bits()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn device_flags() -> usize {
+    0
 }
 
 #[cfg(test)]

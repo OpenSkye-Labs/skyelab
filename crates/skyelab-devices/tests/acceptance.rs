@@ -320,7 +320,7 @@ fn a_running_avd_is_listed_once() {
         &format!(
             r#"case "$3" in
   emu) printf 'Test_AVD_One\r\nOK\r\n' ;;
-  shell) printf '16\r\n' ;;
+  shell) [ "$5" = sys.boot_completed ] && printf '1\r\n' || printf '16\r\n' ;;
   *) cat '{FIXTURES}/adb_devices.txt' ;;
 esac"#
         ),
@@ -393,18 +393,23 @@ fn discovery_prefers_the_android_sdk_over_path() {
     fake(&bin, "xcrun", "");
     let path = std::env::join_paths([&bin]).expect("test setup");
 
-    let h = DeviceHub::discover_with(Some(&path), None, None);
+    let h = DeviceHub::discover_with(Some(&path), None, None, None);
     assert_eq!(h.adb, Some(bin.join("adb")));
     assert_eq!(h.emulator, Some(bin.join("emulator")));
     assert_eq!(h.xcrun, Some(bin.join("xcrun")));
 
     fake(&root.join("platform-tools"), "adb", "");
-    let h = DeviceHub::discover_with(Some(&path), None, Some(root.as_os_str()));
+    let h = DeviceHub::discover_with(Some(&path), None, Some(root.as_os_str()), None);
     assert_eq!(h.adb, Some(root.join("platform-tools/adb")));
 
     fake(&sdk.join("platform-tools"), "adb", "");
     fake(&sdk.join("emulator"), "emulator", "");
-    let h = DeviceHub::discover_with(Some(&path), Some(sdk.as_os_str()), Some(root.as_os_str()));
+    let h = DeviceHub::discover_with(
+        Some(&path),
+        Some(sdk.as_os_str()),
+        Some(root.as_os_str()),
+        None,
+    );
     assert_eq!(
         h.adb,
         Some(sdk.join("platform-tools/adb")),
@@ -412,7 +417,7 @@ fn discovery_prefers_the_android_sdk_over_path() {
     );
     assert_eq!(h.emulator, Some(sdk.join("emulator/emulator")));
 
-    let h = DeviceHub::discover_with(None, None, None);
+    let h = DeviceHub::discover_with(None, None, None, None);
     assert_eq!((h.adb, h.emulator, h.xcrun), (None, None, None));
 }
 

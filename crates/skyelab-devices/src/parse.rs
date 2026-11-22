@@ -35,6 +35,7 @@ pub fn parse_simctl_list(json: &[u8]) -> Result<Vec<Device>, Error> {
                     state: match s.state.as_str() {
                         "Booted" => DeviceState::Booted,
                         "Shutdown" => DeviceState::Shutdown,
+                        "Booting" => DeviceState::Booting,
                         _ => DeviceState::Offline,
                     },
                     kind: DeviceKind::Simulator,

@@ -6,7 +6,7 @@ use std::{
 use alacritty_terminal::term::TermMode;
 use futures::channel::mpsc::UnboundedReceiver;
 use gpui::Keystroke;
-use skyelab_terminal::{Event, SpawnOptions, Terminal, key_to_bytes};
+use skyelab_terminal::{Event, OptionKey, SpawnOptions, Terminal, key_to_bytes};
 
 /// Feeds events into the model until `done` holds or 10s pass.
 fn pump(term: &mut Terminal, rx: &mut UnboundedReceiver<Event>, done: impl Fn(&Terminal) -> bool) {
@@ -104,7 +104,7 @@ fn key_table() {
         let Ok(keystroke) = Keystroke::parse(s) else {
             panic!("bad keystroke {s}")
         };
-        key_to_bytes(&keystroke, mode)
+        key_to_bytes(&keystroke, mode, OptionKey::Meta)
     };
     let n = TermMode::NONE;
     assert_eq!(k("enter", n).as_deref(), Some(&b"\r"[..]));
@@ -129,4 +129,16 @@ fn key_table() {
     assert_eq!(k("alt-b", n).as_deref(), Some(&b"\x1bb"[..]));
     assert_eq!(k("a", n).as_deref(), Some(&b"a"[..]));
     assert_eq!(k("cmd-v", n), None);
+}
+
+#[cfg(unix)]
+#[test]
+/// The terminal holds a slave fd open (so a fast exit keeps its output); a typed `exit` must still end the session,
+/// even with a background job left holding the PTY.
+fn typed_exit_ends_the_session() {
+    let (mut term, mut rx) = spawn("sh", &["-i"], HashMap::new());
+    term.write(&b"sleep 2 & echo bye-$((6*7)); exit\r"[..]);
+    pump(&mut term, &mut rx, |t| {
+        t.exit_status().is_some() && t.text().contains("bye-42")
+    });
 }
