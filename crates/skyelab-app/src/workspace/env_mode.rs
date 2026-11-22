@@ -196,7 +196,10 @@ impl Workspace {
         self.env.remote = None;
         let mut error = None;
         if let Some(host) = a.host.clone() {
-            match skyelab_client::Client::connect(host.clone(), self.env.options.clone()) {
+            // Every connection waits for `RemoteEnv` to check its node before anything is asked of it.
+            let mut options = self.env.options.clone();
+            options.approve_each_connection = true;
+            match skyelab_client::Client::connect(host.clone(), options) {
                 Ok(client) => {
                     let settings = self.env.settings_path.clone();
                     let env = cx.new(|cx| RemoteEnv::new(host.clone(), client, settings, cx));
@@ -208,7 +211,7 @@ impl Workspace {
                         &env,
                         window,
                         |this, _, e: &EnvEvent, window, cx| {
-                            if let EnvEvent::NodeChanged = e {
+                            if let EnvEvent::Untrusted = e {
                                 this.close_remote_tabs(window, cx);
                             }
                         },

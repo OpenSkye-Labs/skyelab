@@ -114,8 +114,9 @@ pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client:
 
 pub enum EnvEvent {
     Thread(ThreadEvent),
-    /// The name moved to another machine: its tabs show threads of a machine no longer trusted, so they close.
-    NodeChanged,
+    /// The connection was refused or its identity failed (another node, an unreadable pin, the remote's gate or
+    /// this machine's whois): its tabs show threads of a machine not trusted now, so they close.
+    Untrusted,
 }
 
 pub struct RemoteEnv {
@@ -126,6 +127,8 @@ pub struct RemoteEnv {
     settings_path: Option<PathBuf>,
     /// The node the current connection presented, `None` while disconnected or from a 1.0 server.
     node: Option<String>,
+    /// The current connection's hello. The client holds the connection until `up` approves it.
+    hello: Option<Hello>,
     /// The node checked and trusted on this connection's predecessors, so a reconnect to it needs no disk read.
     trusted: Option<String>,
     pub state: ConnState,
@@ -139,8 +142,6 @@ pub struct RemoteEnv {
     _threads: Option<Task<()>>,
     _node: Option<Task<()>>,
     _trust: Option<Task<()>>,
-    /// Events that came while the connection's node was being checked, delivered once it is trusted.
-    held: Vec<ThreadEvent>,
 }
 
 impl EventEmitter<EnvEvent> for RemoteEnv {}
@@ -170,6 +171,7 @@ impl RemoteEnv {
             client,
             settings_path,
             node: None,
+            hello: None,
             trusted: None,
             state: ConnState::Connecting,
             projects: Vec::new(),
@@ -181,7 +183,6 @@ impl RemoteEnv {
             _threads: None,
             _node: None,
             _trust: None,
-            held: Vec::new(),
         }
     }
 
@@ -191,18 +192,26 @@ impl RemoteEnv {
 
     fn on_update(&mut self, update: Update, cx: &mut Context<Self>) {
         match update {
-            // Events reach the tabs only from a trusted connection. Those that arrive while it is being
-            // checked are held: the client delivers each event once, so dropping them would lose them.
+            // The client delivers events only once `up` approved the connection; this guards the
+            // ones still queued from a connection that has since been refused.
             Update::Event(event) if self.state == ConnState::Connected => {
                 cx.emit(EnvEvent::Thread(event))
             }
-            Update::Event(event) if self.state == ConnState::Connecting => self.held.push(event),
             Update::Event(_) => {}
             Update::Connected(hello) => self.on_connected(hello, cx),
             update => {
                 if let Some(state) = ConnState::from_update(&update) {
                     self.node = None;
-                    self.held.clear();
+                    self.hello = None;
+                    let untrusted = matches!(
+                        state,
+                        ConnState::Refused
+                            | ConnState::NotYourDevice(_)
+                            | ConnState::IdentityMismatch(_)
+                    );
+                    if untrusted {
+                        return self.refuse(state, cx);
+                    }
                     self.state = state;
                     cx.notify();
                 }
@@ -220,8 +229,8 @@ impl RemoteEnv {
     /// A server that sends no node id connects only to a name never pinned, so leaving the id out can't get
     /// past a pin. Settings that can't be read refuse the connection: nothing to check against.
     fn on_connected(&mut self, hello: Hello, cx: &mut Context<Self>) {
-        self.node = hello.node_id;
-        self.held.clear();
+        self.node = hello.node_id.clone();
+        self.hello = Some(hello);
         let Some(path) = self.settings_path.clone() else {
             return self.up(cx); // no config directory: nowhere to pin
         };
@@ -257,24 +266,24 @@ impl RemoteEnv {
                     Ok(None) => this.up(cx),
                     Ok(Some(was)) => {
                         let now = node.unwrap_or_else(|| "none (it sent no node id)".into());
-                        this.node_changed(ConnState::NodeChanged { was, now }, cx)
+                        this.refuse(ConnState::NodeChanged { was, now }, cx)
                     }
-                    Err(e) => this.node_changed(ConnState::Unverified(format!("{e:#}")), cx),
+                    Err(e) => this.refuse(ConnState::Unverified(format!("{e:#}")), cx),
                 }
             });
         }));
     }
 
-    /// Refuses this connection: nothing listed, nothing sent, and its tabs close.
-    fn node_changed(&mut self, state: ConnState, cx: &mut Context<Self>) {
+    /// Refuses this connection (it stays held by the client: nothing sent), clears what the window still shows
+    /// from this machine, and its tabs close.
+    fn refuse(&mut self, state: ConnState, cx: &mut Context<Self>) {
         self.state = state;
-        self.held.clear();
         self.projects.clear();
         self.threads.clear();
         self.project = None;
         self._projects = None;
         self._threads = None;
-        cx.emit(EnvEvent::NodeChanged);
+        cx.emit(EnvEvent::Untrusted);
         cx.notify();
     }
 
@@ -318,8 +327,8 @@ impl RemoteEnv {
     fn up(&mut self, cx: &mut Context<Self>) {
         self.trusted = self.node.clone();
         self.state = ConnState::Connected;
-        for event in std::mem::take(&mut self.held) {
-            cx.emit(EnvEvent::Thread(event));
+        if let Some(hello) = &self.hello {
+            self.client.approve(hello);
         }
         self.load_projects(cx);
         self.load_threads(cx);

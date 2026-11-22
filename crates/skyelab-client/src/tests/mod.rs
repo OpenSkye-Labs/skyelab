@@ -1,6 +1,7 @@
 //! Tests against a real in-process `skyelab-daemon` (fake tailnet, loopback sockets) and hostile fake servers.
 //! They live in the crate because the loopback exception only exists under `cfg(test)`.
 
+mod approve_gate;
 mod backoff;
 mod disconnect_kind;
 mod events;

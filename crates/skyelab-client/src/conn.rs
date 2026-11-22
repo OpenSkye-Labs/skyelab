@@ -25,6 +25,7 @@ pub(crate) enum Command {
     Call { call: Call, reply: ReplyFn },
     Watch { id: WatchId, after_seq: i64 },
     Unwatch(WatchId),
+    Approve(Hello),
 }
 
 enum End {
@@ -74,6 +75,7 @@ impl Ctx {
             Ok(Command::Call { reply, .. }) => reply(Err(Error::NotConnected)),
             Ok(Command::Watch { id, after_seq }) => self.watch(id, after_seq),
             Ok(Command::Unwatch(id)) => self.unwatch(id),
+            Ok(Command::Approve(_)) => {} // for a connection that has gone
         }
         true
     }
@@ -198,8 +200,9 @@ async fn session(cx: &mut Ctx) -> End {
         }
     };
     cx.set_hello(Some(hello.clone()));
-    let _ = cx.updates.send(Update::Connected(hello));
+    let _ = cx.updates.send(Update::Connected(hello.clone()));
     let mut live = Live {
+        held: cx.options.approve_each_connection.then_some(hello),
         ws,
         next_id: 1,
         pending: HashMap::new(),
@@ -226,6 +229,8 @@ enum Waiter {
 }
 
 struct Live {
+    /// Waiting for [`Command::Approve`] of this hello: nothing is sent and no pushed event is delivered.
+    held: Option<Hello>,
     ws: Ws,
     next_id: RequestId,
     pending: HashMap<RequestId, (Instant, Waiter)>,
@@ -241,11 +246,10 @@ impl Live {
             w.stale = false;
             w.ahead.clear();
         }
-        let threads: Vec<i64> = cx.watched.keys().copied().collect();
-        for thread_id in threads {
-            if let Err(end) = self.fill(cx, thread_id).await {
-                return end;
-            }
+        if self.held.is_none()
+            && let Err(end) = self.resync(cx).await
+        {
+            return end;
         }
         let ping_every = cx.options.ping_interval;
         let mut ping = tokio::time::interval_at(Instant::now() + ping_every, ping_every);
@@ -289,21 +293,47 @@ impl Live {
         }
     }
 
+    /// Fills every watched thread from its last delivered seq.
+    async fn resync(&mut self, cx: &mut Ctx) -> Result<(), End> {
+        let threads: Vec<i64> = cx.watched.keys().copied().collect();
+        for thread_id in threads {
+            self.fill(cx, thread_id).await?;
+        }
+        Ok(())
+    }
+
     async fn command(&mut self, cx: &mut Ctx, command: Command) -> Result<(), End> {
         match command {
+            Command::Call { reply, .. } if self.held.is_some() => {
+                reply(Err(Error::NotConnected));
+                Ok(())
+            }
             Command::Call { call, reply } => self.request(cx, call, Waiter::User(reply)).await,
             Command::Watch { id, after_seq } => {
                 cx.watch(id, after_seq);
+                if self.held.is_some() {
+                    return Ok(()); // filled on approval
+                }
                 self.fill(cx, id.thread_id).await
             }
             Command::Unwatch(id) => {
                 cx.unwatch(id);
                 Ok(())
             }
+            Command::Approve(hello) if self.held.as_ref() == Some(&hello) => {
+                self.held = None;
+                self.resync(cx).await
+            }
+            Command::Approve(_) => Ok(()), // another connection's hello, or already approved
         }
     }
 
     async fn message(&mut self, cx: &mut Ctx, msg: ServerMessage) -> Result<(), End> {
+        // Held: nothing was asked, and pushes from an unapproved server are dropped (the fill on approval
+        // fetches them from the store).
+        if self.held.is_some() {
+            return Ok(());
+        }
         let (id, result) = match msg {
             ServerMessage::Event(ev) => {
                 let thread_id = ev.thread_id;
