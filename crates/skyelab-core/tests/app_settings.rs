@@ -8,6 +8,7 @@ fn sharing_is_off_without_a_file_and_round_trips() {
     assert!(!off.share_on_tailnet, "off by default");
     let on = AppSettings {
         share_on_tailnet: true,
+        ..AppSettings::default()
     };
     on.save(&path).unwrap();
     assert_eq!(AppSettings::load(&path).unwrap(), on);

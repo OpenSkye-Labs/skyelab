@@ -70,6 +70,8 @@ pub struct SidebarSection {
 
 pub struct Sidebar {
     pub sections: Vec<SidebarSection>,
+    /// The environment switcher, drawn in place of the title once the workspace sets it.
+    pub picker: Option<Entity<super::env_picker::EnvPicker>>,
     focus: FocusHandle,
 }
 
@@ -77,6 +79,7 @@ impl Sidebar {
     pub fn new(sections: Vec<SidebarSection>, cx: &mut Context<Self>) -> Self {
         Self {
             sections,
+            picker: None,
             focus: cx.focus_handle(),
         }
     }
@@ -166,13 +169,15 @@ impl Render for Sidebar {
             .gap_6()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
-            .child(
-                div()
+            .child(match &self.picker {
+                Some(picker) => picker.clone().into_any_element(),
+                None => div()
                     .px_1()
                     .text_base()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("SkyeLab"),
-            )
+                    .child("SkyeLab")
+                    .into_any_element(),
+            })
             .children(self.sections.iter().map(section))
     }
 }
@@ -327,6 +332,7 @@ impl Render for TerminalPanel {
 panel!(Settings, "Settings", closable: true, |_this| "Settings");
 panel!(super::thread::ThreadView, "Thread", closable: true, |this| this.title());
 panel!(crate::remote::RemotePanel, "Remote", closable: true, |_this| "Remote");
+panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, |this| this.title());
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).

@@ -39,6 +39,7 @@ skyelab-core = { path = "crates/skyelab-core" }
 skyelab-browser = { path = "crates/skyelab-browser" }
 skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }
+skyelab-client = { path = "crates/skyelab-client" }
 skyelab-store = { path = "crates/skyelab-store" }
 skyelab-tailnet = { path = "crates/skyelab-tailnet" }
 skyelab-terminal = { path = "crates/skyelab-terminal" }

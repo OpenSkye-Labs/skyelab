@@ -1,3 +1,4 @@
+mod environment;
 mod remote;
 mod settings;
 mod workspace;
@@ -168,9 +169,11 @@ fn main() {
         remote::push_events(&mut store, slot.clone());
         let store = Arc::new(Mutex::new(store));
         let (agents, calls) = remote::UiAgents::new();
+        let tailnet: skyelab_daemon::SharedTailnet =
+            Arc::new(skyelab_tailnet::TailscaleCli::default());
         let host = remote::Host {
             settings_path: AppSettings::default_path(),
-            tailnet: Arc::new(skyelab_tailnet::TailscaleCli::default()),
+            tailnet: tailnet.clone(),
             config: skyelab_daemon::Config::default(),
             backend: Arc::new(skyelab_daemon::StoreBackend::shared(store.clone(), agents)),
             slot,
@@ -190,6 +193,13 @@ fn main() {
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
                 ws.store_error = store_error.map(Into::into);
                 ws.set_remote(remote, calls, window, cx);
+                ws.set_environments(
+                    tailnet,
+                    AppSettings::default_path(),
+                    skyelab_client::Options::default(),
+                    window,
+                    cx,
+                );
                 ws
             });
             let focus = view.read(cx).focus_handle(cx);

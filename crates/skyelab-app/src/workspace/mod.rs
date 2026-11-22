@@ -3,10 +3,14 @@
 mod changes;
 mod changes_model;
 mod devices;
+mod env_mode;
+mod env_picker;
 mod panels;
 mod projects;
 mod remote;
+mod remote_thread;
 mod thread;
+mod thread_items;
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
@@ -161,6 +165,8 @@ pub struct Workspace {
     _appearance: Subscription,
     /// Sharing on the tailnet; `None` until `set_remote` (tests that don't share).
     remote: Option<remote::RemoteHook>,
+    /// Which machine the sidebar and remote tabs show (this one unless the picker chose another).
+    env: env_mode::EnvMode,
 }
 
 impl Workspace {
@@ -237,6 +243,7 @@ impl Workspace {
             device_source: None,
             _appearance,
             remote: None,
+            env: Default::default(),
         };
         this.refresh_sidebar(cx);
         this.load_projects(None, cx);
@@ -262,6 +269,9 @@ impl Workspace {
     }
 
     fn new_terminal(&mut self, _: &NewTerminal, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            return; // the project is on another machine; a local shell here would be misleading
+        }
         if let Err(e) = self.add_terminal(window, cx) {
             eprintln!("failed to open terminal: {e:#}");
         }
@@ -403,16 +413,20 @@ impl Workspace {
                     .child(label),
             )
             .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
+        let remote = self.is_remote();
         StatusBar::new()
             .left(
                 h_flex()
                     .gap_3()
                     .text_xs()
-                    .child(
-                        div()
-                            .text_color(theme.muted_foreground)
-                            .child(self.folder_label.clone()),
-                    )
+                    .children(self.render_env_badge(cx))
+                    .when(!remote, |el| {
+                        el.child(
+                            div()
+                                .text_color(theme.muted_foreground)
+                                .child(self.folder_label.clone()),
+                        )
+                    })
                     .children(self.store_error.clone().map(|e| {
                         div()
                             .text_color(theme.danger)
@@ -431,7 +445,7 @@ impl Workspace {
                 h_flex()
                     .gap_2()
                     .children(self.render_remote_status(cx))
-                    .child(account),
+                    .when(!remote, |el| el.child(account)),
             )
     }
 }
@@ -462,6 +476,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_remote))
             .on_action(cx.listener(Self::toggle_sharing))
             .on_action(cx.listener(Self::disconnect_peer))
+            .map(|el| self.env_actions(el, cx))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -514,3 +529,18 @@ mod worktree_review_test;
 
 #[cfg(test)]
 mod review_cta_folder_test;
+
+#[cfg(test)]
+mod env_harness;
+
+#[cfg(test)]
+mod env_switch_test;
+
+#[cfg(test)]
+mod env_states_test;
+
+#[cfg(test)]
+mod env_picker_test;
+
+#[cfg(test)]
+mod env_prompt_loss_test;

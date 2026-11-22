@@ -5,6 +5,10 @@ rust-version.workspace = true
 version.workspace = true
 license.workspace = true
 
+[features]
+# Lets other crates' tests dial their in-process daemon on loopback (`Options::allow_loopback`).
+test-support = []
+
 [dependencies]
 flume.workspace = true
 futures.workspace = true

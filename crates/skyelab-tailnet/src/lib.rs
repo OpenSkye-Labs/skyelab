@@ -124,6 +124,37 @@ pub fn is_own_device(self_node: &Node, whois: &WhoIs) -> bool {
         && whois.node.tags.is_empty()
 }
 
+/// The peers an environment picker offers: the user's own untagged devices that are online, never this node.
+/// The same ownership rule as [`is_own_device`], from `status` instead of `whois`.
+pub fn own_online_peers(self_node: &Node, peers: Vec<Node>) -> Vec<Node> {
+    let Some(me) = self_node.user_id.filter(|&id| id != 0) else {
+        return Vec::new();
+    };
+    if !self_node.tags.is_empty() {
+        return Vec::new();
+    }
+    peers
+        .into_iter()
+        .filter(|p| {
+            p.online
+                && p.tags.is_empty()
+                && p.user_id == Some(me)
+                && !p.stable_id.is_empty()
+                && p.stable_id != self_node.stable_id
+        })
+        .collect()
+}
+
+impl Node {
+    /// The MagicDNS name without its trailing dot, or the hostname when MagicDNS is off.
+    pub fn magic_dns_name(&self) -> &str {
+        match self.dns_name.trim_end_matches('.') {
+            "" => &self.hostname,
+            dns => dns,
+        }
+    }
+}
+
 /// Parses `tailscale status --json`. Anything but `BackendState: Running` is [`Error::NotRunning`].
 pub fn parse_status(json: &[u8]) -> Result<Status, Error> {
     #[derive(Deserialize)]
@@ -358,7 +389,14 @@ mod tests {
         };
         let (app, app_ran) = fake("app-cli");
         let (path, path_ran) = fake("path-cli");
-        assert!(TailscaleCli::with_binaries(vec![app, path]).status().is_err());
+        assert!(
+            TailscaleCli::with_binaries(vec![app, path])
+                .status()
+                .is_err()
+        );
         assert!(app_ran.exists() && !path_ran.exists());
     }
 }
+
+#[cfg(test)]
+mod own_peers_test;

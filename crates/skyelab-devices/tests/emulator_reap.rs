@@ -37,7 +37,10 @@ fn a_dropped_emulator_is_reaped_when_it_exits() {
         state: DeviceState::Shutdown,
         kind: DeviceKind::Emulator,
     };
-    let emu = hub.boot(&avd).expect("test setup").expect("an AVD boot returns its process");
+    let emu = hub
+        .boot(&avd)
+        .expect("test setup")
+        .expect("an AVD boot returns its process");
     let pid = emu.pid();
     drop(emu);
     let start = Instant::now();

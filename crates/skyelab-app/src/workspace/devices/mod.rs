@@ -282,7 +282,12 @@ impl DevicesPanel {
             |this, id, png, cx| {
                 let image = Arc::new(Image::from_bytes(ImageFormat::Png, png));
                 let new_id = image.id();
-                let old = this.ops.entry(id.to_string()).or_default().screenshot.replace(image);
+                let old = this
+                    .ops
+                    .entry(id.to_string())
+                    .or_default()
+                    .screenshot
+                    .replace(image);
                 // Same bytes, same cache entry: the new image is drawn from it.
                 uncache(old.filter(|old| old.id() != new_id), cx);
             },

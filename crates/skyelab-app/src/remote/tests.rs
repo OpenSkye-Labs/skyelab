@@ -234,6 +234,7 @@ fn remote_toggle_starts_and_stops_the_daemon_and_persists(cx: &mut TestAppContex
     // Left on, it starts again at the next launch.
     AppSettings {
         share_on_tailnet: true,
+        ..AppSettings::default()
     }
     .save(&dir.path().join("settings.toml"))
     .expect("save");
