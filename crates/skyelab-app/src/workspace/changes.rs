@@ -2,11 +2,9 @@
 //! the commit a worktree thread started from.
 
 use super::changes_model::{self, Changes, LineKind, Row};
-use super::thread::{ThreadView, ThreadViewEvent};
 use gpui::{
-    App, Context, Entity, EntityId, FocusHandle, Focusable, FontWeight, ScrollStrategy,
-    SharedString, Subscription, Task, UniformListScrollHandle, Window, actions, div, prelude::*,
-    px, uniform_list,
+    App, Context, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString, Task,
+    UniformListScrollHandle, Window, actions, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{ActiveTheme as _, Sizable as _, button::Button, h_flex, v_flex};
 use skyelab_git::ChangeKind;
@@ -20,24 +18,20 @@ const ROW_HEIGHT: f32 = 20.;
 pub struct ChangesView {
     focus: FocusHandle,
     pub(super) dir: PathBuf,
-    /// A worktree's base commit; `None` diffs against `HEAD`.
-    base: Option<String>,
+    /// `None` diffs against `HEAD`.
+    pub(super) base: Option<String>,
     title: SharedString,
     pub(super) changes: Option<Changes>,
     pub(super) error: Option<SharedString>,
     scroll: UniformListScrollHandle,
     _load: Option<Task<()>>,
-    /// One per thread that opened this tab: any of their turns can change the folder.
-    _threads: Vec<(EntityId, Subscription)>,
 }
 
 impl ChangesView {
-    /// Shows `dir`'s changes, reloading whenever `thread`'s agent finishes a turn.
     pub fn new(
         dir: PathBuf,
         base: Option<String>,
         title: SharedString,
-        thread: Option<&Entity<ThreadView>>,
         cx: &mut Context<Self>,
     ) -> Self {
         let mut this = Self {
@@ -49,27 +43,9 @@ impl ChangesView {
             error: None,
             scroll: UniformListScrollHandle::new(),
             _load: None,
-            _threads: Vec::new(),
         };
-        if let Some(thread) = thread {
-            this.follow(thread, cx);
-        }
         this.refresh(cx);
         this
-    }
-
-    /// Also reloads whenever `thread`'s agent finishes a turn. Following a thread twice is a no-op.
-    pub fn follow(&mut self, thread: &Entity<ThreadView>, cx: &mut Context<Self>) {
-        let id = thread.entity_id();
-        if self._threads.iter().any(|(t, _)| *t == id) {
-            return;
-        }
-        let sub = cx.subscribe(thread, |this, _, e: &ThreadViewEvent, cx| {
-            if matches!(e, ThreadViewEvent::TurnDone) {
-                this.refresh(cx);
-            }
-        });
-        self._threads.push((id, sub));
     }
 
     pub fn title(&self) -> SharedString {

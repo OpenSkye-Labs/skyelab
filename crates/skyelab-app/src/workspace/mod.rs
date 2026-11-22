@@ -522,3 +522,6 @@ mod worktree_followups_test;
 
 #[cfg(test)]
 mod remote_start_test;
+
+#[cfg(test)]
+mod changes_follow_folder_test;
