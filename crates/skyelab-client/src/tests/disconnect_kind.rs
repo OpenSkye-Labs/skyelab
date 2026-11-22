@@ -32,7 +32,7 @@ fn hang_up_with(reply: &'static [u8]) -> u16 {
 fn the_gate_turning_this_device_away_is_a_refusal() {
     let env = Env::new();
     let tailnet = Arc::new(FakeTailnet::default());
-    tailnet.whois_fails.store(true, Ordering::SeqCst);
+    tailnet.set_peer(Peer::WhoisError);
     let daemon = start_daemon(tailnet, env.backend(), 0);
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     let d = disconnect(&client);

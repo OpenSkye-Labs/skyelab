@@ -8,7 +8,7 @@ use super::*;
 #[test]
 fn reconnects_and_fills_what_it_missed() {
     let env = Env::new();
-    env.append(2);
+    append(&env, 2);
     let tailnet = Arc::new(FakeTailnet::default());
     let daemon = start_daemon(tailnet.clone(), env.backend(), 0);
     let port = port(&daemon);
@@ -24,7 +24,7 @@ fn reconnects_and_fills_what_it_missed() {
     }
     assert!(client.hello().is_none());
     // Written while the client was away, never pushed.
-    env.append(3);
+    append(&env, 3);
     std::thread::sleep(Duration::from_millis(200));
 
     let daemon = start_daemon(tailnet, env.backend(), port);
@@ -36,7 +36,7 @@ fn reconnects_and_fills_what_it_missed() {
         }
     }
     assert_eq!(seqs(&client, 3), [3, 4, 5]);
-    daemon.push_event(env.append(1));
+    daemon.push_event(append(&env, 1));
     assert_eq!(seqs(&client, 1), [6]);
     assert_eq!(client.list_projects().recv().expect("projects").len(), 1);
     quiet(&client, Duration::from_millis(300));

@@ -136,12 +136,20 @@ fn file(path: PathBuf, old_path: Option<PathBuf>, kind: ChangeKind, binary: bool
     }
 }
 
+/// Longest diff line shown. A row never wraps and is clipped by the pane anyway, but shaping a minified
+/// megabyte-long line on every frame would stall scrolling.
+const MAX_LINE_CHARS: usize = 2_000;
+
 fn line_row(old: Option<u32>, new: Option<u32>, kind: LineKind, text: &str) -> Row {
+    let text = match text.char_indices().nth(MAX_LINE_CHARS) {
+        Some((at, _)) => format!("{}…", &text[..at]),
+        None => text.to_owned(),
+    };
     Row::Line {
         old,
         new,
         kind,
-        text: text.to_owned(),
+        text,
     }
 }
 

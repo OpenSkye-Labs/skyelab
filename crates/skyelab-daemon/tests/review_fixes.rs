@@ -1,5 +1,6 @@
 mod common;
 use common::*;
+use skyelab_daemon::testing::Peer;
 use skyelab_daemon::{Config, Daemon};
 use skyelab_protocol::Call;
 use std::sync::Arc;

@@ -2,6 +2,8 @@
 //! [`crate::remote::RemoteSource`] fills it from an environment; [`FakeSource`] holds canned data for tests and
 //! the `demo` build.
 
+use std::collections::HashMap;
+
 use skyelab_protocol::{Project, Thread, ThreadEvent};
 
 /// The connection to the environment, as the screens show it.
@@ -35,8 +37,8 @@ pub trait ThreadSource {
     fn projects(&self) -> Vec<Project>;
     /// The threads of a project, once [`ThreadSource::load_threads`] has fetched them.
     fn threads(&self, project_id: i64) -> Vec<Thread>;
-    /// A watched thread's events, in seq order.
-    fn events(&self, thread_id: i64) -> Vec<ThreadEvent>;
+    /// A watched thread's events, in seq order. Borrowed: the thread screen reads it every frame.
+    fn events(&self, thread_id: i64) -> &[ThreadEvent];
     fn load_threads(&mut self, project_id: i64);
     /// Follow this thread's events live, and stop following any other.
     fn watch(&mut self, thread_id: i64);
@@ -55,7 +57,7 @@ pub trait ThreadSource {
 pub struct FakeSource {
     projects: Vec<Project>,
     threads: Vec<Thread>,
-    events: Vec<ThreadEvent>,
+    events: HashMap<i64, Vec<ThreadEvent>>,
 }
 
 impl FakeSource {
@@ -83,7 +85,7 @@ impl FakeSource {
                 thread(3, 1, "Bump tokio", "personal", "done"),
                 thread(4, 2, "Rewrite the pricing page", "work", "idle"),
             ],
-            events: Vec::new(),
+            events: HashMap::new(),
         };
         fake.prompt(
             1,
@@ -117,15 +119,10 @@ impl FakeSource {
     }
 
     fn push(&mut self, thread_id: i64, kind: &str, payload: serde_json::Value) {
-        let seq = self
-            .events
-            .iter()
-            .filter(|e| e.thread_id == thread_id)
-            .count() as i64
-            + 1;
-        self.events.push(ThreadEvent {
+        let events = self.events.entry(thread_id).or_default();
+        events.push(ThreadEvent {
             thread_id,
-            seq,
+            seq: events.len() as i64 + 1,
             kind: kind.into(),
             payload_json: payload.to_string(),
             created_at: 0,
@@ -166,12 +163,8 @@ impl ThreadSource for FakeSource {
             .collect()
     }
 
-    fn events(&self, thread_id: i64) -> Vec<ThreadEvent> {
-        self.events
-            .iter()
-            .filter(|e| e.thread_id == thread_id)
-            .cloned()
-            .collect()
+    fn events(&self, thread_id: i64) -> &[ThreadEvent] {
+        self.events.get(&thread_id).map_or(&[], Vec::as_slice)
     }
 
     fn load_threads(&mut self, _project_id: i64) {}

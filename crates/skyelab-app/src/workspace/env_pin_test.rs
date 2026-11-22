@@ -84,7 +84,7 @@ fn an_unpinned_name_without_a_node_id_still_connects(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn unreadable_settings_refuse_rather_than_trust(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("settings.toml");
     std::fs::write(&path, "environment_nodes = [[[").expect("broken settings");

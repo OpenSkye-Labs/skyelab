@@ -3,17 +3,16 @@
 use super::env_harness::*;
 use super::*;
 use gpui::TestAppContext;
-use skyelab_daemon::testing::NODE_NAME;
+use skyelab_daemon::testing::{NODE_NAME, ca};
 use skyelab_daemon::{Backend as DaemonBackend, Config, Daemon};
 use skyelab_protocol::{
     Hello, Project, Reply, RpcError, ServerMessage, Thread, ThreadEvent, Version,
 };
-use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 #[gpui::test]
 fn remote_connecting_connected_reconnecting_recovered(cx: &mut TestAppContext) {
-    let mut remote = RemoteSide::new(FakeTailnet::default());
+    let mut remote = remote_side(FakeTailnet::default());
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     switch(&ws, Some(NODE_NAME), cx);
     assert_eq!(state(&ws, cx), "Connecting…", "before hello");
@@ -28,7 +27,7 @@ fn remote_connecting_connected_reconnecting_recovered(cx: &mut TestAppContext) {
         .expect("badge");
     assert!(badge.contains("Reconnecting"), "{badge}");
 
-    remote.start();
+    remote.serve();
     wait_until(cx, "recovered", |cx| state(&ws, cx) == "Connected");
     // And it lists again after the reconnect.
     wait_until(cx, "projects", |cx| {
@@ -39,15 +38,15 @@ fn remote_connecting_connected_reconnecting_recovered(cx: &mut TestAppContext) {
 #[gpui::test]
 fn remote_refused_by_whois_says_so(cx: &mut TestAppContext) {
     let tailnet = FakeTailnet::default();
-    tailnet.refuse.store(true, Ordering::SeqCst);
-    let remote = RemoteSide::new(tailnet);
+    tailnet.set_peer(Peer::WhoisError);
+    let remote = remote_side(tailnet);
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "refused", |cx| {
         state(&ws, cx) == "That machine didn't accept this device"
     });
     // Once it accepts us (the user fixed the ACL), the retry connects.
-    remote.tailnet.refuse.store(false, Ordering::SeqCst);
+    remote.tailnet.set_peer(Peer::Own);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");
 }
 
@@ -83,9 +82,7 @@ fn newer_server() -> u16 {
 fn remote_version_mismatch_is_fatal_and_clear(cx: &mut TestAppContext) {
     let port = newer_server();
     // The fake newer server speaks plain ws://; this test is about the version check, not TLS.
-    let mut options = test_options().plaintext();
-    options.port = port;
-    options.backoff_min = Duration::from_millis(50);
+    let options = skyelab_client::testing::options(port, ca().root()).plaintext();
     let (ws, _local, cx) = local_workspace(Arc::default(), None, options, cx);
     switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "mismatch", |cx| {
@@ -131,29 +128,24 @@ impl DaemonBackend for Stall {
 
 #[gpui::test]
 fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
-    let mut remote = RemoteSide::new(FakeTailnet::default());
-    remote.stop();
+    // The shared daemon never starts: this test serves the store through its own stalling backend.
+    let mut remote = unserved_remote_side(FakeTailnet::default());
     let (release_tx, release) = flume::unbounded();
     let inner: Arc<dyn DaemonBackend> = Arc::new(skyelab_daemon::StoreBackend::shared(
         remote.store.clone(),
         skyelab_daemon::NotWired,
         None,
     ));
-    let config = Config {
-        port: remote.port,
-        ..Config::default()
-    };
-    let backend: Arc<dyn DaemonBackend> = Arc::new(Stall { inner, release });
-    // The stopped daemon's port can take a moment to free (as in `RemoteSide::start`).
-    let _daemon = (0..100)
-        .find_map(|_| {
-            let started = Daemon::start(config.clone(), remote.tailnet.clone(), backend.clone());
-            if started.is_err() {
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
-            started.ok()
-        })
-        .expect("daemon");
+    let daemon = Daemon::start(
+        Config {
+            port: 0,
+            ..Config::default()
+        },
+        remote.tailnet.clone(),
+        Arc::new(Stall { inner, release }),
+    )
+    .expect("daemon");
+    remote.port = daemon.local_addrs()[0].port();
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");

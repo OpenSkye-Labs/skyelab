@@ -194,23 +194,21 @@ impl ChangesView {
             .collect()
     }
 
-    fn render_files(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The file sidebar's visible rows; a click scrolls the diff to that file.
+    fn render_files(
+        &mut self,
+        range: Range<usize>,
+        cx: &mut Context<Self>,
+    ) -> Vec<gpui::AnyElement> {
         let theme = cx.theme();
-        let files = self
-            .changes
-            .as_ref()
-            .map(|c| c.files.as_slice())
-            .unwrap_or_default();
-        v_flex()
-            .id("changed-files")
-            .w(px(240.))
-            .flex_none()
-            .h_full()
-            .overflow_y_scroll()
-            .border_r_1()
-            .border_color(theme.border)
-            .py_1()
-            .children(files.iter().map(|f| {
+        let Some(changes) = &self.changes else {
+            return Vec::new();
+        };
+        range
+            .filter_map(|ix| changes.files.get(ix).map(|f| (ix, f)))
+            .map(|(ix, f)| {
+                #[cfg(test)]
+                FILE_ROWS_BUILT.with(|n| n.set(n.get() + 1));
                 let row = f.first_row;
                 let path = f.path.clone();
                 let ticked = self.selected.contains(&f.path);
@@ -224,9 +222,10 @@ impl ChangesView {
                         cx.notify();
                     }));
                 h_flex()
-                    .id(SharedString::from(format!("file-{}", f.path.display())))
+                    .id(("file", ix))
+                    .w_full()
+                    .h(px(ROW_HEIGHT))
                     .px_2()
-                    .py_0p5()
                     .gap_2()
                     .text_xs()
                     .cursor_pointer()
@@ -238,8 +237,21 @@ impl ChangesView {
                     .child(tick)
                     .child(kind_badge(f.kind, cx))
                     .child(div().truncate().child(f.path.display().to_string()))
-            }))
+                    .into_any_element()
+            })
+            .collect()
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    static FILE_ROWS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many file sidebar rows have been built on this thread, so tests can check only visible ones are.
+#[cfg(test)]
+pub(super) fn file_rows_built() -> usize {
+    FILE_ROWS_BUILT.with(|n| n.get())
 }
 
 fn kind_badge(kind: ChangeKind, cx: &App) -> impl IntoElement {
@@ -268,7 +280,19 @@ impl Focusable for ChangesView {
 
 impl Render for ChangesView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let files = self.render_files(cx).into_any_element();
+        let file_count = self.changes.as_ref().map_or(0, |c| c.files.len());
+        let files = uniform_list(
+            "changed-files",
+            file_count,
+            cx.processor(|this, range, _, cx| this.render_files(range, cx)),
+        )
+        .w(px(240.))
+        .flex_none()
+        .h_full()
+        .border_r_1()
+        .border_color(cx.theme().border)
+        .py_1()
+        .into_any_element();
         let theme = cx.theme();
         let count = self.changes.as_ref().map(|c| c.rows.len()).unwrap_or(0);
         let empty = self.changes.as_ref().is_some_and(|c| c.files.is_empty());

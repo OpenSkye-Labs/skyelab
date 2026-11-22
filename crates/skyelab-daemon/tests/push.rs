@@ -5,6 +5,7 @@ mod common;
 use std::sync::Arc;
 
 use common::*;
+use skyelab_daemon::testing::Peer;
 use skyelab_protocol::{Reply, ServerMessage, ThreadEvent, VERSION};
 
 fn event(seq: i64) -> ThreadEvent {

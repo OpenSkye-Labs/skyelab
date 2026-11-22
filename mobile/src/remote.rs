@@ -166,11 +166,11 @@ impl ThreadSource for RemoteSource {
         self.threads.get(&project_id).cloned().unwrap_or_default()
     }
 
-    fn events(&self, thread_id: i64) -> Vec<ThreadEvent> {
+    fn events(&self, thread_id: i64) -> &[ThreadEvent] {
         if self.watched == Some(thread_id) {
-            self.events.clone()
+            &self.events
         } else {
-            Vec::new()
+            &[]
         }
     }
 

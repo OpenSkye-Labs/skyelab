@@ -551,3 +551,9 @@ mod delegation_test;
 
 #[cfg(test)]
 mod delegation_resume_test;
+
+#[cfg(test)]
+mod long_thread_test;
+
+#[cfg(test)]
+mod changes_long_test;

@@ -124,11 +124,12 @@ Each step goes through `/loop`.
    only `<machine>.<tailnet>.ts.net` names. The screens show Connecting, Connected, Reconnecting (with why), Refused
    (the daemon's gate closed the socket: not one of your own untagged devices) and a version mismatch. It calls only
    `Client::connect(host, Options::default())`, so the transport the client defaults to (`wss://` once it lands) is
-   what the phone uses. Tests run it against an in-process daemon with a fake tailnet through skyelab-client's
-   `test-support` feature, a dev-dependency only.
+   what the phone uses. Tests run it against an in-process daemon with a fake tailnet: the shared harness in
+   `skyelab_daemon::testing` and `skyelab_client::testing::options`, both behind `test-support`, dev-dependencies only.
 5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
    composer (send) and a stop button (interrupt). Handle safe areas on both platforms.
-   **Done (2026-11-23):** events stream live (the app drains the source's inbox in a task); the thread list's status
+   **Done (2026-11-23):** events stream live (the app drains the source's inbox in a task) into a `list` + `ListState`
+   that builds only the rows on screen, so a 10,000-event thread opens and appends in about a millisecond; the thread list's status
    refreshes on connect and after send or stop, because the protocol pushes no thread status. Android reports the
    keyboard inset (`mobile/upstream/0003`), so the composer stays above the soft keyboard. Build with
    `SKYELAB_MOBILE_FEATURES=demo scripts/run-*.sh` for canned data (UI checks without an environment).

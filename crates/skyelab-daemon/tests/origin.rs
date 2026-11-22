@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use common::*;
+use skyelab_daemon::testing::Peer;
 
 #[test]
 fn rejects_browser_origin() {

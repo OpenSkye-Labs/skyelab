@@ -5,6 +5,7 @@ mod common;
 use std::path::Path;
 
 use common::*;
+use skyelab_daemon::testing::Peer;
 use skyelab_protocol::{Call, ErrorCode, Reply, ServerMessage};
 use skyelab_store::Store;
 

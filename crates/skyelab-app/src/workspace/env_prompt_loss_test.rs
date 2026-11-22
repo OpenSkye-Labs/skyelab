@@ -8,7 +8,7 @@ use std::time::Duration;
 
 #[gpui::test]
 fn remote_send_while_reconnecting_keeps_the_prompt(cx: &mut TestAppContext) {
-    let mut remote = RemoteSide::new(FakeTailnet::default());
+    let mut remote = remote_side(FakeTailnet::default());
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     connect(&ws, &remote, cx);
     click_row(&ws, "app", cx);

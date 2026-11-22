@@ -42,7 +42,7 @@ fn open_thread(
 
 #[gpui::test]
 fn typed_names_must_be_magicdns_names(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     cx.dispatch_action(env_picker::ToggleEnvironments);
     let picker = ws.read_with(cx, |ws, _| ws.env_picker().expect("picker"));
@@ -63,7 +63,7 @@ fn typed_names_must_be_magicdns_names(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn remote_threads_show_the_account_label(cx: &mut TestAppContext) {
-    let mut remote = RemoteSide::new(FakeTailnet::default());
+    let mut remote = remote_side(FakeTailnet::default());
     let accounts = remote._dir.path().join("accounts.toml");
     AccountsConfig {
         accounts: vec![Account {
@@ -78,7 +78,7 @@ fn remote_threads_show_the_account_label(cx: &mut TestAppContext) {
     .expect("save accounts");
     remote.accounts = Some(accounts);
     remote.stop();
-    remote.start();
+    remote.serve();
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     let view = open_thread(&ws, &remote, cx);
     view.read_with(cx, |v, cx| {
@@ -88,7 +88,7 @@ fn remote_threads_show_the_account_label(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn closing_and_reopening_a_tab_at_once_keeps_its_events(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     remote.store_texts(remote.thread_id, &["first"], false);
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     let old = open_thread(&ws, &remote, cx);
@@ -125,12 +125,12 @@ fn recorded(path: &std::path::Path) -> Option<String> {
 fn become_node(remote: &mut RemoteSide, id: &str) {
     *remote.tailnet.self_id.lock().expect("self id") = Some(id.into());
     remote.stop();
-    remote.start();
+    remote.serve();
 }
 
 #[gpui::test]
 fn a_name_that_moved_to_another_machine_is_refused_until_trusted(cx: &mut TestAppContext) {
-    let mut remote = RemoteSide::new(FakeTailnet::default());
+    let mut remote = remote_side(FakeTailnet::default());
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("settings.toml");
     let (ws, _local, cx) = local_workspace(

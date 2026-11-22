@@ -18,6 +18,17 @@ fn clip(s: &str) -> String {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    static ROWS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many rows `render_item` has built on this thread, so tests can check a frame builds only visible rows.
+#[cfg(test)]
+pub(super) fn rows_built() -> usize {
+    ROWS_BUILT.with(|n| n.get())
+}
+
 /// What the item renderer needs from a thread view, local or remote, so both draw items the same way.
 pub(super) trait ItemsView: Sized + 'static {
     fn items(&self) -> &[Item];
@@ -44,6 +55,8 @@ pub(super) fn render_item<V: ItemsView>(
     _: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    #[cfg(test)]
+    ROWS_BUILT.with(|n| n.set(n.get() + 1));
     let theme = cx.theme();
     let Some(item) = this.items().get(ix) else {
         return div().into_any_element();
