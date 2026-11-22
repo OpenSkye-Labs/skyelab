@@ -28,7 +28,7 @@ android/run-emulator.sh emulator-5554    # cargo ndk → gradle APK → adb inst
 |---|---|
 | Upstream `gpui_ios` | **Works.** Our pinned `gpui-pre-platform =0.3.12` already depends on `gpui-pre-ios =0.3.12` for `target_os = "ios"`, so `gpui_platform::application()` just works on iOS. The old note that it was "not in our pinned snapshot" was wrong. |
 | `gpui-mobile` 0.1.0 on crates.io (itsbalamurali) | **Not usable.** The published crate has an empty `[dependencies]` table and no GPUI dependency. It's a placeholder. |
-| `gpui-pre-mobile` (longbridge, the `gpui-component` maintainers) | **Works on Android after a port.** crates.io 0.1.0 pins `gpui-pre =0.3.5`. Repo `main` (rev `7548ebc`) pins `=0.3.10`. Moving it to `=0.3.12` caused one compile error (`WgpuContext::new` gained a `&WgpuSurfaceConfig` argument). The fix is [`android/gpui-pre-mobile-0.3.12.patch`](../experiments/mobile-gpui/android/gpui-pre-mobile-0.3.12.patch). |
+| `gpui-pre-mobile` (longbridge, the `gpui-component` maintainers) | **Works on Android after a port.** crates.io 0.1.0 pins `gpui-pre =0.3.5`. Repo `main` (rev `7548ebc4b24f`) pins `=0.3.10`. Moving it to `=0.3.12` caused one compile error (`WgpuContext::new` gained a `&WgpuSurfaceConfig` argument). The fix is [`android/gpui-pre-mobile-0.3.12.patch`](../experiments/mobile-gpui/android/gpui-pre-mobile-0.3.12.patch). |
 | uniffi Rust core + native UI per platform | **Not built.** Candidate 1 worked on both platforms, so per the spike's rules it was compared on paper only (see Trade-offs). |
 
 ### Evidence
