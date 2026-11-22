@@ -5,7 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 /// True for Tailscale's address ranges: 100.64.0.0/10 and fd7a:115c:a1e0::/48 (IPv4-mapped forms included).
 ///
 /// 100.64.0.0/10 is also carrier-grade NAT space, so with the VPN off a hostile DNS on such a carrier could still
-/// point at another subscriber. Only TLS with the node's certificate closes that (docs/mobile.md).
+/// point at another subscriber. This check alone can't stop that; the TLS name check (`tls.rs`) does.
 pub fn is_tailnet_ip(ip: IpAddr) -> bool {
     match ip.to_canonical() {
         IpAddr::V4(v4) => {

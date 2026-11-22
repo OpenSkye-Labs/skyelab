@@ -20,7 +20,7 @@ fn pings_keep_the_connection_alive() {
         ping_interval: Duration::from_millis(200),
         ..options(port(&daemon))
     };
-    let client = Client::connect("127.0.0.1", opts).expect("client");
+    let client = Client::connect(HOST, opts).expect("client");
     connected(&client);
     quiet(&client, Duration::from_secs(3));
     assert!(client.hello().is_some());

@@ -6,7 +6,10 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
+use rustls::ClientConfig;
+use rustls::pki_types::ServerName;
 use skyelab_protocol::{Call, ErrorCode, Hello, Reply, Request, RequestId, ServerMessage, Version};
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::WebSocketStream;
@@ -47,6 +50,7 @@ fn lost(reason: impl Into<String>) -> End {
 struct Ctx {
     host: String,
     options: Options,
+    tls: Arc<ClientConfig>,
     commands: flume::Receiver<Command>,
     updates: flume::Sender<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
@@ -83,6 +87,20 @@ impl Ctx {
         false
     }
 
+    fn plaintext(&self) -> bool {
+        #[cfg(test)]
+        return self.options.plaintext;
+        #[cfg(not(test))]
+        false
+    }
+
+    fn resolve_to(&self) -> Option<std::net::IpAddr> {
+        #[cfg(test)]
+        return self.options.resolve_to;
+        #[cfg(not(test))]
+        None
+    }
+
     fn protocol(&self) -> Version {
         #[cfg(test)]
         return self.options.protocol;
@@ -94,6 +112,7 @@ impl Ctx {
 pub(crate) async fn run(
     host: String,
     options: Options,
+    tls: Arc<ClientConfig>,
     commands: flume::Receiver<Command>,
     updates: flume::Sender<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
@@ -101,6 +120,7 @@ pub(crate) async fn run(
     let mut cx = Ctx {
         host,
         options,
+        tls,
         commands,
         updates,
         hello,
@@ -132,13 +152,20 @@ pub(crate) async fn run(
     }
 }
 
-type Ws = WebSocketStream<TcpStream>;
+/// TLS in every shipped build; a bare TCP stream only in the test-only plaintext mode.
+trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
+
+type Ws = WebSocketStream<Box<dyn Io>>;
 
 async fn session(cx: &mut Ctx) -> End {
     let target = Target {
         host: cx.host.clone(),
         options: cx.options.clone(),
+        tls: cx.tls.clone(),
         allow_loopback: cx.allow_loopback(),
+        plaintext: cx.plaintext(),
+        resolve_to: cx.resolve_to(),
         protocol: cx.protocol(),
     };
     let connecting = timeout(cx.options.connect_timeout, connect(target));
@@ -179,19 +206,24 @@ async fn session(cx: &mut Ctx) -> End {
     }
 }
 
-/// Resolve, refuse non-tailnet addresses, dial the checked addresses, handshake, hello.
+/// Resolve, refuse non-tailnet addresses, dial the checked addresses, TLS, handshake, hello.
 struct Target {
     host: String,
     options: Options,
+    tls: Arc<ClientConfig>,
     allow_loopback: bool,
+    plaintext: bool,
+    resolve_to: Option<std::net::IpAddr>,
     protocol: Version,
 }
 
 async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
     let port = cx.options.port;
-    let addrs = guard::resolve(&cx.host, port, cx.allow_loopback)
-        .await
-        .map_err(lost)?;
+    let addrs = match cx.resolve_to {
+        Some(ip) => guard::allowed(&cx.host, [SocketAddr::new(ip, port)], cx.allow_loopback),
+        None => guard::resolve(&cx.host, port, cx.allow_loopback).await,
+    }
+    .map_err(lost)?;
     // Each address gets a share of the budget, so a black-holed first one can't starve the rest.
     let per_addr = cx.options.connect_timeout / addrs.len().max(1) as u32;
     let stream = dial(&addrs, per_addr).await.map_err(lost)?;
@@ -199,14 +231,26 @@ async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
     let config = WebSocketConfig::default()
         .max_message_size(Some(limit))
         .max_frame_size(Some(limit));
-    // The URL only names the Host header; the socket is already connected to a checked address.
-    let host = if cx.host.contains(':') {
-        format!("[{}]", cx.host)
+    let host = &cx.host;
+    let (stream, scheme): (Box<dyn Io>, _) = if cx.plaintext {
+        (Box::new(stream), "ws")
     } else {
-        cx.host.clone()
+        // Connect checked the host is a DNS name, so this can't fail; refuse rather than skip TLS if it ever does.
+        let name = ServerName::try_from(host.clone())
+            .map_err(|e| lost(format!("{host} isn't a DNS name: {e}")))?;
+        let tls = tokio_rustls::TlsConnector::from(cx.tls.clone())
+            .connect(name, stream)
+            .await
+            .map_err(|e| {
+                lost(format!(
+                    "TLS with {host} failed, not the real environment? {e}"
+                ))
+            })?;
+        (Box::new(tls), "wss")
     };
+    // The URL only names the Host header; the socket is already connected to a checked address.
     let (mut ws, _) = tokio_tungstenite::client_async_with_config(
-        format!("ws://{host}:{port}/"),
+        format!("{scheme}://{host}:{port}/"),
         stream,
         Some(config),
     )

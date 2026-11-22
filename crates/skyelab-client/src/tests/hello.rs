@@ -19,7 +19,7 @@ fn version_mismatch_is_fatal() {
         },
         ..options(port(&daemon))
     };
-    let client = Client::connect("127.0.0.1", opts).expect("client");
+    let client = Client::connect(HOST, opts).expect("client");
     match next(&client) {
         Update::Fatal(Error::UnsupportedVersion(msg)) => {
             assert!(msg.contains("not supported"), "{msg}")

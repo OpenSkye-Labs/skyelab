@@ -10,7 +10,7 @@ fn watch_pages_past_the_reply_cap() {
     let env = Env::new();
     env.append(1200);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
-    let client = Client::connect("127.0.0.1", options(port(&daemon))).expect("client");
+    let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     client.watch(env.thread_id, 0);
     assert_eq!(seqs(&client, 1200), (1..=1200).collect::<Vec<_>>());
@@ -22,7 +22,7 @@ fn pushed_gap_is_filled_and_duplicates_dropped() {
     let env = Env::new();
     env.append(2);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
-    let client = Client::connect("127.0.0.1", options(port(&daemon))).expect("client");
+    let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     client.watch(env.thread_id, 0);
     assert_eq!(seqs(&client, 2), [1, 2]);
@@ -53,7 +53,7 @@ fn watch_from_a_seq_and_unwatch() {
     let env = Env::new();
     env.append(5);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
-    let client = Client::connect("127.0.0.1", options(port(&daemon))).expect("client");
+    let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     client.watch(env.thread_id, 3);
     assert_eq!(seqs(&client, 2), [4, 5]);

@@ -11,7 +11,7 @@ fn hello_then_every_method() {
     let env = Env::new();
     env.append(3);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
-    let client = Client::connect("127.0.0.1", options(port(&daemon))).expect("client");
+    let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     match next(&client) {
         Update::Connected(h) => {
             assert_eq!(h.protocol.major, VERSION.major);
@@ -84,7 +84,7 @@ impl skyelab_daemon::Backend for Writes {
 #[test]
 fn writes_return_their_values() {
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), Arc::new(Writes), 0);
-    let client = Client::connect("127.0.0.1", options(port(&daemon))).expect("client");
+    let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     assert_eq!(client.start_thread(4, "go").recv(), Ok(40));
     assert_eq!(client.send_message(40, "more").recv(), Ok(()));
@@ -97,6 +97,6 @@ fn request_while_disconnected_fails_fast() {
     let free = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = free.local_addr().expect("addr").port();
     drop(free);
-    let client = Client::connect("127.0.0.1", options(port)).expect("client");
+    let client = Client::connect(HOST, options(port)).expect("client");
     assert_eq!(client.list_projects().recv(), Err(Error::NotConnected));
 }

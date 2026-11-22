@@ -17,7 +17,7 @@ fn rejected_connections_back_off() {
         backoff_max: Duration::from_secs(30),
         ..options(port(&daemon))
     };
-    let client = Client::connect("127.0.0.1", opts).expect("client");
+    let client = Client::connect(HOST, opts).expect("client");
     std::thread::sleep(Duration::from_secs(2));
     let attempts = tailnet.whois_calls();
     // 0, 0.25, 0.75, 1.75 s: four attempts; a missing delay would make hundreds.

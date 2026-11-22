@@ -103,9 +103,10 @@ fn check(how: Misbehave) {
     let (port, log) = fake_server(how);
     let opts = Options {
         max_message_bytes: 16 * 1024,
+        plaintext: true, // this fake server doesn't do TLS
         ..options(port)
     };
-    let client = Client::connect("127.0.0.1", opts).expect("client");
+    let client = Client::connect(HOST, opts).expect("client");
     connected(&client);
     let pending = client.list_projects();
     assert_eq!(
