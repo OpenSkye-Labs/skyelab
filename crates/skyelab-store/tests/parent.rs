@@ -1,4 +1,4 @@
-//! Schema 4: a delegated thread records its parent.
+//! Schema 5: a delegated thread records its parent.
 
 use rusqlite::Connection;
 use skyelab_store::{NewThread, Store};
@@ -58,7 +58,7 @@ fn parent_round_trips_and_children_list() {
     );
 }
 
-/// A file at `version` as an older build left it: one thread with a worktree base, columns past `version` dropped.
+/// A file at `version` as an older build left it: one thread with the data that version can hold, newer columns dropped.
 fn downgraded(dir: &Path, version: i64) -> std::path::PathBuf {
     let path = dir.join("store.db");
     {
@@ -72,12 +72,21 @@ fn downgraded(dir: &Path, version: i64) -> std::path::PathBuf {
                 .set_thread_worktree_base(t, Some("abc123"))
                 .expect("base");
         }
+        if version >= 4 {
+            store
+                .set_thread_pr_url(t, Some("https://github.com/o/r/pull/1"))
+                .expect("pr url");
+        }
     }
     let conn = Connection::open(&path).expect("open raw");
     conn.execute_batch(
         "DROP INDEX threads_by_parent; ALTER TABLE threads DROP COLUMN parent_thread_id;",
     )
-    .expect("drop v4");
+    .expect("drop v5");
+    if version < 4 {
+        conn.execute_batch("ALTER TABLE threads DROP COLUMN pr_url;")
+            .expect("drop v4");
+    }
     if version < 3 {
         conn.execute_batch("ALTER TABLE threads DROP COLUMN worktree_base;")
             .expect("drop v3");
@@ -102,23 +111,43 @@ fn v2_database_upgrades_with_no_parents() {
     let t = store.thread(1).expect("read").expect("kept");
     assert_eq!(t.title, "old");
     assert_eq!(t.worktree_base, None);
+    assert_eq!(t.pr_url, None);
     assert_eq!(t.parent_thread_id, None);
-    assert_eq!(version(&path), 4);
+    assert_eq!(version(&path), 5);
 }
 
 #[test]
-fn v3_database_keeps_its_worktree_base_through_v4() {
+fn v3_database_keeps_its_worktree_base_through_v5() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = downgraded(dir.path(), 3);
     let store = Store::open(&path).expect("migrates");
     let t = store.thread(1).expect("read").expect("kept");
     assert_eq!(t.title, "old");
     assert_eq!(t.worktree_base.as_deref(), Some("abc123"));
+    assert_eq!(t.pr_url, None);
     assert_eq!(t.parent_thread_id, None);
-    assert_eq!(version(&path), 4);
+    assert_eq!(version(&path), 5);
     // The new column works on an upgraded file.
     let p = store.thread(1).expect("read").expect("t").project_id;
     let child = thread(&store, p, "child");
     store.set_thread_parent(child, Some(1)).expect("link");
     assert_eq!(store.child_threads(1).expect("children").len(), 1);
+}
+
+#[test]
+fn v4_database_keeps_worktree_base_and_pr_url_through_v5() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = downgraded(dir.path(), 4);
+    let store = Store::open(&path).expect("migrates");
+    let t = store.thread(1).expect("read").expect("kept");
+    assert_eq!(t.title, "old");
+    assert_eq!(t.worktree_base.as_deref(), Some("abc123"));
+    assert_eq!(t.pr_url.as_deref(), Some("https://github.com/o/r/pull/1"));
+    assert_eq!(t.parent_thread_id, None);
+    assert_eq!(version(&path), 5);
+    let child = thread(&store, t.project_id, "child");
+    store.set_thread_parent(child, Some(1)).expect("link");
+    let kids = store.child_threads(1).expect("children");
+    assert_eq!(kids.len(), 1);
+    assert_eq!(kids[0].parent_thread_id, Some(1));
 }

@@ -22,6 +22,9 @@ What's built today:
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, renders its messages and tool calls
   as they arrive, and saves everything to a local SQLite database. Reopening a thread resumes the same Claude session.
+- **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
+  and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
+  `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
 - **Worktrees and diff review.** Tick "Run in a new worktree" and the thread gets its own git worktree on a
   `skyelab/<slug>` branch. The Changes tab shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
@@ -40,8 +43,7 @@ What's built today:
   projects bound to its own account. A child shows "Delegated by" its parent, and the parent lists its delegated
   threads. macOS and Linux only for now.
 
-Not built yet: binding a GitHub account per folder (only the Claude account is enforced today), other agents
-such as Codex, and delegation to other machines.
+Not built yet: other agents such as Codex, and delegation to other machines.
 
 | Changes tab | Accounts and bindings | Device hub |
 |---|---|---|

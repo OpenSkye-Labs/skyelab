@@ -2,12 +2,21 @@
 //! the commit a worktree thread started from.
 
 use super::changes_model::{self, Changes, LineKind, Row};
+use super::thread::ThreadView;
 use gpui::{
-    App, Context, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString, Task,
+    App, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString, Task,
     UniformListScrollHandle, Window, actions, div, prelude::*, px, uniform_list,
 };
-use gpui_component::{ActiveTheme as _, Sizable as _, button::Button, h_flex, v_flex};
+use gpui_component::{
+    ActiveTheme as _, Sizable as _,
+    button::Button,
+    checkbox::Checkbox,
+    h_flex,
+    input::{InputState, TextareaState},
+    v_flex,
+};
 use skyelab_git::ChangeKind;
+use std::collections::HashSet;
 use std::ops::Range;
 use std::path::PathBuf;
 
@@ -24,6 +33,18 @@ pub struct ChangesView {
     pub(super) changes: Option<Changes>,
     pub(super) error: Option<SharedString>,
     scroll: UniformListScrollHandle,
+    /// The thread whose account commits, pushes and opens PRs here.
+    pub(super) thread: Option<gpui::WeakEntity<ThreadView>>,
+    pub(super) commit_message: Entity<InputState>,
+    pub(super) pr_title: Entity<InputState>,
+    pub(super) pr_body: Entity<TextareaState>,
+    /// Files ticked for the next commit; none ticked commits everything.
+    pub(super) selected: HashSet<PathBuf>,
+    pub(super) publish_error: Option<SharedString>,
+    pub(super) publish_note: Option<SharedString>,
+    /// A commit, push or PR is running; another click is ignored.
+    pub(super) busy: bool,
+    pub(super) _publish: Option<Task<()>>,
     _load: Option<Task<()>>,
 }
 
@@ -32,8 +53,20 @@ impl ChangesView {
         dir: PathBuf,
         base: Option<String>,
         title: SharedString,
+        thread: Option<&Entity<ThreadView>>,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let input = |placeholder: &'static str, window: &mut Window, cx: &mut Context<Self>| {
+            cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
+        };
+        let commit_message = input("Commit message", window, cx);
+        let pr_title = input("Pull request title", window, cx);
+        let pr_body = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .auto_grow(2, 6)
+                .placeholder("Pull request description (optional)")
+        });
         let mut this = Self {
             focus: cx.focus_handle(),
             dir,
@@ -42,6 +75,15 @@ impl ChangesView {
             changes: None,
             error: None,
             scroll: UniformListScrollHandle::new(),
+            thread: thread.map(|t| t.downgrade()),
+            commit_message,
+            pr_title,
+            pr_body,
+            selected: HashSet::new(),
+            publish_error: None,
+            publish_note: None,
+            busy: false,
+            _publish: None,
             _load: None,
         };
         this.refresh(cx);
@@ -60,7 +102,11 @@ impl ChangesView {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
-                    Ok(c) => (this.changes, this.error) = (Some(c), None),
+                    Ok(c) => {
+                        this.selected
+                            .retain(|p| c.files.iter().any(|f| &f.path == p));
+                        (this.changes, this.error) = (Some(c), None);
+                    }
                     Err(e) => this.error = Some(format!("{e:#}").into()),
                 }
                 cx.notify();
@@ -166,6 +212,17 @@ impl ChangesView {
             .py_1()
             .children(files.iter().map(|f| {
                 let row = f.first_row;
+                let path = f.path.clone();
+                let ticked = self.selected.contains(&f.path);
+                let tick = Checkbox::new(SharedString::from(format!("pick-{}", f.path.display())))
+                    .xsmall()
+                    .checked(ticked)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if !this.selected.remove(&path) {
+                            this.selected.insert(path.clone());
+                        }
+                        cx.notify();
+                    }));
                 h_flex()
                     .id(SharedString::from(format!("file-{}", f.path.display())))
                     .px_2()
@@ -178,6 +235,7 @@ impl ChangesView {
                         this.scroll.scroll_to_item(row, ScrollStrategy::Top);
                         cx.notify();
                     }))
+                    .child(tick)
                     .child(kind_badge(f.kind, cx))
                     .child(div().truncate().child(f.path.display().to_string()))
             }))
@@ -291,6 +349,7 @@ impl Render for ChangesView {
             .size_full()
             .bg(theme.background)
             .child(header)
+            .child(self.render_publish(cx))
             .child(body)
     }
 }

@@ -151,7 +151,7 @@ impl ThreadView {
                         this.cwd = thread.cwd.clone();
                         this.thread = Some(thread.clone());
                         if is_new {
-                            cx.emit(ThreadViewEvent::Started(thread.clone()));
+                            cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
                         } else {
                             this.read_only = false;
                             this.prompt.update(cx, |p, cx| p.set_disabled(false, cx));

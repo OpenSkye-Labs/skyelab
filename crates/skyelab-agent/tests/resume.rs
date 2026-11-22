@@ -26,6 +26,7 @@ fn account(id: &str, dir: &Path) -> Account {
         id: id.into(),
         label: id.into(),
         config_dir: dir.join(id),
+        gh_config_dir: None,
     }
 }
 

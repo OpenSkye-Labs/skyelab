@@ -310,14 +310,20 @@ impl Workspace {
             .filter_map(|c| c.upgrade())
             .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
         if let Some(changes) = open {
-            changes.update(cx, |c, cx| c.refresh(cx));
+            // One tab per folder; it publishes for (and saves the PR link on) the thread that opened it last.
+            // Same folder, same bound account, and publishing re-checks the account anyway.
+            let thread = view.downgrade();
+            changes.update(cx, |c, cx| {
+                c.thread = Some(thread);
+                c.refresh(cx)
+            });
             let id = changes.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));
             return;
         }
         let title = view.read(cx).title();
-        let changes = cx.new(|cx| ChangesView::new(dir, base, title, cx));
+        let changes = cx.new(|cx| ChangesView::new(dir, base, title, Some(view), window, cx));
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
                 panel_handle(changes.clone()),

@@ -11,6 +11,7 @@ fn reconfirm_refuses_a_folder_another_binding_already_owns() {
             id: id.into(),
             label: id.into(),
             config_dir: format!("/abs/{id}").into(),
+            gh_config_dir: None,
         })
         .expect("account");
     }

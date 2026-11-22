@@ -42,6 +42,17 @@ happens when:
 The warning shows the folder the path points to now and the one you confirmed. If the new folder is right, click
 **Re-confirm**. If not, fix the folder on disk or **Remove** the binding.
 
+## GitHub per account
+
+Give an account its own GitHub login: in Settings, set the account's GitHub config dir (an absolute path such as
+`/Users/me/.config/gh-work`) and press **Log in to GitHub**. That opens a terminal running `gh auth login` with
+`GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. Settings then shows which GitHub user is logged in.
+
+Agents, project terminals and the Changes tab's **Commit**, **Push** and **Open PR** use the folder's account's
+GitHub login. If the account has none, Push and Open PR refuse instead of using your global `gh` login. Push only
+works for https remotes without credentials in the URL; ssh remotes are refused, because an ssh key isn't tied to
+an account.
+
 ## Threads
 
 1. Click **Add** under Projects and pick a folder.

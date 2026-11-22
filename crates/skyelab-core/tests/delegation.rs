@@ -34,6 +34,7 @@ fn fixture() -> Fixture {
                 id: id.into(),
                 label: label.into(),
                 config_dir: root.join(format!(".claude-{id}")),
+                gh_config_dir: None,
             })
             .expect("account");
     }
