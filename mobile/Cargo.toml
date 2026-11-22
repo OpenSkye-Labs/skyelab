@@ -40,11 +40,18 @@ publish = false
 name = "skyelab_mobile"
 path = "src/main.rs"
 
+[features]
+# Canned data instead of a real environment, for UI checks on a simulator or emulator (scripts/run-*.sh read
+# SKYELAB_MOBILE_FEATURES). Never in a shipping build.
+demo = []
+
 [dependencies]
 gpui.workspace = true
 gpui-component.workspace = true
 skyelab-protocol = { path = "../crates/skyelab-protocol" }
+skyelab-client = { path = "../crates/skyelab-client" }
 anyhow = "1"
+flume = "0.12"
 serde_json = "1"
 
 # gpui-pre-platform 0.3.12 pulls gpui-pre-ios on target_os = "ios". It has no Android arm (android/ uses gpui-mobile).
@@ -55,6 +62,12 @@ gpui_platform.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }
 tempfile = "3"
+# Tests dial an in-process daemon on loopback; the feature exists for that and stays out of the app.
+skyelab-client = { path = "../crates/skyelab-client", features = ["test-support"] }
+skyelab-daemon = { path = "../crates/skyelab-daemon", features = ["test-support"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+skyelab-store = { path = "../crates/skyelab-store" }
+skyelab-tailnet = { path = "../crates/skyelab-tailnet" }
 
 [lints]
 workspace = true

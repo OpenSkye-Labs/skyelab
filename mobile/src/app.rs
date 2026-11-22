@@ -1,6 +1,9 @@
-use crate::{env_store, source::ThreadSource};
+use crate::{
+    env_store,
+    source::{Connection, ThreadSource},
+};
 use gpui::{
-    AnyElement, App, Context, Entity, FontWeight, SharedString, Subscription, Window,
+    AnyElement, App, Context, Entity, FontWeight, SharedString, Subscription, Task, Window,
     WindowOptions, div, prelude::*, px,
 };
 use gpui_component::{
@@ -21,9 +24,33 @@ pub enum Screen {
     Thread { project_id: i64, thread_id: i64 },
 }
 
+/// Opens a source for a validated MagicDNS name. The app uses [`source_for`]; tests pass their own.
+pub type Connect = Box<dyn Fn(&str) -> std::io::Result<Box<dyn ThreadSource>>>;
+
+/// The real client for every name; with the `demo` feature, canned data instead.
+pub fn source_for(name: &str) -> std::io::Result<Box<dyn ThreadSource>> {
+    #[cfg(feature = "demo")]
+    {
+        let _ = name;
+        Ok(Box::new(crate::source::FakeSource::new()))
+    }
+    #[cfg(not(feature = "demo"))]
+    {
+        // Options::default() keeps whatever transport skyelab-client defaults to (wss:// once it lands).
+        Ok(Box::new(crate::remote::RemoteSource::connect(
+            name,
+            skyelab_client::Options::default(),
+        )?))
+    }
+}
+
 pub struct MobileApp {
     data_dir: PathBuf,
-    source: Box<dyn ThreadSource>,
+    connect_to: Connect,
+    /// The environment being used, from Connect until Back to the picker.
+    source: Option<Box<dyn ThreadSource>>,
+    /// Applies everything the source receives in the background, so it never piles up.
+    _pump: Option<Task<()>>,
     pub screen: Screen,
     pub env_input: Entity<InputState>,
     pub composer: Entity<InputState>,
@@ -34,7 +61,7 @@ pub struct MobileApp {
 impl MobileApp {
     pub fn new(
         data_dir: PathBuf,
-        source: Box<dyn ThreadSource>,
+        connect_to: Connect,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -61,7 +88,9 @@ impl MobileApp {
         ];
         Self {
             data_dir,
-            source,
+            connect_to,
+            source: None,
+            _pump: None,
             screen: Screen::Picker,
             env_input,
             composer,
@@ -70,23 +99,48 @@ impl MobileApp {
         }
     }
 
-    // later: dial it with skyelab-client (docs/mobile.md step 4); today the source is the fake.
     pub fn connect(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let name = self.env_input.read(cx).value();
         self.error = match env_store::validate(&name) {
             Err(why) => Some(why.into()),
             Ok(name) => match env_store::save(&self.data_dir, &name) {
                 Err(e) => Some(format!("Couldn't remember the name: {e:#}").into()),
-                Ok(()) => {
-                    self.screen = Screen::Projects;
-                    None
-                }
+                Ok(()) => match (self.connect_to)(&name) {
+                    Err(e) => Some(format!("Couldn't start connecting: {e}").into()),
+                    Ok(source) => {
+                        self.use_source(source, cx);
+                        self.screen = Screen::Projects;
+                        None
+                    }
+                },
             },
         };
         cx.notify();
     }
 
+    fn use_source(&mut self, source: Box<dyn ThreadSource>, cx: &mut Context<Self>) {
+        self._pump = source.inbox().map(|inbox| {
+            cx.spawn(async move |this, cx| {
+                while let Ok(msg) = inbox.recv_async().await {
+                    let applied = this.update(cx, |app, cx| {
+                        if let Some(source) = app.source.as_mut() {
+                            source.apply(msg);
+                        }
+                        cx.notify();
+                    });
+                    if applied.is_err() {
+                        break; // the view is gone
+                    }
+                }
+            })
+        });
+        self.source = Some(source);
+    }
+
     pub fn open_project(&mut self, project_id: i64, cx: &mut Context<Self>) {
+        if let Some(source) = self.source.as_mut() {
+            source.load_threads(project_id);
+        }
         self.screen = Screen::Threads { project_id };
         cx.notify();
     }
@@ -96,6 +150,9 @@ impl MobileApp {
             // A draft belongs to the thread it was typed in.
             self.composer
                 .update(cx, |s, cx| s.set_value("", window, cx));
+            if let Some(source) = self.source.as_mut() {
+                source.watch(thread_id);
+            }
             self.screen = Screen::Thread {
                 project_id,
                 thread_id,
@@ -106,7 +163,12 @@ impl MobileApp {
 
     pub fn back(&mut self, cx: &mut Context<Self>) {
         self.screen = match self.screen {
-            Screen::Picker | Screen::Projects => Screen::Picker,
+            Screen::Picker | Screen::Projects => {
+                // Leaving the environment closes its connection.
+                self._pump = None;
+                self.source = None;
+                Screen::Picker
+            }
             Screen::Threads { .. } => Screen::Projects,
             Screen::Thread { project_id, .. } => Screen::Threads { project_id },
         };
@@ -121,28 +183,40 @@ impl MobileApp {
         if text.is_empty() {
             return;
         }
-        self.source.send_message(thread_id, &text);
+        if let Some(source) = self.source.as_mut() {
+            source.send_message(thread_id, &text);
+        }
         self.composer
             .update(cx, |s, cx| s.set_value("", window, cx));
         cx.notify();
     }
 
     pub fn stop(&mut self, cx: &mut Context<Self>) {
-        if let Screen::Thread { thread_id, .. } = self.screen {
-            self.source.interrupt(thread_id);
+        if let (Screen::Thread { thread_id, .. }, Some(source)) =
+            (self.screen, self.source.as_mut())
+        {
+            source.interrupt(thread_id);
             cx.notify();
         }
     }
 
+    /// The environment's connection state, `None` on the picker.
+    pub fn connection(&self) -> Option<Connection> {
+        self.source.as_ref().map(|s| s.connection())
+    }
+
     pub fn projects(&self) -> Vec<Project> {
-        self.source.projects()
+        self.source
+            .as_ref()
+            .map(|s| s.projects())
+            .unwrap_or_default()
     }
 
     /// Threads of the open project.
     pub fn threads(&self) -> Vec<Thread> {
-        match self.screen {
-            Screen::Threads { project_id } | Screen::Thread { project_id, .. } => {
-                self.source.threads(project_id)
+        match (self.screen, &self.source) {
+            (Screen::Threads { project_id } | Screen::Thread { project_id, .. }, Some(source)) => {
+                source.threads(project_id)
             }
             _ => Vec::new(),
         }
@@ -156,19 +230,79 @@ impl MobileApp {
     }
 
     pub fn events(&self) -> Vec<ThreadEvent> {
-        match self.screen {
-            Screen::Thread { thread_id, .. } => self.source.events(thread_id),
+        match (self.screen, &self.source) {
+            (Screen::Thread { thread_id, .. }, Some(source)) => source.events(thread_id),
             _ => Vec::new(),
         }
     }
 }
 
-/// The text of an event: its payload's `text` field, else the raw payload.
-fn event_text(e: &ThreadEvent) -> String {
-    serde_json::from_str::<serde_json::Value>(&e.payload_json)
-        .ok()
-        .and_then(|v| v.get("text")?.as_str().map(str::to_owned))
-        .unwrap_or_else(|| e.payload_json.clone())
+/// What an event says: a prompt's text, an agent turn's text and tool calls, a result, else the raw payload.
+pub fn event_text(e: &ThreadEvent) -> String {
+    use serde_json::Value;
+    let Ok(mut v) = serde_json::from_str::<Value>(&e.payload_json) else {
+        return e.payload_json.clone();
+    };
+    // Agent rows are `skyelab_agent::Event`, serde's default externally tagged enum: `{"Assistant": {..}}`.
+    if let Some((_, inner)) = v
+        .as_object()
+        .filter(|o| o.len() == 1)
+        .and_then(|o| o.iter().next())
+        && inner.is_object()
+    {
+        v = inner.clone();
+    }
+    if let Some(prompt) = v.as_str() {
+        return prompt.to_owned();
+    }
+    if let Some(blocks) = v.get("content").and_then(Value::as_array) {
+        let parts: Vec<String> = blocks
+            .iter()
+            .filter_map(|b| match b.get("type")?.as_str()? {
+                "text" => b.get("text")?.as_str().map(str::to_owned),
+                "tool_use" => {
+                    let name = b.get("name")?.as_str()?;
+                    Some(match b.pointer("/input/command").and_then(Value::as_str) {
+                        Some(command) => format!("→ {name}: {command}"),
+                        None => format!("→ {name}"),
+                    })
+                }
+                "tool_result" => Some("(tool output)".to_owned()),
+                _ => None,
+            })
+            .collect();
+        if !parts.is_empty() {
+            return parts.join("\n");
+        }
+    }
+    if let Some(result) = v.get("result").and_then(Value::as_str) {
+        return result.to_owned();
+    }
+    e.payload_json.clone()
+}
+
+/// The connection line under the title, and whether it is a problem.
+fn connection_text(connection: &Connection) -> (SharedString, bool) {
+    match connection {
+        Connection::Connecting => ("Connecting…".into(), false),
+        Connection::Connected => ("Connected".into(), false),
+        Connection::Reconnecting(why) => (format!("Reconnecting… ({why})").into(), true),
+        Connection::Refused => (
+            "That machine didn't accept this device. Sign this phone in to your tailnet as the same user, \
+             untagged, and check Tailscale is running on that machine."
+                .into(),
+            true,
+        ),
+        Connection::VersionMismatch(why) => (
+            format!("That machine runs another SkyeLab version ({why}). Update both to the same release.")
+                .into(),
+            true,
+        ),
+        Connection::Stopped(why) => (
+            format!("Disconnected ({why}). Go back and connect again.").into(),
+            true,
+        ),
+    }
 }
 
 fn row(
@@ -203,6 +337,14 @@ impl MobileApp {
                     .child("The MagicDNS name of the machine running SkyeLab, on your tailnet."),
             )
             .child(Input::new(&self.env_input))
+            .when(cfg!(feature = "demo"), |v| {
+                v.child(
+                    div()
+                        .text_sm()
+                        .text_color(theme.warning)
+                        .child("Demo build: every name opens canned data."),
+                )
+            })
             .children(
                 self.error
                     .clone()
@@ -242,7 +384,8 @@ impl MobileApp {
 
     fn thread_view(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        // shortcut: renders every event as a child; switch to gpui `list` + ListState once events stream live.
+        // shortcut: renders every event as a child, fine for a few hundred; switch to gpui `list` + ListState
+        // when long threads lag.
         let events = self.events().into_iter().map(|e| {
             v_flex()
                 .py_2()
@@ -317,6 +460,8 @@ impl Render for MobileApp {
             Screen::Threads { .. } => self.thread_list(cx),
             Screen::Thread { .. } => self.thread_view(cx),
         };
+        let status = self.connection().map(|c| connection_text(&c));
+        let source_error = self.source.as_ref().and_then(|s| s.error());
         let theme = cx.theme();
         v_flex()
             .size_full()
@@ -345,6 +490,17 @@ impl Render for MobileApp {
                             .child(self.title()),
                     ),
             )
+            .children(status.map(|(text, problem)| {
+                div()
+                    .text_sm()
+                    .text_color(if problem {
+                        theme.warning
+                    } else {
+                        theme.muted_foreground
+                    })
+                    .child(text)
+            }))
+            .children(source_error.map(|e| div().text_sm().text_color(theme.danger).child(e)))
             .child(v_flex().flex_1().min_h_0().child(body))
     }
 }
@@ -353,9 +509,8 @@ impl Render for MobileApp {
 /// An error means the window never opened; the entry point logs it where that platform's logs go.
 pub fn run(data_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     gpui_component::init(cx);
-    let source = Box::new(crate::source::FakeSource::new());
     cx.open_window(WindowOptions::default(), |window, cx| {
-        let view = cx.new(|cx| MobileApp::new(data_dir, source, window, cx));
+        let view = cx.new(|cx| MobileApp::new(data_dir, Box::new(source_for), window, cx));
         cx.new(|cx| Root::new(view, window, cx))
     })?;
     cx.activate(true);

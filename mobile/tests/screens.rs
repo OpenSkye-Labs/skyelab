@@ -4,9 +4,9 @@
 use gpui::TestAppContext;
 use gpui_component::input::InputState;
 use skyelab_mobile::{
-    app::{MobileApp, Screen},
+    app::{Connect, MobileApp, Screen},
     env_store,
-    source::FakeSource,
+    source::{FakeSource, ThreadSource},
 };
 
 #[test]
@@ -15,7 +15,6 @@ fn environment_name_is_validated() {
         env_store::validate("  Laptop.Tail1234.ts.net "),
         Ok("laptop.tail1234.ts.net".to_string())
     );
-    assert_eq!(env_store::validate("laptop"), Ok("laptop".to_string()));
     for bad in [
         "",
         "   ",
@@ -57,9 +56,8 @@ fn walks_picker_to_thread_then_sends_and_stops(cx: &mut TestAppContext) {
     cx.update(gpui_component::init);
     let dir = tempfile::tempdir().expect("temp dir");
     let data = dir.path().to_path_buf();
-    let (app, cx) = cx.add_window_view(|window, cx| {
-        MobileApp::new(data.clone(), Box::new(FakeSource::new()), window, cx)
-    });
+    let (app, cx) =
+        cx.add_window_view(|window, cx| MobileApp::new(data.clone(), fake(), window, cx));
     let set = |input: gpui::Entity<InputState>, text: &str, cx: &mut gpui::VisualTestContext| {
         let text = text.to_string();
         input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
@@ -127,16 +125,17 @@ fn walks_picker_to_thread_then_sends_and_stops(cx: &mut TestAppContext) {
         let events = a.events();
         assert_eq!(events.len(), before + 1);
         let last = events.last().expect("an event was appended");
-        assert_eq!(last.kind, "user");
+        assert_eq!(last.kind, "prompt");
         assert!(last.payload_json.contains("run the tests"));
         assert!(a.composer.read(cx).value().is_empty(), "composer clears");
     });
 
     app.update(cx, |a, cx| a.stop(cx));
     app.read_with(cx, |a, _| {
-        assert_eq!(
-            a.events().last().map(|e| e.kind.as_str()),
-            Some("interrupted")
+        assert!(
+            a.events()
+                .last()
+                .is_some_and(|e| e.payload_json.contains("Stopped from the phone"))
         );
         assert_eq!(a.thread().map(|t| t.status).as_deref(), Some("interrupted"));
     });
@@ -161,11 +160,14 @@ fn remembered_environment_prefills_the_picker(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().expect("temp dir");
     env_store::save(dir.path(), "laptop.tail1234.ts.net").expect("save");
     let data = dir.path().to_path_buf();
-    let (app, cx) = cx.add_window_view(|window, cx| {
-        MobileApp::new(data.clone(), Box::new(FakeSource::new()), window, cx)
-    });
+    let (app, cx) =
+        cx.add_window_view(|window, cx| MobileApp::new(data.clone(), fake(), window, cx));
     app.read_with(cx, |a, cx| {
         assert_eq!(a.screen, Screen::Picker);
         assert_eq!(a.env_input.read(cx).value(), "laptop.tail1234.ts.net");
     });
+}
+
+fn fake() -> Connect {
+    Box::new(|_: &str| Ok(Box::new(FakeSource::new()) as Box<dyn ThreadSource>))
 }

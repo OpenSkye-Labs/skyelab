@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the cdylib, package it with gpui-mobile's Java host (GpuiActivity), install and launch.
 # Usage: scripts/run-android.sh [adb-serial]. Needs cargo-ndk and the Android SDK + NDK.
+# SKYELAB_MOBILE_FEATURES=demo builds with canned data instead of a real environment.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
@@ -15,7 +16,7 @@ if [[ ! -d $gradle ]]; then
         "$gradle/app/build.gradle.kts"
     rm -rf "$jni"
 fi
-cargo ndk -t arm64-v8a -P 26 -o "$jni" build -p skyelab-mobile-android
+cargo ndk -t arm64-v8a -P 26 -o "$jni" build -p skyelab-mobile-android ${SKYELAB_MOBILE_FEATURES:+--features "$SKYELAB_MOBILE_FEATURES"}
 (cd "$gradle" && ./gradlew -q assembleDebug)
 adb ${1:+-s "$1"} install -r "$gradle/app/build/outputs/apk/debug/app-debug.apk"
 adb ${1:+-s "$1"} shell am start -n dev.skyelab.mobile/dev.gpui.mobile.GpuiActivity

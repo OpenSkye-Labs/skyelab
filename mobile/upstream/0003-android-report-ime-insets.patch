@@ -1,0 +1,201 @@
+diff --git a/src/android/jni.rs b/src/android/jni.rs
+index c72bf2f..3ab5481 100644
+--- a/src/android/jni.rs
++++ b/src/android/jni.rs
+@@ -986,6 +986,7 @@ pub fn run_event_loop(app: &AndroidApp) {
+                         existing.update_safe_area_from_content_rect(
+                             cr.left, cr.top, cr.right, cr.bottom,
+                         );
++                        refresh_insets(&existing);
+ 
+                         INIT_WINDOW_DONE.store(true, Ordering::Relaxed);
+                     } else {
+@@ -1001,6 +1002,7 @@ pub fn run_event_loop(app: &AndroidApp) {
+                                 win.update_safe_area_from_content_rect(
+                                     cr.left, cr.top, cr.right, cr.bottom,
+                                 );
++                                refresh_insets(&win);
+                             }
+                             Err(e) => {
+                                 log::error!("failed to open window: {e:#}");
+@@ -1021,6 +1023,7 @@ pub fn run_event_loop(app: &AndroidApp) {
+                     win.handle_resize();
+                     let cr = app.content_rect();
+                     win.update_safe_area_from_content_rect(cr.left, cr.top, cr.right, cr.bottom);
++                    refresh_insets(&win);
+                 }
+             }
+         }
+@@ -1654,6 +1657,94 @@ pub(super) fn reset_keyboard_composition() {
+     });
+ }
+ 
++/// Overwrite the content-rect safe area with the window's real insets when
++/// `WindowInsets` can say (API 30+), keyboard included.
++fn refresh_insets(win: &super::window::AndroidWindow) {
++    match window_insets() {
++        Ok((bars, ime_bottom)) => {
++            log::info!("window insets: bars={bars:?} ime_bottom={ime_bottom} (physical px)");
++            win.update_insets(bars, ime_bottom);
++        }
++        Err(e) => log::debug!("WindowInsets unavailable, keeping the content rect: {e}"),
++    }
++}
++
++/// The decor view's root `WindowInsets` in physical pixels: the system bars
++/// plus display cutout as `[left, top, right, bottom]`, and the keyboard's
++/// bottom inset. `Err` below API 30 or before the view is attached.
++fn window_insets() -> Result<([i32; 4], i32), String> {
++    with_env(|env| {
++        let activity = activity(env)?;
++        let result = env.with_local_frame(8, |env| -> jni::errors::Result<Option<([i32; 4], i32)>> {
++            let window = env
++                .call_method(
++                    &activity,
++                    jni::jni_str!("getWindow"),
++                    jni::jni_sig!("()Landroid/view/Window;"),
++                    &[],
++                )?
++                .l()?;
++            let decor = env
++                .call_method(
++                    &window,
++                    jni::jni_str!("getDecorView"),
++                    jni::jni_sig!("()Landroid/view/View;"),
++                    &[],
++                )?
++                .l()?;
++            let insets = env
++                .call_method(
++                    &decor,
++                    jni::jni_str!("getRootWindowInsets"),
++                    jni::jni_sig!("()Landroid/view/WindowInsets;"),
++                    &[],
++                )?
++                .l()?;
++            if insets.is_null() {
++                return Ok(None);
++            }
++            let mut type_mask = |name| -> jni::errors::Result<i32> {
++                env.call_static_method(
++                    jni::jni_str!("android/view/WindowInsets$Type"),
++                    name,
++                    jni::jni_sig!("()I"),
++                    &[],
++                )?
++                .i()
++            };
++            let bars_mask =
++                type_mask(jni::jni_str!("systemBars"))? | type_mask(jni::jni_str!("displayCutout"))?;
++            let ime_mask = type_mask(jni::jni_str!("ime"))?;
++            let mut edges = |mask: i32| -> jni::errors::Result<[i32; 4]> {
++                let edges = env
++                    .call_method(
++                        &insets,
++                        jni::jni_str!("getInsets"),
++                        jni::jni_sig!("(I)Landroid/graphics/Insets;"),
++                        &[JValue::Int(mask)],
++                    )?
++                    .l()?;
++                let mut field = |name| -> jni::errors::Result<i32> {
++                    env.get_field(&edges, name, jni::jni_sig!("I"))?.i()
++                };
++                Ok([
++                    field(jni::jni_str!("left"))?,
++                    field(jni::jni_str!("top"))?,
++                    field(jni::jni_str!("right"))?,
++                    field(jni::jni_str!("bottom"))?,
++                ])
++            };
++            let bars = edges(bars_mask)?;
++            let ime = edges(ime_mask)?;
++            Ok(Some((bars, ime[3])))
++        });
++        if result.is_err() {
++            env.exception_clear();
++        }
++        result.e()?.ok_or_else(|| "the decor view has no insets yet".to_string())
++    })
++}
++
+ /// Receive Java InputConnection updates without touching GPUI on the UI thread.
+ ///
+ /// # Safety
+diff --git a/src/android/window.rs b/src/android/window.rs
+index 92b28c7..e8a7fac 100644
+--- a/src/android/window.rs
++++ b/src/android/window.rs
+@@ -346,6 +346,10 @@ struct WindowState {
+     /// and the bottom inset accounts for the navigation bar / gesture area.
+     safe_area_insets: SafeAreaInsets,
+ 
++    /// The on-screen keyboard's height over the window's bottom edge, in
++    /// physical pixels (`WindowInsets.Type.ime()`), 0 while it is hidden.
++    ime_bottom: f32,
++
+     /// Current appearance.
+     appearance: WindowAppearance,
+ 
+@@ -474,6 +478,7 @@ impl AndroidWindow {
+             height,
+             scale_factor,
+             safe_area_insets: SafeAreaInsets::default(),
++            ime_bottom: 0.0,
+             appearance: WindowAppearance::Light,
+             is_active: true,
+             transparent,
+@@ -510,6 +515,7 @@ impl AndroidWindow {
+             height,
+             scale_factor,
+             safe_area_insets: SafeAreaInsets::default(),
++            ime_bottom: 0.0,
+             appearance: WindowAppearance::Light,
+             is_active: false,
+             transparent: false,
+@@ -1120,6 +1126,35 @@ impl AndroidWindow {
+             insets.right,
+         );
+         state.safe_area_insets = insets;
++        // The content rect can't tell the keyboard apart; `update_insets` sets it when `WindowInsets` can.
++        state.ime_bottom = 0.0;
++    }
++
++    /// Replace the content-rect estimate with the window's own insets, in
++    /// physical pixels: `bars` (left, top, right, bottom) from
++    /// `systemBars() | displayCutout()`, `ime_bottom` from `ime()`.
++    ///
++    /// The content rect only shrinks for the keyboard while the system still
++    /// resizes for it (`adjustResize` below target SDK 35); `WindowInsets`
++    /// reports it either way, and separately from the navigation bar. It is
++    /// read when the content rect or insets change, so under edge-to-edge it
++    /// depends on the activity reporting such a change for the keyboard.
++    pub fn update_insets(&self, bars: [i32; 4], ime_bottom: i32) {
++        let mut state = self.state.lock();
++        let [left, top, right, bottom] = bars.map(|v| v.max(0) as f32);
++        state.safe_area_insets = SafeAreaInsets {
++            top,
++            bottom,
++            left,
++            right,
++        };
++        state.ime_bottom = ime_bottom.max(0) as f32;
++    }
++
++    /// The keyboard's height over the bottom edge, in logical pixels.
++    pub fn ime_bottom_logical(&self) -> f32 {
++        let state = self.state.lock();
++        state.ime_bottom / state.scale_factor
+     }
+ 
+     // ── state queries ─────────────────────────────────────────────────────────
+@@ -1520,6 +1555,10 @@ impl PlatformWindow for AndroidPlatformWindow {
+                 bottom: gpui::px(s.bottom),
+                 left: gpui::px(s.left),
+             },
++            ime: gpui::Edges {
++                bottom: gpui::px(self.window.ime_bottom_logical()),
++                ..Default::default()
++            },
+             ..Default::default()
+         }
+     }

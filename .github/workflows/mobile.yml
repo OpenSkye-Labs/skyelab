@@ -6,6 +6,11 @@ on:
     paths: &paths
       - mobile/**
       - crates/skyelab-protocol/**
+      # The app uses skyelab-client; its tests run an in-process skyelab-daemon over skyelab-store and skyelab-tailnet.
+      - crates/skyelab-client/**
+      - crates/skyelab-daemon/**
+      - crates/skyelab-store/**
+      - crates/skyelab-tailnet/**
       # skyelab-protocol inherits package fields, deps and lints from the root manifest; clippy reads clippy.toml.
       - Cargo.toml
       - clippy.toml
@@ -52,6 +57,13 @@ jobs:
           key: ios
       - run: scripts/fetch-gpui-mobile.sh
       - run: scripts/check-pins.sh
+      # skyelab-client's loopback exception is for tests only: fail if a shipping build turns it on.
+      - name: No test-support in shipping builds
+        run: |
+          if cargo tree --locked -e normal,build -p skyelab-mobile -p skyelab-mobile-android -i skyelab-client -f '{p} {f}' | grep test-support; then
+            echo "a shipping build enables skyelab-client/test-support" >&2
+            exit 1
+          fi
       # -p, not --all: --all would also check the fetched gpui-mobile and skyelab-protocol (the desktop checks it).
       - run: cargo fmt --check -p skyelab-mobile -p skyelab-mobile-android
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
