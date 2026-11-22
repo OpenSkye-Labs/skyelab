@@ -108,16 +108,17 @@ Each step goes through `/loop`.
    (2026-11-23):* `mobile/` runs the step 5 screens on a fake `ThreadSource` until `skyelab-client` lands, and
    `.github/workflows/mobile.yml` builds both targets.
 4. **Connect over the tailnet.** v1 relies on the official Tailscale app's VPN being on and dials
-   `ws://<machine>.<tailnet>.ts.net:<port>`. The daemon's `whois` check already accepts the same user's untagged
+   `wss://<machine>.<tailnet>.ts.net:<port>`. The daemon's `whois` check already accepts the same user's untagged
    phone. The client must check the server too: if the VPN is off, the name resolves through whatever DNS the phone
-   has, so `skyelab-client` refuses any address outside Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48), or
-   better, uses `wss://` with the node's `tailscale cert`. A lost phone is revoked by removing it from the tailnet.
+   has, so `skyelab-client` refuses any address outside Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48) and
+   speaks only `wss://`, checked against the node's `tailscale cert` certificate. A lost phone is revoked by removing it from the tailnet.
    An embedded `libtailscale` node comes later, only if needing the VPN app is a real problem.
    **Done (address check):** `skyelab-client` resolves the name, dials only the tailnet addresses it got back
    (`is_tailnet_ip`), and never re-resolves. Loopback is refused too; the exception exists only under `cargo test`.
-   **Still open:** 100.64.0.0/10 is also carrier-grade NAT space, so with the VPN off a hostile DNS on such a carrier
-   can still point at another subscriber's 100.x host. `wss://` with the node's `tailscale cert` closes that and should
-   land before the app goes to anyone but the developer. It needs the daemon to serve TLS.
+   **Done (TLS):** the daemon serves only `wss://` with the node's `tailscale cert` certificate, and the client
+   accepts only a chain to the Mozilla roots whose leaf names exactly the dialled MagicDNS name. That closes the
+   carrier-grade NAT hole (100.64.0.0/10 is also CGNAT space, so a hostile DNS with the VPN off could point at
+   another subscriber's 100.x host). The tailnet needs MagicDNS and HTTPS Certificates on (architecture.md, Remote).
 5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
    composer (send) and a stop button (interrupt). Handle safe areas on both platforms.
 6. **Packaging.** iOS: a generated Xcode project (or the spike's plist) with signing for device builds. Android: the

@@ -122,6 +122,16 @@ fn claude_bin(env: Option<std::ffi::OsString>, debug: bool) -> std::path::PathBu
     }
 }
 
+/// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.
+fn tailnet() -> skyelab_tailnet::TailscaleCli {
+    let cli = skyelab_tailnet::TailscaleCli::default();
+    // Local, not roaming, app data: a private key must not sync to a Windows roaming profile.
+    match dirs::data_local_dir() {
+        Some(d) => cli.with_cert_dir(d.join("skyelab").join("tls")),
+        None => cli,
+    }
+}
+
 /// Where threads and projects persist: the platform data dir.
 fn store_path() -> Option<std::path::PathBuf> {
     dirs::data_dir().map(|d| d.join("skyelab").join("skyelab.db"))
@@ -169,8 +179,7 @@ fn main() {
         remote::push_events(&mut store, slot.clone());
         let store = Arc::new(Mutex::new(store));
         let (agents, calls) = remote::UiAgents::new();
-        let tailnet: skyelab_daemon::SharedTailnet =
-            Arc::new(skyelab_tailnet::TailscaleCli::default());
+        let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
         let host = remote::Host {
             settings_path: AppSettings::default_path(),
             tailnet: tailnet.clone(),

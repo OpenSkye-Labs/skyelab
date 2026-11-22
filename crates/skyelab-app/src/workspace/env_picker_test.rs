@@ -4,6 +4,7 @@ use super::env_harness::*;
 use super::*;
 use gpui::TestAppContext;
 use skyelab_core::AppSettings;
+use skyelab_daemon::testing::NODE_NAME;
 
 fn tailnet() -> FakeTailnet {
     FakeTailnet {
@@ -39,16 +40,14 @@ fn picker_offers_this_mac_and_only_your_online_devices(cx: &mut TestAppContext) 
     });
 
     // Add by MagicDNS name: the typed name becomes the remote environment, and it connects.
-    picker.update_in(cx, |p, window, cx| p.set_typed("127.0.0.1", window, cx));
+    picker.update_in(cx, |p, window, cx| p.set_typed(NODE_NAME, window, cx));
     cx.dispatch_action(env_picker::ConnectTyped);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");
     let host = ws.read_with(cx, |ws, cx| {
         ws.remote_env().map(|e| e.read(cx).host.clone())
     });
-    assert_eq!(host.as_deref(), Some("127.0.0.1"));
-    picker.read_with(cx, |p, _| {
-        assert_eq!(p.current.as_deref(), Some("127.0.0.1"))
-    });
+    assert_eq!(host.as_deref(), Some(NODE_NAME));
+    picker.read_with(cx, |p, _| assert_eq!(p.current.as_deref(), Some(NODE_NAME)));
 }
 
 #[gpui::test]
@@ -65,16 +64,16 @@ fn picker_remembers_recent_environments_and_keeps_other_settings(cx: &mut TestAp
     let (ws, _local, cx) =
         local_workspace(Arc::default(), Some(path.clone()), remote.options(), cx);
 
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "saved", |_| {
-        AppSettings::load(&path).expect("load").recent_environments == ["127.0.0.1"]
+        AppSettings::load(&path).expect("load").recent_environments == [NODE_NAME]
     });
     switch(&ws, None, cx);
     switch(&ws, Some("laptop.example.ts.net"), cx);
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "reordered", |_| {
         AppSettings::load(&path).expect("load").recent_environments
-            == ["127.0.0.1", "laptop.example.ts.net"]
+            == [NODE_NAME, "laptop.example.ts.net"]
     });
     assert!(
         AppSettings::load(&path).expect("load").share_on_tailnet,

@@ -47,7 +47,7 @@ fn refused_fill_is_retried() {
         Arc::new(Slow(env.backend())),
     )
     .expect("daemon");
-    let client = Client::connect("127.0.0.1", options(port(&daemon))).expect("client");
+    let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     // Another watched thread's fill holds the only in-flight slot...
     client.watch(env.thread_id + 100, 0);

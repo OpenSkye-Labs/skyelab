@@ -3,6 +3,7 @@
 use super::env_harness::*;
 use super::*;
 use gpui::TestAppContext;
+use skyelab_daemon::testing::NODE_NAME;
 use skyelab_daemon::{Backend as DaemonBackend, Config, Daemon};
 use skyelab_protocol::{
     Hello, Project, Reply, RpcError, ServerMessage, Thread, ThreadEvent, Version,
@@ -14,7 +15,7 @@ use std::time::Duration;
 fn remote_connecting_connected_reconnecting_recovered(cx: &mut TestAppContext) {
     let mut remote = RemoteSide::new(FakeTailnet::default());
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     assert_eq!(state(&ws, cx), "Connecting…", "before hello");
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");
 
@@ -41,7 +42,7 @@ fn remote_refused_by_whois_says_so(cx: &mut TestAppContext) {
     tailnet.refuse.store(true, Ordering::SeqCst);
     let remote = RemoteSide::new(tailnet);
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "refused", |cx| {
         state(&ws, cx) == "That machine didn't accept this device"
     });
@@ -80,11 +81,12 @@ fn newer_server() -> u16 {
 #[gpui::test]
 fn remote_version_mismatch_is_fatal_and_clear(cx: &mut TestAppContext) {
     let port = newer_server();
-    let mut options = skyelab_client::Options::default().allow_loopback();
+    // The fake newer server speaks plain ws://; this test is about the version check, not TLS.
+    let mut options = test_options().plaintext();
     options.port = port;
     options.backoff_min = Duration::from_millis(50);
     let (ws, _local, cx) = local_workspace(Arc::default(), None, options, cx);
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "mismatch", |cx| {
         state(&ws, cx).starts_with("Version mismatch")
     });
@@ -146,7 +148,7 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     )
     .expect("daemon");
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     wait_until(cx, "connected", |cx| state(&ws, cx) == "Connected");
 
     // list_projects is in flight and stuck. The UI still runs actions and renders.

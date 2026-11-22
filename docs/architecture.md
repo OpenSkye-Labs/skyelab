@@ -54,10 +54,22 @@ personal plan by mistake.
 The app can serve this machine to your other devices. It is **off by default**: the Remote tab's "Share this machine
 on my tailnet" switch (`skyelab::ToggleSharing`) turns it on, and the choice is saved as `share_on_tailnet` in
 `settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens the Remote tab) says
-`Sharing on <MagicDNS name>:7287`, `Not sharing`, or the exact reason it couldn't start (Tailscale not installed, not
-running, logged out). Turning it off stops the listener and closes every connection, even when the choice can't be
+`Sharing on <MagicDNS name>:7287 · certificate valid until <date>`, `Not sharing`, or the exact reason it couldn't
+start (Tailscale not installed, not running, logged out, no certificate). Turning it off stops the listener and closes every connection, even when the choice can't be
 saved (the error shows). Closing the window stops it too. A remote call still queued when sharing went off, or one
 whose client gave up waiting (30 s), never runs.
+
+**Tailnet setting needed: HTTPS certificates.** Every connection is `wss://` with this node's Let's Encrypt
+certificate for its MagicDNS name (`machine.tailnet.ts.net`), from `tailscale cert`. In the Tailscale admin console,
+open **DNS** (https://login.tailscale.com/admin/dns) and turn on **MagicDNS** and **HTTPS Certificates**. Without
+them sharing refuses to start and says which one is off; there is no plaintext fallback. Turning HTTPS certificates
+on publishes each machine's name in the public Certificate Transparency logs (not its address or anything on it).
+
+The certificate and key live in `<data dir>/skyelab/tls/` (mode 0700; `~/Library/Application Support` on macOS).
+They are fetched when sharing starts and checked again daily; `tailscale cert --min-validity 336h` renews any
+certificate with less than 14 days left, and the new one is served at once, without dropping connections. A failed
+renewal keeps the current certificate and retries hourly. A fetched certificate is used only if it names this node
+exactly, is valid now, and matches its key.
 
 **Trust model.** Every TCP connection goes through the daemon's gate, in order, before a single byte is read:
 
@@ -66,9 +78,17 @@ whose client gave up waiting (30 s), never runs.
    and the profile's user both equal this node's user, the node has no tags, and it isn't this node itself (another
    OS user on this machine could reach the tailnet IP too). Tagged nodes belong to the tailnet, not to you, so they
    are refused even if you tagged them. A whois error or timeout refuses the connection.
-3. A WebSocket handshake carrying an `Origin` header is refused: that is a web page open on one of your devices,
+3. TLS 1.3 with this node's certificate. A client speaking plaintext fails here.
+4. A WebSocket handshake carrying an `Origin` header is refused: that is a web page open on one of your devices,
    which would pass whois.
-4. The first message must be a compatible `hello`.
+5. The first message must be a compatible `hello`.
+
+The client (`skyelab-client`) checks the server in turn: it dials only addresses in Tailscale's ranges, speaks only
+`wss://`, and accepts only a certificate chain that verifies against the Mozilla roots (`webpki-roots`) whose leaf
+names exactly the MagicDNS name it dialled (a wildcard isn't enough). It refuses to dial an IP address, because no
+certificate can vouch for one. 100.64.0.0/10 is also carrier-grade NAT space, so the address check alone can't stop
+a hostile network (a phone with the VPN off) from pointing the name at another subscriber's 100.x host; the
+certificate check does.
 
 **What a connected device can do.** List projects and threads, read thread events, start a thread in an existing
 project, send follow-ups and interrupt. It can't add projects, change accounts or bindings, open terminals or run
@@ -141,6 +161,10 @@ Each item goes through `/loop` (see CLAUDE.md).
   ssh-agent, TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
 - **Project settings:** agents launch with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23)
+- **Remote is TLS-only, with the node's `tailscale cert` certificate.** The address guard can't tell a tailnet peer
+  from a CGNAT neighbour, so the client verifies the Let's Encrypt chain and the exact MagicDNS name. No certificate
+  means no sharing, never plaintext. rustls with the `ring` provider (no OpenSSL, no aws-lc build tools), TLS 1.3
+  only, webpki roots rather than the platform verifier so mobile needs no JNI setup. (2026-11-23)
 - **Remote calls reuse the thread view.** The daemon's agent calls are forwarded to the UI thread and run through
   `ThreadView::send_prompt`, so there is one launch path and one place the account is resolved. Sharing is off by
   default and only an explicit toggle turns it on. (2026-11-23)

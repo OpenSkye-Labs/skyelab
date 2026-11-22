@@ -12,7 +12,7 @@ fn reconnects_and_fills_what_it_missed() {
     let tailnet = Arc::new(FakeTailnet::default());
     let daemon = start_daemon(tailnet.clone(), env.backend(), 0);
     let port = port(&daemon);
-    let client = Client::connect("127.0.0.1", options(port)).expect("client");
+    let client = Client::connect(HOST, options(port)).expect("client");
     connected(&client);
     client.watch(env.thread_id, 0);
     assert_eq!(seqs(&client, 2), [1, 2]);

@@ -5,9 +5,11 @@
 //! pushed events arrive on [`Client::updates`]. The client reconnects by itself with backoff and keeps the
 //! connection alive with pings.
 //!
-//! Server trust: the host is resolved first, and only addresses inside Tailscale's ranges are dialed
-//! ([`is_tailnet_ip`]), so a hostile DNS (the VPN off) can't point the client at a public or LAN server. That range
-//! is also carrier-grade NAT space; see [`is_tailnet_ip`] for what that leaves open.
+//! Server trust, both required: the host (a MagicDNS name) is resolved first and only addresses inside Tailscale's
+//! ranges are dialed ([`is_tailnet_ip`]), so a hostile DNS (the VPN off) can't point the client at a public or LAN
+//! server; then the connection is `wss://` only, and the server's certificate must chain to the Mozilla roots and
+//! name exactly the host dialled. The second check is what stops another carrier-grade-NAT subscriber, whose 100.x
+//! address passes the first. There is no plaintext mode outside `cargo test`.
 //!
 //! Events: only watched threads ([`Client::watch`]) are delivered, each event exactly once and in seq order. A gap
 //! in the pushed stream, a reconnect, or a server that dropped us for lagging is filled from the store with
@@ -17,6 +19,7 @@ mod conn;
 mod guard;
 #[cfg(test)]
 mod tests;
+mod tls;
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -32,7 +35,7 @@ pub struct Options {
     pub max_message_bytes: usize,
     /// A ping goes out this often. A server silent for two intervals is treated as gone.
     pub ping_interval: Duration,
-    /// Bound on resolve, TCP connect, WebSocket handshake and hello together.
+    /// Bound on resolve, TCP connect, TLS and WebSocket handshakes and hello together.
     pub connect_timeout: Duration,
     /// A request without a reply after this long fails with [`Error::Timeout`] (checked on each ping, so up to one
     /// `ping_interval` later).
@@ -44,8 +47,17 @@ pub struct Options {
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) allow_loopback: bool,
     /// Tests only: the protocol version sent in hello.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) protocol: Version,
+    /// Tests only: trust these roots instead of the Mozilla ones.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) roots: Option<Arc<rustls::RootCertStore>>,
+    /// Tests only: speak `ws://` (for fake servers that don't do TLS).
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) plaintext: bool,
+    /// Tests only: dial this address instead of resolving the host (the name is still checked by TLS).
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) resolve_to: Option<std::net::IpAddr>,
 }
 
 impl Default for Options {
@@ -61,8 +73,14 @@ impl Default for Options {
             backoff_max: Duration::from_secs(30),
             #[cfg(any(test, feature = "test-support"))]
             allow_loopback: false,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             protocol: skyelab_protocol::VERSION,
+            #[cfg(any(test, feature = "test-support"))]
+            roots: None,
+            #[cfg(any(test, feature = "test-support"))]
+            plaintext: false,
+            #[cfg(any(test, feature = "test-support"))]
+            resolve_to: None,
         }
     }
 }
@@ -72,6 +90,24 @@ impl Options {
     /// Other crates' tests: also dial loopback, where their in-process daemon listens. Never in a real build.
     pub fn allow_loopback(mut self) -> Self {
         self.allow_loopback = true;
+        self
+    }
+
+    /// Other crates' tests: trust `roots` (a test CA) instead of the Mozilla roots.
+    pub fn trust_roots(mut self, roots: rustls::RootCertStore) -> Self {
+        self.roots = Some(Arc::new(roots));
+        self
+    }
+
+    /// Other crates' tests: dial `ip` instead of resolving the name. TLS still checks the name.
+    pub fn resolve_to(mut self, ip: std::net::IpAddr) -> Self {
+        self.resolve_to = Some(ip);
+        self
+    }
+
+    /// Other crates' tests: speak `ws://` to a fake server that doesn't do TLS.
+    pub fn plaintext(mut self) -> Self {
+        self.plaintext = true;
         self
     }
 }
@@ -140,15 +176,33 @@ pub struct Client {
 }
 
 impl Client {
-    /// Starts connecting to `host` (a MagicDNS name or a tailnet IP) in the background. Never blocks on the network.
+    /// Starts connecting to `host`, the environment's MagicDNS name (`machine.tailnet.ts.net`), in the background.
+    /// Never blocks on the network. An IP address is refused: a certificate can't vouch for one.
     pub fn connect(host: impl Into<String>, options: Options) -> std::io::Result<Self> {
+        let invalid = |msg: String| std::io::Error::new(std::io::ErrorKind::InvalidInput, msg);
         if options.ping_interval.is_zero() || options.backoff_min.is_zero() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "ping_interval and backoff_min must be above zero",
+            return Err(invalid(
+                "ping_interval and backoff_min must be above zero".into(),
             ));
         }
+        // MagicDNS names are lowercase; one trailing dot names the same host.
         let host = host.into();
+        let host = host.strip_suffix('.').unwrap_or(&host).to_ascii_lowercase();
+        let is_dns_name = !host.ends_with('.')
+            && matches!(
+                rustls::pki_types::ServerName::try_from(host.as_str()),
+                Ok(rustls::pki_types::ServerName::DnsName(_))
+            );
+        if !is_dns_name {
+            return Err(invalid(format!(
+                "{host:?} isn't a MagicDNS name; connect by name (machine.tailnet.ts.net) so TLS can check the server"
+            )));
+        }
+        #[cfg(any(test, feature = "test-support"))]
+        let roots = options.roots.clone().unwrap_or_else(tls::webpki_roots);
+        #[cfg(not(any(test, feature = "test-support")))]
+        let roots = tls::webpki_roots();
+        let tls = tls::config(roots)?;
         let (commands, commands_rx) = flume::unbounded();
         let (updates_tx, updates) = flume::unbounded();
         let hello = Arc::new(Mutex::new(None));
@@ -162,6 +216,7 @@ impl Client {
                 runtime.block_on(conn::run(
                     host,
                     options,
+                    tls,
                     commands_rx,
                     updates_tx,
                     shared_hello,

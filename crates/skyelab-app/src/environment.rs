@@ -22,10 +22,21 @@ pub enum ConnState {
     Stopped(String),
 }
 
-/// The client dialed fine but the socket closed before the WebSocket handshake: the daemon's gate refused us.
+/// The client dialed fine but the daemon's gate closed the socket before answering: it refused this device.
+/// With TLS that's a reset or EOF before any TLS reply; a certificate problem is NOT a refusal (it reconnects).
 /// Matches skyelab-client's reason text; `env_states_test` drives a real refusal so a change there fails a test.
+// shortcut: text matching; upgrade when skyelab-client exposes a typed refusal.
 fn refused(reason: &str) -> bool {
+    let closed = [
+        "reset by peer",
+        "unexpected end of file",
+        "early eof",
+        "closed",
+    ]
+    .iter()
+    .any(|m| reason.contains(m));
     reason.starts_with("WebSocket handshake failed")
+        || (reason.starts_with("TLS with ") && closed && !reason.contains("certificate"))
 }
 
 impl ConnState {
@@ -206,6 +217,20 @@ mod tests {
                 "WebSocket handshake failed: IO error: Connection reset by peer".into()
             )),
             Some(ConnState::Refused)
+        );
+        // TLS era: the gate closes the socket before any TLS reply.
+        let reset =
+            "TLS with desktop.example.ts.net failed: Connection reset by peer (os error 54)";
+        assert_eq!(
+            state(Update::Disconnected(reset.into())),
+            Some(ConnState::Refused)
+        );
+        // A bad certificate is a server problem, not a refusal of this device.
+        let bad_cert =
+            "TLS with x.ts.net failed: invalid peer certificate: certificate not valid for name";
+        assert_eq!(
+            state(Update::Disconnected(bad_cert.into())),
+            Some(ConnState::Reconnecting(bad_cert.into()))
         );
         assert_eq!(
             state(Update::Disconnected("can't connect: refused".into())),

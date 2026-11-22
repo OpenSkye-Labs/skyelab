@@ -1,4 +1,5 @@
-//! Shared harness: a fake Tailnet, a counting backend, and a blocking client over real loopback sockets.
+//! Shared harness: a fake Tailnet (with a test CA issuing this node's cert), a counting backend, and a blocking
+//! TLS client over real loopback sockets.
 #![allow(dead_code)] // shared helpers; each test binary uses a subset
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
@@ -6,14 +7,14 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use skyelab_daemon::testing::{NODE_NAME, TlsStream, ca, tls_connect};
 use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
 use skyelab_protocol::{
     Call, ErrorCode, Project, Request, RpcError, ServerMessage, Thread, ThreadEvent, VERSION,
     Version,
 };
 use skyelab_store::Store;
-use skyelab_tailnet::{Error, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
-use tungstenite::stream::MaybeTlsStream;
+use skyelab_tailnet::{Cert, Error, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 use tungstenite::{Message, WebSocket};
 
 pub const ME: u64 = 1001;
@@ -32,15 +33,35 @@ pub struct FakeTailnet {
     pub down: AtomicBool,
     pub peer: Mutex<Peer>,
     pub whois_calls: AtomicUsize,
+    /// What `cert` returns; an `Err` is the CLI's error text.
+    pub cert: Mutex<Result<Cert, String>>,
+    /// `cert` sleeps this long first (a hung `tailscale cert`).
+    pub cert_hang: Mutex<Duration>,
+    pub cert_calls: AtomicUsize,
+    /// `Self.DNSName`; empty means MagicDNS is off.
+    pub dns_name: Mutex<String>,
+}
+
+impl Default for FakeTailnet {
+    fn default() -> Self {
+        Self {
+            ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            down: AtomicBool::new(false),
+            peer: Mutex::new(Peer::Own),
+            whois_calls: AtomicUsize::new(0),
+            cert: Mutex::new(Ok(ca().issue(NODE_NAME))),
+            cert_hang: Mutex::new(Duration::ZERO),
+            cert_calls: AtomicUsize::new(0),
+            dns_name: Mutex::new(format!("{NODE_NAME}.")),
+        }
+    }
 }
 
 impl FakeTailnet {
     pub fn new(peer: Peer) -> Arc<Self> {
         Arc::new(Self {
-            ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
-            down: AtomicBool::new(false),
             peer: Mutex::new(peer),
-            whois_calls: AtomicUsize::new(0),
+            ..Self::default()
         })
     }
 }
@@ -79,7 +100,10 @@ impl Tailnet for FakeTailnet {
         if self.down.load(Ordering::SeqCst) {
             return Err(Error::NotRunning("Stopped".into()));
         }
-        Ok(self_node(self.ips.clone()))
+        Ok(Node {
+            dns_name: self.dns_name.lock().expect("test setup").clone(),
+            ..self_node(self.ips.clone())
+        })
     }
 
     fn peers(&self) -> Result<Vec<Node>, Error> {
@@ -103,6 +127,20 @@ impl Tailnet for FakeTailnet {
                 Ok(whois(ME, vec![]))
             }
         }
+    }
+
+    fn cert(&self, _name: &str) -> Result<Cert, Error> {
+        self.cert_calls.fetch_add(1, Ordering::SeqCst);
+        let hang = *self.cert_hang.lock().expect("test setup");
+        std::thread::sleep(hang);
+        self.cert
+            .lock()
+            .expect("test setup")
+            .clone()
+            .map_err(|stderr| Error::Command {
+                command: "cert",
+                stderr,
+            })
     }
 }
 
@@ -155,23 +193,24 @@ pub fn store_backend(store: Store) -> Arc<dyn Backend> {
     Arc::new(StoreBackend::new(store, NotWired))
 }
 
-pub type Client = WebSocket<MaybeTlsStream<TcpStream>>;
+pub type Client = WebSocket<TlsStream>;
 
-fn tcp(addr: SocketAddr) -> TcpStream {
-    let tcp = TcpStream::connect(addr).expect("test setup");
-    tcp.set_read_timeout(Some(Duration::from_secs(5)))
-        .expect("test setup");
-    tcp
+fn ws_error(
+    e: tungstenite::HandshakeError<tungstenite::ClientHandshake<TlsStream>>,
+) -> tungstenite::Error {
+    match e {
+        tungstenite::HandshakeError::Failure(e) => e,
+        tungstenite::HandshakeError::Interrupted(_) => panic!("blocking handshake interrupted"),
+    }
 }
 
-/// Connects and completes the WebSocket handshake, or returns why it failed.
+/// Connects over TLS (trusting only the harness CA, checking the name) and completes the WebSocket handshake,
+/// or returns why it failed.
 pub fn try_connect(addr: SocketAddr) -> Result<Client, tungstenite::Error> {
-    tungstenite::client(format!("ws://{addr}/"), MaybeTlsStream::Plain(tcp(addr)))
+    let tls = tls_connect(addr, NODE_NAME, ca().root())?;
+    tungstenite::client(format!("wss://{NODE_NAME}/"), tls)
         .map(|(ws, _)| ws)
-        .map_err(|e| match e {
-            tungstenite::HandshakeError::Failure(e) => e,
-            tungstenite::HandshakeError::Interrupted(_) => panic!("blocking handshake interrupted"),
-        })
+        .map_err(ws_error)
 }
 
 pub fn try_connect_with_origin(
@@ -179,17 +218,23 @@ pub fn try_connect_with_origin(
     origin: &str,
 ) -> Result<Client, tungstenite::Error> {
     use tungstenite::client::IntoClientRequest;
-    let mut req = format!("ws://{addr}/")
+    let mut req = format!("wss://{NODE_NAME}/")
         .into_client_request()
         .expect("test setup");
     req.headers_mut()
         .insert("Origin", origin.parse().expect("test setup"));
-    tungstenite::client(req, MaybeTlsStream::Plain(tcp(addr)))
+    let tls = tls_connect(addr, NODE_NAME, ca().root())?;
+    tungstenite::client(req, tls)
         .map(|(ws, _)| ws)
-        .map_err(|e| match e {
-            tungstenite::HandshakeError::Failure(e) => e,
-            tungstenite::HandshakeError::Interrupted(_) => panic!("blocking handshake interrupted"),
-        })
+        .map_err(ws_error)
+}
+
+/// A plain TCP socket with a read timeout, for tests that speak raw bytes.
+pub fn tcp(addr: SocketAddr) -> TcpStream {
+    let tcp = TcpStream::connect(addr).expect("test setup");
+    tcp.set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("test setup");
+    tcp
 }
 
 pub fn connect(addr: SocketAddr) -> Client {

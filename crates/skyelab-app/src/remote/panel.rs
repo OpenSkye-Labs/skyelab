@@ -96,8 +96,10 @@ impl Render for RemotePanel {
                     )
                     .child(div().text_color(status_color).child(status))
                     .child(div().text_xs().text_color(theme.muted_foreground).child(
-                        "Only your own untagged devices on your tailnet can connect. They can list projects \
-                         and threads and run agents here, under each folder's bound account.",
+                        "Only your own untagged devices on your tailnet can connect, over TLS with this \
+                         machine's Tailscale certificate (needs MagicDNS and HTTPS Certificates on in the \
+                         tailnet's admin console). They can list projects and threads and run agents here, \
+                         under each folder's bound account.",
                     )),
             )
             .child(

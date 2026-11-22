@@ -3,6 +3,7 @@
 use super::env_harness::*;
 use super::*;
 use gpui::TestAppContext;
+use skyelab_daemon::testing::NODE_NAME;
 use std::time::Duration;
 
 #[gpui::test]
@@ -33,7 +34,7 @@ fn remote_send_while_reconnecting_keeps_the_prompt(cx: &mut TestAppContext) {
     );
 
     // Picking the machine you're on keeps the connection and its tabs.
-    switch(&ws, Some("127.0.0.1"), cx);
+    switch(&ws, Some(NODE_NAME), cx);
     assert_eq!(ws.read_with(cx, |ws, _| ws.remote_tabs().len()), 1);
 
     remote.stop();

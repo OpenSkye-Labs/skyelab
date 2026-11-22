@@ -10,6 +10,7 @@ mod hostile;
 mod keepalive;
 mod reconnect;
 mod rpc;
+mod tls;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
@@ -17,13 +18,24 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
+use skyelab_daemon::testing::{NODE_NAME, TestCa, ca};
 use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
 use skyelab_store::{NewThread, Store};
-use skyelab_tailnet::{Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
+use skyelab_tailnet::{Cert, Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 
 use crate::{Client, Options, Update};
 
 const ME: u64 = 1001;
+
+/// The name every test dials. `options` points it at loopback; TLS still checks the certificate names it.
+pub const HOST: &str = NODE_NAME;
+
+/// A root store holding only `ca`'s root.
+pub fn roots_of(ca: &TestCa) -> Arc<rustls::RootCertStore> {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.add(ca.root()).expect("add test root");
+    Arc::new(roots)
+}
 
 /// The daemon's view of the tailnet: this node is 127.0.0.1, every peer is the user's own phone (or whois fails).
 #[derive(Default)]
@@ -54,6 +66,10 @@ impl Tailnet for FakeTailnet {
 
     fn peers(&self) -> Result<Vec<Node>, TailnetError> {
         Ok(vec![])
+    }
+
+    fn cert(&self, name: &str) -> Result<Cert, TailnetError> {
+        Ok(ca().issue(name))
     }
 
     fn whois(&self, _addr: SocketAddr) -> Result<WhoIs, TailnetError> {
@@ -147,11 +163,13 @@ pub fn start_daemon(tailnet: Arc<FakeTailnet>, backend: Arc<dyn Backend>, port: 
     Daemon::start(daemon_config(port), tailnet, backend).expect("start daemon")
 }
 
-/// Options for a loopback test server: loopback allowed, quick backoff.
+/// Options for a loopback test server: HOST dials 127.0.0.1, the test CA is trusted, quick backoff.
 pub fn options(port: u16) -> Options {
     Options {
         port,
         allow_loopback: true,
+        resolve_to: Some(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+        roots: Some(roots_of(ca())),
         backoff_min: Duration::from_millis(50),
         backoff_max: Duration::from_millis(200),
         ..Options::default()

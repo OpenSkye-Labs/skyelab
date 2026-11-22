@@ -6,6 +6,7 @@ use super::remote_thread::RemoteThreadView;
 use super::thread_model::Item;
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
+use skyelab_daemon::testing::NODE_NAME;
 
 fn texts(view: &Entity<RemoteThreadView>, cx: &mut VisualTestContext) -> Vec<String> {
     view.read_with(cx, |v, _| {
@@ -57,12 +58,15 @@ fn remote_projects_threads_and_live_events_with_a_gap(cx: &mut TestAppContext) {
 
     // The header says where it runs and under which account the server reports.
     view.read_with(cx, |v, cx| {
-        assert_eq!(v.env_badge(), "Remote · 127.0.0.1");
+        assert_eq!(v.env_badge(), format!("Remote · {NODE_NAME}"));
         assert_eq!(v.account(cx).as_deref(), Some("work"));
     });
     // The status bar's environment badge.
     let badge = ws.read_with(cx, |ws, cx| ws.env_badge_text(cx));
-    assert_eq!(badge.as_deref(), Some("127.0.0.1 · Connected"));
+    assert_eq!(
+        badge.as_deref(),
+        Some(format!("{NODE_NAME} · Connected").as_str())
+    );
 
     // Never mixed: the local store stayed empty.
     let local = local.lock().expect("local store");

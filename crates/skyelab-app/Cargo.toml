@@ -38,9 +38,11 @@ workspace = true
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }
+skyelab-daemon = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 tungstenite.workspace = true
 skyelab-client = { workspace = true, features = ["test-support"] }
+rustls.workspace = true
 
 [package.metadata.packager]
 product-name = "SkyeLab"

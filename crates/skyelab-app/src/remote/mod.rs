@@ -45,7 +45,12 @@ pub fn push_events(store: &mut Store, slot: DaemonSlot) {
 pub enum Status {
     Off,
     Starting,
-    Sharing { name: String, port: u16 },
+    /// `name` is the MagicDNS name clients dial; the TLS certificate is for it and valid until `cert_until`.
+    Sharing {
+        name: String,
+        port: u16,
+        cert_until: String,
+    },
     Failed(String),
 }
 
@@ -54,7 +59,11 @@ impl Status {
         match self {
             Status::Off => "Not sharing".into(),
             Status::Starting => "Starting sharing…".into(),
-            Status::Sharing { name, port } => format!("Sharing on {name}:{port}").into(),
+            Status::Sharing {
+                name,
+                port,
+                cert_until,
+            } => format!("Sharing on {name}:{port} · certificate valid until {cert_until}").into(),
             Status::Failed(e) => format!("Not sharing: {e}").into(),
         }
     }
@@ -156,21 +165,16 @@ impl Remote {
             self.generation.clone(),
             self.bind.clone(),
         );
-        // self_node shells out to tailscale and can take seconds.
+        // Shells out to tailscale (status, then cert, which can take tens of seconds the first time).
         let started = cx.background_spawn(async move {
             let _bind = lock_unpoisoned(&bind);
-            let me = tailnet.self_node()?;
-            let name = match me.dns_name.trim_end_matches('.') {
-                "" => me.hostname,
-                dns => dns.to_owned(),
-            };
             let daemon = Daemon::start(config, tailnet, backend)?;
             if current.load(Ordering::SeqCst) != generation {
                 drop(daemon); // stopped meanwhile; freed before the next start can bind
                 anyhow::bail!("stopped while starting");
             }
             let port = daemon.local_addrs().first().map_or(0, |a| a.port());
-            anyhow::Ok((daemon, name, port))
+            anyhow::Ok((daemon, port))
         });
         // A start still running is detached, not cancelled, so its stale daemon is dropped under `bind`.
         if let Some(old) = self._start.take() {
@@ -186,10 +190,15 @@ impl Remote {
                     return;
                 }
                 this.status = match started {
-                    Ok((daemon, name, port)) => {
+                    Ok((daemon, port)) => {
+                        let cert = daemon.certificate();
                         *lock_slot(&this.host.slot) = Some(daemon);
                         this.poll_peers(cx);
-                        Status::Sharing { name, port }
+                        Status::Sharing {
+                            cert_until: cert.expires_utc(),
+                            name: cert.name,
+                            port,
+                        }
                     }
                     Err(e) => Status::Failed(format!("{e:#}")),
                 };
@@ -220,14 +229,22 @@ impl Remote {
             .then(|| self.generation.load(Ordering::SeqCst))
     }
 
+    /// Also picks up a renewed certificate's expiry.
     pub fn refresh_peers(&mut self, cx: &mut Context<Self>) {
-        let peers = lock_slot(&self.host.slot)
-            .as_ref()
-            .map(Daemon::peers)
-            .unwrap_or_default();
+        let (peers, cert) = match &*lock_slot(&self.host.slot) {
+            Some(daemon) => (daemon.peers(), Some(daemon.certificate())),
+            None => (Vec::new(), None),
+        };
         if peers != self.peers {
             self.peers = peers;
             cx.notify();
+        }
+        if let (Status::Sharing { cert_until, .. }, Some(cert)) = (&mut self.status, cert) {
+            let until = cert.expires_utc();
+            if *cert_until != until {
+                *cert_until = until;
+                cx.notify();
+            }
         }
     }
 

@@ -3,9 +3,10 @@
 
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
+use skyelab_daemon::testing::{NODE_NAME, ca};
 use skyelab_daemon::{Agents, Config, Daemon, StoreBackend};
 use skyelab_protocol::RpcError;
-use skyelab_tailnet::{Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
+use skyelab_tailnet::{Cert, Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -34,10 +35,13 @@ pub(super) struct FakeTailnet {
 
 impl Tailnet for FakeTailnet {
     fn self_node(&self) -> Result<Node, TailnetError> {
-        Ok(node("nSelf", "desktop.example.ts.net", ME, true, &[]))
+        Ok(node("nSelf", NODE_NAME, ME, true, &[]))
     }
     fn peers(&self) -> Result<Vec<Node>, TailnetError> {
         Ok(self.peers.clone())
+    }
+    fn cert(&self, name: &str) -> Result<Cert, TailnetError> {
+        Ok(ca().issue(name))
     }
     fn whois(&self, _: SocketAddr) -> Result<WhoIs, TailnetError> {
         if self.refuse.load(Ordering::SeqCst) {
@@ -220,7 +224,7 @@ impl RemoteSide {
     }
 
     pub fn options(&self) -> skyelab_client::Options {
-        let mut options = skyelab_client::Options::default().allow_loopback();
+        let mut options = test_options();
         options.port = self.port;
         options.backoff_min = Duration::from_millis(50);
         options.backoff_max = Duration::from_millis(200);
@@ -340,11 +344,21 @@ pub(super) fn click_row(ws: &Entity<Workspace>, label: &str, cx: &mut VisualTest
 /// Connected to `remote` and showing its projects.
 pub(super) fn connect(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut VisualTestContext) {
     let _ = remote;
-    switch(ws, Some("127.0.0.1"), cx);
+    switch(ws, Some(NODE_NAME), cx);
     wait_until(cx, "connected", |cx| state(ws, cx) == "Connected");
     wait_until(cx, "remote projects", |cx| {
         sidebar(ws, cx)
             .first()
             .is_some_and(|(_, rows)| rows == &["app".to_owned()])
     });
+}
+
+/// A client that trusts the test CA and dials this node's MagicDNS name on loopback (TLS still checks the name).
+pub(super) fn test_options() -> skyelab_client::Options {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.add(ca().root()).expect("test CA root");
+    skyelab_client::Options::default()
+        .allow_loopback()
+        .trust_roots(roots)
+        .resolve_to(IpAddr::V4(Ipv4Addr::LOCALHOST))
 }

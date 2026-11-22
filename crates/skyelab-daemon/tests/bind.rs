@@ -12,8 +12,7 @@ fn tailnet_with(ips: Vec<IpAddr>, down: bool) -> Arc<FakeTailnet> {
     Arc::new(FakeTailnet {
         ips,
         down: down.into(),
-        peer: std::sync::Mutex::new(Peer::Own),
-        whois_calls: Default::default(),
+        ..FakeTailnet::default()
     })
 }
 
