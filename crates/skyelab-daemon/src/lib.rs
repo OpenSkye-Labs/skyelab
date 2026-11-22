@@ -33,7 +33,7 @@ use tokio_tungstenite::tungstenite::handshake::server::{
 use tokio_tungstenite::tungstenite::http::{StatusCode, header};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
-pub use backend::{Agents, Backend, NotWired, StoreBackend, event};
+pub use backend::{Agents, Backend, MAX_EVENTS_PER_REPLY, NotWired, StoreBackend, event};
 
 pub type SharedTailnet = Arc<dyn Tailnet + Send + Sync>;
 
@@ -89,6 +89,9 @@ impl Daemon {
         tailnet: SharedTailnet,
         backend: Arc<dyn Backend>,
     ) -> Result<Self> {
+        if config.max_in_flight == 0 || config.max_pending == 0 || config.max_message_bytes == 0 {
+            bail!("daemon limits must be at least 1: {config:?}");
+        }
         let me = tailnet
             .self_node()
             .context("can't start the daemon without a running tailnet")?;
@@ -97,8 +100,8 @@ impl Daemon {
         }
         let mut listeners = Vec::new();
         for ip in &me.tailscale_ips {
-            // Never a wildcard: that would listen on the LAN and the internet too.
-            if ip.is_unspecified() {
+            // Never a wildcard, including ::ffff:0.0.0.0, which dual-stack Linux binds as IPv4 0.0.0.0.
+            if ip.to_canonical().is_unspecified() {
                 bail!("tailnet reported an unspecified address ({ip}); refusing to listen on it");
             }
             let addr = SocketAddr::new(*ip, config.port);
@@ -119,6 +122,14 @@ impl Daemon {
             .enable_all()
             .build()
             .context("start the daemon runtime")?;
+        let listeners = {
+            let _runtime = runtime.enter();
+            listeners
+                .into_iter()
+                .map(TcpListener::from_std)
+                .collect::<std::io::Result<Vec<_>>>()
+                .context("register listener")?
+        };
         let (events, _) = broadcast::channel(256);
         let shared = Arc::new(Shared {
             pending: Arc::new(Semaphore::new(config.max_pending)),
@@ -133,12 +144,8 @@ impl Daemon {
             .spawn(move || {
                 runtime.block_on(async move {
                     for l in listeners {
-                        match TcpListener::from_std(l) {
-                            Ok(l) => drop(tokio::spawn(accept_loop(l, shared.clone()))),
-                            Err(e) => eprintln!("skyelab-daemon: listener failed: {e}"),
-                        }
+                        tokio::spawn(accept_loop(l, shared.clone()));
                     }
-                    // Sent by `Drop`, or the sender is gone: either way, stop.
                     let _ = stop.await;
                 });
                 // Blocking whois calls can't be cancelled; their CLI timeout bounds them.
@@ -200,7 +207,12 @@ async fn handle(
     shared: Arc<Shared>,
     permit: OwnedSemaphorePermit,
 ) {
-    let ws = match timeout(shared.config.gate_timeout, admit(stream, peer, &shared)).await {
+    let ws = match timeout(
+        shared.config.gate_timeout,
+        admit(stream, peer, &shared, permit),
+    )
+    .await
+    {
         Ok(Ok(ws)) => ws,
         Ok(Err(reason)) => {
             eprintln!("skyelab-daemon: rejected {peer}: {reason}");
@@ -214,7 +226,6 @@ async fn handle(
             return;
         }
     };
-    drop(permit);
     serve(ws, peer, &shared).await;
 }
 
@@ -223,9 +234,12 @@ async fn admit(
     stream: TcpStream,
     peer: SocketAddr,
     shared: &Shared,
+    permit: OwnedSemaphorePermit,
 ) -> Result<WebSocketStream<TcpStream>, String> {
     let tailnet = shared.tailnet.clone();
+    // The permit lives in the blocking task: a gate timeout can't cancel whois, so the slot frees when whois ends.
     let checked = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
         let me = tailnet
             .self_node()
             .map_err(|e| format!("tailnet unavailable: {e}"))?;
@@ -312,7 +326,14 @@ async fn serve(ws: WebSocketStream<TcpStream>, peer: SocketAddr, shared: &Shared
                 }
             }
             Some(reply) = replies.recv() => Step::Send(reply),
-            event = next_event(&mut events) => Step::Send(ServerMessage::Event(event)),
+            event = next_event(&mut events) => match event {
+                Some(event) => Step::Send(ServerMessage::Event(event)),
+                None => {
+                    // seq is per thread, so a client can't see a gap on a thread whose events were all dropped.
+                    eprintln!("skyelab-daemon: closing {peer}: too slow for pushed events, it must reconnect and resync");
+                    Step::Close
+                }
+            },
             Some(_) = running.join_next(), if !running.is_empty() => Step::Nothing,
         };
         let (msg, close) = match step {
@@ -321,17 +342,20 @@ async fn serve(ws: WebSocketStream<TcpStream>, peer: SocketAddr, shared: &Shared
             Step::Nothing => (None, false),
             Step::Close => (None, true),
         };
-        if let Some(msg) = msg
-            && sink.send(Message::text(msg.to_json())).await.is_err()
-        {
-            break;
+        // A client that stops reading would block the send forever, and the idle timer can't fire meanwhile.
+        if let Some(msg) = msg {
+            let sent = timeout(config.idle_timeout, sink.send(Message::text(msg.to_json()))).await;
+            if !matches!(sent, Ok(Ok(()))) {
+                eprintln!("skyelab-daemon: closing {peer}: write failed or stalled");
+                break;
+            }
         }
         if close {
-            let _ = sink.close().await;
+            let _ = timeout(config.idle_timeout, sink.close()).await;
             break;
         }
     }
-    // Dropping `running` aborts requests still in flight.
+    // Dropping `running` drops pending replies; a backend call already running still finishes on its thread.
 }
 
 fn on_text(
@@ -394,7 +418,7 @@ fn on_text(
                             error: RpcError::new(ErrorCode::Internal, "request failed"),
                         },
                     };
-                // The channel holds max_in_flight replies and we hold a permit, so this never waits long.
+                // Waits only while `serve` is busy writing; it drains this channel every turn.
                 let _ = replies.send(reply).await;
                 drop(permit);
             });
@@ -421,16 +445,13 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
     }
 }
 
-/// The next pushed event, or never if this connection hasn't said hello.
-async fn next_event(events: &mut Option<broadcast::Receiver<ThreadEvent>>) -> ThreadEvent {
+/// The next pushed event; `None` if this connection fell behind and missed some. Pends forever before hello.
+async fn next_event(events: &mut Option<broadcast::Receiver<ThreadEvent>>) -> Option<ThreadEvent> {
     if let Some(rx) = events {
-        loop {
-            match rx.recv().await {
-                Ok(event) => return event,
-                // A slow client missed some; the seq gap tells it to fetch them with thread_events_since.
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => break,
-            }
+        match rx.recv().await {
+            Ok(event) => return Some(event),
+            Err(broadcast::error::RecvError::Lagged(_)) => return None,
+            Err(broadcast::error::RecvError::Closed) => {}
         }
     }
     std::future::pending().await

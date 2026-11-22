@@ -6,7 +6,7 @@ use skyelab_protocol::{
     VERSION,
 };
 
-/// Serializes `msg`, checks the wire shape, and parses it back to the same value.
+/// Serializes the request, checks the wire shape, and parses it back to the same value.
 fn round_trip_request(call: Call, wire: serde_json::Value) {
     let req = Request { id: 7, call };
     let text = serde_json::to_string(&req).unwrap();

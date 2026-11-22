@@ -18,6 +18,7 @@ use tungstenite::{Message, WebSocket};
 
 pub const ME: u64 = 1001;
 
+#[derive(Clone, Copy)]
 pub enum Peer {
     Own,
     OtherUser,
@@ -87,7 +88,9 @@ impl Tailnet for FakeTailnet {
 
     fn whois(&self, _addr: SocketAddr) -> Result<WhoIs, Error> {
         self.whois_calls.fetch_add(1, Ordering::SeqCst);
-        match &*self.peer.lock().unwrap() {
+        // Copy out first: holding the lock through a Hang would serialize every whois.
+        let peer = *self.peer.lock().unwrap();
+        match peer {
             Peer::Own => Ok(whois(ME, vec![])),
             Peer::OtherUser => Ok(whois(2002, vec![])),
             Peer::Tagged => Ok(whois(ME, vec!["tag:server".into()])),
@@ -96,7 +99,7 @@ impl Tailnet for FakeTailnet {
                 stderr: "no such peer".into(),
             }),
             Peer::Hang(d) => {
-                std::thread::sleep(*d);
+                std::thread::sleep(d);
                 Ok(whois(ME, vec![]))
             }
         }
@@ -197,12 +200,20 @@ pub fn send(ws: &mut Client, id: u64, call: Call) {
 }
 
 /// The next server message, skipping control frames. `None` once the server closed the connection.
+/// Panics on a read timeout, so a server that goes silent can't pass for one that closed.
 pub fn recv(ws: &mut Client) -> Option<ServerMessage> {
     loop {
         match ws.read() {
             Ok(Message::Text(t)) => return Some(serde_json::from_str(&t).unwrap()),
-            Ok(Message::Close(_)) => continue, // the next read reports the close
             Ok(_) => continue,
+            Err(tungstenite::Error::Io(e))
+                if matches!(
+                    e.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                panic!("read timed out: the server neither answered nor closed")
+            }
             Err(_) => return None,
         }
     }

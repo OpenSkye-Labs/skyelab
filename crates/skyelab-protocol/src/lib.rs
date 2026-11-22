@@ -67,7 +67,8 @@ pub enum Call {
     ListThreads {
         project_id: i64,
     },
-    /// Events with `seq` greater than `seq`, oldest first. `seq: 0` returns them all.
+    /// Events with `seq` greater than `seq`, oldest first, at most a page of them: ask again from the last
+    /// seq until the reply is empty. `seq: 0` starts at the beginning.
     ThreadEventsSince {
         thread_id: i64,
         seq: i64,

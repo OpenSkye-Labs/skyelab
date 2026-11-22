@@ -16,15 +16,15 @@ pub trait Backend: Send + Sync + 'static {
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError>;
 }
 
-/// Runs agents for remote requests. The app implements it with skyelab-agent, which applies the folder's
-/// `launch_env`; the daemon never launches anything itself.
+/// Runs agents for remote requests. The daemon never launches anything itself; an implementation must launch
+/// with the folder's `AccountsConfig::launch_env`.
 pub trait Agents: Send + Sync + 'static {
     fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError>;
     fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError>;
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError>;
 }
 
-/// [`Agents`] until the app wires skyelab-agent in: every call fails with [`ErrorCode::NotWired`].
+/// Every call fails with [`ErrorCode::NotWired`].
 pub struct NotWired;
 
 impl NotWired {
@@ -47,6 +47,9 @@ impl Agents for NotWired {
         Self::err()
     }
 }
+
+/// Keeps one reply well under a client's message limit; a client pages by asking again from the last seq.
+pub const MAX_EVENTS_PER_REPLY: usize = 500;
 
 /// Reads come from the store; agent calls go to `A`.
 pub struct StoreBackend<A> {
@@ -111,7 +114,11 @@ impl<A: Agents> Backend for StoreBackend<A> {
 
     fn thread_events_since(&self, thread_id: i64, seq: i64) -> Result<Vec<ThreadEvent>, RpcError> {
         let events = self.with_store(|s| s.events_since(thread_id, seq))?;
-        Ok(events.into_iter().map(event).collect())
+        Ok(events
+            .into_iter()
+            .take(MAX_EVENTS_PER_REPLY)
+            .map(event)
+            .collect())
     }
 
     fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError> {
@@ -127,7 +134,7 @@ impl<A: Agents> Backend for StoreBackend<A> {
     }
 }
 
-/// Store event → wire event; the app uses it to [`crate::Daemon::push_event`] what it appends.
+/// Store event → wire event, for [`crate::Daemon::push_event`].
 pub fn event(e: skyelab_store::Event) -> ThreadEvent {
     ThreadEvent {
         thread_id: e.thread_id,
