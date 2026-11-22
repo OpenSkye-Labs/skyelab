@@ -48,6 +48,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
 
     // Duplicate id: core error shows inline, nothing saved.
     set(&id, "acme", cx);
+    set(&dir_in, "/home/me/.claude-acme", cx);
     view.update_in(cx, |v, window, cx| v.save_account(&SaveAccount, window, cx));
     view.read_with(cx, |v, _| {
         assert!(
