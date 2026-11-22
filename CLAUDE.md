@@ -70,6 +70,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 `mobile/` (iOS/Android client) is its own workspace, outside this gate and checked by `.github/workflows/mobile.yml`.
 In `mobile/`, run `scripts/fetch-gpui-mobile.sh` before any cargo command, then `cargo clippy --workspace --all-targets -- -D warnings`
 and `cargo test --workspace`; run it with `scripts/run-ios.sh` / `scripts/run-android.sh`. See `mobile/UPSTREAM.md`.
+Shipping builds: `scripts/build-ios.sh release [simulator|device]` / `scripts/build-android.sh release` (our own shells in
+`mobile/ios/` and `mobile/android-host/`; signing only from env vars, docs/mobile.md step 6). `scripts/check-hosts.sh`
+keeps Android at INTERNET only with no deep links, and the Gradle wrapper pinned by checksum.
 
 ## Release
 

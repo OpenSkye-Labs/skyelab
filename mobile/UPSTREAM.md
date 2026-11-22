@@ -7,7 +7,9 @@ We pin commit `7548ebc4b24f00494af9976af8852c7163ded9ce`, which targets `gpui-pr
 cargo resolves the Android-only path dependency on every target.
 
 We take gpui-mobile under **Apache-2.0**, one of its three licenses (GPL-3.0+ OR AGPL-3.0+ OR Apache-2.0). None of its
-code is in our git. The Android package will carry its Apache-2.0 notice once packaging exists (docs/mobile.md step 6).
+code is in our git: the Android host (`android-host/`) copies the one Java class it needs, `GpuiInputActivity`, from the
+fetched checkout at build time, and ships gpui-mobile's `LICENSE-APACHE` in the APK as
+`assets/licenses/gpui-mobile-LICENSE-APACHE.txt`.
 
 ## Why fetch and patch, not vendor
 
@@ -79,10 +81,17 @@ gpui-mobile's TalkBack adapter). Release wraps it to `-1` as a `jint`, which is 
   already shrank for the soft keyboard, so the composer was never covered there; what was missing was `ime` (zero)
   and a safe area that carried the keyboard height. With 0003 logcat shows `bars=[0, 132, 0, 63] ime_bottom=883`
   with the keyboard up. No keyboard animation tracking: the layout jumps once the insets settle.
-  Still untested: edge-to-edge (target SDK 35+). There the content rect stops changing for the keyboard, and 0003
-  reads `WindowInsets` only on a content-rect or insets change, so it relies on NativeActivity reporting one. Our own
-  Gradle host (docs/mobile.md step 6) should check this, or add an `OnApplyWindowInsetsListener`.
-- **The Gradle host** in `scripts/run-android.sh` is gpui-mobile's example. Its manifest asks for camera, microphone,
-  contacts, calendar, media and notification permissions and exports a `gpui://` deep link, and its Gradle wrapper has
-  no `distributionSha256Sum`. Fine for a dev build on an emulator; our own cut-down host is docs/mobile.md step 6 and
-  must fix all three before anything is distributed.
+  Edge-to-edge (target SDK 35+): there the content rect stops changing for the keyboard, so 0003 alone never
+  re-reads the insets. Our host's `SkyeLabActivity` pads its content view by the IME inset from an
+  `OnApplyWindowInsetsListener`; the view resizes, NativeActivity reports a content-rect change, and 0003 reads the
+  real `WindowInsets`. No Rust change. Not yet seen on a device (docs/mobile.md step 6). Worth upstreaming into
+  gpui-mobile's example host once it is.
+- **The Gradle host** is ours since docs/mobile.md step 6 (`android-host/`). gpui-mobile's example host asked for
+  camera, microphone, contacts, calendar, media and notification permissions, exported a `gpui://` deep link and had no
+  `distributionSha256Sum`; ours has none of that (`scripts/check-hosts.sh`). What we dropped from it: the splash
+  screen, the media session, deep links, the pickers and plugin classes, and the bundled 10 MB `NotoColorEmoji.ttf`
+  (so emoji don't render on Android yet).
+- **Our host relies on two upstream names.** The JNI symbols bind to `dev.gpui.mobile.GpuiInputActivity` (its
+  `nativeIme`, and the `gpuiShowKeyboard`/`gpuiHideKeyboard`/`gpuiResetComposition` methods Rust calls on the activity),
+  and the Gradle copy task reads `example/android/gradle/app/src/main/java/` in the checkout. On a pin bump, check both
+  still exist; the build fails loudly if the file moved.
