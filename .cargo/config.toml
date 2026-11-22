@@ -1,0 +1,4 @@
+[env]
+# Minimum macOS 14: wry crashes on older macOS for URLs with unusual characters (docs/architecture.md).
+# Only Apple toolchains read this, so other targets ignore it.
+MACOSX_DEPLOYMENT_TARGET = "14.0"
