@@ -82,6 +82,7 @@ impl ThreadView {
             .find(|l| l.contains(':'))
             .unwrap_or_default()
             .trim()
+            .trim_end_matches(',')
             .chars()
             .take(80)
             .collect();
@@ -245,15 +246,18 @@ impl ThreadView {
                     )),
             )
             .child(
-                div().debug_selector(|| "bind-cta".into()).child(
-                    Button::new("bind-cta")
-                        .primary()
-                        .small()
-                        .label("Bind this folder to an account")
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(OpenSettings), cx)
-                        }),
-                ),
+                div()
+                    .self_start()
+                    .debug_selector(|| "bind-cta".into())
+                    .child(
+                        Button::new("bind-cta")
+                            .primary()
+                            .small()
+                            .label("Bind this folder to an account")
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(OpenSettings), cx)
+                            }),
+                    ),
             )
             .into_any_element()
     }
