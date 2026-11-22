@@ -6,7 +6,8 @@
 //! connection alive with pings.
 //!
 //! Server trust: the host is resolved first, and only addresses inside Tailscale's ranges are dialed
-//! ([`is_tailnet_ip`]), so a hostile DNS (the VPN off) can't point the client at an arbitrary server.
+//! ([`is_tailnet_ip`]), so a hostile DNS (the VPN off) can't point the client at a public or LAN server. That range
+//! is also carrier-grade NAT space; see [`is_tailnet_ip`] for what that leaves open.
 //!
 //! Events: only watched threads ([`Client::watch`]) are delivered, each event exactly once and in seq order. A gap
 //! in the pushed stream, a reconnect, or a server that dropped us for lagging is filled from the store with
@@ -18,7 +19,6 @@ mod guard;
 mod tests;
 
 use std::sync::{Arc, Mutex, PoisonError};
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 pub use guard::is_tailnet_ip;
@@ -120,17 +120,25 @@ impl<T> Pending<T> {
     }
 }
 
-/// A connection to one environment. Dropping it closes the connection and stops its thread.
+/// A connection to one environment. Dropping it closes the connection; the thread exits on its own.
+///
+/// A request made while disconnected fails with [`Error::NotConnected`] (one made just as a connection comes up
+/// may go out on it instead).
 pub struct Client {
-    commands: Option<flume::Sender<conn::Command>>,
+    commands: flume::Sender<conn::Command>,
     updates: flume::Receiver<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
-    thread: Option<JoinHandle<()>>,
 }
 
 impl Client {
     /// Starts connecting to `host` (a MagicDNS name or a tailnet IP) in the background. Never blocks on the network.
     pub fn connect(host: impl Into<String>, options: Options) -> std::io::Result<Self> {
+        if options.ping_interval.is_zero() || options.backoff_min.is_zero() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "ping_interval and backoff_min must be above zero",
+            ));
+        }
         let host = host.into();
         let (commands, commands_rx) = flume::unbounded();
         let (updates_tx, updates) = flume::unbounded();
@@ -139,7 +147,7 @@ impl Client {
             .enable_all()
             .build()?;
         let shared_hello = hello.clone();
-        let thread = std::thread::Builder::new()
+        std::thread::Builder::new()
             .name("skyelab-client".into())
             .spawn(move || {
                 runtime.block_on(conn::run(
@@ -153,10 +161,9 @@ impl Client {
                 runtime.shutdown_background();
             })?;
         Ok(Self {
-            commands: Some(commands),
+            commands,
             updates,
             hello,
-            thread: Some(thread),
         })
     }
 
@@ -218,7 +225,7 @@ impl Client {
     pub fn watch(&self, thread_id: i64, after_seq: i64) {
         self.command(conn::Command::Watch {
             thread_id,
-            after_seq,
+            after_seq: after_seq.max(0), // seqs start at 1
         });
     }
 
@@ -241,12 +248,10 @@ impl Client {
     }
 
     fn command(&self, command: conn::Command) {
-        let sent = match &self.commands {
-            Some(commands) => commands.send(command),
-            None => return,
-        };
         // The connection task has stopped (a fatal error): fail the request right away.
-        if let Err(flume::SendError(conn::Command::Call { reply, .. })) = sent {
+        if let Err(flume::SendError(conn::Command::Call { reply, .. })) =
+            self.commands.send(command)
+        {
             reply(Err(Error::Stopped));
         }
     }
@@ -254,14 +259,4 @@ impl Client {
 
 fn ok(reply: Reply) -> Option<()> {
     matches!(reply, Reply::Ok).then_some(())
-}
-
-impl Drop for Client {
-    fn drop(&mut self) {
-        // Closing the command channel stops the connection task.
-        self.commands.take();
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
 }

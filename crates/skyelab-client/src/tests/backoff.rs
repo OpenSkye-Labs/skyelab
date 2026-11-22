@@ -1,4 +1,4 @@
-//! Criterion 11: failed connections are retried with a growing delay, not in a tight loop.
+//! Failed connections are retried with a growing delay, not in a tight loop.
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

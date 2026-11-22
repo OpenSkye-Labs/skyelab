@@ -1,14 +1,12 @@
 //! The tokio side: one task owns the connection, the request table and every watched thread's seq.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
-use skyelab_protocol::{
-    Call, ErrorCode, Hello, Reply, Request, RequestId, ServerMessage, ThreadEvent, Version,
-};
+use skyelab_protocol::{Call, ErrorCode, Hello, Reply, Request, RequestId, ServerMessage, Version};
 use tokio::net::TcpStream;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::WebSocketStream;
@@ -17,56 +15,15 @@ use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
 use crate::{Error, Options, Update, guard};
 
+mod watched;
+use watched::Watched;
+
 pub(crate) type ReplyFn = Box<dyn FnOnce(Result<Reply, Error>) + Send>;
 
 pub(crate) enum Command {
     Call { call: Call, reply: ReplyFn },
     Watch { thread_id: i64, after_seq: i64 },
     Unwatch { thread_id: i64 },
-}
-
-/// Out-of-order pushes kept per thread while a fill runs. Past it they're dropped; the fill fetches them anyway.
-const MAX_AHEAD: usize = 1000;
-
-struct Watched {
-    /// The last seq delivered.
-    last: i64,
-    filling: bool,
-    /// Pushed events past a gap, waiting for the fill to reach them.
-    ahead: BTreeMap<i64, ThreadEvent>,
-}
-
-impl Watched {
-    fn new(last: i64) -> Self {
-        Self {
-            last,
-            filling: false,
-            ahead: BTreeMap::new(),
-        }
-    }
-
-    /// Delivers `ev` if it is the next seq (then any buffered ones that follow), drops it if already delivered,
-    /// buffers it if there is a gap. Every event goes through here, pushed or fetched, so the order can't matter.
-    fn accept(&mut self, ev: ThreadEvent, updates: &flume::Sender<Update>) {
-        if ev.seq <= self.last {
-            return;
-        }
-        if ev.seq > self.last + 1 {
-            if self.ahead.len() < MAX_AHEAD {
-                self.ahead.insert(ev.seq, ev);
-            } else {
-                self.ahead.clear();
-            }
-            return;
-        }
-        self.last = ev.seq;
-        let _ = updates.send(Update::Event(ev));
-        self.ahead = self.ahead.split_off(&(self.last + 1));
-        while let Some(next) = self.ahead.remove(&(self.last + 1)) {
-            self.last = next.seq;
-            let _ = updates.send(Update::Event(next));
-        }
-    }
 }
 
 enum End {
@@ -171,7 +128,7 @@ pub(crate) async fn run(
                 command = cx.commands.recv_async() => if !cx.offline(command) { return },
             }
         }
-        backoff = (backoff * 2).min(cx.options.backoff_max);
+        backoff = backoff.saturating_mul(2).min(cx.options.backoff_max);
     }
 }
 
@@ -202,6 +159,8 @@ async fn session(cx: &mut Ctx) -> End {
         ws,
         next_id: 1,
         pending: HashMap::new(),
+        retry_at: None,
+        retry_delay: cx.options.backoff_min,
     };
     let end = live.serve(cx).await;
     // Whatever was in flight on this connection can't be answered now.
@@ -233,7 +192,9 @@ async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
     let addrs = guard::resolve(&cx.host, port, cx.allow_loopback)
         .await
         .map_err(lost)?;
-    let stream = dial(&addrs).await.map_err(lost)?;
+    // Each address gets a share of the budget, so a black-holed first one can't starve the rest.
+    let per_addr = cx.options.connect_timeout / addrs.len().max(1) as u32;
+    let stream = dial(&addrs, per_addr).await.map_err(lost)?;
     let limit = cx.options.max_message_bytes;
     let config = WebSocketConfig::default()
         .max_message_size(Some(limit))
@@ -280,7 +241,7 @@ async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
                 "the environment answered with protocol {}.{}",
                 h.protocol.major, h.protocol.minor
             )))),
-            Ok(ServerMessage::Error { error, .. })
+            Ok(ServerMessage::Error { id: Some(0), error })
                 if error.code == ErrorCode::UnsupportedVersion =>
             {
                 Err(End::Fatal(Error::UnsupportedVersion(error.message)))
@@ -291,15 +252,16 @@ async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
     }
 }
 
-async fn dial(addrs: &[SocketAddr]) -> Result<TcpStream, String> {
+async fn dial(addrs: &[SocketAddr], per_addr: Duration) -> Result<TcpStream, String> {
     let mut errors = Vec::new();
     for addr in addrs {
-        match TcpStream::connect(addr).await {
-            Ok(stream) => {
+        match timeout(per_addr, TcpStream::connect(addr)).await {
+            Ok(Ok(stream)) => {
                 let _ = stream.set_nodelay(true);
                 return Ok(stream);
             }
-            Err(e) => errors.push(format!("{addr}: {e}")),
+            Ok(Err(e)) => errors.push(format!("{addr}: {e}")),
+            Err(_) => errors.push(format!("{addr}: timed out")),
         }
     }
     Err(format!("can't connect: {}", errors.join("; ")))
@@ -323,12 +285,16 @@ struct Live {
     ws: Ws,
     next_id: RequestId,
     pending: HashMap<RequestId, (Instant, Waiter)>,
+    /// When to refill the stale threads, and the delay after that (doubles while fills keep failing).
+    retry_at: Option<Instant>,
+    retry_delay: Duration,
 }
 
 impl Live {
     async fn serve(&mut self, cx: &mut Ctx) -> End {
         for w in cx.watched.values_mut() {
             w.filling = false;
+            w.stale = false;
             w.ahead.clear();
         }
         let threads: Vec<i64> = cx.watched.keys().copied().collect();
@@ -360,8 +326,12 @@ impl Live {
                         Some(Err(e)) => Err(lost(format!("connection error: {e}"))),
                     }
                 }
+                () = sleep_until(self.retry_at.unwrap_or_else(Instant::now)), if self.retry_at.is_some() => {
+                    self.retry_at = None;
+                    self.retry_stale(cx).await
+                }
                 now = ping.tick() => {
-                    if now.duration_since(heard_at) > ping_every * 2 {
+                    if now.duration_since(heard_at) > ping_every.saturating_mul(2) {
                         Err(lost("the environment stopped answering"))
                     } else {
                         self.expire(cx, now);
@@ -399,11 +369,10 @@ impl Live {
                 let Some(w) = cx.watched.get_mut(&thread_id) else {
                     return Ok(());
                 };
-                w.accept(ev, &cx.updates);
-                return if w.ahead.is_empty() {
-                    Ok(())
-                } else {
+                return if w.accept(ev, &cx.updates) {
                     self.fill(cx, thread_id).await
+                } else {
+                    Ok(())
                 };
             }
             ServerMessage::Response { id, result } => (id, Ok(result)),
@@ -422,7 +391,7 @@ impl Live {
                 Ok(())
             }
             Some((_, Waiter::Fill(thread_id))) => self.filled(cx, thread_id, result).await,
-            None => Ok(()), // timed out already
+            None => Ok(()), // timed out already, or an id we never sent
         }
     }
 
@@ -442,7 +411,8 @@ impl Live {
         self.request(cx, call, Waiter::Fill(thread_id)).await
     }
 
-    /// One page arrived. Pages until one is empty or makes no progress (a hole in the server's store).
+    /// One page arrived. Pages while pages make progress; if a gap is left after that (the fill failed, or raced a
+    /// push, or the server's store has a hole), retries after `backoff_min`.
     async fn filled(
         &mut self,
         cx: &mut Ctx,
@@ -457,20 +427,54 @@ impl Live {
             Ok(Reply::Events(page)) => page,
             other => {
                 eprintln!("skyelab-client: can't fetch events of thread {thread_id}: {other:?}");
+                self.mark_stale(cx, thread_id);
                 return Ok(());
             }
         };
         let before = w.last;
+        let mut gap = !w.ahead.is_empty();
         for ev in page {
             if ev.thread_id == thread_id {
-                w.accept(ev, &cx.updates);
+                gap = w.accept(ev, &cx.updates);
             }
         }
         if w.last > before {
+            self.retry_delay = cx.options.backoff_min;
             self.fill(cx, thread_id).await
         } else {
+            if gap {
+                self.mark_stale(cx, thread_id);
+            }
             Ok(())
         }
+    }
+
+    fn mark_stale(&mut self, cx: &mut Ctx, thread_id: i64) {
+        if let Some(w) = cx.watched.get_mut(&thread_id) {
+            w.stale = true;
+            let delay = self.retry_delay;
+            self.retry_at.get_or_insert_with(|| Instant::now() + delay);
+        }
+    }
+
+    async fn retry_stale(&mut self, cx: &mut Ctx) -> Result<(), End> {
+        self.retry_delay = self
+            .retry_delay
+            .saturating_mul(2)
+            .min(cx.options.backoff_max);
+        let stale: Vec<i64> = cx
+            .watched
+            .iter_mut()
+            .filter(|(_, w)| w.stale)
+            .map(|(id, w)| {
+                w.stale = false;
+                *id
+            })
+            .collect();
+        for thread_id in stale {
+            self.fill(cx, thread_id).await?;
+        }
+        Ok(())
     }
 
     async fn request(&mut self, cx: &Ctx, call: Call, waiter: Waiter) -> Result<(), End> {
@@ -508,6 +512,7 @@ impl Live {
                     if let Some(w) = cx.watched.get_mut(&thread_id) {
                         w.filling = false;
                     }
+                    self.mark_stale(cx, thread_id);
                 }
                 None => {}
             }

@@ -1,4 +1,4 @@
-//! Criterion 6: the server goes away and comes back; the client reconnects and resyncs.
+//! The server goes away and comes back; the client reconnects and resyncs.
 
 use std::sync::Arc;
 use std::time::Duration;

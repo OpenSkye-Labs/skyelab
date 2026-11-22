@@ -1,10 +1,10 @@
-//! Criterion 8: a server that misbehaves mid-request closes the connection cleanly, and the request fails.
+//! A server that misbehaves mid-request closes the connection cleanly, and the request fails.
 
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use skyelab_protocol::{Hello, Reply, Request, ServerMessage, VERSION};
+use skyelab_protocol::{Hello, Project, Reply, Request, ServerMessage, VERSION};
 use tungstenite::{Message, WebSocket};
 
 use super::*;
@@ -73,17 +73,27 @@ fn serve(stream: TcpStream, n: usize, how: Misbehave, log: &Log) {
     while let Some(text) = read_text(&mut ws) {
         record(&text);
         if n == 0 {
+            let id = serde_json::from_str::<Request>(&text).expect("request").id;
             match how {
                 Misbehave::Malformed => {
                     let _ = ws.send(Message::text("{\"type\": \"response\", \"id\": [nope"));
                 }
                 Misbehave::Oversized => {
-                    let _ = ws.send(Message::text("x".repeat(64 * 1024)));
+                    // A valid answer, so only the client's size limit can reject it.
+                    let big = ServerMessage::Response {
+                        id,
+                        result: Reply::Projects(vec![Project {
+                            id: 1,
+                            name: "x".repeat(64 * 1024),
+                            path: "/p".into(),
+                        }]),
+                    };
+                    let _ = ws.send(Message::text(big.to_json()));
                 }
-                Misbehave::Drop => {}
+                Misbehave::Drop => return,
             }
-            // Hold the socket open briefly so the client sees the bad frame before EOF.
-            std::thread::sleep(Duration::from_millis(500));
+            // Longer than the test waits, so only the client can be the one that closes.
+            std::thread::sleep(Duration::from_secs(5));
             return;
         }
     }

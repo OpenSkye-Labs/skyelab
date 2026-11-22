@@ -1,4 +1,4 @@
-//! Criterion 7: only tailnet addresses are dialed, resolved names included.
+//! Only tailnet addresses are dialed, resolved names included.
 
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;

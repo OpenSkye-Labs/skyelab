@@ -1,4 +1,4 @@
-//! Criteria 4 and 5: watched threads get every event once, in order, past the 500-event page cap and across gaps.
+//! Watched threads get every event once, in order, past the 500-event page cap and across gaps.
 
 use std::sync::Arc;
 use std::time::Duration;

@@ -1,4 +1,4 @@
-//! Criteria 1 and 3: hello, then each method against the real daemon and store.
+//! Hello, then each method against the real daemon and store.
 
 use std::sync::Arc;
 

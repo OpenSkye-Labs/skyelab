@@ -1,4 +1,4 @@
-//! Criterion 2: a protocol mismatch is fatal and not retried.
+//! A protocol mismatch is fatal and not retried.
 
 use std::sync::Arc;
 use std::time::Duration;

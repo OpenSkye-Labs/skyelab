@@ -1,4 +1,4 @@
-//! Criterion 9: pings keep an idle connection open past the daemon's idle timeout.
+//! Pings keep an idle connection open past the daemon's idle timeout.
 
 use std::sync::Arc;
 use std::time::Duration;
