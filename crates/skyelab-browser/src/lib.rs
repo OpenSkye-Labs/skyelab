@@ -7,10 +7,10 @@
 //! - The page is a native view on top of the GPUI window. It draws over GPUI overlays (menus,
 //!   popovers, dialogs, tooltips) in its bounds, so don't put overlays over the page.
 //!   (`gpui-webview`'s `gpui-fast` feature fixes this but means a second GPUI, which we don't allow.)
-//! - Only user and agent input is checked by [`parse_url`] (http, https, file). Links and scripts
-//!   inside the page navigate wherever the engine lets them.
-//! - Agent API: [`BrowserView::navigate`], [`BrowserView::current_url`], [`BrowserView::eval_js`].
-//!   There is no screenshot API: wry has none. Capture the window instead.
+//! - Only user and agent input is checked by [`parse_url`] (http, https, local file). wry's
+//!   navigation handler also fires for iframes, so filtering there would break `about:`, `data:`
+//!   and `blob:` frames that real web apps use; links and scripts in the page go unfiltered.
+//! - No screenshot API: wry has none. Capture the window instead.
 
 mod js;
 mod url;

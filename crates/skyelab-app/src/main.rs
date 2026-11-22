@@ -59,7 +59,7 @@ fn open_terminal(cx: &mut App) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Demo: a browser window. `SKYELAB_BROWSER_URL` overrides the start page.
+/// Demo: a browser window, e.g. `SKYELAB_BROWSER_URL=localhost:5173` for a dev server.
 fn open_browser(cx: &mut App) -> anyhow::Result<()> {
     let url = std::env::var("SKYELAB_BROWSER_URL").unwrap_or_else(|_| "https://example.com".into());
     let bounds = Bounds::centered(None, size(px(1000.), px(700.)), cx);

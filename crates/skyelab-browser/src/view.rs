@@ -1,5 +1,3 @@
-//! `BrowserView`: URL bar, back/forward/reload, and the native page.
-
 use std::{future::Future, sync::Mutex};
 
 use anyhow::Context as _;
@@ -17,7 +15,7 @@ use gpui_webview::WebView;
 
 use crate::{js, parse_url};
 
-/// A browser pane. The UI and agents drive it through the same methods.
+/// A browser pane. Agents drive it with `navigate`, `current_url` and `eval_js`.
 pub struct BrowserView {
     /// `None` when the native webview couldn't be built (e.g. a Wayland window); `error` says why.
     webview: Option<Entity<WebView>>,
@@ -54,7 +52,7 @@ impl BrowserView {
 
         let url_bar = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("https://localhost:3000")
+                .placeholder("localhost:3000")
                 .default_value(url.trim().to_string())
         });
         let subscription = cx.subscribe_in(&url_bar, window, |this, input, e, _, cx| {
@@ -66,7 +64,7 @@ impl BrowserView {
                 cx.notify();
             }
         });
-        // In-page navigation (links, redirects, history) updates the bar.
+        // Only full loads report here; pushState and hash changes leave the bar as it was.
         let sync_url_bar = cx.spawn_in(window, async move |this, cx| {
             while let Ok(url) = loaded_rx.recv_async().await {
                 let updated = this.update_in(cx, |this, window, cx| {
@@ -131,10 +129,10 @@ impl BrowserView {
         });
         async move {
             started?;
-            // wry drops the callback when the page isn't ready yet; that cancels `rx`.
+            // Before the first load, wry queues the script and drops the callback, cancelling `rx`.
             let raw = rx
                 .await
-                .context("the page dropped the script before it ran")?;
+                .context("page not loaded yet: the script was queued and runs on the next load")?;
             js::decode(&raw)
         }
     }
