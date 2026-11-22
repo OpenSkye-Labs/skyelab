@@ -16,9 +16,17 @@ actions!(terminal, [Paste]);
 
 const CONTEXT: &str = "Terminal";
 
+// `KeyBinding::new` can't resolve `secondary-` (only `KeyBinding::load` can), so pick per OS.
+// ctrl-v is literal-next in a shell, hence ctrl-shift-v off macOS.
+const PASTE_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-v"
+} else {
+    "ctrl-shift-v"
+};
+
 /// Binds the terminal's keys. Call once at startup.
 pub fn init(cx: &mut App) {
-    cx.bind_keys([KeyBinding::new("secondary-v", Paste, Some(CONTEXT))]);
+    cx.bind_keys([KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT))]);
 }
 
 pub struct TerminalView {
@@ -418,4 +426,15 @@ fn rgb(c: Rgb) -> Hsla {
         a: 1.,
     }
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn paste_binding_parses() {
+        // Panics on a keystroke string GPUI can't parse.
+        KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT));
+    }
 }

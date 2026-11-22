@@ -8,6 +8,13 @@ use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
 
 actions!(skyelab, [OpenTerminal]);
 
+// `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
+const OPEN_TERMINAL_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-alt-t"
+} else {
+    "ctrl-alt-t"
+};
+
 struct Shell {
     config: AccountsConfig,
     error: Option<String>,
@@ -78,7 +85,7 @@ fn main() {
     gpui_platform::application().run(move |cx: &mut App| {
         gpui_component::init(cx);
         skyelab_terminal::init(cx);
-        cx.bind_keys([KeyBinding::new("secondary-alt-t", OpenTerminal, None)]);
+        cx.bind_keys([KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None)]);
         cx.on_action(|_: &OpenTerminal, cx| {
             if let Err(e) = open_terminal(cx) {
                 eprintln!("failed to open terminal: {e:#}");
@@ -101,4 +108,15 @@ fn main() {
         }
         cx.activate(true);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn open_terminal_binding_parses() {
+        // Panics on a keystroke string GPUI can't parse.
+        KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None);
+    }
 }
