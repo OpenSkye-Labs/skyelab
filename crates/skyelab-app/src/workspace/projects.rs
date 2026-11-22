@@ -18,18 +18,23 @@ impl Workspace {
         let task = cx.background_spawn(async move { lock(&store)?.list_projects() });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
-            let _ = this.update(cx, |this, cx| match loaded {
-                Ok(projects) => {
-                    this.projects = projects;
-                    let current = this.project.as_ref().map(|p| p.id);
-                    if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id)) {
-                        this.select(id, cx);
+            let _ = this.update(cx, |this, cx| {
+                // Remote starts waiting for this resolve now, found or not.
+                this.starts.loaded();
+                match loaded {
+                    Ok(projects) => {
+                        this.projects = projects;
+                        let current = this.project.as_ref().map(|p| p.id);
+                        if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id))
+                        {
+                            this.select(id, cx);
+                        }
+                        this.refresh_sidebar(cx);
                     }
-                    this.refresh_sidebar(cx);
-                }
-                Err(e) => {
-                    this.store_error = Some(format!("{e:#}").into());
-                    cx.notify();
+                    Err(e) => {
+                        this.store_error = Some(format!("{e:#}").into());
+                        cx.notify();
+                    }
                 }
             });
         }));

@@ -17,12 +17,45 @@ use gpui_component::{
     h_flex,
 };
 use skyelab_protocol::{ErrorCode, RpcError};
+use std::time::Duration;
 
 pub(super) struct RemoteHook {
     remote: Entity<Remote>,
     panel: Option<WeakEntity<RemotePanel>>,
     _calls: Task<()>,
     _observe: Subscription,
+}
+
+/// How long a remote start waits for the first project load before it is resolved anyway.
+const FIRST_LOAD_WAIT: Duration = Duration::from_secs(10);
+/// Remote starts held while the first project load runs; more are refused.
+const MAX_WAITING_STARTS: usize = 16;
+
+/// Remote starts that arrived before the first project load finished.
+pub(super) struct StartQueue {
+    /// Dropped when the first load ends (or the wait times out), which wakes `wait`.
+    loading: Option<flume::Sender<()>>,
+    wait: flume::Receiver<()>,
+    calls: Vec<(i64, String, crate::remote::Reply<i64>)>,
+    _drain: Option<Task<()>>,
+    _timeout: Option<Task<()>>,
+}
+
+impl StartQueue {
+    pub(super) fn new() -> Self {
+        let (loading, wait) = flume::bounded(1);
+        Self {
+            loading: Some(loading),
+            wait,
+            calls: Vec::new(),
+            _drain: None,
+            _timeout: None,
+        }
+    }
+
+    pub(super) fn loaded(&mut self) {
+        self.loading = None;
+    }
 }
 
 fn refused(message: impl Into<String>) -> RpcError {
@@ -176,7 +209,7 @@ impl Workspace {
 
     /// Opens a new thread tab (without taking the user's focus) and sends `prompt` from it. Replies with the
     /// thread id once its row exists, or with why it was refused: an unbound folder never gets a row.
-    fn remote_start(
+    pub(super) fn remote_start(
         &mut self,
         project_id: i64,
         prompt: &str,
@@ -184,6 +217,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.starts.loading.is_some() {
+            return self.queue_start(project_id, prompt, reply, window, cx);
+        }
         let Some(project) = self.projects.iter().find(|p| p.id == project_id).cloned() else {
             let _ = reply.send(Err(RpcError::new(ErrorCode::NotFound, "no such project")));
             return;
@@ -214,6 +250,52 @@ impl Workspace {
         };
         self._thread_events
             .push(cx.observe(&view, move |_, view, cx| answer(view.read(cx))));
+    }
+
+    /// Holds a start until the first project load ends, so its project can be found.
+    fn queue_start(
+        &mut self,
+        project_id: i64,
+        prompt: &str,
+        reply: crate::remote::Reply<i64>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.starts.calls.len() >= MAX_WAITING_STARTS {
+            let _ = reply.send(Err(refused("this machine is still starting; try again")));
+            return;
+        }
+        self.starts
+            .calls
+            .push((project_id, prompt.to_owned(), reply));
+        if self.starts._drain.is_some() {
+            return;
+        }
+        let timer = cx.background_executor().timer(FIRST_LOAD_WAIT);
+        self.starts._timeout = Some(cx.spawn(async move |this, cx| {
+            timer.await;
+            let _ = this.update(cx, |this, _| this.starts.loaded());
+        }));
+        let wait = self.starts.wait.clone();
+        self.starts._drain = Some(cx.spawn_in(window, async move |this, cx| {
+            let _ = wait.recv_async().await; // Err once the load ended: the sender is gone
+            let _ = this.update_in(cx, |this, window, cx| {
+                for (id, prompt, reply) in std::mem::take(&mut this.starts.calls) {
+                    if reply.is_disconnected() {
+                        continue;
+                    }
+                    // Sharing turned off while it waited: access was revoked, so it doesn't run.
+                    let revoked = this.remote.as_ref().is_some_and(|h| {
+                        !matches!(h.remote.read(cx).status, Status::Sharing { .. })
+                    });
+                    if revoked {
+                        let _ = reply.send(Err(refused("sharing was turned off on this machine")));
+                        continue;
+                    }
+                    this.remote_start(id, &prompt, reply, window, cx);
+                }
+            });
+        }));
     }
 
     pub(super) fn render_remote_status(&self, cx: &Context<Self>) -> Option<impl IntoElement> {

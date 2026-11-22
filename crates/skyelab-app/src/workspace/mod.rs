@@ -161,6 +161,7 @@ pub struct Workspace {
     _appearance: Subscription,
     /// Sharing on the tailnet; `None` until `set_remote` (tests that don't share).
     remote: Option<remote::RemoteHook>,
+    starts: remote::StartQueue,
 }
 
 impl Workspace {
@@ -237,6 +238,7 @@ impl Workspace {
             device_source: None,
             _appearance,
             remote: None,
+            starts: remote::StartQueue::new(),
         };
         this.refresh_sidebar(cx);
         this.load_projects(None, cx);
@@ -517,3 +519,6 @@ mod review_cta_folder_test;
 
 #[cfg(test)]
 mod worktree_followups_test;
+
+#[cfg(test)]
+mod remote_start_test;
