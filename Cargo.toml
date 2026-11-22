@@ -19,6 +19,8 @@ toml = "1"
 dirs = "7"
 serde_json = "1"
 flume = "0.12"
+rusqlite = { version = "0.43", features = ["bundled"] }
+tempfile = "3"
 skyelab-core = { path = "crates/skyelab-core" }
 
 [workspace.lints.rust]
