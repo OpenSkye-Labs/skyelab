@@ -17,6 +17,25 @@ use std::rc::Rc;
 
 actions!(skyelab, [SaveAccount, CancelEdit, BindFolder]);
 
+/// Fill the form with this account for editing.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct EditAccount {
+    pub id: String,
+}
+
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct RemoveAccount {
+    pub id: String,
+}
+
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct RemoveBinding {
+    pub path: PathBuf,
+}
+
 const CONTEXT: &str = "Settings";
 
 pub fn init(cx: &mut App) {
@@ -43,6 +62,8 @@ pub struct Settings {
     path: Option<PathBuf>,
     config: AccountsConfig,
     error: Option<String>,
+    /// Why saving is off. Set when the file failed to load, so an edit never overwrites it.
+    locked: Option<String>,
     /// Id of the account the form is editing; `None` means the form adds a new one.
     editing: Option<String>,
     id_input: Entity<InputState>,
@@ -71,7 +92,11 @@ impl Settings {
         };
         let id_input = input("id, e.g. acme", window, cx);
         let label_input = input("label, e.g. Acme (Team)", window, cx);
-        let dir_input = input("config dir, e.g. ~/.claude-acme", window, cx);
+        let dir_input = input(
+            "absolute config dir, e.g. /Users/me/.claude-acme",
+            window,
+            cx,
+        );
         let test_input = input("/path/to/a/folder", window, cx);
         let ids = account_ids(&config);
         let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
@@ -82,14 +107,19 @@ impl Settings {
                 cx.notify();
             }
         })];
-        let error = error.or_else(|| {
-            path.is_none()
-                .then(|| "no config directory on this OS".into())
-        });
+        let locked = match (&path, error) {
+            (None, _) => Some("no config directory on this OS, so nothing can be saved".into()),
+            (Some(p), Some(e)) => Some(format!(
+                "{e}. Editing is off so {} isn't overwritten: fix the file, then restart.",
+                p.display()
+            )),
+            (Some(_), None) => None,
+        };
         Self {
             path,
             config,
-            error,
+            error: locked.clone(),
+            locked,
             editing: None,
             id_input,
             label_input,
@@ -111,6 +141,11 @@ impl Settings {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if let Some(why) = &self.locked {
+            self.error = Some(why.clone());
+            cx.notify();
+            return false;
+        }
         let mut next = self.config.clone();
         let result = edit(&mut next).and_then(|()| {
             let path = self
@@ -185,7 +220,17 @@ impl Settings {
         cx.notify();
     }
 
-    fn edit_account(&mut self, account: &Account, window: &mut Window, cx: &mut Context<Self>) {
+    fn edit_account(&mut self, action: &EditAccount, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(account) = self
+            .config
+            .accounts
+            .iter()
+            .find(|a| a.id == action.id)
+            .cloned()
+        else {
+            return;
+        };
+        let account = &account;
         self.editing = Some(account.id.clone());
         let dir = account.config_dir.display().to_string();
         for (input, text) in [
@@ -196,6 +241,14 @@ impl Settings {
             input.update(cx, |s, cx| s.set_value(text, window, cx));
         }
         cx.notify();
+    }
+
+    fn remove_account(&mut self, a: &RemoveAccount, window: &mut Window, cx: &mut Context<Self>) {
+        self.apply(|c| c.remove_account(&a.id), window, cx);
+    }
+
+    fn remove_binding(&mut self, a: &RemoveBinding, window: &mut Window, cx: &mut Context<Self>) {
+        self.apply(|c| c.remove_binding(&a.path), window, cx);
     }
 
     fn bind_folder(&mut self, _: &BindFolder, window: &mut Window, cx: &mut Context<Self>) {
@@ -246,8 +299,8 @@ impl Settings {
         };
         section("Accounts", cx)
             .children(self.config.accounts.iter().map(|a| {
-                let edit = a.clone();
-                let id = a.id.clone();
+                let edit = EditAccount { id: a.id.clone() };
+                let remove = RemoveAccount { id: a.id.clone() };
                 row(cx)
                     .child(
                         div()
@@ -277,7 +330,7 @@ impl Settings {
                             .small()
                             .danger()
                             .on_click(cx.listener(move |this, _, window, cx| {
-                                this.apply(|c| c.remove_account(&id), window, cx);
+                                this.remove_account(&remove, window, cx)
                             })),
                     )
             }))
@@ -299,13 +352,15 @@ impl Settings {
                                 "Add"
                             })
                             .primary()
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(SaveAccount), cx)
-                            }),
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.save_account(&SaveAccount, window, cx)
+                            })),
                     )
                     .when(self.editing.is_some(), |d| {
                         d.child(Button::new("cancel-edit").label("Cancel").ghost().on_click(
-                            |_, window, cx| window.dispatch_action(Box::new(CancelEdit), cx),
+                            cx.listener(|this, _, window, cx| {
+                                this.cancel_edit(&CancelEdit, window, cx)
+                            }),
                         ))
                     }),
             )
@@ -329,7 +384,9 @@ impl Settings {
                 )
             })
             .children(self.config.bindings.iter().map(|b| {
-                let path = b.path.clone();
+                let remove = RemoveBinding {
+                    path: b.path.clone(),
+                };
                 row(cx)
                     .child(div().flex_1().child(b.path.display().to_string()))
                     .child(
@@ -343,7 +400,7 @@ impl Settings {
                             .small()
                             .danger()
                             .on_click(cx.listener(move |this, _, window, cx| {
-                                this.apply(|c| c.remove_binding(&path), window, cx);
+                                this.remove_binding(&remove, window, cx)
                             })),
                     )
             }))
@@ -365,9 +422,9 @@ impl Settings {
                         Button::new("bind-folder")
                             .label("Bind folder…")
                             .primary()
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(BindFolder), cx)
-                            }),
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.bind_folder(&BindFolder, window, cx)
+                            })),
                     ),
             )
     }
@@ -439,6 +496,9 @@ impl Render for Settings {
             .on_action(cx.listener(Self::save_account))
             .on_action(cx.listener(Self::cancel_edit))
             .on_action(cx.listener(Self::bind_folder))
+            .on_action(cx.listener(Self::edit_account))
+            .on_action(cx.listener(Self::remove_account))
+            .on_action(cx.listener(Self::remove_binding))
             .size_full()
             .overflow_y_scroll()
             .p_4()

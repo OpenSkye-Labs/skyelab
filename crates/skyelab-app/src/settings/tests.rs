@@ -108,3 +108,47 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
         assert_eq!(v.config.accounts.len(), 1);
     });
 }
+
+#[gpui::test]
+fn load_error_locks_editing_so_the_file_is_not_overwritten(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("accounts.toml");
+    let broken = "[[binding]]\npath = \"/w\"\naccount = \"typo\"\n";
+    std::fs::write(&path, broken).expect("write");
+    let error = AccountsConfig::load(&path).expect_err("unknown account");
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        Settings::new(
+            Some(path.clone()),
+            AccountsConfig::default(),
+            Some(format!("{error:#}")),
+            window,
+            cx,
+        )
+    });
+    let saved = view.update_in(cx, |v, window, cx| {
+        v.apply(
+            |c| {
+                c.add_account(Account {
+                    id: "x".into(),
+                    label: "X".into(),
+                    config_dir: "/home/me/.claude-x".into(),
+                })
+            },
+            window,
+            cx,
+        )
+    });
+    assert!(!saved);
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), broken);
+    view.read_with(cx, |v, _| {
+        assert!(
+            v.error
+                .as_deref()
+                .is_some_and(|e| e.contains("Editing is off"))
+        );
+    });
+}
