@@ -1,3 +1,5 @@
+use crate::text::connection_text;
+pub use crate::text::event_text;
 use crate::{
     env_store,
     source::{Connection, ThreadSource},
@@ -57,8 +59,9 @@ pub struct MobileApp {
     pub error: Option<SharedString>,
     /// The open thread's rows. Only the visible ones are built each frame.
     pub events_list: ListState,
-    /// What `events_list` was last synced to: (thread, event count, last seq).
-    shown: (i64, usize, Option<i64>),
+    /// What `events_list` was last synced to: (thread, event count, last seq). `None` after a source change,
+    /// since thread ids are per machine.
+    shown: Option<(i64, usize, Option<i64>)>,
     /// Event rows built so far, so tests can check a frame builds only the visible ones.
     pub rows_built: usize,
     _enter: [Subscription; 2],
@@ -102,7 +105,7 @@ impl MobileApp {
             composer,
             error: None,
             events_list: ListState::new(0, ListAlignment::Top, px(600.)),
-            shown: (0, 0, None),
+            shown: None,
             rows_built: 0,
             _enter,
         }
@@ -144,6 +147,7 @@ impl MobileApp {
             })
         });
         self.source = Some(source);
+        self.shown = None;
     }
 
     pub fn open_project(&mut self, project_id: i64, cx: &mut Context<Self>) {
@@ -254,16 +258,22 @@ impl MobileApp {
         };
         let events = self.events();
         let (n, last) = (events.len(), events.last().map(|e| e.seq));
-        let (shown_thread, shown_len, shown_last) = self.shown;
-        let appended = shown_thread == thread_id
-            && shown_len <= n
-            && (shown_len == 0 || Some(events[shown_len - 1].seq) == shown_last);
-        if !appended {
-            self.events_list.reset(n);
-        } else if n > shown_len {
-            self.events_list.splice(shown_len..shown_len, n - shown_len);
+        let shown_len = match self.shown {
+            Some((shown_thread, shown_len, shown_last))
+                if shown_thread == thread_id
+                    && shown_len <= n
+                    && (shown_len == 0 || Some(events[shown_len - 1].seq) == shown_last) =>
+            {
+                Some(shown_len)
+            }
+            _ => None,
+        };
+        match shown_len {
+            None => self.events_list.reset(n),
+            Some(len) if n > len => self.events_list.splice(len..len, n - len),
+            Some(_) => {}
         }
-        self.shown = (thread_id, n, last);
+        self.shown = Some((thread_id, n, last));
     }
 
     fn event_row(&mut self, ix: usize, cx: &mut Context<Self>) -> AnyElement {
@@ -283,74 +293,6 @@ impl MobileApp {
             )
             .child(event_text(e))
             .into_any_element()
-    }
-}
-
-/// What an event says: a prompt's text, an agent turn's text and tool calls, a result, else the raw payload.
-pub fn event_text(e: &ThreadEvent) -> String {
-    use serde_json::Value;
-    let Ok(mut v) = serde_json::from_str::<Value>(&e.payload_json) else {
-        return e.payload_json.clone();
-    };
-    // Agent rows are `skyelab_agent::Event`, serde's default externally tagged enum: `{"Assistant": {..}}`.
-    if let Some((_, inner)) = v
-        .as_object()
-        .filter(|o| o.len() == 1)
-        .and_then(|o| o.iter().next())
-        && inner.is_object()
-    {
-        v = inner.clone();
-    }
-    if let Some(prompt) = v.as_str() {
-        return prompt.to_owned();
-    }
-    if let Some(blocks) = v.get("content").and_then(Value::as_array) {
-        let parts: Vec<String> = blocks
-            .iter()
-            .filter_map(|b| match b.get("type")?.as_str()? {
-                "text" => b.get("text")?.as_str().map(str::to_owned),
-                "tool_use" => {
-                    let name = b.get("name")?.as_str()?;
-                    Some(match b.pointer("/input/command").and_then(Value::as_str) {
-                        Some(command) => format!("→ {name}: {command}"),
-                        None => format!("→ {name}"),
-                    })
-                }
-                "tool_result" => Some("(tool output)".to_owned()),
-                _ => None,
-            })
-            .collect();
-        if !parts.is_empty() {
-            return parts.join("\n");
-        }
-    }
-    if let Some(result) = v.get("result").and_then(Value::as_str) {
-        return result.to_owned();
-    }
-    e.payload_json.clone()
-}
-
-/// The connection line under the title, and whether it is a problem.
-fn connection_text(connection: &Connection) -> (SharedString, bool) {
-    match connection {
-        Connection::Connecting => ("Connecting…".into(), false),
-        Connection::Connected => ("Connected".into(), false),
-        Connection::Reconnecting(why) => (format!("Reconnecting… ({why})").into(), true),
-        Connection::Refused => (
-            "That machine didn't accept this device. Sign this phone in to your tailnet as the same user, \
-             untagged, and check Tailscale is running on that machine."
-                .into(),
-            true,
-        ),
-        Connection::VersionMismatch(why) => (
-            format!("That machine runs another SkyeLab version ({why}). Update both to the same release.")
-                .into(),
-            true,
-        ),
-        Connection::Stopped(why) => (
-            format!("Disconnected ({why}). Go back and connect again.").into(),
-            true,
-        ),
     }
 }
 
