@@ -42,7 +42,9 @@ fn main() -> anyhow::Result<()> {
         },
     )?;
     match client.updates().recv_timeout(Duration::from_secs(20)) {
-        Ok(Update::Connected(h)) => println!("CONNECTED (unexpected from this machine): {h:?}"),
+        Ok(Update::Connected(h)) => {
+            anyhow::bail!("CONNECTED, but this machine must be refused: {h:?}")
+        }
         Ok(other) => println!("client: {other:?}"),
         Err(e) => println!("client: no update: {e}"),
     }

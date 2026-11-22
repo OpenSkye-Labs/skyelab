@@ -4,10 +4,10 @@
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use skyelab_daemon::testing::{NODE_NAME, TestCa, TlsStream, tls_connect};
+use skyelab_daemon::testing::{NODE_NAME, TlsStream, ca, tls_connect};
 use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
 use skyelab_protocol::{
     Call, ErrorCode, Project, Request, RpcError, ServerMessage, Thread, ThreadEvent, VERSION,
@@ -26,12 +26,6 @@ pub enum Peer {
     Tagged,
     WhoisError,
     Hang(Duration),
-}
-
-/// The CA every harness cert comes from; the harness client trusts only it.
-pub fn ca() -> &'static TestCa {
-    static CA: OnceLock<TestCa> = OnceLock::new();
-    CA.get_or_init(TestCa::new)
 }
 
 pub struct FakeTailnet {

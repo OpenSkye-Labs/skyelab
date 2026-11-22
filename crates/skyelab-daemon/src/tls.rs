@@ -1,4 +1,4 @@
-//! This node's TLS certificate: fetched with `tailscale cert`, checked, served, and renewed in place.
+//! This node's TLS certificate: checked, served, and swapped in place when renewed.
 
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -9,12 +9,9 @@ use rustls::pki_types::pem::PemObject as _;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls::server::{ClientHello, ResolvesServerCert};
 use rustls::sign::CertifiedKey;
-use skyelab_tailnet::Cert;
+use skyelab_tailnet::{ADMIN_DNS_URL, Cert};
 use tokio_rustls::TlsAcceptor;
 use x509_parser::extensions::GeneralName;
-
-/// Where the fix for every "no certificate" error lives.
-pub const ADMIN_DNS_URL: &str = "https://login.tailscale.com/admin/dns";
 
 /// The certificate the daemon is serving.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,7 +50,7 @@ impl CertInfo {
 
 /// The MagicDNS name to get a certificate for, from `Self.DNSName`.
 pub(crate) fn node_name(dns_name: &str) -> Result<String> {
-    match dns_name.trim_end_matches('.') {
+    match dns_name.strip_suffix('.').unwrap_or(dns_name) {
         "" => bail!(
             "MagicDNS is off for this tailnet, so this machine has no name to get a TLS certificate for. Turn on \
              MagicDNS and HTTPS Certificates in the Tailscale admin console ({ADMIN_DNS_URL})"

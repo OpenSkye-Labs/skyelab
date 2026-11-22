@@ -71,17 +71,17 @@ fn claude_bin(env: Option<std::ffi::OsString>, debug: bool) -> std::path::PathBu
     }
 }
 
-/// Where threads and projects persist: the platform data dir.
 /// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.
 fn tailnet() -> skyelab_tailnet::TailscaleCli {
     let cli = skyelab_tailnet::TailscaleCli::default();
-    // No data dir: `cert` fails, so sharing refuses to start (never plaintext).
-    match dirs::data_dir() {
+    // Local, not roaming, app data: a private key must not sync to a Windows roaming profile.
+    match dirs::data_local_dir() {
         Some(d) => cli.with_cert_dir(d.join("skyelab").join("tls")),
         None => cli,
     }
 }
 
+/// Where threads and projects persist: the platform data dir.
 fn store_path() -> Option<std::path::PathBuf> {
     dirs::data_dir().map(|d| d.join("skyelab").join("skyelab.db"))
 }

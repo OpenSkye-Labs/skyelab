@@ -35,7 +35,7 @@ pub struct Options {
     pub max_message_bytes: usize,
     /// A ping goes out this often. A server silent for two intervals is treated as gone.
     pub ping_interval: Duration,
-    /// Bound on resolve, TCP connect, WebSocket handshake and hello together.
+    /// Bound on resolve, TCP connect, TLS and WebSocket handshakes and hello together.
     pub connect_timeout: Duration,
     /// A request without a reply after this long fails with [`Error::Timeout`] (checked on each ping, so up to one
     /// `ping_interval` later).
@@ -158,12 +158,14 @@ impl Client {
                 "ping_interval and backoff_min must be above zero".into(),
             ));
         }
-        // MagicDNS names are lowercase; a trailing dot names the same host.
-        let host = host.into().trim_end_matches('.').to_ascii_lowercase();
-        let is_dns_name = matches!(
-            rustls::pki_types::ServerName::try_from(host.as_str()),
-            Ok(rustls::pki_types::ServerName::DnsName(_))
-        );
+        // MagicDNS names are lowercase; one trailing dot names the same host.
+        let host = host.into();
+        let host = host.strip_suffix('.').unwrap_or(&host).to_ascii_lowercase();
+        let is_dns_name = !host.ends_with('.')
+            && matches!(
+                rustls::pki_types::ServerName::try_from(host.as_str()),
+                Ok(rustls::pki_types::ServerName::DnsName(_))
+            );
         if !is_dns_name {
             return Err(invalid(format!(
                 "{host:?} isn't a MagicDNS name; connect by name (machine.tailnet.ts.net) so TLS can check the server"

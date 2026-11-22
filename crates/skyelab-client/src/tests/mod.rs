@@ -14,11 +14,11 @@ mod tls;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use skyelab_daemon::testing::{NODE_NAME, TestCa};
+use skyelab_daemon::testing::{NODE_NAME, TestCa, ca};
 use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
 use skyelab_store::{NewThread, Store};
 use skyelab_tailnet::{Cert, Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
@@ -29,12 +29,6 @@ const ME: u64 = 1001;
 
 /// The name every test dials. `options` points it at loopback; TLS still checks the certificate names it.
 pub const HOST: &str = NODE_NAME;
-
-/// The CA that issues the test daemon's certificate.
-pub fn ca() -> &'static TestCa {
-    static CA: OnceLock<TestCa> = OnceLock::new();
-    CA.get_or_init(TestCa::new)
-}
 
 /// A root store holding only `ca`'s root.
 pub fn roots_of(ca: &TestCa) -> Arc<rustls::RootCertStore> {

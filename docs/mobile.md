@@ -103,8 +103,8 @@ Each step goes through `/loop`.
 4. **Connect over the tailnet.** v1 relies on the official Tailscale app's VPN being on and dials
    `wss://<machine>.<tailnet>.ts.net:<port>`. The daemon's `whois` check already accepts the same user's untagged
    phone. The client must check the server too: if the VPN is off, the name resolves through whatever DNS the phone
-   has, so `skyelab-client` refuses any address outside Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48), or
-   better, uses `wss://` with the node's `tailscale cert`. A lost phone is revoked by removing it from the tailnet.
+   has, so `skyelab-client` refuses any address outside Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48) and
+   speaks only `wss://`, checked against the node's `tailscale cert` certificate. A lost phone is revoked by removing it from the tailnet.
    An embedded `libtailscale` node comes later, only if needing the VPN app is a real problem.
    **Done (address check):** `skyelab-client` resolves the name, dials only the tailnet addresses it got back
    (`is_tailnet_ip`), and never re-resolves. Loopback is refused too; the exception exists only under `cargo test`.

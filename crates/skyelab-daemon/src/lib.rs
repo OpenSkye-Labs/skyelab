@@ -20,7 +20,7 @@ use std::net::{SocketAddr, TcpListener as StdListener};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result, bail};
 use skyelab_protocol::ThreadEvent;
@@ -40,8 +40,9 @@ pub use backend::{Agents, Backend, MAX_EVENTS_PER_REPLY, NotWired, StoreBackend,
 pub use peers::Peer;
 use peers::{Peers, Registered, lock_peers};
 use serve::serve;
+pub use skyelab_tailnet::ADMIN_DNS_URL;
+pub use tls::CertInfo;
 use tls::Tls;
-pub use tls::{ADMIN_DNS_URL, CertInfo};
 
 type Ws = WebSocketStream<TlsStream<TcpStream>>;
 
@@ -57,7 +58,7 @@ pub struct Config {
     pub max_in_flight: usize,
     /// A connection that sends nothing for this long is closed.
     pub idle_timeout: Duration,
-    /// Bound on whois plus the WebSocket handshake. Past it the connection is rejected.
+    /// Bound on whois plus the TLS and WebSocket handshakes. Past it the connection is rejected.
     pub gate_timeout: Duration,
     /// Connections being gated at once; more are dropped, so a flood can't spawn unbounded whois calls.
     pub max_pending: usize,
@@ -114,6 +115,9 @@ impl Daemon {
     ) -> Result<Self> {
         if config.max_in_flight == 0 || config.max_pending == 0 || config.max_message_bytes == 0 {
             bail!("daemon limits must be at least 1: {config:?}");
+        }
+        if config.cert_check_every.is_zero() || config.cert_retry.is_zero() {
+            bail!("certificate check intervals must be above zero: {config:?}");
         }
         let me = tailnet
             .self_node()
@@ -266,9 +270,16 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
 
 /// Re-runs `tailscale cert` on a timer and serves the result if it passes the start-time checks.
 async fn renew_loop(shared: Arc<Shared>) {
-    let mut wait = shared.config.cert_check_every;
+    let config = &shared.config;
+    // Tokio's clock stops while the machine sleeps, so "daily" is decided by the wall clock, checked at least
+    // every `cert_retry`; otherwise a mostly-asleep laptop could go weeks without a check and serve an expired cert.
+    let tick = config.cert_check_every.min(config.cert_retry);
+    let mut due = SystemTime::now() + config.cert_check_every;
     loop {
-        tokio::time::sleep(wait).await;
+        tokio::time::sleep(tick).await;
+        if SystemTime::now() < due {
+            continue;
+        }
         let (tailnet, name) = (shared.tailnet.clone(), shared.tls.info().name);
         // The CLI call blocks; keep it off the runtime's workers so the gate keeps running.
         let fetched = tokio::task::spawn_blocking(move || tailnet.cert(&name)).await;
@@ -277,15 +288,16 @@ async fn renew_loop(shared: Arc<Shared>) {
             Ok(Err(e)) => Err(e.into()),
             Err(e) => Err(e.into()),
         };
-        wait = match renewed {
-            Ok(()) => shared.config.cert_check_every,
-            Err(e) => {
-                eprintln!(
-                    "skyelab-daemon: certificate renewal failed, still serving the current one: {e:#}"
-                );
-                shared.config.cert_retry
-            }
-        };
+        due = SystemTime::now()
+            + match renewed {
+                Ok(()) => config.cert_check_every,
+                Err(e) => {
+                    eprintln!(
+                        "skyelab-daemon: certificate renewal failed, still serving the current one: {e:#}"
+                    );
+                    config.cert_retry
+                }
+            };
     }
 }
 

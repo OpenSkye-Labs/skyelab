@@ -114,7 +114,7 @@ pub enum Error {
     },
     #[error(
         "HTTPS certificates are off for this tailnet, so SkyeLab can't encrypt connections. Turn on MagicDNS and \
-         HTTPS Certificates in the Tailscale admin console (https://login.tailscale.com/admin/dns)"
+         HTTPS Certificates in the Tailscale admin console ({ADMIN_DNS_URL})"
     )]
     CertsDisabled,
     #[error("could not parse Tailscale's output")]
@@ -122,6 +122,9 @@ pub enum Error {
     #[error("could not run tailscale")]
     Io(#[from] std::io::Error),
 }
+
+/// Where MagicDNS and HTTPS Certificates are turned on, the fix for every "no certificate" error.
+pub const ADMIN_DNS_URL: &str = "https://login.tailscale.com/admin/dns";
 
 pub trait Tailnet {
     fn self_node(&self) -> Result<Node, Error>;
@@ -189,7 +192,7 @@ const MACOS_APP_CLI: &str = "/Applications/Tailscale.app/Contents/MacOS/Tailscal
 
 /// The OS-installed Tailscale, driven through its CLI.
 ///
-/// shortcut: shells out to `tailscale status/whois --json` (one process per call, CLI output isn't a stable API);
+/// shortcut: shells out to `tailscale status/whois --json` and `tailscale cert` (one process per call, CLI output isn't a stable API);
 /// upgrade to LocalAPI over the tailscaled socket, or tailscale-rs once it hits 1.0, when whois runs per connection.
 pub struct TailscaleCli {
     binaries: Vec<PathBuf>,
@@ -229,7 +232,7 @@ impl TailscaleCli {
         }
     }
 
-    /// The private directory `cert` writes into (created with mode 0700).
+    /// The directory `cert` writes into (on unix, made mode 0700).
     pub fn with_cert_dir(mut self, dir: impl Into<PathBuf>) -> Self {
         self.cert_dir = Some(dir.into());
         self
@@ -393,7 +396,7 @@ impl TailscaleCli {
         if domains.is_empty() {
             return Err(Error::CertsDisabled);
         }
-        if !domains.iter().any(|d| d == name) {
+        if !domains.iter().any(|d| d.eq_ignore_ascii_case(name)) {
             return Err(refuse(format!(
                 "this node can only get certificates for {}, not {name}",
                 domains.join(", ")
@@ -430,7 +433,7 @@ impl TailscaleCli {
     }
 }
 
-/// Creates `dir` if needed and makes it owner-only: it holds this node's private key.
+/// Creates `dir` if needed and, on unix, makes it owner-only: it holds this node's private key.
 fn private_dir(dir: &Path) -> Result<(), Error> {
     std::fs::create_dir_all(dir)?;
     #[cfg(unix)]

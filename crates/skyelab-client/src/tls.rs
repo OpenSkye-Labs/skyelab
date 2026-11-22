@@ -24,12 +24,14 @@ pub(crate) fn config(roots: Arc<RootCertStore>) -> std::io::Result<Arc<ClientCon
     let inner = WebPkiServerVerifier::builder_with_provider(roots, provider.clone())
         .build()
         .map_err(std::io::Error::other)?;
-    let config = ClientConfig::builder_with_provider(provider.clone())
+    let mut config = ClientConfig::builder_with_provider(provider.clone())
         .with_protocol_versions(&[&rustls::version::TLS13])
         .map_err(std::io::Error::other)?
         .dangerous() // only to add a check on top of the standard verifier, never to skip it
         .with_custom_certificate_verifier(Arc::new(ExactName { inner, provider }))
         .with_no_client_auth();
+    // A resumed session skips the certificate check, so every connection verifies the cert afresh.
+    config.resumption = rustls::client::Resumption::disabled();
     Ok(Arc::new(config))
 }
 

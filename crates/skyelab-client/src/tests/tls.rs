@@ -138,6 +138,7 @@ fn host_is_normalized() {
     let client =
         Client::connect("Desktop.EXAMPLE.ts.net.", options(port(&daemon))).expect("client");
     connected(&client);
+    assert!(Client::connect("desktop.example.ts.net..", options(1)).is_err());
 }
 
 #[test]

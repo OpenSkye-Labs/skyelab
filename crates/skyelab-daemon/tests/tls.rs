@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use common::*;
 use rustls::pki_types::CertificateDer;
 use rustls::pki_types::pem::PemObject as _;
-use skyelab_daemon::testing::NODE_NAME;
+use skyelab_daemon::testing::{NODE_NAME, ca};
 use skyelab_daemon::{ADMIN_DNS_URL, Config, Daemon};
 use skyelab_protocol::{Call, Reply, ServerMessage};
 use skyelab_tailnet::Cert;

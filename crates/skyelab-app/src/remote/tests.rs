@@ -5,22 +5,15 @@ use super::*;
 use crate::workspace::{self, Workspace};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use skyelab_core::{Account, AccountsConfig, Binding};
-use skyelab_daemon::testing::{NODE_NAME, TestCa, TlsStream, tls_connect};
+use skyelab_daemon::testing::{NODE_NAME, TlsStream, ca, tls_connect};
 use skyelab_protocol::{Call, Reply as Answer, Request, ServerMessage, VERSION};
 use skyelab_tailnet::{Cert, Error, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tungstenite::Message;
 
 const ME: u64 = 7;
-
-/// Issues this node's certificate; the test client trusts only it.
-fn ca() -> &'static TestCa {
-    static CA: OnceLock<TestCa> = OnceLock::new();
-    CA.get_or_init(TestCa::new)
-}
 
 /// This node is 127.0.0.1; every peer is the user's own phone, unless the tailnet is down.
 #[derive(Default)]

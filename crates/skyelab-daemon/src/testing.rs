@@ -2,8 +2,8 @@
 //! Never enabled in a shipped build.
 
 use std::net::{SocketAddr, TcpStream};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use rcgen::{
@@ -16,6 +16,12 @@ use skyelab_tailnet::Cert;
 
 /// The MagicDNS name the fake tailnets in tests give this node.
 pub const NODE_NAME: &str = "desktop.example.ts.net";
+
+/// One CA per test process, shared by every harness that needs this node's cert.
+pub fn ca() -> &'static TestCa {
+    static CA: OnceLock<TestCa> = OnceLock::new();
+    CA.get_or_init(TestCa::new)
+}
 
 /// A throwaway certificate authority.
 pub struct TestCa {
