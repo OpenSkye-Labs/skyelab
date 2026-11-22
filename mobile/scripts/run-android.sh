@@ -1,22 +1,10 @@
 #!/usr/bin/env bash
-# Build the cdylib, package it with gpui-mobile's Java host (GpuiActivity), install and launch.
-# Usage: scripts/run-android.sh [adb-serial]. Needs cargo-ndk and the Android SDK + NDK.
+# Build with our Gradle host, install and launch. Usage: scripts/run-android.sh [adb-serial].
 # SKYELAB_MOBILE_FEATURES=demo builds with canned data instead of a real environment.
+# Debug by default; SKYELAB_ANDROID_PROFILE=release runs a release build (it must be signed to install).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
-scripts/fetch-gpui-mobile.sh
-# later (docs/mobile.md step 6): our own Gradle host cut down to GpuiActivity and text input, with a pinned
-# distributionSha256Sum. Until then this borrows the example host, which asks for every plugin's permissions.
-gradle=target/android-gradle
-jni=$gradle/app/src/main/jniLibs
-if [[ ! -d $gradle ]]; then
-    cp -R target/gpui-mobile/example/android/gradle "$gradle"
-    perl -pi -e 's/gpui_mobile_example/skyelab_mobile_android/g; s/"dev\.gpui\.mobile\.example"/"dev.skyelab.mobile"/g' \
-        "$gradle/app/build.gradle.kts"
-    rm -rf "$jni"
-fi
-cargo ndk -t arm64-v8a -P 26 -o "$jni" build -p skyelab-mobile-android ${SKYELAB_MOBILE_FEATURES:+--features "$SKYELAB_MOBILE_FEATURES"}
-(cd "$gradle" && ./gradlew -q assembleDebug)
-adb ${1:+-s "$1"} install -r "$gradle/app/build/outputs/apk/debug/app-debug.apk"
-adb ${1:+-s "$1"} shell am start -n dev.skyelab.mobile/dev.gpui.mobile.GpuiActivity
+[[ "${1:-}" != -* ]] || { echo "usage: scripts/run-android.sh [adb-serial]" >&2; exit 2; }
+apk=$(scripts/build-android.sh "${SKYELAB_ANDROID_PROFILE:-debug}")
+adb ${1:+-s "$1"} install -r "$apk"
+adb ${1:+-s "$1"} shell am start -n dev.openskye.skyelab/.SkyeLabActivity

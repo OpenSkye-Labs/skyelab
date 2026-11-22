@@ -1,0 +1,197 @@
+// !$*UTF8*$!
+// Checked in by hand, not generated: one app target, no sources (cargo builds the executable in the
+// "Build Rust" phase, build-rust.sh), the asset catalog and Info.plist. mobile/scripts/check-hosts.sh checks it.
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5E1AB0000000000000000010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5E1AB0000000000000000002 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5E1AB0000000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5E1AB0000000000000000002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5E1AB0000000000000000003 /* build-rust.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "build-rust.sh"; sourceTree = "<group>"; };
+		5E1AB0000000000000000004 /* SkyeLab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SkyeLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		5E1AB0000000000000000020 = {
+			isa = PBXGroup;
+			children = (
+				5E1AB0000000000000000001 /* Info.plist */,
+				5E1AB0000000000000000002 /* Assets.xcassets */,
+				5E1AB0000000000000000003 /* build-rust.sh */,
+				5E1AB0000000000000000021 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5E1AB0000000000000000021 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5E1AB0000000000000000004 /* SkyeLab.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5E1AB0000000000000000030 /* SkyeLab */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5E1AB0000000000000000051 /* Build configuration list for PBXNativeTarget "SkyeLab" */;
+			buildPhases = (
+				5E1AB0000000000000000040 /* Build Rust */,
+				5E1AB0000000000000000041 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SkyeLab;
+			productName = SkyeLab;
+			productReference = 5E1AB0000000000000000004 /* SkyeLab.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5E1AB0000000000000000031 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2720;
+			};
+			buildConfigurationList = 5E1AB0000000000000000050 /* Build configuration list for PBXProject "SkyeLab" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5E1AB0000000000000000020;
+			productRefGroup = 5E1AB0000000000000000021 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5E1AB0000000000000000030 /* SkyeLab */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5E1AB0000000000000000041 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E1AB0000000000000000010 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5E1AB0000000000000000040 /* Build Rust */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "exec \"$SRCROOT/build-rust.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5E1AB0000000000000000060 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				// iOS 15: what the Rust side has always been built against; covers every iPhone since the 6s.
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		5E1AB0000000000000000061 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		5E1AB0000000000000000062 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				// Device builds: scripts/build-ios.sh passes SKYELAB_IOS_TEAM_ID. Never commit a team id here.
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = Info.plist;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.openskye.skyelab;
+				PRODUCT_NAME = SkyeLab;
+			};
+			name = Debug;
+		};
+		5E1AB0000000000000000063 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = Info.plist;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.openskye.skyelab;
+				PRODUCT_NAME = SkyeLab;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5E1AB0000000000000000050 /* Build configuration list for PBXProject "SkyeLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5E1AB0000000000000000060 /* Debug */,
+				5E1AB0000000000000000061 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5E1AB0000000000000000051 /* Build configuration list for PBXNativeTarget "SkyeLab" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5E1AB0000000000000000062 /* Debug */,
+				5E1AB0000000000000000063 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5E1AB0000000000000000031 /* Project object */;
+}

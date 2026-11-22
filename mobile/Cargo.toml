@@ -85,7 +85,9 @@ opt-level = 2 # GPUI is unusably slow unoptimized.
 [profile.dev.package.accesskit_android]
 overflow-checks = false
 
+# Shipping builds (scripts/build-*.sh release): size over speed. GPUI stays usable at "z"; see docs/mobile.md for sizes.
 [profile.release]
-lto = "thin"
+opt-level = "z"
+lto = true
 codegen-units = 1
 strip = true

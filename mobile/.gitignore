@@ -1,1 +1,3 @@
 /target
+/android-host/.gradle
+/android-host/build
