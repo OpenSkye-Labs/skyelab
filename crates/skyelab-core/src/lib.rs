@@ -12,6 +12,14 @@ pub struct Account {
     pub config_dir: PathBuf,
 }
 
+impl Account {
+    /// Env to launch `claude` with as this account.
+    pub fn launch_env(&self) -> Result<Vec<(&'static str, PathBuf)>> {
+        check_account(self)?; // the fields are public, so this account may never have been validated
+        Ok(vec![("CLAUDE_CONFIG_DIR", self.config_dir.clone())])
+    }
+}
+
 /// Every folder under `path` runs agents as `account`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Binding {
@@ -287,11 +295,9 @@ impl AccountsConfig {
 
     /// Env to launch `claude` with for `dir`. Errors when the folder is unbound.
     pub fn launch_env(&self, dir: &Path) -> Result<Vec<(&'static str, PathBuf)>> {
-        let account = self
-            .resolve(dir)
-            .with_context(|| format!("{} is not bound to an account", dir.display()))?;
-        check_account(account)?; // the fields are public, so this config may never have been validated
-        Ok(vec![("CLAUDE_CONFIG_DIR", account.config_dir.clone())])
+        self.resolve(dir)
+            .with_context(|| format!("{} is not bound to an account", dir.display()))?
+            .launch_env()
     }
 }
 
