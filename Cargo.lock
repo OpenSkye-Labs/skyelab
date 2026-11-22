@@ -7405,6 +7405,7 @@ dependencies = [
  "skyelab-agent",
  "skyelab-browser",
  "skyelab-core",
+ "skyelab-devices",
  "skyelab-store",
  "skyelab-terminal",
  "tempfile",

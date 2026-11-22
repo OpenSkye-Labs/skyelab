@@ -1,5 +1,6 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
+mod devices;
 mod panels;
 mod projects;
 mod thread;
@@ -37,7 +38,8 @@ actions!(
         OpenSettings,
         OpenBrowser,
         AddProject,
-        NewThread
+        NewThread,
+        OpenDevices
     ]
 );
 
@@ -78,6 +80,7 @@ pub(crate) const TOGGLE_BOTTOM_KEY: &str = if MAC { "cmd-j" } else { "ctrl-j" };
 pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-alt-t" };
 pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
 pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
+pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
 
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
@@ -87,6 +90,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
         KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
         KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
+        KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
     ]);
     // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
     if !MAC {
@@ -145,6 +149,9 @@ pub struct Workspace {
     _add: Option<Task<()>>,
     _threads: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
+    devices: Option<WeakEntity<devices::DevicesPanel>>,
+    /// Created on first open; tests put a fake here first.
+    device_source: Option<std::sync::Arc<dyn devices::DeviceSource>>,
     _appearance: Subscription,
 }
 
@@ -217,6 +224,8 @@ impl Workspace {
             _add: None,
             _threads: None,
             _settings_saved: None,
+            devices: None,
+            device_source: None,
             _appearance,
         };
         this.refresh_sidebar(cx);
@@ -390,6 +399,14 @@ impl Workspace {
                             .child(format!("Store error: {e}"))
                     })),
             )
+            .right(
+                Button::new("status-devices")
+                    .ghost()
+                    .xsmall()
+                    .label("Devices")
+                    .tooltip("iOS Simulators and Android emulators")
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenDevices), cx)),
+            )
             .right(account)
     }
 }
@@ -416,6 +433,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
             .on_action(cx.listener(Self::open_thread))
+            .on_action(cx.listener(Self::open_devices))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -444,3 +462,9 @@ mod review_second_row_test;
 
 #[cfg(test)]
 mod review_stale_config_test;
+
+#[cfg(test)]
+mod devices_tests;
+
+#[cfg(test)]
+mod devices_review_tests;
