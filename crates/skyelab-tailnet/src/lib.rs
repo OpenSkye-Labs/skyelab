@@ -357,6 +357,19 @@ impl Tailnet for TailscaleCli {
     }
 
     fn cert(&self, name: &str) -> Result<Cert, Error> {
+        // Status and cert share the cert budget, so a timeout must report that budget, not the CLI default.
+        self.fetch_cert(name).map_err(|e| match e {
+            Error::Timeout { command, .. } => Error::Timeout {
+                command,
+                after: self.cert_timeout,
+            },
+            e => e,
+        })
+    }
+}
+
+impl TailscaleCli {
+    fn fetch_cert(&self, name: &str) -> Result<Cert, Error> {
         let refuse = |why: String| Error::Command {
             command: "cert",
             stderr: why,
