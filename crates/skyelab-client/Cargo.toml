@@ -14,6 +14,10 @@ thiserror.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 
+[features]
+# Lets `Options::allow_loopback` dial loopback daemons. Tests only: enable it as a dev-dependency, never in a shipping build.
+test-loopback = []
+
 [dev-dependencies]
 skyelab-daemon.workspace = true
 skyelab-store.workspace = true

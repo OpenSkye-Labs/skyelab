@@ -77,9 +77,9 @@ impl Ctx {
     }
 
     fn allow_loopback(&self) -> bool {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-loopback"))]
         return self.options.allow_loopback;
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-loopback")))]
         false
     }
 
