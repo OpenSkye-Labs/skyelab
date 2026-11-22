@@ -1,0 +1,22 @@
+[package]
+name = "skyelab-daemon"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+futures.workspace = true
+skyelab-protocol.workspace = true
+skyelab-store.workspace = true
+skyelab-tailnet.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tungstenite.workspace = true
+
+[lints]
+workspace = true

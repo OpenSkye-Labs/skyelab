@@ -24,7 +24,13 @@ tempfile = "3"
 thiserror = "2"
 alacritty_terminal = "0.26"
 futures = "0.3"
+tokio = { version = "1.54", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+tokio-tungstenite = "0.30"
+tungstenite = "0.30"
 skyelab-core = { path = "crates/skyelab-core" }
+skyelab-protocol = { path = "crates/skyelab-protocol" }
+skyelab-store = { path = "crates/skyelab-store" }
+skyelab-tailnet = { path = "crates/skyelab-tailnet" }
 skyelab-terminal = { path = "crates/skyelab-terminal" }
 
 [workspace.lints.rust]
