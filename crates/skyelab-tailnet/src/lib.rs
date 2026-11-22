@@ -88,7 +88,7 @@ pub enum Error {
         command: &'static str,
         stderr: String,
     },
-    /// The CLI didn't finish in time (a hung tailscaled) and was killed.
+    /// The CLI didn't finish in time (a hung tailscaled).
     #[error("`tailscale {command}` did not answer within {after:?}")]
     Timeout {
         command: &'static str,
@@ -116,6 +116,8 @@ pub fn is_own_device(self_node: &Node, whois: &WhoIs) -> bool {
         return false;
     };
     self_node.tags.is_empty()
+        // An empty id can't prove the peer is a different node from this one.
+        && !whois.node.stable_id.is_empty()
         && whois.node.stable_id != self_node.stable_id
         && whois.user_profile.id == Some(me)
         && whois.node.user == Some(me)
@@ -195,7 +197,13 @@ impl TailscaleCli {
         self.timeout
     }
 
-    fn run(&self, command: &'static str, args: &[&str]) -> Result<Output, Error> {
+    /// Runs one CLI call that must finish by `deadline`.
+    fn run(
+        &self,
+        command: &'static str,
+        args: &[&str],
+        deadline: Instant,
+    ) -> Result<Output, Error> {
         for bin in &self.binaries {
             let spawned = Command::new(bin)
                 .arg(command)
@@ -205,7 +213,7 @@ impl TailscaleCli {
                 .stderr(Stdio::piped())
                 .spawn();
             match spawned {
-                Ok(child) => return self.wait(child, command),
+                Ok(child) => return self.wait(child, command, deadline),
                 Err(e) if e.kind() == ErrorKind::NotFound => continue,
                 Err(e) => return Err(e.into()),
             }
@@ -213,25 +221,30 @@ impl TailscaleCli {
         Err(Error::NotInstalled)
     }
 
-    /// Waits for `child` until the timeout, then kills it: a hung tailscaled must fail closed, not hang the caller.
-    fn wait(&self, mut child: Child, command: &'static str) -> Result<Output, Error> {
+    /// A hung tailscaled must fail closed, not hang the caller.
+    fn wait(
+        &self,
+        mut child: Child,
+        command: &'static str,
+        deadline: Instant,
+    ) -> Result<Output, Error> {
         let timeout = Error::Timeout {
             command,
             after: self.timeout,
         };
-        let deadline = Instant::now() + self.timeout;
         // Drain both pipes on their own threads, or a chatty child blocks on a full pipe and looks hung.
         let stdout = drain(child.stdout.take());
         let stderr = drain(child.stderr.take());
         let status = loop {
-            if let Some(status) = child.try_wait()? {
+            let polled = child.try_wait();
+            if let Ok(Some(status)) = polled {
                 break status;
             }
-            if Instant::now() >= deadline {
+            if polled.is_err() || Instant::now() >= deadline {
                 // Best effort: it may have exited in between, and either way we fail closed.
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(timeout);
+                return Err(polled.err().map_or(timeout, Error::Io));
             }
             std::thread::sleep(Duration::from_millis(10));
         };
@@ -250,7 +263,11 @@ impl TailscaleCli {
     }
 
     pub fn status(&self) -> Result<Status, Error> {
-        let out = self.run("status", &["--json"])?;
+        self.status_by(Instant::now() + self.timeout)
+    }
+
+    fn status_by(&self, deadline: Instant) -> Result<Status, Error> {
+        let out = self.run("status", &["--json"], deadline)?;
         // A stopped backend still prints JSON; an unreachable daemon prints only an error.
         match parse_status(&out.stdout) {
             Err(Error::Parse(_)) if !out.status.success() => Err(Error::NotRunning(
@@ -271,10 +288,12 @@ impl Tailnet for TailscaleCli {
     }
 
     fn whois(&self, addr: SocketAddr) -> Result<WhoIs, Error> {
-        let out = self.run("whois", &["--json", &addr.to_string()])?;
+        // One deadline for whois and its status follow-up, so the whole call stays within the timeout.
+        let deadline = Instant::now() + self.timeout;
+        let out = self.run("whois", &["--json", &addr.to_string()], deadline)?;
         if !out.status.success() {
             // Tell "Tailscale is down" (NotRunning) apart from "unknown peer".
-            self.status()?;
+            self.status_by(deadline)?;
             return Err(Error::Command {
                 command: "whois",
                 stderr: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
