@@ -51,7 +51,8 @@ and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, 
 
 - macOS: **14 or later** (`MACOSX_DEPLOYMENT_TARGET` in `.cargo/config.toml`). Full Xcode plus the Metal Toolchain (`xcodebuild -downloadComponent MetalToolchain`), or `gpui-pre-apple` fails
   with "metal shader compilation failed".
-- Linux: `libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake`.
+- Linux: `libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake libwebkit2gtk-4.1-dev libgtk-3-dev`
+  (webkit/gtk: the browser pane links them).
 - Windows: MSVC toolchain, nothing else.
 
 ## Commands
