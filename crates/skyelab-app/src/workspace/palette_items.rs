@@ -3,7 +3,7 @@
 use super::{OpenThread, SelectProject, Workspace};
 use crate::palette::{self, Entry, Kind, OpenCommandPalette};
 use gpui::{Action, App, Context, Entity, FocusHandle, Focusable, SharedString, Window};
-use gpui_component::kbd::Kbd;
+use gpui_component::{dock::DockPlacement, kbd::Kbd};
 use std::rc::Rc;
 
 fn dispatch(label: String, kind: Kind, action: Box<dyn Action>) -> Entry {
@@ -29,7 +29,6 @@ impl Workspace {
         palette::open(entries, prev, window, cx);
     }
 
-    /// Everything the palette offers while `prev` has focus. Actions are the ones `prev` can run now.
     pub(crate) fn palette_entries(
         &self,
         prev: &FocusHandle,
@@ -39,7 +38,6 @@ impl Workspace {
         let mut actions: Vec<Entry> = Vec::new();
         let names: Vec<&'static str> = cx.all_action_names().to_vec();
         for name in names.into_iter().filter(|n| palette::listed(n)) {
-            // Actions with parameters don't build without them; projects and threads cover those.
             let Ok(action) = cx.build_action(name, None) else {
                 continue;
             };
@@ -84,7 +82,8 @@ impl Workspace {
             tabs.push(self.tab(title, &view, cx));
         }
         for (i, panel) in self.terminals.iter().enumerate() {
-            tabs.push(self.tab(format!("Terminal {}", i + 1).into(), panel, cx));
+            let title = format!("Terminal {}", i + 1).into();
+            tabs.push(self.tab_in(DockPlacement::Bottom, title, panel, cx));
         }
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {
             tabs.push(self.tab("Browser".into(), &panel, cx));
@@ -104,6 +103,16 @@ impl Workspace {
         view: &Entity<T>,
         cx: &mut Context<Self>,
     ) -> Entry {
+        self.tab_in(DockPlacement::Center, title, view, cx)
+    }
+
+    fn tab_in<T: Focusable>(
+        &self,
+        at: DockPlacement,
+        title: SharedString,
+        view: &Entity<T>,
+        cx: &mut Context<Self>,
+    ) -> Entry {
         let (ws, id, focus) = (
             cx.entity().downgrade(),
             view.entity_id(),
@@ -115,8 +124,12 @@ impl Workspace {
             binding: None,
             run: Rc::new(move |window: &mut Window, cx: &mut App| {
                 _ = ws.update(cx, |ws, cx| {
-                    ws.dock
-                        .update(cx, |dock, cx| dock.select_panel(id.into(), window, cx))
+                    ws.dock.update(cx, |dock, cx| {
+                        if at != DockPlacement::Center && !dock.is_dock_open(at) {
+                            dock.toggle_dock(at, window, cx);
+                        }
+                        dock.select_panel(id.into(), window, cx)
+                    })
                 });
                 focus.focus(window, cx);
             }),

@@ -138,3 +138,9 @@ fn bindings_per_os_build_and_unbind_ctrl_k_in_terminals_off_mac() {
         Some("Terminal".into())
     )));
 }
+
+#[test]
+fn query_and_text_lowercase_alike() {
+    assert!(score("İstanbul", "İstanbul Office").is_some());
+    assert!(score("istanbul", "İstanbul Office").is_some());
+}

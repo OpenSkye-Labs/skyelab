@@ -183,3 +183,57 @@ fn projects_threads_and_tabs_are_listed_and_run(cx: &mut TestAppContext) {
     choose("tab settings", cx);
     assert!(settings_focused(&ws, cx), "the tab entry focuses that tab");
 }
+
+#[gpui::test]
+fn go_to_tab_opens_the_closed_bottom_dock_and_focuses_the_terminal(cx: &mut TestAppContext) {
+    cx.executor().allow_parking(); // a real shell PTY
+    setup(cx);
+    let (ws, cx) = open(test_backend(), cx);
+    ws.update_in(cx, |ws, window, cx| {
+        ws.new_terminal(&NewTerminal, window, cx)
+    });
+    cx.run_until_parked();
+    ws.update_in(cx, |ws, window, cx| {
+        ws.toggle_bottom(&ToggleBottomPanel, window, cx);
+        ws.focus.focus(window, cx);
+    });
+    cx.run_until_parked();
+    let bottom_open = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        ws.read_with(cx, |ws, cx| {
+            ws.dock.read(cx).is_dock_open(DockPlacement::Bottom)
+        })
+    };
+    assert!(!bottom_open(&ws, cx), "precondition: bottom dock closed");
+
+    choose("tab terminal 1", cx);
+    assert!(bottom_open(&ws, cx), "Go to tab opens the terminal's dock");
+    let terminal = ws.read_with(cx, |ws, _| ws.terminals[0].clone());
+    let focused = cx.update(|window, cx| {
+        terminal
+            .read(cx)
+            .focus_handle(cx)
+            .contains_focused(window, cx)
+    });
+    assert!(focused, "and focuses the terminal");
+}
+
+#[gpui::test]
+fn new_thread_and_add_project_do_nothing_while_on_another_machine(cx: &mut TestAppContext) {
+    use super::env_harness::*;
+    let remote = RemoteSide::new(FakeTailnet::default());
+    let (ws, _, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
+    let dir = tempfile::tempdir().expect("tempdir").keep();
+    ws.update(cx, |ws, cx| ws.add_project(dir, cx));
+    wait_until(cx, "local project", |cx| {
+        ws.read_with(cx, |ws, _| !ws.projects.is_empty())
+    });
+    let id = ws.read_with(cx, |ws, _| ws.projects[0].id);
+    cx.dispatch_action(SelectProject { id });
+    cx.run_until_parked();
+    connect(&ws, &remote, cx);
+
+    cx.dispatch_action(NewThread);
+    cx.run_until_parked();
+    let local_tabs = ws.read_with(cx, |ws, _| ws.open_threads.len());
+    assert_eq!(local_tabs, 0, "no local agent starts while remote");
+}

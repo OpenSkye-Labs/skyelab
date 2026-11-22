@@ -76,6 +76,11 @@ pub fn init(cx: &mut App) {
     cx.bind_keys(bindings(cfg!(target_os = "macos")));
 }
 
+/// One char per char, so text indexes stay aligned (`İ` lowercases to two).
+fn lower(c: char) -> char {
+    c.to_lowercase().next().unwrap_or(c)
+}
+
 fn is_word_start(text: &[char], i: usize) -> bool {
     i == 0
         || !text[i - 1].is_alphanumeric()
@@ -88,17 +93,13 @@ pub fn score(query: &str, text: &str) -> Option<i32> {
     let query: Vec<char> = query
         .chars()
         .filter(|c| !c.is_whitespace())
-        .flat_map(char::to_lowercase)
+        .map(lower)
         .collect();
     let Some((&first, rest)) = query.split_first() else {
         return Some(0);
     };
     let text: Vec<char> = text.chars().collect();
-    let lower: Vec<char> = text
-        .iter()
-        .map(|c| c.to_lowercase().next().unwrap_or(*c))
-        .collect();
-    // Try every place the first letter occurs and keep the best; labels are short.
+    let lower: Vec<char> = text.iter().copied().map(lower).collect();
     (0..text.len())
         .filter(|&i| lower[i] == first)
         .filter_map(|start| {
@@ -121,7 +122,7 @@ pub fn score(query: &str, text: &str) -> Option<i32> {
         .max()
 }
 
-/// Indexes of the labels that match `query`, best first; ties keep their input order.
+/// Indexes of the labels that match `query`, best first.
 pub fn rank<'a>(query: &str, labels: impl IntoIterator<Item = &'a str>) -> Vec<usize> {
     let mut scored: Vec<(i32, usize)> = labels
         .into_iter()
@@ -132,8 +133,7 @@ pub fn rank<'a>(query: &str, labels: impl IntoIterator<Item = &'a str>) -> Vec<u
     scored.into_iter().map(|(_, i)| i).collect()
 }
 
-/// Names the CamelCase split would get wrong or leave vague.
-const NAMES: &[(&str, &str)] = &[
+const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::ToggleEnvironments", "Switch Machine"),
     ("skyelab::Stop", "Stop Agent"),
     ("skyelab::Interrupt", "Interrupt Agent"),
@@ -145,7 +145,6 @@ const NAMES: &[(&str, &str)] = &[
     ("skyelab::ToggleWorktree", "Toggle Thread Worktree"),
 ];
 
-/// Palette-internal, confirm/cancel steps of another flow, or needing typed input the palette can't give.
 const HIDDEN: &[&str] = &[
     "skyelab::OpenCommandPalette",
     "skyelab::ConnectTyped",
@@ -156,7 +155,7 @@ const HIDDEN: &[&str] = &[
 
 /// `skyelab::OpenSettings` → "Open Settings": the table, else the CamelCase name split into words.
 pub fn humanize(name: &str) -> String {
-    if let Some((_, human)) = NAMES.iter().find(|(n, _)| *n == name) {
+    if let Some((_, human)) = HUMAN_NAME_OVERRIDES.iter().find(|(n, _)| *n == name) {
         return (*human).to_owned();
     }
     let short = name.rsplit("::").next().unwrap_or(name);
@@ -172,7 +171,6 @@ pub fn humanize(name: &str) -> String {
     out
 }
 
-/// Whether the palette offers this action: ours, and not hidden. Other namespaces are widget internals.
 pub fn listed(name: &str) -> bool {
     name.starts_with("skyelab::") && !HIDDEN.contains(&name)
 }
@@ -180,20 +178,16 @@ pub fn listed(name: &str) -> bool {
 struct Palette {
     state: Entity<CommandState>,
     entries: Vec<Entry>,
-    query: SharedString,
-    /// Entry indexes in the order the last render listed them; a confirmed row indexes this.
-    shown: Vec<usize>,
+    row_to_entry: Vec<usize>,
     prev: FocusHandle,
 }
 
-/// Opens the palette over `entries`; a chosen entry runs with focus back on `prev`.
 pub fn open(entries: Vec<Entry>, prev: FocusHandle, window: &mut Window, cx: &mut App) {
     let state = cx.new(|cx| CommandState::new(window, cx));
     let palette = cx.new(|_| Palette {
         state: state.clone(),
+        row_to_entry: (0..entries.len()).collect(),
         entries,
-        query: SharedString::default(),
-        shown: Vec::new(),
         prev,
     });
     window.open_dialog(cx, move |dialog, _, _| {
@@ -212,7 +206,7 @@ fn choose(palette: &WeakEntity<Palette>, row: usize, window: &mut Window, cx: &m
     };
     let picked = {
         let p = palette.read(cx);
-        p.shown
+        p.row_to_entry
             .get(row)
             .map(|&i| (p.entries[i].run.clone(), p.prev.clone()))
     };
@@ -243,14 +237,12 @@ fn row(entry: &Entry, cx: &App) -> gpui::Div {
 
 impl Render for Palette {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.shown = rank(&self.query, self.entries.iter().map(|e| e.label.as_ref()));
-        let items = self.shown.iter().map(|&i| {
+        let items = self.row_to_entry.iter().map(|&i| {
             let entry = self.entries[i].clone();
             CommandItem::new()
                 .label(entry.label.clone())
                 .child(move |_, cx| row(&entry, cx))
         });
-        // Weak: the Command state the Palette owns keeps these closures.
         let this = cx.entity().downgrade();
         let on_query = this.clone();
         Command::new(&self.state)
@@ -259,8 +251,9 @@ impl Render for Palette {
             .placeholder("Search actions, projects, threads and tabs")
             .items(items)
             .on_query(move |query, _, cx| {
+                // A confirm deferred after this query must index the rows it ranks, before any redraw.
                 _ = on_query.update(cx, |p, cx| {
-                    p.query = query.to_owned().into();
+                    p.row_to_entry = rank(query, p.entries.iter().map(|e| e.label.as_ref()));
                     cx.notify();
                 });
             })
