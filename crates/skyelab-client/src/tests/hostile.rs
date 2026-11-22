@@ -67,6 +67,7 @@ fn serve(stream: TcpStream, n: usize, how: Misbehave, log: &Log) {
         result: Reply::Hello(Hello {
             protocol: VERSION,
             capabilities: vec![],
+            node_id: None,
         }),
     };
     ws.send(Message::text(reply.to_json())).expect("send hello");
@@ -114,7 +115,7 @@ fn check(how: Misbehave) {
         Err(Error::ConnectionLost)
     );
     match next(&client) {
-        Update::Disconnected(reason) => assert!(!reason.is_empty()),
+        Update::Disconnected(reason) => assert!(!reason.message.is_empty()),
         other => panic!("expected Disconnected, got {other:?}"),
     }
     connected(&client);

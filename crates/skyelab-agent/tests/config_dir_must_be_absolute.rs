@@ -11,6 +11,7 @@ fn cfg(dir: &Path, config_dir: &str) -> AccountsConfig {
             id: "a".into(),
             label: "A".into(),
             config_dir: config_dir.into(),
+            gh_config_dir: None,
         }],
         bindings: vec![Binding::new(dir.into(), "a".into())],
     }

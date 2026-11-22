@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerates every app icon from crates/skyelab-app/icons/icon.svg. Needs resvg, python3, and macOS for icon.icns.
+# Regenerates every app icon (desktop and mobile) from crates/skyelab-app/icons/icon.svg. Needs resvg, python3, and macOS for icon.icns.
 set -euo pipefail
 dir="$(cd "$(dirname "$0")/../crates/skyelab-app/icons" && pwd)"
 command -v resvg >/dev/null || { echo "resvg not found: cargo install resvg" >&2; exit 1; }
@@ -36,4 +36,21 @@ for s, b in zip(sizes, blobs):
     offset += len(b)
 pathlib.Path(out).write_bytes(header + entries + b"".join(blobs))
 PY
-echo "icons written to $dir"
+# Phones mask the icon themselves (iOS squircle, Android adaptive shape), so they get the artwork full bleed:
+# the rounded square becomes the whole canvas. The "S" sits inside both platforms' safe zones.
+mobile="$(cd "$dir/../../../mobile" && pwd)"
+sed 's|<rect x="100" y="100" width="824" height="824" rx="185"|<rect width="1024" height="1024"|' "$dir/icon.svg" > "$tmp/full.svg"
+grep -q '<rect width="1024" height="1024"' "$tmp/full.svg" || { echo "icon.svg changed: update the full-bleed rect in $0" >&2; exit 1; }
+# Android (minSdk 26, so adaptive icons only): the art is the 108 dp background layer at each density.
+for d in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
+  res="$mobile/android-host/app/src/main/res/mipmap-${d%%:*}"
+  mkdir -p "$res"
+  resvg -w "${d##*:}" -h "${d##*:}" "$tmp/full.svg" "$res/ic_launcher_background.png"
+done
+# iOS: one 1024 px image; Xcode makes the other sizes. App Store Connect rejects an icon with an alpha channel, and
+# resvg always writes one, so flatten it through a full-quality JPEG.
+resvg -w 1024 -h 1024 "$tmp/full.svg" "$tmp/ios.png"
+sips -s format jpeg -s formatOptions 100 "$tmp/ios.png" --out "$tmp/ios.jpg" >/dev/null
+sips -s format png "$tmp/ios.jpg" --out "$mobile/ios/Assets.xcassets/AppIcon.appiconset/icon-1024.png" >/dev/null
+
+echo "icons written to $dir, $mobile/android-host and $mobile/ios"

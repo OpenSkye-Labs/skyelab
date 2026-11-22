@@ -50,8 +50,8 @@ fn refused_fill_is_retried() {
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     connected(&client);
     // Another watched thread's fill holds the only in-flight slot...
-    client.watch(env.thread_id + 100, 0);
+    let _watch = client.watch(env.thread_id + 100, 0);
     // ...so this one's fill is refused with TooManyRequests and must be retried.
-    client.watch(env.thread_id, 0);
+    let _watch = client.watch(env.thread_id, 0);
     assert_eq!(seqs(&client, 3), [1, 2, 3]);
 }

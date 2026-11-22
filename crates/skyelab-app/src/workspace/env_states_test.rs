@@ -69,6 +69,7 @@ fn newer_server() -> u16 {
                         minor: 0,
                     },
                     capabilities: vec![],
+                    node_id: None,
                 }),
             };
             let _ = ws.send(tungstenite::Message::text(hello.to_json()));
@@ -133,6 +134,7 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     let inner: Arc<dyn DaemonBackend> = Arc::new(skyelab_daemon::StoreBackend::shared(
         remote.store.clone(),
         skyelab_daemon::NotWired,
+        None,
     ));
     let daemon = Daemon::start(
         Config {

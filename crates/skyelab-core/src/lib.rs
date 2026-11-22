@@ -13,13 +13,21 @@ pub struct Account {
     pub id: String,
     pub label: String,
     pub config_dir: PathBuf,
+    /// This account's `gh` config dir (`GH_CONFIG_DIR`): its GitHub login. `None`: SkyeLab's own push and PR
+    /// refuse, and agents get gh's default config.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gh_config_dir: Option<PathBuf>,
 }
 
 impl Account {
     /// Env to launch `claude` with as this account.
     pub fn launch_env(&self) -> Result<Vec<(&'static str, PathBuf)>> {
         check_account(self)?; // the fields are public, so this account may never have been validated
-        Ok(vec![("CLAUDE_CONFIG_DIR", self.config_dir.clone())])
+        let gh = self.gh_config_dir.clone().map(|d| ("GH_CONFIG_DIR", d));
+        Ok([("CLAUDE_CONFIG_DIR", self.config_dir.clone())]
+            .into_iter()
+            .chain(gh)
+            .collect())
     }
 }
 
@@ -285,6 +293,21 @@ impl AccountsConfig {
             .with_context(|| format!("{} is not bound to an account", dir.display()))?
             .launch_env()
     }
+
+    /// The `gh` config dir of the account bound to `dir`. Errors when the folder is unbound or its
+    /// account has no GitHub identity: a push or PR never falls back to the parent's `gh` login.
+    pub fn github_config_dir(&self, dir: &Path) -> Result<PathBuf> {
+        let account = self
+            .resolve(dir)
+            .with_context(|| format!("{} is not bound to an account", dir.display()))?;
+        check_account(account)?;
+        account.gh_config_dir.clone().with_context(|| {
+            format!(
+                "account '{}' has no GitHub login; set its GitHub config dir in Settings and log in",
+                account.id
+            )
+        })
+    }
 }
 
 /// Resolves symlinks in the part of `p` that exists and re-appends the rest, so a folder
@@ -341,6 +364,13 @@ fn check_account(a: &Account) -> Result<()> {
             "config dir for '{}' must be an absolute path, got '{}'",
             a.id,
             a.config_dir.display()
+        );
+    }
+    if let Some(gh) = a.gh_config_dir.as_ref().filter(|d| !d.is_absolute()) {
+        bail!(
+            "GitHub config dir for '{}' must be an absolute path, got '{}'",
+            a.id,
+            gh.display()
         );
     }
     Ok(())

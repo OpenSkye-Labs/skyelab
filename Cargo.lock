@@ -7592,6 +7592,7 @@ dependencies = [
  "rustls",
  "serde_json",
  "skyelab-client",
+ "skyelab-core",
  "skyelab-daemon",
  "skyelab-protocol",
  "skyelab-store",
@@ -7619,6 +7620,7 @@ name = "skyelab-git"
 version = "0.1.0"
 dependencies = [
  "dirs 7.0.0",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.21",
 ]

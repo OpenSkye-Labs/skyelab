@@ -70,18 +70,26 @@ jobs:
       - run: cargo fmt --check -p skyelab-mobile -p skyelab-mobile-android
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
-      - run: cargo build --locked -p skyelab-mobile --bin skyelab_mobile --target aarch64-apple-ios-sim
-        env:
-          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+      - run: scripts/check-hosts.sh
+      - name: Release build (simulator)
+        run: |
+          app=$(scripts/build-ios.sh release simulator)
+          scripts/check-hosts.sh "$app"
+          du -sh "$app"
 
   android:
-    name: Android arm64 build
+    name: Android arm64 build + release APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - run: rustup toolchain install && rustup target add aarch64-linux-android
+      # AGP 9.5 needs JDK 17+.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-ndk
@@ -94,5 +102,12 @@ jobs:
       - name: Build and lint for arm64-v8a
         run: |
           export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          cargo ndk -t arm64-v8a -P 26 build --locked -p skyelab-mobile-android
           cargo ndk -t arm64-v8a -P 26 clippy --locked -p skyelab-mobile-android -- -D warnings
+      # Before anything runs ./gradlew: checks the committed wrapper jar against the pinned checksum.
+      - run: scripts/check-hosts.sh
+      - name: Release APK (unsigned)
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          apk=$(scripts/build-android.sh release)
+          scripts/check-hosts.sh "$apk"
+          ls -l "$apk"

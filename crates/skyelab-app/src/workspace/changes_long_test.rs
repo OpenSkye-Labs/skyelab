@@ -24,7 +24,9 @@ fn ten_thousand_changed_files_build_only_visible_sidebar_rows(cx: &mut TestAppCo
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().to_path_buf();
     let cx = cx.add_empty_window();
-    let view = cx.new(|cx| ChangesView::new(path, None, "app".into(), cx));
+    let view = cx.update(|window, cx| {
+        cx.new(|cx| ChangesView::new(path, None, "app".into(), None, window, cx))
+    });
     cx.run_until_parked();
     view.update(cx, |v, _| (v.changes, v.error) = (Some(changes), None));
     let before = file_rows_built();

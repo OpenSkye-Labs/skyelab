@@ -134,10 +134,7 @@ impl Remote {
     pub fn set_sharing(&mut self, on: bool, cx: &mut Context<Self>) {
         let saved = match &self.host.settings_path {
             // A file that doesn't parse is left alone, and the toggle doesn't move.
-            Some(path) => AppSettings::load(path).and_then(|mut s| {
-                s.share_on_tailnet = on;
-                s.save(path)
-            }),
+            Some(path) => AppSettings::update(path, |s| s.share_on_tailnet = on).map(drop),
             None => Err(anyhow::anyhow!(
                 "no config directory on this OS, so the setting can't be saved"
             )),

@@ -138,6 +138,27 @@ Each step goes through `/loop`.
    `distributionSha256Sum`. `android_main` needs `#[unsafe(no_mangle)]`, so it goes in a tiny crate that allows
    `unsafe_code`, per the CLAUDE.md rule. Measure release sizes with
    `opt-level = "z"`, LTO and strip.
+   **Done (2026-11-23):** both shells are ours, app id `dev.openskye.skyelab`, label SkyeLab, the placeholder icon
+   (`scripts/icons.sh` renders both from `icon.svg`). `mobile/scripts/check-hosts.sh` enforces the rules below on the
+   sources and on a built APK or .app, in CI too.
+   - **Android** (`mobile/android-host/`): one activity, `SkyeLabActivity`, a `GpuiInputActivity` (NativeActivity
+     plus gpui-mobile's keyboard bridge) that adds edge-to-edge keyboard insets. INTERNET is the only permission (no
+     code reads network state), the launcher is the only component, no deep links. Gradle 9.9.2 with
+     `distributionSha256Sum`, and the wrapper jar's sha256 checked against Gradle's published one. AGP 9.5.2,
+     compileSdk and targetSdk 37 (Android 17), minSdk 26 (what the cdylib links against, `cargo ndk -P 26`), arm64
+     only. `scripts/build-android.sh release` signs only when all four `SKYELAB_ANDROID_KEYSTORE*` /
+     `SKYELAB_ANDROID_KEY_*` variables are set, else writes `app-release-unsigned.apk`.
+   - **iOS** (`mobile/ios/SkyeLab.xcodeproj`): checked in by hand rather than generated with xcodegen, so neither dev
+     machines nor CI need another tool; it is one target with no sources, so it rarely changes. A "Build Rust" phase
+     runs cargo (`ios/build-rust.sh`) and Xcode adds the asset catalog, Info.plist and signing. Deployment target
+     iOS 15, what the binary has always been built for. No entitlements. `scripts/build-ios.sh release device`
+     signs with `SKYELAB_IOS_TEAM_ID` (automatic signing); no team id is committed.
+   - **Release sizes** (`opt-level = "z"`, fat LTO, one codegen unit, strip): Android `libskyelab_mobile_android.so`
+     15.2 MiB, release APK 15.3 MiB (the .so is stored uncompressed so it can be mapped in place); iOS simulator
+     `SkyeLab.app` 9.2 MiB (9.1 MiB executable). Clean release builds take about 3 min (Android) and 1.5 min (iOS)
+     on an M-series Mac.
+   - **Limits:** no bundled emoji font on Android (gpui-mobile's example shipped a 10 MB one), so emoji show as missing
+     glyphs; no splash screen; Android is arm64 only; iOS is iPhone only.
 7. **Verify.** Logic is tested in `skyelab-client`. Views get `#[gpui::test]`s. Android is driven with `agent-device`.
    iOS can't be driven past taps until `gpui_ios` exposes accessibility, so confirm iOS typing by hand on the first build
    and track upstream accessibility work.

@@ -169,3 +169,13 @@ pub(super) fn connect(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut Visu
             .is_some_and(|(_, rows)| rows == &["app".to_owned()])
     });
 }
+
+/// A client that trusts the test CA and dials this node's MagicDNS name on loopback (TLS still checks the name).
+pub(super) fn test_options() -> skyelab_client::Options {
+    let mut roots = rustls::RootCertStore::empty();
+    roots.add(ca().root()).expect("test CA root");
+    skyelab_client::Options::default()
+        .allow_loopback()
+        .trust_roots(roots)
+        .resolve_to(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+}

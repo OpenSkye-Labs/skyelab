@@ -195,12 +195,24 @@ fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> Wind
     }
 }
 
+#[cfg(test)]
 const CLAUDE_CONFIG_DIR: &str = "CLAUDE_CONFIG_DIR";
+/// Vars that pick an account or carry a login. A terminal gets one only when the caller set it (the account env).
+const ACCOUNT_VARS: [&str; 8] = [
+    "CLAUDE_CONFIG_DIR",
+    "GH_CONFIG_DIR",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+    "GH_HOST",
+    "GH_REPO",
+];
 
-/// The child's program, args and env: the caller's env plus `TERM`/`COLORTERM`, and never the parent's
-/// `CLAUDE_CONFIG_DIR` unless the caller set its own (the account env). Unix runs the command through
-/// `env -u CLAUDE_CONFIG_DIR`. On Windows alacritty adds every inherited var the env map doesn't name, and has no
-/// way to remove one, so the var is overridden with an empty value instead.
+/// The child's program, args and env: the caller's env plus `TERM`/`COLORTERM`, and none of the parent's
+/// [`ACCOUNT_VARS`] the caller didn't set. Unix runs the command through `env -u ..`. On Windows alacritty adds
+/// every inherited var the env map doesn't name, and has no way to remove one, so each is overridden with an empty
+/// value instead.
 fn launch(
     command: Option<(String, Vec<String>)>,
     mut env: HashMap<String, String>,
@@ -211,21 +223,26 @@ fn launch(
         let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell().into());
         (shell, login_args())
     });
-    if env.get(CLAUDE_CONFIG_DIR).is_some_and(|v| !v.is_empty()) {
-        return (program, args, env);
-    }
+    let unset: Vec<&str> = ACCOUNT_VARS
+        .into_iter()
+        .filter(|v| env.get(*v).is_none_or(|v| v.is_empty()))
+        .collect();
     if cfg!(windows) {
-        // shortcut: the child sees CLAUDE_CONFIG_DIR="" rather than no var. A tool that falls back only when it is
-        // absent (Node's `env.X ?? default`) would resolve "" against the cwd. Upgrade when alacritty's Options can
-        // remove a var, or by wrapping the command in a shell that unsets it.
-        env.insert(CLAUDE_CONFIG_DIR.into(), String::new());
+        // shortcut: on Windows the child sees VAR="" (alacritty can't remove a var); upgrade when its Options can.
+        for v in unset {
+            env.insert(v.into(), String::new());
+        }
         return (program, args, env);
     }
     // `--` so a program name with a leading `-` is never read as an env option. env(1) still reads a program name
     // containing `=` as an assignment; no caller passes one.
-    let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), "--".into(), program];
+    let mut wrapped = Vec::new();
+    for v in unset {
+        wrapped.extend(["-u".to_string(), v.to_string()]);
+        env.remove(v);
+    }
+    wrapped.extend(["--".into(), program]);
     wrapped.extend(args);
-    env.remove(CLAUDE_CONFIG_DIR);
     ("/usr/bin/env".to_string(), wrapped, env)
 }
 
@@ -277,6 +294,10 @@ mod tests {
 }
 
 #[cfg(test)]
+#[path = "gh_env_test.rs"]
+mod gh_env_test;
+
+#[cfg(test)]
 mod env_tests {
     use super::*;
 
@@ -293,16 +314,14 @@ mod env_tests {
             assert_eq!(env.get(CLAUDE_CONFIG_DIR).map(String::as_str), Some(""));
         } else {
             assert_eq!(program, "/usr/bin/env");
-            assert_eq!(args, ["-u", CLAUDE_CONFIG_DIR, "--", "prog", "a"]);
+            assert_eq!(args[..2], ["-u", CLAUDE_CONFIG_DIR]);
+            assert_eq!(args[args.len() - 3..], ["--", "prog", "a"]);
             assert!(!env.contains_key(CLAUDE_CONFIG_DIR));
         }
 
         let account = HashMap::from([(CLAUDE_CONFIG_DIR.to_string(), "/acct".to_string())]);
-        let (program, args, env) = launch(cmd(), account);
-        assert_eq!(
-            (program.as_str(), args.as_slice()),
-            ("prog", &["a".to_string()][..])
-        );
+        let (_, args, env) = launch(cmd(), account);
+        assert!(!args.iter().any(|a| a == CLAUDE_CONFIG_DIR), "{args:?}");
         assert_eq!(env[CLAUDE_CONFIG_DIR], "/acct");
     }
 }

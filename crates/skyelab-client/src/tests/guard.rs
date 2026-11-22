@@ -78,7 +78,7 @@ fn refuses_a_loopback_name_before_connecting() {
     };
     let client = Client::connect("localhost", opts).expect("client");
     match next(&client) {
-        Update::Disconnected(reason) => assert!(reason.contains("refusing"), "{reason}"),
+        Update::Disconnected(reason) => assert!(reason.message.contains("refusing"), "{reason}"),
         other => panic!("expected a refusal, got {other:?}"),
     }
     std::thread::sleep(Duration::from_millis(300));

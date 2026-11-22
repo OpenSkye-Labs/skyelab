@@ -113,8 +113,20 @@ On a remote machine the sidebar's projects and threads come from its daemon thro
 thread watches its events (the client fills gaps and replays after reconnects) into a remote thread tab that draws
 items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
 The status bar and the thread header say which machine you are on and its connection state (connecting, connected,
-reconnecting, version mismatch, or "that machine didn't accept this device" when its whois refuses you). The account
-shown is the id the remote reports. Local-only actions don't apply: no local terminal for a remote project, no
+reconnecting, version mismatch, or "that machine didn't accept this device" when its whois refuses you). That last
+one is the client's typed `DisconnectKind::Refused`: TCP connected, then the server hung up before sending a byte
+(a busy daemon or a failed whois look the same). A certificate problem is a separate kind and keeps reconnecting.
+The account shows as "Label · id" from the remote's own accounts.toml (protocol 1.1), or the id from a 1.0 server.
+Only MagicDNS names can be typed (`skyelab_protocol::is_magicdns_name`, shared with mobile).
+
+**A name that moves.** In a shared tailnet a device name can be reused by another node. Hello carries the server's
+node StableID (1.1). The first connect to a name saves it as `environment_nodes` in `settings.toml`; a later connect
+or reconnect that presents another node closes that machine's tabs, lists nothing, sends nothing, and shows a warning
+with a "Trust it" button, which saves exactly the node shown (refused if a different one answers by then). A server
+that sends no node id (1.0) connects only to a name never pinned. A `settings.toml` that can't be read refuses the
+connection rather than trust an unchecked node. Limit: the id is what the server says about itself, backed only by
+its certificate for the name, so a node that took over the name and replays the old id passes; checking the dialled
+address with the local tailscaled (whois) would close that. Local-only actions don't apply: no local terminal for a remote project, no
 worktree controls. Switching machines closes every remote tab and drops the client, so local and remote data never mix.
 
 **Restrict the port in your tailnet policy.** The gate already refuses other users and tagged nodes, but an ACL keeps
@@ -178,3 +190,16 @@ Each item goes through `/loop` (see CLAUDE.md).
 - **Remote machine names:** clients (mobile and desktop switcher) accept only MagicDNS names (`<machine>.<tailnet>.ts.net`).
   TLS certs from `tailscale cert` exist only for those names, and the client checks the cert against the exact name.
   Raw IPs, `localhost` and short names are rejected at input. (2026-11-23)
+- **GitHub identity per account:** an account may name a `gh` config dir (`gh_config_dir`, absolute). `launch_env` sets
+  `GH_CONFIG_DIR` from it, and agents, terminals and every git/gh call SkyeLab runs drop the parent's `GH_TOKEN`,
+  `GITHUB_TOKEN`, enterprise tokens, `GH_HOST`, `GH_REPO` and `GH_CONFIG_DIR` (terminals keep a `GH_CONFIG_DIR` the
+  account sets). Push and Open PR (Changes tab) run only
+  while the folder still resolves to the thread's account, and refuse when that account has no GitHub dir, never
+  falling back to the parent's `gh` login. A push goes to the branch's same-named upstream, else `origin`, and only to
+  a plain https URL (no credentials in it, after `insteadOf` rewrites) or a local path: an ssh key or a token in the
+  URL can't be bound to an account, so those are refused. It resets git's credential helpers (and `http.extraHeader`)
+  to the bound `gh auth git-credential`, so an https push can't use the keychain's login. Settings' Log in runs `gh auth login --insecure-storage`: gh's
+  keyring entry for the active user is shared by every config dir, so the token lives in `<dir>/hosts.yml` instead.
+  Limits: a shell rc that exports `GH_TOKEN` sets it again inside a terminal; an agent whose account has no GitHub
+  dir uses gh's default config; a GitHub dir inside a project holds a plaintext token that Commit all would stage.
+  (2026-11-23)

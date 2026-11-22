@@ -29,6 +29,7 @@ impl ThreadSource for Src {
             project_id: 1,
             title: "t".into(),
             account_id: "work".into(),
+            account_label: None,
             status: "idle".into(),
             created_at: 0,
             updated_at: 0,

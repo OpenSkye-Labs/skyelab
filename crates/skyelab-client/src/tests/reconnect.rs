@@ -14,7 +14,7 @@ fn reconnects_and_fills_what_it_missed() {
     let port = port(&daemon);
     let client = Client::connect(HOST, options(port)).expect("client");
     connected(&client);
-    client.watch(env.thread_id, 0);
+    let _watch = client.watch(env.thread_id, 0);
     assert_eq!(seqs(&client, 2), [1, 2]);
 
     drop(daemon);

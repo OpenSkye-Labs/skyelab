@@ -17,6 +17,9 @@ fn environment_name_is_validated() {
     );
     for bad in [
         "",
+        "laptop",
+        "localhost",
+        "100.64.0.1",
         "   ",
         "ws://laptop",
         "laptop:8080",

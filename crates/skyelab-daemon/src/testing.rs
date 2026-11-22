@@ -167,6 +167,8 @@ pub struct FakeTailnet {
     pub cert_calls: AtomicUsize,
     /// `Self.DNSName`; empty means MagicDNS is off.
     pub dns_name: Mutex<String>,
+    /// This node's StableID; `None` is `nSelf`.
+    pub self_id: Mutex<Option<String>>,
 }
 
 impl Default for FakeTailnet {
@@ -181,6 +183,7 @@ impl Default for FakeTailnet {
             cert_hang: Mutex::new(Duration::ZERO),
             cert_calls: AtomicUsize::new(0),
             dns_name: Mutex::new(format!("{NODE_NAME}.")),
+            self_id: Mutex::new(None),
         }
     }
 }
@@ -223,10 +226,11 @@ impl Tailnet for FakeTailnet {
         if self.down.load(Ordering::SeqCst) {
             return Err(TailnetError::NotRunning("Stopped".into()));
         }
+        let id = self.self_id.lock().expect("self id lock").clone();
         Ok(Node {
             tailscale_ips: self.ips.clone(),
             dns_name: self.dns_name.lock().expect("dns lock").clone(),
-            ..node("nSelf", NODE_NAME, ME, true, &[])
+            ..node(id.as_deref().unwrap_or("nSelf"), NODE_NAME, ME, true, &[])
         })
     }
 
@@ -388,9 +392,11 @@ pub struct Env {
     /// Where `serve` listens: picked by the first `serve`, then the same on every restart. 0 until then.
     pub port: u16,
     pub daemon: Option<Daemon>,
+    /// This machine's accounts.toml, for account labels. Takes effect on the next `serve`.
+    pub accounts: Option<PathBuf>,
     cwd: PathBuf,
-    // Last, so the daemon and store let go of the files before the directory goes.
-    _dir: tempfile::TempDir,
+    /// Holds the store; tests may put other files in it. Last, so the daemon and store let go first.
+    pub _dir: tempfile::TempDir,
 }
 
 impl Env {
@@ -433,6 +439,7 @@ impl Env {
             fail_lists: Arc::default(),
             port: 0,
             daemon: None,
+            accounts: None,
             cwd,
         }
     }
@@ -447,6 +454,7 @@ impl Env {
                     store: self.store.clone(),
                     cwd: self.cwd.clone(),
                 },
+                self.accounts.clone(),
             ),
             fail_lists: self.fail_lists.clone(),
         })

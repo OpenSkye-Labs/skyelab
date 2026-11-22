@@ -7,7 +7,7 @@ use super::Workspace;
 use super::env_picker::{ConnectTyped, EnvPicker, ToggleEnvironments};
 use super::panels::{SidebarItem, SidebarSection};
 use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
-use crate::environment::{RemoteEnv, valid_host};
+use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use gpui::{
     Action, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement, SharedString,
     Stateful, Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
@@ -18,7 +18,7 @@ use gpui_component::{
     dock::{DockPlacement, panel_handle},
     h_flex,
 };
-use skyelab_client::Options;
+use skyelab_client::{Options, is_magicdns_name};
 use skyelab_core::AppSettings;
 use skyelab_daemon::SharedTailnet;
 use std::path::PathBuf;
@@ -30,6 +30,14 @@ actions!(skyelab, [NewRemoteThread]);
 pub struct SwitchEnvironment {
     /// `None` is this machine.
     pub host: Option<String>,
+}
+
+/// Trust the machine a remembered name now answers from. Carries the node id the warning showed, so a click
+/// can't trust a node that took the name after the warning was drawn.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct TrustRemoteNode {
+    pub node_id: String,
 }
 
 #[derive(Clone, PartialEq, Action)]
@@ -76,7 +84,7 @@ impl Workspace {
                 if let Ok(settings) = load.await {
                     let _ = weak.update(cx, |p, cx| {
                         p.recents = settings.recent_environments;
-                        p.recents.retain(|h| valid_host(h));
+                        p.recents.retain(|h| is_magicdns_name(h));
                         cx.notify();
                     });
                 }
@@ -106,6 +114,7 @@ impl Workspace {
             .on_action(cx.listener(Self::select_remote_project))
             .on_action(cx.listener(Self::open_remote_thread))
             .on_action(cx.listener(Self::new_remote_thread))
+            .on_action(cx.listener(Self::trust_remote_node))
     }
 
     pub(crate) fn is_remote(&self) -> bool {
@@ -146,9 +155,11 @@ impl Workspace {
             return;
         };
         let host = picker.read(cx).typed(cx);
-        if !valid_host(&host) {
+        if !is_magicdns_name(&host) {
             picker.update(cx, |p, cx| {
-                p.error = Some(format!("“{host}” isn't a machine name or tailnet address").into());
+                p.error = Some(
+                    format!("“{host}” isn't a MagicDNS name. Use machine.tailnet.ts.net.").into(),
+                );
                 cx.notify();
             });
             return;
@@ -180,22 +191,28 @@ impl Workspace {
             return;
         }
         // Leaving an environment closes all of its tabs and drops its client: nothing remote stays around.
-        for tab in self.remote_tabs() {
-            self.dock
-                .update(cx, |dock, cx| dock.remove_panel(tab, window, cx));
-        }
-        self.env.tabs.clear();
+        self.close_remote_tabs(window, cx);
         self.env.subs.clear();
         self.env.remote = None;
         let mut error = None;
         if let Some(host) = a.host.clone() {
             match skyelab_client::Client::connect(host.clone(), self.env.options.clone()) {
                 Ok(client) => {
-                    let env = cx.new(|cx| RemoteEnv::new(host.clone(), client, cx));
+                    let settings = self.env.settings_path.clone();
+                    let env = cx.new(|cx| RemoteEnv::new(host.clone(), client, settings, cx));
                     self.env.subs.push(cx.observe(&env, |this, _, cx| {
                         this.refresh_sidebar(cx);
                         cx.notify();
                     }));
+                    self.env.subs.push(cx.subscribe_in(
+                        &env,
+                        window,
+                        |this, _, e: &EnvEvent, window, cx| {
+                            if let EnvEvent::NodeChanged = e {
+                                this.close_remote_tabs(window, cx);
+                            }
+                        },
+                    ));
                     self.env.remote = Some(env);
                     self.remember(host, cx);
                 }
@@ -215,6 +232,25 @@ impl Workspace {
         cx.notify();
     }
 
+    fn close_remote_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for tab in self.remote_tabs() {
+            self.dock
+                .update(cx, |dock, cx| dock.remove_panel(tab, window, cx));
+        }
+        self.env.tabs.clear();
+    }
+
+    pub(super) fn trust_remote_node(
+        &mut self,
+        a: &TrustRemoteNode,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(env) = &self.env.remote {
+            env.update(cx, |e, cx| e.trust(&a.node_id, cx));
+        }
+    }
+
     /// Saves `host` first in the recents, off the UI thread. A file that doesn't parse is left alone.
     fn remember(&mut self, host: String, cx: &mut Context<Self>) {
         let Some(path) = self.env.settings_path.clone() else {
@@ -230,9 +266,8 @@ impl Workspace {
             }
             let saved = write
                 .spawn(async move {
-                    let mut settings = AppSettings::load(&path)?;
-                    settings.remember_environment(&host);
-                    settings.save(&path)?;
+                    let (settings, ()) =
+                        AppSettings::update(&path, |s| s.remember_environment(&host))?;
                     anyhow::Ok(settings.recent_environments)
                 })
                 .await;
@@ -272,7 +307,17 @@ impl Workspace {
                 action: Box::new(OpenRemoteThread { id: t.id }),
             })
             .collect();
-        let connected = env.state == crate::environment::ConnState::Connected;
+        let connected = env.state == ConnState::Connected;
+        let trust = match &env.state {
+            // Only a node the connection really presents can be trusted (none: an old server sent no id).
+            ConnState::NodeChanged { now, .. } if env.presented_node() == Some(now) => Some((
+                SharedString::from("Trust it"),
+                Box::new(TrustRemoteNode {
+                    node_id: now.clone(),
+                }) as Box<_>,
+            )),
+            _ => None,
+        };
         let has_project = env.project.is_some();
         Some(vec![
             SidebarSection {
@@ -283,8 +328,11 @@ impl Workspace {
                     (None, true) => "No projects there".into(),
                     _ => env.state.label(),
                 },
-                empty_hint: format!("Projects on {}. Add them on that machine.", env.host).into(),
-                button: None,
+                empty_hint: match (&trust, &env.error) {
+                    (Some(_), Some(e)) => e.clone(),
+                    _ => format!("Projects on {}. Add them on that machine.", env.host).into(),
+                },
+                button: trust,
             },
             SidebarSection {
                 title: "Threads".into(),
@@ -320,7 +368,7 @@ impl Workspace {
         }
     }
 
-    fn open_remote_thread(
+    pub(super) fn open_remote_thread(
         &mut self,
         a: &OpenRemoteThread,
         window: &mut Window,
@@ -332,7 +380,7 @@ impl Workspace {
         if let Some(tab) = self
             .remote_tabs()
             .into_iter()
-            .find(|t| t.read(cx).thread_id() == Some(a.id))
+            .find(|t| t.read(cx).thread_id() == Some(a.id) && !t.read(cx).closed)
         {
             let id = tab.entity_id().into();
             self.dock
@@ -383,7 +431,9 @@ impl Workspace {
                 }
             }
         });
-        self.env.tabs.retain(|(t, _)| t.upgrade().is_some());
+        self.env
+            .tabs
+            .retain(|(t, _)| t.upgrade().is_some_and(|t| !t.read(cx).closed));
         self.env.tabs.push((view.downgrade(), sub));
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(

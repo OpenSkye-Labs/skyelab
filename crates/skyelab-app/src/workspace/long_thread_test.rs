@@ -42,7 +42,7 @@ fn remote_thread_with_10k_events_opens_and_appends_without_full_relayout(cx: &mu
             skyelab_client::testing::options(9, ca().root()),
         )
         .expect("client thread");
-        let env = cx.new(|cx| RemoteEnv::new(NODE_NAME.into(), client, cx));
+        let env = cx.new(|cx| RemoteEnv::new(NODE_NAME.into(), client, None, cx));
         RemoteThreadView::new(env, 1, Some((1, "long".into())), window, cx)
     });
 

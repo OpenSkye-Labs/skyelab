@@ -4,6 +4,7 @@
 //! move to `gix` once it covers worktree add/remove and status with renames.
 
 mod diff;
+mod publish;
 mod status;
 mod worktree;
 
@@ -13,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 pub use diff::{FileDiff, Hunk, Line, diff, diff_merge_base};
+pub use publish::{GitHub, commit, create_pr, credential_args, gh_login, push};
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
 
@@ -30,6 +32,12 @@ pub enum Error {
     Dirty(PathBuf),
     #[error("no platform data directory to put worktrees in")]
     NoDataDir,
+    #[error("{0}")]
+    Invalid(String),
+    #[error("gh is not installed (no `gh` on PATH)")]
+    GhNotInstalled,
+    #[error("`{args}` failed: {stderr}")]
+    Gh { args: String, stderr: String },
     #[error("`git {args}` failed: {stderr}")]
     Git { args: String, stderr: String },
     #[error("running git: {0}")]
@@ -145,19 +153,10 @@ fn command(bin: &Path, dir: &Path) -> Command {
     cmd.arg("-C").arg(dir);
     // A repo's config can name a program for core.fsmonitor that every status would run.
     cmd.args(["-c", "core.fsmonitor=false"]);
-    // Set inside git hooks; any of them overrides `-C` and points us at a different repo.
-    for var in [
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_NAMESPACE",
-        "GIT_PREFIX",
-        "GIT_CONFIG_PARAMETERS",
-        "GIT_CONFIG_COUNT",
-    ] {
+    for var in GIT_REPO_VARS {
+        cmd.env_remove(var);
+    }
+    for var in PARENT_LOGIN_VARS {
         cmd.env_remove(var);
     }
     // English messages so the "not a git repository" match holds in any locale.
@@ -166,6 +165,34 @@ fn command(bin: &Path, dir: &Path) -> Command {
     cmd.env("GIT_OPTIONAL_LOCKS", "0");
     cmd
 }
+
+/// Set inside git hooks; any of them overrides `-C` and points git (or the git gh runs) at a different repo.
+const GIT_REPO_VARS: [&str; 10] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+];
+
+/// The parent's GitHub login and credential prompts. Every git and gh call drops them, so a repo's hooks never
+/// see a token and only the account's own `GH_CONFIG_DIR` (set by the caller) decides the GitHub user.
+const PARENT_LOGIN_VARS: [&str; 9] = [
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_ENTERPRISE_TOKEN",
+    "GITHUB_ENTERPRISE_TOKEN",
+    "GH_HOST",
+    "GH_REPO",
+    "GH_CONFIG_DIR",
+    "GIT_ASKPASS",
+    "SSH_ASKPASS",
+];
 
 // shortcut: non-UTF-8 path bytes become U+FFFD; switch to OsStr-from-bytes if a user hits it.
 fn lossy(bytes: &[u8]) -> String {

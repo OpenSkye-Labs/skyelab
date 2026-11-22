@@ -50,6 +50,7 @@ ALTER TABLE threads ADD COLUMN worktree_branch TEXT;
     "
 ALTER TABLE threads ADD COLUMN worktree_base TEXT;
 ",
+    "ALTER TABLE threads ADD COLUMN pr_url TEXT;",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,6 +80,8 @@ pub struct Thread {
     pub worktree_branch: Option<String>,
     /// The commit the worktree was created from: its changes are shown against this.
     pub worktree_base: Option<String>,
+    /// The pull request opened from this thread.
+    pub pr_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,7 +114,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base";
+const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it.
@@ -231,6 +234,7 @@ impl Store {
             worktree_path: None,
             worktree_branch: None,
             worktree_base: None,
+            pr_url: None,
         })
     }
 
@@ -280,6 +284,10 @@ impl Store {
 
     pub fn set_thread_worktree_base(&self, id: i64, base: Option<&str>) -> Result<()> {
         self.update_thread(id, "worktree_base", base)
+    }
+
+    pub fn set_thread_pr_url(&self, id: i64, url: Option<&str>) -> Result<()> {
+        self.update_thread(id, "pr_url", url)
     }
 
     fn update_thread(
@@ -388,6 +396,7 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         worktree_path: r.get::<_, Option<String>>(9)?.map(PathBuf::from),
         worktree_branch: r.get(10)?,
         worktree_base: r.get(11)?,
+        pr_url: r.get(12)?,
     })
 }
 

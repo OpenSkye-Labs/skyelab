@@ -45,6 +45,7 @@ impl ThreadSource for LongSource {
             project_id: 1,
             title: "long".into(),
             account_id: "work".into(),
+            account_label: None,
             status: "idle".into(),
             created_at: 0,
             updated_at: 0,

@@ -1,6 +1,9 @@
 //! What the daemon serves: [`Backend`] answers each RPC, [`StoreBackend`] is the real one.
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+
+use skyelab_core::AccountsConfig;
 
 use skyelab_protocol::{ErrorCode, Project, RpcError, Thread, ThreadEvent};
 use skyelab_store::Store;
@@ -56,16 +59,35 @@ pub const MAX_EVENTS_PER_REPLY: usize = 500;
 pub struct StoreBackend<A> {
     store: Arc<Mutex<Store>>,
     agents: A,
+    accounts: Option<PathBuf>,
 }
 
 impl<A: Agents> StoreBackend<A> {
+    /// A backend that sends no account labels.
     pub fn new(store: Store, agents: A) -> Self {
-        Self::shared(Arc::new(Mutex::new(store)), agents)
+        Self::shared(Arc::new(Mutex::new(store)), agents, None)
     }
 
     /// Reads a store the app also writes, so both see the same threads (including an in-memory fallback).
-    pub fn shared(store: Arc<Mutex<Store>>, agents: A) -> Self {
-        Self { store, agents }
+    /// `accounts` is this machine's accounts.toml, which names each thread's account for clients.
+    pub fn shared(store: Arc<Mutex<Store>>, agents: A, accounts: Option<PathBuf>) -> Self {
+        Self {
+            store,
+            agents,
+            accounts,
+        }
+    }
+
+    /// Read on each listing, so a label edited in Settings shows on the next one. A file that doesn't load gives
+    /// no labels, never stale ones.
+    fn accounts(&self) -> AccountsConfig {
+        let Some(path) = &self.accounts else {
+            return AccountsConfig::default();
+        };
+        AccountsConfig::load(path).unwrap_or_else(|e| {
+            eprintln!("skyelab-daemon: no account labels: {e:#}");
+            AccountsConfig::default()
+        })
     }
 
     fn with_store<T>(&self, f: impl FnOnce(&Store) -> anyhow::Result<T>) -> Result<T, RpcError> {
@@ -101,12 +123,21 @@ impl<A: Agents> Backend for StoreBackend<A> {
 
     fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
         let threads = self.with_store(|s| s.list_threads(project_id))?;
+        let accounts = self.accounts();
+        let label = |id: &str| {
+            accounts
+                .accounts
+                .iter()
+                .find(|a| a.id == id)
+                .map(|a| a.label.clone())
+        };
         Ok(threads
             .into_iter()
             .map(|t| Thread {
                 id: t.id,
                 project_id: t.project_id,
                 title: t.title,
+                account_label: label(&t.account_id),
                 account_id: t.account_id,
                 status: t.status,
                 created_at: t.created_at,

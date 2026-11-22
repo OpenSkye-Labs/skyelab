@@ -17,7 +17,7 @@ use gpui_component::{
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };
-use skyelab_client::{Client, Pending, ThreadEvent};
+use skyelab_client::{Client, Pending, Thread, ThreadEvent, WatchId};
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -37,6 +37,10 @@ pub struct RemoteThreadView {
     host: SharedString,
     project_id: i64,
     thread_id: Option<i64>,
+    /// This view's own watch, so closing it never ends a reopened tab's watch on the same thread.
+    watch: Option<WatchId>,
+    /// Out of the dock. The entity can outlive its tab for a moment, and must not be picked again as the tab.
+    pub(super) closed: bool,
     title: SharedString,
     account: Option<String>,
     pub(super) items: Vec<Item>,
@@ -78,6 +82,7 @@ impl RemoteThreadView {
             }),
             cx.subscribe(&env, |this, _, e: &EnvEvent, cx| match e {
                 EnvEvent::Thread(event) => this.on_event(event, cx),
+                EnvEvent::NodeChanged => {}
             }),
             // The header's state and account follow the environment. The account is kept once seen, since
             // the list it comes from changes with the selected project.
@@ -94,15 +99,10 @@ impl RemoteThreadView {
         };
         let account = thread_id.and_then(|id| {
             let env = env.read(cx);
-            env.threads
-                .iter()
-                .find(|t| t.id == id)
-                .map(|t| t.account_id.clone())
+            env.threads.iter().find(|t| t.id == id).map(account_text)
         });
         let client = env.read(cx).client();
-        if let Some(id) = thread_id {
-            client.watch(id, 0);
-        }
+        let watch = thread_id.map(|id| client.watch(id, 0));
         Self {
             focus: cx.focus_handle(),
             host: env.read(cx).host.clone().into(),
@@ -110,6 +110,8 @@ impl RemoteThreadView {
             env,
             project_id,
             thread_id,
+            watch,
+            closed: false,
             title,
             account,
             items: Vec::new(),
@@ -136,7 +138,7 @@ impl RemoteThreadView {
         format!("Remote · {}", self.host)
     }
 
-    /// The account the remote reports for this thread (its id; the protocol carries no label).
+    /// The account the remote reports for this thread: "Label · id", or the id when the remote sends no label.
     pub fn account(&self, cx: &App) -> Option<String> {
         self.listed_account(cx).or_else(|| self.account.clone())
     }
@@ -145,10 +147,7 @@ impl RemoteThreadView {
     fn listed_account(&self, cx: &App) -> Option<String> {
         let id = self.thread_id?;
         let env = self.env.read(cx);
-        env.threads
-            .iter()
-            .find(|t| t.id == id)
-            .map(|t| t.account_id.clone())
+        env.threads.iter().find(|t| t.id == id).map(account_text)
     }
 
     pub fn focus_prompt(&self, window: &mut Window, cx: &mut App) {
@@ -212,7 +211,7 @@ impl RemoteThreadView {
                 self.await_reply(pending, Some(text), window, cx, move |this, id, cx| {
                     this.thread_id = Some(id);
                     this.title = title.into();
-                    this.client.watch(id, 0);
+                    this.watch = Some(this.client.watch(id, 0));
                     cx.emit(RemoteThreadEvent::Started);
                 });
             }
@@ -221,6 +220,10 @@ impl RemoteThreadView {
     }
 
     pub(super) fn stop(&mut self, _: &RemoteStop, window: &mut Window, cx: &mut Context<Self>) {
+        // Like send: never to a machine that isn't connected and trusted.
+        if self.env.read(cx).state != ConnState::Connected {
+            return;
+        }
         if let Some(id) = self.thread_id {
             let pending = self.client.interrupt(id);
             self.await_reply(pending, None, window, cx, |_, _, _| {});
@@ -309,6 +312,14 @@ impl RemoteThreadView {
     }
 }
 
+/// The same "Label · id" a local thread's badge shows.
+fn account_text(t: &Thread) -> String {
+    match &t.account_label {
+        Some(label) => format!("{label} · {}", t.account_id),
+        None => t.account_id.clone(),
+    }
+}
+
 impl ItemsView for RemoteThreadView {
     fn items(&self) -> &[Item] {
         &self.items
@@ -337,11 +348,21 @@ impl Focusable for RemoteThreadView {
     }
 }
 
+impl RemoteThreadView {
+    /// The tab left the dock: stop following the thread, so the client stops fetching its events.
+    pub(super) fn closed(&mut self, _: &mut Context<Self>) {
+        self.closed = true;
+        if let Some(watch) = self.watch.take() {
+            self.client.unwatch(watch);
+        }
+    }
+}
+
 impl Drop for RemoteThreadView {
-    /// A closed tab stops following its thread, so the client stops fetching its events.
+    /// Backstop for a view dropped without leaving the dock (the window closing).
     fn drop(&mut self) {
-        if let Some(id) = self.thread_id {
-            self.client.unwatch(id);
+        if let Some(watch) = self.watch.take() {
+            self.client.unwatch(watch);
         }
     }
 }

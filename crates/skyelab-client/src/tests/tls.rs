@@ -71,8 +71,8 @@ fn raw_tls(cert: &Cert) -> RawTls {
 fn assert_refused(client: &Client, want: &str) -> String {
     match next(client) {
         Update::Disconnected(reason) => {
-            assert!(reason.contains(want), "{want:?} not in {reason:?}");
-            reason
+            assert!(reason.message.contains(want), "{want:?} not in {reason:?}");
+            reason.message
         }
         other => panic!("expected a refusal, got {other:?}"),
     }

@@ -2,8 +2,9 @@
 
 use anyhow::{Context as _, Result};
 use gpui::{
-    Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, KeyBindingContextPredicate,
-    PathPromptOptions, SharedString, Subscription, Task, Window, actions, div, prelude::*,
+    Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, KeyBinding,
+    KeyBindingContextPredicate, PathPromptOptions, SharedString, Subscription, Task, Window,
+    actions, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme as _, IndexPath, Sizable as _,
@@ -12,6 +13,7 @@ use gpui_component::{
     select::{Select, SelectState},
 };
 use skyelab_core::{Account, AccountsConfig, Binding};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -22,6 +24,18 @@ actions!(skyelab, [SaveAccount, CancelEdit, BindFolder]);
 #[action(namespace = skyelab, no_json)]
 pub struct EditAccount {
     pub id: String,
+}
+
+/// Open a terminal running `gh auth login` in this account's GitHub config dir.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct GhLogIn {
+    pub id: String,
+}
+
+pub enum SettingsEvent {
+    /// The user asked to log in to GitHub under `dir` (an account's `GH_CONFIG_DIR`).
+    GhLogin { dir: PathBuf },
 }
 
 #[derive(Clone, PartialEq, Action)]
@@ -77,7 +91,13 @@ pub struct Settings {
     id_input: Entity<InputState>,
     label_input: Entity<InputState>,
     dir_input: Entity<InputState>,
+    gh_input: Entity<InputState>,
     test_input: Entity<InputState>,
+    /// Who is logged in to github.com in each account's GitHub config dir (`None`: nobody).
+    gh_logins: HashMap<String, Option<String>>,
+    /// Why checking an account's GitHub login failed.
+    gh_errors: HashMap<String, String>,
+    _gh_check: Option<Task<()>>,
     /// Cached so render does no filesystem work (`resolve` canonicalizes).
     test_result: Option<Option<Account>>,
     /// Stale bindings' paths and where each resolves now (`None`: can't be resolved).
@@ -107,6 +127,11 @@ impl Settings {
             window,
             cx,
         );
+        let gh_input = input(
+            "GitHub config dir (optional), e.g. /Users/me/.config/gh-acme",
+            window,
+            cx,
+        );
         let test_input = input("/path/to/a/folder", window, cx);
         let ids = account_ids(&config);
         let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
@@ -126,7 +151,7 @@ impl Settings {
             (Some(_), None) => None,
         };
         let stale = stale_bindings(&config);
-        Self {
+        let mut this = Self {
             path,
             config,
             stale,
@@ -136,12 +161,74 @@ impl Settings {
             id_input,
             label_input,
             dir_input,
+            gh_input,
             test_input,
+            gh_logins: HashMap::new(),
+            gh_errors: HashMap::new(),
+            _gh_check: None,
             test_result: None,
             account_select,
             focus: cx.focus_handle(),
             _pick: None,
             _subs: subs,
+        };
+        this.check_gh_logins(cx);
+        this
+    }
+
+    /// Asks `gh` off the UI thread who is logged in to each account's GitHub config dir.
+    pub fn check_gh_logins(&mut self, cx: &mut Context<Self>) {
+        let dirs: Vec<(String, PathBuf)> = self
+            .config
+            .accounts
+            .iter()
+            .filter_map(|a| Some((a.id.clone(), a.gh_config_dir.clone()?)))
+            .collect();
+        let gh = crate::workspace::gh_bin(cx);
+        let task = cx.background_spawn(async move {
+            dirs.into_iter()
+                .map(|(id, dir)| {
+                    let login = skyelab_git::gh_login(&skyelab_git::GitHub {
+                        gh: &gh,
+                        config_dir: &dir,
+                    });
+                    (id, login.map_err(|e| e.to_string()))
+                })
+                .collect::<Vec<_>>()
+        });
+        self._gh_check = Some(cx.spawn(async move |this, cx| {
+            let checked = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.gh_logins.clear();
+                this.gh_errors.clear();
+                for (id, login) in checked {
+                    match login {
+                        Ok(login) => {
+                            this.gh_logins.insert(id, login);
+                        }
+                        Err(e) => {
+                            this.gh_errors.insert(id, e);
+                        }
+                    }
+                }
+                cx.notify();
+            });
+        }));
+    }
+
+    fn gh_log_in(&mut self, a: &GhLogIn, _: &mut Window, cx: &mut Context<Self>) {
+        let dir = self
+            .config
+            .accounts
+            .iter()
+            .find(|acct| acct.id == a.id)
+            .and_then(|acct| acct.gh_config_dir.clone());
+        match dir {
+            Some(dir) => cx.emit(SettingsEvent::GhLogin { dir }),
+            None => {
+                self.error = Some(format!("set a GitHub config dir for '{}' first", a.id));
+                cx.notify();
+            }
         }
     }
 
@@ -179,6 +266,7 @@ impl Settings {
                     }
                 });
                 self.refresh_fs(cx);
+                self.check_gh_logins(cx);
                 true
             }
             Err(e) => {
@@ -209,6 +297,9 @@ impl Settings {
                 .unwrap_or_else(|| value(&self.id_input)),
             label: value(&self.label_input),
             config_dir: PathBuf::from(value(&self.dir_input)),
+            gh_config_dir: Some(value(&self.gh_input))
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from),
         };
         let adding = self.editing.is_none();
         let saved = self.apply(
@@ -229,7 +320,12 @@ impl Settings {
 
     fn cancel_edit(&mut self, _: &CancelEdit, window: &mut Window, cx: &mut Context<Self>) {
         self.editing = None;
-        for input in [&self.id_input, &self.label_input, &self.dir_input] {
+        for input in [
+            &self.id_input,
+            &self.label_input,
+            &self.dir_input,
+            &self.gh_input,
+        ] {
             input.update(cx, |s, cx| s.set_value("", window, cx));
         }
         cx.notify();
@@ -248,10 +344,16 @@ impl Settings {
         let account = &account;
         self.editing = Some(account.id.clone());
         let dir = account.config_dir.display().to_string();
+        let gh = account
+            .gh_config_dir
+            .as_ref()
+            .map(|d| d.display().to_string())
+            .unwrap_or_default();
         for (input, text) in [
             (&self.id_input, account.id.clone()),
             (&self.label_input, account.label.clone()),
             (&self.dir_input, dir),
+            (&self.gh_input, gh),
         ] {
             input.update(cx, |s, cx| s.set_value(text, window, cx));
         }
@@ -328,6 +430,8 @@ fn account_ids(config: &AccountsConfig) -> Vec<SharedString> {
         .collect()
 }
 
+impl EventEmitter<SettingsEvent> for Settings {}
+
 impl Focusable for Settings {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus.clone()
@@ -346,6 +450,7 @@ impl Render for Settings {
             .on_action(cx.listener(Self::bind_folder))
             .on_action(cx.listener(Self::edit_account))
             .on_action(cx.listener(Self::remove_account))
+            .on_action(cx.listener(Self::gh_log_in))
             .on_action(cx.listener(Self::remove_binding))
             .on_action(cx.listener(Self::reconfirm_binding))
             .size_full()
@@ -378,3 +483,6 @@ mod widgets;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, unix))] // the fake gh is a shell script
+mod github_test;
