@@ -7426,6 +7426,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "skyelab-client"
+version = "0.1.0"
+dependencies = [
+ "flume 0.12.0",
+ "futures",
+ "serde_json",
+ "skyelab-daemon",
+ "skyelab-protocol",
+ "skyelab-store",
+ "skyelab-tailnet",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite",
+ "tungstenite",
+]
+
+[[package]]
 name = "skyelab-core"
 version = "0.1.0"
 dependencies = [
