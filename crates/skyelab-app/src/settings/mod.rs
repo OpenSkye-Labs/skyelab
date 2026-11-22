@@ -2,8 +2,8 @@
 
 use anyhow::{Context as _, Result};
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, KeyBinding, PathPromptOptions, SharedString,
-    Subscription, Task, Window, actions, div, prelude::*,
+    Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, KeyBindingContextPredicate,
+    PathPromptOptions, SharedString, Subscription, Task, Window, actions, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme as _, IndexPath, Sizable as _,
@@ -13,17 +13,28 @@ use gpui_component::{
 };
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 actions!(skyelab, [SaveAccount, CancelEdit, BindFolder]);
 
 const CONTEXT: &str = "Settings";
 
 pub fn init(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new("secondary-enter", SaveAccount, Some(CONTEXT)),
-        KeyBinding::new("escape", CancelEdit, Some(CONTEXT)),
-        KeyBinding::new("secondary-b", BindFolder, Some(CONTEXT)),
-    ]);
+    // `KeyBinding::new` can't parse `secondary-` (it doesn't know the OS); `load` resolves it.
+    let context = KeyBindingContextPredicate::parse(CONTEXT).ok().map(Rc::new);
+    let bindings: [(&str, Box<dyn Action>); 3] = [
+        ("secondary-enter", Box::new(SaveAccount)),
+        ("escape", Box::new(CancelEdit)),
+        ("secondary-b", Box::new(BindFolder)),
+    ];
+    let bindings: Vec<_> = bindings
+        .into_iter()
+        .map(|(keys, action)| {
+            KeyBinding::load(keys, action, context.clone(), false, None, cx)
+                .expect("static keystrokes are valid")
+        })
+        .collect();
+    cx.bind_keys(bindings);
 }
 
 type AccountSelect = SelectState<Vec<SharedString>>;
@@ -452,3 +463,6 @@ impl Render for Settings {
             .child(self.render_test(cx))
     }
 }
+
+#[cfg(test)]
+mod tests;
