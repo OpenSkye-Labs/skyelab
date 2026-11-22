@@ -57,14 +57,9 @@ impl Terminal {
     pub fn spawn(opts: SpawnOptions) -> anyhow::Result<(Self, UnboundedReceiver<Event>)> {
         let (tx, rx) = unbounded();
         let listener = Listener(tx);
-        let mut env = opts.env;
-        env.entry("TERM".into()).or_insert("xterm-256color".into());
-        env.entry("COLORTERM".into()).or_insert("truecolor".into());
+        let (program, args, env) = launch(opts.command, opts.env);
         let options = tty::Options {
-            shell: Some(shell(
-                opts.command,
-                env.get(CLAUDE_CONFIG_DIR).is_some_and(|v| !v.is_empty()),
-            )),
+            shell: Some(tty::Shell::new(program, args)),
             working_directory: Some(opts.cwd),
             drain_on_exit: true,
             env,
@@ -203,27 +198,34 @@ fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> Wind
 
 const CLAUDE_CONFIG_DIR: &str = "CLAUDE_CONFIG_DIR";
 
-/// The child's command line. Without a caller-set `CLAUDE_CONFIG_DIR` it goes through
-/// `env -u CLAUDE_CONFIG_DIR` (unix), so the parent's account never leaks into the terminal.
-/// With one, the caller's value already replaces the parent's, and `env -u` would strip it.
-fn shell(command: Option<(String, Vec<String>)>, account_set: bool) -> tty::Shell {
+/// The child's program, args and env: the caller's env plus `TERM`/`COLORTERM`, and never the parent's
+/// `CLAUDE_CONFIG_DIR` unless the caller set its own (the account env). Unix runs the command through
+/// `env -u CLAUDE_CONFIG_DIR`. On Windows alacritty adds every inherited var the env map doesn't name, and has no
+/// way to remove one, so the var is overridden with an empty value instead.
+fn launch(
+    command: Option<(String, Vec<String>)>,
+    mut env: HashMap<String, String>,
+) -> (String, Vec<String>, HashMap<String, String>) {
+    env.entry("TERM".into()).or_insert("xterm-256color".into());
+    env.entry("COLORTERM".into()).or_insert("truecolor".into());
     let (program, args) = command.unwrap_or_else(|| {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell().into());
         (shell, login_args())
     });
-    #[cfg(unix)]
-    let (program, args) = if account_set {
-        (program, args)
-    } else {
-        // `--` so a program name with `=` or a leading `-` is never read as an env argument.
-        let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), "--".into(), program];
-        wrapped.extend(args);
-        ("/usr/bin/env".to_string(), wrapped)
-    };
-    #[cfg(not(unix))]
-    let _ = account_set;
-    // shortcut: on Windows an inherited CLAUDE_CONFIG_DIR is not cleared; fix when Windows terminals ship.
-    tty::Shell::new(program, args)
+    if env.get(CLAUDE_CONFIG_DIR).is_some_and(|v| !v.is_empty()) {
+        return (program, args, env);
+    }
+    if cfg!(windows) {
+        // shortcut: the child sees CLAUDE_CONFIG_DIR defined but empty, not absent; a tool that treats "set" as
+        // "configured" would still differ. Upgrade if alacritty's Options gains env removal.
+        env.insert(CLAUDE_CONFIG_DIR.into(), String::new());
+        return (program, args, env);
+    }
+    // `--` so a program name with `=` or a leading `-` is never read as an env argument.
+    let mut wrapped = vec!["-u".into(), CLAUDE_CONFIG_DIR.into(), "--".into(), program];
+    wrapped.extend(args);
+    env.remove(CLAUDE_CONFIG_DIR);
+    ("/usr/bin/env".to_string(), wrapped, env)
 }
 
 fn default_shell() -> &'static str {
@@ -271,5 +273,37 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         assert_eq!(&buf[..n], b"XYZ");
+    }
+}
+
+#[cfg(test)]
+mod env_tests {
+    use super::*;
+
+    #[test]
+    fn child_env_never_inherits_the_parents_config_dir() {
+        let cmd = || Some(("prog".to_string(), vec!["a".to_string()]));
+        let (program, args, env) = launch(cmd(), HashMap::new());
+        assert_eq!(env["TERM"], "xterm-256color");
+        if cfg!(windows) {
+            // The empty value overrides the inherited one: alacritty's env block can't remove a var.
+            assert_eq!(
+                (program.as_str(), args.as_slice()),
+                ("prog", &["a".to_string()][..])
+            );
+            assert_eq!(env.get(CLAUDE_CONFIG_DIR).map(String::as_str), Some(""));
+        } else {
+            assert_eq!(program, "/usr/bin/env");
+            assert_eq!(args, ["-u", CLAUDE_CONFIG_DIR, "--", "prog", "a"]);
+            assert!(!env.contains_key(CLAUDE_CONFIG_DIR));
+        }
+
+        let account = HashMap::from([(CLAUDE_CONFIG_DIR.to_string(), "/acct".to_string())]);
+        let (program, args, env) = launch(cmd(), account);
+        assert_eq!(
+            (program.as_str(), args.as_slice()),
+            ("prog", &["a".to_string()][..])
+        );
+        assert_eq!(env[CLAUDE_CONFIG_DIR], "/acct");
     }
 }
