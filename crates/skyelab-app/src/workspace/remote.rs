@@ -3,9 +3,7 @@
 
 use super::Workspace;
 use super::thread::{Interrupt, SendPrompt, ThreadView};
-use crate::remote::{
-    DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Status, ToggleSharing,
-};
+use crate::remote::{DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, ToggleSharing};
 use gpui::{
     AppContext as _, Context, Entity, Focusable as _, IntoElement, Subscription, Task, WeakEntity,
     Window, div, prelude::*, px,
@@ -36,7 +34,8 @@ pub(super) struct StartQueue {
     /// Dropped when the first load ends (or the wait times out), which wakes `wait`.
     loading: Option<flume::Sender<()>>,
     wait: flume::Receiver<()>,
-    calls: Vec<(i64, String, crate::remote::Reply<i64>)>,
+    /// Project, prompt, reply, and the sharing session it arrived in.
+    calls: Vec<(i64, String, crate::remote::Reply<i64>, Option<u64>)>,
     _drain: Option<Task<()>>,
     _timeout: Option<Task<()>>,
 }
@@ -149,6 +148,10 @@ impl Workspace {
         }
     }
 
+    fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
+        self.remote.as_ref()?.remote.read(cx).sharing_session()
+    }
+
     pub(super) fn open_view(
         &self,
         thread_id: i64,
@@ -165,11 +168,7 @@ impl Workspace {
             return;
         }
         // Queued before the user turned sharing off: access was revoked, so it doesn't run.
-        let sharing = self
-            .remote
-            .as_ref()
-            .is_some_and(|h| matches!(h.remote.read(cx).status, Status::Sharing { .. }));
-        if !sharing {
+        if self.sharing_session(cx).is_none() {
             return call.refuse(refused("sharing was turned off on this machine"));
         }
         match call {
@@ -261,13 +260,14 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.starts.calls.retain(|c| !c.2.is_disconnected());
         if self.starts.calls.len() >= MAX_WAITING_STARTS {
             let _ = reply.send(Err(refused("this machine is still starting; try again")));
             return;
         }
-        self.starts
-            .calls
-            .push((project_id, prompt.to_owned(), reply));
+        let session = self.sharing_session(cx);
+        let call = (project_id, prompt.to_owned(), reply, session);
+        self.starts.calls.push(call);
         if self.starts._drain.is_some() {
             return;
         }
@@ -280,15 +280,12 @@ impl Workspace {
         self.starts._drain = Some(cx.spawn_in(window, async move |this, cx| {
             let _ = wait.recv_async().await; // Err once the load ended: the sender is gone
             let _ = this.update_in(cx, |this, window, cx| {
-                for (id, prompt, reply) in std::mem::take(&mut this.starts.calls) {
+                for (id, prompt, reply, session) in std::mem::take(&mut this.starts.calls) {
                     if reply.is_disconnected() {
                         continue;
                     }
-                    // Sharing turned off while it waited: access was revoked, so it doesn't run.
-                    let revoked = this.remote.as_ref().is_some_and(|h| {
-                        !matches!(h.remote.read(cx).status, Status::Sharing { .. })
-                    });
-                    if revoked {
+                    // Sharing turned off (or off and on again) while it waited: that access was revoked.
+                    if this.sharing_session(cx) != session {
                         let _ = reply.send(Err(refused("sharing was turned off on this machine")));
                         continue;
                     }

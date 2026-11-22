@@ -214,6 +214,12 @@ impl Remote {
         }
     }
 
+    /// Which sharing session is live, if any: a call queued under one never runs under another.
+    pub fn sharing_session(&self) -> Option<u64> {
+        matches!(self.status, Status::Sharing { .. })
+            .then(|| self.generation.load(Ordering::SeqCst))
+    }
+
     pub fn refresh_peers(&mut self, cx: &mut Context<Self>) {
         let peers = lock_slot(&self.host.slot)
             .as_ref()
