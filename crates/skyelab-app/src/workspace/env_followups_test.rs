@@ -70,6 +70,7 @@ fn remote_threads_show_the_account_label(cx: &mut TestAppContext) {
             id: "work".into(),
             label: "Work (Team)".into(),
             config_dir: remote._dir.path().join("claude-work"),
+            provider: Default::default(),
             gh_config_dir: None,
         }],
         ..AccountsConfig::default()

@@ -5,7 +5,7 @@ You run Claude Code agents in threads over your projects, review their changes, 
 preview and your simulators next to them. It is inspired by [T3 Code](https://github.com/pingdotgg/t3code) and
 borrows its overall shape.
 
-**Why it exists: every folder is bound to exactly one Claude account, and SkyeLab enforces it.** An agent in your
+**Why it exists: every folder is bound to exactly one account (Claude or Codex), and SkyeLab enforces it.** An agent in your
 work repo always runs on the work account, and one in a side project always runs on your personal account. A folder
 with no binding doesn't fall back to a default. SkyeLab asks you to bind it first.
 
@@ -17,11 +17,13 @@ with no binding doesn't fall back to a default. SkyeLab asks you to bind it firs
 
 What's built today:
 
-- **Account bindings.** Add Claude accounts (one `CLAUDE_CONFIG_DIR` each) and bind folders to them in Settings.
+- **Account bindings.** Add Claude accounts (one `CLAUDE_CONFIG_DIR` each) or OpenAI Codex accounts (one
+  `CODEX_HOME` each) and bind folders to them in Settings. The folder decides both the account and the agent.
   The deepest binding wins. Each binding remembers the real folder you confirmed, so if the path later points
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
-- **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, renders its messages and tool calls
-  as they arrive, and saves everything to a local SQLite database. Reopening a thread resumes the same Claude session.
+- **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
+  account, renders its messages and tool calls as they arrive, and saves everything to a local SQLite database.
+  Reopening a thread resumes the same session. The thread header names the provider.
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
@@ -47,7 +49,7 @@ What's built today:
   projects bound to its own account. A child shows "Delegated by" its parent, and the parent lists its delegated
   threads. macOS and Linux only for now.
 
-Not built yet: other agents such as Codex, and delegation to other machines.
+Not built yet: agents beyond Claude Code and Codex, an approval UI for Codex, and delegation to other machines.
 
 | Changes tab | Accounts and bindings | Device hub |
 |---|---|---|
@@ -58,7 +60,8 @@ Not built yet: other agents such as Codex, and delegation to other machines.
 ### 1. Platform setup
 
 You need the latest stable Rust ([rustup](https://rustup.rs)); `rust-toolchain.toml` picks it. You also need
-[Claude Code](https://docs.claude.com/en/docs/claude-code) installed, with `claude` on your `PATH`.
+[Claude Code](https://docs.claude.com/en/docs/claude-code) installed, with `claude` on your `PATH`, and for Codex
+accounts the [Codex CLI](https://github.com/openai/codex) (`codex` on your `PATH`).
 
 - **macOS 14 or later:** full Xcode plus the Metal toolchain:
   `xcodebuild -downloadComponent MetalToolchain`. Without it the build fails with "metal shader compilation failed".
@@ -80,6 +83,9 @@ CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
 CLAUDE_CONFIG_DIR=~/.claude claude auth login
 ```
 
+For a Codex account, add it in Settings with **Codex** picked and press **Log in to Codex**, or run
+`CODEX_HOME=~/.codex-work codex login` yourself.
+
 Then open Settings (<kbd>⌘,</kbd>, or <kbd>Ctrl+,</kbd> on Linux and Windows), add each account with its config
 folder, and bind your project folders to them. The [user guide](docs/user-guide.md) covers the rest.
 
@@ -93,7 +99,7 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 |---|---|
 | `skyelab-core` | Accounts, bindings and app settings. No GPUI, unit-tested without a window. |
 | `skyelab-app` | The GPUI desktop app (binary `skyelab`). |
-| `skyelab-agent` | Launches `claude` with the bound account and parses its stream-json output. |
+| `skyelab-agent` | Launches `claude` (stream-json) or `codex app-server` with the bound account and maps both onto one event stream. |
 | `skyelab-store` | SQLite storage for projects, threads and thread events. |
 | `skyelab-git` | Git status, diffs and worktrees. |
 | `skyelab-terminal` | PTY terminal and its GPUI view. |
@@ -110,10 +116,13 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   unknown account id in `accounts.toml` is a load error.
 - **Clean agent environment.** Each agent starts with an empty environment. A short allowlist passes through
   (`PATH`, `HOME`, locale, proxy and CA settings, `SSH_AUTH_SOCK`, and the like), and then SkyeLab sets
-  `CLAUDE_CONFIG_DIR` for the bound account. Nothing that could pick another account, provider or API base URL is
-  inherited.
+  `CLAUDE_CONFIG_DIR` or `CODEX_HOME` for the bound account. Nothing that could pick another account, provider or
+  API base URL (`ANTHROPIC_*`, `OPENAI_*`, `CODEX_API_KEY`, the parent's own `CODEX_HOME`) is inherited.
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
-  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks.
+  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. Codex runs with the folder and
+  every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and
+  `.rules` never load. Codex has no approval UI here yet: it runs with approvals off and the `workspace-write`
+  sandbox (writes stay in the folder, no network), and any approval request is declined.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the

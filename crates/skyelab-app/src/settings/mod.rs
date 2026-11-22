@@ -12,7 +12,7 @@ use gpui_component::{
     input::{Input, InputEvent, InputState},
     select::{Select, SelectState},
 };
-use skyelab_core::{Account, AccountsConfig, Binding};
+use skyelab_core::{Account, AccountsConfig, Binding, Provider};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -36,6 +36,8 @@ pub struct GhLogIn {
 pub enum SettingsEvent {
     /// The user asked to log in to GitHub under `dir` (an account's `GH_CONFIG_DIR`).
     GhLogin { dir: PathBuf },
+    /// The user asked to log in to Codex under `dir` (a Codex account's `CODEX_HOME`).
+    CodexLogin { dir: PathBuf },
 }
 
 #[derive(Clone, PartialEq, Action)]
@@ -88,6 +90,8 @@ pub struct Settings {
     locked: Option<String>,
     /// Id of the account the form is editing; `None` means the form adds a new one.
     editing: Option<String>,
+    /// The provider the form saves the account with.
+    pub(crate) provider: Provider,
     id_input: Entity<InputState>,
     label_input: Entity<InputState>,
     dir_input: Entity<InputState>,
@@ -123,7 +127,7 @@ impl Settings {
         let id_input = input("id, e.g. acme", window, cx);
         let label_input = input("label, e.g. Acme (Team)", window, cx);
         let dir_input = input(
-            "absolute config dir, e.g. /Users/me/.claude-acme",
+            "absolute config dir, e.g. /Users/me/.claude-acme or /Users/me/.codex-acme",
             window,
             cx,
         );
@@ -158,6 +162,7 @@ impl Settings {
             error: locked.clone(),
             locked,
             editing: None,
+            provider: Provider::Claude,
             id_input,
             label_input,
             dir_input,
@@ -232,6 +237,23 @@ impl Settings {
         }
     }
 
+    /// Asks for a terminal running `codex login` in a Codex account's `CODEX_HOME`.
+    pub(crate) fn codex_log_in(&mut self, id: &str, cx: &mut Context<Self>) {
+        let dir = self
+            .config
+            .accounts
+            .iter()
+            .find(|a| a.id == id && a.provider == Provider::Codex)
+            .map(|a| a.config_dir.clone());
+        match dir {
+            Some(dir) => cx.emit(SettingsEvent::CodexLogin { dir }),
+            None => {
+                self.error = Some(format!("'{id}' is not a Codex account"));
+                cx.notify();
+            }
+        }
+    }
+
     /// Run one core edit on a copy, save it, and only then adopt it. A failed edit or save
     /// leaves memory and disk unchanged, and shows the core's error inline.
     fn apply(
@@ -297,6 +319,7 @@ impl Settings {
                 .unwrap_or_else(|| value(&self.id_input)),
             label: value(&self.label_input),
             config_dir: PathBuf::from(value(&self.dir_input)),
+            provider: self.provider,
             gh_config_dir: Some(value(&self.gh_input))
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
@@ -320,6 +343,7 @@ impl Settings {
 
     fn cancel_edit(&mut self, _: &CancelEdit, window: &mut Window, cx: &mut Context<Self>) {
         self.editing = None;
+        self.provider = Provider::Claude;
         for input in [
             &self.id_input,
             &self.label_input,
@@ -343,6 +367,7 @@ impl Settings {
         };
         let account = &account;
         self.editing = Some(account.id.clone());
+        self.provider = account.provider;
         let dir = account.config_dir.display().to_string();
         let gh = account
             .gh_config_dir
@@ -486,3 +511,6 @@ mod tests;
 
 #[cfg(all(test, unix))] // the fake gh is a shell script
 mod github_test;
+
+#[cfg(test)]
+mod codex_test;

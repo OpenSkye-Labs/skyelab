@@ -277,6 +277,14 @@ impl ThreadView {
         Some(format!("{label} · {id}").into())
     }
 
+    /// The provider of the account the thread was started with (`None` before the thread has a row,
+    /// or when that account is gone).
+    pub fn provider(&self) -> Option<skyelab_core::Provider> {
+        let id = &self.thread.as_ref()?.account_id;
+        let account = self.config.accounts.iter().find(|a| &a.id == id)?;
+        Some(account.provider)
+    }
+
     pub fn is_expanded(&self, tool_id: &str) -> bool {
         self.expanded.contains(tool_id)
     }

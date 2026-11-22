@@ -28,6 +28,7 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   reloads the page, ending the agent's scripts, and an eval still running answers with an error.
 - **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
   `parent_thread_id` (schema 3).
+- **Codex** sessions get the same tools and grant; see [codex.md](codex.md).
 - **Not yet:** Windows (no named-pipe transport, so threads there run without the tools) and delegation to other
   machines.
 

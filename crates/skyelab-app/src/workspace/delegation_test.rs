@@ -49,6 +49,7 @@ pub(super) fn rig() -> (Rig, PathBuf, AccountsConfig) {
                 id: id.into(),
                 label: format!("{id} account"),
                 config_dir: root.join(format!(".claude-{id}")),
+                provider: Default::default(),
                 gh_config_dir: None,
             })
             .expect("account");

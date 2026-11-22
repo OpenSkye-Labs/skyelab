@@ -1,6 +1,7 @@
-//! Runs Claude Code sessions under the account bound to their folder. No GPUI, no tokio:
-//! a std reader thread feeds a flume channel, which GPUI's executor can await.
+//! Runs agent sessions (Claude Code, or Codex) under the account bound to their folder. No GPUI, no
+//! tokio: a std reader thread feeds a flume channel, which GPUI's executor can await.
 
+mod codex;
 mod event;
 mod launch;
 #[cfg(unix)]
@@ -10,20 +11,21 @@ pub use event::{Block, Event};
 
 use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
-use skyelab_core::{Account, AccountsConfig};
+use skyelab_core::{Account, AccountsConfig, Provider};
 use std::io::{BufRead as _, BufReader, Read, Write as _};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
+use std::sync::{Arc, Mutex};
 
 /// Longest stdout line kept whole; a longer one arrives as a truncated [`Event::Unknown`].
 const MAX_LINE: usize = 16 << 20;
 /// Stdin lines queued for the writer thread. A full queue means `claude` stopped reading.
 const STDIN_QUEUE: usize = 64;
 
-/// A running `claude` process. Dropping it kills the process.
+/// A running agent process (`claude`, or `codex app-server`). Dropping it kills the process.
 ///
 /// Stdin writes go through a writer thread, so `send_user_message`, `interrupt` and `kill`
-/// never wait behind a `claude` that stopped reading.
+/// never wait behind an agent that stopped reading.
 pub struct Session {
     child: Child,
     /// Set once the child is reaped. Its pid may then belong to an unrelated process.
@@ -31,6 +33,8 @@ pub struct Session {
     stdin: flume::Sender<String>,
     events: flume::Receiver<Event>,
     next_request: u64,
+    /// Set for Codex: the protocol state the reader thread shares.
+    codex: Option<Arc<Mutex<codex::Codex>>>,
 }
 
 /// What to launch: the account the caller resolved for `dir` (and recorded), and optionally a
@@ -38,20 +42,26 @@ pub struct Session {
 pub struct Launch<'a> {
     pub account: &'a Account,
     pub dir: &'a Path,
-    /// `claude`'s session id (from [`Event::Init`]) to continue with `--resume`.
+    /// The session id (from [`Event::Init`]) to continue: `claude --resume`, or Codex's `thread/resume`.
     pub resume: Option<&'a str>,
     pub prompt: &'a str,
-    /// A `--mcp-config` file for SkyeLab's own tools (an [`mcp::Grant`]'s), or `None` for no tools.
+    /// A `--mcp-config` file for SkyeLab's own tools (an [`mcp::Grant`]'s), or `None` for no tools. Codex gets
+    /// the same server, read from this file and sent with `thread/start`.
     pub mcp_config: Option<&'a Path>,
 }
 
-/// Starts `claude` per `launch` and sends its prompt as the first turn.
+/// Starts the account's agent (`claude` or `codex`) per `launch` and sends its prompt as the first turn.
 pub fn start(config: &AccountsConfig, launch: &Launch) -> Result<Session> {
-    start_with_bin(Path::new("claude"), config, launch)
+    let bin = match launch.account.provider {
+        Provider::Claude => "claude",
+        Provider::Codex => "codex",
+    };
+    start_with_bin(Path::new(bin), config, launch)
 }
 
-/// [`start`] with another binary in place of `claude`, so tests can run a fake. `bin` is an
-/// absolute path, or a bare name looked up in the absolute entries of our PATH.
+/// [`start`] with another binary in place of `claude` / `codex`, so tests can run a fake. `bin` is an
+/// absolute path, or a bare name looked up in the absolute entries of our PATH. The account's provider
+/// picks the protocol.
 ///
 /// `config` is read again here: if `launch.dir` no longer resolves to `launch.account`, nothing
 /// starts, so the account the caller recorded is the one the process runs under.
@@ -94,6 +104,79 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     cmd.env_clear().envs(launch::inherited_env()).envs(env);
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
+    let codex = match account.provider {
+        Provider::Claude => {
+            claude_args(&mut cmd, mcp_config, resume);
+            None
+        }
+        Provider::Codex => {
+            cmd.args(codex::args(dir)?);
+            let mcp = mcp_config.map(codex::mcp_servers).transpose()?;
+            Some(codex::Codex::new(dir, resume, mcp))
+        }
+    };
+    cmd.current_dir(dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        // shortcut: stderr goes to ours, not to events; surface it once the UI shows launch failures.
+        .stderr(Stdio::inherit());
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("starting {} in {}", bin.display(), dir.display()))?;
+    let stdout = child.stdout.take().context("child stdout was piped")?;
+    let stdin = child.stdin.take().context("child stdin was piped")?;
+
+    let (tx, events) = flume::unbounded();
+    let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
+    let codex = codex.map(|(state, opening)| (Arc::new(Mutex::new(state)), opening));
+    // Built before the threads spawn, so every error below still kills and reaps the child on drop.
+    let mut session = Session {
+        child,
+        status: None,
+        stdin: stdin_tx.clone(),
+        events,
+        next_request: 0,
+        codex: codex.as_ref().map(|(state, _)| state.clone()),
+    };
+    let parse: Box<Parse> = match codex {
+        None => Box::new(|line| vec![Event::parse(line)]),
+        Some((state, opening)) => {
+            for line in opening {
+                session.queue(line)?;
+            }
+            Box::new(move |line| {
+                let Ok(v) = serde_json::from_str::<Value>(line) else {
+                    return vec![Event::Unknown(Value::String(line.to_owned()))];
+                };
+                let (events, replies) = lock(&state).on_line(v);
+                for reply in replies {
+                    let _ = stdin_tx.try_send(reply); // a full queue: codex stopped reading, nothing to save
+                }
+                events
+            })
+        }
+    };
+    std::thread::Builder::new()
+        .name("skyelab-agent-reader".into())
+        .spawn(move || read_events(stdout, &tx, parse))
+        .context("spawning reader thread")?;
+    std::thread::Builder::new()
+        .name("skyelab-agent-writer".into())
+        .spawn(move || write_lines(stdin, &stdin_rx))
+        .context("spawning writer thread")?;
+    session.send_user_message(prompt)?;
+    Ok(session)
+}
+
+/// Turns one stdout line into events (and, for Codex, answers it).
+type Parse = dyn FnMut(&str) -> Vec<Event> + Send;
+
+fn lock(state: &Mutex<codex::Codex>) -> std::sync::MutexGuard<'_, codex::Codex> {
+    // A panic mid-update leaves plain data behind; the next line still gets handled.
+    state.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str>) {
     cmd.args([
         "-p",
         "--input-format",
@@ -115,41 +198,10 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
             "mcp__skyelab".as_ref(),
         ]
     }))
-    .args(resume.into_iter().flat_map(|id| ["--resume", id]))
-    .current_dir(dir)
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    // shortcut: stderr goes to ours, not to events; surface it once the UI shows launch failures.
-    .stderr(Stdio::inherit());
-    let mut child = cmd
-        .spawn()
-        .with_context(|| format!("starting {} in {}", bin.display(), dir.display()))?;
-    let stdout = child.stdout.take().context("child stdout was piped")?;
-    let stdin = child.stdin.take().context("child stdin was piped")?;
-
-    let (tx, events) = flume::unbounded();
-    let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
-    // Built before the threads spawn, so every error below still kills and reaps the child on drop.
-    let mut session = Session {
-        child,
-        status: None,
-        stdin: stdin_tx,
-        events,
-        next_request: 0,
-    };
-    std::thread::Builder::new()
-        .name("skyelab-agent-reader".into())
-        .spawn(move || read_events(stdout, &tx))
-        .context("spawning reader thread")?;
-    std::thread::Builder::new()
-        .name("skyelab-agent-writer".into())
-        .spawn(move || write_lines(stdin, &stdin_rx))
-        .context("spawning writer thread")?;
-    session.send_user_message(prompt)?;
-    Ok(session)
+    .args(resume.into_iter().flat_map(|id| ["--resume", id]));
 }
 
-/// Claude Code's session ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
+/// Claude Code's session ids and Codex's thread ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
 fn valid_session_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
@@ -171,7 +223,11 @@ fn write_lines(mut stdin: ChildStdin, lines: &flume::Receiver<String>) {
     }
 }
 
-fn read_events(stdout: impl Read, tx: &flume::Sender<Event>) {
+fn read_events(
+    stdout: impl Read,
+    tx: &flume::Sender<Event>,
+    mut parse: impl FnMut(&str) -> Vec<Event>,
+) {
     let mut stdout = BufReader::new(stdout);
     let mut buf = Vec::new();
     loop {
@@ -187,15 +243,15 @@ fn read_events(stdout: impl Read, tx: &flume::Sender<Event>) {
             while line.len() > MAX_LINE {
                 line.pop(); // a cut mid-character becomes a 3-byte U+FFFD
             }
-            Event::Unknown(Value::String(line))
+            vec![Event::Unknown(Value::String(line))]
         } else {
             let line = String::from_utf8_lossy(&buf);
             if line.trim().is_empty() {
                 continue;
             }
-            Event::parse(line.trim_end())
+            parse(line.trim_end())
         };
-        if tx.send(event).is_err() {
+        if event.into_iter().any(|e| tx.send(e).is_err()) {
             break;
         }
     }
@@ -212,8 +268,12 @@ impl Session {
         &self.events
     }
 
-    /// Sends a follow-up user turn.
+    /// Sends a follow-up user turn. Codex queues it behind a running turn, as `claude` does.
     pub fn send_user_message(&mut self, text: &str) -> Result<()> {
+        if let Some(state) = &self.codex {
+            let lines = lock(state).prompt(text)?;
+            return lines.into_iter().try_for_each(|l| self.queue(l));
+        }
         self.write(&json!({
             "type": "user",
             "message": { "role": "user", "content": text },
@@ -222,8 +282,12 @@ impl Session {
         }))
     }
 
-    /// Asks `claude` to stop the current turn; the process stays alive for the next message.
+    /// Asks the agent to stop the current turn; the process stays alive for the next message.
     pub fn interrupt(&mut self) -> Result<()> {
+        if let Some(state) = &self.codex {
+            let lines = lock(state).interrupt();
+            return lines.into_iter().try_for_each(|l| self.queue(l));
+        }
         self.next_request += 1;
         let request_id = format!("skyelab-{}", self.next_request);
         self.write(&json!({
@@ -268,13 +332,17 @@ impl Session {
         Ok(())
     }
 
-    /// Queues one line for the writer thread; never blocks.
     fn write(&mut self, msg: &serde_json::Value) -> Result<()> {
-        self.stdin.try_send(msg.to_string()).map_err(|e| match e {
+        self.queue(msg.to_string())
+    }
+
+    /// Queues one line for the writer thread; never blocks.
+    fn queue(&self, line: String) -> Result<()> {
+        self.stdin.try_send(line).map_err(|e| match e {
             flume::TrySendError::Full(_) => {
-                anyhow::anyhow!("claude isn't reading its input; stop it and try again")
+                anyhow::anyhow!("the agent isn't reading its input; stop it and try again")
             }
-            flume::TrySendError::Disconnected(_) => anyhow::anyhow!("claude's input is closed"),
+            flume::TrySendError::Disconnected(_) => anyhow::anyhow!("the agent's input is closed"),
         })
     }
 }

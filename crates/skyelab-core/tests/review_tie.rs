@@ -11,6 +11,7 @@ fn bindings_that_become_the_same_folder_do_not_silently_pick_one() {
             id: id.into(),
             label: id.into(),
             config_dir: format!("/abs/{id}").into(),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("account");

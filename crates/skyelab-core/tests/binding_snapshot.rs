@@ -12,6 +12,7 @@ fn config(path: &Path) -> AccountsConfig {
         id: "acme".into(),
         label: "Acme".into(),
         config_dir: "/home/me/.claude-acme".into(),
+        provider: Default::default(),
         gh_config_dir: None,
     })
     .expect("account");
@@ -76,6 +77,7 @@ fn stale_binding_blocks_fallback_to_a_shallower_one() {
         id: "personal".into(),
         label: "Personal".into(),
         config_dir: "/home/me/.claude".into(),
+        provider: Default::default(),
         gh_config_dir: None,
     })
     .expect("account");
@@ -237,6 +239,7 @@ fn stale_link_still_blocks_where_it_pointed_when_confirmed() {
         id: "personal".into(),
         label: "Personal".into(),
         config_dir: "/home/me/.claude".into(),
+        provider: Default::default(),
         gh_config_dir: None,
     })
     .expect("account");

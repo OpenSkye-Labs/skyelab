@@ -8,11 +8,45 @@ mod app_settings;
 pub mod delegation;
 pub use app_settings::{AppSettings, MAX_RECENT_ENVIRONMENTS};
 
-/// One provider login. For Claude Code an account *is* its config dir.
+/// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Provider {
+    #[default]
+    Claude,
+    Codex,
+}
+
+impl Provider {
+    pub const ALL: [Provider; 2] = [Provider::Claude, Provider::Codex];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Provider::Claude => "Claude",
+            Provider::Codex => "Codex",
+        }
+    }
+
+    /// The env var that points the CLI at an account's config dir.
+    pub fn home_var(self) -> &'static str {
+        match self {
+            Provider::Claude => "CLAUDE_CONFIG_DIR",
+            Provider::Codex => "CODEX_HOME",
+        }
+    }
+
+    fn is_claude(&self) -> bool {
+        *self == Provider::Claude
+    }
+}
+
+/// One provider login. An account *is* its config dir (`CLAUDE_CONFIG_DIR` or `CODEX_HOME`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Account {
     pub id: String,
     pub label: String,
+    #[serde(default, skip_serializing_if = "Provider::is_claude")]
+    pub provider: Provider,
     pub config_dir: PathBuf,
     /// This account's `gh` config dir (`GH_CONFIG_DIR`): its GitHub login. `None`: SkyeLab's own push and PR
     /// refuse, and agents get gh's default config.
@@ -21,11 +55,11 @@ pub struct Account {
 }
 
 impl Account {
-    /// Env to launch `claude` with as this account.
+    /// Env to launch this account's agent CLI with: its provider's home var, and its GitHub dir.
     pub fn launch_env(&self) -> Result<Vec<(&'static str, PathBuf)>> {
         check_account(self)?; // the fields are public, so this account may never have been validated
         let gh = self.gh_config_dir.clone().map(|d| ("GH_CONFIG_DIR", d));
-        Ok([("CLAUDE_CONFIG_DIR", self.config_dir.clone())]
+        Ok([(self.provider.home_var(), self.config_dir.clone())]
             .into_iter()
             .chain(gh)
             .collect())
@@ -147,7 +181,8 @@ impl AccountsConfig {
         Ok(())
     }
 
-    /// Replace the label and config dir of the account with the same id.
+    /// Replace the label and config dirs of the account with the same id. Its provider stays: its
+    /// threads hold that provider's session ids, which the other CLI can't resume.
     pub fn update_account(&mut self, account: Account) -> Result<()> {
         check_account(&account)?;
         let slot = self
@@ -155,6 +190,13 @@ impl AccountsConfig {
             .iter_mut()
             .find(|a| a.id == account.id)
             .with_context(|| format!("unknown account '{}'", account.id))?;
+        if slot.provider != account.provider {
+            bail!(
+                "account '{}' is a {} account; its provider can't change. Add a new account instead",
+                account.id,
+                slot.provider.label()
+            );
+        }
         *slot = account;
         Ok(())
     }
@@ -288,7 +330,7 @@ impl AccountsConfig {
         self.accounts.iter().find(|a| a.id == b.account)
     }
 
-    /// Env to launch `claude` with for `dir`. Errors when the folder is unbound.
+    /// Env to launch the bound account's agent with for `dir`. Errors when the folder is unbound.
     pub fn launch_env(&self, dir: &Path) -> Result<Vec<(&'static str, PathBuf)>> {
         self.resolve(dir)
             .with_context(|| format!("{} is not bound to an account", dir.display()))?
@@ -355,7 +397,7 @@ fn check_bound_path(p: &Path) -> Result<()> {
     Ok(())
 }
 
-/// An empty or relative `CLAUDE_CONFIG_DIR` would run the agent under some other account.
+/// An empty or relative `CLAUDE_CONFIG_DIR` / `CODEX_HOME` would run the agent under some other account.
 fn check_account(a: &Account) -> Result<()> {
     if a.id.trim().is_empty() {
         bail!("account id can't be empty");

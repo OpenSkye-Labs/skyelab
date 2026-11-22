@@ -13,6 +13,7 @@ fn args_for(mcp_config: Option<&Path>) -> String {
         id: "acme".into(),
         label: "Acme".into(),
         config_dir: dir.join("account"),
+        provider: Default::default(),
         gh_config_dir: None,
     };
     let config = AccountsConfig {

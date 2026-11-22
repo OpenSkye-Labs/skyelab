@@ -30,6 +30,7 @@ impl Settings {
                 });
                 let log_in = GhLogIn { id: a.id.clone() };
                 let has_gh = github.is_some();
+                let codex_id = (a.provider == Provider::Codex).then(|| a.id.clone());
                 row(cx)
                     .child(
                         div()
@@ -37,7 +38,28 @@ impl Settings {
                             .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(div().truncate().child(format!("{}  ({})", a.label, a.id)))
+                            .child(
+                                div()
+                                    .flex()
+                                    .gap_2()
+                                    .min_w_0()
+                                    .child(div().truncate().child(format!("{}  ({})", a.label, a.id)))
+                                    .child(
+                                        div()
+                                            .id(SharedString::from(format!("provider-{}", a.id)))
+                                            .debug_selector({
+                                                let s = format!("provider-{}", a.id);
+                                                move || s
+                                            })
+                                            .flex_shrink_0()
+                                            .px_1p5()
+                                            .rounded_sm()
+                                            .border_1()
+                                            .border_color(theme.border)
+                                            .text_xs()
+                                            .child(a.provider.label()),
+                                    ),
+                            )
                             .child(
                                 path_text(format!("dir-{}", a.id), &a.config_dir)
                                     .text_sm()
@@ -45,6 +67,18 @@ impl Settings {
                             )
                             .children(github),
                     )
+                    .children(codex_id.map(|id| {
+                        let selector = format!("codex-login-{id}");
+                        div().debug_selector(move || selector).child(
+                        Button::new(SharedString::from(format!("codex-login-{id}")))
+                            .label("Log in to Codex")
+                            .tooltip("Opens a terminal running codex login with this account's CODEX_HOME")
+                            .flex_shrink_0()
+                            .small()
+                            .ghost()
+                            .on_click(cx.listener(move |this, _, _, cx| this.codex_log_in(&id, cx))),
+                        )
+                    }))
                     .when(has_gh, |d| {
                         d.child(
                             Button::new(SharedString::from(format!("gh-login-{}", a.id)))
@@ -85,6 +119,10 @@ impl Settings {
                     .flex()
                     .flex_wrap()
                     .gap_2()
+                    // An account's provider is fixed once added (core refuses the change).
+                    .when(self.editing.is_none(), |d| {
+                        d.children(Provider::ALL.map(|p| self.provider_toggle(p, cx)))
+                    })
                     .when(self.editing.is_none(), |d| {
                         d.child(div().w_40().child(Input::new(&self.id_input)))
                     })
@@ -259,5 +297,27 @@ impl Settings {
         section("Test folder", cx)
             .child(Input::new(&self.test_input))
             .children(result)
+    }
+}
+
+impl Settings {
+    /// One of the add form's provider buttons; the picked one is filled.
+    fn provider_toggle(&self, p: Provider, cx: &mut Context<Self>) -> gpui::Div {
+        let selector = format!("provider-pick-{}", p.label());
+        let button = Button::new(SharedString::from(selector.clone()))
+            .label(p.label())
+            .tooltip("Which agent CLI this account logs in to")
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.provider = p;
+                cx.notify();
+            }));
+        div()
+            .flex_shrink_0()
+            .debug_selector(move || selector)
+            .child(if self.provider == p {
+                button.primary()
+            } else {
+                button.ghost()
+            })
     }
 }

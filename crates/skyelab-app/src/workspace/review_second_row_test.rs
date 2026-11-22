@@ -44,6 +44,7 @@ fn sending_after_stop_keeps_one_thread_row(cx: &mut TestAppContext) {
             id: "acme".into(),
             label: "Acme".into(),
             config_dir: root.join(".claude-acme"),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("account");
@@ -106,6 +107,7 @@ fn bound_view(
                 id: id.into(),
                 label: label.into(),
                 config_dir: root.join(format!(".claude-{id}")),
+                provider: Default::default(),
                 gh_config_dir: None,
             })
             .expect("account");

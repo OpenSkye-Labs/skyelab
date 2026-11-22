@@ -35,6 +35,7 @@ fn sharing_workspace(
             id: "acme".into(),
             label: "Acme Team".into(),
             config_dir: account_dir.clone(),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("account");

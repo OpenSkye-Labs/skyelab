@@ -1,0 +1,255 @@
+use super::*;
+
+/// Queues a prompt on a thread that opened.
+fn p(c: &mut Codex, text: &str) -> Vec<String> {
+    c.prompt(text).expect("thread is open")
+}
+
+fn parse(line: &str) -> Value {
+    serde_json::from_str(line).expect("test line is JSON")
+}
+
+fn method(line: &str) -> String {
+    parse(line)["method"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// A started thread with no turn yet.
+fn open() -> Codex {
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None);
+    let (events, writes) = c.on_line(
+        json!({ "id": c.start_id, "result": { "thread": { "id": "thr" }, "model": "m" } }),
+    );
+    assert_eq!(
+        events,
+        vec![Event::Init {
+            session_id: "thr".into(),
+            model: "m".into()
+        }]
+    );
+    assert!(writes.is_empty());
+    c
+}
+
+#[test]
+fn start_sends_initialize_then_thread_start_with_hardening() {
+    let (_, lines) = Codex::new(Path::new("/w"), None, Some(json!({ "skyelab": {} })));
+    let names: Vec<_> = lines.iter().map(|l| method(l)).collect();
+    assert_eq!(names, ["initialize", "initialized", "thread/start"]);
+    let p = &parse(&lines[2])["params"];
+    assert_eq!(p["approvalPolicy"], "never");
+    assert_eq!(p["sandbox"], "workspace-write");
+    assert_eq!(p["cwd"], "/w");
+    assert!(p["config"]["mcp_servers"]["skyelab"].is_object());
+}
+
+#[test]
+fn prompts_wait_for_the_thread_and_for_the_running_turn() {
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("thr"), None);
+    assert!(p(&mut c, "one").is_empty(), "no thread id yet");
+    let (_, writes) =
+        c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" } } }));
+    assert_eq!(method(&writes[0]), "turn/start");
+    assert_eq!(parse(&writes[0])["params"]["input"][0]["text"], "one");
+    assert!(p(&mut c, "two").is_empty(), "one turn at a time");
+    let (events, writes) = c.on_line(json!({ "method": "turn/completed", "params": { "turn": { "id": "t1", "status": "completed" } } }));
+    assert!(matches!(
+        events[..],
+        [Event::Result {
+            is_error: false,
+            ..
+        }]
+    ));
+    assert_eq!(parse(&writes[0])["params"]["input"][0]["text"], "two");
+}
+
+#[test]
+fn interrupt_before_the_turn_id_waits_for_it() {
+    let mut c = open();
+    let turn = p(&mut c, "go");
+    assert!(c.interrupt().is_empty());
+    let id = parse(&turn[0])["id"].clone();
+    let (_, writes) = c.on_line(json!({ "id": id, "result": { "turn": { "id": "t9" } } }));
+    let p = &parse(&writes[0]);
+    assert_eq!(p["method"], "turn/interrupt");
+    assert_eq!(p["params"], json!({ "threadId": "thr", "turnId": "t9" }));
+}
+
+#[test]
+fn idle_interrupt_does_nothing() {
+    let mut c = open();
+    assert!(c.interrupt().is_empty());
+    assert!(!c.interrupt_wanted);
+}
+
+#[test]
+fn approval_requests_are_declined_and_others_refused() {
+    let mut c = open();
+    let (events, writes) = c.on_line(
+        json!({ "id": 7, "method": "item/commandExecution/requestApproval", "params": {} }),
+    );
+    assert!(events.is_empty());
+    assert_eq!(
+        parse(&writes[0]),
+        json!({ "id": 7, "result": { "decision": "decline" } })
+    );
+    let (_, writes) =
+        c.on_line(json!({ "id": "x", "method": "item/tool/requestUserInput", "params": {} }));
+    assert_eq!(parse(&writes[0])["id"], "x");
+    assert!(parse(&writes[0])["error"]["message"].is_string());
+}
+
+#[test]
+fn failed_turn_start_reports_and_frees_the_queue() {
+    let mut c = open();
+    let turn = p(&mut c, "a");
+    p(&mut c, "b");
+    let id = parse(&turn[0])["id"].clone();
+    let (events, writes) =
+        c.on_line(json!({ "id": id, "error": { "code": 1, "message": "nope" } }));
+    assert_eq!(events, vec![failed("nope".into())]);
+    assert_eq!(parse(&writes[0])["params"]["input"][0]["text"], "b");
+}
+
+#[test]
+fn thread_start_error_is_a_failed_result() {
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None);
+    let (events, _) =
+        c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "no such thread" } }));
+    assert_eq!(events, vec![failed("no such thread".into())]);
+}
+
+#[test]
+fn items_map_to_tool_use_results_and_text() {
+    let mut c = open();
+    let cmd = json!({ "type": "commandExecution", "id": "i1", "command": "ls", "cwd": "/w", "status": "inProgress", "commandActions": [] });
+    let (events, _) = c.on_line(json!({ "method": "item/started", "params": { "item": cmd } }));
+    assert_eq!(
+        events,
+        vec![Event::Assistant {
+            content: vec![Block::ToolUse {
+                id: "i1".into(),
+                name: "shell".into(),
+                input: json!({ "command": "ls" })
+            }]
+        }]
+    );
+    let done = json!({ "type": "commandExecution", "id": "i1", "command": "ls", "status": "failed", "aggregatedOutput": "boom", "exitCode": 2 });
+    let (events, _) = c.on_line(json!({ "method": "item/completed", "params": { "item": done } }));
+    assert_eq!(
+        events,
+        vec![Event::User {
+            content: vec![Block::ToolResult {
+                tool_use_id: "i1".into(),
+                content: json!("boom"),
+                is_error: true
+            }]
+        }]
+    );
+    let msg = json!({ "type": "agentMessage", "id": "i2", "text": "done" });
+    let (events, _) = c.on_line(json!({ "method": "item/completed", "params": { "item": msg } }));
+    assert_eq!(
+        events,
+        vec![Event::Assistant {
+            content: vec![Block::Text {
+                text: "done".into()
+            }]
+        }]
+    );
+    let (events, _) = c.on_line(json!({ "method": "turn/completed", "params": { "turn": { "id": "t", "status": "completed", "durationMs": 5 } } }));
+    assert_eq!(
+        events,
+        vec![Event::Result {
+            is_error: false,
+            duration_ms: 5,
+            total_cost_usd: 0.0,
+            result: Some("done".into())
+        }]
+    );
+}
+
+#[test]
+fn mcp_calls_are_named_like_claudes() {
+    let item = json!({ "type": "mcpToolCall", "id": "m", "server": "skyelab", "tool": "list_projects", "arguments": {}, "status": "inProgress" });
+    let Some(Event::Assistant { content }) = started(&item) else {
+        panic!("tool use");
+    };
+    assert!(
+        matches!(&content[0], Block::ToolUse { name, .. } if name == "mcp__skyelab__list_projects")
+    );
+}
+
+#[test]
+fn deltas_and_status_are_dropped_unknown_methods_kept() {
+    let mut c = open();
+    for m in [
+        "item/agentMessage/delta",
+        "thread/tokenUsage/updated",
+        "account/rateLimits/updated",
+        "mcpServer/startupStatus/updated",
+    ] {
+        assert_eq!(
+            c.on_line(json!({ "method": m, "params": {} })),
+            (vec![], vec![]),
+            "{m}"
+        );
+    }
+    let (events, _) =
+        c.on_line(json!({ "method": "error", "params": { "error": { "message": "x" } } }));
+    assert!(matches!(events[..], [Event::Unknown(_)]));
+}
+
+#[test]
+fn every_ancestor_is_untrusted() {
+    let args = args(Path::new("/a/b")).expect("args");
+    assert_eq!(args[0], "app-server");
+    assert_eq!(args[1], "-c");
+    let projects = args[2].to_str().expect("utf-8");
+    for p in ["\"/\"=", "\"/a\"=", "\"/a/b\"="] {
+        assert!(
+            projects.contains(&format!("{p}{{trust_level=\"untrusted\"}}")),
+            "{projects}"
+        );
+    }
+}
+
+#[test]
+fn a_worktrees_main_repo_is_untrusted_too() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = std::fs::canonicalize(tmp.path()).expect("canonical");
+    let main = root.join("main");
+    let gitdir = main.join(".git/worktrees/wt");
+    std::fs::create_dir_all(&gitdir).expect("mkdir");
+    std::fs::write(gitdir.join("commondir"), "../..\n").expect("commondir");
+    let wt = root.join("elsewhere/wt");
+    std::fs::create_dir_all(wt.join("sub")).expect("mkdir");
+    std::fs::write(wt.join(".git"), format!("gitdir: {}\n", gitdir.display())).expect(".git");
+    assert_eq!(main_repo(&wt.join("sub")), Some(main.clone()));
+    let args = args(&wt.join("sub")).expect("args");
+    let main = json!(main.to_str().expect("utf-8")).to_string();
+    assert!(args[2].to_str().expect("utf-8").contains(&main));
+}
+
+#[test]
+fn a_thread_that_never_opened_refuses_prompts() {
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None);
+    assert!(p(&mut c, "first").is_empty(), "waits for the thread");
+    let (events, writes) =
+        c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "gone" } }));
+    assert_eq!((events, writes), (vec![failed("gone".into())], vec![]));
+    assert!(c.prompt("again").is_err());
+}
+
+#[test]
+fn interrupt_while_the_thread_opens_stops_the_first_turn() {
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None);
+    p(&mut c, "go");
+    assert!(c.interrupt().is_empty());
+    let (_, writes) =
+        c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" } } }));
+    let turn_req = parse(&writes[0])["id"].clone();
+    let (_, writes) = c.on_line(json!({ "id": turn_req, "result": { "turn": { "id": "t1" } } }));
+    assert_eq!(parse(&writes[0])["method"], "turn/interrupt");
+}

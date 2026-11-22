@@ -23,6 +23,7 @@ fn a_broken_accounts_file_launches_nothing_under_the_old_binding(cx: &mut TestAp
             id: "acme".into(),
             label: "Acme".into(),
             config_dir: root.join(".claude-acme"),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("account");

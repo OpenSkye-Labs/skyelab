@@ -22,7 +22,9 @@ What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-g
   measured from below the title bar, so subtract its 32 pt from a window screenshot's y at 1x). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`
-  and `title` evaluates `document.title` in that tab), and `gh` (Push, Open PR, the
+  and `title` evaluates `document.title` in that tab), Codex with
+  `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
+  project), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file). Never verify against the real `gh`. All of these are debug builds only.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
@@ -49,8 +51,8 @@ What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-g
 
 - `AccountsConfig::resolve(dir)` returns `None` for unbound folders. Callers must ask the user. **Never fall back to
   a default account.** Deepest binding wins, and path matching is component-wise.
-- Every agent process is launched with the env from `AccountsConfig::launch_env(dir)` (today: `CLAUDE_CONFIG_DIR`).
-  Never inherit the parent's `CLAUDE_CONFIG_DIR`. Clear it, then set it.
+- Every agent process is launched with the env from `AccountsConfig::launch_env(dir)` (`CLAUDE_CONFIG_DIR`,
+  or `CODEX_HOME` for a Codex account). Never inherit the parent's `CLAUDE_CONFIG_DIR` / `CODEX_HOME`. Clear it, then set it.
 - Config: `~/.config/skyelab/accounts.toml` (platform config dir). An unknown account id is a load error, not a warning.
 
 ## Platform setup

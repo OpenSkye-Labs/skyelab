@@ -23,6 +23,7 @@ fn bound(dir: &Path, config_dir: &Path) -> AccountsConfig {
             id: "acme".into(),
             label: "Acme".into(),
             config_dir: config_dir.into(),
+            provider: Default::default(),
             gh_config_dir: None,
         }],
         bindings: vec![Binding::new(dir.into(), "acme".into())],

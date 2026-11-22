@@ -43,4 +43,5 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   Limits: a shell rc that exports `GH_TOKEN` sets it again inside a terminal; an agent whose account has no GitHub
   dir uses gh's default config; a GitHub dir inside a project holds a plaintext token that Commit all would stage.
   (2026-11-23)
-
+- **Codex provider:** `codex app-server` under `CODEX_HOME`, the folder's account picks the provider. Protocol,
+  event mapping, hardening and limits: [codex.md](codex.md). (2026-11-23)

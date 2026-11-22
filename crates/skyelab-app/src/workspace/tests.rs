@@ -83,6 +83,7 @@ fn status_shows_the_bound_account_and_never_a_fallback() {
             id: "acme".into(),
             label: "Acme Team".into(),
             config_dir: home.path().join(".claude-acme"),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("add account");

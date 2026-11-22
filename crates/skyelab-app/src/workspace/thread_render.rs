@@ -58,6 +58,23 @@ impl ThreadView {
                             .child(thread_link("parent-link", id, title))
                     })),
             )
+            .children(self.provider().map(|p| {
+                let color = match p {
+                    skyelab_core::Provider::Claude => theme.warning,
+                    skyelab_core::Provider::Codex => theme.info,
+                };
+                h_flex()
+                    .id("provider-badge")
+                    .gap_1p5()
+                    .px_2()
+                    .py_0p5()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(color)
+                    .text_xs()
+                    .child(div().size(px(6.)).rounded_sm().bg(color))
+                    .child(p.label())
+            }))
             .children(self.badge().map(|badge| {
                 h_flex()
                     .gap_1p5()
