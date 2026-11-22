@@ -1,21 +1,11 @@
 mod settings;
+mod workspace;
 
 use gpui::{
-    App, AppContext as _, Bounds, Focusable as _, KeyBinding, WindowBounds, WindowKind,
-    WindowOptions, actions, px, size,
+    App, AppContext as _, Bounds, Focusable as _, WindowBounds, WindowKind, WindowOptions, px, size,
 };
 use gpui_component::Root;
 use skyelab_core::AccountsConfig;
-use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
-
-actions!(skyelab, [OpenTerminal]);
-
-// `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
-const OPEN_TERMINAL_KEY: &str = if cfg!(target_os = "macos") {
-    "cmd-alt-t"
-} else {
-    "ctrl-alt-t"
-};
 
 /// Debug builds only: `SKYELAB_VERIFY_TOPMOST=1` keeps windows above others so
 /// `/loop-verify-ui` can capture them without moving the user's windows.
@@ -32,26 +22,6 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
     }
 }
 
-/// Demo: a terminal window running the login shell in the home dir.
-fn open_terminal(cx: &mut App) -> anyhow::Result<()> {
-    let cwd = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("no home directory"))?;
-    let (terminal, events) = Terminal::spawn(SpawnOptions {
-        cwd,
-        command: None,
-        env: Default::default(),
-        cols: 80,
-        lines: 24,
-    })?;
-    let bounds = Bounds::centered(None, size(px(800.), px(500.)), cx);
-    cx.open_window(window_options(bounds), |window, cx| {
-        let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
-        let focus = view.read(cx).focus_handle(cx);
-        focus.focus(window, cx);
-        cx.new(|cx| Root::new(view, window, cx))
-    })?;
-    Ok(())
-}
-
 fn main() {
     let path = AccountsConfig::default_path();
     let (config, error) = match path.as_deref().map(AccountsConfig::load) {
@@ -64,15 +34,13 @@ fn main() {
         gpui_component::init(cx);
         settings::init(cx);
         skyelab_terminal::init(cx);
-        cx.bind_keys([KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None)]);
-        cx.on_action(|_: &OpenTerminal, cx| {
-            if let Err(e) = open_terminal(cx) {
-                eprintln!("failed to open terminal: {e:#}");
-            }
-        });
-        let bounds = Bounds::centered(None, size(px(900.), px(700.)), cx);
+        workspace::init(cx);
+        // later: the folder comes from the selected project, not home.
+        let folder = dirs::home_dir().unwrap_or_default();
+        let bounds = Bounds::centered(None, size(px(1200.), px(800.)), cx);
         let opened = cx.open_window(window_options(bounds), |window, cx| {
-            let view = cx.new(|cx| settings::Settings::new(path, config, error, window, cx));
+            let view =
+                cx.new(|cx| workspace::Workspace::new(folder, path, config, error, window, cx));
             let focus = view.read(cx).focus_handle(cx);
             window.focus(&focus, cx);
             cx.new(|cx| Root::new(view, window, cx))
@@ -83,15 +51,4 @@ fn main() {
         }
         cx.activate(true);
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn open_terminal_binding_parses() {
-        // Panics on a keystroke string GPUI can't parse.
-        KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None);
-    }
 }
