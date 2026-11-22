@@ -9,7 +9,7 @@ use skyelab_daemon::testing::NODE_NAME;
 use skyelab_protocol::{Hello, Reply, ServerMessage, VERSION};
 
 /// A plaintext server whose hello leaves the node id out, as a 1.0 daemon (or an impostor) would.
-fn nodeless_server() -> u16 {
+pub(super) fn nodeless_server() -> u16 {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let port = listener.local_addr().expect("addr").port();
     std::thread::spawn(move || {

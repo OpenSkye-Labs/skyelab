@@ -42,6 +42,22 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
     // Each address gets a share of the budget, so a black-holed first one can't starve the rest.
     let per_addr = cx.options.connect_timeout / addrs.len().max(1) as u32;
     let stream = dial(&addrs, per_addr).await.map_err(lost)?;
+    // Who is really at that address, from this machine's own Tailscale, before a byte goes to it.
+    let verified = match &cx.options.verify_peer {
+        None => None,
+        Some(verifier) => {
+            let peer = stream
+                .peer_addr()
+                .map_err(|e| lost(format!("can't read the peer address: {e}")))?;
+            let verify = verifier.clone();
+            let id = tokio::task::spawn_blocking(move || (verify.0)(peer))
+                .await
+                .map_err(|e| e.to_string())
+                .and_then(|r| r)
+                .map_err(|why| lost_as(DisconnectKind::NotYourDevice, why))?;
+            Some(id)
+        }
+    };
     let heard = Arc::new(AtomicBool::new(false));
     let stream = Heard {
         inner: stream,
@@ -109,7 +125,7 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
             Ok(ServerMessage::Response {
                 id: 0,
                 result: Reply::Hello(h),
-            }) if h.protocol.major == cx.protocol.major => Ok((ws, h)),
+            }) if h.protocol.major == cx.protocol.major => checked(h, verified).map(|h| (ws, h)),
             Ok(ServerMessage::Response {
                 id: 0,
                 result: Reply::Hello(h),
@@ -125,6 +141,23 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
             Ok(other) => Err(lost(format!("unexpected answer to hello: {other:?}"))),
             Err(e) => Err(lost(format!("malformed answer to hello: {e}"))),
         };
+    }
+}
+
+/// With a verified id, the hello must name the same node (or none), and the caller sees the verified one.
+fn checked(mut hello: Hello, verified: Option<String>) -> Result<Hello, End> {
+    let Some(verified) = verified else {
+        return Ok(hello);
+    };
+    match hello.node_id.as_deref() {
+        Some(said) if said != verified => Err(lost_as(
+            DisconnectKind::IdentityMismatch,
+            format!("it says it is node {said}, your Tailscale says {verified}"),
+        )),
+        _ => {
+            hello.node_id = Some(verified);
+            Ok(hello)
+        }
     }
 }
 

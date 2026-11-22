@@ -121,6 +121,13 @@ On a remote machine, the sidebar lists its projects and threads. You can open th
 follow-ups and stop them. The account shown is the one that machine resolved. Terminals and worktree controls are
 local only. Switching back to **This Mac** closes all remote tabs.
 
+Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
+one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
+name. If the name later answers from another node, its tabs close and a warning offers **Trust it**: trust it only if
+you replaced or renamed that machine. If your Tailscale says the machine isn't yours, or can't answer, or the machine
+claims to be a different node than your Tailscale sees, the status says so and nothing is sent to it. The mobile app
+can't ask its local Tailscale yet, so it trusts the node the other machine names, a weaker check.
+
 ## Device hub
 
 Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar. It

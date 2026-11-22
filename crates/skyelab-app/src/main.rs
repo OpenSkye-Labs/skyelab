@@ -210,13 +210,9 @@ fn main() {
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
                 ws.store_error = store_error.map(Into::into);
                 ws.set_remote(remote, calls, window, cx);
-                ws.set_environments(
-                    tailnet,
-                    AppSettings::default_path(),
-                    skyelab_client::Options::default(),
-                    window,
-                    cx,
-                );
+                let mut options = skyelab_client::Options::default();
+                options.verify_peer = Some(environment::peer_verifier(tailnet.clone()));
+                ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                 ws
             });
             let focus = view.read(cx).focus_handle(cx);

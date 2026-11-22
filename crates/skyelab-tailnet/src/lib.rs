@@ -12,6 +12,9 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Deserializer};
 
+mod own;
+pub use own::{is_own_device, own_online_peers, verify_own_peer};
+
 /// Tailscale's numeric user id (`tailcfg.UserID`). Go's zero value means "none".
 pub type UserId = u64;
 
@@ -138,44 +141,6 @@ pub trait Tailnet {
             stderr: format!("this tailnet backend can't issue a certificate for {name}"),
         })
     }
-}
-
-/// The security core: accept `whois` only if it is one of the user's own, untagged devices.
-///
-/// Tagged nodes belong to the tailnet, not a person, so they are rejected even when the same user tagged them.
-/// A tagged self has no personal owner, and this node itself is rejected (another OS user here could reach it).
-pub fn is_own_device(self_node: &Node, whois: &WhoIs) -> bool {
-    let Some(me) = self_node.user_id.filter(|&id| id != 0) else {
-        return false;
-    };
-    self_node.tags.is_empty()
-        // An empty id can't prove the peer is a different node from this one.
-        && !whois.node.stable_id.is_empty()
-        && whois.node.stable_id != self_node.stable_id
-        && whois.user_profile.id == Some(me)
-        && whois.node.user == Some(me)
-        && whois.node.tags.is_empty()
-}
-
-/// The peers an environment picker offers: the user's own untagged devices that are online, never this node.
-/// The same ownership rule as [`is_own_device`], from `status` instead of `whois`.
-pub fn own_online_peers(self_node: &Node, peers: Vec<Node>) -> Vec<Node> {
-    let Some(me) = self_node.user_id.filter(|&id| id != 0) else {
-        return Vec::new();
-    };
-    if !self_node.tags.is_empty() {
-        return Vec::new();
-    }
-    peers
-        .into_iter()
-        .filter(|p| {
-            p.online
-                && p.tags.is_empty()
-                && p.user_id == Some(me)
-                && !p.stable_id.is_empty()
-                && p.stable_id != self_node.stable_id
-        })
-        .collect()
 }
 
 impl Node {
