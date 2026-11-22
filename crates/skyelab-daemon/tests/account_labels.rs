@@ -46,6 +46,7 @@ fn threads_carry_the_label_from_accounts_toml() {
             id: "work".into(),
             label: "Work (Team)".into(),
             config_dir: dir.path().join("claude-work"),
+            provider: Default::default(),
             gh_config_dir: None,
         }],
         ..AccountsConfig::default()

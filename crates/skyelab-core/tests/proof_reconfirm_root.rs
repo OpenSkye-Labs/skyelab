@@ -12,6 +12,7 @@ fn reconfirm_refuses_a_folder_swapped_for_a_link_to_the_disk_root() {
         id: "acme".into(),
         label: "Acme".into(),
         config_dir: "/home/me/.claude-acme".into(),
+        provider: Default::default(),
         gh_config_dir: None,
     })
     .expect("account");

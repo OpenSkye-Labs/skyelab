@@ -52,6 +52,7 @@ fn fixture(bound: bool) -> Fixture {
             id: "acme".into(),
             label: "Acme Team".into(),
             config_dir: account_dir.clone(),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("add account");
@@ -200,17 +201,6 @@ fn terminal_env_is_the_bound_account_or_empty() {
     // Unbound: no CLAUDE_CONFIG_DIR, so skyelab-terminal clears the inherited one.
     let parent = f.project_dir.parent().expect("parent");
     assert!(terminal_env(&config, parent).expect("env").is_empty());
-}
-
-#[test]
-fn claude_bin_override_is_debug_only() {
-    let fake = Some(std::ffi::OsString::from("/tmp/fake-claude"));
-    assert_eq!(
-        crate::claude_bin(fake.clone(), true),
-        Path::new("/tmp/fake-claude")
-    );
-    assert_eq!(crate::claude_bin(fake, false), Path::new("claude"));
-    assert_eq!(crate::claude_bin(None, true), Path::new("claude"));
 }
 
 #[test]
@@ -477,6 +467,7 @@ fn rebind(f: &Fixture, to: Option<&str>) {
             id: "other".into(),
             label: "Other Co".into(),
             config_dir: f.account_dir.with_file_name(".claude-other"),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("add account");

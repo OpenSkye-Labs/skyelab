@@ -5,7 +5,7 @@ use crate::workspace::lock;
 use anyhow::Context as _;
 use gpui::{AppContext as _, Context, Window};
 use skyelab_agent::Launch;
-use skyelab_core::Account;
+use skyelab_core::{Account, Provider};
 use skyelab_store::{NewThread, Thread};
 
 /// The first line of the prompt, cut to a tab-sized title.
@@ -61,7 +61,7 @@ impl ThreadView {
         }
     }
 
-    /// Starts `claude` under `account`: a new thread row, or `resume`'s session.
+    /// Starts the account's agent (`claude` or `codex`) under `account`: a new thread row, or `resume`'s session.
     pub(super) fn launch(
         &mut self,
         text: String,
@@ -76,9 +76,12 @@ impl ThreadView {
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         self.push(&Record::Prompt(text.clone()), cx);
 
-        let (store, bin, config, cwd, project_id) = (
+        let bin = match account.provider {
+            Provider::Claude => self.backend.claude_bin.clone(),
+            Provider::Codex => crate::workspace::github::codex_bin(cx),
+        };
+        let (store, config, cwd, project_id) = (
             self.backend.store.clone(),
-            self.backend.claude_bin.clone(),
             self.config.clone(),
             self.cwd.clone(),
             self.project_id,

@@ -198,8 +198,11 @@ fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> Wind
 #[cfg(test)]
 const CLAUDE_CONFIG_DIR: &str = "CLAUDE_CONFIG_DIR";
 /// Vars that pick an account or carry a login. A terminal gets one only when the caller set it (the account env).
-const ACCOUNT_VARS: [&str; 8] = [
+const ACCOUNT_VARS: [&str; 11] = [
     "CLAUDE_CONFIG_DIR",
+    "CODEX_HOME",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
     "GH_CONFIG_DIR",
     "GH_TOKEN",
     "GITHUB_TOKEN",
@@ -325,3 +328,7 @@ mod env_tests {
         assert_eq!(env[CLAUDE_CONFIG_DIR], "/acct");
     }
 }
+
+#[cfg(test)]
+#[path = "codex_env_test.rs"]
+mod codex_env_test;

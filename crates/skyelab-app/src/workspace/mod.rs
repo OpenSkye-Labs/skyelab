@@ -6,7 +6,7 @@ mod changes_publish;
 mod devices;
 mod env_mode;
 mod env_picker;
-mod github;
+pub(crate) mod github;
 #[cfg(unix)]
 pub(crate) mod orchestrate;
 #[cfg(not(unix))]
@@ -28,7 +28,7 @@ mod thread_worktree;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
-pub use github::GhBin;
+pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
     Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString,
@@ -398,11 +398,15 @@ impl Workspace {
             &settings,
             window,
             |this, _, e: &SettingsEvent, window, cx| {
-                let SettingsEvent::GhLogin { dir } = e;
-                let opened = gh_login_options(&gh_bin(cx), dir)
-                    .and_then(|o| this.add_terminal_with(o, window, cx));
+                let opened = match e {
+                    SettingsEvent::GhLogin { dir } => gh_login_options(&gh_bin(cx), dir),
+                    SettingsEvent::CodexLogin { dir } => {
+                        github::codex_login_options(&github::codex_bin(cx), dir)
+                    }
+                }
+                .and_then(|o| this.add_terminal_with(o, window, cx));
                 if let Err(e) = opened {
-                    eprintln!("failed to open the GitHub login terminal: {e:#}");
+                    eprintln!("failed to open the login terminal: {e:#}");
                 }
             },
         ));
@@ -479,6 +483,12 @@ mod thread_model_test;
 
 #[cfg(test)]
 mod threads_test;
+
+#[cfg(test)]
+mod agent_bin_test;
+
+#[cfg(all(test, unix))] // the fake codex is a shell script
+mod codex_thread_test;
 
 #[cfg(test)]
 mod review_second_row_test;

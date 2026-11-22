@@ -117,11 +117,12 @@ fn click(window: &mut gpui::Window, cx: &mut App, position: gpui::Point<gpui::Pi
     );
 }
 
-/// The agent binary: `claude`, or in debug builds `SKYELAB_CLAUDE_BIN` (a fake, for verification).
-fn claude_bin(env: Option<std::ffi::OsString>, debug: bool) -> std::path::PathBuf {
+/// An agent binary: `name`, or in debug builds the env override (`SKYELAB_CLAUDE_BIN`,
+/// `SKYELAB_CODEX_BIN`: a fake, for verification).
+fn agent_bin(env: Option<std::ffi::OsString>, debug: bool, name: &str) -> std::path::PathBuf {
     match env {
         Some(bin) if debug => bin.into(),
-        _ => "claude".into(),
+        _ => name.into(),
     }
 }
 
@@ -220,6 +221,11 @@ fn main() {
             Some(bin) if cfg!(debug_assertions) => bin.into(),
             _ => "gh".into(),
         }));
+        cx.set_global(workspace::CodexBin(agent_bin(
+            std::env::var_os("SKYELAB_CODEX_BIN"),
+            cfg!(debug_assertions),
+            "codex",
+        )));
         // Home until a project is selected.
         let folder = dirs::home_dir().unwrap_or_default();
         let (mut store, store_error) = open_store();
@@ -242,9 +248,10 @@ fn main() {
         let remote = cx.new(|cx| remote::Remote::new(host, cx));
         let backend = workspace::Backend {
             store,
-            claude_bin: claude_bin(
+            claude_bin: agent_bin(
                 std::env::var_os("SKYELAB_CLAUDE_BIN"),
                 cfg!(debug_assertions),
+                "claude",
             ),
         };
         #[cfg(unix)]

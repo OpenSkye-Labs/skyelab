@@ -12,6 +12,7 @@ fn bound_folder_swapped_for_a_dangling_link_is_stale() {
         id: "acme".into(),
         label: "Acme".into(),
         config_dir: "/home/me/.claude-acme".into(),
+        provider: Default::default(),
         gh_config_dir: None,
     })
     .expect("account");

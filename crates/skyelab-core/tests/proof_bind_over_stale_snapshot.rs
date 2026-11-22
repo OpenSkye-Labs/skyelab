@@ -18,6 +18,7 @@ fn binding_the_old_target_of_a_stale_link_is_not_silently_dead() {
             id: id.into(),
             label: id.into(),
             config_dir: format!("/home/me/.claude-{id}").into(),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("account");

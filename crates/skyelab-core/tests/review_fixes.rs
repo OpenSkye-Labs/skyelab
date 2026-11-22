@@ -8,6 +8,7 @@ fn acct(id: &str, dir: &str) -> Account {
         id: id.into(),
         label: id.into(),
         config_dir: PathBuf::from(dir),
+        provider: Default::default(),
         gh_config_dir: None,
     }
 }

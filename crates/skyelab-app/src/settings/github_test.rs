@@ -80,8 +80,9 @@ fn github_dir_is_saved_login_shown_and_log_in_requested(cx: &mut TestAppContext)
     let seen = asked.clone();
     let _sub = cx.update(|_, cx| {
         cx.subscribe(&view, move |_, e: &SettingsEvent, _| {
-            let SettingsEvent::GhLogin { dir } = e;
-            seen.borrow_mut().push(dir.clone());
+            if let SettingsEvent::GhLogin { dir } = e {
+                seen.borrow_mut().push(dir.clone());
+            }
         })
     });
     view.update_in(cx, |v, window, cx| {

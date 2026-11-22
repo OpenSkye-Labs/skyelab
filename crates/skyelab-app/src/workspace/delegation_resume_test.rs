@@ -59,6 +59,7 @@ fn a_resumed_session_still_gets_the_orchestration_tools(cx: &mut TestAppContext)
             id: "work".into(),
             label: "work account".into(),
             config_dir: root.join(".claude-work"),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("account");

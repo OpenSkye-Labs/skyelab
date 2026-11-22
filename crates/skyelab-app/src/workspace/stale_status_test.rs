@@ -22,6 +22,7 @@ fn status_follows_an_unbind_made_in_settings(cx: &mut TestAppContext) {
             id: "acme".into(),
             label: "Acme Team".into(),
             config_dir: home.path().join(".claude-acme"),
+            provider: Default::default(),
             gh_config_dir: None,
         })
         .expect("add account");
