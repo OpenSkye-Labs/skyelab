@@ -1,5 +1,7 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
+mod changes;
+mod changes_model;
 mod devices;
 mod panels;
 mod projects;
@@ -7,6 +9,8 @@ mod remote;
 mod thread;
 mod thread_model;
 mod thread_render;
+mod thread_worktree;
+mod worktree;
 
 use crate::settings::Settings;
 use gpui::{
@@ -145,6 +149,7 @@ pub struct Workspace {
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
     open_threads: Vec<WeakEntity<ThreadView>>,
+    changes_views: Vec<WeakEntity<changes::ChangesView>>,
     _thread_events: Vec<Subscription>,
     _load: Option<Task<()>>,
     _add: Option<Task<()>>,
@@ -222,6 +227,7 @@ impl Workspace {
             project: None,
             threads: Vec::new(),
             open_threads: Vec::new(),
+            changes_views: Vec::new(),
             _thread_events: Vec::new(),
             _load: None,
             _add: None,
@@ -273,7 +279,17 @@ impl Workspace {
     }
 
     fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        let (terminal, events) = Terminal::spawn(self.terminal_options()?)?;
+        let options = self.terminal_options()?;
+        self.add_terminal_with(options, window, cx)
+    }
+
+    fn add_terminal_with(
+        &mut self,
+        options: SpawnOptions,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let (terminal, events) = Terminal::spawn(options)?;
         let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
         let title = format!("Terminal {}", self.terminals.len() + 1).into();
         let panel = cx.new(|_| TerminalPanel::new(view.clone(), title));
@@ -480,3 +496,18 @@ mod devices_tests;
 
 #[cfg(test)]
 mod devices_review_tests;
+
+#[cfg(test)]
+mod changes_model_test;
+
+#[cfg(test)]
+mod worktree_thread_test;
+
+#[cfg(test)]
+mod worktree_guard_test;
+
+#[cfg(test)]
+mod worktree_discard_test;
+
+#[cfg(test)]
+mod worktree_review_test;

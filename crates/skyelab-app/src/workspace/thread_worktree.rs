@@ -1,0 +1,266 @@
+//! A thread's worktree controls: the composer's opt-in box, the header actions, and discarding.
+
+use super::lock;
+use super::thread::{ThreadView, ThreadViewEvent};
+use super::worktree::{self, Discard};
+use gpui::{AnyElement, Context, FontWeight, Window, actions, div, prelude::*};
+use gpui_component::{
+    ActiveTheme as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    checkbox::Checkbox,
+    h_flex,
+};
+
+actions!(
+    skyelab,
+    [
+        ToggleWorktree,
+        OpenChanges,
+        OpenWorktreeTerminal,
+        DiscardWorktree,
+        ConfirmDiscardWorktree,
+        CancelDiscardWorktree
+    ]
+);
+
+#[derive(Default)]
+pub struct WorktreeState {
+    /// "Run in a new worktree" in the composer; read when the first prompt starts the thread.
+    pub use_worktree: bool,
+    /// A dirty worktree's status the user was asked to confirm discarding.
+    pub discard_pending: Option<skyelab_git::Status>,
+    task: Option<gpui::Task<()>>,
+    /// A discard is running; another click is ignored.
+    busy: bool,
+}
+
+impl ThreadView {
+    pub(super) fn toggle_worktree(
+        &mut self,
+        _: &ToggleWorktree,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.thread.is_none() && !self.starting {
+            self.wt.use_worktree = !self.wt.use_worktree;
+            cx.notify();
+        }
+    }
+
+    pub(super) fn open_changes(&mut self, _: &OpenChanges, _: &mut Window, cx: &mut Context<Self>) {
+        cx.emit(ThreadViewEvent::OpenChanges);
+    }
+
+    pub(super) fn open_worktree_terminal(
+        &mut self,
+        _: &OpenWorktreeTerminal,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(t) = &self.thread else { return };
+        let Some(cwd) = t.worktree_path.clone() else {
+            return;
+        };
+        let account_id = t.account_id.clone();
+        cx.emit(ThreadViewEvent::OpenTerminal { cwd, account_id });
+    }
+
+    pub(super) fn discard_worktree(
+        &mut self,
+        _: &DiscardWorktree,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.run_discard(None, cx);
+    }
+
+    pub(super) fn confirm_discard(
+        &mut self,
+        _: &ConfirmDiscardWorktree,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(shown) = self.wt.discard_pending.clone() {
+            self.run_discard(Some(shown), cx);
+        }
+    }
+
+    pub(super) fn cancel_discard(
+        &mut self,
+        _: &CancelDiscardWorktree,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.wt.discard_pending = None;
+        cx.notify();
+    }
+
+    fn run_discard(&mut self, confirmed: Option<skyelab_git::Status>, cx: &mut Context<Self>) {
+        let Some(thread) = &self.thread else { return };
+        let Some(path) = thread.worktree_path.clone() else {
+            return;
+        };
+        if self.wt.busy {
+            return;
+        }
+        if self.session.is_some() {
+            self.error = Some("Stop the agent before discarding its worktree.".into());
+            cx.notify();
+            return;
+        }
+        self.wt.busy = true;
+        let (store, id, branch) = (
+            self.backend.store.clone(),
+            thread.id,
+            thread.worktree_branch.clone(),
+        );
+        self.wt.task = Some(cx.spawn(async move |this, cx| {
+            let done = cx
+                .background_spawn(async move {
+                    let result = worktree::discard(&path, confirmed.as_ref())?;
+                    if matches!(result, Discard::Removed) {
+                        lock(&store)?.set_thread_worktree(id, None, branch.as_deref())?;
+                    }
+                    anyhow::Ok(result)
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                this.wt.busy = false;
+                match done {
+                    Ok(Discard::Removed) => {
+                        this.wt.discard_pending = None;
+                        if let Some(t) = this.thread.as_mut() {
+                            t.worktree_path = None;
+                        }
+                        this.error = None;
+                    }
+                    Ok(Discard::NeedsConfirm(st)) => this.wt.discard_pending = Some(st),
+                    Err(e) => {
+                        this.error =
+                            Some(format!("{:#}", e.context("discarding the worktree")).into())
+                    }
+                }
+                cx.notify();
+            });
+        }));
+    }
+
+    pub(super) fn render_worktree_option(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if self.thread.is_some() || self.read_only {
+            return None;
+        }
+        Some(
+            div()
+                .px_4()
+                .pb_1()
+                .child(
+                    Checkbox::new("use-worktree")
+                        .small()
+                        .label("Run in a new worktree")
+                        .checked(self.wt.use_worktree)
+                        .tooltip("A git worktree on a new skyelab/… branch, inside this project")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.toggle_worktree(&ToggleWorktree, window, cx)
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+
+    pub(super) fn render_worktree_actions(&self, cx: &mut Context<Self>) -> AnyElement {
+        let has_worktree = self
+            .thread
+            .as_ref()
+            .is_some_and(|t| t.worktree_path.is_some());
+        h_flex()
+            .gap_2()
+            .child(
+                Button::new("open-changes")
+                    .outline()
+                    .xsmall()
+                    .label("Changes")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.open_changes(&OpenChanges, window, cx)
+                    })),
+            )
+            .when(has_worktree, |this| {
+                this.child(
+                    Button::new("worktree-terminal")
+                        .outline()
+                        .xsmall()
+                        .label("Open terminal here")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.open_worktree_terminal(&OpenWorktreeTerminal, window, cx)
+                        })),
+                )
+                .child(
+                    Button::new("discard-worktree")
+                        .outline()
+                        .xsmall()
+                        .label("Discard worktree")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.discard_worktree(&DiscardWorktree, window, cx)
+                        })),
+                )
+            })
+            .into_any_element()
+    }
+
+    /// The confirm row for a dirty worktree, naming what would be lost.
+    pub(super) fn render_discard_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let st = self.wt.discard_pending.as_ref()?;
+        let theme = cx.theme();
+        // The exact files the confirm covers; a confirm after they change is refused and asked again.
+        let files = worktree::changed_files(st);
+        let mut msg = format!(
+            "Discarding deletes {} uncommitted change{}: ",
+            files.len(),
+            if files.len() == 1 { "" } else { "s" }
+        );
+        let shown: Vec<String> = files
+            .iter()
+            .take(5)
+            .map(|p| p.display().to_string())
+            .collect();
+        msg.push_str(&shown.join(", "));
+        if files.len() > shown.len() {
+            msg.push_str(&format!(" and {} more", files.len() - shown.len()));
+        }
+        Some(
+            h_flex()
+                .mx_4()
+                .mb_2()
+                .p_2()
+                .gap_2()
+                .rounded_lg()
+                .border_1()
+                .border_color(theme.danger)
+                .child(
+                    div()
+                        .flex_1()
+                        .text_sm()
+                        .font_weight(FontWeight::MEDIUM)
+                        .child(msg),
+                )
+                .child(
+                    Button::new("cancel-discard")
+                        .ghost()
+                        .xsmall()
+                        .label("Keep it")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.cancel_discard(&CancelDiscardWorktree, window, cx)
+                        })),
+                )
+                .child(
+                    Button::new("confirm-discard")
+                        .danger()
+                        .xsmall()
+                        .label("Discard anyway")
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.confirm_discard(&ConfirmDiscardWorktree, window, cx)
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+}

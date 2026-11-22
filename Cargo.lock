@@ -7408,6 +7408,7 @@ dependencies = [
  "skyelab-core",
  "skyelab-daemon",
  "skyelab-devices",
+ "skyelab-git",
  "skyelab-protocol",
  "skyelab-store",
  "skyelab-tailnet",

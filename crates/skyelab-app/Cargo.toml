@@ -26,6 +26,7 @@ skyelab-tailnet.workspace = true
 flume.workspace = true
 serde_json.workspace = true
 skyelab-devices.workspace = true
+skyelab-git.workspace = true
 # devices: screenshot temp files
 tempfile.workspace = true
 dirs.workspace = true

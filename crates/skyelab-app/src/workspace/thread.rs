@@ -25,6 +25,14 @@ pub(super) const CONTEXT: &str = "Thread";
 pub enum ThreadViewEvent {
     /// The thread got its store row (the first prompt was sent).
     Started(Thread),
+    /// The agent's Result event arrived: its changes may be on disk now.
+    TurnDone,
+    OpenChanges,
+    /// A terminal in the thread's worktree, under the thread's account.
+    OpenTerminal {
+        cwd: PathBuf,
+        account_id: String,
+    },
 }
 
 pub struct ThreadView {
@@ -32,7 +40,7 @@ pub struct ThreadView {
     project_id: i64,
     pub(super) cwd: PathBuf,
     config: AccountsConfig,
-    backend: Backend,
+    pub(super) backend: Backend,
     pub(super) prompt: Entity<TextareaState>,
     pub(super) thread: Option<Thread>,
     pub(super) session: Option<Arc<Mutex<Session>>>,
@@ -46,6 +54,7 @@ pub struct ThreadView {
     stop_requested: bool,
     /// Reopened, or its agent ended. shortcut: no continuing, since skyelab-agent can't resume a session; add `--resume` there first.
     pub(super) read_only: bool,
+    pub(super) wt: super::thread_worktree::WorktreeState,
     send_chain: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
@@ -178,6 +187,7 @@ impl ThreadView {
             starting: false,
             stop_requested: false,
             read_only: false,
+            wt: Default::default(),
             send_chain: None,
             _pump: None,
             _task: None,
@@ -274,24 +284,31 @@ impl ThreadView {
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         self.push(&Record::Prompt(text.clone()), cx);
 
-        let (store, bin, config, cwd, project_id) = (
+        let (store, bin, config, cwd, project_id, use_worktree) = (
             self.backend.store.clone(),
             self.backend.claude_bin.clone(),
             self.config.clone(),
             self.cwd.clone(),
             self.project_id,
+            self.wt.use_worktree,
         );
         let pump_store = store.clone();
         self._task = Some(cx.spawn(async move |this, cx| {
             let started = cx
                 .background_spawn(async move {
-                    let thread = lock(&store)?.create_thread(&NewThread {
+                    let worktree = use_worktree
+                        .then(|| super::worktree::create(&config, &cwd, &account.id, &text))
+                        .transpose()
+                        .context("creating the thread's worktree")?;
+                    let cwd = worktree.as_ref().map_or(cwd, |w| w.path.clone());
+                    let mut thread = lock(&store)?.create_thread(&NewThread {
                         project_id,
                         title: &title(&text),
                         cwd: &cwd,
                         account_id: &account.id,
                         status: "starting",
                     })?;
+                    super::worktree::record(&*lock(&store)?, &mut thread, worktree)?;
                     append(
                         &mut *lock(&store)?,
                         thread.id,
@@ -307,6 +324,7 @@ impl ThreadView {
                 this.starting = false;
                 match started {
                     Ok((thread, session)) => {
+                        this.cwd = thread.cwd.clone();
                         this.thread = Some(thread.clone());
                         cx.emit(ThreadViewEvent::Started(thread.clone()));
                         match session {
@@ -403,6 +421,9 @@ impl ThreadView {
                         this.show_error(e.context("saving an agent event"), cx);
                     }
                     this.push(&record, cx);
+                    if matches!(record, Record::Agent(Event::Result { .. })) {
+                        cx.emit(ThreadViewEvent::TurnDone);
+                    }
                 });
                 if shown.is_err() {
                     return;
