@@ -112,10 +112,11 @@ impl Settings {
                     path: b.path.clone(),
                 };
                 let stale = self.stale.contains(&b.path).then(|| {
-                    let was = b.resolved().map_or("never confirmed (older config)".into(), |r| {
-                        format!("was {}", r.display())
-                    });
-                    format!("Stale: this isn't the folder you confirmed ({was}). Agents won't start under it until you re-confirm.")
+                    let what = b.resolved().map_or(
+                        "Not confirmed yet: an older SkyeLab wrote this binding.".into(),
+                        |r| format!("Now points somewhere else. You confirmed {}.", r.display()),
+                    );
+                    format!("{what} Agents won't start under it until you re-confirm.")
                 });
                 row(cx)
                     .child(
@@ -125,9 +126,11 @@ impl Settings {
                             .flex()
                             .flex_col()
                             .child(path_text(format!("path-{}", b.path.display()), &b.path))
-                            .children(stale.clone().map(|why| {
-                                div().text_sm().text_color(theme.warning).child(why)
-                            })),
+                            .children(
+                                stale.clone().map(|why| {
+                                    div().text_sm().text_color(theme.warning).child(why)
+                                }),
+                            ),
                     )
                     .child(
                         div()
@@ -147,9 +150,11 @@ impl Settings {
                             .flex_shrink_0()
                             .small()
                             .warning()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.reconfirm_binding(&reconfirm, window, cx)
-                            })),
+                            .on_click(cx.listener(
+                                move |this, _, window, cx| {
+                                    this.reconfirm_binding(&reconfirm, window, cx)
+                                },
+                            )),
                         )
                     })
                     .child(
