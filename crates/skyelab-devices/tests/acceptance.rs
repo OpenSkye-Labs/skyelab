@@ -194,7 +194,7 @@ fn android_operations_pass_exact_argv() {
     let adb = fake(
         dir.path(),
         "adb",
-        r#"[ "$3" = exec-out ] && printf 'PNGDATA'; exit 0"#,
+        r#"[ "$3" = exec-out ] && printf '\211PNGDATA'; exit 0"#,
     );
     let h = hub(None, Some(adb), None);
     let d = droid("emulator-5554", DeviceState::Booted);
@@ -204,7 +204,7 @@ fn android_operations_pass_exact_argv() {
     h.shutdown(&d).unwrap();
     let png = dir.path().join("shot.png");
     h.screenshot(&d, &png).unwrap();
-    assert_eq!(fs::read(&png).unwrap(), b"PNGDATA");
+    assert_eq!(fs::read(&png).unwrap(), b"\x89PNGDATA");
     assert_eq!(
         log(dir.path(), "adb"),
         "[-s][emulator-5554][install][-r][/apps/app.apk]\n\

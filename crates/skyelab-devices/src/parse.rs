@@ -1,5 +1,3 @@
-//! Parsers for the tools' output. Pure functions, so tests feed them recorded fixtures.
-
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
@@ -37,7 +35,6 @@ pub fn parse_simctl_list(json: &[u8]) -> Result<Vec<Device>, Error> {
                     state: match s.state.as_str() {
                         "Booted" => DeviceState::Booted,
                         "Shutdown" => DeviceState::Shutdown,
-                        // Booting, Shutting Down, Creating: not usable right now.
                         _ => DeviceState::Offline,
                     },
                     kind: DeviceKind::Simulator,
@@ -46,7 +43,6 @@ pub fn parse_simctl_list(json: &[u8]) -> Result<Vec<Device>, Error> {
         .collect())
 }
 
-/// `com.apple.CoreSimulator.SimRuntime.iOS-27-0` → `iOS 27.0`.
 fn runtime_version(runtime: &str) -> Option<String> {
     let name = runtime.rsplit('.').next()?;
     let (os, version) = name.split_once('-')?;

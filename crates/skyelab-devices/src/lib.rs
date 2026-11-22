@@ -63,7 +63,7 @@ pub struct Device {
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The platform's toolchain (`xcrun`, or `adb` for Android) isn't installed or isn't on PATH.
+    /// The tool this needs wasn't found: `xcrun` for iOS; `adb`, or `emulator` to boot an AVD, for Android.
     #[error("{0} tools are not available")]
     NotAvailable(Platform),
     #[error("`{tool} {args}` failed: {stderr}")]
@@ -132,13 +132,15 @@ impl DeviceHub {
         android_home: Option<&OsStr>,
         android_sdk_root: Option<&OsStr>,
     ) -> Self {
+        // Relative entries (`.`, an empty ANDROID_HOME) would resolve against the cwd, which may be a project folder.
         let path_dirs: Vec<PathBuf> = path
-            .map(|p| env::split_paths(p).collect())
+            .map(|p| env::split_paths(p).filter(|d| d.is_absolute()).collect())
             .unwrap_or_default();
         let sdks: Vec<PathBuf> = [android_home, android_sdk_root]
             .into_iter()
             .flatten()
             .map(PathBuf::from)
+            .filter(|d| d.is_absolute())
             .collect();
         let find = |sdk_subdir: Option<&str>, name: &str| {
             let file = format!("{name}{EXE_SUFFIX}");
@@ -177,11 +179,10 @@ impl DeviceHub {
             .as_deref()
             .ok_or(Error::NotAvailable(Platform::Android))?;
         let mut devices = parse_adb_devices(&text(run(adb, &["devices", "-l"])?));
-        // Best effort: a device that doesn't answer keeps its adb name and no os_version.
         for d in &mut devices {
             if d.kind == DeviceKind::Emulator
                 && let Ok(out) = self.adb(&d.id, &["emu", "avd", "name"])
-                && let Some(avd) = first_line(&out)
+                && let Some(avd) = console_reply(&out)
             {
                 d.name = avd;
             }
@@ -198,7 +199,10 @@ impl DeviceHub {
                 .filter(|d| d.kind == DeviceKind::Emulator)
                 .map(|d| d.name.clone())
                 .collect();
-            let avds = parse_avd_list(&text(run(emulator, &["-list-avds"])?));
+            // Stopped AVDs are extra: a broken `emulator` must not hide the devices adb found.
+            let avds = run(emulator, &["-list-avds"])
+                .map(|out| parse_avd_list(&text(out)))
+                .unwrap_or_default();
             devices.extend(
                 avds.into_iter()
                     .filter(|a| !running.contains(a))
@@ -231,7 +235,8 @@ impl DeviceHub {
                     .as_deref()
                     .ok_or(Error::NotAvailable(Platform::Android))?;
                 let child = Command::new(emulator)
-                    .args(["-avd", &device.id])
+                    .arg("-avd")
+                    .arg(not_a_flag(device.id.as_ref())?)
                     .stdin(Stdio::null())
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
@@ -267,7 +272,11 @@ impl DeviceHub {
             Platform::Android => self
                 .adb(
                     &device.id,
-                    &["install".as_ref(), "-r".as_ref(), app.as_os_str()],
+                    &[
+                        "install".as_ref(),
+                        "-r".as_ref(),
+                        not_a_flag(app.as_os_str())?,
+                    ],
                 )
                 .map(drop),
         }
@@ -278,7 +287,7 @@ impl DeviceHub {
         match device.platform {
             Platform::Ios => self.sim(device, "launch", &[app.as_ref()]).map(drop),
             Platform::Android => self
-                .adb(&device.id, &["shell", "am", "start", "-n", &sh_quote(app)])
+                .adb_shell(&device.id, &["am", "start", "-n"], app)
                 .map(drop),
         }
     }
@@ -287,36 +296,31 @@ impl DeviceHub {
         match device.platform {
             Platform::Ios => self.sim(device, "openurl", &[url.as_ref()]).map(drop),
             Platform::Android => {
-                let args = [
-                    "shell",
-                    "am",
-                    "start",
-                    "-a",
-                    "android.intent.action.VIEW",
-                    "-d",
-                    &sh_quote(url),
-                ];
-                self.adb(&device.id, &args).map(drop)
+                let view = ["am", "start", "-a", "android.intent.action.VIEW", "-d"];
+                self.adb_shell(&device.id, &view, url).map(drop)
             }
         }
     }
 
-    /// Saves a PNG of the screen to `png`.
+    /// Saves a PNG of the screen to `png`, replacing any file there: the caller picks a path it owns.
     pub fn screenshot(&self, device: &Device, png: &Path) -> Result<(), Error> {
         match device.platform {
             Platform::Ios => {
-                let id: &OsStr = device.id.as_ref();
-                let args = [
-                    "simctl".as_ref(),
-                    "io".as_ref(),
-                    id,
-                    "screenshot".as_ref(),
-                    png.as_os_str(),
-                ];
-                self.xcrun().and_then(|x| run(x, &args)).map(drop)
+                let id = not_a_flag(device.id.as_ref())?;
+                let png = not_a_flag(png.as_os_str())?;
+                self.simctl(&["io".as_ref(), id, "screenshot".as_ref(), png])
+                    .map(drop)
             }
             Platform::Android => {
                 let bytes = self.adb(&device.id, &["exec-out", "screencap", "-p"])?;
+                // exec-out drops screencap's exit status, so a failure shows up only as non-PNG bytes.
+                if !bytes.starts_with(b"\x89PNG") {
+                    return Err(Error::Command {
+                        tool: "adb".into(),
+                        args: format!("-s {} exec-out screencap -p", device.id),
+                        stderr: text(bytes).chars().take(200).collect(),
+                    });
+                }
                 std::fs::write(png, bytes).map_err(|source| Error::Io {
                     path: png.to_owned(),
                     source,
@@ -337,27 +341,39 @@ impl DeviceHub {
         run(self.xcrun()?, &all)
     }
 
-    /// `simctl <command> <udid> <extra…>`.
+    /// `simctl <command> <udid> <extra…>`, where `extra` holds caller values only.
     fn sim(&self, device: &Device, command: &str, extra: &[&OsStr]) -> Result<Vec<u8>, Error> {
-        let mut args: Vec<&OsStr> = vec![command.as_ref(), device.id.as_ref()];
-        args.extend_from_slice(extra);
+        let mut args: Vec<&OsStr> = vec![command.as_ref(), not_a_flag(device.id.as_ref())?];
+        for &v in extra {
+            args.push(not_a_flag(v)?);
+        }
         self.simctl(&args)
     }
 
-    /// `adb -s <serial> <args…>`. After `shell`, adb joins the args into a command line for the *device's* shell,
-    /// so callers pass any user-supplied value through [`sh_quote`].
     fn adb<S: AsRef<OsStr>>(&self, serial: &str, args: &[S]) -> Result<Vec<u8>, Error> {
         let adb = self
             .adb
             .as_deref()
             .ok_or(Error::NotAvailable(Platform::Android))?;
-        let mut all: Vec<&OsStr> = vec!["-s".as_ref(), serial.as_ref()];
+        let mut all: Vec<&OsStr> = vec!["-s".as_ref(), not_a_flag(serial.as_ref())?];
         all.extend(args.iter().map(AsRef::as_ref));
         run(adb, &all)
     }
+
+    /// `adb shell <command…> <value>`. adb joins the words into a command line for the device's shell, so the
+    /// caller's `value` is single-quoted there.
+    fn adb_shell(&self, serial: &str, command: &[&str], value: &str) -> Result<Vec<u8>, Error> {
+        not_a_flag(value.as_ref())?;
+        let quoted = sh_quote(value);
+        let mut args = vec!["shell"];
+        args.extend_from_slice(command);
+        args.push(&quoted);
+        self.adb(serial, &args)
+    }
 }
 
-/// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running.
+/// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running (and unreaped
+/// until this process exits); call [`Emulator::stop`] to end it.
 #[derive(Debug)]
 pub struct Emulator {
     child: Child,
@@ -371,8 +387,8 @@ impl Emulator {
     /// Asks the emulator to quit (SIGTERM on Unix, so it shuts the AVD down cleanly), waits up to 30 s, then kills it.
     pub fn stop(&mut self) -> io::Result<()> {
         if cfg!(unix) && self.child.try_wait()?.is_none() {
-            // std can only SIGKILL; `kill` is a program, not a shell.
-            let _ = Command::new("kill")
+            // std can only SIGKILL. An absolute path, so a planted `kill` on PATH can't skip the clean shutdown.
+            let _ = Command::new("/bin/kill")
                 .args(["-TERM", &self.child.id().to_string()])
                 .stderr(Stdio::null())
                 .status();
@@ -389,7 +405,6 @@ impl Emulator {
     }
 }
 
-/// Runs `tool args…` and returns its stdout, or [`Error::Command`] when it exits non-zero.
 fn run<S: AsRef<OsStr>>(tool: &Path, args: &[S]) -> Result<Vec<u8>, Error> {
     let out = Command::new(tool)
         .args(args)
@@ -431,7 +446,25 @@ fn first_line(bytes: &[u8]) -> Option<String> {
     (!line.is_empty()).then_some(line)
 }
 
-/// Quotes one argument for a POSIX shell (the device's, behind `adb shell`).
+/// The emulator console answers `<reply>\r\nOK`, or `KO: <why>` on failure.
+fn console_reply(bytes: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(bytes);
+    let mut lines = text.lines().map(str::trim).filter(|l| !l.is_empty());
+    let reply = lines.next()?;
+    (!reply.starts_with("KO") && lines.any(|l| l == "OK")).then(|| reply.to_owned())
+}
+
+/// Rejects a caller value a tool would read as a flag (`-g` to `adb install` grants every permission).
+fn not_a_flag(value: &OsStr) -> Result<&OsStr, Error> {
+    match value.as_encoded_bytes().first() {
+        Some(b'-') => Err(Error::Unsupported(format!(
+            "{:?} starts with '-' and would be read as a flag",
+            value
+        ))),
+        _ => Ok(value),
+    }
+}
+
 fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
