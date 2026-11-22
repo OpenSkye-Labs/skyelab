@@ -54,8 +54,8 @@ personal plan by mistake.
 | | Status |
 |---|---|
 | macOS, Windows, Linux | GPUI official. v1 targets. |
-| iOS | Upstream `gpui_ios` is experimental (Oct 2026) and not in our pinned snapshot. Decide when we get there. |
-| Android | No official GPUI. Options: community `gpui-mobile`, or a non-GPUI thin client. |
+| iOS | GPUI via upstream `gpui_ios`, already in our pin (`gpui-pre-platform` 0.3.12). Experimental. See [mobile.md](mobile.md). |
+| Android | GPUI via longbridge `gpui-pre-mobile`, ported to our pin. Community fork. See [mobile.md](mobile.md). |
 
 Mobile is a **remote client only**: it controls a desktop environment over the tailnet and runs no agents itself.
 That keeps it small whichever UI tech it ends up on.
@@ -72,7 +72,7 @@ Each item goes through `/loop` (see CLAUDE.md).
 6. **Browser preview:** `gpui-webview` (experimental) plus agent automation.
 7. **Device hub:** iOS Simulator / Android Emulator control.
 8. **Orchestration:** delegate tasks between threads and environments.
-9. **Mobile client.**
+9. **Mobile client:** GPUI on iOS and Android, plan in [mobile.md](mobile.md).
 
 ## Decisions
 

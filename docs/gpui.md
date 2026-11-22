@@ -69,5 +69,5 @@ and how Zed uses it, not blog posts or memory.
 
 - macOS needs the Xcode Metal Toolchain (see CLAUDE.md). Linux needs X11 for the webview (WebKitGTK has no Wayland
   embedding in `gpui-webview`). Native webviews draw over GPUI overlays, so don't put menus over a webview.
-- iOS: upstream has an experimental `gpui_ios`, which isn't in our pinned snapshot. Android: no official support.
-  See architecture.md for the mobile plan.
+- iOS: our pinned `gpui-pre-platform` already includes the experimental `gpui_ios`. Android: no official support; we use
+  longbridge's `gpui-pre-mobile`, ported to our pin. A GPUI bump means re-porting it. See [mobile.md](mobile.md).

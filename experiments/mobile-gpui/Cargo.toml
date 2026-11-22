@@ -1,0 +1,45 @@
+[package]
+name = "mobile-gpui"
+edition = "2024"
+version = "0.0.0"
+publish = false
+
+# Standalone: not part of the SkyeLab workspace (see the root Cargo.toml `exclude`).
+[workspace]
+
+# iOS: a plain binary, bundled into an .app by ios/run-simulator.sh.
+[[bin]]
+name = "skyelab_mobile"
+path = "src/main.rs"
+
+# Android: a cdylib loaded by NativeActivity (android/run-emulator.sh).
+[lib]
+name = "skyelab_mobile"
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+# Same pins as the desktop workspace.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui-component = "=0.10.0"
+skyelab-protocol = { path = "../../crates/skyelab-protocol" }
+serde_json = "1"
+
+# gpui-pre-platform 0.3.12 already pulls gpui-pre-ios on target_os = "ios". It has no Android arm.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false }
+
+# Android: longbridge/gpui-mobile ported to gpui-pre 0.3.12 (android/fetch-gpui-mobile.sh clones and patches it).
+[target.'cfg(target_os = "android")'.dependencies]
+gpui-mobile = { package = "gpui-pre-mobile", path = "target/gpui-mobile", default-features = false }
+android-activity = { version = "0.6", features = ["native-activity"] }
+android_logger = "0.15"
+log = "0.4"
+
+[profile.dev]
+# wgpu enables Vulkan debug labels under debug assertions, and the emulator's llvmpipe driver
+# segfaults in vkSetDebugUtilsObjectNameEXT. See docs/mobile.md.
+debug-assertions = false
+
+[profile.dev.package."*"]
+opt-level = 2
