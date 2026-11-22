@@ -1,0 +1,19 @@
+[package]
+name = "skyelab-app"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "skyelab"
+path = "src/main.rs"
+
+[dependencies]
+gpui.workspace = true
+gpui_platform.workspace = true
+gpui-component.workspace = true
+anyhow.workspace = true
+skyelab-core.workspace = true
+
+[lints]
+workspace = true

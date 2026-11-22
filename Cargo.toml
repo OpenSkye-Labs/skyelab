@@ -1,0 +1,31 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+
+[workspace.dependencies]
+# One pin for the whole UI stack: gpui-component 0.10 requires gpui-pre =0.3.12. Bump them together.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "x11", "wayland"] }
+gpui-component = "=0.10.0"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+dirs = "6"
+skyelab-core = { path = "crates/skyelab-core" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+[profile.dev.package."*"]
+opt-level = 2 # GPUI is unusably slow unoptimized; our own crates stay fast to compile.
