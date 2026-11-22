@@ -2,9 +2,11 @@
 
 mod changes;
 mod changes_model;
+mod changes_publish;
 mod devices;
 mod env_mode;
 mod env_picker;
+mod github;
 mod panels;
 mod projects;
 mod remote;
@@ -16,7 +18,9 @@ mod thread_render;
 mod thread_worktree;
 mod worktree;
 
-use crate::settings::Settings;
+use crate::settings::{Settings, SettingsEvent};
+pub use github::GhBin;
+pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
     Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString,
     Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
@@ -159,6 +163,7 @@ pub struct Workspace {
     _add: Option<Task<()>>,
     _threads: Option<Task<()>>,
     _settings_saved: Option<Subscription>,
+    _settings_events: Option<Subscription>,
     devices: Option<WeakEntity<devices::DevicesPanel>>,
     /// Created on first open; tests put a fake here first.
     device_source: Option<std::sync::Arc<dyn devices::DeviceSource>>,
@@ -240,6 +245,7 @@ impl Workspace {
             _add: None,
             _threads: None,
             _settings_saved: None,
+            _settings_events: None,
             devices: None,
             device_source: None,
             _appearance,
@@ -347,6 +353,7 @@ impl Workspace {
 
     fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
+            settings.update(cx, |s, cx| s.check_gh_logins(cx)); // a login may have finished since
             let id = settings.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));
@@ -376,6 +383,18 @@ impl Workspace {
             this.push_config(cx);
             cx.notify();
         }));
+        self._settings_events = Some(cx.subscribe_in(
+            &settings,
+            window,
+            |this, _, e: &SettingsEvent, window, cx| {
+                let SettingsEvent::GhLogin { dir } = e;
+                let opened = gh_login_options(&gh_bin(cx), dir)
+                    .and_then(|o| this.add_terminal_with(o, window, cx));
+                if let Err(e) = opened {
+                    eprintln!("failed to open the GitHub login terminal: {e:#}");
+                }
+            },
+        ));
         self.settings = Some(settings.downgrade());
         cx.notify();
     }
@@ -534,6 +553,9 @@ mod review_cta_folder_test;
 
 #[cfg(test)]
 mod env_harness;
+
+#[cfg(all(test, unix))] // the fake gh is a shell script
+mod publish_test;
 
 #[cfg(test)]
 mod env_switch_test;

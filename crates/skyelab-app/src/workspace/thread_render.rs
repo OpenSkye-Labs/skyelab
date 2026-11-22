@@ -62,6 +62,7 @@ impl ThreadView {
                     .child(div().size(px(6.)).rounded_full().bg(theme.success))
                     .child(badge)
             }))
+            .children(self.render_pr_link(cx))
             .child(self.render_worktree_actions(cx))
             .when(running, |this| {
                 this.child(
@@ -82,6 +83,24 @@ impl ThreadView {
                 )
             })
             .into_any_element()
+    }
+
+    fn render_pr_link(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let url = self.thread.as_ref()?.pr_url.clone()?;
+        let label = url.trim_start_matches("https://").to_string();
+        Some(
+            Button::new("pr-link")
+                .outline()
+                .xsmall()
+                .label(format!("PR · {label}"))
+                .tooltip(url.clone())
+                .on_click(cx.listener(move |_, _, _, cx| {
+                    if opens_in_browser(&url) {
+                        cx.open_url(&url);
+                    }
+                }))
+                .into_any_element(),
+        )
     }
 
     fn render_cta(&self, cx: &mut Context<Self>) -> AnyElement {

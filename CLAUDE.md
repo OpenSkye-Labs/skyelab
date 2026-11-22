@@ -20,7 +20,9 @@ What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-g
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
   (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point,
   measured from below the title bar, so subtract its 32 pt from a window screenshot's y at 1x). Fake the agent with
-  `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path). Both are debug builds only.
+  `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path), and `gh` (Push, Open PR, the
+  GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
+  when the account's GitHub dir has a `fake-login` file). Never verify against the real `gh`. All of these are debug builds only.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo test --workspace`.
 - Commit small, on a branch, conventional-ish messages (`feat(core): …`). Don't push to `main` directly once CI exists.

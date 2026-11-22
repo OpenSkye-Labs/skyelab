@@ -172,6 +172,10 @@ fn main() {
         settings::init(cx);
         skyelab_terminal::init(cx);
         workspace::init(cx);
+        cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
+            Some(bin) if cfg!(debug_assertions) => bin.into(),
+            _ => "gh".into(),
+        }));
         // Home until a project is selected.
         let folder = dirs::home_dir().unwrap_or_default();
         let (mut store, store_error) = open_store();

@@ -25,6 +25,7 @@ fn drop_after_self_exit_kills_group() {
             id: "a".into(),
             label: "A".into(),
             config_dir: dir.join("acct"),
+            gh_config_dir: None,
         }],
         bindings: vec![Binding::new(dir.clone(), "a".into())],
     };

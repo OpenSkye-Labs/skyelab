@@ -52,6 +52,7 @@ fn fixture(bound: bool) -> Fixture {
             id: "acme".into(),
             label: "Acme Team".into(),
             config_dir: account_dir.clone(),
+            gh_config_dir: None,
         })
         .expect("add account");
     if bound {
@@ -476,6 +477,7 @@ fn rebind(f: &Fixture, to: Option<&str>) {
             id: "other".into(),
             label: "Other Co".into(),
             config_dir: f.account_dir.with_file_name(".claude-other"),
+            gh_config_dir: None,
         })
         .expect("add account");
     config.remove_binding(&f.project_dir).expect("unbind");

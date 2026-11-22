@@ -150,7 +150,7 @@ pub(super) fn check(
 }
 
 /// The one check behind every worktree launch: `dir` resolves to exactly the thread's account.
-fn resolves_to(config: &AccountsConfig, dir: &Path, account_id: &str) -> Result<()> {
+pub(super) fn resolves_to(config: &AccountsConfig, dir: &Path, account_id: &str) -> Result<()> {
     match config.resolve(dir) {
         Some(a) if a.id == account_id => Ok(()),
         Some(a) => bail!(

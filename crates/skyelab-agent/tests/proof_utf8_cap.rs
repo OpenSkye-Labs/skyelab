@@ -25,6 +25,7 @@ fn capped_line_stays_within_cap() {
             id: "a".into(),
             label: "A".into(),
             config_dir: dir.join("acct"),
+            gh_config_dir: None,
         }],
         bindings: vec![Binding::new(dir.clone(), "a".into())],
     };

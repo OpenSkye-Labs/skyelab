@@ -34,6 +34,7 @@ pub(super) fn fixture() -> Fixture {
                 id: id.into(),
                 label: id.into(),
                 config_dir: dir,
+                gh_config_dir: None,
             })
             .expect("add account");
     }
