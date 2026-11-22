@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::io::{ErrorKind, Read};
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -74,6 +74,24 @@ pub struct WhoIs {
 pub struct Status {
     pub self_node: Node,
     pub peers: Vec<Node>,
+    /// Names `tailscale cert` can issue for. Empty when HTTPS certificates are off for the tailnet.
+    pub cert_domains: Vec<String>,
+}
+
+/// This node's TLS certificate chain and private key, PEM-encoded, as `tailscale cert` wrote them.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Cert {
+    pub cert_pem: Vec<u8>,
+    pub key_pem: Vec<u8>,
+}
+
+impl std::fmt::Debug for Cert {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never print the key.
+        f.debug_struct("Cert")
+            .field("cert_pem", &String::from_utf8_lossy(&self.cert_pem))
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -94,6 +112,11 @@ pub enum Error {
         command: &'static str,
         after: Duration,
     },
+    #[error(
+        "HTTPS certificates are off for this tailnet, so SkyeLab can't encrypt connections. Turn on MagicDNS and \
+         HTTPS Certificates in the Tailscale admin console (https://login.tailscale.com/admin/dns)"
+    )]
+    CertsDisabled,
     #[error("could not parse Tailscale's output")]
     Parse(#[from] serde_json::Error),
     #[error("could not run tailscale")]
@@ -105,6 +128,13 @@ pub trait Tailnet {
     fn peers(&self) -> Result<Vec<Node>, Error>;
     /// `addr` must be the accepted socket's `peer_addr()`, never a value the client supplied.
     fn whois(&self, addr: SocketAddr) -> Result<WhoIs, Error>;
+    /// This node's TLS certificate for its MagicDNS `name`. Fails closed unless the backend can issue one.
+    fn cert(&self, name: &str) -> Result<Cert, Error> {
+        Err(Error::Command {
+            command: "cert",
+            stderr: format!("this tailnet backend can't issue a certificate for {name}"),
+        })
+    }
 }
 
 /// The security core: accept `whois` only if it is one of the user's own, untagged devices.
@@ -134,6 +164,8 @@ pub fn parse_status(json: &[u8]) -> Result<Status, Error> {
         self_node: Option<Node>,
         #[serde(rename = "Peer", default, deserialize_with = "null_as_default")]
         peers: BTreeMap<String, Node>,
+        #[serde(rename = "CertDomains", default, deserialize_with = "null_as_default")]
+        cert_domains: Vec<String>,
     }
     let raw: Raw = serde_json::from_slice(json)?;
     if raw.backend_state != "Running" {
@@ -145,6 +177,7 @@ pub fn parse_status(json: &[u8]) -> Result<Status, Error> {
     Ok(Status {
         self_node,
         peers: raw.peers.into_values().collect(),
+        cert_domains: raw.cert_domains,
     })
 }
 
@@ -161,10 +194,17 @@ const MACOS_APP_CLI: &str = "/Applications/Tailscale.app/Contents/MacOS/Tailscal
 pub struct TailscaleCli {
     binaries: Vec<PathBuf>,
     timeout: Duration,
+    /// Where `cert` writes; `None` means certs can't be fetched.
+    cert_dir: Option<PathBuf>,
+    cert_timeout: Duration,
 }
 
 /// Long enough for a busy tailscaled, short enough that a hung one doesn't stall a connection gate.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+/// A first issuance goes through Let's Encrypt's DNS challenge and can take tens of seconds.
+const DEFAULT_CERT_TIMEOUT: Duration = Duration::from_secs(90);
+/// `tailscale cert` renews when the cached cert has less left than this, so a daily check always stays ahead.
+const MIN_VALIDITY: &str = "336h";
 
 impl Default for TailscaleCli {
     fn default() -> Self {
@@ -184,7 +224,21 @@ impl TailscaleCli {
         Self {
             binaries,
             timeout: DEFAULT_TIMEOUT,
+            cert_dir: None,
+            cert_timeout: DEFAULT_CERT_TIMEOUT,
         }
+    }
+
+    /// The private directory `cert` writes into (created with mode 0700).
+    pub fn with_cert_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.cert_dir = Some(dir.into());
+        self
+    }
+
+    /// Bounds one `cert` call, status check included.
+    pub fn with_cert_timeout(mut self, timeout: Duration) -> Self {
+        self.cert_timeout = timeout;
+        self
     }
 
     /// Bounds every CLI call; one that runs longer is killed and returns [`Error::Timeout`].
@@ -301,6 +355,77 @@ impl Tailnet for TailscaleCli {
         }
         parse_whois(&out.stdout)
     }
+
+    fn cert(&self, name: &str) -> Result<Cert, Error> {
+        let refuse = |why: String| Error::Command {
+            command: "cert",
+            stderr: why,
+        };
+        // The name becomes a CLI argument and a file name: a MagicDNS name only, never a flag or a path.
+        let valid = !name.is_empty()
+            && !name.starts_with(['-', '.'])
+            && !name.contains("..")
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'.');
+        if !valid {
+            return Err(refuse(format!("{name:?} is not a MagicDNS name")));
+        }
+        let dir = self
+            .cert_dir
+            .as_deref()
+            .ok_or_else(|| refuse("no directory to keep the certificate in".into()))?;
+        let deadline = Instant::now() + self.cert_timeout;
+        let domains = self.status_by(deadline)?.cert_domains;
+        if domains.is_empty() {
+            return Err(Error::CertsDisabled);
+        }
+        if !domains.iter().any(|d| d == name) {
+            return Err(refuse(format!(
+                "this node can only get certificates for {}, not {name}",
+                domains.join(", ")
+            )));
+        }
+        private_dir(dir)?;
+        let (cert_file, key_file) = (
+            dir.join(format!("{name}.crt")),
+            dir.join(format!("{name}.key")),
+        );
+        let (cert_arg, key_arg) = (cert_file.to_string_lossy(), key_file.to_string_lossy());
+        let out = self.run(
+            "cert",
+            &[
+                "--min-validity",
+                MIN_VALIDITY,
+                "--cert-file",
+                &cert_arg,
+                "--key-file",
+                &key_arg,
+                name,
+            ],
+            deadline,
+        )?;
+        if !out.status.success() {
+            return Err(refuse(
+                String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+            ));
+        }
+        Ok(Cert {
+            cert_pem: std::fs::read(&cert_file)?,
+            key_pem: std::fs::read(&key_file)?,
+        })
+    }
+}
+
+/// Creates `dir` if needed and makes it owner-only: it holds this node's private key.
+fn private_dir(dir: &Path) -> Result<(), Error> {
+    std::fs::create_dir_all(dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(())
 }
 
 /// Go marshals empty slices and maps as `null`.
