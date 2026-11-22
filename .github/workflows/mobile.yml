@@ -1,5 +1,3 @@
-# The iOS and Android client in mobile/. Separate from ci.yml so the desktop gate stays fast, and only runs when
-# something the mobile build reads changes.
 name: Mobile
 
 on:
@@ -8,6 +6,10 @@ on:
     paths: &paths
       - mobile/**
       - crates/skyelab-protocol/**
+      # skyelab-protocol inherits package fields, deps and lints from the root manifest; clippy reads clippy.toml.
+      - Cargo.toml
+      - clippy.toml
+      - .cargo/**
       - rust-toolchain.toml
       - .github/workflows/mobile.yml
   pull_request:
@@ -33,6 +35,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - run: rustup toolchain install && rustup target add aarch64-apple-ios-sim
       # GPUI compiles Metal shaders; download the toolchain only if this Xcode image lacks it.
       - name: Ensure Metal Toolchain
@@ -47,11 +51,12 @@ jobs:
           workspaces: mobile
           key: ios
       - run: scripts/fetch-gpui-mobile.sh
+      - run: scripts/check-pins.sh
       # -p, not --all: --all would also check the fetched gpui-mobile and skyelab-protocol (the desktop checks it).
       - run: cargo fmt --check -p skyelab-mobile -p skyelab-mobile-android
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
-      - run: cargo build -p skyelab-mobile --bin skyelab_mobile --target aarch64-apple-ios-sim
+      - run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - run: cargo test --locked --workspace
+      - run: cargo build --locked -p skyelab-mobile --bin skyelab_mobile --target aarch64-apple-ios-sim
         env:
           IPHONEOS_DEPLOYMENT_TARGET: "15.0"
 
@@ -60,6 +65,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - run: rustup toolchain install && rustup target add aarch64-linux-android
       - uses: taiki-e/install-action@v2
         with:
@@ -73,5 +80,5 @@ jobs:
       - name: Build and lint for arm64-v8a
         run: |
           export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          cargo ndk -t arm64-v8a -P 26 build -p skyelab-mobile-android
-          cargo ndk -t arm64-v8a -P 26 clippy -p skyelab-mobile-android -- -D warnings
+          cargo ndk -t arm64-v8a -P 26 build --locked -p skyelab-mobile-android
+          cargo ndk -t arm64-v8a -P 26 clippy --locked -p skyelab-mobile-android -- -D warnings
