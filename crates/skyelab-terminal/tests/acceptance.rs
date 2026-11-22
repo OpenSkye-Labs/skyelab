@@ -130,3 +130,15 @@ fn key_table() {
     assert_eq!(k("a", n).as_deref(), Some(&b"a"[..]));
     assert_eq!(k("cmd-v", n), None);
 }
+
+#[cfg(unix)]
+#[test]
+/// The terminal holds a slave fd open (so a fast exit keeps its output); a typed `exit` must still end the session,
+/// even with a background job left holding the PTY.
+fn typed_exit_ends_the_session() {
+    let (mut term, mut rx) = spawn("sh", &["-i"], HashMap::new());
+    term.write(&b"sleep 2 & echo bye-$((6*7)); exit\r"[..]);
+    pump(&mut term, &mut rx, |t| {
+        t.exit_status().is_some() && t.text().contains("bye-42")
+    });
+}
