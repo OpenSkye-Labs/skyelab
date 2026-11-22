@@ -14,7 +14,8 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 /// Index `i` upgrades the schema from `user_version` `i` to `i + 1`. Only append.
-const MIGRATIONS: &[&str] = &["
+const MIGRATIONS: &[&str] = &[
+    "
 CREATE TABLE projects (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL,
@@ -41,7 +42,12 @@ CREATE TABLE events (
     created_at   INTEGER NOT NULL,
     PRIMARY KEY (thread_id, seq)
 ) WITHOUT ROWID;
-"];
+",
+    "
+ALTER TABLE threads ADD COLUMN worktree_path TEXT;
+ALTER TABLE threads ADD COLUMN worktree_branch TEXT;
+",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
@@ -64,6 +70,10 @@ pub struct Thread {
     pub status: String,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The git worktree the thread runs in, when it got its own. Cleared once the worktree is discarded.
+    pub worktree_path: Option<PathBuf>,
+    /// The worktree's branch. Kept after a discard, like the branch itself.
+    pub worktree_branch: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,8 +103,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str =
-    "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at";
+const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it.
@@ -208,6 +217,8 @@ impl Store {
             status: new.status.to_owned(),
             created_at: now,
             updated_at: now,
+            worktree_path: None,
+            worktree_branch: None,
         })
     }
 
@@ -239,6 +250,20 @@ impl Store {
 
     pub fn set_agent_session_id(&self, id: i64, session_id: Option<&str>) -> Result<()> {
         self.update_thread(id, "agent_session_id", session_id)
+    }
+
+    pub fn set_thread_worktree(
+        &self,
+        id: i64,
+        path: Option<&Path>,
+        branch: Option<&str>,
+    ) -> Result<()> {
+        let path = path.map(path_str).transpose()?;
+        let n = self.conn.execute(
+            "UPDATE threads SET worktree_path = ?2, worktree_branch = ?3, updated_at = ?4 WHERE id = ?1",
+            params![id, path, branch, now_ms()],
+        )?;
+        expect_one(n, "thread", id)
     }
 
     fn update_thread(
@@ -335,6 +360,8 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         status: r.get(6)?,
         created_at: r.get(7)?,
         updated_at: r.get(8)?,
+        worktree_path: r.get::<_, Option<String>>(9)?.map(PathBuf::from),
+        worktree_branch: r.get(10)?,
     })
 }
 
