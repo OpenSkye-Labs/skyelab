@@ -2,7 +2,8 @@
 
 **Decision (2026-11-23): build the iOS and Android client in GPUI, as one Rust crate with two thin platform entry points.**
 iOS runs on the GPUI we already pin. Android runs on longbridge's `gpui-mobile` platform crate, ported to our pin with a
-three-line patch. Both run the same `gpui-component` view, unchanged from desktop code.
+small patch (version pins plus a three-line API fix). Both run the same `gpui-component` view, and gpui-component 0.10
+compiles for both targets without changes.
 
 The mobile app is a remote client only. It talks `skyelab-protocol` to a desktop environment over the tailnet and runs
 no agents.
@@ -44,7 +45,7 @@ Screenshots are in `.agent/screens/` of the spike worktree (not committed).
 | Typing | **Not verified.** See "iOS has no accessibility tree" below. | Yes, `agent-device type` (`android-gpui-typed.png`) |
 | Send appends the message | Not reached | Yes (`android-gpui-sent.png`) |
 | `skyelab-protocol` decodes | Yes, linked into both apps | Yes |
-| `tokio` + `tokio-tungstenite 0.30` + `skyelab-protocol` cross-compile | Yes | Yes |
+| `tokio` + `tokio-tungstenite 0.30` + `skyelab-protocol` cross-compile | Yes, in a throwaway crate calling `connect_async` (not committed) | Yes, same crate via `cargo ndk` |
 | Debug artifact size | 34 MB `.app` | 773 MB `.so`, 1.3 GB debug APK. Release size was not measured. |
 
 ### Problems found, with the exact errors
@@ -57,14 +58,14 @@ Screenshots are in `.agent/screens/` of the spike worktree (not committed).
    #02 wgpu_hal::vulkan::device::DeviceShared::set_object_name<DescriptorSetLayout>
    #03 wgpu_hal::vulkan::device::Device::create_bind_group_layout
    ```
-   The upstream example crashes the same way. The workaround is `[profile.dev] debug-assertions = false`. Real devices
+   The upstream example crashes the same way (logcat trace above is from it). The workaround is `[profile.dev] debug-assertions = false`. Real devices
    were not tested.
 2. **iOS has no accessibility tree.** `gpui_ios` gives XCTest a 1-node tree (just the application), so VoiceOver
    can't read the UI and `agent-device type` fails with `TEXT_INPUT_NOT_FOCUSED`. `gpui_ios` implements `UITextInput`,
    so keyboard input should work. No software keyboard appeared in the simulator, so typing on iOS is still unproven.
    Android is better here: `gpui-pre-mobile` ships an AccessKit/TalkBack bridge (not checked in this spike).
-3. **Safe areas aren't automatic.** On iOS the spike pads the top by hand. On Android the view draws under the
-   status bar. `gpui-pre-mobile` has a safe-area API. `gpui_ios` needs checking.
+3. **Safe areas aren't automatic.** On iOS the spike pads the top by hand. On Android no status bar
+   shows over the view, so where content may safely start wasn't checked. `gpui-pre-mobile` has a safe-area API. `gpui_ios` needs checking.
 4. **Upstream drift.** `gpui-pre-mobile` follows its own GPUI snapshot and vendors a patched `gpui-pre-wgpu` (only for
    its `offscreen` feature, which we turn off). Every GPUI bump on our side means re-porting it.
 
@@ -99,11 +100,16 @@ Each step goes through `/loop`.
    `aarch64-apple-ios-sim` and `aarch64-linux-android` in its own job, so the desktop gate stays fast.
 4. **Connect over the tailnet.** v1 relies on the official Tailscale app's VPN being on and dials
    `ws://<machine>.<tailnet>.ts.net:<port>`. The daemon's `whois` check already accepts the same user's untagged
-   phone. An embedded `libtailscale` node comes later, only if needing the VPN app is a real problem.
+   phone. The client must check the server too: if the VPN is off, the name resolves through whatever DNS the phone
+   has, so `skyelab-client` refuses any address outside Tailscale's ranges (100.64.0.0/10, fd7a:115c:a1e0::/48), or
+   better, uses `wss://` with the node's `tailscale cert`. A lost phone is revoked by removing it from the tailnet.
+   An embedded `libtailscale` node comes later, only if needing the VPN app is a real problem.
 5. **Screens.** Environment picker (MagicDNS name, remembered) → projects → threads → thread view (events, live) with a
    composer (send) and a stop button (interrupt). Handle safe areas on both platforms.
 6. **Packaging.** iOS: a generated Xcode project (or the spike's plist) with signing for device builds. Android: the
-   Gradle host from gpui-mobile, cut down to `GpuiActivity` and text input. Measure release sizes with
+   Gradle host from gpui-mobile, cut down to `GpuiActivity` and text input, with a pinned
+   `distributionSha256Sum`. `android_main` needs `#[unsafe(no_mangle)]`, so it goes in a tiny crate that allows
+   `unsafe_code`, per the CLAUDE.md rule. Measure release sizes with
    `opt-level = "z"`, LTO and strip.
 7. **Verify.** Logic is tested in `skyelab-client`. Views get `#[gpui::test]`s. Android is driven with `agent-device`.
    iOS can't be driven past taps until `gpui_ios` exposes accessibility, so confirm iOS typing by hand on the first build

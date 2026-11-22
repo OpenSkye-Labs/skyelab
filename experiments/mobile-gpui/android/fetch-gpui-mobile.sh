@@ -4,9 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 rev=7548ebc4b24f00494af9976af8852c7163ded9ce
 dest=target/gpui-mobile
-[[ -f $dest/.ported ]] && exit 0
+[[ "$(cat "$dest/.ported" 2>/dev/null)" == "$rev" ]] && exit 0
 rm -rf "$dest" && mkdir -p target
 git clone -q https://github.com/longbridge/gpui-mobile "$dest"
 git -C "$dest" checkout -q "$rev"
 git -C "$dest" apply "$PWD/android/gpui-pre-mobile-0.3.12.patch"
-touch "$dest/.ported"
+echo "$rev" > "$dest/.ported"
