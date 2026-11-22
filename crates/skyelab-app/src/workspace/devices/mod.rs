@@ -131,8 +131,12 @@ impl DevicesPanel {
             let listing = job.await;
             // The panel may be gone; nothing to update then.
             let _ = this.update(cx, |this, cx| {
+                let first = this.listing.is_none();
                 this.listing = Some(listing);
                 this.refreshing = None;
+                if first {
+                    this.verify_screenshot(cx);
+                }
                 cx.notify();
             });
         }));
@@ -163,6 +167,27 @@ impl DevicesPanel {
                 }
             }
         }));
+    }
+
+    /// Debug builds only: `SKYELAB_VERIFY_DEVICE_SCREENSHOT=<device name>` screenshots that booted device once
+    /// the first list arrives, because `/loop-verify-ui` can't click a topmost window.
+    fn verify_screenshot(&mut self, cx: &mut Context<Self>) {
+        let Some(name) = std::env::var("SKYELAB_VERIFY_DEVICE_SCREENSHOT")
+            .ok()
+            .filter(|_| cfg!(debug_assertions))
+        else {
+            return;
+        };
+        let device = self.listing.as_ref().and_then(|l| {
+            l.devices()
+                .into_iter()
+                .find(|d| d.name == name && d.state == DeviceState::Booted)
+                .cloned()
+        });
+        match device {
+            Some(device) => self.screenshot(&device, cx),
+            None => eprintln!("SKYELAB_VERIFY_DEVICE_SCREENSHOT: no booted device named {name}"),
+        }
     }
 
     fn device(&self, id: &str) -> Option<Device> {
