@@ -16,8 +16,7 @@ pub(super) fn section(title: &str, cx: &App) -> gpui::Div {
         .child(div().text_lg().pb_1().child(title.to_string()))
 }
 
-/// One line, middle-truncated so both the root and the folder name stay visible; full path on hover.
-/// The caller sizes it (it must be allowed to shrink, hence `min_w_0`).
+/// Middle-truncated so both the root and the folder name stay visible; full path on hover.
 pub(super) fn path_text(id: String, path: &Path) -> gpui::Stateful<gpui::Div> {
     let full = SharedString::from(path.display().to_string());
     div()

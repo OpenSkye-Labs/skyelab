@@ -1,4 +1,4 @@
-//! Acceptance tests for review items 10–12: ways a binding could pick the wrong account.
+//! Ways a binding could pick the wrong account: symlinked depth, duplicates, relative paths.
 
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::path::{Path, PathBuf};
@@ -85,7 +85,6 @@ fn duplicate_binding_paths_rejected_on_load() {
     let same = format!("{accounts}{}{}", binding(&real, "a"), binding(&real, "b"));
     assert!(load(&same).is_err(), "identical paths");
 
-    // Same folder written two ways (through `x/..`) must still be a duplicate.
     std::fs::create_dir(real.join("x")).expect("mkdir");
     let alias = format!(
         "{accounts}{}{}",

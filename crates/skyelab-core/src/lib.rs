@@ -54,7 +54,7 @@ impl AccountsConfig {
         }
         let mut paths = std::collections::HashMap::new();
         for b in &self.bindings {
-            check_binding_path(&b.path)?;
+            let real = binding_root(&b.path)?;
             if !self.accounts.iter().any(|a| a.id == b.account) {
                 bail!(
                     "binding {} points at unknown account '{}'",
@@ -62,7 +62,7 @@ impl AccountsConfig {
                     b.account
                 );
             }
-            if let Some(first) = paths.insert(canonical(&b.path), &b.path) {
+            if let Some(first) = paths.insert(real, &b.path) {
                 bail!(
                     "{} and {} are the same folder, bound twice",
                     first.display(),
@@ -144,9 +144,12 @@ impl AccountsConfig {
         if !self.accounts.iter().any(|a| a.id == binding.account) {
             bail!("unknown account '{}'", binding.account);
         }
-        check_binding_path(&binding.path)?;
-        let new = canonical(&binding.path);
-        if self.bindings.iter().any(|b| canonical(&b.path) == new) {
+        let new = binding_root(&binding.path)?;
+        if self
+            .bindings
+            .iter()
+            .any(|b| binding_root(&b.path).ok() == Some(new.clone()))
+        {
             bail!("{} is already bound", binding.path.display());
         }
         self.bindings.push(binding);
@@ -165,16 +168,32 @@ impl AccountsConfig {
     /// The account bound to `dir`: deepest binding wins. `None` means unbound, and the
     /// caller must ask the user. Never fall back to a default account, that is the bug we exist to prevent.
     pub fn resolve(&self, dir: &Path) -> Option<&Account> {
-        let dir = canonical(dir);
-        // Match and rank on the same canonical path, or a binding written through a symlink
-        // counts the wrong depth and loses to a shallower one.
-        self.bindings
+        if !dir.is_absolute() {
+            return None;
+        }
+        let dir = canonical(dir)?;
+        // Any invalid binding (an unvalidated config) means nothing resolves, rather than a shallower one winning.
+        let roots: Vec<_> = self
+            .bindings
             .iter()
-            .filter(|b| check_binding_path(&b.path).is_ok())
-            .map(|b| (canonical(&b.path), b))
-            .filter(|(path, _)| dir.starts_with(path)) // component-wise, so /work/acme does not match /work/acme-old
-            .max_by_key(|(path, _)| path.components().count())
-            .and_then(|(_, b)| self.accounts.iter().find(|a| a.id == b.account))
+            .map(|b| binding_root(&b.path).ok().map(|root| (root, b)))
+            .collect::<Option<_>>()?;
+        let matching: Vec<_> = roots
+            .iter()
+            .filter(|(root, _)| dir.starts_with(root)) // component-wise, so /work/acme does not match /work/acme-old
+            .collect();
+        let depth = matching
+            .iter()
+            .map(|(root, _)| root.components().count())
+            .max()?;
+        let mut deepest = matching
+            .iter()
+            .filter(|(root, _)| root.components().count() == depth);
+        let (_, b) = deepest.next()?;
+        if deepest.next().is_some() {
+            return None; // two bindings now name the same folder (a symlink appeared after binding): ask
+        }
+        self.accounts.iter().find(|a| a.id == b.account)
     }
 
     /// Env to launch `claude` with for `dir`. Errors when the folder is unbound.
@@ -187,19 +206,30 @@ impl AccountsConfig {
     }
 }
 
-fn canonical(p: &Path) -> PathBuf {
-    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+/// Resolves symlinks in the part of `p` that exists and re-appends the rest, so a folder
+/// that doesn't exist yet compares like one that does. `None` when `..` follows a missing folder.
+fn canonical(p: &Path) -> Option<PathBuf> {
+    let mut missing = Vec::new();
+    let mut cur = p;
+    loop {
+        if let Ok(real) = std::fs::canonicalize(cur) {
+            return Some(missing.iter().rev().fold(real, |acc, name| acc.join(name)));
+        }
+        missing.push(cur.file_name()?);
+        cur = cur.parent()?;
+    }
 }
 
-/// An empty path is a prefix of every folder, and a relative one resolves against the app's cwd.
-fn check_binding_path(p: &Path) -> Result<()> {
-    if !p.is_absolute() {
+/// The canonical folder a binding covers. An empty path is a prefix of every folder, and a
+/// relative one resolves against the app's cwd, so both are refused.
+fn binding_root(p: &Path) -> Result<PathBuf> {
+    if !p.is_absolute() || p.components().any(|c| c == std::path::Component::ParentDir) {
         bail!(
-            "bound folder must be an absolute path, got '{}'",
+            "bound folder must be an absolute path without '..', got '{}'",
             p.display()
         );
     }
-    Ok(())
+    canonical(p).with_context(|| format!("can't resolve {}", p.display()))
 }
 
 /// An empty or relative `CLAUDE_CONFIG_DIR` would run the agent under some other account.
@@ -279,6 +309,15 @@ mod tests {
         let mut c = cfg();
         c.accounts[0].config_dir = ".claude".into();
         assert!(c.launch_env(Path::new("/nonexistent/work/acme")).is_err());
+    }
+
+    #[test]
+    fn relative_dir_and_dotdot_binding_never_resolve() {
+        assert_eq!(resolved("nonexistent/work/acme"), None);
+        let mut c = cfg();
+        c.bindings[0].path = "/nonexistent/x/../work/acme".into();
+        assert!(c.validate().is_err());
+        assert!(c.resolve(Path::new("/nonexistent/work/acme")).is_none());
     }
 
     #[test]
