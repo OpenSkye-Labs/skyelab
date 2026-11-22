@@ -22,6 +22,25 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
     }
 }
 
+/// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,..` dispatches those actions on the
+/// first frame, because `/loop-verify-ui` can't send input to a topmost window.
+fn dispatch_verify_actions(window: &mut gpui::Window) {
+    let Some(names) = std::env::var("SKYELAB_VERIFY_ACTIONS")
+        .ok()
+        .filter(|_| cfg!(debug_assertions))
+    else {
+        return;
+    };
+    window.on_next_frame(move |window, cx| {
+        for name in names.split(',') {
+            match cx.build_action(name, None) {
+                Ok(action) => window.dispatch_action(action, cx),
+                Err(e) => eprintln!("SKYELAB_VERIFY_ACTIONS: {name}: {e:#}"),
+            }
+        }
+    });
+}
+
 fn main() {
     let path = AccountsConfig::default_path();
     let (config, error) = match path.as_deref().map(AccountsConfig::load) {
@@ -43,6 +62,7 @@ fn main() {
                 cx.new(|cx| workspace::Workspace::new(folder, path, config, error, window, cx));
             let focus = view.read(cx).focus_handle(cx);
             window.focus(&focus, cx);
+            dispatch_verify_actions(window);
             cx.new(|cx| Root::new(view, window, cx))
         });
         if let Err(e) = opened {

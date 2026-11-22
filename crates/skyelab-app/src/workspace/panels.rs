@@ -2,7 +2,7 @@
 
 use crate::settings::Settings;
 use gpui::{
-    App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
+    Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
@@ -18,6 +18,9 @@ use skyelab_terminal::TerminalView;
 /// and whether the user may close it.
 macro_rules! panel {
     ($ty:ty, $name:literal, closable: $closable:literal, |$this:ident| $title:expr) => {
+        panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
+    };
+    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, |$this:ident| $title:expr) => {
         impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
@@ -37,6 +40,9 @@ macro_rules! panel {
             }
             fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
                 None
+            }
+            fn title_bar(&self, _: &App) -> bool {
+                $title_bar
             }
         }
     };
@@ -70,7 +76,8 @@ impl Sidebar {
     }
 }
 
-panel!(Sidebar, "Sidebar", closable: false, |_this| "Sidebar");
+// The sidebar draws its own header.
+panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
 
 impl Render for Sidebar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -161,12 +168,18 @@ panel!(Welcome, "Welcome", closable: false, |_this| "Welcome");
 impl Render for Welcome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let shortcut = |label: &'static str, key: &'static str| {
+        let shortcut = |label: &'static str, key: &'static str, action: Box<dyn Action>| {
             h_flex()
+                .id(label)
                 .w_full()
                 .justify_between()
+                .px_2()
                 .py_1p5()
+                .rounded_md()
                 .text_sm()
+                .cursor_pointer()
+                .hover(|this| this.bg(theme.secondary))
+                .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
                 .child(div().text_color(theme.foreground).child(label))
                 .children(Keystroke::parse(key).ok().map(Kbd::new))
         };
@@ -200,10 +213,26 @@ impl Render for Welcome {
                     )
                     .child(
                         v_flex()
-                            .child(shortcut("Toggle sidebar", super::TOGGLE_SIDEBAR_KEY))
-                            .child(shortcut("Toggle bottom panel", super::TOGGLE_BOTTOM_KEY))
-                            .child(shortcut("New terminal", super::NEW_TERMINAL_KEY))
-                            .child(shortcut("Accounts and folders", super::OPEN_SETTINGS_KEY)),
+                            .child(shortcut(
+                                "Toggle sidebar",
+                                super::TOGGLE_SIDEBAR_KEY,
+                                Box::new(super::ToggleSidebar),
+                            ))
+                            .child(shortcut(
+                                "Toggle bottom panel",
+                                super::TOGGLE_BOTTOM_KEY,
+                                Box::new(super::ToggleBottomPanel),
+                            ))
+                            .child(shortcut(
+                                "New terminal",
+                                super::NEW_TERMINAL_KEY,
+                                Box::new(super::NewTerminal),
+                            ))
+                            .child(shortcut(
+                                "Accounts and folders",
+                                super::OPEN_SETTINGS_KEY,
+                                Box::new(super::OpenSettings),
+                            )),
                     ),
             )
     }
