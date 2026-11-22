@@ -6486,6 +6486,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "skyelab-git"
+version = "0.1.0"
+dependencies = [
+ "dirs 7.0.0",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "skyelab-store"
 version = "0.1.0"
 dependencies = [
