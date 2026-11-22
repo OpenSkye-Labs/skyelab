@@ -42,6 +42,7 @@ fn other_names_are_rejected() {
         "",
         "   ",
         "laptop.example.com",
+        "laptop.tail1234.example.net",
         "tail1234.ts.net",
         "ts.net",
         "a.b.tail1234.ts.net",
