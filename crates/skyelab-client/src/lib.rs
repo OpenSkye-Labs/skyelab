@@ -52,8 +52,9 @@ pub struct Options {
     /// local Tailscale CLI exists) trusts the node id the server sends in hello, which a machine that took over the
     /// name can fake.
     pub verify_peer: Option<PeerVerifier>,
-    /// Hold every connection after hello until [`Client::approve`] approves its hello: until then nothing is sent
-    /// (no watch refill, no request: those fail with [`Error::NotConnected`]) and no pushed event is delivered.
+    /// Hold every connection after hello until [`Client::approve`] approves its hello: until then no request or
+    /// watch refill is sent (requests fail with [`Error::NotConnected`]; only keepalive pings go out) and no pushed
+    /// event is delivered.
     /// For a caller that checks the server's identity (a pin) before trusting a connection, reconnects included.
     pub approve_each_connection: bool,
     /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).

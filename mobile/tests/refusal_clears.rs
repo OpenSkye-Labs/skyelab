@@ -69,3 +69,28 @@ fn a_refusal_empties_the_lists_and_leaves_the_thread(cx: &mut TestAppContext) {
         assert!(a.threads().is_empty(), "no threads left")
     });
 }
+
+#[test]
+fn a_certificate_failure_clears_the_lists_too() {
+    use skyelab_client::{Disconnect, DisconnectKind, Update};
+    use skyelab_mobile::source::Msg;
+    let env = start();
+    let mut source =
+        RemoteSource::connect(NODE_NAME, options(env.port), env._dir.path()).expect("client");
+    let inbox = source.inbox().expect("inbox");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while source.projects().is_empty() {
+        let left = deadline.saturating_duration_since(Instant::now());
+        source.apply(inbox.recv_timeout(left).expect("projects within 5 s"));
+    }
+    source.apply(Msg::from(Update::Disconnected(Disconnect {
+        kind: DisconnectKind::Certificate,
+        message: "invalid peer certificate: NotValidForName".into(),
+    })));
+    assert!(
+        source.connection().is_untrusted(),
+        "{:?}",
+        source.connection()
+    );
+    assert!(source.projects().is_empty());
+}

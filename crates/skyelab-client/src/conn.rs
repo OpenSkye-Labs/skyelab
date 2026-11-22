@@ -229,7 +229,7 @@ enum Waiter {
 }
 
 struct Live {
-    /// Waiting for [`Command::Approve`] of this hello: nothing is sent and no pushed event is delivered.
+    /// Waiting for [`Command::Approve`] of this hello: no request goes out and no pushed event is delivered.
     held: Option<Hello>,
     ws: Ws,
     next_id: RequestId,

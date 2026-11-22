@@ -512,7 +512,7 @@ impl Render for MobileApp {
     }
 }
 
-/// The app body both platform entry points run. `data_dir` is where the environment name is remembered.
+/// The app body both platform entry points run. `data_dir` is where the environment name and pinned nodes live.
 /// An error means the window never opened; the entry point logs it where that platform's logs go.
 pub fn run(data_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     gpui_component::init(cx);

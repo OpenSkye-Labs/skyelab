@@ -3,9 +3,8 @@
 //! Nothing here blocks the caller. Updates (connection changes, watched events) and request results all land in
 //! one inbox; the app keeps receiving from it and hands each message to [`ThreadSource::apply`].
 //!
-//! Node pinning: the first node id a name's hello names is saved in the data dir (`env_store::NODES_FILE`), and
-//! every connection, reconnects included, is held by the client until its hello matches the pin. This trusts the
-//! server's word about itself: the phone has no local Tailscale to ask (docs/mobile.md, step 4).
+//! Node pinning trusts the server's word about itself: the phone has no local Tailscale to ask (docs/mobile.md,
+//! step 4).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -139,12 +138,18 @@ impl RemoteSource {
     }
 
     /// Whether this hello's node may be trusted for the name: the pinned one, or the first one seen (then pinned).
-    /// A pinned name whose hello names no node, or pins that can't be read or saved, is refused.
+    /// A pinned name whose hello names no node, a malformed id, or pins that can't be read or saved, is refused.
     fn check(&self, hello: &Hello) -> Connection {
+        if hello.node_id.as_deref().is_some_and(|id| !is_stable_id(id)) {
+            return Connection::Unverified("it sent a malformed node id".into());
+        }
         let nodes = match env_store::load_nodes(&self.data_dir) {
             Ok(nodes) => nodes,
             Err(e) => return Connection::Unverified(format!("{e:#}")),
         };
+        if nodes.get(&self.host).is_some_and(|was| !is_stable_id(was)) {
+            return Connection::Unverified("the saved node for it is malformed".into());
+        }
         match (nodes.get(&self.host), &hello.node_id) {
             (Some(was), Some(now)) if was == now => Connection::Connected,
             (Some(was), now) => Connection::NodeChanged {
@@ -160,7 +165,6 @@ impl RemoteSource {
         }
     }
 
-    /// Trusted: release the held connection and list.
     fn up(&mut self) {
         self.connection = Connection::Connected;
         self.error = None;
@@ -170,12 +174,13 @@ impl RemoteSource {
         self.refresh();
     }
 
-    /// Refused or not trusted: nothing of this machine stays, and its watch ends (the thread screen re-watches
-    /// from the start once trusted again, so no event is lost).
+    /// Nothing of this machine stays: its ids mean nothing on whatever node is trusted next. The watch ends too,
+    /// so reopening the thread later replays it from the start.
     fn refuse(&mut self, connection: Connection) {
         self.connection = connection;
         self.projects.clear();
         self.threads.clear();
+        self.open_project = None;
         self.events.clear();
         self.watched = None;
         if let Some(old) = self.watch_id.take() {
@@ -199,11 +204,14 @@ impl RemoteSource {
                 self.hello = None;
                 self.refuse(Connection::Refused);
             }
-            // Only with a verifier, which the phone doesn't have; refused all the same.
+            // Whoever answered isn't proven to be this machine (a certificate for another name, or a verifier's
+            // refusal, which the phone doesn't have yet).
             Update::Disconnected(d)
                 if matches!(
                     d.kind,
-                    DisconnectKind::NotYourDevice | DisconnectKind::IdentityMismatch
+                    DisconnectKind::Certificate
+                        | DisconnectKind::NotYourDevice
+                        | DisconnectKind::IdentityMismatch
                 ) =>
             {
                 self.hello = None;
@@ -289,7 +297,8 @@ impl ThreadSource for RemoteSource {
 
     fn trust(&mut self, node_id: &str) {
         let shown = matches!(&self.connection, Connection::NodeChanged { now: Some(now), .. } if now == node_id);
-        let live = self.hello.as_ref().and_then(|h| h.node_id.as_deref()) == Some(node_id);
+        // The client's own hello, not ours: a disconnect it hasn't told us about yet must not be trusted.
+        let live = self.client.hello().and_then(|h| h.node_id).as_deref() == Some(node_id);
         if !shown || !live {
             self.error = Some("That machine changed again. Check the new warning.".into());
             return;
@@ -307,6 +316,9 @@ impl ThreadSource for RemoteSource {
     fn apply(&mut self, msg: Msg) {
         match msg.0 {
             Inbound::Update(update) => self.on_update(update),
+            // A reply that lands after a refusal (its thread raced the update) must not refill the screen.
+            Inbound::Projects(Ok(_)) | Inbound::Threads(_, Ok(_))
+                if self.connection != Connection::Connected => {}
             Inbound::Projects(Ok(projects)) => {
                 self.projects = projects;
                 self.error = None;
@@ -335,4 +347,10 @@ impl ThreadSource for RemoteSource {
             Inbound::Done(what, Err(e)) => self.error = Some(format!("Couldn't {what}: {e}")),
         }
     }
+}
+
+/// What a Tailscale StableID looks like (`nAbC123CNTRL`). Anything else from the server is refused, never pinned
+/// or shown: it is the server's own text.
+fn is_stable_id(id: &str) -> bool {
+    (1..=64).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric())
 }

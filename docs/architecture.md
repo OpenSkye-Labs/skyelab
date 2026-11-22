@@ -136,13 +136,14 @@ exactly the node shown (refused if a different one answers by then). A `settings
 connection rather than trust an unchecked node. A client without a verifier gets the hello's id unchecked, which is
 only what the server says about itself (a node that took over the name and replays the old id passes it). Known
 limit, mobile: there is no Tailscale CLI and the official app's LocalAPI is sandboxed, so mobile passes no verifier
-and pins from the hello (`nodes.json`, same Trust it flow; missing id once pinned or unreadable pins refuse). That is
+and pins from the hello (`nodes.json`, same Trust it flow; missing id once pinned or unreadable pins refuse; a
+never-pinned name with no id connects unpinned). That is
 the server's word about itself: a node that took over the name and replays the old StableID passes. Upgrade path:
 an embedded libtailscale/tsnet node, or the app's LocalAPI if exposed. See [mobile.md](mobile.md), step 4.
 
 **Nothing before the check, nothing after a refusal.** Both apps set `Options::approve_each_connection`: after
 hello the client sends nothing (watch refills and requests wait or fail `NotConnected`, pushes are dropped and
-refetched) until `Client::approve(hello)` for that exact hello, on every reconnect. A refusal or identity failure
+refetched) until `Client::approve(hello)` for that exact hello, on every reconnect. A refusal or identity failure (a certificate failure included)
 clears the remote projects, threads and tabs (mobile: the empty projects screen). Local-only actions don't apply: no local terminal for a remote project, no
 worktree controls. Switching machines closes every remote tab and drops the client, so local and remote data never mix.
 

@@ -72,6 +72,10 @@ pub fn trust_node(dir: &Path, name: &str, node_id: &str) -> anyhow::Result<()> {
     // Written beside it, then renamed over it, so a crash mid-write can't leave a file that refuses every name.
     let tmp = dir.join(format!("{NODES_FILE}.tmp"));
     let text = serde_json::to_string_pretty(&nodes).context("serializing pins")?;
-    std::fs::write(&tmp, text).with_context(|| format!("writing {}", tmp.display()))?;
+    let mut file =
+        std::fs::File::create(&tmp).with_context(|| format!("writing {}", tmp.display()))?;
+    std::io::Write::write_all(&mut file, text.as_bytes())
+        .and_then(|()| file.sync_all())
+        .with_context(|| format!("writing {}", tmp.display()))?;
     std::fs::rename(&tmp, &path).with_context(|| format!("replacing {}", path.display()))
 }

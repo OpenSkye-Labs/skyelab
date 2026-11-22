@@ -114,8 +114,7 @@ pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client:
 
 pub enum EnvEvent {
     Thread(ThreadEvent),
-    /// The connection was refused or its identity failed (another node, an unreadable pin, the remote's gate or
-    /// this machine's whois): its tabs show threads of a machine not trusted now, so they close.
+    /// The connection was refused or its identity failed: its tabs show threads of a machine not trusted now.
     Untrusted,
 }
 
@@ -200,15 +199,20 @@ impl RemoteEnv {
             Update::Event(_) => {}
             Update::Connected(hello) => self.on_connected(hello, cx),
             update => {
+                // Whoever answered wasn't proven to be this machine (a certificate for another name included).
+                let untrusted = matches!(
+                    &update,
+                    Update::Disconnected(d) if matches!(
+                        d.kind,
+                        DisconnectKind::Refused
+                            | DisconnectKind::Certificate
+                            | DisconnectKind::NotYourDevice
+                            | DisconnectKind::IdentityMismatch
+                    )
+                );
                 if let Some(state) = ConnState::from_update(&update) {
                     self.node = None;
                     self.hello = None;
-                    let untrusted = matches!(
-                        state,
-                        ConnState::Refused
-                            | ConnState::NotYourDevice(_)
-                            | ConnState::IdentityMismatch(_)
-                    );
                     if untrusted {
                         return self.refuse(state, cx);
                     }
@@ -274,8 +278,8 @@ impl RemoteEnv {
         }));
     }
 
-    /// Refuses this connection (it stays held by the client: nothing sent), clears what the window still shows
-    /// from this machine, and its tabs close.
+    /// Clears what the window still shows from this machine and closes its tabs. A refused connection that did
+    /// pass hello stays held by the client, so nothing is sent on it.
     fn refuse(&mut self, state: ConnState, cx: &mut Context<Self>) {
         self.state = state;
         self.projects.clear();

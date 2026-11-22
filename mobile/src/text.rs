@@ -61,8 +61,7 @@ pub(crate) fn connection_text(connection: &Connection) -> (SharedString, bool) {
             true,
         ),
         Connection::NodeChanged { was, now } => {
-            // The id is the server's word; keep a hostile one from flooding the screen.
-            let now: String = now.as_deref().unwrap_or("none").chars().take(64).collect();
+            let now = now.as_deref().unwrap_or("none");
             (
                 format!(
                     "This isn't the machine you connected to before (node {now}, trusted: {was}). Trust it only \
@@ -73,7 +72,11 @@ pub(crate) fn connection_text(connection: &Connection) -> (SharedString, bool) {
             )
         }
         Connection::Unverified(why) => (
-            format!("Can't check which machine this is ({why}). Nothing was sent to it.").into(),
+            format!(
+                "Can't check which machine this is ({why}). Nothing was sent to it. If the saved machines file \
+                 is damaged, reinstall the app to forget them."
+            )
+            .into(),
             true,
         ),
         Connection::VersionMismatch(why) => (

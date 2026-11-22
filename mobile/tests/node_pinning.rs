@@ -111,10 +111,35 @@ fn a_pinned_name_whose_hello_has_no_id_is_refused() {
             now: None
         }
     );
+    // Nothing to trust: no id was named.
+    source.trust("nSelf");
+    assert!(changed(&source), "{:?}", source.connection());
     linger(&mut source);
     assert!(source.projects().is_empty());
-    assert_eq!(source.error(), None, "no listing was tried");
+    assert_eq!(
+        source.error().as_deref(),
+        Some("That machine changed again. Check the new warning.")
+    );
     assert_eq!(pin(dir.path()).as_deref(), Some("nSelf"));
+}
+
+#[test]
+fn a_never_pinned_name_whose_hello_has_no_id_connects_unpinned() {
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("bind")
+        .local_addr()
+        .expect("addr")
+        .port();
+    let dir = tempfile::tempdir().expect("dir");
+    let mut source =
+        RemoteSource::connect(NODE_NAME, options(port), dir.path()).expect("client thread");
+    source.apply(Msg::from(Update::Connected(Hello {
+        protocol: VERSION,
+        capabilities: vec![],
+        node_id: None,
+    })));
+    assert_eq!(source.connection(), Connection::Connected);
+    assert_eq!(pin(dir.path()), None);
 }
 
 #[test]
@@ -141,6 +166,10 @@ fn a_pin_file_that_cant_be_read_refuses() {
     let path = dir.path().join(env_store::NODES_FILE);
     std::fs::write(&path, "{}").expect("write");
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).expect("chmod");
+    if std::fs::read(&path).is_ok() {
+        eprintln!("skipped: running as root, the file is still readable");
+        return;
+    }
     let mut source = connect(&env, dir.path());
     settle(&mut source, "the refusal", |s| {
         matches!(s.connection(), Connection::Unverified(_))
