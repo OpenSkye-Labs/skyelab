@@ -1,4 +1,5 @@
 mod environment;
+mod palette;
 mod remote;
 mod settings;
 mod workspace;

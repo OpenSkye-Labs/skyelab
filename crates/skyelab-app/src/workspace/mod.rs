@@ -7,6 +7,7 @@ mod devices;
 mod env_mode;
 mod env_picker;
 mod github;
+mod palette_items;
 mod panels;
 mod projects;
 mod remote;
@@ -112,6 +113,7 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
         ]);
     }
+    crate::palette::init(cx);
 }
 
 /// Env for a terminal in `dir`: the bound account's, or none, so skyelab-terminal clears the
@@ -497,6 +499,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_remote))
             .on_action(cx.listener(Self::toggle_sharing))
             .on_action(cx.listener(Self::disconnect_peer))
+            .on_action(cx.listener(Self::open_palette))
             .map(|el| self.env_actions(el, cx))
             .size_full()
             .bg(theme.background)
@@ -553,6 +556,9 @@ mod review_cta_folder_test;
 
 #[cfg(test)]
 mod env_harness;
+
+#[cfg(test)]
+mod palette_test;
 
 #[cfg(all(test, unix))] // the fake gh is a shell script
 mod publish_test;
