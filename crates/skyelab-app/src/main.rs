@@ -5,16 +5,23 @@ use gpui::{
     WindowOptions, actions, px, size,
 };
 use gpui_component::Root;
+use skyelab_browser::BrowserView;
 use skyelab_core::AccountsConfig;
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
 
-actions!(skyelab, [OpenTerminal]);
+actions!(skyelab, [OpenTerminal, OpenBrowser]);
 
 // `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
 const OPEN_TERMINAL_KEY: &str = if cfg!(target_os = "macos") {
     "cmd-alt-t"
 } else {
     "ctrl-alt-t"
+};
+
+const OPEN_BROWSER_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-alt-b"
+} else {
+    "ctrl-alt-b"
 };
 
 /// Debug builds only: `SKYELAB_VERIFY_TOPMOST=1` keeps windows above others so
@@ -52,6 +59,17 @@ fn open_terminal(cx: &mut App) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Demo: a browser window. `SKYELAB_BROWSER_URL` overrides the start page.
+fn open_browser(cx: &mut App) -> anyhow::Result<()> {
+    let url = std::env::var("SKYELAB_BROWSER_URL").unwrap_or_else(|_| "https://example.com".into());
+    let bounds = Bounds::centered(None, size(px(1000.), px(700.)), cx);
+    cx.open_window(window_options(bounds), |window, cx| {
+        let view = cx.new(|cx| BrowserView::new(&url, window, cx));
+        cx.new(|cx| Root::new(view, window, cx))
+    })?;
+    Ok(())
+}
+
 fn main() {
     let path = AccountsConfig::default_path();
     let (config, error) = match path.as_deref().map(AccountsConfig::load) {
@@ -64,7 +82,15 @@ fn main() {
         gpui_component::init(cx);
         settings::init(cx);
         skyelab_terminal::init(cx);
-        cx.bind_keys([KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None)]);
+        cx.bind_keys([
+            KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None),
+            KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, None),
+        ]);
+        cx.on_action(|_: &OpenBrowser, cx| {
+            if let Err(e) = open_browser(cx) {
+                eprintln!("failed to open browser: {e:#}");
+            }
+        });
         cx.on_action(|_: &OpenTerminal, cx| {
             if let Err(e) = open_terminal(cx) {
                 eprintln!("failed to open terminal: {e:#}");
@@ -93,5 +119,10 @@ mod tests {
     fn open_terminal_binding_parses() {
         // Panics on a keystroke string GPUI can't parse.
         KeyBinding::new(OPEN_TERMINAL_KEY, OpenTerminal, None);
+    }
+
+    #[test]
+    fn open_browser_binding_parses() {
+        KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, None);
     }
 }

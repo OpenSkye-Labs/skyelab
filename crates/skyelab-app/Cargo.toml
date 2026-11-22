@@ -16,6 +16,7 @@ gpui-component.workspace = true
 anyhow.workspace = true
 skyelab-core.workspace = true
 skyelab-terminal.workspace = true
+skyelab-browser.workspace = true
 dirs.workspace = true
 
 [lints]

@@ -24,7 +24,12 @@ tempfile = "3"
 thiserror = "2"
 alacritty_terminal = "0.26"
 futures = "0.3"
+# Webview: no `gpui-fast` feature (that is a second GPUI). wry must match the version gpui-webview uses.
+gpui-webview = "0.10.0"
+wry = { package = "lb-wry", version = "0.53.3" }
+url = "2.5.9"
 skyelab-core = { path = "crates/skyelab-core" }
+skyelab-browser = { path = "crates/skyelab-browser" }
 skyelab-terminal = { path = "crates/skyelab-terminal" }
 
 [workspace.lints.rust]
