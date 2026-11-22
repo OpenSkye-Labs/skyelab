@@ -22,7 +22,10 @@ flume = "0.12"
 rusqlite = { version = "0.43", features = ["bundled"] }
 tempfile = "3"
 thiserror = "2"
+alacritty_terminal = "0.26"
+futures = "0.3"
 skyelab-core = { path = "crates/skyelab-core" }
+skyelab-terminal = { path = "crates/skyelab-terminal" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
