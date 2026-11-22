@@ -141,6 +141,7 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     ));
     let config = Config {
         port: remote.port,
+        approved: harness_approvals(),
         ..Config::default()
     };
     let backend: Arc<dyn DaemonBackend> = Arc::new(Stall { inner, release });

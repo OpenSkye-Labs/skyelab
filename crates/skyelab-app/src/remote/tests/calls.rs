@@ -45,6 +45,18 @@ fn sharing_workspace(
     }
     let accounts_path = root.join("accounts.toml");
     config.save(&accounts_path).expect("save");
+    // The phone is already allowed here, so these tests are about the calls.
+    AppSettings {
+        approved_devices: vec![skyelab_core::ApprovedDevice {
+            node_id: "nPhone".into(),
+            key_hash: skyelab_protocol::device_key_hash(PHONE_KEY),
+            name: "phone.example.ts.net".into(),
+            user: "me@example.com".into(),
+        }],
+        ..AppSettings::default()
+    }
+    .save(&root.join("settings.toml"))
+    .expect("settings");
 
     // One store for the app and the daemon, with events pushed, as in main.
     let slot = DaemonSlot::default();
@@ -105,6 +117,7 @@ fn connect_hello(f: &Fixture, cx: &mut VisualTestContext) -> Client {
         Call::Hello {
             protocol: VERSION,
             capabilities: vec![],
+            device_key: Some(PHONE_KEY.into()),
         },
     );
     match client.reply(1, &mut Vec::new(), cx) {

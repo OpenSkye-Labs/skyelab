@@ -34,7 +34,11 @@ fn sharing(cx: &mut TestAppContext) -> (Sharing, &mut VisualTestContext) {
     )
 }
 
-fn client(remote: &Entity<Remote>, key: &str, cx: &mut VisualTestContext) -> skyelab_client::Client {
+fn client(
+    remote: &Entity<Remote>,
+    key: &str,
+    cx: &mut VisualTestContext,
+) -> skyelab_client::Client {
     let port = sharing_port(remote, cx).expect("sharing");
     let mut roots = rustls::RootCertStore::empty();
     roots.add(ca().root()).expect("test CA root");
@@ -61,7 +65,10 @@ fn wait_for(
     });
 }
 
-fn requests(remote: &Entity<Remote>, cx: &mut VisualTestContext) -> Vec<skyelab_daemon::AccessRequest> {
+fn requests(
+    remote: &Entity<Remote>,
+    cx: &mut VisualTestContext,
+) -> Vec<skyelab_daemon::AccessRequest> {
     remote.update(cx, |r, cx| r.refresh_peers(cx));
     remote.read_with(cx, |r, _| r.requests.clone())
 }
@@ -102,7 +109,12 @@ fn a_waiting_device_is_listed_allowed_and_revoked(cx: &mut TestAppContext) {
         saved(&s.settings),
         vec![("nPhone".to_owned(), device_key_hash(KEY))]
     );
-    wait_for(&phone, "connected", |u| matches!(u, Update::Connected(_)), cx);
+    wait_for(
+        &phone,
+        "connected",
+        |u| matches!(u, Update::Connected(_)),
+        cx,
+    );
     assert!(requests(&s.remote, cx).is_empty());
     let approved = s.remote.read_with(cx, |r, _| r.approved.clone());
     assert_eq!(approved.len(), 1);
@@ -144,13 +156,25 @@ fn saved_approvals_apply_when_sharing_starts_again(cx: &mut TestAppContext) {
     wait_until(cx, "the request", |cx| requests(&s.remote, cx).len() == 1);
     s.remote
         .update(cx, |r, cx| r.allow("nPhone", &device_key_hash(KEY), cx));
-    wait_for(&phone, "connected", |u| matches!(u, Update::Connected(_)), cx);
+    wait_for(
+        &phone,
+        "connected",
+        |u| matches!(u, Update::Connected(_)),
+        cx,
+    );
     drop(phone);
     s.remote.update(cx, |r, cx| {
         r.toggle(cx);
         r.toggle(cx);
     });
-    wait_until(cx, "sharing again", |cx| sharing_port(&s.remote, cx).is_some());
+    wait_until(cx, "sharing again", |cx| {
+        sharing_port(&s.remote, cx).is_some()
+    });
     let phone = client(&s.remote, KEY, cx);
-    wait_for(&phone, "connected", |u| matches!(u, Update::Connected(_)), cx);
+    wait_for(
+        &phone,
+        "connected",
+        |u| matches!(u, Update::Connected(_)),
+        cx,
+    );
 }

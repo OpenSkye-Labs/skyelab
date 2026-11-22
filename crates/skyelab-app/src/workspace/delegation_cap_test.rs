@@ -146,21 +146,33 @@ fn a_send_to_a_stopped_child_does_not_resume_it_past_the_cap(cx: &mut TestAppCon
     let child = {
         let store = r.store.lock().expect("lock");
         let id = thread_row(&store, &r.project, "stopped", Some(r.parent));
-        store.set_agent_session_id(id, Some("sess-1")).expect("session");
+        store
+            .set_agent_session_id(id, Some("sess-1"))
+            .expect("session");
         store.thread(id).expect("read").expect("row")
     };
     let (config, backend) = (r.config.clone(), backend(&r));
-    let (view, cx) =
-        cx.add_window_view(|window, cx| ThreadView::open(child.clone(), config, backend, window, cx));
+    let (view, cx) = cx
+        .add_window_view(|window, cx| ThreadView::open(child.clone(), config, backend, window, cx));
     wait_until(cx, "the thread to load as resumable", |cx| {
         view.read_with(cx, |v, _| !v.read_only)
     });
-    let _ = view.update_in(cx, |v, window, cx| v.submit_remote("keep going", window, cx));
+    let _ = view.update_in(cx, |v, window, cx| {
+        v.submit_remote("keep going", window, cx)
+    });
     settle(&view, cx);
-    assert_eq!(status(&r, child.id), "stopped", "the child must not run again");
+    assert_eq!(
+        status(&r, child.id),
+        "stopped",
+        "the child must not run again"
+    );
     assert_eq!(prompts(&r, child.id), 0, "no prompt stored");
     assert!(view.read_with(cx, |v, _| v.session.is_none()));
-    assert!(error(&view, cx).contains("running children"), "{}", error(&view, cx));
+    assert!(
+        error(&view, cx).contains("running children"),
+        "{}",
+        error(&view, cx)
+    );
 }
 
 #[gpui::test]
@@ -176,10 +188,19 @@ fn a_new_child_does_not_start_past_the_cap(cx: &mut TestAppContext) {
     });
     let _ = view.update_in(cx, |v, window, cx| v.submit_remote("one more", window, cx));
     settle(&view, cx);
-    let children = r.store.lock().expect("lock").child_threads(r.parent).expect("children");
+    let children = r
+        .store
+        .lock()
+        .expect("lock")
+        .child_threads(r.parent)
+        .expect("children");
     assert_eq!(children.len(), MAX_CHILDREN, "no fifth child row");
     assert!(view.read_with(cx, |v, _| v.session.is_none()));
-    assert!(error(&view, cx).contains("running children"), "{}", error(&view, cx));
+    assert!(
+        error(&view, cx).contains("running children"),
+        "{}",
+        error(&view, cx)
+    );
 }
 
 #[gpui::test]
@@ -207,5 +228,9 @@ fn a_follow_up_to_an_idle_child_does_not_pass_the_cap(cx: &mut TestAppContext) {
     settle(&view, cx);
     assert_eq!(status(&r, id), "idle", "the child must stay idle");
     assert_eq!(prompts(&r, id), 1, "the second prompt isn't stored");
-    assert!(error(&view, cx).contains("running children"), "{}", error(&view, cx));
+    assert!(
+        error(&view, cx).contains("running children"),
+        "{}",
+        error(&view, cx)
+    );
 }

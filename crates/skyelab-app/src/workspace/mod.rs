@@ -3,6 +3,7 @@
 mod changes;
 mod changes_model;
 mod changes_publish;
+mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
@@ -164,6 +165,8 @@ pub struct Workspace {
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
     open_threads: Vec<WeakEntity<ThreadView>>,
+    /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
+    queued_tabs: Vec<Entity<ThreadView>>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     _thread_events: Vec<Subscription>,
     _load: Option<Task<()>>,
@@ -248,6 +251,7 @@ impl Workspace {
             project: None,
             threads: Vec::new(),
             open_threads: Vec::new(),
+            queued_tabs: Vec::new(),
             changes_views: Vec::new(),
             _thread_events: Vec::new(),
             _load: None,
@@ -455,6 +459,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_remote))
             .on_action(cx.listener(Self::toggle_sharing))
             .on_action(cx.listener(Self::disconnect_peer))
+            .on_action(cx.listener(Self::allow_device))
+            .on_action(cx.listener(Self::deny_device))
+            .on_action(cx.listener(Self::revoke_device))
             .on_action(cx.listener(Self::open_palette))
             .map(|el| self.env_actions(el, cx))
             .size_full()
@@ -550,4 +557,10 @@ mod changes_follow_folder_test;
 mod delegation_test;
 
 #[cfg(test)]
+mod delegation_cap_test;
+#[cfg(test)]
 mod delegation_resume_test;
+#[cfg(test)]
+mod env_approval_test;
+#[cfg(test)]
+mod env_queue_test;

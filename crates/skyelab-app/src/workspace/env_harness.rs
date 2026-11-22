@@ -13,6 +13,11 @@ use std::time::Duration;
 
 pub(super) const ME: u64 = 42;
 
+/// The harness client's device key. [`RemoteSide`] approves it for the laptop ("nLaptop") unless a test takes
+/// the approval away.
+pub(super) const HARNESS_KEY: &str =
+    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+
 pub(super) fn node(id: &str, dns: &str, user: u64, online: bool, tags: &[&str]) -> Node {
     Node {
         stable_id: id.into(),
@@ -73,6 +78,14 @@ impl Tailnet for FakeTailnet {
             },
         })
     }
+}
+
+/// The harness client's key, approved for the node whois names ("nLaptop").
+pub(super) fn harness_approvals() -> Vec<skyelab_daemon::Approval> {
+    vec![skyelab_daemon::Approval {
+        node_id: "nLaptop".into(),
+        key_hash: skyelab_protocol::device_key_hash(HARNESS_KEY),
+    }]
 }
 
 /// What the remote backend was asked to run.
@@ -189,6 +202,7 @@ impl RemoteSide {
         let config = Config {
             port: self.port,
             gate_timeout: Duration::from_millis(500),
+            approved: harness_approvals(),
             ..Config::default()
         };
         for _ in 0..100 {
@@ -370,8 +384,10 @@ pub(super) fn connect(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut Visu
 pub(super) fn test_options() -> skyelab_client::Options {
     let mut roots = rustls::RootCertStore::empty();
     roots.add(ca().root()).expect("test CA root");
-    skyelab_client::Options::default()
+    let mut options = skyelab_client::Options::default()
         .allow_loopback()
         .trust_roots(roots)
-        .resolve_to(IpAddr::V4(Ipv4Addr::LOCALHOST))
+        .resolve_to(IpAddr::V4(Ipv4Addr::LOCALHOST));
+    options.device_key = Some(HARNESS_KEY.into());
+    options
 }

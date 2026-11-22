@@ -19,6 +19,7 @@ fn background_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<
             id: 1,
             name: "local".into(),
             path: std::env::temp_dir(),
+            created_at: 0,
         };
         let (config, backend) = (ws.config.clone(), ws.backend.clone());
         let view = cx.new(|cx| ThreadView::new(&project, config, backend, window, cx));
@@ -35,8 +36,14 @@ fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext
 
     let view = background_tab(&ws, cx);
     cx.run_until_parked();
-    assert!(ws.read_with(cx, |ws, _| ws.is_remote()), "still on the remote machine");
-    assert!(!in_dock(&ws, &view, cx), "no local tab among the remote ones");
+    assert!(
+        ws.read_with(cx, |ws, _| ws.is_remote()),
+        "still on the remote machine"
+    );
+    assert!(
+        !in_dock(&ws, &view, cx),
+        "no local tab among the remote ones"
+    );
     let sections = sidebar(&ws, cx);
     let here = sections
         .iter()
@@ -50,7 +57,9 @@ fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext
     });
     assert!(in_dock(&ws, &view, cx), "the waiting tab is shown");
     assert!(
-        !sidebar(&ws, cx).iter().any(|(title, _)| title == "This Mac"),
+        !sidebar(&ws, cx)
+            .iter()
+            .any(|(title, _)| title == "This Mac"),
         "nothing waits any more"
     );
 }

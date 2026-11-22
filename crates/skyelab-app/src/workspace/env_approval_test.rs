@@ -19,7 +19,11 @@ fn waiting_for_approval_shows_the_code_then_connects(cx: &mut TestAppContext) {
         let label = state(&ws, cx);
         label.contains("approv") && label.contains(&code)
     });
-    assert!(sidebar(&ws, cx).first().is_none_or(|(_, rows)| rows.is_empty()));
+    assert!(
+        sidebar(&ws, cx)
+            .first()
+            .is_none_or(|(_, rows)| rows.is_empty())
+    );
     let request = daemon.requests().remove(0);
     assert_eq!(request.code, code);
     daemon.set_approved(vec![skyelab_daemon::Approval {
