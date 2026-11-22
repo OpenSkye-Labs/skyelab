@@ -3,7 +3,7 @@
 Android runs on longbridge's [gpui-mobile](https://github.com/longbridge/gpui-mobile) (crate `gpui-pre-mobile`).
 We pin commit `7548ebc4b24f00494af9976af8852c7163ded9ce`, which targets `gpui-pre =0.3.10`. Our GPUI is
 `=0.3.12`, so [`scripts/fetch-gpui-mobile.sh`](scripts/fetch-gpui-mobile.sh) fetches that exact commit into
-`target/gpui-mobile` and applies four patches in order. Every cargo command in `mobile/` needs it first, because
+`target/gpui-mobile` and applies five patches in order. Every cargo command in `mobile/` needs it first, because
 cargo resolves the Android-only path dependency on every target.
 
 We take gpui-mobile under **Apache-2.0**, one of its three licenses (GPL-3.0+ OR AGPL-3.0+ OR Apache-2.0). None of its
@@ -27,6 +27,7 @@ fetched checkout at build time, and ships gpui-mobile's `LICENSE-APACHE` in the 
 | `upstream/0001-port-to-gpui-pre-0.3.12.patch` | Yes | Raises the `gpui-pre` / `gpui-pre-wgpu` pins to `=0.3.12`. Passes the new `&WgpuSurfaceConfig` argument to `WgpuContext::new` on Android (`src/android/window.rs`) and iOS (`src/ios/window.rs`). Implements `PlatformWindow::insets` on Android from the safe area gpui-mobile already tracks, so `window.insets()` works there as it does on `gpui_ios`. |
 | `upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch` | Yes | Rebases the vendored `gpui-pre-wgpu` (the `offscreen` feature) from 0.3.10 onto 0.3.12. Its own changes apply to 0.3.12 without edits. |
 | `upstream/0003-android-report-ime-insets.patch` | Yes | On every content-rect change (keyboard shown or hidden included), reads the decor view's root `WindowInsets` over JNI (API 30+): `systemBars() \| displayCutout()` becomes the safe area and `ime()` the keyboard inset, so `window.insets().ime` is real on Android and the safe area no longer carries the keyboard. Below API 30, or before the view is attached, the content-rect estimate stays. |
+| `upstream/0004-android-skip-system-flags-font.patch` | Yes | Stops loading `/system/fonts/NotoColorEmojiFlags.ttf`. gpui-pre-wgpu draws colour only for the PostScript name `NotoColorEmoji`, so flags that fell back to the flags font were not drawn in colour. Both emoji fonts gpui-mobile can load (the system CBDT one before Android 13, or the bundled one) have flags. |
 | `upstream/local-no-offscreen.patch` | No | Ours only. A `[patch]` in a dependency is ignored, so as a path dependency gpui-mobile gets crates.io `gpui-pre-wgpu`, which has no `offscreen` feature. This drops that feature reference and the unused `[patch]`. We don't use `offscreen`. |
 
 0001 + 0002 were checked in gpui-mobile's own workspace with `--features offscreen`:
@@ -43,9 +44,11 @@ git apply ../skyelab/mobile/upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.
 git commit -am "Refresh vendored gpui-pre-wgpu to 0.3.12"
 git apply ../skyelab/mobile/upstream/0003-android-report-ime-insets.patch
 git commit -am "Android: report system-bar and IME insets from WindowInsets"
+git apply ../skyelab/mobile/upstream/0004-android-skip-system-flags-font.patch
+git commit -am "Android: don't load the system flags font, which renders without colour"
 ```
 
-0003 applies on 0001 + 0002 without the local patch (checked with `git apply` on a fresh clone).
+0003 and 0004 apply on 0001 + 0002 without the local patch (checked with `git apply` on a fresh clone).
 
 Then open a PR against longbridge/gpui-mobile with this description:
 
@@ -60,7 +63,7 @@ Then open a PR against longbridge/gpui-mobile with this description:
 > Checked: `cargo ndk -t arm64-v8a check --lib --features offscreen` and
 > `cargo check --lib --target aarch64-apple-ios-sim --features offscreen`.
 
-When upstream merges it, move the pin to their merge commit and delete 0001, 0002 and 0003.
+When upstream merges it, move the pin to their merge commit and delete 0001 to 0004.
 
 ## On every GPUI bump
 
@@ -89,8 +92,13 @@ gpui-mobile's TalkBack adapter). Release wraps it to `-1` as a `jint`, which is 
 - **The Gradle host** is ours since docs/mobile.md step 6 (`android-host/`). gpui-mobile's example host asked for
   camera, microphone, contacts, calendar, media and notification permissions, exported a `gpui://` deep link and had no
   `distributionSha256Sum`; ours has none of that (`scripts/check-hosts.sh`). What we dropped from it: the splash
-  screen, the media session, deep links, the pickers and plugin classes, and the bundled 10 MB `NotoColorEmoji.ttf`
-  (so emoji don't render on Android yet).
+  screen, the media session, deep links, the pickers and plugin classes, and the bundled 10 MB `NotoColorEmoji.ttf`.
+  In its place we bundle Twemoji Mozilla (1.5 MB, 0.7 MB in the APK) under that asset name (docs/mobile.md step 6,
+  "Emoji").
+- **Emoji on Android 13+.** The system `NotoColorEmoji.ttf` is COLR v1 there, and swash (what gpui-pre-wgpu
+  rasterises with) renders only CBDT and COLR v0, so gpui-mobile falls back to the font in the APK. Worth raising
+  upstream: COLR v1 support in the text system (skrifa can paint it) would let every app use the system font and drop
+  the bundled one; and gpui-pre-wgpu's `check_is_known_emoji_font` matching only `NotoColorEmoji` forces our rename.
 - **Our host relies on two upstream names.** The JNI symbols bind to `dev.gpui.mobile.GpuiInputActivity` (its
   `nativeIme`, and the `gpuiShowKeyboard`/`gpuiHideKeyboard`/`gpuiResetComposition` methods Rust calls on the activity),
   and the Gradle copy task reads `example/android/gradle/app/src/main/java/` in the checkout. On a pin bump, check both

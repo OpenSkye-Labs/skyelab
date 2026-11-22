@@ -1,0 +1,20 @@
+diff --git a/src/android/platform.rs b/src/android/platform.rs
+index 7c93b06..4057ed9 100644
+--- a/src/android/platform.rs
++++ b/src/android/platform.rs
+@@ -366,12 +366,9 @@ impl AndroidPlatform {
+                 "/system/fonts/NotoSansArabic-Regular.ttf",
+                 "/system/fonts/NotoSansHebrew-Regular.ttf",
+                 "/system/fonts/NotoSansThai-Regular.ttf",
+-                // Emoji fonts — loaded so glyphs like 🦀 ✅ ❤️ render.
+-                // NOTE: On Android 13+ (API 33+) the system NotoColorEmoji.ttf
+-                // uses COLR v1 color outlines which swash cannot render.  We
+-                // detect this below and load a bundled CBDT-based fallback
+-                // instead.  The flag font is still useful regardless.
+-                "/system/fonts/NotoColorEmojiFlags.ttf",
++                // No NotoColorEmojiFlags.ttf: the text system draws colour only
++                // for the PostScript name NotoColorEmoji, so flags falling back
++                // to it were not drawn in colour. The emoji font loaded below has flags.
+                 // Serif (fallback)
+                 "/system/fonts/NotoSerif-Regular.ttf",
+                 "/system/fonts/NotoSerif-Bold.ttf",

@@ -6557,6 +6557,7 @@ dependencies = [
  "android_logger",
  "gpui-pre",
  "gpui-pre-mobile",
+ "gpui-pre-wgpu",
  "log",
  "skyelab-mobile",
 ]
