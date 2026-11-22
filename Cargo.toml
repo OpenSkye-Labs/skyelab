@@ -17,7 +17,10 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 dirs = "7"
+alacritty_terminal = "0.26"
+futures = "0.3"
 skyelab-core = { path = "crates/skyelab-core" }
+skyelab-terminal = { path = "crates/skyelab-terminal" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
