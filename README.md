@@ -33,8 +33,9 @@ What's built today:
   Tailscale HTTPS certificate, and only your own, untagged devices may connect.
 - **Environment switcher.** Pick another of your machines at the top of the sidebar to see its projects and threads,
   start threads there and send follow-ups. Its agents run there, on its own accounts.
-- **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It runs its screens
-  on fake data for now and doesn't connect to a machine yet.
+- **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It connects to a
+  shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
+  and sends or stops. Not packaged for distribution yet.
 
 Not built yet: binding a GitHub account per folder (only the Claude account is enforced today), other agents
 such as Codex, and agent orchestration.

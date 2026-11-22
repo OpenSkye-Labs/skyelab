@@ -30,15 +30,22 @@ personal plan by mistake.
 
 ## Crates (add each only when its code exists)
 
-| Crate | Holds | Exists |
-|---|---|---|
-| `skyelab-core` | accounts/bindings, domain types, no GPUI, no async runtime | yes |
-| `skyelab-app` | GPUI desktop client (binary `skyelab`) | yes |
-| `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) | yes |
-| `skyelab-agent` | spawning/streaming agent processes | later |
-| `skyelab-daemon` | environment server + RPC, hosted in the app | yes |
-| `skyelab-tailnet` | `Tailnet` trait over the Tailscale CLI: `self_node / peers / whois` | yes |
-| `skyelab-devices` | device hub core: list/boot/install/launch/screenshot on iOS Simulators and Android emulators (sync, shells out to simctl/adb/emulator) | yes |
+| Crate | Holds |
+|---|---|
+| `skyelab-core` | accounts/bindings, app settings, domain types; no GPUI, no async runtime |
+| `skyelab-app` | GPUI desktop client (binary `skyelab`) |
+| `skyelab-agent` | launching Claude Code sessions under the bound account; stream-json events; resume |
+| `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) |
+| `skyelab-git` | worktrees, status, structured diff (shells out to `git`) |
+| `skyelab-terminal` | PTY + terminal grid model and GPUI view (alacritty_terminal) |
+| `skyelab-browser` | embedded browser preview (gpui-webview); user vs agent navigation |
+| `skyelab-devices` | device hub core: iOS Simulators and Android emulators (simctl/adb/emulator) |
+| `skyelab-tailnet` | `Tailnet` trait over the Tailscale CLI: `self_node / peers / whois / cert` |
+| `skyelab-protocol` | client↔environment RPC messages (JSON over WebSocket) |
+| `skyelab-daemon` | environment server: tailnet-only `wss://`, whois gate, RPC dispatch; hosted in the app |
+| `skyelab-client` | the client side of the protocol (desktop switcher, mobile app) |
+
+`mobile/` is a separate workspace (iOS/Android client); see [mobile.md](mobile.md).
 
 ## Tailscale plan
 
