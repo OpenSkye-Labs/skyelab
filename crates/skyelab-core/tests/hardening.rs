@@ -35,6 +35,7 @@ fn relative_config_dir_rejected_on_load_add_and_update() {
             id: "a".into(),
             label: "A".into(),
             config_dir: PathBuf::from(dir),
+            gh_config_dir: None,
         };
         assert!(c.add_account(acc(bad)).is_err(), "add accepted {bad:?}");
         c.add_account(acc("/abs/.claude"))

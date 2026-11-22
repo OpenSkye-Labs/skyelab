@@ -17,6 +17,7 @@ fn bound(dir: &Path, config_dir: &Path) -> AccountsConfig {
             id: "acme".into(),
             label: "Acme".into(),
             config_dir: config_dir.into(),
+            gh_config_dir: None,
         }],
         bindings: vec![Binding::new(dir.into(), "acme".into())],
     }
@@ -51,6 +52,7 @@ fn unbound_folder_errors() {
         id: "acme".into(),
         label: "Acme".into(),
         config_dir: dir.join("account"),
+        gh_config_dir: None,
     };
     let launch = Launch {
         account: &account,
