@@ -9,9 +9,11 @@
 //! Tailscale being down or slow, rejects the connection.
 
 mod backend;
+mod peers;
 
 use std::net::{SocketAddr, TcpListener as StdListener};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -20,9 +22,9 @@ use futures::{SinkExt, StreamExt};
 use skyelab_protocol::{
     Call, ErrorCode, Hello, Reply, Request, RpcError, ServerMessage, ThreadEvent, negotiate,
 };
-use skyelab_tailnet::{Tailnet, is_own_device};
+use skyelab_tailnet::{Tailnet, WhoIs, is_own_device};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, broadcast, mpsc, oneshot};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, broadcast, mpsc, oneshot};
 use tokio::task::JoinSet;
 use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::WebSocketStream;
@@ -34,6 +36,8 @@ use tokio_tungstenite::tungstenite::http::{StatusCode, header};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
 pub use backend::{Agents, Backend, MAX_EVENTS_PER_REPLY, NotWired, StoreBackend, event};
+pub use peers::Peer;
+use peers::{Peers, Registered, lock_peers};
 
 pub type SharedTailnet = Arc<dyn Tailnet + Send + Sync>;
 
@@ -70,6 +74,7 @@ impl Default for Config {
 pub struct Daemon {
     addrs: Vec<SocketAddr>,
     events: broadcast::Sender<ThreadEvent>,
+    peers: Peers,
     shutdown: Option<oneshot::Sender<()>>,
     thread: Option<JoinHandle<()>>,
 }
@@ -80,6 +85,8 @@ struct Shared {
     backend: Arc<dyn Backend>,
     events: broadcast::Sender<ThreadEvent>,
     pending: Arc<Semaphore>,
+    peers: Peers,
+    next_peer: AtomicU64,
 }
 
 impl Daemon {
@@ -131,7 +138,10 @@ impl Daemon {
                 .context("register listener")?
         };
         let (events, _) = broadcast::channel(256);
+        let peers = Peers::default();
         let shared = Arc::new(Shared {
+            peers: peers.clone(),
+            next_peer: AtomicU64::new(1),
             pending: Arc::new(Semaphore::new(config.max_pending)),
             config,
             tailnet,
@@ -155,6 +165,7 @@ impl Daemon {
         Ok(Self {
             addrs,
             events,
+            peers,
             shutdown: Some(shutdown),
             thread: Some(thread),
         })
@@ -162,6 +173,26 @@ impl Daemon {
 
     pub fn local_addrs(&self) -> &[SocketAddr] {
         &self.addrs
+    }
+
+    /// Connections that passed the gate and are still open, oldest first.
+    pub fn peers(&self) -> Vec<Peer> {
+        lock_peers(&self.peers)
+            .values()
+            .map(|(p, _)| p.clone())
+            .collect()
+    }
+
+    /// Closes the connection `id`. False if it's already gone.
+    pub fn disconnect(&self, id: u64) -> bool {
+        match lock_peers(&self.peers).get(&id) {
+            Some((_, kick)) => {
+                // notify_one keeps the wakeup if the serve loop isn't waiting right now.
+                kick.notify_one();
+                true
+            }
+            None => false,
+        }
     }
 
     /// Pushes `event` to every connection that has said hello. Never blocks.
@@ -207,13 +238,13 @@ async fn handle(
     shared: Arc<Shared>,
     permit: OwnedSemaphorePermit,
 ) {
-    let ws = match timeout(
+    let (ws, who) = match timeout(
         shared.config.gate_timeout,
         admit(stream, peer, &shared, permit),
     )
     .await
     {
-        Ok(Ok(ws)) => ws,
+        Ok(Ok(admitted)) => admitted,
         Ok(Err(reason)) => {
             eprintln!("skyelab-daemon: rejected {peer}: {reason}");
             return;
@@ -226,7 +257,20 @@ async fn handle(
             return;
         }
     };
-    serve(ws, peer, &shared).await;
+    let id = shared.next_peer.fetch_add(1, Ordering::Relaxed);
+    let kick = Arc::new(Notify::new());
+    let info = Peer {
+        id,
+        addr: peer,
+        device: who.node.name.trim_end_matches('.').to_owned(),
+        user: who.user_profile.login_name,
+    };
+    lock_peers(&shared.peers).insert(id, (info, kick.clone()));
+    let _registered = Registered {
+        peers: &shared.peers,
+        id,
+    };
+    serve(ws, peer, &shared, &kick).await;
 }
 
 /// The gate. Nothing is read from the socket until whois has passed.
@@ -235,7 +279,7 @@ async fn admit(
     peer: SocketAddr,
     shared: &Shared,
     permit: OwnedSemaphorePermit,
-) -> Result<WebSocketStream<TcpStream>, String> {
+) -> Result<(WebSocketStream<TcpStream>, WhoIs), String> {
     let tailnet = shared.tailnet.clone();
     // The permit lives in the blocking task: a gate timeout can't cancel whois, so the slot frees when whois ends.
     let checked = tokio::task::spawn_blocking(move || {
@@ -270,7 +314,7 @@ async fn admit(
         "skyelab-daemon: accepted {peer}: {:?} ({})",
         checked.node.name, checked.user_profile.login_name
     );
-    Ok(ws)
+    Ok((ws, checked))
 }
 
 /// A web page open on one of the user's devices passes whois too. Browsers always send `Origin`; native clients don't.
@@ -291,7 +335,7 @@ enum Step {
     Close,
 }
 
-async fn serve(ws: WebSocketStream<TcpStream>, peer: SocketAddr, shared: &Shared) {
+async fn serve(ws: WebSocketStream<TcpStream>, peer: SocketAddr, shared: &Shared, kick: &Notify) {
     let config = &shared.config;
     let (mut sink, mut stream) = ws.split();
     let in_flight = Arc::new(Semaphore::new(config.max_in_flight));
@@ -302,6 +346,10 @@ async fn serve(ws: WebSocketStream<TcpStream>, peer: SocketAddr, shared: &Shared
 
     loop {
         let step = tokio::select! {
+            () = kick.notified() => {
+                eprintln!("skyelab-daemon: closing {peer}: disconnected by the user");
+                Step::Close
+            }
             () = sleep_until(idle_at) => {
                 eprintln!("skyelab-daemon: closing {peer}: idle");
                 Step::Close

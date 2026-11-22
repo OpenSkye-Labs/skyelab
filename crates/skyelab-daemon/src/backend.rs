@@ -1,6 +1,6 @@
 //! What the daemon serves: [`Backend`] answers each RPC, [`StoreBackend`] is the real one.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use skyelab_protocol::{ErrorCode, Project, RpcError, Thread, ThreadEvent};
 use skyelab_store::Store;
@@ -53,16 +53,18 @@ pub const MAX_EVENTS_PER_REPLY: usize = 500;
 
 /// Reads come from the store; agent calls go to `A`.
 pub struct StoreBackend<A> {
-    store: Mutex<Store>,
+    store: Arc<Mutex<Store>>,
     agents: A,
 }
 
 impl<A: Agents> StoreBackend<A> {
     pub fn new(store: Store, agents: A) -> Self {
-        Self {
-            store: Mutex::new(store),
-            agents,
-        }
+        Self::shared(Arc::new(Mutex::new(store)), agents)
+    }
+
+    /// Reads a store the app also writes, so both see the same threads (including an in-memory fallback).
+    pub fn shared(store: Arc<Mutex<Store>>, agents: A) -> Self {
+        Self { store, agents }
     }
 
     fn with_store<T>(&self, f: impl FnOnce(&Store) -> anyhow::Result<T>) -> Result<T, RpcError> {

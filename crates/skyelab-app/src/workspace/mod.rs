@@ -3,6 +3,7 @@
 mod devices;
 mod panels;
 mod projects;
+mod remote;
 mod thread;
 mod thread_model;
 mod thread_render;
@@ -153,6 +154,8 @@ pub struct Workspace {
     /// Created on first open; tests put a fake here first.
     device_source: Option<std::sync::Arc<dyn devices::DeviceSource>>,
     _appearance: Subscription,
+    /// Sharing on the tailnet; `None` until `set_remote` (tests that don't share).
+    remote: Option<remote::RemoteHook>,
 }
 
 impl Workspace {
@@ -227,6 +230,7 @@ impl Workspace {
             devices: None,
             device_source: None,
             _appearance,
+            remote: None,
         };
         this.refresh_sidebar(cx);
         this.load_projects(None, cx);
@@ -407,7 +411,12 @@ impl Workspace {
                     .tooltip("iOS Simulators and Android emulators")
                     .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenDevices), cx)),
             )
-            .right(account)
+            .right(
+                h_flex()
+                    .gap_2()
+                    .children(self.render_remote_status(cx))
+                    .child(account),
+            )
     }
 }
 
@@ -434,6 +443,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::new_thread))
             .on_action(cx.listener(Self::open_thread))
             .on_action(cx.listener(Self::open_devices))
+            .on_action(cx.listener(Self::open_remote))
+            .on_action(cx.listener(Self::toggle_sharing))
+            .on_action(cx.listener(Self::disconnect_peer))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)

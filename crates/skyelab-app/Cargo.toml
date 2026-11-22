@@ -20,6 +20,10 @@ skyelab-terminal.workspace = true
 skyelab-browser.workspace = true
 skyelab-store.workspace = true
 skyelab-agent.workspace = true
+skyelab-daemon.workspace = true
+skyelab-protocol.workspace = true
+skyelab-tailnet.workspace = true
+flume.workspace = true
 serde_json.workspace = true
 skyelab-devices.workspace = true
 # devices: screenshot temp files
@@ -33,6 +37,7 @@ workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
+tungstenite.workspace = true
 
 [package.metadata.packager]
 product-name = "SkyeLab"

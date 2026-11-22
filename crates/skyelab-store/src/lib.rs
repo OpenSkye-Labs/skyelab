@@ -88,8 +88,11 @@ pub struct NewThread<'a> {
     pub status: &'a str,
 }
 
+type AppendHook = Box<dyn Fn(&Event) + Send>;
+
 pub struct Store {
     conn: Connection,
+    on_append: Option<AppendHook>,
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
@@ -128,7 +131,10 @@ impl Store {
         }
         tx.pragma_update(None, "user_version", latest)?;
         tx.commit()?;
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            on_append: None,
+        })
     }
 
     /// `path` is stored normalized (`/repo/` and `/repo` are the same project).
@@ -260,6 +266,11 @@ impl Store {
         expect_one(n, "thread", id)
     }
 
+    /// Called with every event after it is stored, under the caller's lock, so it must not block.
+    pub fn on_append(&mut self, hook: impl Fn(&Event) + Send + 'static) {
+        self.on_append = Some(Box::new(hook));
+    }
+
     /// Stores an event under the thread's next seq and bumps the thread's `updated_at`.
     pub fn append_event(
         &mut self,
@@ -287,13 +298,17 @@ impl Store {
             params![thread_id, seq, kind, payload_json, now],
         )?;
         tx.commit()?;
-        Ok(Event {
+        let event = Event {
             thread_id,
             seq,
             kind: kind.to_owned(),
             payload_json: payload_json.to_owned(),
             created_at: now,
-        })
+        };
+        if let Some(hook) = &self.on_append {
+            hook(&event);
+        }
+        Ok(event)
     }
 
     /// Events with `seq > after_seq`, in order. Pass 0 for all of them.

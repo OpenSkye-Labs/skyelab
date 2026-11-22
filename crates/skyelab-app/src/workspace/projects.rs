@@ -189,7 +189,7 @@ impl Workspace {
         };
         let (config, backend) = (self.config.clone(), self.backend.clone());
         let view = cx.new(|cx| ThreadView::new(&project, config, backend, window, cx));
-        self.add_thread_tab(view, window, cx);
+        self.add_thread_tab(view, true, window, cx);
     }
 
     pub(super) fn open_thread(
@@ -198,12 +198,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let open = self
-            .open_threads
-            .iter()
-            .filter_map(|t| t.upgrade())
-            .find(|t| t.read(cx).thread.as_ref().map(|t| t.id) == Some(a.id));
-        if let Some(view) = open {
+        if let Some(view) = self.open_view(a.id, cx) {
             let id = view.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));
@@ -214,12 +209,14 @@ impl Workspace {
         };
         let (config, backend) = (self.config.clone(), self.backend.clone());
         let view = cx.new(|cx| ThreadView::open(thread, config, backend, window, cx));
-        self.add_thread_tab(view, window, cx);
+        self.add_thread_tab(view, true, window, cx);
     }
 
-    fn add_thread_tab(
+    /// `focus: false` for a tab a remote client opened, so it never takes the local user's keyboard.
+    pub(super) fn add_thread_tab(
         &mut self,
         view: Entity<ThreadView>,
+        focus: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -239,7 +236,9 @@ impl Workspace {
                 cx,
             );
         });
-        view.update(cx, |v, cx| v.focus_prompt(window, cx));
+        if focus {
+            view.update(cx, |v, cx| v.focus_prompt(window, cx));
+        }
         cx.notify();
     }
 
