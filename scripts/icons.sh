@@ -1,22 +1,29 @@
 #!/usr/bin/env bash
-# Regenerates every app icon size from crates/skyelab-app/icons/icon.svg.
-# Needs resvg (`cargo install resvg`) and python3.
+# Regenerates every app icon from crates/skyelab-app/icons/icon.svg. Needs resvg, python3, and macOS for icon.icns.
 set -euo pipefail
 dir="$(cd "$(dirname "$0")/../crates/skyelab-app/icons" && pwd)"
 command -v resvg >/dev/null || { echo "resvg not found: cargo install resvg" >&2; exit 1; }
+command -v iconutil >/dev/null || { echo "iconutil not found: icon.icns is built on macOS" >&2; exit 1; }
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+render() { resvg -w "$2" -h "$2" "$dir/icon.svg" "$1"; }
 
-render() { resvg -w "$2" -h "$2" "$dir/icon.svg" "$dir/$1.png"; }
-render 32x32 32
-render 128x128 128
-render 128x128@2x 256
-render 256x256 256
-render 512x512 512
-render 512x512@2x 1024
+# Linux and the .deb/AppImage take PNGs; linuxdeploy rejects icons over 512 px, so 1024 lives only in the .icns.
+render "$dir/32x32.png" 32
+render "$dir/128x128.png" 128
+render "$dir/128x128@2x.png" 256
+render "$dir/256x256.png" 256
+render "$dir/512x512.png" 512
+
+mkdir "$tmp/icon.iconset"
+for s in 16 32 128 256 512; do
+  render "$tmp/icon.iconset/icon_${s}x${s}.png" $s
+  render "$tmp/icon.iconset/icon_${s}x${s}@2x.png" $((s * 2))
+done
+iconutil -c icns "$tmp/icon.iconset" -o "$dir/icon.icns"
 
 # Windows .ico: PNG-compressed entries (supported since Vista), 16 to 256 px.
-tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-for s in 16 24 32 48 64 128 256; do resvg -w $s -h $s "$dir/icon.svg" "$tmp/$s.png"; done
-python3 - "$dir/icon.ico" "$tmp" <<'PY'
+for s in 16 24 32 48 64 128 256; do render "$tmp/$s.png" $s; done
+python3 -I - "$dir/icon.ico" "$tmp" <<'PY'
 import struct, sys, pathlib
 out, tmp = sys.argv[1], pathlib.Path(sys.argv[2])
 sizes = [16, 24, 32, 48, 64, 128, 256]

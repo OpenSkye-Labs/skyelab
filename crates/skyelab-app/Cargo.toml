@@ -28,23 +28,17 @@ gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 
-# `cargo packager --release` (cargo-packager). See CLAUDE.md "Release".
 [package.metadata.packager]
 product-name = "SkyeLab"
 identifier = "dev.openskye.skyelab"
 publisher = "OpenSkye"
 category = "DeveloperTool"
 before-packaging-command = "cargo build --release -p skyelab-app"
-icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/256x256.png", "icons/512x512.png", "icons/512x512@2x.png", "icons/icon.ico"]
+icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/256x256.png", "icons/512x512.png", "icons/icon.icns", "icons/icon.ico"]
 
 [package.metadata.packager.macos]
 minimum-system-version = "14.0"
 
-[package.metadata.packager.windows]
-# Signing only runs once CI adds `certificate-thumbprint` (see release.yml).
-digest-algorithm = "SHA256"
-timestamp-url = "http://timestamp.digicert.com"
-
 [package.metadata.packager.deb]
-# wry's Linux webview.
+# webkit2gtk and gtk for wry's webview, the rest for GPUI.
 depends = ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libxkbcommon-x11-0", "libvulkan1"]

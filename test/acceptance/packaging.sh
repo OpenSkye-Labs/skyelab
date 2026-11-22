@@ -8,15 +8,15 @@ icons() {
   local d=crates/skyelab-app/icons
   grep -qi placeholder "$d/icon.svg" || fail "icon.svg not marked placeholder"
   grep -qi placeholder "$d/README.md" || fail "icons/README.md not marked placeholder"
-  # Age every output, regenerate, then require each one rewritten at its real size.
-  touch -t 200001010000 "$d"/*.png "$d/icon.ico" 2>/dev/null || true
+  local stamp; stamp=$(mktemp); sleep 1
   scripts/icons.sh >/dev/null
-  for pair in 32x32:32 128x128:128 128x128@2x:256 256x256:256 512x512:512 512x512@2x:1024; do
-    local f="$d/${pair%%:*}.png" px="${pair##*:}"
-    [ "$f" -nt "$d/icon.svg" ] || fail "$f not regenerated"
+  for pair in 32x32.png:32 128x128.png:128 128x128@2x.png:256 256x256.png:256 512x512.png:512 icon.icns:1024; do
+    local f="$d/${pair%%:*}" px="${pair##*:}"
+    [ "$f" -nt "$stamp" ] || fail "$f not regenerated"
     [ "$(sips -g pixelWidth "$f" | awk '/pixelWidth/ {print $2}')" = "$px" ] || fail "$f is not ${px}px"
   done
-  [ "$d/icon.ico" -nt "$d/icon.svg" ] || fail "icon.ico not regenerated"
+  [ "$d/icon.ico" -nt "$stamp" ] || fail "icon.ico not regenerated"
+  rm -f "$stamp"
   # ICO header: reserved 0, type 1.
   [ "$(head -c 4 "$d/icon.ico" | od -An -tx1 | tr -d ' \n')" = "00000100" ] || fail "icon.ico is not an ICO"
   echo "icons ok"
@@ -45,15 +45,14 @@ profile() {
   echo "profile ok"
 }
 
-# The binary stays up for 5s with a throwaway HOME.
 start() {
   local bin=${1:-target/release/skyelab} home
   [ -x "$bin" ] || fail "no $bin"
   home=$(mktemp -d)
-  HOME="$home" "$bin" & local pid=$!
+  env -u CLAUDE_CONFIG_DIR -u XDG_CONFIG_HOME HOME="$home" "$bin" & pid=$!
+  trap 'kill "$pid" 2>/dev/null' EXIT
   sleep 5
   kill -0 "$pid" 2>/dev/null || fail "$bin exited early"
-  kill "$pid"
   echo "start ok ($bin, HOME=$home)"
 }
 
@@ -63,10 +62,12 @@ workflow() {
   grep -q 'tags: \["v\*"\]' "$w" || fail "no v* tag trigger"
   for os in macos windows ubuntu; do grep -q "os: $os-" "$w" || fail "no $os runner"; done
   grep -q 'draft: true' "$w" || fail "release not draft"
-  # Every secret is documented in CLAUDE.md and gates a step.
+  # Only the detect step and signing/package steps may hold secrets: none at job level.
+  ! sed -n '/^    runs-on:/,/^    steps:/p' "$w" | grep -q 'secrets\.' || fail "secrets in job-level env"
+  local gate; gate=$(sed -n '/id: signing/,/- name: Enable macOS/p' "$w" | grep -v 'secrets\.')
   for s in $(grep -o 'secrets\.[A-Z_]*' "$w" | cut -d. -f2 | sort -u); do
     grep -q "$s" CLAUDE.md || fail "$s not documented"
-    grep -q "env.$s != ''" "$w" || fail "$s gates no step"
+    grep -qw "$s" <<<"$gate" || fail "$s gates no step"
   done
   grep -q '^## Release' CLAUDE.md || fail "no Release section"
   echo "workflow ok"

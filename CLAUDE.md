@@ -66,16 +66,20 @@ cargo clippy --workspace --all-targets -- -D warnings
 Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager); its config is
 `[package.metadata.packager]` in `crates/skyelab-app/Cargo.toml`. Install it with `cargo install cargo-packager --locked`.
 
-- **Cut a release:** bump `version` in the root `Cargo.toml`, commit, then tag `v<version>` and push the tag.
+- **Cut a release:** bump `version` in the root `Cargo.toml`, commit, then tag `v<version>` and push the tag (the workflow fails if the two differ).
   `.github/workflows/release.yml` builds a `.dmg` (macOS, arm64), an NSIS `-setup.exe` (Windows) and a `.deb` +
   `.AppImage` (Linux), and attaches them to a **draft** GitHub release. Check the draft, then publish it.
 - **Locally (macOS):** `cargo packager --release -p skyelab-app -f app,dmg` writes `target/release/SkyeLab.app` and the `.dmg`.
   Prefix `CI=true` when the terminal has no Automation permission for Finder; that skips only the dmg window layout.
   `test/acceptance/packaging.sh all` checks the icons, release profile, Info.plist and workflow.
-- **Icon:** a placeholder. Edit `crates/skyelab-app/icons/icon.svg`, then run `scripts/icons.sh` (needs `cargo install resvg`).
-- **Signing** is skipped unless these repository secrets exist. Never commit them.
-  - macOS (sign + notarize, all six needed together): `APPLE_CERTIFICATE` (base64 Developer ID Application `.p12`),
-    `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` (e.g. `Developer ID Application: Name (TEAMID)`),
-    `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password), `APPLE_TEAM_ID`.
-  - Windows: `WINDOWS_CERTIFICATE` (base64 code-signing `.pfx`), `WINDOWS_CERTIFICATE_PASSWORD`.
+- **Icon:** a placeholder. Edit `crates/skyelab-app/icons/icon.svg`, then run `scripts/icons.sh` on macOS (needs `cargo install resvg`).
+- **Re-running** a tag's workflow makes a second draft; delete the stale draft first.
+- **Signing** is skipped unless these repository secrets exist. Never commit them. Each set is all-or-nothing.
+  - macOS, sign + notarize: `APPLE_CERTIFICATE` (base64 Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD`,
+    `APPLE_SIGNING_IDENTITY` (e.g. `Developer ID Application: Name (TEAMID)`), `APPLE_ID`,
+    `APPLE_PASSWORD` (an app-specific password), `APPLE_TEAM_ID`.
+  - Windows, through [Azure Artifact Signing](https://learn.microsoft.com/azure/trusted-signing/) (public code-signing
+    keys must live in an HSM, so a `.pfx` secret is not an option): `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
+    `AZURE_TENANT_ID` (an app registration with the signer role), `AZURE_ARTIFACT_SIGNING_ENDPOINT`
+    (e.g. `https://eus.codesigning.azure.net`), `AZURE_ARTIFACT_SIGNING_ACCOUNT`, `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE`.
   - Linux packages are not signed.
