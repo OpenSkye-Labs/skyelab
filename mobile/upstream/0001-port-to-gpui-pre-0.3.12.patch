@@ -1,0 +1,120 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 29d68a2..2e4dae8 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -68,7 +68,7 @@ raw-window-handle = "0.6"
+ image        = { version = "0.25", default-features = false, optional = true }
+ 
+ # ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
+-gpui = { package = "gpui-pre", version = "=0.3.10", default-features = false }
++gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false }
+ 
+ # ── iOS ──────────────────────────────────────────────────────────────────────
+ 
+@@ -91,7 +91,7 @@ block2              = "0.6"
+ libc = "=0.2.189"
+ 
+ # wgpu renderer (Metal backend on iOS/Android)
+-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.10", features = ["font-kit"] }
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12", features = ["font-kit"] }
+ wgpu = "30.0.1"
+ 
+ # Text / font stack
+@@ -122,7 +122,7 @@ android_logger = "0.15"
+ 
+ # wgpu renderer (Vulkan backend on Android)
+ # Android uses Cosmic Text and system fonts; font-kit pulls in desktop Fontconfig.
+-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.10" }
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12" }
+ 
+ # TalkBack: exposes GPUI's AccessKit tree (accesskit 0.24, as gpui-pre).
+ accesskit_android = "0.7.5"
+@@ -134,7 +134,7 @@ uuid       = { version = "1", features = ["v5"] }
+ # ── dev ──────────────────────────────────────────────────────────────────────
+ 
+ [dev-dependencies]
+-gpui = { package = "gpui-pre", version = "=0.3.10", default-features = false, features = ["test-support"] }
++gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false, features = ["test-support"] }
+ 
+ # ── profiles ─────────────────────────────────────────────────────────────────
+ 
+@@ -148,7 +148,7 @@ strip         = true
+ opt-level = 0
+ debug     = true
+ 
+-# `gpui-pre-wgpu` 0.3.10 with its headless renderer behind an `offscreen` feature
++# `gpui-pre-wgpu` 0.3.12 with its headless renderer behind an `offscreen` feature
+ # instead of `test-support` / `bench-support`, a constructor that takes the wgpu
+ # instance (iOS needs Metal), and methods that release its render target and
+ # clear its sprite atlas between captures. Applications that enable `offscreen`
+diff --git a/src/android/window.rs b/src/android/window.rs
+index b602f37..92b28c7 100644
+--- a/src/android/window.rs
++++ b/src/android/window.rs
+@@ -1337,10 +1337,11 @@ impl AndroidWindow {
+         config: WgpuSurfaceConfig,
+         backends: wgpu::Backends,
+     ) -> std::result::Result<WgpuRenderer, FreshRendererError> {
+-        let context = Self::create_context(raw, backends).map_err(|error| FreshRendererError {
+-            backend: wgpu::Backend::Noop,
+-            error,
+-        })?;
++        let context =
++            Self::create_context(raw, backends, &config).map_err(|error| FreshRendererError {
++                backend: wgpu::Backend::Noop,
++                error,
++            })?;
+         let backend = match context.backend() {
+             gpui_wgpu::WgpuBackend::Native(backend) => backend,
+             _ => wgpu::Backend::Gl,
+@@ -1383,6 +1384,7 @@ impl AndroidWindow {
+     fn create_context(
+         raw: &RawAndroidWindow,
+         backends: wgpu::Backends,
++        config: &WgpuSurfaceConfig,
+     ) -> Result<gpui_wgpu::WgpuContext> {
+         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+             backends,
+@@ -1402,7 +1404,7 @@ impl AndroidWindow {
+         // releases the window before the renderer creates its own surface.
+         let surface = unsafe { instance.create_surface_unsafe(target) }
+             .context("failed to create a probe surface")?;
+-        gpui_wgpu::WgpuContext::new(instance, &surface, None)
++        gpui_wgpu::WgpuContext::new(instance, &surface, config, None)
+     }
+ }
+ 
+@@ -1508,6 +1510,20 @@ impl PlatformWindow for AndroidPlatformWindow {
+         }
+     }
+ 
++    fn insets(&self) -> gpui::WindowInsets {
++        // Status and navigation bars from the activity's content rect, in logical pixels.
++        let s = self.window.safe_area_insets_logical();
++        gpui::WindowInsets {
++            safe_area: gpui::Edges {
++                top: gpui::px(s.top),
++                right: gpui::px(s.right),
++                bottom: gpui::px(s.bottom),
++                left: gpui::px(s.left),
++            },
++            ..Default::default()
++        }
++    }
++
+     fn is_maximized(&self) -> bool {
+         // Android windows are always effectively maximized (fullscreen).
+         true
+diff --git a/src/ios/window.rs b/src/ios/window.rs
+index 9070e1c..744996c 100644
+--- a/src/ios/window.rs
++++ b/src/ios/window.rs
+@@ -768,7 +768,7 @@ impl IosWindow {
+ 
+             let surface_result = metal_instance.create_surface_unsafe(target);
+             match surface_result {
+-                Ok(surface) => match WgpuContext::new(metal_instance, &surface, None) {
++                Ok(surface) => match WgpuContext::new(metal_instance, &surface, &config, None) {
+                     Ok(context) => {
+                         // Pre-populate gpu_context so WgpuRenderer::new()
+                         // reuses our Metal-backed context (and its instance)

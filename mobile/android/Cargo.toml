@@ -1,0 +1,22 @@
+[package]
+name = "skyelab-mobile-android"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "skyelab_mobile_android"
+crate-type = ["cdylib"]
+
+[target.'cfg(target_os = "android")'.dependencies]
+skyelab-mobile = { path = ".." }
+gpui.workspace = true
+gpui-mobile.workspace = true
+android-activity = { version = "0.6.1", features = ["native-activity"] }
+android_logger = "0.15.1"
+log = "0.4.35"
+
+[lints]
+workspace = true

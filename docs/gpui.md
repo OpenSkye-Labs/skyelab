@@ -9,6 +9,9 @@ and how Zed uses it, not blog posts or memory.
 - We use **`gpui-pre` =0.3.12** (snapshot of Zed main, aliased as `gpui`) + `gpui-pre-platform`, because
   `gpui-component` 0.10 pins exactly that. crates.io `gpui` 0.2.x is a year stale; don't use it.
 - All three are pinned in `[workspace.dependencies]`. **Bump them together, in one PR, and nothing else in it.**
+- The same PR re-ports gpui-mobile: raise the same pins in `mobile/Cargo.toml`, regenerate the patches in
+  `mobile/upstream/` against the new `gpui-pre` (see [mobile/UPSTREAM.md](../mobile/UPSTREAM.md)), and build `mobile/` for
+  iOS and Android. The mobile CI workflow checks both.
 - Never add a second GPUI (a git dep on zed, `gpui-fast`) alongside. Two GPUIs = two `App` types = compile errors.
 
 ## Mental model

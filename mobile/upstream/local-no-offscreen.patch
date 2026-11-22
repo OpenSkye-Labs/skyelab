@@ -1,0 +1,19 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 2e4dae8..6af598f 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -50,7 +50,7 @@ microphone = []
+ media_session = []
+ # Render GPUI windows into images (`gpui_mobile::offscreen`). Needs the vendored
+ # `gpui-pre-wgpu` (see `[patch.crates-io]`), which exposes its headless renderer.
+-offscreen = ["gpui_wgpu/offscreen", "dep:image"]
++offscreen = ["dep:image"]
+ 
+ [lib]
+ name = "gpui_mobile"
+@@ -153,5 +153,3 @@ debug     = true
+ # instance (iOS needs Metal), and methods that release its render target and
+ # clear its sprite atlas between captures. Applications that enable `offscreen`
+ # must patch it the same way.
+-[patch.crates-io]
+-gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }

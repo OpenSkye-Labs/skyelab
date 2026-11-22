@@ -1,0 +1,78 @@
+[workspace]
+resolver = "3"
+# Not ".": listing the root as a member makes cargo ignore `exclude` and adopt the fetched checkout.
+members = ["android"]
+exclude = ["target/gpui-mobile"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+rust-version = "1.100"
+
+[workspace.dependencies]
+# The desktop's exact GPUI pins (root Cargo.toml); scripts/check-pins.sh fails CI when they differ.
+gpui = { package = "gpui-pre", version = "=0.3.12" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false }
+gpui-component = "=0.10.0"
+# longbridge/gpui-mobile ported to gpui-pre 0.3.12: scripts/fetch-gpui-mobile.sh clones and patches it.
+gpui-mobile = { package = "gpui-pre-mobile", path = "target/gpui-mobile", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+[package]
+name = "skyelab-mobile"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+
+# iOS: a plain binary, bundled into an .app by scripts/run-ios.sh. Android loads `android/` as a cdylib instead.
+[[bin]]
+name = "skyelab_mobile"
+path = "src/main.rs"
+
+[dependencies]
+gpui.workspace = true
+gpui-component.workspace = true
+skyelab-protocol = { path = "../crates/skyelab-protocol" }
+anyhow = "1"
+serde_json = "1"
+
+# gpui-pre-platform 0.3.12 pulls gpui-pre-ios on target_os = "ios". It has no Android arm (android/ uses gpui-mobile).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+gpui_platform.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+gpui-component = { workspace = true, features = ["test-support"] }
+tempfile = "3"
+
+[lints]
+workspace = true
+
+[profile.dev]
+# wgpu turns on Vulkan debug labels under debug assertions, and the Android emulator's llvmpipe driver segfaults in
+# vkSetDebugUtilsObjectNameEXT. See docs/mobile.md, "Problems found".
+debug-assertions = false
+
+[profile.dev.package."*"]
+opt-level = 2 # GPUI is unusably slow unoptimized.
+
+# accesskit_android 0.7.5 (event.rs, text-changed events) computes `old.len() - 1` on an empty string. Release wraps it to
+# -1 as a jint, which is the value its algorithm expects; dev's overflow check panics on the first typed character.
+[profile.dev.package.accesskit_android]
+overflow-checks = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
