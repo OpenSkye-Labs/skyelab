@@ -30,7 +30,8 @@ const VERIFY_ACTION_GAP: std::time::Duration = std::time::Duration::from_secs(2)
 
 /// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,keys:h i cmd-enter,..` runs each
 /// entry in turn, [`VERIFY_ACTION_GAP`] apart so async work (store loads, page loads, new tabs) lands in between, because
-/// `/loop-verify-ui` can't send input to a topmost window. `keys:` types keystrokes into the focus.
+/// `/loop-verify-ui` can't send input to a topmost window. `keys:` types keystrokes into the focus,
+/// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`).
 fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
     let Some(entries) = std::env::var("SKYELAB_VERIFY_ACTIONS")
         .ok()
@@ -53,6 +54,13 @@ fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
                         }
                         return;
                     }
+                    if let Some(at) = entry.strip_prefix("click:") {
+                        match parse_point(at) {
+                            Some(position) => click(window, cx, position),
+                            None => eprintln!("SKYELAB_VERIFY_ACTIONS: bad point {at}"),
+                        }
+                        return;
+                    }
                     match cx.build_action(&entry, None) {
                         Ok(action) => window.dispatch_action(action, cx),
                         Err(e) => eprintln!("SKYELAB_VERIFY_ACTIONS: {entry}: {e:#}"),
@@ -61,6 +69,48 @@ fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
             }
         })
         .detach();
+}
+
+/// `x;y` in window points, as a screenshot of the window shows them at 1x.
+fn parse_point(at: &str) -> Option<gpui::Point<gpui::Pixels>> {
+    let (x, y) = at.split_once(';')?;
+    Some(gpui::point(
+        gpui::px(x.trim().parse().ok()?),
+        gpui::px(y.trim().parse().ok()?),
+    ))
+}
+
+/// A left click at `position`: move there, press, release.
+fn click(window: &mut gpui::Window, cx: &mut App, position: gpui::Point<gpui::Pixels>) {
+    use gpui::{Modifiers, MouseButton, PlatformInput as P};
+    let (button, modifiers) = (MouseButton::Left, Modifiers::default());
+    window.dispatch_event(
+        P::MouseMove(gpui::MouseMoveEvent {
+            position,
+            pressed_button: None,
+            modifiers,
+        }),
+        cx,
+    );
+    window.dispatch_event(
+        P::MouseDown(gpui::MouseDownEvent {
+            button,
+            position,
+            modifiers,
+            click_count: 1,
+            first_mouse: false,
+        }),
+        cx,
+    );
+    window.dispatch_event(
+        P::MouseUp(gpui::MouseUpEvent {
+            button,
+            position,
+            modifiers,
+            click_count: 1,
+        }),
+        cx,
+    );
 }
 
 /// The agent binary: `claude`, or in debug builds `SKYELAB_CLAUDE_BIN` (a fake, for verification).

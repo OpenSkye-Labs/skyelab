@@ -1,8 +1,8 @@
 //! How a thread tab looks. State and behavior live in `thread.rs`.
 
-use super::OpenSettings;
 use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
 use super::thread_model::{Item, ToolItem};
+use super::{NewThread, OpenSettings, SelectProject};
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*, px,
 };
@@ -279,19 +279,72 @@ impl ThreadView {
     }
 }
 
+impl ThreadView {
+    fn render_refused(&self, reason: SharedString, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let project_id = self.project_id;
+        v_flex()
+            .mx_4()
+            .mb_2()
+            .p_3()
+            .gap_2()
+            .rounded_lg()
+            .border_1()
+            .border_color(theme.warning)
+            .child(
+                div()
+                    .text_sm()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child("This thread can't continue here"),
+            )
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(theme.muted_foreground)
+                    .child(reason),
+            )
+            .child(
+                div()
+                    .self_start()
+                    .debug_selector(|| "new-thread-cta".into())
+                    .child(
+                        Button::new("new-thread-cta")
+                            .primary()
+                            .small()
+                            .label("Start a new thread")
+                            .on_click(move |_, window, cx| {
+                                // The sidebar may show another project by now; start in this thread's.
+                                window.dispatch_action(
+                                    Box::new(SelectProject { id: project_id }),
+                                    cx,
+                                );
+                                window.dispatch_action(Box::new(NewThread), cx);
+                            }),
+                    ),
+            )
+            .into_any_element()
+    }
+}
+
 impl Render for ThreadView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let worktree_option = self.render_worktree_option(cx);
         let discard_confirm = self.render_discard_confirm(cx);
+        let refused = self
+            .resume_refused
+            .clone()
+            .map(|r| self.render_refused(r, cx));
         let theme = cx.theme();
-        let note = if self.read_only {
-            Some("This thread has ended. Continuing it isn't supported yet, so start a new thread.")
-        } else if self.starting {
+        let note = if self.starting {
             Some("Starting the agent…")
-        } else {
+        } else if self.thread.is_none() || self.session.is_some() || refused.is_some() {
             None
+        } else if self.read_only {
+            Some("This thread has ended and has no agent session to continue. Start a new thread.")
+        } else {
+            Some("The agent has ended. Send a message to continue its session.")
         };
         let body = if self.items.is_empty() && !self.read_only {
             div()
@@ -333,6 +386,7 @@ impl Render for ThreadView {
             .child(body)
             .children(cta)
             .children(discard_confirm)
+            .children(refused)
             .children(self.error.clone().map(|e| {
                 div()
                     .mx_4()

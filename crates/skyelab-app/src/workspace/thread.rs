@@ -1,7 +1,7 @@
 //! A thread tab: a prompt, and the agent session it starts under the folder's bound account.
 //!
-//! Store writes and the blocking Session calls (start, stdin writes, kill) run off the UI
-//! thread: a stdin write blocks when `claude` stops reading, and SQLite is file I/O.
+//! Store writes and every Session call run off the UI thread: SQLite is file I/O, and killing
+//! reaps the child while holding the session lock.
 
 use super::thread_model::{Item, Record, apply};
 use super::{Backend, SharedStore, lock};
@@ -12,8 +12,8 @@ use gpui::{
 };
 use gpui_component::input::{InputEvent, TextareaState};
 use skyelab_agent::{Event, Session};
-use skyelab_core::{Account, AccountsConfig};
-use skyelab_store::{NewThread, Store, Thread};
+use skyelab_core::AccountsConfig;
+use skyelab_store::{Store, Thread};
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -21,6 +21,9 @@ use std::sync::{Arc, Mutex};
 actions!(skyelab, [SendPrompt, Interrupt, Stop]);
 
 pub(super) const CONTEXT: &str = "Thread";
+
+#[path = "thread_launch.rs"]
+mod launch;
 
 pub enum ThreadViewEvent {
     /// The thread got its store row (the first prompt was sent).
@@ -37,7 +40,7 @@ pub enum ThreadViewEvent {
 
 pub struct ThreadView {
     pub(super) focus: FocusHandle,
-    project_id: i64,
+    pub(super) project_id: i64,
     pub(super) cwd: PathBuf,
     config: AccountsConfig,
     pub(super) backend: Backend,
@@ -52,9 +55,14 @@ pub struct ThreadView {
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
     stop_requested: bool,
-    /// Reopened, or its agent ended. shortcut: no continuing, since skyelab-agent can't resume a session; add `--resume` there first.
+    /// Bumped by every launch; a pump from an earlier launch never ends a later one.
+    pub(super) launches: u64,
+    /// Nothing to send to: the agent never reported a session id to resume, or a reopened
+    /// thread's row is still loading.
     pub(super) read_only: bool,
     pub(super) wt: super::thread_worktree::WorktreeState,
+    /// Why continuing this thread was refused (its folder no longer resolves to its account).
+    pub(super) resume_refused: Option<SharedString>,
     send_chain: Option<Task<()>>,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
@@ -66,16 +74,6 @@ impl EventEmitter<ThreadViewEvent> for ThreadView {}
 fn append(store: &mut Store, thread_id: i64, record: &Record) -> Result<()> {
     let (kind, payload) = record.to_row();
     store.append_event(thread_id, kind, &payload).map(|_| ())
-}
-
-/// The first line of the prompt, cut to a tab-sized title.
-fn title(prompt: &str) -> String {
-    let line = prompt.lines().next().unwrap_or_default().trim();
-    let mut t: String = line.chars().take(60).collect();
-    if line.chars().count() > 60 {
-        t.push('…');
-    }
-    t
 }
 
 impl ThreadView {
@@ -112,24 +110,31 @@ impl ThreadView {
             window,
             cx,
         );
-        this.read_only = true;
-        this.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
         let (store, id) = (this.backend.store.clone(), thread.id);
         this.thread = Some(thread);
+        // Read-only until the fresh row below says whether there's a session to resume.
+        this.read_only = true;
+        this.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
         this._task = Some(cx.spawn(async move |this, cx| {
             let loaded = cx
                 .background_spawn(async move {
+                    // The sidebar's copy can predate the init event that stored the session id.
+                    let row = lock(&store)?.thread(id)?;
                     let rows = lock(&store)?.events_since(id, 0)?;
                     // One unreadable row (an older format) must not hide the rest of the thread.
                     let records: Vec<_> = rows
                         .iter()
                         .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
                         .collect();
-                    anyhow::Ok((rows.len() - records.len(), records))
+                    anyhow::Ok((row, rows.len() - records.len(), records))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok((skipped, records)) => {
+                Ok((row, skipped, records)) => {
+                    if let Some(row) = row {
+                        this.thread = Some(row);
+                    }
+                    this.finish(cx);
                     for r in &records {
                         apply(&mut this.items, r);
                     }
@@ -186,8 +191,10 @@ impl ThreadView {
             error: None,
             starting: false,
             stop_requested: false,
+            launches: 0,
             read_only: false,
             wt: Default::default(),
+            resume_refused: None,
             send_chain: None,
             _pump: None,
             _task: None,
@@ -198,6 +205,7 @@ impl ThreadView {
     /// Accounts changed on disk (Settings saved). Used for the next start and the badge.
     pub fn set_config(&mut self, config: AccountsConfig, cx: &mut Context<Self>) {
         self.config = config;
+        self.resume_refused = None; // the next send checks the new bindings again
         if self.needs_binding && self.config.resolve(&self.cwd).is_some() {
             self.needs_binding = false;
         }
@@ -269,7 +277,13 @@ impl ThreadView {
             return;
         }
         // The folder decides the account. Unbound means ask the user, never pick one.
-        let Some(account) = self.config.resolve(&self.cwd).cloned() else {
+        let resolved = self.config.resolve(&self.cwd).cloned();
+        if self.session.is_none()
+            && let Some(thread) = self.thread.clone()
+        {
+            return self.resume(text, thread, resolved, window, cx);
+        }
+        let Some(account) = resolved else {
             self.needs_binding = true;
             cx.notify();
             return;
@@ -280,121 +294,18 @@ impl ThreadView {
             self.follow_up(text, &account, window, cx);
             return;
         }
-        self.starting = true;
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        self.push(&Record::Prompt(text.clone()), cx);
-
-        let (store, bin, config, cwd, project_id, use_worktree) = (
-            self.backend.store.clone(),
-            self.backend.claude_bin.clone(),
-            self.config.clone(),
-            self.cwd.clone(),
-            self.project_id,
-            self.wt.use_worktree,
-        );
-        let pump_store = store.clone();
-        self._task = Some(cx.spawn(async move |this, cx| {
-            let started = cx
-                .background_spawn(async move {
-                    let worktree = use_worktree
-                        .then(|| super::worktree::create(&config, &cwd, &account.id, &text))
-                        .transpose()
-                        .context("creating the thread's worktree")?;
-                    let cwd = worktree.as_ref().map_or(cwd, |w| w.path.clone());
-                    let mut thread = lock(&store)?.create_thread(&NewThread {
-                        project_id,
-                        title: &title(&text),
-                        cwd: &cwd,
-                        account_id: &account.id,
-                        status: "starting",
-                    })?;
-                    super::worktree::record(&*lock(&store)?, &mut thread, worktree)?;
-                    append(
-                        &mut *lock(&store)?,
-                        thread.id,
-                        &Record::Prompt(text.clone()),
-                    )?;
-                    let session = skyelab_agent::start_with_bin(&bin, &config, &cwd, &text);
-                    let status = if session.is_ok() { "running" } else { "failed" };
-                    lock(&store)?.set_thread_status(thread.id, status)?;
-                    anyhow::Ok((thread, session))
-                })
-                .await;
-            let _ = this.update(cx, |this, cx| {
-                this.starting = false;
-                match started {
-                    Ok((thread, session)) => {
-                        this.cwd = thread.cwd.clone();
-                        this.thread = Some(thread.clone());
-                        cx.emit(ThreadViewEvent::Started(thread.clone()));
-                        match session {
-                            Ok(session) => {
-                                this.run(session, pump_store, thread.id, cx);
-                                if this.stop_requested {
-                                    this.kill(cx);
-                                }
-                            }
-                            Err(e) => {
-                                this.finish(cx);
-                                this.show_error(e.context("starting the agent"), cx);
-                            }
-                        }
-                    }
-                    Err(e) => this.show_error(e, cx),
-                }
-                cx.notify();
-            });
-        }));
-    }
-
-    fn follow_up(
-        &mut self,
-        text: String,
-        account: &Account,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let (Some(session), Some(thread)) = (self.session.clone(), &self.thread) else {
-            return;
-        };
-        // The running agent keeps the account it started with; a rebound folder needs a new thread.
-        if thread.account_id != account.id {
-            let msg = format!(
-                "This folder is now bound to {}. Start a new thread to run under it.",
-                account.label
-            );
-            self.error = Some(msg.into());
-            cx.notify();
-            return;
-        }
-        let (store, id) = (self.backend.store.clone(), thread.id);
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        let record = Record::Prompt(text.clone());
-        self.push(&record, cx);
-        // Chained, so quick follow-ups reach the store and claude in the order they were sent.
-        let prev = self.send_chain.take();
-        let write = cx.background_executor().clone();
-        self.send_chain = Some(cx.spawn(async move |this, cx| {
-            if let Some(prev) = prev {
-                prev.await;
-            }
-            let sent = write
-                .spawn(async move {
-                    append(&mut *lock(&store)?, id, &record)?;
-                    lock(&store)?.set_thread_status(id, "running")?;
-                    lock(&session)?.send_user_message(&text)
-                })
-                .await;
-            if let Err(e) = sent {
-                let _ = this.update(cx, |this, cx| this.show_error(e, cx));
-            }
-        }));
+        self.launch(text, account, None, window, cx);
     }
 
     /// Each event is stored before it is shown, so the store keeps stdout's order.
     fn run(&mut self, session: Session, store: SharedStore, id: i64, cx: &mut Context<Self>) {
         let events = session.events().clone();
         self.session = Some(Arc::new(Mutex::new(session)));
+        let launch = self.launches;
+        // A stopped session's pump keeps storing what it already printed.
+        if let Some(old) = self._pump.take() {
+            old.detach();
+        }
         self._pump = Some(cx.spawn(async move |this, cx| {
             while let Ok(event) = events.recv_async().await {
                 let record = Record::Agent(event);
@@ -420,6 +331,14 @@ impl ThreadView {
                     if let Err(e) = saved {
                         this.show_error(e.context("saving an agent event"), cx);
                     }
+                    if let (Record::Agent(Event::Init { session_id, .. }), Some(t)) =
+                        (&record, &mut this.thread)
+                    {
+                        t.agent_session_id = Some(session_id.clone());
+                        if this.session.is_none() && !this.starting {
+                            this.finish(cx); // stopped before this arrived: it's resumable now
+                        }
+                    }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
                         cx.emit(ThreadViewEvent::TurnDone);
@@ -429,12 +348,15 @@ impl ThreadView {
                     return;
                 }
             }
-            let _ = this.update(cx, |this, cx| this.ended(cx));
+            let _ = this.update(cx, |this, cx| this.ended(launch, cx));
         }));
     }
 
     /// claude's stdout closed and every event is stored: record how the thread ended.
-    fn ended(&mut self, cx: &mut Context<Self>) {
+    fn ended(&mut self, launch: u64, cx: &mut Context<Self>) {
+        if launch != self.launches {
+            return; // a stopped session's stream; Stop already recorded it
+        }
         let Some(thread) = &self.thread else {
             return;
         };
@@ -446,17 +368,23 @@ impl ThreadView {
         };
         let session = self.session.take();
         self.finish(cx);
-        // Reaping the child waits, so the session is dropped off the UI thread.
+        // Reaping the child waits, so it happens off the UI thread, after the status is written
+        // (so a quick resume's "running" can't be overwritten by it).
         self.in_background(cx, move || {
+            lock(&store)?.set_thread_status(id, status)?;
             drop(session);
-            lock(&store)?.set_thread_status(id, status)
+            Ok(())
         });
     }
 
-    /// The agent is gone; this tab now only shows what happened.
+    /// The agent is gone. The next prompt resumes its session, if it reported one.
     fn finish(&mut self, cx: &mut Context<Self>) {
-        self.read_only = true;
-        self.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
+        self.read_only = self
+            .thread
+            .as_ref()
+            .is_none_or(|t| t.agent_session_id.is_none());
+        let disabled = self.read_only;
+        self.prompt.update(cx, |p, cx| p.set_disabled(disabled, cx));
         cx.notify();
     }
 
@@ -482,7 +410,6 @@ impl ThreadView {
         };
         let (store, id) = (self.backend.store.clone(), thread.id);
         self._task = Some(cx.spawn(async move |this, cx| {
-            // shortcut: a stdin write blocked on a stuck claude holds this lock, so Stop waits for it; split stdin from kill in skyelab-agent if that shows up.
             let stopped = cx
                 .background_spawn(async move {
                     lock(&session)?.kill().context("stopping the agent")?;

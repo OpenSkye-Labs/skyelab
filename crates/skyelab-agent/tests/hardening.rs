@@ -1,8 +1,10 @@
 #![cfg(unix)]
 //! What an untrusted repo or a hostile parent env can and can't do to a session, and the
 //! process lifecycle. Every fake here is a shell script; nothing runs the real `claude`.
+mod common;
 
-use skyelab_agent::{Event, start, start_with_bin};
+use common::start_in;
+use skyelab_agent::{Event, Launch, start};
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::collections::BTreeSet;
 use std::os::unix::fs::PermissionsExt as _;
@@ -81,7 +83,7 @@ fn in_child() -> bool {
 #[test]
 fn ignores_project_settings_and_mcp() {
     let dir = temp_dir("args");
-    let session = start_with_bin(
+    let session = start_in(
         &fixture("fake-claude.sh"),
         &bound(&dir, &dir.join("acct")),
         &dir,
@@ -103,7 +105,7 @@ fn env_allowlist_in_child() {
     let dir = PathBuf::from(std::env::var(DIR).expect("dir"));
     let acct = dir.join("acct");
     let session =
-        start_with_bin(&fixture("fake-claude.sh"), &bound(&dir, &acct), &dir, "hi").expect("start");
+        start_in(&fixture("fake-claude.sh"), &bound(&dir, &acct), &dir, "hi").expect("start");
     let env = next_unknown(session.events(), Some("fake_env"));
     let keys: BTreeSet<&str> = env["env_keys"]
         .as_str()
@@ -151,7 +153,14 @@ fn path_lookup_in_child() {
     }
     let dir = PathBuf::from(std::env::var(DIR).expect("dir"));
     let cfg = bound(&dir, &dir.join("acct"));
-    let session = start(&cfg, &dir, "hi").expect("start");
+    let account = cfg.resolve(&dir).cloned().expect("bound");
+    let launch = Launch {
+        account: &account,
+        dir: &dir,
+        resume: None,
+        prompt: "hi",
+    };
+    let session = start(&cfg, &launch).expect("start");
     let which = next_unknown(session.events(), Some("which"));
     assert_eq!(which["bin"], "abs");
     assert_eq!(which["path"], dir.join("absbin").to_str().expect("utf-8"));
@@ -161,7 +170,7 @@ fn path_lookup_in_child() {
         "ran the planted relbin/claude"
     );
     // Only a relative PATH entry has this name: not found, never run.
-    assert!(start_with_bin(Path::new("claude-only-relative"), &cfg, &dir, "hi").is_err());
+    assert!(start_in(Path::new("claude-only-relative"), &cfg, &dir, "hi").is_err());
     assert!(
         !dir.join("ran-relative").exists(),
         "ran the planted relbin/claude-only-relative"
@@ -189,7 +198,7 @@ fn path_lookup_skips_relative_entries() {
 fn relative_bin_with_dirs_is_rejected() {
     let dir = temp_dir("relpath");
     script(&dir.join("sub/claude"), ": > ran-relative");
-    let res = start_with_bin(
+    let res = start_in(
         Path::new("sub/claude"),
         &bound(&dir, &dir.join("a")),
         &dir,
@@ -210,7 +219,7 @@ fn kill_once_in_child() {
         return;
     }
     let dir = PathBuf::from(std::env::var(DIR).expect("dir"));
-    let mut session = start_with_bin(
+    let mut session = start_in(
         &fixture("fake-claude.sh"),
         &bound(&dir, &dir.join("a")),
         &dir,
@@ -246,7 +255,7 @@ fn reaped_child_is_not_signalled_again() {
 #[test]
 fn exit_status_of_self_exit() {
     let dir = temp_dir("exit");
-    let mut session = start_with_bin(
+    let mut session = start_in(
         &fixture("exit-3.sh"),
         &bound(&dir, &dir.join("a")),
         &dir,
@@ -268,7 +277,7 @@ fn exit_status_of_self_exit() {
 #[test]
 fn oversized_line_is_capped() {
     let dir = temp_dir("long");
-    let session = start_with_bin(
+    let session = start_in(
         &fixture("long-line.sh"),
         &bound(&dir, &dir.join("a")),
         &dir,
@@ -286,7 +295,7 @@ fn oversized_line_is_capped() {
 #[test]
 fn message_and_interrupt_format() {
     let dir = temp_dir("fmt");
-    let mut session = start_with_bin(
+    let mut session = start_in(
         &fixture("fake-claude.sh"),
         &bound(&dir, &dir.join("a")),
         &dir,

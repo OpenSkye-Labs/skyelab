@@ -129,3 +129,54 @@ fn shell_keys_reach_a_focused_terminal(cx: &mut TestAppContext) {
         );
     });
 }
+
+/// Inside Settings, the sidebar key still toggles the sidebar; Bind folder has its own key.
+#[gpui::test]
+fn cmd_b_toggles_sidebar_inside_settings(cx: &mut TestAppContext) {
+    setup(cx);
+    let home = tempfile::tempdir().expect("tempdir");
+    let folder = home.path().to_path_buf();
+    let (ws, cx) = cx.add_window_view(|window, cx| {
+        let ws = Workspace::new(
+            folder,
+            None,
+            AccountsConfig::default(),
+            None,
+            test_backend(),
+            window,
+            cx,
+        );
+        window.focus(&ws.focus, cx);
+        ws
+    });
+    cx.simulate_keystrokes(OPEN_SETTINGS_KEY);
+    cx.run_until_parked();
+    let settings = ws
+        .read_with(cx, |ws, _| ws.settings.as_ref().and_then(|s| s.upgrade()))
+        .expect("settings open and focused");
+    let sidebar = |cx: &mut gpui::VisualTestContext| {
+        ws.read_with(cx, |ws, cx| {
+            ws.dock.read(cx).is_dock_open(DockPlacement::Left)
+        })
+    };
+    // With no account, Bind folder only sets an error, so its key is visible without a dialog.
+    let bind_ran = |cx: &mut gpui::VisualTestContext| {
+        settings.read_with(cx, |s, _| {
+            s.error
+                .as_deref()
+                .is_some_and(|e| e.contains("add an account first"))
+        })
+    };
+    assert!(sidebar(cx));
+    cx.simulate_keystrokes(TOGGLE_SIDEBAR_KEY);
+    assert!(!sidebar(cx), "the sidebar key toggles from inside Settings");
+    assert!(!bind_ran(cx), "the sidebar key no longer runs Bind folder");
+    cx.simulate_keystrokes(TOGGLE_SIDEBAR_KEY);
+    assert!(sidebar(cx));
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-shift-b"
+    } else {
+        "ctrl-shift-b"
+    });
+    assert!(bind_ran(cx), "Bind folder moved to shift-b");
+}

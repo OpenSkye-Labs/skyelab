@@ -1,5 +1,7 @@
 #![cfg(unix)]
-use skyelab_agent::start_with_bin;
+mod common;
+
+use common::start_in;
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::path::{Path, PathBuf};
 
@@ -22,7 +24,7 @@ fn relative_or_empty_config_dir_is_refused() {
     let dir = std::fs::canonicalize(&dir).expect("canon");
     let bin: PathBuf = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
     for bad in ["~/.claude-acme", "acct", ""] {
-        let res = start_with_bin(&bin, &cfg(&dir, bad), &dir, "hi");
+        let res = start_in(&bin, &cfg(&dir, bad), &dir, "hi");
         assert!(res.is_err(), "CONFIG_DIR_NOT_REFUSED: {bad:?}");
     }
 }

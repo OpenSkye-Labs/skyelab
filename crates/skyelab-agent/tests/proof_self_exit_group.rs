@@ -1,5 +1,8 @@
 #![cfg(unix)]
-use skyelab_agent::{Event, start_with_bin};
+mod common;
+
+use common::start_in;
+use skyelab_agent::Event;
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::os::unix::fs::PermissionsExt as _;
 use std::time::Duration;
@@ -25,7 +28,7 @@ fn drop_after_self_exit_kills_group() {
         }],
         bindings: vec![Binding::new(dir.clone(), "a".into())],
     };
-    let session = start_with_bin(&bin, &cfg, &dir, "hi").expect("start");
+    let session = start_in(&bin, &cfg, &dir, "hi").expect("start");
     loop {
         if let Event::Unknown(v) = session
             .events()

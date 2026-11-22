@@ -1,6 +1,8 @@
 #![cfg(unix)]
+mod common;
 
-use skyelab_agent::{Event, start_with_bin};
+use common::start_in;
+use skyelab_agent::{Event, Launch, start_with_bin};
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -45,7 +47,18 @@ fn fake_env(rx: &flume::Receiver<Event>) -> serde_json::Value {
 #[test]
 fn unbound_folder_errors() {
     let dir = temp_dir("unbound");
-    let err = start_with_bin(&fake_bin(), &AccountsConfig::default(), &dir, "hi")
+    let account = Account {
+        id: "acme".into(),
+        label: "Acme".into(),
+        config_dir: dir.join("account"),
+    };
+    let launch = Launch {
+        account: &account,
+        dir: &dir,
+        resume: None,
+        prompt: "hi",
+    };
+    let err = start_with_bin(&fake_bin(), &AccountsConfig::default(), &launch)
         .err()
         .expect("unbound folder must not start");
     assert!(err.to_string().contains("not bound"), "{err:#}");
@@ -66,7 +79,7 @@ fn env_check_in_child() {
     let dir = temp_dir("env");
     let account_dir = dir.join("account");
     let cfg = bound(&dir, &account_dir);
-    let session = start_with_bin(&fake_bin(), &cfg, &dir, "hi").expect("start");
+    let session = start_in(&fake_bin(), &cfg, &dir, "hi").expect("start");
     let env = fake_env(session.events());
     assert_eq!(env["api_key"], "", "parent ANTHROPIC_API_KEY leaked");
     assert_eq!(env["config_dir"], account_dir.to_str().expect("utf-8 path"));
@@ -101,7 +114,7 @@ fn child_gets_bound_config_dir() {
 fn send_and_kill() {
     let dir = temp_dir("send");
     let cfg = bound(&dir, &dir.join("account"));
-    let mut session = start_with_bin(&fake_bin(), &cfg, &dir, "first").expect("start");
+    let mut session = start_in(&fake_bin(), &cfg, &dir, "first").expect("start");
     let rx = session.events().clone();
     assert!(matches!(next(&rx), Event::Init { .. }));
     fake_env(&rx);

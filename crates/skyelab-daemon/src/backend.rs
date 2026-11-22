@@ -16,8 +16,9 @@ pub trait Backend: Send + Sync + 'static {
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError>;
 }
 
-/// Runs agents for remote requests. The daemon never launches anything itself; an implementation must launch
-/// with the folder's `AccountsConfig::launch_env`.
+/// Runs agents for remote requests. The daemon never launches anything itself. An implementation resolves the
+/// folder's account once (`AccountsConfig::resolve`), records it on the thread row, and passes that same account
+/// to `skyelab_agent::start`, which aborts if the folder resolves elsewhere by spawn time.
 pub trait Agents: Send + Sync + 'static {
     fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError>;
     fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError>;

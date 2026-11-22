@@ -8,41 +8,74 @@ pub use event::{Block, Event};
 
 use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
-use skyelab_core::AccountsConfig;
+use skyelab_core::{Account, AccountsConfig};
 use std::io::{BufRead as _, BufReader, Read, Write as _};
 use std::path::Path;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 
 /// Longest stdout line kept whole; a longer one arrives as a truncated [`Event::Unknown`].
 const MAX_LINE: usize = 16 << 20;
+/// Stdin lines queued for the writer thread. A full queue means `claude` stopped reading.
+const STDIN_QUEUE: usize = 64;
 
 /// A running `claude` process. Dropping it kills the process.
 ///
-/// Writes to stdin block if `claude` stops reading, so call `send_user_message` and `interrupt`
-/// off the UI thread (e.g. GPUI's background executor).
+/// Stdin writes go through a writer thread, so `send_user_message`, `interrupt` and `kill`
+/// never wait behind a `claude` that stopped reading.
 pub struct Session {
     child: Child,
     /// Set once the child is reaped. Its pid may then belong to an unrelated process.
     status: Option<ExitStatus>,
-    stdin: ChildStdin,
+    stdin: flume::Sender<String>,
     events: flume::Receiver<Event>,
     next_request: u64,
 }
 
-/// Starts `claude` in `dir` with the account bound to it, and sends `prompt` as the first turn.
-pub fn start(config: &AccountsConfig, dir: &Path, prompt: &str) -> Result<Session> {
-    start_with_bin(Path::new("claude"), config, dir, prompt)
+/// What to launch: the account the caller resolved for `dir` (and recorded), and optionally a
+/// session to continue.
+pub struct Launch<'a> {
+    pub account: &'a Account,
+    pub dir: &'a Path,
+    /// `claude`'s session id (from [`Event::Init`]) to continue with `--resume`.
+    pub resume: Option<&'a str>,
+    pub prompt: &'a str,
+}
+
+/// Starts `claude` per `launch` and sends its prompt as the first turn.
+pub fn start(config: &AccountsConfig, launch: &Launch) -> Result<Session> {
+    start_with_bin(Path::new("claude"), config, launch)
 }
 
 /// [`start`] with another binary in place of `claude`, so tests can run a fake. `bin` is an
 /// absolute path, or a bare name looked up in the absolute entries of our PATH.
-pub fn start_with_bin(
-    bin: &Path,
-    config: &AccountsConfig,
-    dir: &Path,
-    prompt: &str,
-) -> Result<Session> {
-    let env = config.launch_env(dir)?;
+///
+/// `config` is read again here: if `launch.dir` no longer resolves to `launch.account`, nothing
+/// starts, so the account the caller recorded is the one the process runs under.
+pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> Result<Session> {
+    let &Launch {
+        account,
+        dir,
+        resume,
+        prompt,
+    } = launch;
+    // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
+    let dir = &std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
+    match config.resolve(dir) {
+        Some(now) if now == account => {}
+        Some(now) => bail!(
+            "{} is now bound to '{}', not '{}'; nothing was started",
+            dir.display(),
+            now.id,
+            account.id
+        ),
+        None => bail!("{} is not bound to an account", dir.display()),
+    }
+    if let Some(id) = resume
+        && !valid_session_id(id)
+    {
+        bail!("refusing to resume session id {id:?}");
+    }
+    let env = account.launch_env()?;
     // A relative dir would resolve inside the untrusted project, and an empty one means ~/.claude.
     if let Some((var, v)) = env.iter().find(|(_, v)| !v.is_absolute()) {
         bail!(
@@ -68,6 +101,7 @@ pub fn start_with_bin(
         "user",
         "--strict-mcp-config",
     ])
+    .args(resume.into_iter().flat_map(|id| ["--resume", id]))
     .current_dir(dir)
     .stdin(Stdio::piped())
     .stdout(Stdio::piped())
@@ -80,11 +114,12 @@ pub fn start_with_bin(
     let stdin = child.stdin.take().context("child stdin was piped")?;
 
     let (tx, events) = flume::unbounded();
-    // Built before the reader spawns, so every error below still kills and reaps the child on drop.
+    let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
+    // Built before the threads spawn, so every error below still kills and reaps the child on drop.
     let mut session = Session {
         child,
         status: None,
-        stdin,
+        stdin: stdin_tx,
         events,
         next_request: 0,
     };
@@ -92,8 +127,34 @@ pub fn start_with_bin(
         .name("skyelab-agent-reader".into())
         .spawn(move || read_events(stdout, &tx))
         .context("spawning reader thread")?;
+    std::thread::Builder::new()
+        .name("skyelab-agent-writer".into())
+        .spawn(move || write_lines(stdin, &stdin_rx))
+        .context("spawning writer thread")?;
     session.send_user_message(prompt)?;
     Ok(session)
+}
+
+/// Claude Code's session ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
+fn valid_session_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && !id.starts_with('-')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+// shortcut: a tool that left claude's process group and kept its stdin can block this thread after kill(); it leaks one thread, add a close handle if that shows up.
+fn write_lines(mut stdin: ChildStdin, lines: &flume::Receiver<String>) {
+    while let Ok(line) = lines.recv() {
+        if writeln!(stdin, "{line}")
+            .and_then(|()| stdin.flush())
+            .is_err()
+        {
+            break;
+        }
+    }
 }
 
 fn read_events(stdout: impl Read, tx: &flume::Sender<Event>) {
@@ -193,10 +254,14 @@ impl Session {
         Ok(())
     }
 
+    /// Queues one line for the writer thread; never blocks.
     fn write(&mut self, msg: &serde_json::Value) -> Result<()> {
-        writeln!(self.stdin, "{msg}")
-            .and_then(|()| self.stdin.flush())
-            .context("writing to claude stdin")
+        self.stdin.try_send(msg.to_string()).map_err(|e| match e {
+            flume::TrySendError::Full(_) => {
+                anyhow::anyhow!("claude isn't reading its input; stop it and try again")
+            }
+            flume::TrySendError::Disconnected(_) => anyhow::anyhow!("claude's input is closed"),
+        })
     }
 }
 
