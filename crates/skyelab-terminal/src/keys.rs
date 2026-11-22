@@ -4,9 +4,6 @@ use alacritty_terminal::term::TermMode;
 use gpui::Keystroke;
 
 /// What Option (alt) does with a character key. Keys with their own encoding (arrows, backspace) ignore it.
-///
-/// shortcut: one setting for both Option keys. GPUI 0.3.12 reports a single `alt` flag, so "left Option = meta,
-/// right Option = characters" (as iTerm2 offers) needs the NSEvent device flags; add it when GPUI exposes them.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum OptionKey {
     /// ESC + key, the way shells expect for word motions (alt-b, alt-f).
@@ -14,6 +11,37 @@ pub enum OptionKey {
     Meta,
     /// The character the keyboard layout composes with Option (German Option-L = `@`).
     Characters,
+}
+
+/// Per-side Option behaviour. The default matches common macOS terminals: left Option for shell word motions,
+/// right Option for the characters a non-US layout puts there (German Option-L = `@`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OptionKeys {
+    pub left: OptionKey,
+    pub right: OptionKey,
+}
+
+impl Default for OptionKeys {
+    fn default() -> Self {
+        Self {
+            left: OptionKey::Meta,
+            right: OptionKey::Characters,
+        }
+    }
+}
+
+impl OptionKeys {
+    /// The setting for the Option key held, from macOS's device-dependent modifier bits (left 0x20, right 0x40).
+    /// Both held, or no side known (other OSes pass 0), uses `left`.
+    pub fn resolve(&self, device_flags: usize) -> OptionKey {
+        const LEFT: usize = 0x20;
+        const RIGHT: usize = 0x40;
+        if device_flags & RIGHT != 0 && device_flags & LEFT == 0 {
+            self.right
+        } else {
+            self.left
+        }
+    }
 }
 
 /// The bytes a key press sends to the PTY, or `None` when the terminal doesn't handle it
@@ -99,7 +127,7 @@ pub fn key_to_bytes(
         return Some(alt_prefixed(m.alt, &[code]));
     }
     if m.alt && option == OptionKey::Characters {
-        // `None` (a dead key) is left to the IME.
+        // shortcut: a dead key (no `key_char`) sends nothing; composing it needs an input handler on the view.
         return key.key_char.clone().map(|c| Cow::Owned(c.into_bytes()));
     }
     if m.alt {

@@ -24,6 +24,7 @@ tempfile = "3"
 thiserror = "2"
 alacritty_terminal = "0.26"
 rustix-openpty = "0.2"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent"] }
 futures = "0.3"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-terminal = { path = "crates/skyelab-terminal" }
