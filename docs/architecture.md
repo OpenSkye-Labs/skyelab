@@ -73,3 +73,14 @@ Each item goes through `/loop` (see CLAUDE.md).
 7. **Device hub:** iOS Simulator / Android Emulator control.
 8. **Orchestration:** delegate tasks between threads and environments.
 9. **Mobile client.**
+
+## Decisions
+
+- **Browser, agent access:** agents may only navigate to http/https (no `file://`), because `eval_js` on a file page
+  would let an agent read any local file, including other accounts' credentials. `file://` stays available to the user
+  typing in the URL bar. (2026-11-23)
+- **Minimum macOS: 14.** wry crashes on macOS < 14 for URLs with unusual characters. (2026-11-23)
+- **Agent env:** parent env is cleared, then an allowlist passes through. Network and session plumbing (proxy, CA certs,
+  ssh-agent, TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
+- **Project settings:** agents launch with `--setting-sources user --strict-mcp-config`, so a cloned repo's
+  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23)
