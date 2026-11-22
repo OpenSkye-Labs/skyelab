@@ -4,7 +4,7 @@
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-use skyelab_protocol::{Call, Request, VERSION};
+use skyelab_protocol::{Call, Reply, Request, ServerMessage, VERSION};
 use tungstenite::Message;
 
 fn main() -> anyhow::Result<()> {
@@ -34,7 +34,14 @@ fn main() -> anyhow::Result<()> {
     };
     ws.send(Message::text(serde_json::to_string(&hello)?))?;
     match ws.read() {
-        Ok(msg) => println!("ACCEPTED: server said {msg}"),
+        Ok(Message::Text(t)) => match serde_json::from_str::<ServerMessage>(&t) {
+            Ok(ServerMessage::Response {
+                result: Reply::Hello(h),
+                ..
+            }) => println!("ACCEPTED: hello {h:?}"),
+            _ => println!("REJECTED at hello: {t}"),
+        },
+        Ok(other) => println!("REJECTED at hello: {other}"),
         Err(e) => println!("REJECTED after the handshake: {e}"),
     }
     Ok(())

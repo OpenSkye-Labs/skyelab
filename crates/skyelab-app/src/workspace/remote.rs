@@ -116,7 +116,11 @@ impl Workspace {
         }
     }
 
-    fn open_view(&self, thread_id: i64, cx: &Context<Self>) -> Option<Entity<ThreadView>> {
+    pub(super) fn open_view(
+        &self,
+        thread_id: i64,
+        cx: &Context<Self>,
+    ) -> Option<Entity<ThreadView>> {
         self.open_threads
             .iter()
             .filter_map(|t| t.upgrade())
@@ -124,6 +128,17 @@ impl Workspace {
     }
 
     fn remote_call(&mut self, call: RemoteCall, window: &mut Window, cx: &mut Context<Self>) {
+        if call.abandoned() {
+            return;
+        }
+        // Queued before the user turned sharing off: access was revoked, so it doesn't run.
+        let sharing = self
+            .remote
+            .as_ref()
+            .is_some_and(|h| matches!(h.remote.read(cx).status, Status::Sharing { .. }));
+        if !sharing {
+            return call.refuse(refused("sharing was turned off on this machine"));
+        }
         match call {
             RemoteCall::Start {
                 project_id,
@@ -182,13 +197,17 @@ impl Workspace {
         self.add_thread_tab(view.clone(), false, window, cx);
         let mut reply = Some(reply);
         let mut answer = move |view: &ThreadView| {
+            // The details (paths, store errors) stay in this machine's log and the thread's tab.
             let result = match (&view.thread, view.starting) {
-                (Some(t), _) => Ok(t.id),
-                (None, true) => return,
-                (None, false) => Err(crate::remote::internal(
-                    view.error.as_deref().unwrap_or("the thread didn't start"),
-                )),
+                (Some(t), _) if view.session.is_some() => Ok(t.id),
+                (Some(_), _) if view.read_only => Err("the agent didn't start"),
+                (None, false) => Err("the thread couldn't be created"),
+                _ => return,
             };
+            let result = result.map_err(|why| {
+                eprintln!("skyelab: remote start failed: {why}: {:?}", view.error);
+                crate::remote::internal(why)
+            });
             if let Some(reply) = reply.take() {
                 let _ = reply.send(result);
             }
@@ -199,13 +218,7 @@ impl Workspace {
 
     pub(super) fn render_remote_status(&self, cx: &Context<Self>) -> Option<impl IntoElement> {
         let remote = self.remote.as_ref()?.remote.read(cx);
-        let label = remote.status.label()?;
-        let theme = cx.theme();
-        let dot = match remote.status {
-            Status::Sharing { .. } => theme.success,
-            Status::Failed(_) => theme.danger,
-            _ => theme.muted_foreground,
-        };
+        let (label, dot) = (remote.status.label(), remote.status.color(cx.theme()));
         Some(
             Button::new("status-remote")
                 .ghost()
@@ -235,7 +248,8 @@ impl ThreadView {
             return Err("the prompt is empty".into());
         }
         let draft = self.prompt.read(cx).value().to_string();
-        let error = self.error.clone();
+        // Cleared so a refusal that sets the same message again (a rebound folder) still shows up as new.
+        let error = self.error.take();
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
         self.send_prompt(&SendPrompt, window, cx);
@@ -246,15 +260,20 @@ impl ThreadView {
         if taken {
             return Ok(());
         }
+        let rebound = self.error.is_some(); // the only refusal send_prompt explains in `error`
+        if !rebound {
+            self.error = error;
+        }
         Err(if self.needs_binding {
-            "this folder isn't bound to an account on this machine; bind it there first".into()
-        } else if self.error != error {
-            self.error.as_deref().unwrap_or_default().to_owned()
+            "this folder isn't bound to an account on this machine; bind it there first"
+        } else if rebound {
+            "this folder is now bound to another account; start a new thread"
         } else if self.read_only {
-            "this thread has ended".into()
+            "this thread has ended"
         } else {
-            "this thread is still starting; try again".into()
-        })
+            "this thread is still starting; try again"
+        }
+        .into())
     }
 }
 

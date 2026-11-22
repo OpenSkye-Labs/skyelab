@@ -1,7 +1,6 @@
-//! The Remote tab: the sharing toggle, its status, and who is connected.
-//! Its buttons dispatch actions that the Workspace handles, so they work from the keyboard and verify runs too.
+//! The Remote tab. Its buttons dispatch actions the Workspace handles, so SKYELAB_VERIFY_ACTIONS can drive them.
 
-use super::{DisconnectPeer, Remote, Status, ToggleSharing};
+use super::{DisconnectPeer, Remote, ToggleSharing};
 use gpui::{App, Context, Entity, FocusHandle, Focusable, Subscription, Window, div, prelude::*};
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
@@ -37,15 +36,7 @@ impl Render for RemotePanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let remote = self.remote.read(cx);
-        let status_color = match remote.status {
-            Status::Failed(_) => theme.danger,
-            Status::Sharing { .. } => theme.success,
-            _ => theme.muted_foreground,
-        };
-        let status = remote
-            .status
-            .label()
-            .unwrap_or_else(|| "Not sharing.".into());
+        let (status, status_color) = (remote.status.label(), remote.status.color(theme));
         let peers = if remote.peers.is_empty() {
             vec![
                 div()

@@ -1,7 +1,4 @@
-//! Sharing this machine on the user's tailnet: the daemon's lifecycle, its status, and who is connected.
-//!
-//! The daemon (skyelab-daemon) does the gating: tailnet IPs only, whois must be one of the user's own untagged
-//! devices, no browsers. This module only turns it on and off, and wires its agent calls to the thread view.
+//! Sharing this machine on the user's tailnet. The daemon does all the gating; this only turns it on and off.
 
 mod agents;
 mod panel;
@@ -10,11 +7,13 @@ pub(crate) use agents::internal;
 pub use agents::{RemoteCall, Reply, UiAgents};
 pub use panel::RemotePanel;
 
-use gpui::{Action, AppContext as _, Context, SharedString, Task, actions};
+use gpui::{Action, AppContext as _, Context, Hsla, SharedString, Task, actions};
+use gpui_component::Theme;
 use skyelab_core::AppSettings;
 use skyelab_daemon::{Backend, Config, Daemon, Peer, SharedTailnet};
 use skyelab_store::Store;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -26,13 +25,10 @@ pub struct DisconnectPeer {
     pub id: u64,
 }
 
-/// The running daemon, shared with the store's push hook. `None` while not sharing.
 pub type DaemonSlot = Arc<Mutex<Option<Daemon>>>;
 
 fn lock_slot(slot: &DaemonSlot) -> std::sync::MutexGuard<'_, Option<Daemon>> {
-    // Nothing panics while holding it; a poisoned slot still holds a usable daemon.
-    slot.lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    lock_unpoisoned(slot)
 }
 
 /// Every stored event, from local and remote threads alike, goes to connected clients. They could read it with
@@ -54,18 +50,24 @@ pub enum Status {
 }
 
 impl Status {
-    /// The status bar's text; `None` when there is nothing to say.
-    pub fn label(&self) -> Option<SharedString> {
+    pub fn label(&self) -> SharedString {
         match self {
-            Status::Off => None,
-            Status::Starting => Some("Starting sharing…".into()),
-            Status::Sharing { name, port } => Some(format!("Sharing on {name}:{port}").into()),
-            Status::Failed(e) => Some(format!("Not sharing: {e}").into()),
+            Status::Off => "Not sharing".into(),
+            Status::Starting => "Starting sharing…".into(),
+            Status::Sharing { name, port } => format!("Sharing on {name}:{port}").into(),
+            Status::Failed(e) => format!("Not sharing: {e}").into(),
+        }
+    }
+
+    pub fn color(&self, theme: &Theme) -> Hsla {
+        match self {
+            Status::Sharing { .. } => theme.success,
+            Status::Failed(_) => theme.danger,
+            _ => theme.muted_foreground,
         }
     }
 }
 
-/// What starting the daemon needs. Tests pass a fake tailnet and port 0.
 pub struct Host {
     pub settings_path: Option<PathBuf>,
     pub tailnet: SharedTailnet,
@@ -76,21 +78,21 @@ pub struct Host {
 
 pub struct Remote {
     host: Host,
-    /// The persisted toggle. On while `status` is `Failed` means "wanted, but it couldn't start".
+    /// The persisted toggle. On with `Failed` means the start failed; off with `Failed` means saving failed.
     pub enabled: bool,
     pub status: Status,
     pub peers: Vec<Peer>,
-    /// Bumped on every toggle, so a start that finishes after the user turned sharing off is dropped.
-    generation: u64,
+    /// Bumped on every stop, so a start that finishes after it drops its daemon instead of sharing.
+    generation: Arc<AtomicU64>,
+    /// Held while binding and while dropping a daemon, so a quick off→on never finds port 7287 still taken.
+    bind: Arc<Mutex<()>>,
     _start: Option<Task<()>>,
     _poll: Option<Task<()>>,
 }
 
-/// How often the peer list is re-read while sharing.
 const PEER_POLL: Duration = Duration::from_secs(1);
 
 impl Remote {
-    /// Reads the toggle and starts sharing if it was left on.
     pub fn new(host: Host, cx: &mut Context<Self>) -> Self {
         let loaded = host.settings_path.as_deref().map(AppSettings::load);
         let mut this = Self {
@@ -98,7 +100,8 @@ impl Remote {
             enabled: false,
             status: Status::Off,
             peers: Vec::new(),
-            generation: 0,
+            generation: Arc::default(),
+            bind: Arc::default(),
             _start: None,
             _poll: None,
         };
@@ -118,7 +121,7 @@ impl Remote {
         self.set_sharing(!self.enabled, cx);
     }
 
-    /// Saves the toggle first: if that fails, nothing changes and the error shows.
+    /// Fails safe: if the choice can't be saved, sharing ends up off either way, and the error shows.
     pub fn set_sharing(&mut self, on: bool, cx: &mut Context<Self>) {
         let saved = match &self.host.settings_path {
             // A file that doesn't parse is left alone, and the toggle doesn't move.
@@ -130,45 +133,55 @@ impl Remote {
                 "no config directory on this OS, so the setting can't be saved"
             )),
         };
-        if let Err(e) = saved {
-            self.status = Status::Failed(format!("{e:#}"));
-            cx.notify();
-            return;
-        }
-        self.enabled = on;
-        if on {
+        self.enabled = on && saved.is_ok();
+        if self.enabled {
             self.start(cx);
         } else {
             self.stop(cx);
+        }
+        if let Err(e) = saved {
+            self.status = Status::Failed(format!("{e:#}"));
+            cx.notify();
         }
     }
 
     fn start(&mut self, cx: &mut Context<Self>) {
         self.stop(cx);
         self.status = Status::Starting;
-        let generation = self.generation;
-        let (tailnet, config, backend) = (
+        let generation = self.generation.load(Ordering::SeqCst);
+        let (tailnet, config, backend, current, bind) = (
             self.host.tailnet.clone(),
             self.host.config.clone(),
             self.host.backend.clone(),
+            self.generation.clone(),
+            self.bind.clone(),
         );
-        // self_node and bind shell out to tailscale and can take seconds.
+        // self_node shells out to tailscale and can take seconds.
         let started = cx.background_spawn(async move {
+            let _bind = lock_unpoisoned(&bind);
             let me = tailnet.self_node()?;
             let name = match me.dns_name.trim_end_matches('.') {
                 "" => me.hostname,
                 dns => dns.to_owned(),
             };
             let daemon = Daemon::start(config, tailnet, backend)?;
+            if current.load(Ordering::SeqCst) != generation {
+                drop(daemon); // stopped meanwhile; freed before the next start can bind
+                anyhow::bail!("stopped while starting");
+            }
             let port = daemon.local_addrs().first().map_or(0, |a| a.port());
             anyhow::Ok((daemon, name, port))
         });
+        // A start still running is detached, not cancelled, so its stale daemon is dropped under `bind`.
+        if let Some(old) = self._start.take() {
+            old.detach();
+        }
         self._start = Some(cx.spawn(async move |this, cx| {
             let started = started.await;
             let _ = this.update(cx, |this, cx| {
-                if this.generation != generation {
+                if this.generation.load(Ordering::SeqCst) != generation {
                     if let Ok((daemon, ..)) = started {
-                        drop_off_thread(daemon);
+                        drop_off_thread(daemon, this.bind.clone());
                     }
                     return;
                 }
@@ -187,18 +200,20 @@ impl Remote {
     }
 
     fn stop(&mut self, cx: &mut Context<Self>) {
-        self.generation += 1;
-        self._start = None;
+        self.halt();
         self._poll = None;
         self.peers.clear();
         self.status = Status::Off;
-        if let Some(daemon) = lock_slot(&self.host.slot).take() {
-            drop_off_thread(daemon);
-        }
         cx.notify();
     }
 
-    /// Re-reads who's connected; notifies only on a change.
+    fn halt(&mut self) {
+        self.generation.fetch_add(1, Ordering::SeqCst);
+        if let Some(daemon) = lock_slot(&self.host.slot).take() {
+            drop_off_thread(daemon, self.bind.clone());
+        }
+    }
+
     pub fn refresh_peers(&mut self, cx: &mut Context<Self>) {
         let peers = lock_slot(&self.host.slot)
             .as_ref()
@@ -229,11 +244,26 @@ impl Remote {
     }
 }
 
+/// The window closed: nothing can show or stop sharing any more, so it stops. (The store's push hook keeps
+/// the slot alive, so without this the daemon would outlive the window.)
+impl Drop for Remote {
+    fn drop(&mut self) {
+        self.halt();
+    }
+}
+
+fn lock_unpoisoned<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Dropping a daemon joins its thread (up to a second), so never on the UI thread.
-fn drop_off_thread(daemon: Daemon) {
+fn drop_off_thread(daemon: Daemon, bind: Arc<Mutex<()>>) {
     let _ = std::thread::Builder::new()
         .name("skyelab-daemon-stop".into())
-        .spawn(move || drop(daemon));
+        .spawn(move || {
+            let _bind = lock_unpoisoned(&bind);
+            drop(daemon);
+        });
 }
 
 #[cfg(test)]

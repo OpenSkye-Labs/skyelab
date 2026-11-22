@@ -198,12 +198,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let open = self
-            .open_threads
-            .iter()
-            .filter_map(|t| t.upgrade())
-            .find(|t| t.read(cx).thread.as_ref().map(|t| t.id) == Some(a.id));
-        if let Some(view) = open {
+        if let Some(view) = self.open_view(a.id, cx) {
             let id = view.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));

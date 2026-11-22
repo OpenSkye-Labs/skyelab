@@ -53,9 +53,11 @@ personal plan by mistake.
 
 The app can serve this machine to your other devices. It is **off by default**: the Remote tab's "Share this machine
 on my tailnet" switch (`skyelab::ToggleSharing`) turns it on, and the choice is saved as `share_on_tailnet` in
-`settings.toml`, next to `accounts.toml` (never in it). The status bar then says `Sharing on <MagicDNS name>:7287`,
-or the exact reason it couldn't start (Tailscale not installed, not running, logged out). Turning it off stops the
-listener and closes every connection.
+`settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens the Remote tab) says
+`Sharing on <MagicDNS name>:7287`, `Not sharing`, or the exact reason it couldn't start (Tailscale not installed, not
+running, logged out). Turning it off stops the listener and closes every connection, even when the choice can't be
+saved (the error shows). Closing the window stops it too. A remote call still queued when sharing went off, or one
+whose client gave up waiting (30 s), never runs.
 
 **Trust model.** Every TCP connection goes through the daemon's gate, in order, before a single byte is read:
 

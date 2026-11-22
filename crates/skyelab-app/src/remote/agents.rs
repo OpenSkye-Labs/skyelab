@@ -6,7 +6,6 @@ use std::time::Duration;
 
 pub type Reply<T> = flume::Sender<Result<T, RpcError>>;
 
-/// One agent call from a remote client, for the Workspace to run. Each carries where to send its answer.
 pub enum RemoteCall {
     Start {
         project_id: i64,
@@ -24,16 +23,37 @@ pub enum RemoteCall {
     },
 }
 
-/// Implements the daemon's [`Agents`] by asking the Workspace. Called on a daemon blocking thread, so it may block.
+impl RemoteCall {
+    /// Its client stopped waiting (timed out, or the daemon went away). Running it now would surprise them.
+    pub fn abandoned(&self) -> bool {
+        match self {
+            RemoteCall::Start { reply, .. } => reply.is_disconnected(),
+            RemoteCall::Send { reply, .. } | RemoteCall::Interrupt { reply, .. } => {
+                reply.is_disconnected()
+            }
+        }
+    }
+
+    pub fn refuse(self, error: RpcError) {
+        // A send fails only if the client stopped waiting, and then there's nobody to tell.
+        match self {
+            RemoteCall::Start { reply, .. } => _ = reply.send(Err(error)),
+            RemoteCall::Send { reply, .. } | RemoteCall::Interrupt { reply, .. } => {
+                _ = reply.send(Err(error))
+            }
+        }
+    }
+}
+
+/// The daemon's [`Agents`], answered by the Workspace on the UI thread.
 pub struct UiAgents {
     calls: flume::Sender<RemoteCall>,
 }
 
-/// Long enough for a store write and `claude` to spawn; a UI that hangs past it gets an error, not a stuck client.
 const REPLY_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl UiAgents {
-    /// The receiver goes to `Workspace::serve_remote_calls`.
+    /// The receiver goes to `Workspace::set_remote`.
     pub fn new() -> (Self, flume::Receiver<RemoteCall>) {
         let (calls, rx) = flume::unbounded();
         (Self { calls }, rx)
@@ -45,8 +65,8 @@ impl UiAgents {
             return Err(internal("the app is closing"));
         }
         answer.recv_timeout(REPLY_TIMEOUT).map_err(|e| match e {
+            // Dropping `answer` marks the call abandoned, so the app won't run it later.
             flume::RecvTimeoutError::Timeout => internal("the app did not answer in time"),
-            // The Workspace dropped the call without answering (its window closed).
             flume::RecvTimeoutError::Disconnected => internal("the app is closing"),
         })?
     }
