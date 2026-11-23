@@ -225,7 +225,7 @@ impl ChangesView {
                     .gap_2()
                     .text_size(ui::META)
                     .text_color(theme.muted_foreground)
-                    .child("Commits, pushes and opens PRs as")
+                    .child("Pushes and opens PRs as")
                     .child(badge)
             }))
             .child(

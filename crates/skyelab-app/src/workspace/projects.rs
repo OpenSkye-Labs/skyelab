@@ -186,7 +186,7 @@ impl Workspace {
                 account: Some(match self.project_accounts.get(&p.id) {
                     Some(Some(a)) => RowAccount::Bound(a.clone()),
                     Some(None) => RowAccount::Unbound,
-                    None => RowAccount::Resolving,
+                    None => RowAccount::Hidden,
                 }),
             })
             .collect();
@@ -357,8 +357,14 @@ impl Workspace {
                 ThreadViewEvent::Started(thread) => this.thread_started(thread, cx),
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
+                    let account = this
+                        .config
+                        .accounts
+                        .iter()
+                        .find(|a| &a.id == account_id)
+                        .cloned();
                     let opened = worktree::terminal_options(&this.config, cwd, account_id)
-                        .and_then(|o| this.add_terminal_with(o, window, cx));
+                        .and_then(|o| this.add_terminal_with(o, account, window, cx));
                     if let Err(e) = opened {
                         view.update(cx, |v, cx| {
                             v.error = Some(format!("{e:#}").into());
@@ -444,6 +450,8 @@ impl Workspace {
     /// Settings saved: open threads start their next session from the new bindings.
     pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
         crate::ui::set_accounts(cx, &self.config);
+        // Show nothing rather than the previous binding until the new one is resolved.
+        self.project_accounts.clear();
         self.resolve_project_accounts(cx);
         super::orchestrate::set_config(cx, &self.config);
         let config = self.config.clone();

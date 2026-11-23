@@ -28,6 +28,7 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
             WindowKind::Normal
         },
         titlebar: Some(ui::titlebar_options()),
+        window_min_size: Some(size(px(800.), px(560.))),
         ..Default::default()
     }
 }

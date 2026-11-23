@@ -303,7 +303,8 @@ impl Workspace {
                 action: Box::new(SelectRemoteProject { id: p.id }),
                 status: None,
                 updated_ms: None,
-                account: None, // bound on the other machine; this one can't tell
+                // A project row; its binding lives on the other machine, so no badge.
+                account: Some(super::panels::RowAccount::Hidden),
             })
             .collect();
         let threads = env

@@ -14,7 +14,8 @@ What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-g
   `/loop-plan` → `/loop-build` → `/verify` → `/loop-review`. Plans live in `.agent/plans/`.
 - UI changes are checked in the running app with `/loop-verify-ui` (native window), not just by compiling.
   Run the app with a throwaway `HOME` (so your real `accounts.toml` is untouched) and `SKYELAB_VERIFY_TOPMOST=1`
-  (debug builds: windows open above others, so nothing needs moving). `alleo-native-window` can't see those
+  (debug builds: windows open above others, so nothing needs moving). Add `SKYELAB_VERIFY_THEME=dark` or `light` to capture
+  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `alleo-native-window` can't see those
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`

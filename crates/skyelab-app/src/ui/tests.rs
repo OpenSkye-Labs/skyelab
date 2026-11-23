@@ -14,8 +14,7 @@ fn theme(cx: &mut TestAppContext) -> Theme {
 #[gpui::test]
 fn account_color_is_stable_and_never_danger(cx: &mut TestAppContext) {
     let t = theme(cx);
-    // Pinned value: FNV-1a("work") picks the same palette slot in every session and on every OS.
-    assert_eq!(account_color(&t, "work"), account_color(&t, "work"));
+    // Pinned: FNV-1a("work") picks the same palette slot in every session and on every OS.
     assert_eq!(
         account_color(&t, "work"),
         super::account_palette(&t)[super::fnv1a("work") as usize % 5]
@@ -79,6 +78,7 @@ fn status_parse_covers_store_values(cx: &mut TestAppContext) {
         ("idle", Status::Idle),
         ("done", Status::Idle),
         ("stopped", Status::Stopped),
+        ("exited", Status::Stopped),
         ("interrupted", Status::Interrupted),
         ("failed", Status::Failed),
         ("something-new", Status::Unknown),

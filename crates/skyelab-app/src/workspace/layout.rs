@@ -56,13 +56,20 @@ impl Global for DockToggles {}
 /// The three toggles at the end of the center tab bar: sidebar, bottom drawer, right panel.
 pub(crate) fn dock_toggles(cx: &App) -> Vec<Button> {
     let open = cx.try_global::<DockToggles>().copied().unwrap_or_default();
-    let toggle = |id: &'static str, icon: IconName, on: bool, tip: &'static str| {
+    // The tooltip shows the action's key binding for this OS.
+    let toggle = |id: &'static str,
+                  icon: IconName,
+                  on: bool,
+                  tip: &'static str,
+                  action: &dyn gpui::Action| {
+        let action = action.boxed_clone();
         Button::new(id)
             .ghost()
             .xsmall()
             .icon(icon)
             .toggled(on)
-            .tooltip(tip)
+            .tooltip_with_action(tip, action.as_ref(), Some(CONTEXT))
+            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
     };
     vec![
         toggle(
@@ -70,22 +77,22 @@ pub(crate) fn dock_toggles(cx: &App) -> Vec<Button> {
             IconName::PanelLeft,
             open.left,
             "Toggle sidebar",
-        )
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleSidebar), cx)),
+            &ToggleSidebar,
+        ),
         toggle(
             "toggle-bottom",
             IconName::PanelBottom,
             open.bottom,
             "Toggle terminal",
-        )
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleBottomPanel), cx)),
+            &ToggleBottomPanel,
+        ),
         toggle(
             "toggle-right",
             IconName::PanelRight,
             open.right,
             "Toggle tools panel",
-        )
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleRightPanel), cx)),
+            &ToggleRightPanel,
+        ),
     ]
 }
 
@@ -94,6 +101,9 @@ pub(crate) fn dock_toggles(cx: &App) -> Vec<Button> {
 pub(super) struct LayoutStore {
     path: Option<PathBuf>,
     save: Option<Task<()>>,
+    /// The layout the pending save will write; quitting writes it at once instead.
+    pending: Option<WindowLayout>,
+    _quit: Option<gpui::Subscription>,
 }
 
 impl Workspace {
@@ -149,9 +159,25 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if matches!(e, DockEvent::LayoutChanged) {
+            self.refill_right(window, cx);
             self.sync_toggles(cx);
             self.schedule_layout_save(window, cx);
         }
+    }
+
+    /// The last tool left the right dock: put the placeholder back and close the dock, so it isn't open and empty.
+    fn refill_right(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.right_empty.is_some() || !self.dock.read(cx).is_empty(DockPlacement::Right, cx) {
+            return;
+        }
+        let empty = cx.new(super::panels::RightEmpty::new);
+        self.right_empty = Some(empty.clone());
+        self.dock.update(cx, |dock, cx| {
+            dock.add_panel_view(panel_handle(empty), DockPlacement::Right, None, window, cx);
+            if dock.is_dock_open(DockPlacement::Right) {
+                dock.toggle_dock(DockPlacement::Right, window, cx);
+            }
+        });
     }
 
     pub(super) fn sync_toggles(&self, cx: &mut Context<Self>) {
@@ -186,6 +212,15 @@ impl Workspace {
             });
         }
         self.layout.path = path;
+        // A change in the last moments before quitting would otherwise never be written.
+        self.layout._quit = Some(cx.on_app_quit(|this, _| {
+            let write = this.layout.path.clone().zip(this.layout.pending.take());
+            async move {
+                if let Some((path, layout)) = write {
+                    let _ = AppSettings::update(&path, |s| s.window = Some(layout));
+                }
+            }
+        }));
         self._window_bounds = Some(cx.observe_window_bounds(window, |this, window, cx| {
             this.schedule_layout_save(window, cx)
         }));
@@ -203,9 +238,11 @@ impl Workspace {
             dock.dock_size(DockPlacement::Right)
                 .unwrap_or(RIGHT_DEFAULT_W),
         );
+        self.layout.pending = Some(layout.clone());
         // A newer change replaces (cancels) the pending save: only the settled layout is written.
-        self.layout.save = Some(cx.spawn(async move |_, cx| {
+        self.layout.save = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(SAVE_AFTER).await;
+            let _ = this.update(cx, |this, _| this.layout.pending = None);
             let saved = cx
                 .background_spawn(async move {
                     AppSettings::update(&path, |s| s.window = Some(layout)).map(|_| ())

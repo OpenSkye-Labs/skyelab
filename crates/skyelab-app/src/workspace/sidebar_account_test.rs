@@ -10,7 +10,7 @@ fn project_row_account(ws: &Entity<Workspace>, cx: &mut gpui::VisualTestContext)
         match ws.sidebar.read(cx).sections[0].items[0].account.as_ref() {
             Some(RowAccount::Bound(a)) => Some(a.id.clone()),
             Some(RowAccount::Unbound) => Some("unbound".into()),
-            Some(RowAccount::Resolving) | None => None,
+            Some(RowAccount::Hidden) | None => None,
         }
     })
 }

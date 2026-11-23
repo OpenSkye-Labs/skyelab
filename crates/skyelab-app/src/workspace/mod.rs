@@ -11,6 +11,7 @@ mod devices;
 mod env_mode;
 mod env_picker;
 pub(crate) mod layout;
+mod settings_tab;
 mod terminal_launch;
 mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
@@ -321,79 +322,6 @@ impl Workspace {
     ) {
         self.toggle(DockPlacement::Bottom, window, cx);
     }
-
-    fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
-            settings.update(cx, |s, cx| s.check_gh_logins(cx)); // a login may have finished since
-            let id = settings.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            settings.read(cx).focus_handle(cx).focus(window, cx);
-            return;
-        }
-        self.reload_accounts();
-        self.push_config(cx); // orchestration and open threads check against what's on disk now
-        let (path, config, error) = (
-            self.accounts_path.clone(),
-            self.config.clone(),
-            self.load_error.clone(),
-        );
-        let settings = cx.new(|cx| Settings::new(path, config, error, window, cx));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(settings.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-        settings.read(cx).focus_handle(cx).focus(window, cx);
-        // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.
-        self._settings_saved = Some(cx.observe(&settings, |this, _, cx| {
-            this.reload_accounts();
-            this.push_config(cx);
-            cx.notify();
-        }));
-        self._settings_events = Some(cx.subscribe_in(
-            &settings,
-            window,
-            |this, _, e: &SettingsEvent, window, cx| {
-                let opened = match e {
-                    SettingsEvent::GhLogin { dir } => gh_login_options(&gh_bin(cx), dir),
-                    SettingsEvent::CodexLogin { dir } => {
-                        github::codex_login_options(&github::codex_bin(cx), dir)
-                    }
-                }
-                .and_then(|o| this.add_terminal_with(o, window, cx));
-                if let Err(e) = opened {
-                    eprintln!("failed to open the login terminal: {e:#}");
-                }
-            },
-        ));
-        self.settings = Some(settings.downgrade());
-        cx.notify();
-    }
-
-    fn reload_accounts(&mut self) {
-        let Some(path) = &self.accounts_path else {
-            return;
-        };
-        match AccountsConfig::load(path) {
-            Ok(config) => {
-                (self.config, self.load_error) = (config, None);
-                self.account = account_label(&self.config, &self.folder);
-                self.account_id = self.config.resolve(&self.folder).map(|a| a.id.clone());
-            }
-            Err(e) => {
-                self.load_error = Some(format!("{e:#}"));
-                // A broken file binds nothing we can trust: terminals and threads then ask, too.
-                self.config = AccountsConfig::default();
-                self.account = None;
-                self.account_id = None;
-            }
-        }
-    }
 }
 
 impl Focusable for Workspace {
@@ -404,6 +332,9 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // macOS: with the sidebar hidden, nothing holds room for the traffic lights, so give them a row of their own.
+        let lights_row =
+            cfg!(target_os = "macos") && !self.dock.read(cx).is_dock_open(DockPlacement::Left);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
@@ -432,6 +363,14 @@ impl Render for Workspace {
             .bg(theme.background)
             .text_color(theme.foreground)
             // Windows: the titlebar is transparent, so draw the window controls in theme colors.
+            .when(lights_row, |el| {
+                el.child(
+                    div()
+                        .flex_shrink_0()
+                        .h(crate::ui::TOP_ROW_H)
+                        .bg(theme.tab_bar),
+                )
+            })
             .when(cfg!(target_os = "windows"), |el| {
                 el.child(gpui_component::TitleBar::new().child("SkyeLab"))
             })

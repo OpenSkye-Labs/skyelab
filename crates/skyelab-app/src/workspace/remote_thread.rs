@@ -407,7 +407,7 @@ impl Render for RemoteThreadView {
                     .mx_4()
                     .mb_2()
                     .text_xs()
-                    .text_color(theme.danger)
+                    .text_color(crate::ui::ink(theme, theme.danger))
                     .child(e)
             }))
             .child(

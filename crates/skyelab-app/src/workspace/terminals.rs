@@ -34,21 +34,21 @@ impl Workspace {
 
     fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
         let options = self.terminal_options()?;
-        self.add_terminal_with(options, window, cx)
+        let account = self.config.resolve(&self.folder).cloned();
+        self.add_terminal_with(options, account, window, cx)
     }
 
+    /// `account` is the one the shell's env was set up for, shown on its tab (`None`: unbound).
     pub(super) fn add_terminal_with(
         &mut self,
         options: SpawnOptions,
+        account: Option<skyelab_core::Account>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let cwd = options.cwd.clone();
         let (terminal, events) = Terminal::spawn(options)?;
         let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
         let title = format!("Terminal {}", self.terminals.len() + 1).into();
-        // The same config terminal_env used to pick the shell's account.
-        let account = self.config.resolve(&cwd).cloned();
         let panel = cx.new(|_| TerminalPanel::new(view.clone(), title, account));
         let empty = self.terminals_empty.take();
         self.dock.update(cx, |dock, cx| {

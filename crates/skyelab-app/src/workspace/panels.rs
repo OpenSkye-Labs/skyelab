@@ -335,7 +335,7 @@ impl Render for BrowserPanel {
         let theme = cx.theme();
         // Drawn above the page: the native webview covers anything inside its own bounds.
         let bar = self.agent.as_ref().map(|a| {
-            // T3's warning surface: the color tinted, ink in the foreground, a hairline under it.
+            // T3's warning surface: the warning color tinted under foreground text, a hairline below.
             h_flex()
                 .id("agent-bar")
                 .h(gpui::px(36.))

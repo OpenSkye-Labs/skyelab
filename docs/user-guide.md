@@ -139,7 +139,7 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 ### Delegated threads
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
-`wait_thread`, and others). The new thread opens as a tab. Its header starts with a link back to the
+`wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
 parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds

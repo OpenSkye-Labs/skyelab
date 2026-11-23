@@ -7,8 +7,8 @@ use super::*;
 pub enum RowAccount {
     Bound(skyelab_core::Account),
     Unbound,
-    /// Not resolved yet (it runs in the background); nothing is shown.
-    Resolving,
+    /// Not shown: still resolving in the background, or bound on another machine.
+    Hidden,
 }
 
 /// A row in a sidebar section. `id` is the domain id (project path, thread id), so it stays stable.
@@ -82,7 +82,7 @@ fn sidebar_row(
 ) -> impl IntoElement {
     let action = item.action.boxed_clone();
     let is_project = item.account.is_some();
-    // T3 lifts the open thread, never a project header: a selected project is only set in medium weight.
+    // A project row is never lifted (T3 keeps project headers flat): a selected one is only set in medium weight.
     ui::row(item.id.clone(), item.selected && !is_project, theme)
         .when(item.selected && is_project, |this| {
             this.font_weight(gpui::FontWeight::MEDIUM)
@@ -103,7 +103,7 @@ fn sidebar_row(
             let badge = match a {
                 RowAccount::Bound(acc) => ui::AccountBadge::new(acc.id.clone(), acc.label.clone()),
                 RowAccount::Unbound => ui::AccountBadge::unbound(),
-                RowAccount::Resolving => return None,
+                RowAccount::Hidden => return None,
             };
             Some(div().flex_shrink_0().max_w(gpui::px(104.)).child(badge))
         }))
@@ -124,7 +124,8 @@ fn sidebar_row(
                         .into_any_element(),
                 )
             }
-            // shortcut: the time is computed when the sidebar draws, so an idle sidebar shows it as of its last redraw.
+            // shortcut: the time is computed when the sidebar draws, so an idle sidebar shows it as of its last redraw;
+            // add a minute timer if stale times get noticed.
             None => item.updated_ms.map(|t| {
                 div()
                     .flex_shrink_0()

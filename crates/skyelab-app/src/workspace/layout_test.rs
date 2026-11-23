@@ -40,4 +40,19 @@ fn changes_open_in_the_right_dock_and_the_toggle_follows(cx: &mut TestAppContext
     ws.update_in(cx, |ws, window, cx| ws.open_changes(&thread, window, cx));
     cx.run_until_parked();
     assert_eq!(right_open(&ws, cx), (true, true));
+    // Closing the last tool puts the placeholder back and closes the dock, so it isn't open and empty.
+    ws.update_in(cx, |ws, window, cx| {
+        let changes = ws.changes_views[0].upgrade().expect("changes tab");
+        ws.dock
+            .update(cx, |dock, cx| dock.remove_panel(changes, window, cx));
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        right_open(&ws, cx),
+        (false, false),
+        "closed with its last tool"
+    );
+    ws.read_with(cx, |ws, _| {
+        assert!(ws.right_empty.is_some(), "placeholder back")
+    });
 }

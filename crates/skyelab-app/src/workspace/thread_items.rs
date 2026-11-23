@@ -184,7 +184,7 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
         .on_click(cx.listener(move |this, _, _, cx| this.toggle_tool(&id, cx)))
         .child(
             div()
-                .w(px(20.))
+                .w(px(24.))
                 .flex()
                 .justify_center()
                 .flex_shrink_0()

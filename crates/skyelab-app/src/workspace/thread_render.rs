@@ -74,6 +74,7 @@ impl ThreadView {
                         h_flex()
                             .flex_shrink_0()
                             .gap_2()
+                            .child("Delegated by")
                             .child(thread_link("parent-link", id, title))
                             .child(
                                 div()

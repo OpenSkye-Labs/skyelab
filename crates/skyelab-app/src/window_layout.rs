@@ -12,9 +12,9 @@ const MIN_H: f32 = 720.;
 /// How much of a saved frame must still be on some display for it to be reused.
 const MIN_VISIBLE: f32 = 120.;
 
-/// The frame to open with. `saved` is used when at least a corner of it (`MIN_VISIBLE` square) is still on one of
-/// `displays`; otherwise it is `FIRST_LAUNCH_SHARE` of `visible` (the primary display minus menu bar and dock),
-/// centered, never below `MIN_W` x `MIN_H` unless the display itself is smaller.
+/// The frame to open with. `saved` is reused when at least a `MIN_VISIBLE` square of it is on one of `displays`,
+/// moved and shrunk to fit inside the display it overlaps most. Otherwise it is `FIRST_LAUNCH_SHARE` of `visible`
+/// (the primary display minus menu bar and dock), centered, never below `MIN_W` x `MIN_H` unless the display is smaller.
 pub fn initial_bounds(
     saved: Option<&WindowLayout>,
     displays: &[Bounds<Pixels>],
@@ -25,12 +25,17 @@ pub fn initial_bounds(
             point(px(s.x as f32), px(s.y as f32)),
             size(px(s.width as f32), px(s.height as f32)),
         );
-        let shows = displays.iter().any(|d| {
+        let overlap = |d: &Bounds<Pixels>| {
             let i = d.intersect(&frame);
-            i.size.width >= px(MIN_VISIBLE) && i.size.height >= px(MIN_VISIBLE)
-        });
-        if shows {
-            return frame;
+            (i.size.width >= px(MIN_VISIBLE) && i.size.height >= px(MIN_VISIBLE))
+                .then(|| f32::from(i.size.width) * f32::from(i.size.height))
+        };
+        let best = displays
+            .iter()
+            .filter_map(|d| overlap(d).map(|area| (d, area)))
+            .max_by(|a, b| a.1.total_cmp(&b.1));
+        if let Some((d, _)) = best {
+            return fit_inside(frame, *d);
         }
     }
     let fit = |share: Pixels, min: f32, max: Pixels| share.max(px(min)).min(max);
@@ -51,6 +56,23 @@ pub fn initial_bounds(
         ),
         size(w, h),
     )
+}
+
+/// `frame` moved (and shrunk if it must) so all of it is on `display`.
+fn fit_inside(frame: Bounds<Pixels>, display: Bounds<Pixels>) -> Bounds<Pixels> {
+    let w = frame.size.width.min(display.size.width);
+    let h = frame.size.height.min(display.size.height);
+    let x = frame
+        .origin
+        .x
+        .max(display.origin.x)
+        .min(display.origin.x + display.size.width - w);
+    let y = frame
+        .origin
+        .y
+        .max(display.origin.y)
+        .min(display.origin.y + display.size.height - h);
+    Bounds::new(point(x, y), size(w, h))
 }
 
 /// A window frame as saved in settings.toml (whole points).
@@ -110,6 +132,15 @@ mod tests {
             initial_bounds(Some(&saved), &[main, left], main),
             rect(-1500., 100., 1400., 900.)
         );
+        // Half off the right edge: pulled back on screen, size kept.
+        let half = to_layout(rect(1200., 100., 1000., 800.), false, px(0.));
+        assert_eq!(
+            initial_bounds(Some(&half), &[main], main),
+            rect(728., 100., 1000., 800.)
+        );
+        // Saved on a bigger display: shrunk to this one.
+        let big = to_layout(rect(0., 0., 2560., 1440.), false, px(0.));
+        assert_eq!(initial_bounds(Some(&big), &[main], main), main);
         // Only a sliver still on screen: fall back.
         let sliver = to_layout(rect(1700., 100., 1400., 900.), false, px(0.));
         assert_eq!(

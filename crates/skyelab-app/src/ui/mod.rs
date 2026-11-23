@@ -1,9 +1,8 @@
 //! SkyeLab's design system, on top of gpui-component's theme: the spacing, radius and type rules every view uses,
 //! the semantic colors (an account's color, a thread status's color), and a few small components.
 //!
-//! Spacing is a 4 px grid, written with gpui's helpers: `0p5` (2), `1` (4), `1p5` (6), `2` (8), `3` (12), `4` (16),
-//! `6` (24). Rows pad `px_2`, panels pad `px_4`, pages pad `p_6`; groups sit `gap_1`/`gap_2` apart, sections `gap_6`.
-//! Colors only ever come from the theme.
+//! Spacing stays on gpui's 4 px helpers (`1` = 4 px, `2p5` = 10 px, `6` = 24 px, …). Colors only ever come from the
+//! theme.
 
 mod components;
 #[cfg(test)]
@@ -56,16 +55,17 @@ pub fn sync_appearance(window: &mut gpui::Window, cx: &mut gpui::App) {
     }
 }
 
-/// The window's top row: the dock's tab bar, and the sidebar's first row beside it. There is no separate title strip:
+/// The window's top row: the sidebar's first row, as tall as gpui-component's dock tab bar beside it (32 px at the
+/// default size; the two are not linked, so change both together). There is no separate title strip:
 /// on macOS the traffic lights sit in this row over the sidebar, on Windows gpui-component's `TitleBar` draws the
 /// window controls in theme colors. Linux keeps its server-side decorations.
 pub const TOP_ROW_H: Pixels = px(32.);
 /// Room the macOS traffic lights take at the start of the top row.
 pub const TRAFFIC_LIGHTS_W: Pixels = px(76.);
 
-/// The titlebar every SkyeLab window opens with: transparent on macOS and Windows so the app's own surfaces reach the
-/// top, traffic lights centred in [`TOP_ROW_H`]. AppKit keeps dragging the window from that band (and zooming on a
-/// double click) natively.
+/// The titlebar every SkyeLab window opens with: transparent (Linux ignores it) so the app's own surfaces reach the top,
+/// traffic lights in [`TOP_ROW_H`]. `app_owns_titlebar_drag` stays false, so AppKit still drags the window from its own
+/// titlebar band (about 28 px) and zooms on a double click.
 pub fn titlebar_options() -> gpui::TitlebarOptions {
     gpui::TitlebarOptions {
         title: Some("SkyeLab".into()),
@@ -205,7 +205,7 @@ impl Status {
             "starting" => Self::Starting,
             "running" => Self::Running,
             "idle" | "done" => Self::Idle,
-            "stopped" => Self::Stopped,
+            "stopped" | "exited" => Self::Stopped,
             "interrupted" => Self::Interrupted,
             "failed" => Self::Failed,
             _ => Self::Unknown,
