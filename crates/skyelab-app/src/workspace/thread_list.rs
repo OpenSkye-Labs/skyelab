@@ -34,6 +34,7 @@ impl Workspace {
                 sidebar.archived = None;
                 sidebar.searchable = false;
                 sidebar.scope = None;
+                sidebar.sync_tick(cx);
                 cx.notify();
             });
         }
@@ -65,14 +66,22 @@ impl Workspace {
                     .map(|w| crate::ui::short_path(w, home.as_deref()).into()),
                 branch: branch.clone(),
                 pr_url: t.pr_url.clone().map(Into::into),
-                account: account.map(|a| match a {
-                    Some(a) => RowAccount::Bound(a.clone()),
-                    None => RowAccount::Unbound,
-                }),
-                binding: previews
-                    .bindings
-                    .get(&t.project_id)
-                    .map(|b| crate::ui::short_path(b, home.as_deref()).into()),
+                // The account the thread runs on, which a rebind since its start doesn't change.
+                account: self
+                    .config
+                    .accounts
+                    .iter()
+                    .find(|a| a.id == t.account_id)
+                    .map(|a| RowAccount::Bound(a.clone())),
+                binding: match account {
+                    Some(Some(a)) if a.id != t.account_id => {
+                        Some(format!("Folder now bound to {}", a.label).into())
+                    }
+                    Some(None) => Some("Folder no longer bound".into()),
+                    _ => previews.bindings.get(&t.project_id).map(|b| {
+                        format!("Bound at {}", crate::ui::short_path(b, home.as_deref())).into()
+                    }),
+                },
                 created_ms: t.created_at,
                 updated_ms: t.updated_at,
             };

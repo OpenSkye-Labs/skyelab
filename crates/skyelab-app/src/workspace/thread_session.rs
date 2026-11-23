@@ -90,9 +90,16 @@ impl ThreadView {
                     }
                 };
                 // Streaming text is shown, never stored: the complete block that follows is.
+                // After Stop, what streamed is already kept as a partial message (`finish`), so a killed agent's
+                // last deltas aren't shown as a second one.
                 if matches!(event, Event::Delta { .. }) {
                     let record = Record::Agent(event);
-                    if this.update(cx, |this, cx| this.push(&record, cx)).is_err() {
+                    let shown = this.update(cx, |this, cx| {
+                        if !this.stop_requested && launch == this.launches {
+                            this.push(&record, cx)
+                        }
+                    });
+                    if shown.is_err() {
                         return;
                     }
                     continue;

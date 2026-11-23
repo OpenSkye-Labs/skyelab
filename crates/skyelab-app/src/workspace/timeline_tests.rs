@@ -44,3 +44,7 @@ mod steer_fold_test;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "partial_text_test.rs"]
 mod partial_text_test;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "remote_midturn_fold_test.rs"]
+mod remote_midturn_fold_test;

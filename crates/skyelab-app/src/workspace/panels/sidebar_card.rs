@@ -93,11 +93,7 @@ fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
                 .children(card.branch.clone().map(|b| line(Lucide::GitBranch, b)))
                 .children(pr)
                 .children(account)
-                .children(
-                    card.binding
-                        .clone()
-                        .map(|b| line(Lucide::Lock, format!("Bound at {b}").into())),
-                )
+                .children(card.binding.clone().map(|b| line(Lucide::Lock, b)))
                 .child(line(Lucide::Clock, times.into())),
         )
 }

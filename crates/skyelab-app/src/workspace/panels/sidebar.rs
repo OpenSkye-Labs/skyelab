@@ -76,9 +76,9 @@ pub struct RowCard {
     pub worktree: Option<SharedString>,
     pub branch: Option<SharedString>,
     pub pr_url: Option<SharedString>,
-    /// The project folder's account (`None` while it resolves).
+    /// The account the thread runs on.
     pub account: Option<RowAccount>,
-    /// The bound folder that decides the account.
+    /// "Bound at ~/work" (the binding that picks it), or that the folder is bound elsewhere now.
     pub binding: Option<SharedString>,
     pub created_ms: i64,
     pub updated_ms: i64,
