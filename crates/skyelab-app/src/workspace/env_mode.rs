@@ -227,6 +227,7 @@ impl Workspace {
                 cx.notify();
             });
         }
+        self.sync_setup(cx); // setup is for this machine only
         self.refresh_sidebar(cx);
         cx.notify();
     }

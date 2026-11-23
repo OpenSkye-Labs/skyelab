@@ -7,6 +7,25 @@
 SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
 A folder with no binding never runs an agent.
 
+### First-run setup
+
+With no accounts or no projects, the Welcome page shows setup instead of its usual shortcuts. To open it again later,
+run **Set Up Accounts** from the command palette.
+
+- **Agents** lists Claude Code and Codex, found on your `PATH` the same way threads find them, with the version each
+  reports. "Not found" means a thread can't start on that provider yet.
+- **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex` and `~/.codex-*` folder that looks like a login
+  (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`).
+  SkyeLab only checks that those names exist: it never opens a file in them, so no login or token is read. Tick the
+  ones you want, edit a label if you like, and click **Add account**. Nothing is saved before that click. Folders
+  already added are not offered again.
+- **Projects**: click **Choose folder…**, or one of the git repos found directly under `~/code`, `~/projects`, `~/dev`
+  or `~/src`. Then pick the account it runs on and click **Bind and add project**. With two or more accounts none is
+  picked for you; with exactly one it is picked, and still waits for your click. If the folder already runs on that
+  account (through a parent folder's binding), no new binding is added.
+
+**Done** (once you have an account and a project) or **Skip for now** returns to the usual Welcome page.
+
 ### Add an account
 
 1. Sign in to the account in its own config folder:

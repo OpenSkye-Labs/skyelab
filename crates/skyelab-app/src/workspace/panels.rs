@@ -60,15 +60,19 @@ pub use sidebar::{
     SidebarSearch, SidebarSection,
 };
 
-/// The page with no thread open: what SkyeLab is and its main keys.
+/// The page with no thread open: what SkyeLab is and its main keys, or first-run setup while `show_setup`.
 pub struct Welcome {
     focus: FocusHandle,
+    pub setup: Entity<super::onboarding::Onboarding>,
+    pub show_setup: bool,
 }
 
 impl Welcome {
     pub fn new(cx: &mut Context<Self>) -> Self {
         Self {
             focus: cx.focus_handle(),
+            setup: cx.new(super::onboarding::Onboarding::new),
+            show_setup: false,
         }
     }
 }
@@ -76,6 +80,25 @@ impl Welcome {
 impl Render for Welcome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
+        if self.show_setup {
+            let header = super::layout::page_header(cx)
+                .child(
+                    div()
+                        .flex_1()
+                        .text_size(ui::META)
+                        .text_color(theme.muted_foreground.opacity(0.5))
+                        .child("Set up"),
+                )
+                .child(super::layout::panel_toggles(cx));
+            return v_flex()
+                .id("welcome")
+                .track_focus(&self.focus)
+                .size_full()
+                .bg(theme.background)
+                .child(header)
+                .child(self.setup.clone())
+                .into_any_element();
+        }
         let shortcut = |label: &'static str, key: &'static str, action: Box<dyn Action>| {
             div()
                 .id(label)
@@ -147,6 +170,7 @@ impl Render for Welcome {
             .bg(theme.background)
             .child(header)
             .child(body)
+            .into_any_element()
     }
 }
 

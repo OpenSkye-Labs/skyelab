@@ -1,4 +1,6 @@
 #!/bin/sh
+# `--version` prints a fixed version (the Welcome page's agent list).
+[ "$1" = --version ] && { echo '2.1.0 (Claude Code)'; exit 0; }
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,
