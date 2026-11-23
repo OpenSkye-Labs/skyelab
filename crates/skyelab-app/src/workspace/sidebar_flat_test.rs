@@ -121,3 +121,76 @@ fn opening_a_thread_follows_its_project(cx: &mut TestAppContext) {
         "the other folder is unbound: no account is guessed"
     );
 }
+
+#[gpui::test]
+fn rows_show_the_last_reply_branch_and_pull_request_under_date_sections(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let t = thread_in(&r, r.project, "answered", cx);
+    {
+        let mut store = r.f.store.lock().expect("lock");
+        let (kind, payload) = thread_model::Record::Agent(skyelab_agent::Event::Assistant {
+            content: vec![skyelab_agent::Block::Text {
+                text: "## Done\n\nThe **parser** is `fixed`.".into(),
+            }],
+        })
+        .to_row();
+        store.append_event(t, kind, &payload).expect("append");
+        store
+            .set_thread_worktree(t, None, Some("skyelab/fix-parser"))
+            .expect("worktree");
+        store
+            .set_thread_pr_url(t, Some("https://github.com/o/r/pull/24"))
+            .expect("pr");
+    }
+    r.reload(cx);
+    let sidebar = r.ws.read_with(cx, |ws, _| ws.sidebar.clone());
+    sidebar.read_with(cx, |s, _| {
+        let marks = &s.marks[&SharedString::from(format!("thread-{t}"))];
+        assert_eq!(marks.preview.as_deref(), Some("Done The parser is fixed."));
+        assert_eq!(marks.branch.as_deref(), Some("skyelab/fix-parser"));
+        assert_eq!(marks.pr.as_deref(), Some("#24"));
+        let titles: Vec<&str> = s.sections.iter().map(|s| s.title.as_ref()).collect();
+        assert_eq!(
+            titles,
+            ["Today"],
+            "a thread changed just now is under Today"
+        );
+    });
+}
+
+#[test]
+fn day_buckets_split_at_each_start() {
+    use thread_list::day_bucket;
+    let starts = [1_000, 900, 300]; // today, yesterday, six days back
+    assert_eq!(day_bucket(starts, 1_500), 0, "today");
+    assert_eq!(day_bucket(starts, 1_000), 0, "midnight is today");
+    assert_eq!(
+        day_bucket(starts, 999),
+        1,
+        "just before midnight is yesterday"
+    );
+    assert_eq!(day_bucket(starts, 900), 1);
+    assert_eq!(day_bucket(starts, 899), 2, "the day before yesterday");
+    assert_eq!(day_bucket(starts, 300), 2);
+    assert_eq!(day_bucket(starts, 299), 3, "older");
+}
+
+#[test]
+fn previews_are_plain_text_and_pr_labels_are_numbers() {
+    use thread_list::{pr_label, preview_text};
+    assert_eq!(
+        preview_text(
+            "# Title\n\n- **one** `a_b`\n> quote\n\n```rust\nlet x = 1;\n```\n---\n| a | b |"
+        ),
+        "Title one a_b quote let x = 1; a b"
+    );
+    assert_eq!(
+        preview_text("#24 is merged"),
+        "#24 is merged",
+        "a number is not a heading"
+    );
+    assert_eq!(preview_text("---\n\n```\n```"), "", "nothing to show");
+    assert_eq!(pr_label("https://github.com/o/r/pull/2262"), "#2262");
+    assert_eq!(pr_label("https://github.com/o/r/pull/7/"), "#7");
+    assert_eq!(pr_label("https://example.com/merge"), "PR");
+}

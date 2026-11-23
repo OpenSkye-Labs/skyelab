@@ -3,7 +3,7 @@
 //! Sending and Stop go to the remote daemon; nothing here touches the local store or launches anything.
 
 use super::thread_items::{ItemsView, render_item};
-use super::thread_model::{Item, Record, apply};
+use super::thread_model::{Item, Record, apply, stamp_done};
 use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
@@ -160,6 +160,7 @@ impl RemoteThreadView {
         };
         let old = self.items.len();
         if let Some(first) = apply(&mut self.items, &record) {
+            stamp_done(&mut self.items, event.created_at);
             self.list.splice(first..old, self.items.len() - first);
             cx.notify();
         }
@@ -308,12 +309,9 @@ impl ItemsView for RemoteThreadView {
         if !self.expanded.remove(tool_id) {
             self.expanded.insert(tool_id.to_owned());
         }
-        if let Some(ix) = self
-            .items
-            .iter()
-            .position(|i| i.expand_id() == Some(tool_id))
-        {
-            self.list.splice(ix..ix + 1, 1);
+        if let Some(rows) = super::timeline_fold::rows_of(&self.items, tool_id) {
+            let n = rows.len();
+            self.list.splice(rows, n);
         }
         cx.notify();
     }

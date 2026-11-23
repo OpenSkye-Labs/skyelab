@@ -364,8 +364,26 @@ fn reopen_replays_from_store(cx: &mut TestAppContext) {
     wait_until(cx, "replay", |cx| {
         reopened.read_with(cx, |t, _| t.items.len() >= live.len())
     });
+    // A turn's end time is when the view saw it live, and when the store saved it on replay (saves are async).
+    let undated = |items: &[Item]| -> Vec<Item> {
+        items
+            .iter()
+            .cloned()
+            .map(|mut i| {
+                if let Item::Done { at_ms, .. } = &mut i {
+                    assert!(at_ms.is_some(), "every turn end is dated");
+                    *at_ms = None;
+                }
+                i
+            })
+            .collect()
+    };
     reopened.read_with(cx, |t, _| {
-        assert_eq!(t.items, live, "replay rebuilds the same items");
+        assert_eq!(
+            undated(&t.items),
+            undated(&live),
+            "replay rebuilds the same items"
+        );
         assert!(t.session.is_none(), "replay starts no agent");
         assert_eq!(t.error.as_deref(), Some("1 stored events couldn't be read"));
         assert_eq!(t.badge().as_deref(), Some("Acme Team · acme"));

@@ -47,10 +47,11 @@ pub(crate) mod thread_checkpoints;
 mod thread_details;
 mod thread_items;
 mod thread_list;
-use thread_list::{NewThreadIn, ToggleProjectScope};
+use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
+mod timeline_fold;
 mod timeline_text;
 mod tool_cards;
 mod worktree;
@@ -171,6 +172,7 @@ pub struct Workspace {
     project: Option<Project>,
     /// Every listed project's threads, most recently updated first.
     threads: Vec<Thread>,
+    previews: Previews,
     /// The project's scripts, for the palette.
     scripts: Vec<skyelab_store::ProjectScript>,
     _scripts: Option<Task<()>>,
@@ -312,6 +314,7 @@ impl Workspace {
             projects: Vec::new(),
             project: None,
             threads: Vec::new(),
+            previews: Previews::default(),
             scripts: Vec::new(),
             _scripts: None,
             scope: Vec::new(),
@@ -440,8 +443,6 @@ mod manage_harness;
 #[cfg(test)]
 mod manage_projects_test;
 #[cfg(test)]
-mod manage_sidebar_test;
-#[cfg(test)]
 mod manage_threads_test;
 #[cfg(test)]
 mod palette_search_test;
@@ -462,21 +463,15 @@ mod browser_tests;
 mod thread_model_test;
 
 #[cfg(test)]
+mod sidebar_tests;
+#[cfg(test)]
 mod timeline_tests;
 
 #[cfg(test)]
 mod threads_test;
 
 #[cfg(test)]
-mod sidebar_account_test;
-#[cfg(test)]
-mod sidebar_flat_test;
-
-#[cfg(test)]
 mod layout_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod sidebar_status_test;
 
 #[cfg(test)]
 mod agent_bin_test;

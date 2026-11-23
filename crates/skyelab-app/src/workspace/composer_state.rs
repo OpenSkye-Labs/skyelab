@@ -115,6 +115,8 @@ pub(crate) struct Composer {
     pub stalled: bool,
     /// A message the agent refused after it left the composer: put back once the composer is empty.
     pub restore: Option<(String, Vec<Attachment>)>,
+    /// The card's width at the last paint (0 before the first), for the compact control row.
+    pub width: std::rc::Rc<std::cell::Cell<gpui::Pixels>>,
 }
 
 /// The text a prompt is stored and shown as: what the agent got, plus the names of its files.

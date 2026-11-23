@@ -239,6 +239,19 @@ impl Status {
     }
 }
 
+/// The local time of `ms` (since the epoch): "14:03" today, "Nov 21, 14:03" before.
+pub fn clock(ms: i64) -> String {
+    use chrono::{Local, TimeZone as _};
+    let Some(at) = Local.timestamp_millis_opt(ms).single() else {
+        return String::new();
+    };
+    if at.date_naive() == Local::now().date_naive() {
+        at.format("%H:%M").to_string()
+    } else {
+        at.format("%b %-d, %H:%M").to_string()
+    }
+}
+
 /// How long ago `then_ms` was, T3 style: `now`, `3m`, `2h`, `5d`, `2w`, `1y`.
 pub fn ago(now_ms: i64, then_ms: i64) -> String {
     let secs = now_ms.saturating_sub(then_ms).max(0) / 1000;
@@ -274,7 +287,8 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
-// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer and queue icons).
+// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer, queue and
+// permission icons; the sidebar's branch and pull request).
 gpui_kit_assets::icon_assets!(
     ExtraIcons,
     [
@@ -291,7 +305,11 @@ gpui_kit_assets::icon_assets!(
         SquareCode,
         CloudUpload,
         Trash,
-        GitPullRequest
+        GitPullRequest,
+        Lock,
+        ClipboardList,
+        PenLine,
+        ShieldOff
     ]
 );
 

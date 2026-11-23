@@ -21,12 +21,14 @@ What's built today:
   `CODEX_HOME` each) and bind folders to them in Settings. The folder decides both the account and the agent.
   The deepest binding wins. Each binding remembers the real folder you confirmed, so if the path later points
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
-- **One thread list.** The sidebar lists every project's threads together (pinned, working, then newest), each row
-  with its project, state and the account its folder is bound to. A project filter narrows it, and New thread asks
+- **One thread list.** The sidebar lists every project's threads together (pinned, working, then Today, Yesterday,
+  Previous 7 days and Older), each row with the agent's last reply, its project, state, branch, pull request and the
+  account its folder is bound to. A project filter narrows it, and New thread asks
   which project when it can't tell.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
-  commands with their output, a live todo list, answerable questions and plans), and saves the conversation to a
+  commands with their output, a live todo list, answerable questions and plans), folds a finished turn's work under
+  **Worked for …**, and saves the conversation to a
   local SQLite database (complete messages; streamed partial text is shown, not saved).
   Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
@@ -38,7 +40,7 @@ What's built today:
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
-  `/` and skills with `$`, and pick the model and effort per thread. A message sent while the agent works queues
+  `/` and skills with `$`, and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
   files and branch.
 - **Worktrees and diff review.** Switch "Local checkout" to "New worktree" under the composer and the thread gets its own git worktree on a

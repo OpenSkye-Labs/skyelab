@@ -1,4 +1,4 @@
-//! The sidebar's rows: every project's threads in one list (pinned, working, the rest), the archived split, the
+//! The sidebar's rows: every project's threads in one list (pinned, working, then by day), the archived split, the
 //! project scope filter and the thread filter.
 
 use super::panels::{
@@ -8,6 +8,7 @@ use super::{AddProject, OpenThread, ShowAllProjects, Workspace, lock};
 use crate::ui::Status;
 use gpui::{Action, AppContext as _, Context, SharedString, Window};
 use skyelab_store::Thread;
+use std::collections::HashMap;
 
 /// Adds the project to the sidebar's scope filter, or takes it out.
 #[derive(Clone, PartialEq, Action)]
@@ -53,6 +54,7 @@ impl Workspace {
             .map(|p| (p.id, p.name.as_str()))
             .collect();
         let shown = self.shown_thread(cx);
+        let previews = &self.previews;
         let mut marks = std::collections::HashMap::new();
         let mut item = |t: &Thread| {
             let id: SharedString = format!("thread-{}", t.id).into();
@@ -67,6 +69,18 @@ impl Workspace {
                     unread: t.unread,
                     approval,
                     menu: super::manage::thread_menu(t),
+                    preview: previews
+                        .replies
+                        .get(&t.id)
+                        .map(|r| preview_text(r))
+                        .filter(|p| !p.is_empty())
+                        .map(Into::into),
+                    branch: t
+                        .worktree_branch
+                        .clone()
+                        .or_else(|| previews.branches.get(&t.project_id).cloned())
+                        .map(Into::into),
+                    pr: t.pr_url.as_deref().map(|u| pr_label(u).into()),
                 },
             );
             SidebarItem {
@@ -92,8 +106,16 @@ impl Workspace {
             }
         };
         let groups = self.thread_groups(cx);
-        let [pinned, working, rest] =
-            groups.map(|g| g.into_iter().map(&mut item).collect::<Vec<_>>());
+        let [pinned, working, rest] = groups;
+        let (pinned, working): (Vec<_>, Vec<_>) = (
+            pinned.into_iter().map(&mut item).collect(),
+            working.into_iter().map(&mut item).collect(),
+        );
+        let starts = day_starts();
+        let mut days: [Vec<SidebarItem>; 4] = Default::default();
+        for t in rest {
+            days[day_bucket(starts, t.updated_at)].push(item(t));
+        }
         let archived = ArchivedRows {
             items: self.listed_threads().1.into_iter().map(&mut item).collect(),
             open: self.show_archived,
@@ -127,31 +149,40 @@ impl Workspace {
         if !working.is_empty() {
             sections.push(section("Working", working));
         }
-        sections.push(SidebarSection {
-            empty_title: if searching {
-                "No matching threads"
-            } else if no_projects {
-                "No projects yet"
-            } else {
-                "No threads yet"
+        let empty = days.iter().all(Vec::is_empty);
+        for (title, items) in DAYS.iter().zip(days) {
+            if !items.is_empty() {
+                sections.push(section(title, items));
             }
-            .into(),
-            empty_hint: if searching {
-                "Titles and messages are searched."
-            } else if no_projects {
-                "Add a folder to start. It runs on the account it is bound to."
-            } else {
-                "Start one with New thread."
-            }
-            .into(),
-            button: no_projects.then(|| {
-                (
-                    SharedString::from("Add project"),
-                    Box::new(AddProject) as Box<_>,
-                )
-            }),
-            ..section("Threads", rest)
-        });
+        }
+        // Nothing outside Pinned and Working: the list's empty state, which says what to do next.
+        if empty {
+            sections.push(SidebarSection {
+                empty_title: if searching {
+                    "No matching threads"
+                } else if no_projects {
+                    "No projects yet"
+                } else {
+                    "No threads yet"
+                }
+                .into(),
+                empty_hint: if searching {
+                    "Titles and messages are searched."
+                } else if no_projects {
+                    "Add a folder to start. It runs on the account it is bound to."
+                } else {
+                    "Start one with New thread."
+                }
+                .into(),
+                button: no_projects.then(|| {
+                    (
+                        SharedString::from("Add project"),
+                        Box::new(AddProject) as Box<_>,
+                    )
+                }),
+                ..section("Threads", Vec::new())
+            });
+        }
         self.sidebar.update(cx, |sidebar, cx| {
             sidebar.marks = marks;
             sidebar.archived = Some(archived);
@@ -160,6 +191,37 @@ impl Workspace {
             sidebar.sections = sections;
             cx.notify();
         });
+    }
+
+    /// Reloads the rows' previews (each thread's last reply, one query) and each project folder's branch.
+    pub(super) fn load_previews(&mut self, cx: &mut Context<Self>) {
+        let store = self.backend.store.clone();
+        let folders: Vec<(i64, std::path::PathBuf)> = self
+            .projects
+            .iter()
+            .map(|p| (p.id, p.path.clone()))
+            .collect();
+        let task = cx.background_spawn(async move {
+            let replies = lock(&store)?.last_replies()?;
+            let branches = folders
+                .into_iter()
+                .filter_map(|(id, path)| Some((id, skyelab_git::current_branch(&path).ok()??)))
+                .collect();
+            anyhow::Ok((replies, branches))
+        });
+        self.previews._load = Some(cx.spawn(async move |this, cx| {
+            let loaded = task.await;
+            let _ = this.update(cx, |this, cx| {
+                match loaded {
+                    Ok((replies, branches)) => {
+                        this.previews.replies = replies;
+                        this.previews.branches = branches;
+                    }
+                    Err(e) => this.store_error = Some(format!("{e:#}").into()),
+                }
+                this.refresh_sidebar(cx);
+            });
+        }));
     }
 
     /// The listed threads in the sidebar's three groups: pinned, working (running or starting), the rest. Each keeps
@@ -299,4 +361,80 @@ fn awaiting_approval(v: &super::thread::ThreadView) -> bool {
             .rev()
             .take(32)
             .any(|i| matches!(i, super::thread_model::Item::Approval(a) if a.decision.is_none()))
+}
+
+/// What the sidebar's thread rows show besides the thread itself, loaded apart from the thread list.
+#[derive(Default)]
+pub(super) struct Previews {
+    /// Thread id → its agent's last text, as stored (markdown).
+    pub replies: HashMap<i64, String>,
+    /// Project id → the branch its folder has checked out.
+    pub branches: HashMap<i64, String>,
+    /// The running reload; a newer one replaces (cancels) it.
+    _load: Option<gpui::Task<()>>,
+}
+
+/// The date sections under Pinned and Working, T3's and Synara's: indexes [`day_bucket`] returns.
+const DAYS: [&str; 4] = ["Today", "Yesterday", "Previous 7 days", "Older"];
+
+/// Which of [`DAYS`] a thread last changed in, given where today, yesterday and the 7-day window start (local
+/// midnights, ms since the epoch; see [`day_starts`]).
+pub(super) fn day_bucket(starts: [i64; 3], updated_ms: i64) -> usize {
+    starts
+        .iter()
+        .position(|&start| updated_ms >= start)
+        .unwrap_or(3)
+}
+
+/// Local midnight today, yesterday and six days before today, in ms since the epoch: each its own local midnight, so
+/// a daylight-saving change doesn't shift a section by an hour.
+fn day_starts() -> [i64; 3] {
+    use chrono::{Days, Local, TimeZone as _};
+    let today = Local::now().date_naive();
+    [0, 1, 6].map(|back| {
+        today
+            .checked_sub_days(Days::new(back))
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .and_then(|m| Local.from_local_datetime(&m).earliest())
+            .map_or(i64::MIN, |m| m.timestamp_millis())
+    })
+}
+
+/// A reply as one plain line for the sidebar: markdown marks dropped, whitespace collapsed.
+pub(super) fn preview_text(markdown: &str) -> String {
+    let mut out = String::with_capacity(markdown.len());
+    for line in markdown.lines() {
+        let line = line.trim();
+        // Code fences and rules carry no words; headings, quotes and bullets keep theirs.
+        if line.starts_with("```")
+            || line
+                .chars()
+                .all(|c| matches!(c, '-' | '*' | '_' | '|' | ':' | ' '))
+        {
+            continue;
+        }
+        // A heading's marks ("## "), a quote's ("> "); "#24 merged" keeps its number.
+        let line = line.trim_start_matches(['>', ' ']);
+        let line = match line.trim_start_matches('#') {
+            rest if rest.starts_with(' ') => rest.trim_start(),
+            _ => line,
+        };
+        let line = line
+            .strip_prefix("- ")
+            .or_else(|| line.strip_prefix("* "))
+            .unwrap_or(line);
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.extend(line.chars().filter(|c| !matches!(c, '*' | '`' | '|')));
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// "#24" for a pull request URL ending in its number, else "PR".
+pub(super) fn pr_label(url: &str) -> String {
+    match url.trim_end_matches('/').rsplit_once('/') {
+        Some((_, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => format!("#{n}"),
+        _ => "PR".into(),
+    }
 }

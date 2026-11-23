@@ -1,5 +1,6 @@
 //! Pin, archive, unread, undoable delete, project removal, and thread search (schema v7).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -87,6 +88,33 @@ impl Store {
         let sql = format!("UPDATE threads SET {column} = ?2 WHERE id = ?1");
         let n = self.conn.execute(&sql, params![id, on.then(now_ms)])?;
         expect_one(n, "thread", id)
+    }
+
+    /// Each listed thread's latest assistant text (its first 400 characters), for the sidebar's preview line. One
+    /// query: per thread it walks `events` backwards on the (thread_id, seq) key and stops at the first text block.
+    pub fn last_replies(&self) -> Result<HashMap<i64, String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT t.id, (
+                SELECT (SELECT substr(json_extract(b.value, '$.text'), 1, 400)
+                        FROM json_each(
+                            CASE WHEN json_valid(e.payload_json) THEN e.payload_json ELSE '{}' END,
+                            '$.Assistant.content') b
+                        WHERE json_extract(b.value, '$.type') = 'text'
+                          AND trim(json_extract(b.value, '$.text')) <> ''
+                        ORDER BY b.key DESC LIMIT 1) AS reply
+                FROM events e
+                WHERE e.thread_id = t.id AND e.kind = 'agent' AND reply IS NOT NULL
+                ORDER BY e.seq DESC LIMIT 1)
+             FROM threads t WHERE t.deleted_at IS NULL",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, Option<String>>(1)?)))?;
+        let mut out = HashMap::new();
+        for row in rows {
+            if let (id, Some(text)) = row? {
+                out.insert(id, text);
+            }
+        }
+        Ok(out)
     }
 
     /// Threads whose title or message text (prompts, assistant text) contains `query`, most recently updated
