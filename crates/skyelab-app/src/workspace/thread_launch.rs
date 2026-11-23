@@ -88,6 +88,7 @@ impl ThreadView {
         );
         // A resumed thread keeps the folder it started in (its worktree, if it had one).
         let use_worktree = resume.is_none() && self.wt.use_worktree;
+        let base_branch = self.branch_picker.read(cx).base.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
         let tools = crate::workspace::orchestrate::Tools::get(cx);
         let accounts_file = cx
@@ -111,7 +112,12 @@ impl ThreadView {
         })
         .detach();
         let unsaved = self.unsaved.clone();
+        // A checkpoint the last turn's end queued is taken before this turn's starting one.
+        let prev = self.send_chain.take();
         self._task = Some(cx.spawn(async move |this, cx| {
+            if let Some(prev) = prev {
+                prev.await;
+            }
             let started = cx
                 .background_spawn(async move {
                     // The thread whose slot this launch took, so a failure below gives it back.
@@ -124,6 +130,7 @@ impl ThreadView {
                                     &cwd,
                                     &account.id,
                                     &text,
+                                    base_branch.as_deref(),
                                 )
                             })
                             .transpose()
@@ -179,6 +186,11 @@ impl ThreadView {
                             thread.id,
                             &Record::Prompt(text.clone()),
                         )?;
+                        // Before the agent can touch anything: what "before this turn" rewinds to.
+                        crate::workspace::thread_checkpoints::before_turn(
+                            &cwd,
+                            &crate::workspace::thread_checkpoints::key(&thread),
+                        );
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {
@@ -262,6 +274,16 @@ impl ThreadView {
         self.cwd = thread.cwd.clone();
         self.thread = Some(thread.clone());
         cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
+        // Only for threads the user started: a setup script runs repo code in a terminal, which has the user's ssh
+        // agent, so an agent's delegated thread must not trigger it.
+        if let Some(cwd) = thread
+            .worktree_path
+            .clone()
+            .filter(|_| thread.parent_thread_id.is_none())
+        {
+            let account_id = thread.account_id.clone();
+            cx.emit(ThreadViewEvent::WorktreeCreated { cwd, account_id });
+        }
         cx.notify();
     }
 
@@ -291,6 +313,10 @@ impl ThreadView {
             thread.parent_thread_id,
         );
         let turns = self.turns.clone();
+        let (cwd, key) = (
+            thread.cwd.clone(),
+            crate::workspace::thread_checkpoints::key(thread),
+        );
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
@@ -306,7 +332,7 @@ impl ThreadView {
             let sent = write
                 .spawn(async move {
                     // An idle child that gets a new turn takes a slot again: claimed with its status write.
-                    let was = {
+                    let (was, idle) = {
                         let store = lock(&store)?;
                         let was = store.thread(id)?.map(|t| t.status).unwrap_or_default();
                         // Stop or an exit got here first: writing "running" would hold a slot with no process.
@@ -321,9 +347,14 @@ impl ThreadView {
                         store.set_thread_status(id, "running")?;
                         // Counted before it is sent, so a quick result can't find zero and mark the row idle early,
                         // and under the store lock, so a held idle can't land between "running" and the count.
-                        turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        was
+                        let idle = turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0;
+                        (was, idle)
                     };
+                    // Before the agent gets it: what "before this turn" rewinds to. A prompt queued behind a running
+                    // turn takes none, or it would overwrite that turn's own starting point.
+                    if idle {
+                        crate::workspace::thread_checkpoints::before_turn(&cwd, &key);
+                    }
                     // Queued first, so a full queue stores no prompt claude never got.
                     if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
                         turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);

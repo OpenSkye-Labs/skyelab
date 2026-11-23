@@ -79,4 +79,16 @@ INSERT INTO event_text (body, thread_id)
     WHERE e.kind = 'agent' AND json_valid(e.payload_json) AND json_extract(b.value, '$.type') = 'text'
       AND json_extract(b.value, '$.text') <> '';
 ",
+    // Version 8: per-project scripts (Run menu, setup in new worktrees). Needs only `projects`.
+    "
+CREATE TABLE project_scripts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    command    TEXT NOT NULL,
+    setup      INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX project_scripts_by_project ON project_scripts(project_id, id);
+",
 ];

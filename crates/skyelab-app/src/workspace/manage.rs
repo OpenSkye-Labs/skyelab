@@ -311,9 +311,15 @@ impl Workspace {
                 // Replacing an earlier delete's purge cancels it, so each delete gets its full undo window.
                 let purge = cx.background_spawn(async move {
                     timer.await;
-                    if let Ok(s) = lock(&store) {
-                        // Best effort: a failed purge is retried by the next open.
-                        let _ = s.purge_thread(id);
+                    // Best effort: a failed purge is retried by the next open.
+                    let purged = lock(&store).ok().and_then(|s| {
+                        let thread = s.purge_thread(id).ok().flatten()?;
+                        let project = s.project(thread.project_id).ok().flatten();
+                        Some((thread, project.map(|p| p.path)))
+                    });
+                    // Outside the store lock: git can take a while.
+                    if let Some((thread, project)) = purged {
+                        super::thread_checkpoints::forget(&thread, project.as_deref());
                     }
                 });
                 ws.purges.insert(id, purge);

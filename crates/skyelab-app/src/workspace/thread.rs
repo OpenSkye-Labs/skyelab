@@ -45,18 +45,9 @@ mod saves;
 #[path = "thread_session.rs"]
 mod session;
 
-pub enum ThreadViewEvent {
-    /// The thread got its store row (the first prompt was sent).
-    Started(Box<Thread>),
-    /// The agent's Result event arrived: its changes may be on disk now.
-    TurnDone,
-    OpenChanges,
-    /// A terminal in the thread's worktree, under the thread's account.
-    OpenTerminal {
-        cwd: PathBuf,
-        account_id: String,
-    },
-}
+#[path = "thread_event.rs"]
+mod event;
+pub use event::ThreadViewEvent;
 
 /// A thread this one delegated, listed under its header.
 #[derive(Debug, Clone, PartialEq)]
@@ -93,6 +84,10 @@ pub struct ThreadView {
     /// thread's row is still loading.
     pub(super) read_only: bool,
     pub(super) wt: super::thread_worktree::WorktreeState,
+    /// The header's branch picker, on the folder this view opened on.
+    pub(super) branch_picker: Entity<super::branch_picker::BranchPicker>,
+    /// The header's Run menu: the project's scripts.
+    pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
@@ -114,7 +109,7 @@ pub struct ThreadView {
     mode_now: Arc<std::sync::atomic::AtomicUsize>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
-    send_chain: Option<Task<()>>,
+    pub(super) send_chain: Option<Task<()>>,
     /// Answered with the next follow-up's result, once its store write (and slot claim) is done.
     pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
     _pump: Option<Task<()>>,
@@ -244,7 +239,16 @@ impl ThreadView {
             cx.on_app_quit(|this, _| this.quitting()),
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
+        let owner = cx.weak_entity();
+        let branch_picker = cx.new(|cx| {
+            super::branch_picker::BranchPicker::new(owner.clone(), cwd.clone(), window, cx)
+        });
+        let scripts = cx.new(|cx| {
+            super::scripts::ScriptMenu::new(owner, backend.store.clone(), project_id, window, cx)
+        });
         Self {
+            branch_picker,
+            scripts,
             folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,
@@ -470,6 +474,11 @@ impl ThreadView {
             self.list.splice(first..old, self.items.len() - first);
             cx.notify();
         }
+    }
+
+    /// An agent is running or starting in this thread: its folder's files and checkout must not change under it.
+    pub(super) fn agent_running(&self) -> bool {
+        self.session.is_some() || self.starting
     }
 
     pub(super) fn send_prompt(

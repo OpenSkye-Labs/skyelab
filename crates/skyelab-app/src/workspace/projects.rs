@@ -108,6 +108,8 @@ impl Workspace {
         self.threads.clear(); // never list another project's threads while this one's load
         self.refresh_sidebar(cx);
         self.load_threads(cx);
+        self.scripts.clear();
+        self.load_scripts(cx);
         cx.notify();
     }
 
@@ -294,6 +296,18 @@ impl Workspace {
                 ThreadViewEvent::TurnDone => {
                     this.refresh_changes(view, cx);
                     this.turn_done(view, window, cx);
+                }
+                ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
+                ThreadViewEvent::RunScript(script) => {
+                    let v = view.read(cx);
+                    let account = v.thread.as_ref().map(|t| t.account_id.clone());
+                    let cwd = v.cwd.clone();
+                    this.run_script(script, cwd, account, window, cx);
+                }
+                ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
+                ThreadViewEvent::WorktreeCreated { cwd, account_id } => {
+                    let project = view.read(cx).project_id;
+                    this.run_setup_scripts(project, cwd.clone(), account_id.clone(), window, cx);
                 }
             },
         ));

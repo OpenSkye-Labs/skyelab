@@ -90,6 +90,8 @@ impl ThreadView {
                     .id("provider-badge")
                     .child(self.account_badge().chip()),
             )
+            .children(self.render_branch(cx))
+            .child(self.render_run(cx))
             .children(self.render_pr_link(cx))
             .child(self.render_worktree_actions(cx))
             .when(running, |this| {

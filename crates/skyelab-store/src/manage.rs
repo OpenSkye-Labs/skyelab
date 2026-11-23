@@ -59,12 +59,19 @@ impl Store {
     }
 
     /// Deletes the thread if it is still marked deleted (its undo was not used). Otherwise does nothing.
-    pub fn purge_thread(&self, id: i64) -> Result<()> {
+    /// Returns the purged row (`None`: not a deleted thread, so nothing was purged).
+    pub fn purge_thread(&self, id: i64) -> Result<Option<Thread>> {
+        let sql =
+            format!("SELECT {THREAD_COLS} FROM threads WHERE id = ?1 AND deleted_at IS NOT NULL");
+        let row = self
+            .conn
+            .query_row(&sql, [id], crate::thread_from_row)
+            .optional()?;
         self.conn.execute(
             "DELETE FROM threads WHERE id = ?1 AND deleted_at IS NOT NULL",
             [id],
         )?;
-        Ok(())
+        Ok(row)
     }
 
     fn mark_thread(&self, id: i64, column: &'static str, on: bool) -> Result<()> {

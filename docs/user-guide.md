@@ -214,7 +214,8 @@ it had already sent. Codex threads get the same tools, with the same account rul
 ## Worktrees
 
 Tick **Run in a new worktree** in the composer before you send the first prompt. The thread then works in its own
-git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`. The `.skyelab` folder is
+git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`, started from the branch the
+header's picker shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
 
 The thread header then has:
@@ -225,6 +226,10 @@ The thread header then has:
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.
 - **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.
+
+## Branches, scripts and turns
+
+The branch picker, project scripts, and per-turn checkpoints with rewind: [user-guide-git.md](user-guide-git.md).
 
 ## Other machines
 

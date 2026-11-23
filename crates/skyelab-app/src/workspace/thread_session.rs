@@ -106,6 +106,7 @@ impl ThreadView {
                     }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
+                        this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
                     }
                 });
@@ -132,10 +133,31 @@ impl ThreadView {
         }));
     }
 
+    /// A turn ended: its checkpoint is queued behind earlier sends, and before the next turn's starting one. Changes
+    /// tabs refresh once it is taken.
+    fn checkpoint_turn_end(&mut self, cx: &mut Context<Self>) {
+        let Some(t) = &self.thread else { return };
+        let (cwd, key) = (t.cwd.clone(), crate::workspace::thread_checkpoints::key(t));
+        let prev = self.send_chain.take();
+        let work = cx.background_executor().clone();
+        self.send_chain = Some(cx.spawn(async move |this, cx| {
+            if let Some(prev) = prev {
+                prev.await;
+            }
+            work.spawn(async move { crate::workspace::thread_checkpoints::after_turn(&cwd, &key) })
+                .await;
+            let _ = this.update(cx, |_, cx| cx.emit(ThreadViewEvent::FilesChanged));
+        }));
+    }
+
     /// claude's stdout closed and every event is stored: record how the thread ended.
     fn ended(&mut self, launch: u64, cx: &mut Context<Self>) {
         if launch != self.launches {
             return; // a stopped session's stream; Stop already recorded it
+        }
+        // Gone mid-turn: that turn's end is still a checkpoint, so it can be reviewed and rewound.
+        if self.turns.swap(0, Ordering::SeqCst) > 0 {
+            self.checkpoint_turn_end(cx);
         }
         let Some(thread) = &self.thread else {
             return;
@@ -208,6 +230,10 @@ impl ThreadView {
                     return this.show_error(e, cx);
                 }
                 this.session = None; // killed and reaped, so dropping it doesn't wait
+                // Stopped mid-turn: its end checkpoint is queued now, before a resume can start the next turn.
+                if this.turns.swap(0, Ordering::SeqCst) > 0 {
+                    this.checkpoint_turn_end(cx);
+                }
                 this.finish(cx);
             });
         }));

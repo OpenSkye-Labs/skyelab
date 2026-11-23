@@ -66,7 +66,7 @@ fn v5_database_upgrades_to_v7_and_keeps_rows() {
     let found = store.search_threads("flamingo", None, 10).expect("search");
     assert_eq!(found.iter().map(|t| t.id).collect::<Vec<_>>(), [1]);
     drop(store);
-    assert_eq!(version(&path), 7);
+    assert_eq!(version(&path), 8, "and on through v8 (project scripts)");
 }
 
 #[test]
@@ -121,13 +121,17 @@ fn soft_deleted_threads_hide_restore_and_purge_on_open() {
 
     store.set_thread_deleted(gone.id, true).expect("delete");
     // A purge only removes rows still marked deleted.
-    store.purge_thread(keep.id).expect("purge is a no-op");
+    assert_eq!(store.purge_thread(keep.id).expect("purge is a no-op"), None);
     assert!(store.thread(keep.id).expect("read").is_some());
     drop(store);
 
-    let store = Store::open(&path).expect("reopen purges");
+    let mut store = Store::open(&path).expect("reopen purges");
     assert!(store.thread(gone.id).expect("read").is_none());
     assert_eq!(ids(&store), [keep.id]);
+    // The purged rows are handed over once, so their checkpoints can go too.
+    let purged = store.take_purged();
+    assert_eq!(purged.iter().map(|t| t.id).collect::<Vec<_>>(), [gone.id]);
+    assert!(store.take_purged().is_empty());
 }
 
 #[test]

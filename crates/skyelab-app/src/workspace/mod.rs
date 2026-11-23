@@ -1,12 +1,14 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
 mod attention;
+mod branch_picker;
 #[cfg(unix)]
 mod browser_agent;
 mod browser_tabs;
 mod changes;
 mod changes_model;
 mod changes_publish;
+mod changes_turns;
 mod child_slots;
 mod devices;
 mod env_mode;
@@ -32,9 +34,11 @@ mod projects;
 mod remote;
 mod remote_queue;
 mod remote_thread;
+mod scripts;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
+pub(crate) mod thread_checkpoints;
 mod thread_items;
 mod thread_list;
 mod thread_model;
@@ -175,6 +179,9 @@ pub struct Workspace {
     project: Option<Project>,
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
+    /// The project's scripts, for the palette.
+    scripts: Vec<skyelab_store::ProjectScript>,
+    _scripts: Option<Task<()>>,
     open_threads: Vec<WeakEntity<ThreadView>>,
     /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
     queued_tabs: Vec<Entity<ThreadView>>,
@@ -302,6 +309,8 @@ impl Workspace {
             projects: Vec::new(),
             project: None,
             threads: Vec::new(),
+            scripts: Vec::new(),
+            _scripts: None,
             open_threads: Vec::new(),
             queued_tabs: Vec::new(),
             #[cfg(unix)]
@@ -377,6 +386,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::new_terminal))
+            .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::pick_project))
@@ -478,6 +488,27 @@ mod changes_model_test;
 
 #[cfg(test)]
 mod worktree_thread_test;
+
+#[cfg(all(test, unix))]
+mod checkpoint_turns_test;
+
+#[cfg(all(test, unix))]
+mod checkpoint_midturn_test;
+
+#[cfg(test)]
+mod checkpoint_purge_test;
+
+#[cfg(all(test, unix))]
+mod changes_selection_test;
+
+#[cfg(all(test, unix))]
+mod worktree_base_test;
+
+#[cfg(all(test, unix))]
+mod scripts_env_test;
+
+#[cfg(test)]
+mod scripts_palette_test;
 
 #[cfg(test)]
 mod worktree_guard_test;
