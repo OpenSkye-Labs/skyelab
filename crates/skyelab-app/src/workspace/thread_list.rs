@@ -431,10 +431,15 @@ fn day_starts() -> [i64; 3] {
 /// A reply as one plain line for the sidebar: markdown marks dropped, whitespace collapsed.
 pub(super) fn preview_text(markdown: &str) -> String {
     let mut out = String::with_capacity(markdown.len());
+    let mut in_fence = false;
     for line in markdown.lines() {
         let line = line.trim();
-        // Code fences and rules carry no words; headings, quotes and bullets keep theirs.
-        if line.starts_with("```")
+        // Fenced code (a diagram's source, a snippet) and rules carry no words; headings, quotes and bullets keep theirs.
+        if line.starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence
             || line
                 .chars()
                 .all(|c| matches!(c, '-' | '*' | '_' | '|' | ':' | ' '))
