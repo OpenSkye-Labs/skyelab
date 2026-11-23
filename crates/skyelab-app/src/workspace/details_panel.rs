@@ -34,7 +34,7 @@ const RECENT_EVENTS: usize = 50;
 /// wrote. Only what was reported: nothing is asked of the account, and a store error reads as no data.
 pub fn account_usage(store: &Store, account: &Account) -> AccountUsage {
     let events = store
-        .account_events_matching(&account.id, "agent", "rate_limit_event", RECENT_EVENTS)
+        .account_events_matching(&account.id, "agent", "\"used\":", RECENT_EVENTS)
         .unwrap_or_default();
     let mut windows: Vec<(&'static str, f32)> = Vec::new();
     let mut as_of_ms = None;
@@ -64,6 +64,8 @@ pub struct DetailsPanel {
     focus: FocusHandle,
     thread: Option<WeakEntity<ThreadView>>,
     pub(super) usage: Vec<AccountUsage>,
+    /// The usage read in flight; a newer one replaces it.
+    pub(super) _load: Option<gpui::Task<()>>,
     _subs: Vec<Subscription>,
 }
 
@@ -73,6 +75,7 @@ impl DetailsPanel {
             focus: cx.focus_handle(),
             thread: None,
             usage: Vec::new(),
+            _load: None,
             _subs: Vec::new(),
         }
     }

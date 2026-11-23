@@ -312,7 +312,7 @@ fn main() {
     };
 
     gpui_platform::application()
-        .with_assets(gpui_kit_assets::AllAssets)
+        .with_assets(ui::AppAssets)
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
             // OS notifications need it (Windows' AppUserModelID); same id as the bundle's.

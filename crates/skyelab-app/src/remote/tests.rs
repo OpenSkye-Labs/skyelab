@@ -352,10 +352,13 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().expect("tempdir");
     let store = Arc::new(Mutex::new(Store::open_in_memory().expect("store")));
     let (mut h, _calls) = host(dir.path(), Arc::default(), store, DaemonSlot::default());
-    // A fixed port, as in the app: the old listener must be gone before the new one binds.
-    let free = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-    h.config.port = free.local_addr().expect("addr").port();
-    drop(free);
+    // A fixed port, as in the app: the old listener must be gone before the new one binds. It comes from below the
+    // OS's ephemeral range, so other tests binding port 0 can't take it in the off/on gap.
+    h.config.port = (20_000..40_000u16)
+        .step_by(97)
+        .map(|p| p + (std::process::id() % 97) as u16)
+        .find(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok())
+        .expect("a free port below the ephemeral range");
     let remote = cx.new(|cx| Remote::new(h, cx));
     remote.update(cx, |r, cx| r.toggle(cx));
     wait_until(cx, "sharing", |cx| sharing_port(&remote, cx).is_some());

@@ -16,7 +16,9 @@ fn parses_fixture() {
         events[1],
         Event::Assistant {
             content: vec![
-                Block::Other,
+                Block::Thinking {
+                    thinking: "hm".into()
+                },
                 Block::Text {
                     text: "Listing files.".into()
                 },
@@ -48,6 +50,7 @@ fn parses_fixture() {
             total_cost_usd: 0.0123,
             result: Some("Done.".into()),
             prompts: 1,
+            usage: None,
         }
     );
 }

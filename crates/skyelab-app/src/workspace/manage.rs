@@ -42,6 +42,10 @@ pub struct ManageThread {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProjectOp {
     Rename,
+    /// Opens the folder in the user's editor.
+    OpenFolder,
+    /// Settings, where folders are bound to accounts.
+    Accounts,
     Remove,
 }
 
@@ -477,20 +481,18 @@ pub(super) fn thread_menu(t: &skyelab_store::Thread) -> Vec<(SharedString, Box<d
 
 /// The menu a project row offers.
 pub(super) fn project_menu(id: i64) -> Vec<(SharedString, Box<dyn Action>)> {
-    vec![
-        (
-            "Rename".into(),
-            Box::new(ManageProject {
-                id,
-                op: ProjectOp::Rename,
-            }),
-        ),
-        (
-            "Remove from SkyeLab".into(),
-            Box::new(ManageProject {
-                id,
-                op: ProjectOp::Remove,
-            }),
-        ),
+    [
+        ("Rename", ProjectOp::Rename),
+        ("Open in editor", ProjectOp::OpenFolder),
+        ("Account bindings…", ProjectOp::Accounts),
+        ("Remove from SkyeLab", ProjectOp::Remove),
     ]
+    .into_iter()
+    .map(|(label, op)| {
+        (
+            SharedString::from(label),
+            Box::new(ManageProject { id, op }) as Box<dyn Action>,
+        )
+    })
+    .collect()
 }

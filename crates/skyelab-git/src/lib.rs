@@ -76,6 +76,33 @@ pub fn repo_root(path: &Path) -> Result<PathBuf> {
     Ok(PathBuf::from(lossy(&out).trim_end_matches('\n')))
 }
 
+/// The files git tracks under `dir`, relative to it: what the composer's `@` menu offers. Ignored and untracked
+/// files never show.
+pub fn tracked_files(dir: &Path) -> Result<Vec<String>> {
+    let out = git(
+        dir,
+        &["-c", "core.quotePath=false", "ls-files", "-z", "--cached"],
+    )?;
+    Ok(out
+        .split(|b| *b == 0)
+        .filter(|f| !f.is_empty())
+        .map(lossy)
+        .collect())
+}
+
+/// The branch checked out in `dir`, or `None` on a detached HEAD. Not `--short`: with a tag of the same name it
+/// answers `heads/<branch>`.
+pub fn current_branch(dir: &Path) -> Result<Option<String>> {
+    let args = ["symbolic-ref", "--quiet", "HEAD"];
+    let out = output(Path::new("git"), dir, &args)?;
+    if out.status.code() == Some(1) && out.stderr.is_empty() {
+        return Ok(None);
+    }
+    let out = finish(dir, &args, out)?;
+    let full = lossy(&out);
+    Ok(full.trim().strip_prefix("refs/heads/").map(str::to_owned))
+}
+
 /// The full SHA of commit-ish `rev` in the repo at `dir`.
 pub fn rev_parse(dir: &Path, rev: &str) -> Result<String> {
     let out = git(

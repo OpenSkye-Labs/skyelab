@@ -2,10 +2,10 @@
 //! their live status, and every account's newest usage reading.
 #![cfg(unix)]
 
-use super::delegation_test::{open, rig, send, start, wait_until};
-use super::layout::ToggleRightPanel;
-use super::thread::Stop;
 use crate::ui::Status;
+use crate::workspace::delegation_test::{open, rig, send, start, wait_until};
+use crate::workspace::layout::ToggleRightPanel;
+use crate::workspace::thread::Stop;
 use gpui::TestAppContext;
 
 #[gpui::test]

@@ -10,7 +10,7 @@ mod tests;
 
 pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
-    header, mono, page_title, row, section_title,
+    header, mono, page_title, row, row_surface, section_title,
 };
 
 use gpui::{Hsla, Pixels, px};
@@ -196,6 +196,8 @@ pub enum Status {
     Interrupted,
     Failed,
     Stale,
+    /// The account's usage limit holds the agent back.
+    Limited,
     Unknown,
 }
 
@@ -216,7 +218,7 @@ impl Status {
         match self {
             Self::Starting | Self::Running => theme.info,
             Self::Idle => theme.success,
-            Self::Interrupted | Self::Stale => theme.warning,
+            Self::Interrupted | Self::Stale | Self::Limited => theme.warning,
             Self::Failed => theme.danger,
             Self::Stopped | Self::Unknown => theme.muted_foreground,
         }
@@ -231,6 +233,7 @@ impl Status {
             Self::Interrupted => Some((I::TriangleAlert, "Interrupted")),
             Self::Failed => Some((I::CircleAlert, "Failed")),
             Self::Stale => Some((I::TriangleAlert, "Stale")),
+            Self::Limited => Some((I::TriangleAlert, "Limited")),
             Self::Idle | Self::Stopped | Self::Unknown => None,
         }
     }
@@ -268,5 +271,46 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
         Some(rest) if rest.as_os_str().is_empty() => "~".into(),
         Some(rest) => format!("~/{}", rest.display()),
         None => path.display().to_string(),
+    }
+}
+
+// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer and queue icons).
+gpui_kit_assets::icon_assets!(
+    ExtraIcons,
+    [
+        Paperclip,
+        GitBranch,
+        Laptop,
+        Folder,
+        FolderGit2,
+        FileDiff,
+        X,
+        Clock,
+        Square,
+        Monitor,
+        SquareCode,
+        CloudUpload,
+        Trash,
+        GitPullRequest
+    ]
+);
+
+/// gpui-component's icons plus [`ExtraIcons`].
+pub struct AppAssets;
+
+impl gpui::AssetSource for AppAssets {
+    fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        match ExtraIcons.load(path)? {
+            Some(bytes) => Ok(Some(bytes)),
+            None => gpui_kit_assets::Assets.load(path),
+        }
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
+        let mut paths = gpui_kit_assets::Assets.list(path)?;
+        paths.extend(ExtraIcons.list(path)?);
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 }

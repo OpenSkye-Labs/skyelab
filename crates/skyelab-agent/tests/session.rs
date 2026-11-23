@@ -64,6 +64,9 @@ fn unbound_folder_errors() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let err = start_with_bin(&fake_bin(), &AccountsConfig::default(), &launch)
@@ -98,6 +101,7 @@ fn env_check_in_child() {
         "--output-format stream-json",
         "--input-format stream-json",
         "--verbose",
+        "--include-partial-messages",
     ] {
         assert!(args.contains(flag), "missing {flag} in {args}");
     }

@@ -4,7 +4,9 @@ use super::center::Page;
 use super::changes::ChangesView;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree;
-use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
+use super::{
+    AddProject, NewThread, NewThreadIn, OpenThread, SelectProject, Workspace, account_label, lock,
+};
 use gpui::{AppContext as _, Context, Entity, PathPromptOptions, Window};
 
 use skyelab_store::Thread;
@@ -23,7 +25,10 @@ impl Workspace {
                 match loaded {
                     Ok(projects) => {
                         this.projects = projects;
+                        let listed = &this.projects;
+                        this.scope.retain(|id| listed.iter().any(|p| p.id == *id));
                         this.resolve_project_accounts(cx);
+                        this.load_threads(cx);
                         let current = this.project.as_ref().map(|p| p.id);
                         if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id))
                         {
@@ -58,7 +63,11 @@ impl Workspace {
         self._add = Some(cx.spawn(async move |this, cx| {
             let added = task.await;
             let _ = this.update(cx, |this, cx| match added {
-                Ok(id) => this.load_projects(Some(id), cx),
+                Ok(id) => {
+                    // The new project's threads must show, and New thread must not start in an older scope.
+                    this.scope.clear();
+                    this.load_projects(Some(id), cx)
+                }
                 Err(e) => {
                     this.store_error = Some(format!("{e:#}").into());
                     cx.notify();
@@ -93,10 +102,12 @@ impl Workspace {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // "Switch to project" narrows the list to it, as the scope filter would.
+        self.scope = vec![a.id];
         self.select(a.id, cx);
     }
 
-    fn select(&mut self, id: i64, cx: &mut Context<Self>) {
+    pub(super) fn select(&mut self, id: i64, cx: &mut Context<Self>) {
         let Some(project) = self.projects.iter().find(|p| p.id == id).cloned() else {
             return;
         };
@@ -105,36 +116,24 @@ impl Workspace {
         self.account = account_label(&self.config, &self.folder);
         self.account_id = self.config.resolve(&self.folder).map(|a| a.id.clone());
         self.project = Some(project);
-        self.threads.clear(); // never list another project's threads while this one's load
         self.refresh_sidebar(cx);
-        self.load_threads(cx);
         self.scripts.clear();
         self.load_scripts(cx);
         cx.notify();
     }
 
+    /// Every listed project's threads, for the sidebar's one list. A newer load replaces (cancels) an older one.
     pub(super) fn load_threads(&mut self, cx: &mut Context<Self>) {
-        let Some(project_id) = self.project.as_ref().map(|p| p.id) else {
-            return;
-        };
         let store = self.backend.store.clone();
-        let task = cx.background_spawn(async move {
-            let store = lock(&store)?;
-            anyhow::Ok((store.list_threads(project_id)?, store.unread_project_ids()?))
-        });
+        let task = cx.background_spawn(async move { lock(&store)?.list_all_threads() });
         self._threads = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
-                    // A slow load for a project that is no longer selected changes nothing.
-                    Ok((threads, unread))
-                        if this.project.as_ref().map(|p| p.id) == Some(project_id) =>
-                    {
+                    Ok(threads) => {
                         this.threads = threads;
-                        this.unread_projects = unread.into_iter().collect();
                         this.rerun_search(cx);
                     }
-                    Ok(_) => {}
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
                 }
                 this.refresh_sidebar(cx);
@@ -176,7 +175,57 @@ impl Workspace {
         if self.is_remote() {
             return; // `project` is still the last local one: an agent would start here, not on the shown machine
         }
-        let Some(project) = self.project.clone() else {
+        // T3's rule: the one project the list is narrowed to, else the only project, else ask which.
+        let target = match (self.scope.as_slice(), self.projects.as_slice()) {
+            ([id], _) => Some(*id),
+            (_, [only]) => Some(only.id),
+            _ => None,
+        };
+        match target {
+            Some(id) => self.new_thread_in(&NewThreadIn { id }, window, cx),
+            None if self.projects.is_empty() => self.pick_project(&AddProject, window, cx),
+            None => self.pick_new_thread_project(window, cx),
+        }
+    }
+
+    /// The palette as a project picker: "New thread in: <project>" for each one.
+    fn pick_new_thread_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(prev) = window.focused(cx) else {
+            return;
+        };
+        let entries = self
+            .projects
+            .iter()
+            .map(|p| {
+                let id = p.id;
+                crate::palette::Entry {
+                    label: format!("New thread in: {}", p.name).into(),
+                    kind: crate::palette::Kind::Project,
+                    binding: None,
+                    checked: None,
+                    run: std::rc::Rc::new(move |window, cx| {
+                        window.dispatch_action(Box::new(NewThreadIn { id }), cx)
+                    }),
+                }
+            })
+            .collect();
+        crate::palette::open(entries, None, prev, window, cx);
+    }
+
+    /// A new thread in project `id`. Its folder's bound account is resolved when the thread starts, never defaulted.
+    pub(super) fn new_thread_in(
+        &mut self,
+        a: &NewThreadIn,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_remote() {
+            return;
+        }
+        if self.project.as_ref().map(|p| p.id) != Some(a.id) {
+            self.select(a.id, cx);
+        }
+        let Some(project) = self.project.clone().filter(|p| p.id == a.id) else {
             return;
         };
         let (config, backend) = (self.config.clone(), self.backend.clone());
@@ -190,6 +239,16 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // The workspace follows the opened thread's project (folder, account, terminals), as a selected one did.
+        let project = self
+            .threads
+            .iter()
+            .find(|t| t.id == a.id)
+            .map(|t| t.project_id)
+            .or_else(|| self.open_view(a.id, cx).map(|v| v.read(cx).project_id));
+        if let Some(id) = project.filter(|&id| self.project.as_ref().map(|p| p.id) != Some(id)) {
+            self.select(id, cx);
+        }
         if let Some(view) = self.open_view(a.id, cx) {
             return self.show(Page::Thread(view.downgrade()), window, cx);
         }
@@ -204,6 +263,9 @@ impl Workspace {
                 .await;
             let _ = this.update_in(cx, |this, window, cx| match row {
                 Ok(Some(thread)) if this.open_view(id, cx).is_none() => {
+                    if this.project.as_ref().map(|p| p.id) != Some(thread.project_id) {
+                        this.select(thread.project_id, cx);
+                    }
                     this.open_stored(thread, window, cx)
                 }
                 Ok(_) => {}
@@ -251,6 +313,7 @@ impl Workspace {
                     }
                 }
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
+                ThreadViewEvent::OpenPath(path) => this.open_path(view, path, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =
                         (this.accounts_job(cx), cwd.clone(), account_id.clone());
@@ -341,6 +404,36 @@ impl Workspace {
         cx.notify();
     }
 
+    /// A file the thread's timeline names: its folder's Changes tab, scrolled to the file once the diff lists it.
+    fn open_path(
+        &mut self,
+        view: &Entity<ThreadView>,
+        path: &std::path::Path,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_changes(view, window, cx);
+        let dir = view.read(cx).cwd.clone();
+        let base = view
+            .read(cx)
+            .thread
+            .as_ref()
+            .and_then(|t| t.worktree_base.clone());
+        let tab = self
+            .changes_views
+            .iter()
+            .filter_map(|c| c.upgrade())
+            .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
+        if let Some(changes) = tab {
+            let path = path.to_owned();
+            changes.update(cx, |c, cx| {
+                // A refresh is on its way (open_changes started it): reveal against what it loads.
+                c.reveal_after_load = Some(path.clone());
+                c.reveal(&path, cx);
+            });
+        }
+    }
+
     /// A thread's turn ended: every Changes tab on its folder may be out of date.
     fn refresh_changes(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
         let dir = view.read(cx).cwd.clone();
@@ -354,7 +447,7 @@ impl Workspace {
     fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
         #[cfg(unix)]
         self.child_started(thread, cx);
-        if self.project.as_ref().map(|p| p.id) == Some(thread.project_id) {
+        if self.projects.iter().any(|p| p.id == thread.project_id) {
             // A reopened thread reports its start too: keep its one row where it is.
             match self.threads.iter_mut().find(|t| t.id == thread.id) {
                 Some(row) => *row = thread.clone(),

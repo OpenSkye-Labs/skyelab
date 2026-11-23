@@ -36,8 +36,11 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`
   and `title` evaluates `document.title` in that tab; `delegate <project id> hold` starts a child that keeps working,
-  and `usage` reports two usage windows for the details card; in `fake-claude.sh` a prompt starting `permit` asks to run
-  `make deploy` and waits for the answer, and one starting `crash` writes to stderr and exits 3), Codex with
+  and `usage` reports two usage windows for the Details tab; in `fake-claude.sh` a prompt starting `permit` asks to run
+  `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
+  `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, a
+  `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, and one starting `crash` writes
+  to stderr and exits 3), Codex with
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
   project), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in

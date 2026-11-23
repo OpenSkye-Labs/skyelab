@@ -15,6 +15,9 @@ use std::path::Path;
 mod card;
 #[path = "thread_details_git.rs"]
 mod git;
+#[cfg(test)]
+#[path = "thread_details_test.rs"]
+mod tests;
 
 /// Opens the shown thread's folder in `editor` and keeps it as the editor setting.
 #[derive(Clone, PartialEq, Action)]
@@ -107,14 +110,15 @@ fn editors() -> Editors {
 impl ThreadView {
     pub(in crate::workspace) fn live_status(&self) -> crate::ui::Status {
         use crate::ui::Status;
+        let running = self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0;
         if self.starting {
             Status::Starting
+        } else if self.session.is_some() && running {
+            Status::Running // still working, so closing it would cut the work off
+        } else if self.limited.is_some() {
+            Status::Limited
         } else if self.session.is_some() {
-            if self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0 {
-                Status::Running
-            } else {
-                Status::Idle
-            }
+            Status::Idle
         } else {
             match self.thread.as_ref().map(|t| Status::parse(&t.status)) {
                 Some(Status::Starting | Status::Running) | None => Status::Stopped,
@@ -184,11 +188,12 @@ impl Workspace {
             )
         });
         let details = self.details.downgrade();
-        self._usage = Some(cx.spawn(async move |_, cx| {
+        let load = cx.spawn(async move |_, cx| {
             if let Ok(usage) = task.await {
                 let _ = details.update(cx, |d, cx| d.set_usage(usage, cx));
             }
-        }));
+        });
+        self.details.update(cx, |d, _| d._load = Some(load));
     }
 
     /// A thread view changed: its parent's Lineage shows its new status.

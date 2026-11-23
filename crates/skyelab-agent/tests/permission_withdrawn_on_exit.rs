@@ -30,6 +30,9 @@ fn killed_agent_withdraws_its_open_ask() {
         resume: None,
         prompt: "permit please",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Mode::Default,
     };
     let mut s = start_with_bin(&bin, &cfg, &launch).expect("start fake");

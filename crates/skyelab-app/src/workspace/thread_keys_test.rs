@@ -28,7 +28,7 @@ fn thread_keys_walk_the_sidebar_order(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(shown(&r, cx), Some(b));
     // Opening a stored thread reports it started; it must not be listed twice.
-    assert_eq!(r.ws.read_with(cx, |ws, _| ws.thread_order()), [c, b, a]);
+    assert_eq!(r.ws.read_with(cx, |ws, cx| ws.thread_order(cx)), [c, b, a]);
     cx.simulate_keystrokes(&format!("{M}-3"));
     cx.run_until_parked();
     assert_eq!(shown(&r, cx), Some(a));

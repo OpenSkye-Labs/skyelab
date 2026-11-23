@@ -125,8 +125,17 @@ impl Workspace {
                     Box::new(action),
                 )
             }));
+            // Every project's threads; another project's name their project, as search results do.
+            let current = self.project.as_ref().map(|p| p.id);
             out.extend(self.threads.iter().map(|t| {
-                let label = format!("Open thread: {}", t.title);
+                let other = self
+                    .projects
+                    .iter()
+                    .find(|p| p.id == t.project_id && Some(p.id) != current);
+                let label = match other {
+                    Some(p) => format!("Open thread: {} · {}", t.title, p.name),
+                    None => format!("Open thread: {}", t.title),
+                };
                 dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
             }));
         }

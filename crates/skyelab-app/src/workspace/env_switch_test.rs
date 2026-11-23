@@ -134,8 +134,19 @@ fn remote_mode_hides_local_actions_and_switching_back_closes_remote_tabs(cx: &mu
     }
     // Reload so the local project shows.
     ws.update(cx, |ws, cx| ws.load_projects(None, cx));
+    // Local projects are in the sidebar's scope filter (the list itself holds threads).
+    let local_scope = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        ws.read_with(cx, |ws, cx| {
+            ws.sidebar.read(cx).scope.as_ref().map(|s| {
+                s.projects
+                    .iter()
+                    .map(|p| p.name.to_string())
+                    .collect::<Vec<_>>()
+            })
+        })
+    };
     wait_until(cx, "local project", |cx| {
-        sidebar(&ws, cx)[0].1 == vec!["mine".to_owned()]
+        local_scope(&ws, cx) == Some(vec!["mine".to_owned()])
     });
     connect(&ws, &remote, cx);
     assert!(
@@ -143,6 +154,11 @@ fn remote_mode_hides_local_actions_and_switching_back_closes_remote_tabs(cx: &mu
             .iter()
             .any(|(_, rows)| rows.contains(&"mine".to_owned())),
         "no local project in remote mode"
+    );
+    assert_eq!(
+        local_scope(&ws, cx),
+        None,
+        "no local project filter in remote mode"
     );
 
     // No local terminal for a remote project.
@@ -164,6 +180,6 @@ fn remote_mode_hides_local_actions_and_switching_back_closes_remote_tabs(cx: &mu
         assert!(ws.remote_env().is_none(), "client dropped");
         assert!(ws.remote_tabs().is_empty(), "remote tabs closed");
     });
-    assert_eq!(sidebar(&ws, cx)[0].1, vec!["mine".to_owned()]);
+    assert_eq!(local_scope(&ws, cx), Some(vec!["mine".to_owned()]));
     assert_eq!(ws.read_with(cx, |ws, cx| ws.env_badge_text(cx)), None);
 }

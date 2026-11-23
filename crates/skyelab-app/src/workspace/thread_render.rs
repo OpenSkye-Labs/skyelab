@@ -1,6 +1,6 @@
 //! How a thread page looks. State and behavior live in `thread.rs`.
 
-use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
+use super::thread::{CONTEXT, ThreadView};
 use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
@@ -9,10 +9,9 @@ use gpui::{
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, IconName, Selectable as _, Sizable as _,
-    button::{Button, ButtonRounded, ButtonVariants as _},
+    ActiveTheme as _, Selectable as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
     h_flex,
-    input::Textarea,
     tooltip::Tooltip,
     v_flex,
 };
@@ -41,7 +40,6 @@ impl ThreadView {
 
     fn render_header(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let running = self.session.is_some();
         let folder = self.cwd.file_name().map_or_else(
             || self.cwd.display().to_string(),
             |n| n.to_string_lossy().into_owned(),
@@ -91,24 +89,6 @@ impl ThreadView {
                     .id("provider-badge")
                     .child(self.account_badge().chip()),
             )
-            .when(running, |this| {
-                this.child(
-                    Button::new("interrupt")
-                        .ghost()
-                        .xsmall()
-                        .label("Interrupt")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.interrupt(&Interrupt, window, cx)
-                        })),
-                )
-                .child(
-                    Button::new("stop")
-                        .danger()
-                        .xsmall()
-                        .label("Stop")
-                        .on_click(cx.listener(|this, _, window, cx| this.stop(&Stop, window, cx))),
-                )
-            })
             .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
@@ -152,71 +132,6 @@ impl ThreadView {
             cx,
         )
     }
-
-    /// The composer, T3 style: one rounded card holding the prompt, the account that will run it, and a round Send;
-    /// a context strip under it for the folder and the worktree choice.
-    fn render_composer(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
-        let card = v_flex()
-            .w_full()
-            .rounded(ui::RADIUS_XL)
-            .bg(theme.popover)
-            .border_1()
-            .border_color(theme.border)
-            .when(!theme.is_dark(), |this| this.shadow_xs())
-            .child(
-                div()
-                    .px_3()
-                    .pt_2()
-                    .text_size(ui::BODY)
-                    .child(Textarea::new(&self.prompt).appearance(false)),
-            )
-            .child(
-                h_flex()
-                    .px_3()
-                    .pb_2()
-                    .gap_2()
-                    .child(
-                        h_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .child(self.account_badge().chip()),
-                    )
-                    .child(
-                        Button::new("send")
-                            .primary()
-                            .icon(IconName::ArrowUp)
-                            .rounded(ButtonRounded::Size(px(16.)))
-                            .tooltip("Send (⌘↩)")
-                            .disabled(self.read_only || self.starting)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.send_prompt(&SendPrompt, window, cx)
-                            })),
-                    ),
-            );
-        let branch = self
-            .thread
-            .as_ref()
-            .and_then(|t| t.worktree_branch.clone())
-            .map(|b| format!("Worktree · {b}"));
-        let strip = h_flex()
-            .w_full()
-            .min_w_0()
-            .px_2()
-            .pt_2()
-            .gap_3()
-            .text_size(ui::META)
-            .text_color(theme.muted_foreground)
-            .child(self.render_mode_picker(cx))
-            .children(self.render_worktree_option(cx))
-            .children(branch.map(|b| div().min_w_0().truncate().child(b)));
-        v_flex()
-            .w_full()
-            .max_w(ui::CHAT_MAX_W)
-            .child(card)
-            .child(strip)
-            .into_any_element()
-    }
 }
 
 /// What each permission mode is called in the composer, and what it allows.
@@ -241,7 +156,7 @@ pub(super) fn mode_label(mode: skyelab_agent::Mode) -> (&'static str, &'static s
 
 impl ThreadView {
     /// The thread's permission mode, T3's composer "Permissions" toggle: one small button per mode.
-    fn render_mode_picker(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_mode_picker(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         h_flex()
             .flex_shrink_0()
@@ -342,7 +257,8 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 }
 
 impl Render for ThreadView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.restore_draft(window, cx);
         let header = self.render_header(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);
@@ -405,6 +321,12 @@ impl Render for ThreadView {
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::send_prompt))
+            .on_action(cx.listener(Self::steer_prompt))
+            .on_action(cx.listener(Self::attach_files))
+            .on_action(cx.listener(Self::menu_up))
+            .on_action(cx.listener(Self::menu_down))
+            .on_action(cx.listener(Self::menu_accept))
+            .on_action(cx.listener(Self::menu_close))
             .on_action(cx.listener(Self::interrupt))
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(Self::toggle_worktree))
@@ -438,6 +360,13 @@ impl Render for ThreadView {
                             ui::ink(theme, theme.warning),
                         )
                         .debug_selector(|| "unsaved-events".into())
+                    }))
+                    .children(self.limited.map(|resets_at| {
+                        line(
+                            super::timeline_text::limited_text(resets_at, ui::now_ms() / 1000).into(),
+                            ui::ink(theme, theme.warning),
+                        )
+                        .debug_selector(|| "limited-banner".into())
                     }))
                     .children(self.error.clone().map(|e| line(e, ui::ink(theme, theme.danger))))
                     .children(note.map(|n| line(n.into(), theme.muted_foreground)))

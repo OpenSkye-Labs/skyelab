@@ -1,11 +1,12 @@
-//! An unread thread marks its project's row even when no view of it is open (as after a restart).
+//! An unread thread stays marked in the flat list (its row says Done) with no view open, as after a restart, even
+//! while another project is selected.
 
 use super::manage_harness::rig;
 use super::*;
 use gpui::TestAppContext;
 
 #[gpui::test]
-fn an_unread_thread_marks_its_unselected_project_without_an_open_view(cx: &mut TestAppContext) {
+fn an_unread_thread_stays_marked_without_an_open_view(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
     let first = r.project;
     let id = r.thread("finished while away", cx);
@@ -31,8 +32,8 @@ fn an_unread_thread_marks_its_unselected_project_without_an_open_view(cx: &mut T
     let sidebar = r.ws.read_with(cx, |ws, _| ws.sidebar.clone());
     let marked = sidebar.read_with(cx, |s, _| {
         s.marks
-            .get(&SharedString::from(format!("project-{first}")))
+            .get(&SharedString::from(format!("thread-{id}")))
             .is_some_and(|m| m.unread)
     });
-    assert!(marked, "PROJECT_ROW_UNREAD_MISSING");
+    assert!(marked, "THREAD_ROW_UNREAD_MISSING");
 }

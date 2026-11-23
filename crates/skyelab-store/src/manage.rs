@@ -67,16 +67,6 @@ impl Store {
             .optional()?)
     }
 
-    /// Projects with an unread thread that is listed (not archived, not deleted).
-    pub fn unread_project_ids(&self) -> Result<Vec<i64>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT DISTINCT project_id FROM threads
-             WHERE unread = 1 AND archived_at IS NULL AND deleted_at IS NULL",
-        )?;
-        let ids = stmt.query_map([], |r| r.get(0))?;
-        Ok(ids.collect::<rusqlite::Result<_>>()?)
-    }
-
     /// Deletes the thread if it is still marked deleted (its undo was not used). Otherwise does nothing.
     /// Returns the purged row (`None`: not a deleted thread, so nothing was purged).
     pub fn purge_thread(&self, id: i64) -> Result<Option<Thread>> {

@@ -41,13 +41,18 @@ mod scripts;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
+mod ask_cards;
+mod shell_card;
 pub(crate) mod thread_checkpoints;
 mod thread_details;
 mod thread_items;
 mod thread_list;
+use thread_list::{NewThreadIn, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
+mod timeline_text;
+mod tool_cards;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
@@ -81,6 +86,7 @@ actions!(
         AddProject,
         NewThread,
         OpenDevices,
+        ShowAllProjects,
         GoBack,
         GoForward
     ]
@@ -147,9 +153,7 @@ pub struct Workspace {
     _project_accounts: Option<Task<()>>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     /// The right dock's placeholder until a tool opens there.
-    /// The right dock's Details tab, always there.
     details: Entity<details_panel::DetailsPanel>,
-    _usage: Option<Task<()>>,
     layout: layout::LayoutStore,
     _window_bounds: Option<Subscription>,
     _dock_events: Subscription,
@@ -165,17 +169,17 @@ pub struct Workspace {
     sidebar: Entity<Sidebar>,
     projects: Vec<Project>,
     project: Option<Project>,
-    /// The selected project's threads, most recently updated first.
+    /// Every listed project's threads, most recently updated first.
     threads: Vec<Thread>,
     /// The project's scripts, for the palette.
     scripts: Vec<skyelab_store::ProjectScript>,
     _scripts: Option<Task<()>>,
+    /// The projects the sidebar's list is narrowed to; empty means all.
+    scope: Vec<i64>,
     /// Every thread view of this window, shown or not: a hidden one keeps its agent running.
     // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
     // thread it opened in memory; evict idle hidden ones if that ever matters.
     open_threads: Vec<Entity<ThreadView>>,
-    /// Projects with a stored unread thread, as of the last thread load (see `thread_list`).
-    unread_projects: std::collections::HashSet<i64>,
     center: Entity<Center>,
     welcome: Entity<Welcome>,
     page: Page,
@@ -294,7 +298,6 @@ impl Workspace {
             load_error,
             terminals_empty: Some(terminals_empty),
             details,
-            _usage: None,
             layout: Default::default(),
             _window_bounds: None,
             _dock_events,
@@ -311,8 +314,8 @@ impl Workspace {
             threads: Vec::new(),
             scripts: Vec::new(),
             _scripts: None,
+            scope: Vec::new(),
             open_threads: Vec::new(),
-            unread_projects: Default::default(),
             center,
             welcome,
             page: Page::Welcome,
@@ -396,6 +399,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::pick_project))
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
+            .on_action(cx.listener(Self::new_thread_in))
+            .on_action(cx.listener(Self::toggle_project_scope))
+            .on_action(cx.listener(Self::show_all_projects))
             .on_action(cx.listener(Self::open_thread))
             .on_action(cx.listener(Self::open_devices))
             .on_action(cx.listener(Self::open_remote))
@@ -456,10 +462,15 @@ mod browser_tests;
 mod thread_model_test;
 
 #[cfg(test)]
+mod timeline_tests;
+
+#[cfg(test)]
 mod threads_test;
 
 #[cfg(test)]
 mod sidebar_account_test;
+#[cfg(test)]
+mod sidebar_flat_test;
 
 #[cfg(test)]
 mod layout_test;
@@ -572,8 +583,6 @@ mod terminal_link_test;
 
 #[cfg(test)]
 mod delegation_test;
-#[cfg(test)]
-mod thread_details_test;
 
 #[cfg(all(test, unix))]
 mod delegation_idempotent_test;

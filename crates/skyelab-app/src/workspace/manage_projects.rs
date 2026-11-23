@@ -40,6 +40,8 @@ impl Workspace {
                     },
                 );
             }
+            ProjectOp::OpenFolder => self.open_dir_in_editor(project.path, None, window, cx),
+            ProjectOp::Accounts => window.dispatch_action(Box::new(super::OpenSettings), cx),
             ProjectOp::Remove => {
                 let live = self
                     .project_views(id, cx)
@@ -116,8 +118,11 @@ impl Workspace {
                 }
                 if ws.project.as_ref().is_some_and(|p| p.id == id) {
                     ws.project = None;
-                    ws.threads.clear();
                 }
+                ws.threads.retain(|t| t.project_id != id);
+                // Gone now, not at the reload: New thread must not pick it meanwhile.
+                ws.projects.retain(|p| p.id != id);
+                ws.scope.retain(|&s| s != id);
                 ws.load_projects(None, cx);
             },
             window,

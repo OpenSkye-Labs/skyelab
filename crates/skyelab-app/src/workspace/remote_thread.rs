@@ -284,18 +284,6 @@ impl RemoteThreadView {
             )
             .child(pill(self.env_badge().into(), state.color(theme)))
             .children(account.map(|a| pill(a.into(), theme.success)))
-            .when(self.thread_id.is_some(), |this| {
-                this.child(
-                    Button::new("remote-stop")
-                        .danger()
-                        .xsmall()
-                        .label("Stop")
-                        .tooltip("Interrupt the agent on the other machine")
-                        .on_click(
-                            cx.listener(|this, _, window, cx| this.stop(&RemoteStop, window, cx)),
-                        ),
-                )
-            })
             .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
@@ -328,6 +316,9 @@ impl ItemsView for RemoteThreadView {
             self.list.splice(ix..ix + 1, 1);
         }
         cx.notify();
+    }
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop(&RemoteStop, window, cx)
     }
     fn can_answer(&self, cx: &App) -> bool {
         self.thread_id.is_some() && self.env.read(cx).state == ConnState::Connected
@@ -389,6 +380,7 @@ impl Render for RemoteThreadView {
         let header = self.render_header(cx);
         let theme = cx.theme();
         let connected = self.env.read(cx).state == ConnState::Connected;
+        let host = self.env.read(cx).host.clone();
         let body = if self.items.is_empty() {
             div()
                 .flex_1()
@@ -434,6 +426,19 @@ impl Render for RemoteThreadView {
                     .gap_2()
                     .items_end()
                     .child(div().flex_1().child(Textarea::new(&self.prompt)))
+                    // Interrupt sits with the composer, as on a local thread; the header has no stop.
+                    .when(self.thread_id.is_some(), |this| {
+                        this.child(
+                            Button::new("remote-stop")
+                                .ghost()
+                                .small()
+                                .label("Interrupt")
+                                .tooltip("Interrupt the agent on the other machine")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.stop(&RemoteStop, window, cx)
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("remote-send")
                             .primary()
@@ -444,6 +449,19 @@ impl Render for RemoteThreadView {
                                 this.send(&SendRemotePrompt, window, cx)
                             })),
                     ),
+            )
+            // The composer footer's machine, here the one the thread runs on.
+            .child(
+                h_flex()
+                    .id("remote-composer-footer")
+                    .px_5()
+                    .pb_2()
+                    .gap_1p5()
+                    .text_size(crate::ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(gpui_component::Icon::new(gpui_kit_assets::IconName::Laptop).xsmall())
+                    .child(host)
+                    .children(self.account.clone().map(|a| format!("· {a}"))),
             )
     }
 }

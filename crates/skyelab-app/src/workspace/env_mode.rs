@@ -292,6 +292,7 @@ impl Workspace {
             .projects
             .iter()
             .map(|p| SidebarItem {
+                project: None,
                 id: format!("remote-project-{}", p.id).into(),
                 label: p.name.clone().into(),
                 selected: env.project == Some(p.id),
@@ -306,6 +307,7 @@ impl Workspace {
             .threads
             .iter()
             .map(|t| SidebarItem {
+                project: None,
                 id: format!("remote-thread-{}", t.id).into(),
                 label: t.title.clone().into(),
                 selected: false,
@@ -336,6 +338,7 @@ impl Workspace {
         let here = (waiting > 0).then(|| SidebarSection {
             title: super::env_picker::THIS_MAC.into(),
             items: vec![SidebarItem {
+                project: None,
                 id: "queued-local-tabs".into(),
                 label: match waiting {
                     1 => "1 new thread here".into(),

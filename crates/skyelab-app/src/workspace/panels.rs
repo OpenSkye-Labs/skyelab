@@ -53,8 +53,10 @@ macro_rules! panel {
 panel!(super::center::Center, "Center", closable: false, title_bar: false, |_this| "Center");
 
 mod sidebar;
+mod sidebar_rows;
 pub use sidebar::{
-    ArchivedRows, RowAccount, RowMarks, Sidebar, SidebarItem, SidebarSearch, SidebarSection,
+    ArchivedRows, RowAccount, RowMarks, ScopeMenu, ScopeProject, Sidebar, SidebarItem,
+    SidebarSearch, SidebarSection,
 };
 
 /// The page with no thread open: what SkyeLab is and its main keys.
@@ -96,7 +98,7 @@ impl Render for Welcome {
                     .gap_6()
                     .child(
                         ui::EmptyState::new("Pick a thread to continue")
-                            .hint("Or start one from a project in the sidebar. Every folder runs on the account it is bound to.")
+                            .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
                             .page(),
                     )
                     .child(

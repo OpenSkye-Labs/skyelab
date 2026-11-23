@@ -73,6 +73,9 @@ fn resume_passes_flag_and_id() {
         resume: Some("sess-1"),
         prompt: "again",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let session = start_with_bin(&fixture("fake-claude.sh"), &cfg, &launch).expect("start");
@@ -94,6 +97,9 @@ fn resume_rejects_flag_like_id() {
             resume: Some(id),
             prompt: "hi",
             mcp_config: None,
+            model: None,
+            effort: None,
+            attachments: &[],
             mode: Default::default(),
         };
         assert!(
@@ -115,6 +121,9 @@ fn binding_changed_between_plan_and_spawn_aborts() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let err = start_with_bin(&marker_bin(&dir), &config(&dir, "b"), &launch)
@@ -152,6 +161,9 @@ fn kill_does_not_wait_behind_a_blocked_write() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let mut session = start_with_bin(&fixture("no-stdin.sh"), &cfg, &launch).expect("start");

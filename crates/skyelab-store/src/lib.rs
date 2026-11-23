@@ -14,6 +14,8 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod manage;
+mod model;
+pub use model::ModelChoice;
 mod migrations;
 mod usage;
 use migrations::MIGRATIONS;
@@ -328,6 +330,24 @@ impl Store {
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([project_id], thread_from_row)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Every listed project's threads, most recently updated first, archived ones included. Deleted threads and
+    /// removed projects are left out.
+    pub fn list_all_threads(&self) -> Result<Vec<Thread>> {
+        let cols = THREAD_COLS
+            .split(", ")
+            .map(|c| format!("t.{c}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT {cols} FROM threads t JOIN projects p ON p.id = t.project_id
+             WHERE t.deleted_at IS NULL AND p.removed_at IS NULL
+             ORDER BY t.updated_at DESC, t.id DESC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], thread_from_row)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 

@@ -8,7 +8,7 @@ use gpui::{
     NoAction, SharedString, Window, actions,
 };
 use gpui_component::notification::Notification;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 actions!(
@@ -218,7 +218,7 @@ impl Workspace {
         if self.is_remote() {
             return; // the order is this machine's threads; another machine's sidebar is shown
         }
-        let order = self.thread_order();
+        let order = self.thread_order(cx);
         if order.is_empty() {
             return;
         }
@@ -237,7 +237,7 @@ impl Workspace {
         if self.is_remote() {
             return; // the order is this machine's threads; another machine's sidebar is shown
         }
-        if let Some(&id) = self.thread_order().get(n - 1) {
+        if let Some(&id) = self.thread_order(cx).get(n - 1) {
             self.open_thread(&OpenThread { id }, window, cx);
         }
     }
@@ -269,6 +269,18 @@ impl Workspace {
                 None => return,
             },
         };
+        self.open_dir_in_editor(dir, pick, window, cx);
+    }
+
+    /// Opens `dir` in the user's editor (`pick`, saved to settings first, else the configured one); a missing
+    /// editor shows as a notice.
+    pub(super) fn open_dir_in_editor(
+        &mut self,
+        dir: PathBuf,
+        pick: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let settings = self.layout.path.clone();
         let task = cx.background_spawn(async move {
             if let (Some(pick), Some(path)) = (&pick, &settings) {

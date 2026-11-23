@@ -89,6 +89,15 @@ impl ThreadView {
                         continue;
                     }
                 };
+                // Streaming text is shown, never stored: the complete block that follows is.
+                if matches!(event, Event::Delta { .. }) {
+                    let record = Record::Agent(event);
+                    if this.update(cx, |this, cx| this.push(&record, cx)).is_err() {
+                        return;
+                    }
+                    continue;
+                }
+                let gone = skyelab_agent::session_gone(&event);
                 // An interrupt ends a Codex turn as an error too; the user asked for that one.
                 let failed = matches!(&event, Event::Result { is_error: true, result, .. }
                     if result.as_deref() != Some("interrupted"));
@@ -104,10 +113,16 @@ impl ThreadView {
                             this.finish(cx); // stopped before this arrived: it's resumable now
                         }
                     }
+                    if gone {
+                        this.rerun = this.resumed_prompt.clone();
+                    } else if matches!(record, Record::Agent(Event::Init { .. })) {
+                        this.resumed_prompt = None;
+                    }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
                         this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
+                        this.after_turn(cx);
                     }
                 });
                 if shown.is_err() {
@@ -126,6 +141,9 @@ impl ThreadView {
                 let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let _ = this.update(cx, |this, cx| {
                     this.saved(left, cx);
+                    if matches!(&record, Record::Agent(e) if skyelab_agent::session_gone(e)) {
+                        this.rerun = this.resumed_prompt.clone();
+                    }
                     this.push(&record, cx);
                 });
             }
@@ -171,6 +189,19 @@ impl ThreadView {
         let session = self.session.take();
         self.turns.store(0, Ordering::SeqCst); // no agent, so no turn is running
         self.finish(cx);
+        if let Some(text) = self.rerun.take().filter(|_| !self.stop_requested) {
+            self.resumed_prompt = None;
+            match self.start_fresh(text, cx) {
+                Ok(()) => {
+                    self.in_background(cx, move || {
+                        drop(session);
+                        Ok(())
+                    });
+                    return;
+                }
+                Err(why) => self.error = Some(why.into()),
+            }
+        }
         // Reaping the child waits, so it happens off the UI thread, after the status is written
         // (so a quick resume's "running" can't be overwritten by it).
         self.in_background(cx, move || {
@@ -183,6 +214,10 @@ impl ThreadView {
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
         self.grant = None; // revokes the token and cuts the MCP connection
+        if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
+            let n = self.items.len();
+            self.list.splice(first..n, n - first);
+        }
         self.read_only = self
             .thread
             .as_ref()
@@ -200,6 +235,9 @@ impl ThreadView {
     ) {
         if let Some(session) = self.session.clone() {
             self.in_background(cx, move || lock(&session)?.interrupt());
+            if self.turn_running() {
+                self.interrupt_pending(cx);
+            }
         }
     }
 
@@ -240,7 +278,7 @@ impl ThreadView {
     }
 
     /// Runs blocking work on the background executor and shows its error, if any, inline.
-    pub(super) fn in_background(
+    pub(in crate::workspace) fn in_background(
         &mut self,
         cx: &mut Context<Self>,
         work: impl FnOnce() -> Result<()> + Send + 'static,

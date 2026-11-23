@@ -419,3 +419,7 @@ fn interrupt_is_sent_and_stop_kills(cx: &mut TestAppContext) {
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "threads_resume_test.rs"]
 pub(super) mod resume;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "session_gone_test.rs"]
+mod session_gone;
