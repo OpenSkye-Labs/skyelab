@@ -274,7 +274,7 @@ impl ThreadView {
                 .into_any_element(),
             action(
                 "details-git-commit",
-                IconName::GitCommitHorizontal,
+                IconName::GitCommitVertical,
                 "Commit",
                 GitAction::Commit,
             ),
@@ -294,7 +294,7 @@ impl ThreadView {
         ]
     }
 
-    fn open_link_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn open_link_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let input = match &self.details.pr_input {
             Some(input) => input.clone(),
             None => {
@@ -319,7 +319,7 @@ impl ThreadView {
     }
 
     /// Keeps the typed link as the thread's PR when it is a GitHub pull request URL.
-    fn link_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn link_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (Some(input), Some(id)) = (&self.details.pr_input, self.thread.as_ref().map(|t| t.id))
         else {
             return;

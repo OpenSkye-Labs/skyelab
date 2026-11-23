@@ -37,6 +37,13 @@ impl Workspace {
             });
         }
         // An open tab knows its thread's state now; the row is only as fresh as the last load.
+        for v in &self.open_threads {
+            if let Some(t) = &v.read(cx).thread
+                && let Some(row) = self.threads.iter_mut().find(|r| r.id == t.id)
+            {
+                row.pr_url.clone_from(&t.pr_url); // a PR opened or linked in the tab
+            }
+        }
         let live: std::collections::HashMap<i64, (Status, bool)> = self
             .open_threads
             .iter()

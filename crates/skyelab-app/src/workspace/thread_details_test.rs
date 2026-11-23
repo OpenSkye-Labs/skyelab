@@ -70,6 +70,61 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
         "the right-panel toggle shows the Details tab"
     );
 
+    // Link pull request…: only a GitHub PR link is kept, normalized, and the sidebar row shows its number.
+    parent.update_in(cx, |p, window, cx| {
+        p.open_link_pr(window, cx);
+        let input = p.details.pr_input.clone().expect("the link field");
+        input.update(cx, |s, cx| {
+            s.set_value("https://gitlab.com/o/r/pull/7", window, cx)
+        });
+        p.link_pr(window, cx);
+        assert!(p.details.pr_error.is_some(), "a non-GitHub link is refused");
+        input.update(cx, |s, cx| {
+            s.set_value("https://github.com/acme/demo/pull/42/files", window, cx)
+        });
+        p.link_pr(window, cx);
+    });
+    cx.run_until_parked();
+    let (id, pr) = parent.read_with(cx, |p, _| {
+        let t = p.thread.as_ref().expect("row");
+        (t.id, t.pr_url.clone())
+    });
+    assert_eq!(pr.as_deref(), Some("https://github.com/acme/demo/pull/42"));
+    let stored = ws.read_with(cx, |ws, _| {
+        super::super::lock(&ws.backend.store)
+            .expect("store")
+            .thread(id)
+            .expect("read")
+            .and_then(|t| t.pr_url)
+    });
+    assert_eq!(stored, pr, "kept on the thread's row");
+    let badge = ws.read_with(cx, |ws, cx| {
+        ws.sidebar
+            .read(cx)
+            .marks
+            .get(&gpui::SharedString::from(format!("thread-{id}")))
+            .and_then(|m| m.pr.clone())
+    });
+    assert_eq!(badge.as_deref(), Some("#42"), "the sidebar badge");
+
+    // The Commit & push menu runs in the thread's Changes tab; with no message typed, Commit points at the field.
+    parent.update(cx, |_, cx| {
+        cx.emit(crate::workspace::thread::ThreadViewEvent::Git(
+            crate::workspace::thread::GitAction::Commit,
+        ))
+    });
+    cx.run_until_parked();
+    let refused = ws.read_with(cx, |ws, cx| {
+        ws.changes_views
+            .iter()
+            .filter_map(|c| c.upgrade())
+            .find_map(|c| c.read(cx).publish_error.clone())
+    });
+    assert_eq!(
+        refused.as_deref(),
+        Some("Write a commit message, then commit.")
+    );
+
     // Stopped, the child moves to Previous agents.
     let child_id = parent.read_with(cx, |p, _| p.children[0].id);
     let child = ws
