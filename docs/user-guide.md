@@ -67,13 +67,23 @@ sidebar (or picking it in the palette) switches the page; there are no center ta
 project: the status bar, terminals and Open in editor use its folder and account. A thread you switch away from keeps
 running, and its row keeps its state. A thread that starts on its own (delegated, or from another device) doesn't take
 the page: its row says **Done** until you open it (see **Unread** below). Tools open in the right panel beside the
-thread: **Changes**, browsers and **Devices**.
+thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
+(<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
+Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
+focus, or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
+The expand button at the panel's top right fills the window with it.
+
+**Thread details** (<kbd>⇧⌘B</kbd>, <kbd>Ctrl+Shift+B</kbd> on Linux and Windows) opens a card that floats over the
+chat at the top right: this machine and the folder, the branch with its git actions and Changes, project scripts,
+side chats, the agents this thread delegated (Lineage), every account's usage, the pull request and the editor. It
+stays open while you work, beside the conversation; press the button again or <kbd>Esc</kbd> to close it. When the
+right panel leaves it no room beside the conversation, it covers the chat and a click outside it closes it.
 
 <kbd>⌘[</kbd> and <kbd>⌘]</kbd> go back and forward between pages (<kbd>Alt+←</kbd> and <kbd>Alt+→</kbd> on Linux
 and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
-The page's top row shows where you are (project / thread) and its actions, and at its right end three buttons show
-and hide the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag
+The page's top row shows where you are (project / thread) and its actions, and at its right end four buttons show
+and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag
 a panel's edge to resize it.
 
 SkyeLab remembers the window's size and position, the right panel's width and whether it was open, and the page it
@@ -121,14 +131,32 @@ login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 Starting threads, scratch threads, the composer, permissions, queueing and steering:
 [user-guide-using-threads.md](user-guide-using-threads.md).
 
+## Scheduled tasks
+
+Saved prompts that start a thread on a schedule (intervals, daily, weekdays, cron), missed runs, and the account
+rule for unattended runs: [user-guide-scheduled.md](user-guide-scheduled.md).
+
+## Pull requests and issues
+
+**Open Pull Requests** and **Open Issues** in the command palette show one page each. Every project whose folder is
+bound to an account is listed under its name and account, read with that account's own `gh` login and never
+another's; the repo is the project's `origin` (a github.com https or ssh URL). An account with no GitHub login shows
+**Sign in to GitHub** and nothing is asked. Up to 50 open items per project are read, once per filter (**Mine**,
+**Review requested**, **All** for PRs; **Assigned to me**, **All** for issues) until you press refresh.
+
+- Click a PR to start a thread in its project with a review prompt; the PR is linked to the thread when you send it.
+  The arrow icon opens the PR in your browser.
+- Click an issue to start a thread with the issue (title, link, labels, the start of its text) as a context chip.
+  Click a label to show only that label's issues; click it again (or the **Label** button) to show all.
+
 ## Worktrees
 
 Click **Local checkout** under the composer (it turns into **New worktree**) before you send the first prompt. The thread then works in its own
 git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`, started from the branch the
-Details tab's branch row shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
+thread details card's branch row shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
 
-The Details tab then has:
+The thread details card then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not. **Refresh** reloads it.
   A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one

@@ -1,6 +1,7 @@
-//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), or a remote
-//! thread. Settings is a modal over it (`settings_tab.rs`). Opening a thread switches the page; it never adds a tab. Thread views stay alive while another page
-//! shows, so a running agent keeps running.
+//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), a remote
+//! thread, or the Pull requests or Issues page. Settings is a modal over it (`settings_tab.rs`). Opening a thread
+//! switches the page; it never adds a tab. Thread views stay alive while another page shows, so a running agent
+//! keeps running.
 
 use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
@@ -16,13 +17,16 @@ pub(crate) enum Page {
     Welcome,
     Thread(WeakEntity<ThreadView>),
     RemoteThread(WeakEntity<RemoteThreadView>),
+    /// The Pull requests or Issues page.
+    Github(super::gh_pages::Kind),
 }
 
 impl Page {
-    /// How settings.toml remembers the page: `thread:<id>`, `settings:<section>` or `welcome`. A draft (no row yet)
+    /// How settings.toml remembers the page: `thread:<id>`, `settings:<section>`, `github:<page>` or `welcome`. A draft (no row yet)
     /// and a remote thread (another machine's id) come back as Welcome.
     pub(crate) fn key(&self, cx: &App) -> String {
         match self {
+            Page::Github(kind) => format!("github:{}", kind.key()),
             Page::Thread(view) => view
                 .upgrade()
                 .and_then(|v| {
@@ -60,6 +64,7 @@ impl Focusable for Center {
 
 impl Render for Center {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Center");
         div()
             .id("center")
             .size_full()
@@ -85,6 +90,7 @@ impl Workspace {
     }
 
     pub(super) fn show(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_settings(window, cx); // going to a page (a thread link in Settings) leaves the modal
         if page != self.page {
             self.back.push(std::mem::replace(&mut self.page, page));
             self.forward.clear();
@@ -94,7 +100,8 @@ impl Workspace {
 
     fn alive(&self, page: &Page) -> bool {
         match page {
-            Page::Welcome => true,
+            // The GitHub pages are made on demand, so they can always show.
+            Page::Welcome | Page::Github(_) => true,
             Page::Thread(view) => view
                 .upgrade()
                 .is_some_and(|v| self.open_threads.contains(&v)),
@@ -136,6 +143,7 @@ impl Workspace {
                 self.welcome.read(cx).focus_handle(cx).focus(window, cx);
                 self.welcome.clone().into()
             }
+            Page::Github(kind) => self.gh_page(kind, window, cx).into(),
             Page::Thread(view) => {
                 let view = view.upgrade().expect("alive() checked it");
                 view.update(cx, |v, cx| {
@@ -207,6 +215,11 @@ impl Workspace {
     pub(super) fn restore_page(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = key.strip_prefix("thread:").and_then(|id| id.parse().ok()) {
             self.open_thread(&OpenThread { id }, window, cx);
+        } else if let Some(kind) = key
+            .strip_prefix("github:")
+            .and_then(super::gh_pages::Kind::parse)
+        {
+            self.show(Page::Github(kind), window, cx);
         }
         // An older file's `settings:<section>`: Settings is a modal now, so the window opens on Welcome.
     }

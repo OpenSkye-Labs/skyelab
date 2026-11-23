@@ -300,6 +300,7 @@ impl Focusable for ChangesView {
 
 impl Render for ChangesView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("ChangesView");
         let files = uniform_list(
             "changed-files",
             self.tree.len(),

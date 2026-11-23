@@ -1,8 +1,10 @@
 # Thread details
 
-The right panel's **Details** tab is a card stack for the thread on screen. The right-panel toggle at the top
-right (<kbd>⌥⌘R</kbd>, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>R</kbd> elsewhere) opens it, and it stays as the panel's first
-tab beside Changes, browsers and Devices. Everything in it acts on the thread's own folder under its bound account.
+The thread details card floats over the chat at the top right, for the thread on screen. The first button at the
+page's top right opens and closes it (<kbd>⇧⌘B</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> elsewhere), and so
+does <kbd>Esc</kbd>. It stays open while you work beside the conversation; when the right panel leaves it no room
+there, it covers the chat and a click outside closes it. Everything in it acts on the thread's own folder under its
+bound account.
 
 - **Environment:** this machine's name, with a button that opens the thread's folder in Finder (or your file
   manager). On a git repo, then:

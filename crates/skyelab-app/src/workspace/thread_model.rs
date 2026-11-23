@@ -1,51 +1,9 @@
 //! What a thread shows, built from what it stores: the user's prompts and the agent's events.
 
-use anyhow::{Context as _, Result};
+pub use super::thread_record::Record;
+pub use super::timeline_keys::Items;
 use serde_json::Value;
 use skyelab_agent::{Block, Decision, DeltaKind, Event, Todo, Usage};
-
-/// One stored thread event. The store's `kind` column says which.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Record {
-    Prompt(String),
-    /// A message steered into the running turn: part of that turn, not the start of a new one.
-    Steer(String),
-    Agent(Event),
-}
-
-const PROMPT: &str = "prompt";
-const STEER: &str = "steer";
-const AGENT: &str = "agent";
-
-impl Record {
-    /// The store row: `(kind, payload_json)`.
-    pub fn to_row(&self) -> (&'static str, String) {
-        match self {
-            Record::Prompt(text) => (PROMPT, Value::String(text.clone()).to_string()),
-            Record::Steer(text) => (STEER, Value::String(text.clone()).to_string()),
-            Record::Agent(event) => (
-                AGENT,
-                serde_json::to_string(event)
-                    .expect("an Event holds only strings, numbers and JSON values"),
-            ),
-        }
-    }
-
-    pub fn from_row(kind: &str, payload: &str) -> Result<Record> {
-        match kind {
-            PROMPT => Ok(Record::Prompt(
-                serde_json::from_str(payload).context("stored prompt")?,
-            )),
-            STEER => Ok(Record::Steer(
-                serde_json::from_str(payload).context("stored steer")?,
-            )),
-            AGENT => Ok(Record::Agent(
-                serde_json::from_str(payload).context("stored agent event")?,
-            )),
-            other => anyhow::bail!("unknown stored event kind '{other}'"),
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolItem {
@@ -146,7 +104,7 @@ impl Item {
 
 /// Applies one record. Returns the first index that changed (items from there on may be new or
 /// updated), or `None` when nothing visible changed.
-pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
+pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
     let before = items.len();
     let mut first_changed = None;
     match record {
@@ -443,7 +401,7 @@ fn settled(kind: DeltaKind, text: String, ix: usize) -> Item {
 
 /// A complete text or thinking block: it replaces its streaming row (returned as changed), or is pushed. An empty
 /// one (thinking the agent didn't show) keeps what streamed, or adds nothing.
-fn finish(items: &mut Vec<Item>, kind: DeltaKind, text: &str) -> Option<usize> {
+fn finish(items: &mut Items, kind: DeltaKind, text: &str) -> Option<usize> {
     let at = live(items, kind);
     let text = match (text.trim().is_empty(), at) {
         (false, _) => text.to_owned(),
@@ -477,7 +435,7 @@ pub fn stamp_done(items: &mut [Item], at_ms: i64) {
 
 /// Applies a stored record dated `at_ms`. In a fork made at `fork_made_ms`, a turn that ended by then was copied
 /// from its source (`Item::Done::copied`), and is marked before the next record takes it as a baseline.
-pub fn replay(items: &mut Vec<Item>, record: &Record, at_ms: i64, fork_made_ms: Option<i64>) {
+pub fn replay(items: &mut Items, record: &Record, at_ms: i64, fork_made_ms: Option<i64>) {
     apply(items, record);
     stamp_done(items, at_ms);
     if let (Some(Item::Done { copied, .. }), Some(made)) = (items.last_mut(), fork_made_ms)
@@ -489,7 +447,7 @@ pub fn replay(items: &mut Vec<Item>, record: &Record, at_ms: i64, fork_made_ms: 
 
 /// A TodoWrite: it updates the turn's todo row in place (returned as changed), or starts one. The turn runs from
 /// the last turn divider, so a follow-up prompt sent mid-turn doesn't start a second list.
-fn todo(items: &mut Vec<Item>, todos: Vec<Todo>) -> Option<usize> {
+fn todo(items: &mut Items, todos: Vec<Todo>) -> Option<usize> {
     let turn = items
         .iter()
         .rposition(|i| matches!(i, Item::Done { .. }))

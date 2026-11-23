@@ -41,7 +41,7 @@ pub enum SettingsEvent {
     CodexLogin { dir: PathBuf },
     /// Open keybindings.toml in the user's editor, writing the commented template first if it doesn't exist.
     OpenKeysFile { path: PathBuf },
-    /// The header's close button closed the modal.
+    /// Close the modal (the header's ×, or Esc with nothing to cancel).
     Closed,
 }
 
@@ -123,6 +123,8 @@ pub struct Settings {
     pub(super) threads_error: Option<String>,
     /// Settings → Keyboard shortcuts' search, and the rows it leaves.
     pub(super) keys_search: Entity<InputState>,
+    /// Where the focus was when the modal opened; it goes back there on close.
+    pub return_focus: Option<FocusHandle>,
     /// The nav's search field.
     pub(super) search_input: Entity<InputState>,
     /// Settings → General's editor command.
@@ -132,6 +134,8 @@ pub struct Settings {
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
     /// The Usage section's content; the workspace sets it and reads the store for it.
     pub usage: Option<Entity<crate::workspace::usage_page::UsagePage>>,
+    /// The Scheduled tasks section's content, set by the workspace like `usage`.
+    pub scheduled: Option<Entity<crate::workspace::scheduled::ScheduledPage>>,
     pub(super) focus: FocusHandle,
     pub(super) _pick: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -215,6 +219,7 @@ impl Settings {
             error_open: false,
             search_input,
             editor_input,
+            return_focus: None,
             provider: Provider::Claude,
             id_input,
             label_input,
@@ -233,6 +238,7 @@ impl Settings {
             section: Section::default(),
             remote: None,
             usage: None,
+            scheduled: None,
             focus: cx.focus_handle(),
             _pick: None,
             _subs: subs,

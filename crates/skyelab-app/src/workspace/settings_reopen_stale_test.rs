@@ -13,7 +13,7 @@ fn reopened_settings_does_not_clobber_an_outside_edit(cx: &mut TestAppContext) {
     let (_ws, cx) = open_workspace(&f, cx);
     cx.dispatch_action(OpenSettings);
     cx.run_until_parked();
-    cx.update(|window, cx| gpui_component::WindowExt::close_dialog(window, cx));
+    _ws.update_in(cx, |ws, window, cx| ws.close_settings(window, cx));
     cx.run_until_parked();
 
     // Outside edit while Settings isn't shown.

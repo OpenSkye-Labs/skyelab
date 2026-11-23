@@ -60,6 +60,8 @@ pub(crate) struct ComposerExtras {
     history: Option<(usize, String)>,
     /// The thread this one was forked from: (id, title).
     pub forked_from: Option<(i64, SharedString)>,
+    /// A draft started from the Pull requests page: the PR its row links once the first message saves it.
+    pub pending_pr: Option<String>,
 }
 
 /// A shown prompt as the composer can hold it again: without its "Attached: …" line (`None` for files alone).
@@ -146,6 +148,10 @@ impl ThreadView {
 
     /// Stores what changed since the last save (sending empties the composer, which removes the draft).
     fn save_draft(&mut self, cx: &mut Context<Self>) {
+        // A review draft from the Pull requests page isn't the project's new-thread draft: saving it would replace that.
+        if self.thread.is_none() && self.composer.extras.pending_pr.is_some() {
+            return;
+        }
         let text = self.prompt.read(cx).value();
         if *text != *self.composer.extras.saved_text {
             self.composer.extras.saved_text = text.to_string();

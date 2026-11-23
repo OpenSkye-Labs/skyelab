@@ -2,7 +2,7 @@
 //! and close, and the chosen section in a centered column.
 
 use super::*;
-use gpui_component::{Icon, IconName, WindowExt as _, h_flex, v_flex};
+use gpui_component::{Icon, IconName, h_flex, v_flex};
 use gpui_kit_assets::IconName as Lucide;
 
 /// A Settings section, picked in the nav (T3's settings routes).
@@ -15,6 +15,7 @@ pub enum Section {
     Keys,
     #[default]
     Accounts,
+    Scheduled,
     Usage,
     Projects,
     SourceControl,
@@ -36,7 +37,10 @@ pub(super) const GROUPS: [(Option<&str>, &[Section]); 5] = [
             Section::Keys,
         ],
     ),
-    (Some("Agents"), &[Section::Accounts, Section::Usage]),
+    (
+        Some("Agents"),
+        &[Section::Accounts, Section::Scheduled, Section::Usage],
+    ),
     (
         Some("Code"),
         &[
@@ -51,13 +55,14 @@ pub(super) const GROUPS: [(Option<&str>, &[Section]); 5] = [
 
 impl Section {
     #[cfg(test)]
-    pub const ALL: [Section; 12] = [
+    pub const ALL: [Section; 13] = [
         Section::General,
         Section::Appearance,
         Section::Chat,
         Section::Diffs,
         Section::Keys,
         Section::Accounts,
+        Section::Scheduled,
         Section::Usage,
         Section::Projects,
         Section::SourceControl,
@@ -74,6 +79,7 @@ impl Section {
             Section::Diffs => "Diffs & pull requests",
             Section::Keys => "Keybindings",
             Section::Accounts => "Accounts",
+            Section::Scheduled => "Scheduled tasks",
             Section::Usage => "Usage",
             Section::Projects => "Projects & folders",
             Section::SourceControl => "Source control",
@@ -91,6 +97,7 @@ impl Section {
             Section::Diffs => "diffs",
             Section::Keys => "keys",
             Section::Accounts => "accounts",
+            Section::Scheduled => "scheduled",
             Section::Usage => "usage",
             Section::Projects => "projects",
             Section::SourceControl => "source-control",
@@ -104,6 +111,7 @@ impl Section {
         let lucide = |i: Lucide| Some(Icon::new(i));
         let icon = match self {
             Section::Keys => lucide(Lucide::Keyboard),
+            Section::Scheduled => lucide(Lucide::Clock),
             Section::Chat => lucide(Lucide::MessagesSquare),
             Section::Diffs => lucide(Lucide::FileDiff),
             Section::SourceControl => lucide(Lucide::GitBranch),
@@ -187,10 +195,7 @@ impl Settings {
                     .small()
                     .icon(IconName::Close)
                     .tooltip("Close (Esc)")
-                    .on_click(cx.listener(|_, _, window, cx| {
-                        window.close_dialog(cx);
-                        cx.emit(SettingsEvent::Closed);
-                    })),
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Closed))),
             )
             .into_any_element()
     }
@@ -213,6 +218,7 @@ impl Settings {
             Section::Keys => self.render_keys(cx).into_any_element(),
             Section::Accounts => self.render_accounts(window, cx),
             Section::Usage => div().children(self.usage.clone()).into_any_element(),
+            Section::Scheduled => div().children(self.scheduled.clone()).into_any_element(),
             Section::Projects => self.render_projects(cx),
             Section::SourceControl => self.render_github(cx),
             Section::Worktrees => self.render_worktrees(cx),
@@ -252,6 +258,7 @@ impl Settings {
 
 impl Render for Settings {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Settings");
         let nav = self.render_nav(cx);
         let header = self.render_header(cx);
         let section = self.render_section(window, cx);
@@ -263,12 +270,12 @@ impl Render for Settings {
             // The form's keys act only where the form shows.
             .when(self.section == Section::Accounts, |d| {
                 d.on_action(cx.listener(Self::save_account))
-                    .on_action(cx.listener(Self::cancel_edit))
             })
             .when(
                 matches!(self.section, Section::Accounts | Section::Projects),
                 |d| d.on_action(cx.listener(Self::bind_folder)),
             )
+            .on_action(cx.listener(Self::cancel_edit))
             .on_action(cx.listener(Self::focus_search))
             .on_action(cx.listener(Self::edit_account))
             .on_action(cx.listener(Self::remove_account))

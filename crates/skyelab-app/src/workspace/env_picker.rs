@@ -123,6 +123,7 @@ impl EnvPicker {
 
 impl Render for EnvPicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("EnvPicker");
         let theme = cx.theme();
         let current: SharedString = self.current.clone().unwrap_or(THIS_MAC.into()).into();
         // One line, so it fits the window's top row beside the traffic lights.

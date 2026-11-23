@@ -32,6 +32,8 @@ pub struct AppSettings {
     pub updates: crate::update::UpdateSettings,
     /// Settings → Appearance: theme, accent, density and text sizes.
     pub appearance: AppearanceSettings,
+    /// Settings → Scheduled tasks: missed runs and how many run at once.
+    pub scheduled: ScheduledSettings,
 }
 
 /// Light, dark, or whatever the system shows.
@@ -86,6 +88,25 @@ impl Default for AppearanceSettings {
             compact: false,
             ui_font_size: 14,
             code_font_size: 13,
+        }
+    }
+}
+
+/// How the scheduler treats runs. The tasks themselves live in the store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ScheduledSettings {
+    /// A run missed while SkyeLab wasn't running is skipped instead of run once at the next start.
+    pub skip_missed: bool,
+    /// Scheduled runs starting or working at once, app-wide; a due task waits for a free one.
+    pub max_concurrent: u32,
+}
+
+impl Default for ScheduledSettings {
+    fn default() -> Self {
+        Self {
+            skip_missed: false,
+            max_concurrent: 2,
         }
     }
 }

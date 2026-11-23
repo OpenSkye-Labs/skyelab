@@ -62,14 +62,15 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
     let (one, cx) = one_view(cx, Provider::Claude, bin, None);
     one.view.update_in(cx, |v, window, cx| {
-        v.items = turn();
+        v.items = turn().into();
         v.lists.reset(v.items.len());
         v.focus_prompt(window, cx);
         cx.notify();
     });
     cx.run_until_parked();
     assert!(
-        one.view.read_with(cx, |v, _| !v.is_expanded(&fold_key(3))),
+        one.view
+            .read_with(cx, |v, _| !v.is_expanded(&fold_key(&v.items, 3))),
         "the turn starts folded"
     );
 
@@ -87,7 +88,10 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     };
     assert_eq!(state(cx), (vec![1, 2, 2], 0));
     one.view.read_with(cx, |v, _| {
-        assert!(v.is_expanded(&fold_key(3)), "the fold opened for the match");
+        assert!(
+            v.is_expanded(&fold_key(&v.items, 3)),
+            "the fold opened for the match"
+        );
         assert!(v.is_expanded("t1"), "and the tool row");
         assert_eq!(v.timeline.find.count("needle"), "1/3");
         assert_eq!(v.timeline.find.mark(1), Some(true));

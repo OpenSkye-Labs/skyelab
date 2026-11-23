@@ -16,19 +16,19 @@ fn state(
     ws: &Entity<Workspace>,
     cx: &mut VisualTestContext,
 ) -> (bool, bool, Page, Option<Section>) {
-    let dialog = cx.update(|window, cx| gpui_component::WindowExt::has_active_dialog(window, cx));
+    let drawn = cx.debug_bounds("settings-backdrop").is_some();
     ws.read_with(cx, |ws, cx| {
         (
             ws.settings_open,
-            dialog,
+            drawn,
             ws.page.clone(),
             ws.settings.as_ref().map(|s| s.read(cx).section),
         )
     })
 }
 
-fn close(cx: &mut VisualTestContext) {
-    cx.update(|window, cx| gpui_component::WindowExt::close_dialog(window, cx));
+fn close(ws: &Entity<Workspace>, cx: &mut VisualTestContext) {
+    ws.update_in(cx, |ws, window, cx| ws.close_settings(window, cx));
     cx.run_until_parked();
 }
 
@@ -57,9 +57,9 @@ fn every_open_path_shows_the_modal_and_keeps_the_page(cx: &mut TestAppContext) {
             "{} opens the modal on {section:?}",
             action.name()
         );
-        close(cx);
-        let (_, dialog, ..) = state(&ws, cx);
-        assert!(!dialog, "closed after {}", action.name());
+        close(&ws, cx);
+        let (open, drawn, ..) = state(&ws, cx);
+        assert!(!open && !drawn, "closed after {}", action.name());
     }
     ws.read_with(cx, |ws, cx| {
         let settings = ws.settings.clone().expect("made on first open");

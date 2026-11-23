@@ -91,7 +91,7 @@ impl Settings {
         }
     }
 
-    /// Esc: closes the add card or an edit; with neither open, Esc goes on and closes the modal.
+    /// Esc: closes the add card or an edit; with neither open, it closes the modal.
     pub(super) fn cancel_edit(
         &mut self,
         _: &CancelEdit,
@@ -99,7 +99,7 @@ impl Settings {
         cx: &mut Context<Self>,
     ) {
         if self.editing.is_none() && !self.adding {
-            return cx.propagate();
+            return cx.emit(SettingsEvent::Closed);
         }
         self.reset_form(window, cx);
     }

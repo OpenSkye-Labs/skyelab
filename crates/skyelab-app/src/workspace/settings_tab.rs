@@ -1,8 +1,6 @@
-//! The Settings page: opening it, and what its events do (login terminals, saved accounts).
+//! The Settings modal: opening and closing it, and what its events do (login terminals, saved accounts).
 
 use super::*;
-
-use gpui_component::WindowExt as _;
 
 impl Workspace {
     /// ⌘, and every other "open settings" path: the modal, on the section it showed last.
@@ -27,7 +25,7 @@ impl Workspace {
     }
 
     /// Shows Settings as a modal over this window (T3's `AppRouteModal`) on `section`, or moves an open one there.
-    /// One per window: each window's workspace has its own Settings view and dialog layer.
+    /// One per window: each window's workspace has its own Settings view, drawn by [`Self::settings_modal`].
     pub(super) fn open_settings_at(
         &mut self,
         section: crate::settings::Section,
@@ -35,10 +33,6 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let settings = self.ensure_settings(window, cx);
-        // The dialog's `on_close` runs for Esc and the backdrop, not for a programmatic close, so a live dialog is
-        // what counts.
-        let has_root = matches!(window.root::<gpui_component::Root>(), Some(Some(_)));
-        self.settings_open &= !has_root || window.has_active_dialog(cx);
         if !self.settings_open {
             // The view lives all session: show the file as it is now (an edit elsewhere, a login since).
             self.reload_accounts();
@@ -47,45 +41,87 @@ impl Workspace {
                 let config = self.config.clone();
                 settings.update(cx, |s, cx| s.set_config(config, window, cx));
             }
+            let back = window.focused(cx);
+            settings.update(cx, |s, _| s.return_focus = back);
+            self.settings_open = true;
         }
         settings.update(cx, |s, cx| s.show(section, window, cx));
         if section == crate::settings::Section::Usage {
             self.reload_usage(cx);
         }
-        if self.settings_open {
-            settings.read(cx).focus_handle(cx).focus(window, cx);
-            return;
+        if section == crate::settings::Section::Scheduled
+            && let Some(page) = settings.read(cx).scheduled.clone()
+        {
+            page.update(cx, |p, cx| p.reload(cx));
         }
-        self.settings_open = true;
-        // A window without gpui-component's `Root` (some tests) has no dialog layer: only the flag is set, as
-        // `manage::push_note` skips its toast.
-        if !has_root {
-            return cx.notify();
-        }
-        let ws = cx.entity().downgrade();
-        let view = settings.clone();
-        window.open_dialog(cx, move |dialog, window, _| {
-            let size = window.viewport_size();
-            let ws = ws.clone();
-            // T3's modal: up to 1280 × 960 with 40 px of window around it, radius 16.
-            dialog
-                .w((size.width - gpui::px(80.)).min(gpui::px(1180.)))
-                .h((size.height - gpui::px(80.)).min(gpui::px(900.)))
-                .centered()
-                .p_0()
-                .rounded(crate::ui::RADIUS_XL)
-                .overflow_hidden()
-                .close_button(false)
-                .on_close(move |_, _, cx| {
-                    _ = ws.update(cx, |ws, cx| {
-                        ws.settings_open = false;
-                        cx.notify();
-                    });
-                })
-                .child(view.clone())
-        });
         settings.read(cx).focus_handle(cx).focus(window, cx);
         cx.notify();
+    }
+
+    /// Closes the Settings modal (Esc, the backdrop, ×, or moving to another page) and gives the focus back.
+    pub(crate) fn close_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.settings_open {
+            return;
+        }
+        self.settings_open = false;
+        let back = self
+            .settings
+            .as_ref()
+            .and_then(|s| s.update(cx, |s, _| s.return_focus.take()));
+        match back {
+            Some(f) => f.focus(window, cx),
+            None => self.focus.focus(window, cx),
+        }
+        cx.notify();
+    }
+
+    /// The modal: the dimmed backdrop over the whole window, and Settings centered on it (T3: up to 1280 × 960 with
+    /// 40 px of window around it, radius 16). Drawn inside the workspace's tree, not as a gpui-component `Dialog`, so
+    /// actions a section dispatches (Sharing's Allow, a scheduled task's thread link) still reach the workspace.
+    pub(super) fn settings_modal(
+        &self,
+        window: &Window,
+        cx: &Context<Self>,
+    ) -> Option<impl IntoElement + use<>> {
+        let settings = self.settings.clone().filter(|_| self.settings_open)?;
+        let size = window.viewport_size();
+        let theme = cx.theme();
+        Some(
+            gpui::deferred(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        div()
+                            .id("settings-backdrop")
+                            .debug_selector(|| "settings-backdrop".into())
+                            .absolute()
+                            .inset_0()
+                            .bg(theme.overlay)
+                            .occlude()
+                            .on_mouse_down(
+                                gpui::MouseButton::Left,
+                                cx.listener(|this, _, window, cx| this.close_settings(window, cx)),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .w((size.width - px(80.)).min(px(1180.)))
+                            .h((size.height - px(80.)).min(px(900.)))
+                            .rounded(crate::ui::RADIUS_XL)
+                            .border_1()
+                            .border_color(theme.border)
+                            .overflow_hidden()
+                            .shadow_2xl()
+                            .occlude()
+                            .child(settings),
+                    ),
+            )
+            .with_priority(2),
+        )
     }
 
     /// Re-reads the Usage page's numbers; called whenever Settings → Usage is shown.
@@ -118,10 +154,13 @@ impl Workspace {
         );
         let remote = self.remote_panel(cx);
         let usage = cx.new(usage_page::UsagePage::new);
+        let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());
+        let scheduled = cx.new(|cx| scheduled::ScheduledPage::new(store, accounts, cx));
         let settings = cx.new(|cx| {
             let mut s = Settings::new(path, config, error, window, cx);
             s.remote = remote;
             s.usage = Some(usage);
+            s.scheduled = Some(scheduled);
             s
         });
         // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.
@@ -144,10 +183,7 @@ impl Workspace {
                     SettingsEvent::OpenKeysFile { path } => {
                         return this.open_keys_file(path, window, cx);
                     }
-                    SettingsEvent::Closed => {
-                        this.settings_open = false;
-                        return cx.notify();
-                    }
+                    SettingsEvent::Closed => return this.close_settings(window, cx),
                     SettingsEvent::GhLogin { dir } => (gh_login_options(&gh_bin(cx), dir), dir),
                     SettingsEvent::CodexLogin { dir } => (
                         github::codex_login_options(&github::codex_bin(cx), dir),
@@ -155,10 +191,7 @@ impl Workspace {
                     ),
                 };
                 // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
-                if this.settings_open {
-                    window.close_dialog(cx);
-                    this.settings_open = false;
-                }
+                this.close_settings(window, cx);
                 // The tab names the account being logged in to, not the folder it starts in.
                 let account = this.config.accounts.iter().find(|a| {
                     a.gh_config_dir.as_deref() == Some(dir.as_path()) || a.config_dir == *dir

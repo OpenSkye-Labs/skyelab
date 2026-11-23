@@ -4,29 +4,33 @@
 //! (stopped, crashed), never folds.
 
 use super::thread_items::ItemsView;
-use super::thread_model::Item;
+use super::thread_model::{Item, Items};
 use super::timeline_text::divider_text;
 use crate::ui;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
 use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
 use std::ops::Range;
 
-/// The expanded-set key of the turn whose divider is row `done`. No agent id has this shape.
-pub(super) fn fold_key(done: usize) -> String {
-    format!("fold:{done}")
+/// The expanded-set key of the turn whose divider is row `done`, by the divider's row key so it stays with the turn
+/// when rows go in above it. No agent id has this shape.
+pub(super) fn fold_key(items: &Items, done: usize) -> String {
+    format!("fold:{}", items.key(done))
+}
+
+/// The expanded-set key of the changed-files card under the divider at row `done`, by its row key like `fold_key`.
+pub(super) fn files_key(items: &Items, done: usize) -> String {
+    format!("files:{}", items.key(done))
 }
 
 /// The rows a key's toggle changes: a turn's whole fold, or the one row that expands.
-pub(super) fn rows_of(items: &[Item], key: &str) -> Option<Range<usize>> {
-    if let Some(done) = key
-        .strip_prefix("files:")
-        .and_then(|d| d.parse::<usize>().ok())
-    {
-        return (done < items.len()).then_some(done..done + 1);
+pub(super) fn rows_of(items: &Items, key: &str) -> Option<Range<usize>> {
+    let row = |k: &str| k.parse().ok().and_then(|k| items.position(k));
+    if let Some(done) = key.strip_prefix("files:") {
+        return row(done).map(|done| done..done + 1);
     }
-    match key.strip_prefix("fold:").and_then(|d| d.parse().ok()) {
-        Some(done) if done < items.len() => Some(turn_start(items, done)..done + 1),
-        _ => items
+    match key.strip_prefix("fold:").and_then(row) {
+        Some(done) => Some(turn_start(items, done)..done + 1),
+        None => items
             .iter()
             .position(|i| i.expand_id() == Some(key))
             .map(|ix| ix..ix + 1),
@@ -126,7 +130,7 @@ pub(super) fn fold_row<V: ItemsView>(
     let Some(done) = folded_by(items, ix) else {
         return row(this, cx);
     };
-    let key = fold_key(done);
+    let key = fold_key(items, done);
     let open = this.is_expanded(&key);
     let header = (fold_head(items, done) == Some(ix)).then(|| header(&items[done], open, key, cx));
     let body = open.then(|| row(this, cx));

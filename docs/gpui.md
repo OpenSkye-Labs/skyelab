@@ -53,18 +53,14 @@ and how Zed uses it, not blog posts or memory.
 - Use `gpui-component` before building a widget: `Input`, `Button`, `List`, `Table`, `Dock`, `Tabs`, `Dialog`, `Notification`,
   `Markdown`, the code editor. Only drop to raw `div()` for layout.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
-- Text sizes are rems (`ui::BODY`, `ui::META`…): gpui-component's `Root` sets the window's rem to `theme.font_size`, so
-  Settings → Appearance's text size scales every view with no call site changed. A px size never scales.
-- A theme choice (family, accent, sizes) is baked into the `ThemeConfig`s set as `light_theme`/`dark_theme`, then
-  `Theme::change` (it refreshes every window). Writing `Theme` fields directly is undone by the next system
-  appearance flip, which reloads from the configs (`ui::themes::apply`).
-- `window.open_dialog` panics without gpui-component's `Root` around the window's view: test windows that open one
-  wrap it (`threads_test::add_rooted`), and code that may run in a bare window checks `window.root::<Root>()` first.
-- A view shown inside a `Dialog` sits in `Root`'s dialog layer, not under the workspace view: the workspace's key
-  bindings and actions don't reach it, so a click inside dispatching a workspace action does nothing. Call the view's
-  own method (the Settings nav does), or emit an event the workspace handles.
-- A `Dialog`'s `on_close` runs for Esc and a backdrop click, not for `window.close_dialog`: a flag cleared there goes
-  stale after a programmatic close. Trust `window.has_active_dialog` (the Settings modal does both).
+- Text sizes are rems (`ui::BODY`…): `Root` sets the rem to `theme.font_size`, so Appearance's text size scales
+  every view. A px size never scales.
+- Bake a theme choice into the `light_theme`/`dark_theme` configs, then `Theme::change` (refreshes every window).
+  Fields written on `Theme` are lost at the next appearance flip (`ui::themes::apply`).
+- `window.open_dialog` panics without `Root`; test windows that open one use `threads_test::add_rooted`.
+- A `Dialog` sits in `Root`'s layer, outside the workspace: actions dispatched inside it never reach the workspace.
+  A modal that must reach it is a `deferred` layer in `Workspace::render` (`settings_tab::settings_modal`).
+- A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.
 - gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.
@@ -81,6 +77,21 @@ and how Zed uses it, not blog posts or memory.
 - `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
   diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
   row) whenever that set changes (`ChangesView::comments_changed`).
+- A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
+  `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after
+  and over the dock. Not `anchored()`: that snaps to the window, while this one must sit under a button another view
+  draws and beside a dock whose width changes.
+- A floating card is an entity drawn as `AnyView::from(e).cached(style)`, or every render of its parent (each streamed
+  delta in the thread) renders it too. A cached view can't size to its content: give the outer box a fixed size
+  (`top`/`bottom`/`right`/`w`) and let the card inside take `max_h_full()` and scroll. The empty space under it stays
+  click-through because only the card has handlers.
+- The card itself `occlude()`s, so a click or wheel on it never reaches the chat under it. Outside presses come from
+  its `on_mouse_down_out`, emitted as an event the owner decides on: the owner knows whether the card covers the
+  chat (T3's popover mode) and skips the press that lands on the page header, where the toggle's own click closes it.
+  Closing on the down and reopening on the toggle's click would otherwise flicker it open again.
+- A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
+  `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight
+  to the workspace's actions and fire only while it has focus.
 - A hit target over part of a row (the diff gutter) is an `absolute` child with its own id and mouse handlers. A plain
   `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
   row's own colors still show under it.
@@ -120,6 +131,17 @@ and how Zed uses it, not blog posts or memory.
   resvg `Options` whose `image_href_resolver` refuses both data and string hrefs, and hand GPUI the PNG.
 - Blocking or O(n) work (store writes, ranking thousands of rows, polling a CLI) goes to `background_spawn`, and waits
   use `background_executor().timer`, never `std::thread::sleep` on the pool.
+- A view drawn from another entity (the thread details card reads the thread view) observes it but compares a signature
+  of what it draws (`DetailsSig`: every field `render_details` reads, plus the minute for "3m" labels) and notifies
+  only when it differs. GPUI coalesces notifies per flush, so the observer runs once per frame at most.
+- Element ids and keyed element state of list rows use a key the row keeps (`thread_model::Items` gives each row one
+  from a global counter), never the row's index: the timeline is spliced, and an index id hands a row's markdown
+  cache, selection or open fold to its neighbour. A list built again gets new keys, so stale state never attaches.
+- Measure redraws with `SKYELAB_DEBUG_RENDERS=1` (debug builds): every view's `render` calls
+  `crate::debug_renders::count("Name")`, and stderr gets `renders/s Workspace=17 ThreadView=16 timeline row=144 …`
+  once a second. `Workspace` is the frame count per window. A new view adds the call as its render's first line.
+  Measured: the focused composer's caret blink re-renders `ThreadView` (and rebuilds its visible timeline rows)
+  twice a second while idle; only moving the timeline into its own cached view would stop that.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 
@@ -146,6 +168,12 @@ and how Zed uses it, not blog posts or memory.
   Keep anything else the draft has (files, chips) on the view, not in the input.
 - Code that runs inside `ws.update(..)` must not read every workspace entity (that one is mid-update and panics):
   keep cross-window data (each window's saved layout) in the registry global instead.
+- App-wide timed work (the scheduler) is one `Global` holding one `cx.spawn` task, started idempotently by whichever
+  window claims the hub; each tick looks up the hub window then (`windows::hub_workspace`), so a closed window never
+  takes the work with it and a second window never starts a second loop.
+- `window.update(..)` fails ("window not found") when called inside that same window's update: a click handler, a
+  view's `update_in`, `VisualTestContext::update`. Work that opens tabs on the hub window runs from the App level: a
+  click hands it over with `cx.defer`, and a test drives it with `TestAppContext::update(cx, f)`, not `cx.update`.
 - Find a closing window with `cx.on_window_closed`, not the root view's `on_release`: a test or a task holding the
   entity keeps it alive after its window is gone. Inside that callback `cx.windows()` no longer lists it.
 - A window whose focused element moved to another window has no focus, so its key bindings stop: give the page the
@@ -180,6 +208,9 @@ and how Zed uses it, not blog posts or memory.
 - Logic goes in `skyelab-core` and gets plain `#[test]`s. Views stay thin.
 - View behavior: `#[gpui::test] fn t(cx: &mut TestAppContext)` with the `test-support` feature in dev-deps.
   Use `cx.add_window_view`, `simulate_keystrokes`, `run_until_parked`. The executor is deterministic, so no sleeps.
+- `VisualTestContext::dispatch_action` runs until parked, so background reads have already landed when it returns. To
+  assert an in-between state (a Loading row), call the handler inside one `update_in` and read the state there
+  (`gh_pages_test.rs`).
 - Pointer tests: give the target `.debug_selector(..)`, get it drawn (`cx.notify()` after changing state directly,
   then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
 - Visual or behavior check of the real app: `/loop-verify-ui`.

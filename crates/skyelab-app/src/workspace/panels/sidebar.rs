@@ -47,6 +47,8 @@ pub struct SidebarSection {
 #[derive(Default)]
 pub struct RowMarks {
     pub pinned: bool,
+    /// A scheduled task started it (from the stored row): the "Scheduled" badge.
+    pub scheduled: bool,
     pub unread: bool,
     /// The agent waits for a permission answer.
     pub approval: bool,
@@ -326,6 +328,7 @@ impl Sidebar {
 
 impl Render for Sidebar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Sidebar");
         let theme = cx.theme();
         let focus = self.focus.clone();
         v_flex()

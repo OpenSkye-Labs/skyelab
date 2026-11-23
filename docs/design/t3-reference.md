@@ -99,15 +99,18 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - Settings is a modal over the app (`AppRouteModal.tsx`: up to 1280 × 960, 40 px of window around it, radius 16,
   border): a search field with a `/` chip, ungrouped items, then groups with small muted headers, then bottom items;
   a breadcrumb header with Restore defaults and ×; a centered column of bold section titles over one rounded card of
-  rows (label, muted description, control on the right). SkyeLab: `settings/page.rs`, `nav.rs`, `widgets.rs`, opened
-  by `workspace/settings_tab.rs` as a gpui-component `Dialog`, one per window.
+  rows (label, muted description, control on the right). SkyeLab: `settings/page.rs`, `nav.rs`, `widgets.rs`, drawn
+  by `workspace/settings_tab.rs` as a deferred layer in the workspace (the `overlay` backdrop), one per window.
 - Breadcrumb: project (14 px favicon + name, muted) `/` thread title (`text-sm font-medium`, foreground), gap 12, the
   separator in `icon-muted` (`chat/ChatHeader.tsx:254-414`, `W/components/WorkspaceBreadcrumb.tsx:14,27-58`).
 - Right: ghost 28 px icon toggles for panels (`chat/PanelLayoutControls.tsx:63-174`). Branch and environment live in the
   composer's context strip, not the header.
-- Thread details card (`chat/ThreadDetailsPanel.tsx`, `threadDetailsPanelStyles.ts`): a popover from a square-menu
-  toggle in T3. SkyeLab puts it in the right dock's permanent Details tab instead, as a titled card stack (the user's
-  Synara reference), with Usage listing every account. Rows 32 tall, `px-2.5`, `gap-2.5`, radius 8, 13 px `font-medium` at 80% foreground,
+- Thread details card (`chat/ThreadDetailsPanel.tsx`, `threadDetailsPanelStyles.ts`): a card from the square-menu
+  toggle (⌘⇧B), the first of the header's panel toggles, floating over the chat under it. It stays open beside the chat
+  column (T3's inline mode) and closes on an outside click only when it covers the column (popover mode); Esc and the
+  toggle close it. SkyeLab matches that (`render::details_card`), with Usage listing every account; only lists
+  (Lineage, Side chats, Pull request) carry a title. The right dock's empty state is T3's "Open a surface"
+  (`RightPanelTabs.tsx`): each surface with its letter, greyed when the thread can't have it (`workspace/surfaces.rs`). Rows 32 tall, `px-2.5`, `gap-2.5`, radius 8, 13 px `font-medium` at 80% foreground,
   16 px muted icons, hover black 3.5% / white 8%. Sections (workspace, version control, lineage, usage) split by a
   hairline. SkyeLab: `workspace/details_panel.rs` and `thread_details*.rs`, radius 16; pickers open as pages inside the card.
 - Modal backdrop (`ui/dialog.tsx`, `ui/sheet.tsx`): `bg-background/60 backdrop-blur`. GPUI has no in-window blur, so

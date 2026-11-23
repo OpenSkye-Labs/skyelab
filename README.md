@@ -46,15 +46,22 @@ What's built today:
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and
   <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor. The header is a plain breadcrumb;
-  the right panel's **Details** tab holds the folder, branch (with how far behind or ahead of its upstream, kept
+  the **thread details** card (<kbd>⇧⌘B</kbd>, floating over the chat) holds the folder, branch (with how far behind or ahead of its upstream, kept
   fresh by a background fetch, and a fast-forward Pull), git actions, scripts, delegated agents, pull request (its
   state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
   per account and per project, with a daily chart, from what the agents reported (no account is asked).
+- **Scheduled tasks.** Settings → Scheduled tasks saves a prompt that starts a new thread in a project every N
+  minutes or hours, daily or on weekdays at a time, or on a cron expression, while SkyeLab runs. Each run uses the
+  folder's bound account as resolved then; a rebound or unbound folder pauses the task instead. **Schedule this
+  prompt…** in the palette starts one from a composer ([guide](docs/user-guide-scheduled.md)).
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user (a sparkle writes the commit
   message or PR text, from the PR template too, with that account's agent); inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
+- **Pull requests and issues.** **Open Pull Requests** / **Open Issues** (palette) list the open PRs and issues of
+  every bound project, each read with its own account's GitHub login (mine, review requested, assigned, all). A PR
+  starts a review thread with the PR linked; an issue starts a thread with the issue as a context chip.
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
   `/` and skills with `$`, add another thread's gist or its pull request with `#` (same account only), and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
@@ -80,7 +87,7 @@ What's built today:
 - **Files.** <kbd>⌘P</kbd> finds a file in the thread's folder, <kbd>⇧⌘F</kbd> searches file contents in a right-panel tab,
   and a read-only Preview tab shows a file with syntax highlighting (or an image). File paths in the agent's replies
   open there at their line. Nothing outside the thread's folder is read.
-- **Branches, checkpoints and scripts.** A branch picker in the Details tab (switch, create, and stash or carry
+- **Branches, checkpoints and scripts.** A branch picker in the thread details card (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder, with
@@ -101,7 +108,7 @@ What's built today:
   shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
   sends or stops, and answers the agent's permission requests. Not packaged for distribution yet.
 - **Agent orchestration.** An agent can start and drive other threads through SkyeLab's own MCP tools, only in
-  projects bound to its own account. A child's breadcrumb links its parent, and the parent's Details tab lists its
+  projects bound to its own account. A child's breadcrumb links its parent, and the parent's thread details card lists its
   delegated threads under Lineage, with their status. macOS and Linux only for now.
 
 - **Tool approvals in the thread.** When an agent needs permission for a tool (a command, an edit), the thread shows

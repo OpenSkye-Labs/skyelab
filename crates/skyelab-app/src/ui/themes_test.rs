@@ -60,7 +60,7 @@ fn switching_applies_family_mode_accent_sizes_and_density(cx: &mut TestAppContex
             "accent applied: {:?}",
             t.primary
         );
-        assert!(themes::compact());
+        assert!(themes::get(cx).compact, "saved as compact");
     });
     // Light mode, defaults back.
     cx.update(|cx| {
@@ -71,7 +71,7 @@ fn switching_applies_family_mode_accent_sizes_and_density(cx: &mut TestAppContex
         themes::set(s, cx).detach();
         assert!(!cx.theme().is_dark());
         assert_eq!(cx.theme().light_theme.name, "SkyeLab Light");
-        assert!(!themes::compact());
+        assert!(!themes::get(cx).compact);
     });
     assert_eq!(ACCENTS.len(), 6);
 }

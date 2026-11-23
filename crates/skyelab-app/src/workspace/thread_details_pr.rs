@@ -14,7 +14,7 @@ use gpui_component::{
     v_flex,
 };
 use gpui_kit_assets::IconName;
-use skyelab_git::{Checks, Review};
+use skyelab_git::Checks;
 
 impl ThreadView {
     /// The thread's pull request (opened here or linked) with what its last read said, else "Link pull request…".
@@ -139,22 +139,7 @@ impl ThreadView {
                         .into_any_element(),
                     );
                 }
-                let review = match s.review {
-                    Review::None => None,
-                    Review::Approved => Some((
-                        IconName::UserCheck,
-                        ui::ink(theme, theme.success),
-                        "Approved",
-                    )),
-                    Review::ChangesRequested => Some((
-                        IconName::UserRoundX,
-                        ui::ink(theme, theme.warning),
-                        "Changes requested",
-                    )),
-                    Review::Required => {
-                        Some((IconName::User, theme.muted_foreground, "Awaiting review"))
-                    }
-                };
+                let review = super::super::pr_watch::review_look(s.review, theme);
                 rows.extend(review.map(|(icon, color, text)| {
                     tinted_row("details-pr-review", icon, color, text, theme)
                         .cursor_default()

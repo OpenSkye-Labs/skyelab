@@ -8,8 +8,8 @@ use crate::workspace::*;
 use gpui::{Modifiers, TestAppContext, VisualTestContext, point, px};
 
 fn open(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> (bool, bool) {
-    let dialog = cx.update(|window, cx| gpui_component::WindowExt::has_active_dialog(window, cx));
-    (ws.read_with(cx, |ws, _| ws.settings_open), dialog)
+    let drawn = cx.debug_bounds("settings-backdrop").is_some();
+    (ws.read_with(cx, |ws, _| ws.settings_open), drawn)
 }
 
 #[gpui::test]
@@ -102,20 +102,10 @@ fn each_window_has_its_own_modal(cx: &mut TestAppContext) {
     let settings_differ = cx.update(|_, cx| a.read(cx).settings != b.read(cx).settings);
     assert!(settings_differ, "each window has its own Settings view");
     // Closing B's leaves A's up.
-    cx.update(|_, cx| {
-        handles[1]
-            .update(cx, |_, window, cx| {
-                gpui_component::WindowExt::close_dialog(window, cx)
-            })
-            .expect("B open")
+    in_window(handles[1], &b, cx, |ws, window, cx| {
+        ws.close_settings(window, cx)
     });
     cx.run_until_parked();
-    let has = |_: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>| {
-        gpui_component::WindowExt::has_active_dialog(window, cx)
-    };
-    let dialogs = (
-        in_window(a_window, &a, cx, has),
-        in_window(handles[1], &b, cx, has),
-    );
-    assert_eq!(dialogs, (true, false), "B's modal closed, A's stays");
+    let open = cx.update(|_, cx| (a.read(cx).settings_open, b.read(cx).settings_open));
+    assert_eq!(open, (true, false), "B's modal closed, A's stays");
 }
