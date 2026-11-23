@@ -13,49 +13,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
-/// Index `i` upgrades the schema from `user_version` `i` to `i + 1`. Only append.
-const MIGRATIONS: &[&str] = &[
-    "
-CREATE TABLE projects (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL,
-    path       TEXT NOT NULL UNIQUE,
-    created_at INTEGER NOT NULL
-);
-CREATE TABLE threads (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
-    title            TEXT NOT NULL,
-    cwd              TEXT NOT NULL,
-    account_id       TEXT NOT NULL,
-    agent_session_id TEXT,
-    status           TEXT NOT NULL,
-    created_at       INTEGER NOT NULL,
-    updated_at       INTEGER NOT NULL
-);
-CREATE INDEX threads_by_project ON threads(project_id, updated_at DESC);
-CREATE TABLE events (
-    thread_id    INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-    seq          INTEGER NOT NULL,
-    kind         TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    created_at   INTEGER NOT NULL,
-    PRIMARY KEY (thread_id, seq)
-) WITHOUT ROWID;
-",
-    "
-ALTER TABLE threads ADD COLUMN worktree_path TEXT;
-ALTER TABLE threads ADD COLUMN worktree_branch TEXT;
-",
-    "
-ALTER TABLE threads ADD COLUMN worktree_base TEXT;
-",
-    "ALTER TABLE threads ADD COLUMN pr_url TEXT;",
-    "
-ALTER TABLE threads ADD COLUMN parent_thread_id INTEGER REFERENCES threads(id) ON DELETE SET NULL;
-CREATE INDEX threads_by_parent ON threads(parent_thread_id);
-",
-];
+mod manage;
+mod migrations;
+use migrations::MIGRATIONS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
@@ -88,6 +48,12 @@ pub struct Thread {
     pub pr_url: Option<String>,
     /// The thread whose agent delegated this one, if any.
     pub parent_thread_id: Option<i64>,
+    /// When the user pinned it (pinned threads list first).
+    pub pinned_at: Option<i64>,
+    /// When the user archived it (listed apart, never notifies).
+    pub archived_at: Option<i64>,
+    /// A turn finished while the user wasn't looking at it.
+    pub unread: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,7 +86,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id";
+const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, pinned_at, archived_at, unread";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -144,6 +110,11 @@ impl Store {
                 [],
             )
             .context("marking the last run's threads interrupted")?;
+        // A delete whose undo window the last run didn't see out is final now.
+        store
+            .conn
+            .execute("DELETE FROM threads WHERE deleted_at IS NOT NULL", [])
+            .context("purging deleted threads")?;
         Ok(store)
     }
 
@@ -199,9 +170,11 @@ impl Store {
             .optional()?)
     }
 
-    /// Ordered by name.
+    /// Ordered by name. Removed projects are left out.
     pub fn list_projects(&self) -> Result<Vec<Project>> {
-        let sql = format!("SELECT {PROJECT_COLS} FROM projects ORDER BY name, id");
+        let sql = format!(
+            "SELECT {PROJECT_COLS} FROM projects WHERE removed_at IS NULL ORDER BY name, id"
+        );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], project_from_row)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -255,6 +228,9 @@ impl Store {
             worktree_base: None,
             pr_url: None,
             parent_thread_id: None,
+            pinned_at: None,
+            archived_at: None,
+            unread: false,
         })
     }
 
@@ -266,10 +242,11 @@ impl Store {
             .optional()?)
     }
 
-    /// Most recently updated first.
+    /// Most recently updated first, archived ones included. Deleted ones (still in their undo window) are left out.
     pub fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>> {
         let sql = format!(
-            "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 ORDER BY updated_at DESC, id DESC"
+            "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 AND deleted_at IS NULL
+             ORDER BY updated_at DESC, id DESC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([project_id], thread_from_row)?;
@@ -433,6 +410,9 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         worktree_base: r.get(11)?,
         pr_url: r.get(12)?,
         parent_thread_id: r.get(13)?,
+        pinned_at: r.get(14)?,
+        archived_at: r.get(15)?,
+        unread: r.get(16)?,
     })
 }
 
