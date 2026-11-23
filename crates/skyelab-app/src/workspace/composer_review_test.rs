@@ -23,7 +23,7 @@ fn account(root: &Path, id: &str, provider: Provider) -> Account {
 }
 
 /// A project bound to "acme", with a second account "beta", and a view on a new thread in it.
-fn view_with(
+pub(super) fn view_with(
     cx: &mut TestAppContext,
     bin: Option<PathBuf>,
 ) -> (

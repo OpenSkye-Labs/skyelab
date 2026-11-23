@@ -203,11 +203,20 @@ impl Render for PreviewPanel {
         let body = match &self.body {
             Body::Loading => note("Loading…".into()).into_any_element(),
             Body::Note(text) => note(text.clone()).into_any_element(),
-            Body::Image(path) => div()
-                .size_full()
-                .p_4()
-                .child(img(path.clone()).size_full().object_fit(ObjectFit::Contain))
-                .into_any_element(),
+            Body::Image(path) => {
+                let (shown, name) = (path.clone(), self.name());
+                div()
+                    .id("preview-image")
+                    .size_full()
+                    .p_4()
+                    .cursor_pointer()
+                    .child(img(path.clone()).size_full().object_fit(ObjectFit::Contain))
+                    .on_click(move |_, window, cx| {
+                        let shown = crate::workspace::image_viewer::Shown::Path(shown.clone());
+                        crate::workspace::image_viewer::open(shown, name.clone(), window, cx)
+                    })
+                    .into_any_element()
+            }
             Body::Text => Editor::new(&self.editor)
                 .readonly(true)
                 .bordered(false)

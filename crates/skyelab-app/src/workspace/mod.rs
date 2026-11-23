@@ -19,6 +19,7 @@ mod env_mode;
 mod env_picker;
 mod env_sidebar;
 mod files;
+mod image_viewer;
 mod keys;
 pub(crate) mod layout;
 mod manage;
@@ -491,6 +492,8 @@ mod env_whois_test;
 mod exit_holding_stdout_test;
 #[cfg(all(test, unix))] // uses publish_test's fake-gh helpers
 mod generate_text_test;
+#[cfg(test)]
+mod image_viewer_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;
 #[cfg(test)]

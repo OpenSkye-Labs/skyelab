@@ -14,6 +14,8 @@ pub mod env;
 pub mod files;
 pub mod onboarding;
 pub mod process;
+pub mod prompt;
+pub mod scratch;
 pub use app_settings::{
     AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ThreadSettings,
     WindowLayout,

@@ -76,6 +76,8 @@ pub struct ThreadView {
     pub(super) _tick: Option<Task<()>>,
     /// The prompt a resume launch sent, kept until its session answers: rerun in a new session if it was gone.
     pub(super) resumed_prompt: Option<String>,
+    /// Images sent from this tab, by their message's shown text: in memory only, for the thumbnails and viewer.
+    pub(super) sent_images: std::collections::HashMap<String, super::image_viewer::Sent>,
     /// Set when the resumed session was gone: rerun when this agent has ended.
     pub(super) rerun: Option<String>,
     /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
@@ -307,6 +309,7 @@ impl ThreadView {
             turn_started_ms: None,
             _tick: None,
             resumed_prompt: None,
+            sent_images: Default::default(),
             rerun: None,
             background: false,
             stop_requested: false,

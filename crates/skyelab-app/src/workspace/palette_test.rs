@@ -6,7 +6,7 @@ use crate::palette::{Entry, Kind, OPEN_PALETTE_KEY};
 use gpui::{TestAppContext, VisualTestContext};
 use gpui_component::{Root, WindowExt as _};
 
-fn setup(cx: &mut TestAppContext) {
+pub(super) fn setup(cx: &mut TestAppContext) {
     cx.update(|cx| {
         gpui_component::init(cx);
         crate::settings::init(cx);
@@ -16,7 +16,10 @@ fn setup(cx: &mut TestAppContext) {
 }
 
 /// A workspace in a `Root` window over `backend`, focused like `main` does it.
-fn open(backend: Backend, cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContext) {
+pub(super) fn open(
+    backend: Backend,
+    cx: &mut TestAppContext,
+) -> (Entity<Workspace>, &mut VisualTestContext) {
     let home = tempfile::tempdir().expect("tempdir").keep();
     let mut ws = None;
     let window = cx.add_window(|window, cx| {
