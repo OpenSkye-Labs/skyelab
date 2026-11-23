@@ -25,7 +25,7 @@ fn effective_model_comes_from_the_init_line_and_survives_a_reopen(cx: &mut TestA
     wait_until(cx, "the init line's model", |cx| {
         chip(&one.view, cx) == ("Opus 5.5".into(), true)
     });
-    // An explicit pick of the same family keeps the reported version; effort follows T3's "Opus 5.5 High".
+    // An explicit pick names the alias (no run on it reported a version yet); effort follows T3's "Opus High".
     one.view.update(cx, |v, cx| {
         v.pick_model(
             ModelChoice {
@@ -35,7 +35,7 @@ fn effective_model_comes_from_the_init_line_and_survives_a_reopen(cx: &mut TestA
             cx,
         )
     });
-    assert_eq!(chip(&one.view, cx), ("Opus 5.5 High".into(), false));
+    assert_eq!(chip(&one.view, cx), ("Opus High".into(), false));
     cx.run_until_parked(); // each pick is saved by its own background task
     one.view.update(cx, |v, cx| {
         v.pick_model(
@@ -48,10 +48,10 @@ fn effective_model_comes_from_the_init_line_and_survives_a_reopen(cx: &mut TestA
     });
     assert_eq!(chip(&one.view, cx), ("Sonnet".into(), false));
     cx.run_until_parked();
-    // Back to the default: the old pick's run no longer names it, the account's own default does.
+    // Back to the default: the run made on the default still names it.
     one.view
         .update(cx, |v, cx| v.pick_model(ModelChoice::default(), cx));
-    assert_eq!(chip(&one.view, cx), ("Claude default".into(), true));
+    assert_eq!(chip(&one.view, cx), ("Opus 5.5".into(), true));
     cx.run_until_parked();
     // Reopened from the store: the replayed init line names it again.
     let (thread, config) = one.view.read_with(cx, |v, _| {

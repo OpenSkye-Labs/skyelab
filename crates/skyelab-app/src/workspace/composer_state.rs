@@ -119,6 +119,8 @@ pub(crate) struct Composer {
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// The model this thread's agent last reported running (its init line).
     pub reported_model: Option<String>,
+    /// The pick the run that reported it had (`None` inside: the account's default); `None`: replayed, unknown.
+    pub reported_pick: Option<Option<String>>,
     /// The account's own default model, from its config dir.
     pub account_model: Option<String>,
     pub footer: Footer,
@@ -277,10 +279,6 @@ impl ThreadView {
     /// Picks a model and effort: kept on the thread, remembered as the project's default for new threads, and
     /// handed to a running agent.
     pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
-        // Back to the default: the last run's model was the old pick's, so the account's own default names it now.
-        if pick.model.is_none() && self.composer.pick.model.is_some() {
-            self.composer.reported_model = None;
-        }
         self.composer.pick = pick.clone();
         self.composer.picked = true;
         self.composer.picker_open = false;

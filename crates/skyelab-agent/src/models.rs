@@ -107,8 +107,13 @@ pub fn account_default_model(account: &Account) -> Option<String> {
         Provider::Claude => "settings.json",
         Provider::Codex => "config.toml",
     };
+    let path = account.config_dir.join(file);
+    // A regular file only: a FIFO or device there would block the read forever.
+    if !std::fs::metadata(&path).ok()?.is_file() {
+        return None;
+    }
     let mut text = String::new();
-    std::fs::File::open(account.config_dir.join(file))
+    std::fs::File::open(&path)
         .ok()?
         .take(MAX_CONFIG)
         .read_to_string(&mut text)

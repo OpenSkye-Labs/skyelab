@@ -38,6 +38,9 @@ fn account_default_takes_only_settings_model() {
     let dir = tempfile::tempdir().expect("tempdir");
     let a = account(Provider::Claude, dir.path());
     assert_eq!(account_default_model(&a), None, "no settings.json");
+    std::fs::create_dir(dir.path().join("settings.json")).expect("mkdir");
+    assert_eq!(account_default_model(&a), None, "not a regular file");
+    std::fs::remove_dir(dir.path().join("settings.json")).expect("rmdir");
     std::fs::write(
         dir.path().join(".credentials.json"),
         r#"{"claudeAiOauth":{"accessToken":"sk-secret","model":"secret-model"}}"#,

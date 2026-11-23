@@ -36,8 +36,8 @@ to a default account: no pick, no thread. Remove the project or its binding like
   it to read the text, × to drop it. Only threads that ran on this composer's account, in a folder still bound to
   it, are listed, so another account's work never ends up in this account's prompt.
 - **The model chip** (right of the composer: **Opus 5.5 High**) always names the model that will run. Until you pick
-  one it shows the account's own default, with the tooltip **Account default**: the model the thread's last run
-  reported, else the `model` in the account's Claude `settings.json` or Codex `config.toml` (SkyeLab reads only that
+  one it shows the account's own default, with the tooltip **Account default model**: the model the thread's last run
+  on the default reported, else the `model` in the account's Claude `settings.json` or Codex `config.toml` (SkyeLab reads only that
   field and never writes there), else Codex's listed default, else **Claude default**. It sets the model and effort for this
   thread: Opus, Sonnet, Haiku or Fable with effort Low to Max for Claude, or the models Codex lists for your account.
   A pick is kept on the thread and becomes the project's default for new threads. A running Claude agent switches

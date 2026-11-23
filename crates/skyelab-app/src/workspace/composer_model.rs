@@ -12,10 +12,7 @@ impl ThreadView {
     pub(in crate::workspace) fn chip_label(&self, compact: bool) -> (String, bool) {
         let c = &self.composer;
         let (model, default) = match c.pick.model.as_deref() {
-            Some(id) => (
-                pick_name(id, c.reported_model.as_deref(), self.listed()),
-                false,
-            ),
+            Some(id) => (self.pick_name(id), false),
             None => (self.default_model_name(), true),
         };
         match &c.pick.effort {
@@ -24,14 +21,25 @@ impl ThreadView {
         }
     }
 
-    /// The model the account runs with no pick: what this thread's last run reported, else the account's own config,
+    /// The model the account runs with no pick: what this thread's last run on the default reported, else the account's own config,
     /// else Codex's listed default, else "Claude default" / "Codex default".
     pub(in crate::workspace) fn default_model_name(&self) -> String {
         let c = &self.composer;
         let listed = self.listed();
-        c.reported_model
+        let account = c.account_model.as_deref();
+        // A run's model names the default only if that run had no pick. A replayed one (pick unknown) must at least
+        // match the account's own default.
+        // shortcut: a replayed run under a since-cleared pick still names it when the account sets no model; store
+        // each run's pick with its init line if that matters.
+        let reported = c
+            .reported_model
             .as_deref()
-            .or(c.account_model.as_deref())
+            .filter(|r| match &c.reported_pick {
+                Some(pick) => pick.is_none(),
+                None => account.is_none_or(|a| *r == a || r.starts_with(&format!("claude-{a}-"))),
+            });
+        reported
+            .or(account)
             .map(|id| label_for(id, listed))
             .or_else(|| {
                 listed?
@@ -45,10 +53,12 @@ impl ThreadView {
             })
     }
 
-    /// Keeps the model an agent's init line reports, so the chip names what actually ran.
+    /// Keeps the model an agent's init line reports, so the chip names what actually ran. `live`: it arrived now, so
+    /// the pick it ran under is the current one; a replayed one's pick is unknown.
     pub(in crate::workspace) fn note_model(
         &mut self,
         record: &crate::workspace::thread_model::Record,
+        live: bool,
     ) {
         if let crate::workspace::thread_model::Record::Agent(skyelab_agent::Event::Init {
             model,
@@ -57,6 +67,23 @@ impl ThreadView {
             && !model.is_empty()
         {
             self.composer.reported_model = Some(model.clone());
+            self.composer.reported_pick = live.then(|| self.composer.pick.model.clone());
+        }
+    }
+
+    /// A picked model's name. An alias pick (`opus`) names the version a run on that same pick reported.
+    fn pick_name(&self, id: &str) -> String {
+        let c = &self.composer;
+        let ran_on_it = c.reported_pick.as_ref().and_then(Option::as_deref) == Some(id);
+        match c.reported_model.as_deref() {
+            Some(r)
+                if ran_on_it
+                    && CLAUDE_MODELS.iter().any(|(alias, _)| *alias == id)
+                    && r.starts_with(&format!("claude-{id}-")) =>
+            {
+                model_label(r)
+            }
+            _ => label_for(id, self.listed()),
         }
     }
 
@@ -127,17 +154,4 @@ fn label_for(id: &str, listed: Option<&[ModelInfo]>) -> String {
     listed
         .and_then(|l| l.iter().find(|m| m.id == id))
         .map_or_else(|| model_label(id), |m| m.label.clone())
-}
-
-/// A picked model's name. An alias pick (`opus`) names the version this thread's last run reported for that family.
-fn pick_name(id: &str, reported: Option<&str>, listed: Option<&[ModelInfo]>) -> String {
-    match reported {
-        Some(r)
-            if CLAUDE_MODELS.iter().any(|(alias, _)| *alias == id)
-                && r.starts_with(&format!("claude-{id}-")) =>
-        {
-            model_label(r)
-        }
-        _ => label_for(id, listed),
-    }
 }

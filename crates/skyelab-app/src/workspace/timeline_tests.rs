@@ -46,6 +46,10 @@ mod one_limit_notice_test;
 mod effective_model_test;
 
 #[cfg(unix)] // the fake agent is a shell script
+#[path = "default_after_pick_reopen_test.rs"]
+mod default_after_pick_reopen_test;
+
+#[cfg(unix)] // the fake agent is a shell script
 #[path = "streaming_queue_test.rs"]
 mod streaming_queue_test;
 

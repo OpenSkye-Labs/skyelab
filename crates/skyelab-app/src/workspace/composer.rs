@@ -224,7 +224,7 @@ impl ThreadView {
                     .label(chip)
                     .dropdown_caret(true)
                     .tooltip(if account_default {
-                        "Account default"
+                        "Account default model"
                     } else {
                         "Model and effort"
                     })
