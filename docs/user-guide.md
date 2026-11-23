@@ -138,8 +138,31 @@ stopped can't be answered; send a message to continue. Another machine viewing t
 the same card and can answer it.
 
 When a turn fails, or the agent exits with an error, what it wrote to stderr (the last 64 KiB) shows as an
-**Agent output** row; click it to open it. Claude's `AskUserQuestion` also arrives as a request: allowing it runs the
-tool, but SkyeLab has no way to answer its question yet.
+**Agent output** row; click it to open it.
+
+### Questions and plans
+
+When the agent asks you something (Claude's `AskUserQuestion`, Codex's user-input request), the thread shows a
+question card: each question with its options (one choice, or **Pick any** for several) and **Other** for a typed
+answer. **Submit answers** sends them all; **Skip** declines. In Plan mode, when the agent is ready it shows a
+**Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep
+planning** tells it to keep refining. Answering these from another machine's view isn't supported yet: the plan's
+buttons work there, the question card doesn't.
+
+### What the timeline shows
+
+- Text and thinking stream in word by word as the agent writes. Thinking is a **Thought** row; click it to read it.
+  Only complete blocks are saved, so a reopened thread shows the finished text.
+- The agent's todo list (Claude's `TodoWrite`, Codex's plan) is one checklist per turn that updates in place.
+- Edits (`Edit`, `Write`, `MultiEdit`) show their diff inline. Click the file name to open it in the Changes tab.
+  File links in the agent's text (`[a.rs](src/a.rs)`) do the same; web links open in your browser, and nothing else opens.
+- Shell commands show as `$ command` with how they ended (`exit 1`, `failed`); click one for its output.
+- Messages and code blocks have copy buttons.
+- The line after each turn says how long it took, its tokens in and out, and its cost.
+- When the account hits its usage limit, the thread says **Limited until it resets in …** above the composer and the
+  sidebar shows **Limited**, until a turn succeeds again.
+- If a thread's earlier session can't be found when you continue it (its history was deleted, or it ran under another
+  config dir), the thread says so and runs your message in a new session.
 
 ### Finding and managing threads
 

@@ -22,7 +22,9 @@ What's built today:
   The deepest binding wins. Each binding remembers the real folder you confirmed, so if the path later points
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
-  account, renders its messages and tool calls as they arrive, and saves everything to a local SQLite database.
+  account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
+  commands with their output, a live todo list, answerable questions and plans), and saves everything to a local
+  SQLite database.
   Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and
