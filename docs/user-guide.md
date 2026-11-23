@@ -81,7 +81,9 @@ an account.
 
 The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
 current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
-same session (Claude's `--resume`, or Codex's `thread/resume`).
+same session (Claude's `--resume`, or Codex's `thread/resume`). Closing a thread's tab or quitting SkyeLab stops its
+agent. A thread that was still running when SkyeLab last closed without stopping it (a crash, say) shows as
+**interrupted**; send a follow-up to resume it.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
@@ -109,7 +111,8 @@ parent, and the parent lists its **Delegated threads**. An agent can only start 
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
 when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
-tab says why. Codex threads get the same tools, with the same account rule. Not available on Windows yet.
+tab says why. Once you stop a thread (or close its tab), it can't start or message other threads, even with a call
+it had already sent. Codex threads get the same tools, with the same account rule. Not available on Windows yet.
 
 ## Worktrees
 
