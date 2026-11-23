@@ -3,7 +3,8 @@
 use super::*;
 
 impl Render for Workspace {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let ring = self.render_ring(window, cx);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
@@ -38,6 +39,10 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::go_back))
             .on_action(cx.listener(Self::go_forward))
             .on_action(cx.listener(Self::open_settings_section))
+            .on_action(cx.listener(Self::focus_next_area))
+            .on_action(cx.listener(Self::focus_previous_area))
+            .on_action(cx.listener(Self::focus_composer))
+            .capture_any_mouse_down(cx.listener(|this, _, _, cx| this.clear_ring(cx)))
             .map(|el| self.env_actions(el, cx))
             .map(|el| self.manage_actions(el, cx))
             .map(|el| self.attention_actions(el, cx))
@@ -50,7 +55,14 @@ impl Render for Workspace {
             .when(cfg!(target_os = "windows"), |el| {
                 el.child(gpui_component::TitleBar::new().child("SkyeLab"))
             })
-            .child(div().flex_1().min_h_0().child(self.dock.clone()))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .relative()
+                    .child(self.dock.clone())
+                    .children(ring),
+            )
             .child(self.render_status(cx))
     }
 }

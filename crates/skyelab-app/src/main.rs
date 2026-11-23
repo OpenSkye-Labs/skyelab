@@ -1,4 +1,5 @@
 mod environment;
+mod keymap;
 mod palette;
 mod remote;
 mod settings;
@@ -339,6 +340,7 @@ fn main() {
             settings::init(cx);
             skyelab_terminal::init(cx);
             workspace::init(cx);
+            keymap::init(skyelab_core::keymap::default_path(), cx);
             cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
                 Some(bin) if cfg!(debug_assertions) => bin.into(),
                 _ => "gh".into(),

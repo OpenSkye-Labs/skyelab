@@ -95,7 +95,7 @@ impl ThreadView {
         }
     }
 
-    pub(in crate::workspace) fn render_composer(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(in crate::workspace) fn render_composer(&self, window: &gpui::Window, cx: &mut Context<Self>) -> AnyElement {
         let menu = self.composer.menu.as_ref();
         let menu_el = menu.map(|m| self.render_menu(m, cx));
         let picker = self.composer.picker_open.then(|| self.render_picker(cx));
@@ -118,6 +118,11 @@ impl ThreadView {
         )
         .absolute()
         .size_full();
+        let ringed = crate::workspace::focus_areas::composer_ringed(
+            &gpui::Focusable::focus_handle(self.prompt.read(cx), cx),
+            window,
+            cx,
+        );
         let theme = cx.theme();
         let card = v_flex()
             .id("composer-card")
@@ -126,7 +131,7 @@ impl ThreadView {
             .rounded(ui::RADIUS_XL)
             .bg(theme.popover)
             .border_1()
-            .border_color(theme.border)
+            .border_color(if ringed { theme.ring } else { theme.border })
             .when(!theme.is_dark(), |this| this.shadow_xs())
             .drag_over::<ExternalPaths>(|style, _, _, cx| style.border_color(cx.theme().ring))
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
