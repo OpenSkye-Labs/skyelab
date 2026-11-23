@@ -80,15 +80,27 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
             Step::Close => (None, true),
         };
         // A client that stops reading would block the send forever, and the idle timer can't fire meanwhile.
+        // A revoke or Disconnect cuts a stalled write (or close) short: dropping the socket closes it at once.
         if let Some(msg) = msg {
-            let sent = timeout(config.idle_timeout, sink.send(Message::text(msg.to_json()))).await;
+            let sent = tokio::select! {
+                biased;
+                () = kick.notified() => {
+                    eprintln!("skyelab-daemon: closing {peer}: disconnected by the user");
+                    break;
+                }
+                sent = timeout(config.idle_timeout, sink.send(Message::text(msg.to_json()))) => sent,
+            };
             if !matches!(sent, Ok(Ok(()))) {
                 eprintln!("skyelab-daemon: closing {peer}: write failed or stalled");
                 break;
             }
         }
         if close {
-            let _ = timeout(config.idle_timeout, sink.close()).await;
+            tokio::select! {
+                biased;
+                () = kick.notified() => {}
+                _ = timeout(config.idle_timeout, sink.close()) => {}
+            }
             break;
         }
     }
