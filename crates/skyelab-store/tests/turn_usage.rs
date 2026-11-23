@@ -221,3 +221,116 @@ fn migration_backfills_older_results() {
         (1.5, 7, 3)
     );
 }
+
+fn cost(s: &Store) -> f64 {
+    s.usage_days(0)
+        .expect("rows")
+        .iter()
+        .map(|r| r.cost_usd)
+        .sum()
+}
+
+fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-9
+}
+
+#[test]
+fn claudes_running_total_counts_each_turn_once() {
+    let mut s = Store::open_in_memory().expect("store");
+    let p = s.create_project("p", Path::new("/p")).expect("p").id;
+    let t = thread(&s, p, "a");
+    // One process, three turns: Claude reports the process's running total.
+    for total in [0.01, 0.025, 0.04] {
+        s.append_event(t, "agent", &result(total, 10, 1))
+            .expect("e");
+    }
+    assert!(close(cost(&s), 0.04), "{}", cost(&s));
+    // An interrupted turn reports 0: no spend, and the next turn still counts from 0.04.
+    s.append_event(t, "agent", &result(0.0, 0, 0)).expect("e");
+    // `--resume` on Claude Code 2.1.277+: the new process restores the session's total and goes on from it.
+    s.append_event(t, "agent", &result(0.05, 10, 1)).expect("e");
+    assert!(close(cost(&s), 0.05), "{}", cost(&s));
+    // An older CLI's resume starts at zero: the drop is a fresh baseline.
+    s.append_event(t, "agent", &result(0.003, 10, 1))
+        .expect("e");
+    s.append_event(t, "agent", &result(0.007, 10, 1))
+        .expect("e");
+    assert!(close(cost(&s), 0.057), "{}", cost(&s));
+    // Codex reports no cost; its tokens are already per turn.
+    let rows = s.usage_days(0).expect("rows");
+    assert_eq!(rows.iter().map(|r| r.input).sum::<u64>(), 60);
+}
+
+#[test]
+fn a_forks_first_turn_counts_only_its_growth_over_the_copied_history() {
+    let mut s = Store::open_in_memory().expect("store");
+    let p = s.create_project("p", Path::new("/p")).expect("p").id;
+    let new = NewThread {
+        project_id: p,
+        title: "t",
+        cwd: Path::new("/p"),
+        account_id: "a",
+        status: "idle",
+    };
+    let t = s.create_thread(&new).expect("thread").id;
+    s.append_event(t, "agent", &result(1.0, 1, 1)).expect("e");
+    let events = s.events_since(t, 0).expect("events");
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    let fork = s.create_fork(&new, t, "ctx", &events).expect("fork").id;
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    // The forked session restored the source's 1.0.
+    s.append_event(fork, "agent", &result(1.25, 1, 1))
+        .expect("e");
+    assert!(close(cost(&s), 1.25), "{}", cost(&s));
+}
+
+#[test]
+fn migration_17_turns_stored_running_totals_into_turn_costs() {
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("v16.db");
+    let (kept, purged) = {
+        let mut s = Store::open(&path).expect("store");
+        let p = s.create_project("p", Path::new("/p")).expect("p").id;
+        let (kept, purged) = (thread(&s, p, "a"), thread(&s, p, "b"));
+        for total in [0.01, 0.025, 0.0, 0.04, 0.002] {
+            s.append_event(kept, "agent", &result(total, 1, 1))
+                .expect("e");
+        }
+        for total in [0.5, 0.75] {
+            s.append_event(purged, "agent", &result(total, 1, 1))
+                .expect("e");
+        }
+        s.delete_thread(purged).expect("purge");
+        (kept, purged)
+    };
+    // Back to version 16: its trigger stored each result's total as it came.
+    let conn = Connection::open(&path).expect("open");
+    conn.execute_batch(
+        "UPDATE turn_usage SET cost_usd = COALESCE((SELECT json_extract(e.payload_json, '$.Result.total_cost_usd')
+             FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq), cost_usd);
+         PRAGMA user_version = 16;",
+    )
+    .expect("downgrade");
+    conn.execute(
+        "UPDATE turn_usage SET cost_usd = CASE WHEN seq = (SELECT MIN(seq) FROM turn_usage WHERE thread_id = ?1)
+             THEN 0.5 ELSE 0.75 END WHERE thread_id = ?1",
+        [purged],
+    )
+    .expect("purged thread's v16 rows");
+    let sum = |conn: &Connection, t: i64| -> f64 {
+        conn.query_row(
+            "SELECT SUM(cost_usd) FROM turn_usage WHERE thread_id = ?1",
+            [t],
+            |r| r.get(0),
+        )
+        .expect("sum")
+    };
+    assert!(close(sum(&conn, kept), 0.077), "v16 summed running totals");
+    drop(conn);
+
+    Store::open(&path).expect("migrates");
+    let conn = Connection::open(&path).expect("open");
+    // 0.01 + 0.015 + 0 + 0.015 + 0.002 (a drop: a fresh process).
+    assert!(close(sum(&conn, kept), 0.042), "{}", sum(&conn, kept));
+    assert!(close(sum(&conn, purged), 0.75), "{}", sum(&conn, purged));
+}

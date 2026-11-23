@@ -21,6 +21,7 @@ fn done(is_error: bool) -> Item {
         is_error,
         duration_ms: 4200,
         cost_usd: 0.0,
+        total_usd: 0.0,
         usage: None,
         at_ms: Some(1),
         error: None,

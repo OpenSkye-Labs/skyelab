@@ -162,3 +162,26 @@ fn oversize_remote_stand_in_decodes_as_a_row() {
         assert!(shown.contains("too large"), "{kind}: {shown}");
     }
 }
+
+#[test]
+fn each_divider_shows_what_its_turn_added_to_claudes_running_total() {
+    let result = |total: f64| {
+        format!(
+            r#"{{"type":"result","is_error":false,"duration_ms":5,"total_cost_usd":{total},"result":"x"}}"#
+        )
+    };
+    // Three turns of one process, an interrupted one (0), then a resumed older CLI that starts over.
+    let lines = [0.01, 0.025, 0.04, 0.0, 0.05, 0.003].map(result).join("\n");
+    let costs: Vec<f64> = replay(&lines)
+        .iter()
+        .filter_map(|i| match i {
+            Item::Done { cost_usd, .. } => Some(*cost_usd),
+            _ => None,
+        })
+        .collect();
+    let want = [0.01, 0.015, 0.015, 0.0, 0.01, 0.003];
+    assert!(
+        costs.len() == want.len() && costs.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-9),
+        "{costs:?}"
+    );
+}

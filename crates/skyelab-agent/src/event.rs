@@ -18,6 +18,7 @@ pub enum Event {
     Result {
         is_error: bool,
         duration_ms: u64,
+        /// Claude's running total for the process or resumed session, as reported: see [`turn_cost`].
         total_cost_usd: f64,
         result: Option<String>,
         /// How many of the prompts sent to the agent this result answers: claude can fold a prompt sent mid-turn
@@ -94,6 +95,21 @@ fn one() -> u32 {
 pub enum DeltaKind {
     Text,
     Thinking,
+}
+
+/// What one turn's result adds to its thread's spend, given the thread's previous non-zero `total_cost_usd`
+/// (0 for none). Claude reports a running total for the process, and since Claude Code 2.1.277 a resumed session
+/// starts from the session's restored total, so a turn costs the growth since the last one. A total that dropped
+/// started over (an older CLI's resume, `/clear`) and is the turn's own. Zero (an aborted turn, a crash, Codex) adds
+/// nothing and is no baseline. Never more than the turn spent. `skyelab-store`'s migration 17 does the same in SQL.
+pub fn turn_cost(previous: f64, total: f64) -> f64 {
+    if total <= 0.0 {
+        0.0
+    } else if total < previous {
+        total
+    } else {
+        total - previous
+    }
 }
 
 /// A turn's tokens. `input` counts cached and cache-write tokens too.

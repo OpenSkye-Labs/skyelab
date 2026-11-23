@@ -86,7 +86,8 @@ pub(crate) struct Codex {
     questions: BTreeMap<String, Vec<String>>,
     /// The thread's token totals so far, and what they were when the running turn started.
     tokens: Option<Usage>,
-    turn_base: Usage,
+    /// The thread's totals when the running turn began; unknown until a reading arrives.
+    turn_base: Option<Usage>,
     /// A mode picked after the thread opened, sent with the next `turn/start`.
     mode_change: Option<Mode>,
     /// The mode the `turn/start` in flight carries, put back if codex refuses that turn.
@@ -132,7 +133,7 @@ impl Codex {
             asks: BTreeMap::new(),
             questions: BTreeMap::new(),
             tokens: None,
-            turn_base: Usage::default(),
+            turn_base: None,
             mode_change: None,
             mode_sent: None,
             nonce: String::new(),
@@ -372,7 +373,7 @@ impl Codex {
         let p = &v["params"];
         match method {
             "turn/started" => {
-                self.turn_base = self.tokens.unwrap_or_default();
+                self.turn_base = self.tokens;
                 (Vec::new(), self.turn_known(p["turn"]["id"].as_str()))
             }
             "turn/completed" => {
@@ -384,9 +385,9 @@ impl Codex {
                     duration_ms: turn["durationMs"].as_u64().unwrap_or_default(),
                     total_cost_usd: 0.0,
                     prompts: self.answers.take().unwrap_or(1),
-                    usage: self.tokens.map(|t| Usage {
-                        input: t.input.saturating_sub(self.turn_base.input),
-                        output: t.output.saturating_sub(self.turn_base.output),
+                    usage: self.tokens.zip(self.turn_base).map(|(t, base)| Usage {
+                        input: t.input.saturating_sub(base.input),
+                        output: t.output.saturating_sub(base.output),
                     }),
                     result: turn["error"]["message"]
                         .as_str()
@@ -433,11 +434,8 @@ impl Codex {
             "item/agentMessage/delta" => (delta(DeltaKind::Text, p), Vec::new()),
             "item/reasoning/summaryTextDelta" => (delta(DeltaKind::Thinking, p), Vec::new()),
             "thread/tokenUsage/updated" => {
-                let t = &p["tokenUsage"]["total"];
-                if let (Some(input), Some(output)) =
-                    (t["inputTokens"].as_u64(), t["outputTokens"].as_u64())
-                {
-                    self.tokens = Some(Usage { input, output });
+                if let Some(total) = tokens::reading(&p["tokenUsage"], &mut self.turn_base) {
+                    self.tokens = Some(total);
                 }
                 (Vec::new(), Vec::new())
             }
@@ -451,6 +449,9 @@ impl Codex {
         }
     }
 }
+
+#[path = "codex_tokens.rs"]
+mod tokens;
 
 #[path = "codex_steer.rs"]
 mod steer;

@@ -13,6 +13,7 @@ fn done(is_error: bool, error: Option<&str>) -> Item {
         is_error,
         duration_ms: 1,
         cost_usd: 0.,
+        total_usd: 0.,
         usage: None,
         at_ms: None,
         error: error.map(str::to_owned),

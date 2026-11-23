@@ -16,7 +16,7 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
 - Messages and code blocks have copy buttons; under a turn's final reply the copy button sits next to the time the
   turn ended.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
-  **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›**. Click it to open or fold the work. A running turn shows
+  **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›** (that turn's own tokens and cost). Click it to open or fold the work. A running turn shows
   everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.
 - When the account hits its usage limit, the thread says **Limited until it resets in …** above the composer and the
   sidebar shows **Limited**, until a turn succeeds again.

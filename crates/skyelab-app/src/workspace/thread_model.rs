@@ -100,7 +100,10 @@ pub enum Item {
     Done {
         is_error: bool,
         duration_ms: u64,
+        /// What this turn added: see [`skyelab_agent::turn_cost`].
         cost_usd: f64,
+        /// The agent's running total as reported, the next turn's baseline.
+        total_usd: f64,
         usage: Option<Usage>,
         /// When the turn ended (ms since the epoch), once [`stamp_done`] has set it.
         at_ms: Option<i64>,
@@ -253,10 +256,19 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                 _ => false,
             };
             if !explained {
+                let previous = items
+                    .iter()
+                    .rev()
+                    .find_map(|i| match i {
+                        Item::Done { total_usd, .. } if *total_usd > 0.0 => Some(*total_usd),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
                 items.push(Item::Done {
                     is_error: *is_error,
                     duration_ms: *duration_ms,
-                    cost_usd: *total_cost_usd,
+                    cost_usd: skyelab_agent::turn_cost(previous, *total_cost_usd),
+                    total_usd: *total_cost_usd,
                     usage: *usage,
                     at_ms: None,
                     error: result.clone().filter(|_| *is_error),

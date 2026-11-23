@@ -107,6 +107,47 @@ fn a_turns_tokens_are_the_totals_it_added() {
 }
 
 #[test]
+fn turns_sum_to_the_threads_growth_and_a_resumed_thread_starts_fresh() {
+    let usage = |total: (u64, u64), last: (u64, u64)| {
+        json!({"method":"thread/tokenUsage/updated","params":{"tokenUsage":{
+        "total":{"inputTokens":total.0,"outputTokens":total.1},"last":{"inputTokens":last.0,"outputTokens":last.1}}}})
+    };
+    // (total, last) per reading, each (input, output).
+    type Reading = ((u64, u64), (u64, u64));
+    let turn = |c: &mut Codex, id: &str, readings: &[Reading]| {
+        c.on_line(json!({"method":"turn/started","params":{"turn":{"id":id}}}));
+        for &(total, last) in readings {
+            c.on_line(usage(total, last));
+        }
+        let done = events(
+            c,
+            json!({"method":"turn/completed","params":{"turn":{"id":id,"status":"completed","durationMs":3}}}),
+        );
+        match done.last() {
+            Some(Event::Result { usage: Some(u), .. }) => (u.input, u.output),
+            other => panic!("{other:?}"),
+        }
+    };
+    // Three turns of one process, two model calls in the second: each turn is its own growth.
+    let mut c = open();
+    let three = [
+        turn(&mut c, "a", &[((100, 10), (100, 10))]),
+        turn(
+            &mut c,
+            "b",
+            &[((250, 15), (150, 5)), ((450, 30), (200, 15))],
+        ),
+        turn(&mut c, "c", &[((500, 31), (50, 1))]),
+    ];
+    assert_eq!(three, [(100, 10), (350, 20), (50, 1)]);
+    assert_eq!(three.iter().map(|t| t.0).sum::<u64>(), 500);
+    // A new process resuming that thread: Codex's total carries on from 500, but the turn is only its own.
+    let mut c = open();
+    assert_eq!(turn(&mut c, "d", &[((620, 40), (120, 9))]), (120, 9));
+    assert_eq!(turn(&mut c, "e", &[((700, 45), (80, 5))]), (80, 5));
+}
+
+#[test]
 fn rate_limits_say_when_a_window_is_used_up() {
     let mut c = open();
     // Recorded: under the limit.
