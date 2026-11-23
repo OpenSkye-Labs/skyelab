@@ -18,7 +18,7 @@ fn method(line: &str) -> String {
 
 /// A started thread with no turn yet.
 fn open() -> Codex {
-    let (mut c, _) = Codex::new(Path::new("/w"), None, None);
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default);
     let (events, writes) = c.on_line(
         json!({ "id": c.start_id, "result": { "thread": { "id": "thr" }, "model": "m" } }),
     );
@@ -35,11 +35,16 @@ fn open() -> Codex {
 
 #[test]
 fn start_sends_initialize_then_thread_start_with_hardening() {
-    let (_, lines) = Codex::new(Path::new("/w"), None, Some(json!({ "skyelab": {} })));
+    let (_, lines) = Codex::new(
+        Path::new("/w"),
+        None,
+        Some(json!({ "skyelab": {} })),
+        Mode::Default,
+    );
     let names: Vec<_> = lines.iter().map(|l| method(l)).collect();
     assert_eq!(names, ["initialize", "initialized", "thread/start"]);
     let p = &parse(&lines[2])["params"];
-    assert_eq!(p["approvalPolicy"], "never");
+    assert_eq!(p["approvalPolicy"], "untrusted");
     assert_eq!(p["sandbox"], "workspace-write");
     assert_eq!(p["cwd"], "/w");
     assert!(p["config"]["mcp_servers"]["skyelab"].is_object());
@@ -47,7 +52,7 @@ fn start_sends_initialize_then_thread_start_with_hardening() {
 
 #[test]
 fn prompts_wait_for_the_thread_and_for_the_running_turn() {
-    let (mut c, _) = Codex::new(Path::new("/w"), Some("thr"), None);
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("thr"), None, Mode::Default);
     assert!(p(&mut c, "one").is_empty(), "no thread id yet");
     let (_, writes) =
         c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" } } }));
@@ -85,20 +90,78 @@ fn idle_interrupt_does_nothing() {
 }
 
 #[test]
-fn approval_requests_are_declined_and_others_refused() {
+fn approval_requests_wait_for_an_answer_and_others_are_refused() {
     let mut c = open();
-    let (events, writes) = c.on_line(
-        json!({ "id": 7, "method": "item/commandExecution/requestApproval", "params": {} }),
+    let (events, writes) = c.on_line(json!({
+        "id": 7, "method": "item/commandExecution/requestApproval",
+        "params": { "command": "make deploy", "cwd": "/w" },
+    }));
+    assert!(
+        writes.is_empty(),
+        "nothing goes back until the user answers"
     );
-    assert!(events.is_empty());
     assert_eq!(
-        parse(&writes[0]),
-        json!({ "id": 7, "result": { "decision": "decline" } })
+        events,
+        vec![Event::Permission {
+            id: "codex-7".into(),
+            tool: "shell".into(),
+            input: json!({ "command": "make deploy", "cwd": "/w", "reason": null }),
+        }]
     );
+    assert_eq!(c.answer("codex-8", Decision::AllowOnce), None);
+    let reply = c.answer("codex-7", Decision::AllowThread).expect("open");
+    assert_eq!(
+        parse(&reply),
+        json!({ "id": 7, "result": { "decision": "acceptForSession" } })
+    );
+    assert_eq!(c.answer("codex-7", Decision::Deny), None, "answered once");
     let (_, writes) =
         c.on_line(json!({ "id": "x", "method": "item/tool/requestUserInput", "params": {} }));
     assert_eq!(parse(&writes[0])["id"], "x");
     assert!(parse(&writes[0])["error"]["message"].is_string());
+}
+
+#[test]
+fn resolved_elsewhere_or_turn_end_withdraws_requests() {
+    let mut c = open();
+    c.on_line(json!({ "id": 3, "method": "item/fileChange/requestApproval", "params": {} }));
+    c.on_line(json!({ "id": "s", "method": "item/fileChange/requestApproval", "params": {} }));
+    let (events, _) = c.on_line(
+        json!({ "method": "serverRequest/resolved", "params": { "threadId": "thr", "requestId": 3 } }),
+    );
+    let withdrawn = |id: &str| Event::PermissionResolved {
+        id: id.into(),
+        decision: Decision::Withdrawn,
+    };
+    assert_eq!(events, vec![withdrawn("codex-3")]);
+    let (events, _) = c.on_line(
+        json!({ "method": "turn/completed", "params": { "turn": { "id": "t", "status": "interrupted" } } }),
+    );
+    assert_eq!(events[0], withdrawn("codex-\"s\""));
+    assert!(matches!(events[1], Event::Result { .. }));
+}
+
+#[test]
+fn mode_sets_the_policy_and_a_change_rides_the_next_turn() {
+    for (mode, approval, sandbox) in [
+        (Mode::Default, "untrusted", "workspace-write"),
+        (Mode::AcceptEdits, "on-request", "workspace-write"),
+        (Mode::Plan, "on-request", "read-only"),
+        (Mode::Bypass, "never", "danger-full-access"),
+    ] {
+        let (_, lines) = Codex::new(Path::new("/w"), None, None, mode);
+        let p = &parse(&lines[2])["params"];
+        assert_eq!(
+            (p["approvalPolicy"].as_str(), p["sandbox"].as_str()),
+            (Some(approval), Some(sandbox))
+        );
+    }
+    let mut c = open();
+    c.set_mode(Mode::Plan);
+    let turn = p(&mut c, "go");
+    let params = &parse(&turn[0])["params"];
+    assert_eq!(params["approvalPolicy"], "on-request");
+    assert_eq!(params["sandboxPolicy"], json!({ "type": "readOnly" }));
 }
 
 #[test]
@@ -115,7 +178,7 @@ fn failed_turn_start_reports_and_frees_the_queue() {
 
 #[test]
 fn thread_start_error_is_a_failed_result() {
-    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None);
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None, Mode::Default);
     let (events, _) =
         c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "no such thread" } }));
     assert_eq!(events, vec![failed("no such thread".into())]);
@@ -235,7 +298,7 @@ fn a_worktrees_main_repo_is_untrusted_too() {
 
 #[test]
 fn a_thread_that_never_opened_refuses_prompts() {
-    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None);
+    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None, Mode::Default);
     assert!(p(&mut c, "first").is_empty(), "waits for the thread");
     let (events, writes) =
         c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "gone" } }));
@@ -245,7 +308,7 @@ fn a_thread_that_never_opened_refuses_prompts() {
 
 #[test]
 fn interrupt_while_the_thread_opens_stops_the_first_turn() {
-    let (mut c, _) = Codex::new(Path::new("/w"), None, None);
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default);
     p(&mut c, "go");
     assert!(c.interrupt().is_empty());
     let (_, writes) =

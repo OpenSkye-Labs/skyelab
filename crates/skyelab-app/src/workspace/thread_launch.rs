@@ -94,6 +94,7 @@ impl ThreadView {
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
+        let mode = self.mode;
         let pump_store = store.clone();
         // The row reaches the view as soon as it is saved, before the agent is up: a delegated start answers then.
         let (saved_tx, saved_rx) = flume::bounded::<Thread>(1);
@@ -131,7 +132,7 @@ impl ThreadView {
                         let cwd = worktree
                             .as_ref()
                             .map_or(project.clone(), |w| w.path.clone());
-                        let thread = match resume {
+                        let mut thread = match resume {
                             Some(thread) => {
                                 // A resumed child takes a slot again, under the same lock as its status.
                                 if let Some(parent) = thread.parent_thread_id {
@@ -160,6 +161,10 @@ impl ThreadView {
                                 parent,
                             )?,
                         };
+                        if is_new && mode != skyelab_agent::Mode::Default {
+                            lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
+                            thread.permission_mode = mode.as_str().to_owned();
+                        }
                         // A new row, or a child's slot: either must not stay busy if this launch fails.
                         if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
@@ -182,6 +187,7 @@ impl ThreadView {
                             resume: thread.agent_session_id.as_deref(), // a new row has none
                             prompt: &text,
                             mcp_config: grant.as_ref().map(|g| g.config_path()),
+                            mode,
                         };
                         // The binding as saved right now: a rebind may have landed while this launch ran. An
                         // unreadable file binds nothing, so the check below refuses.
@@ -215,6 +221,13 @@ impl ThreadView {
                             Ok(Some(session)) => {
                                 this.grant = grant;
                                 this.run(session, pump_store, thread.id, cx);
+                                // Picked while it started: the agent began with the old mode.
+                                if this.mode != mode
+                                    && let Some(s) = this.session.clone()
+                                {
+                                    let now = this.mode;
+                                    this.in_background(cx, move || lock(&s)?.set_mode(now));
+                                }
                                 if this.stop_requested {
                                     this.kill(cx);
                                 }

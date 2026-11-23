@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use skyelab_core::AccountsConfig;
 
-use skyelab_protocol::{ErrorCode, Project, RpcError, Thread, ThreadEvent};
+use skyelab_protocol::{ErrorCode, PermissionAnswer, Project, RpcError, Thread, ThreadEvent};
 use skyelab_store::Store;
 
 /// Answers RPC calls. Called from a blocking thread, so implementations may block.
@@ -17,6 +17,9 @@ pub trait Backend: Send + Sync + 'static {
     fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError>;
     fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError>;
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError>;
+    fn answer_permission(&self, _: i64, _: &str, _: PermissionAnswer) -> Result<(), RpcError> {
+        NotWired::err()
+    }
 }
 
 /// Runs agents for remote requests. The daemon never launches anything itself. An implementation resolves the
@@ -26,6 +29,10 @@ pub trait Agents: Send + Sync + 'static {
     fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError>;
     fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError>;
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError>;
+    /// Answers the permission request `request_id` the thread's agent waits on.
+    fn answer_permission(&self, _: i64, _: &str, _: PermissionAnswer) -> Result<(), RpcError> {
+        NotWired::err()
+    }
 }
 
 /// Every call fails with [`ErrorCode::NotWired`].
@@ -173,6 +180,16 @@ impl<A: Agents> Backend for StoreBackend<A> {
 
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
         self.agents.interrupt(thread_id)
+    }
+
+    fn answer_permission(
+        &self,
+        thread_id: i64,
+        request_id: &str,
+        decision: PermissionAnswer,
+    ) -> Result<(), RpcError> {
+        self.agents
+            .answer_permission(thread_id, request_id, decision)
     }
 }
 

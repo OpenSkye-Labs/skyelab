@@ -3,10 +3,10 @@
 //! [`Codex`] is the client's state; it maps the server's notifications onto [`Event`], so the rest of
 //! SkyeLab sees the same stream as from `claude`.
 
-use crate::{Block, Event};
+use crate::{Block, Decision, Event, Mode};
 use anyhow::{Context as _, Result};
 use serde_json::{Value, json};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -68,12 +68,40 @@ pub(crate) struct Codex {
     last_text: Option<String>,
     /// Why codex refused to open the thread. Every later prompt fails with it instead of waiting forever.
     closed: Option<String>,
+    /// Approval requests waiting for an answer: our id → codex's JSON-RPC request id.
+    asks: BTreeMap<String, Value>,
+    /// A mode picked after the thread opened, sent with the next `turn/start`.
+    mode_change: Option<Mode>,
+}
+
+/// Codex's `approvalPolicy` and `sandbox` for a mode. Codex has no plan mode, so Plan is a read-only sandbox.
+pub(crate) fn policy(mode: Mode) -> (&'static str, &'static str) {
+    match mode {
+        Mode::Default => ("untrusted", "workspace-write"),
+        Mode::AcceptEdits => ("on-request", "workspace-write"),
+        Mode::Plan => ("on-request", "read-only"),
+        Mode::Bypass => ("never", "danger-full-access"),
+    }
+}
+
+/// `turn/start`'s `sandboxPolicy` for the sandbox names `thread/start` takes.
+fn sandbox_policy(sandbox: &str) -> Value {
+    match sandbox {
+        "read-only" => json!({ "type": "readOnly" }),
+        "danger-full-access" => json!({ "type": "dangerFullAccess" }),
+        _ => json!({ "type": "workspaceWrite" }),
+    }
 }
 
 impl Codex {
     /// The state, and the lines that open the thread: `initialize`, then `thread/start` or `thread/resume`.
-    /// Approvals are off (SkyeLab has no approval UI) and writes stay inside the folder.
-    pub(crate) fn new(dir: &Path, resume: Option<&str>, mcp: Option<Value>) -> (Self, Vec<String>) {
+    /// Approvals and the sandbox follow `mode`; an approval request arrives as [`Event::Permission`].
+    pub(crate) fn new(
+        dir: &Path,
+        resume: Option<&str>,
+        mcp: Option<Value>,
+        mode: Mode,
+    ) -> (Self, Vec<String>) {
         let mut c = Codex {
             next_id: 0,
             start_id: 0,
@@ -85,6 +113,8 @@ impl Codex {
             queue: VecDeque::new(),
             last_text: None,
             closed: None,
+            asks: BTreeMap::new(),
+            mode_change: None,
         };
         let init = c.request(
             "initialize",
@@ -93,10 +123,11 @@ impl Codex {
             }}),
         );
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
+        let (approval, sandbox) = policy(mode);
         let mut params = json!({
             "cwd": dir,
-            "approvalPolicy": "never",
-            "sandbox": "workspace-write",
+            "approvalPolicy": approval,
+            "sandbox": sandbox,
             "config": mcp.map(|m| json!({ "mcp_servers": m })),
         });
         let method = match resume {
@@ -135,10 +166,68 @@ impl Codex {
         };
         self.busy = true;
         self.turn_req = Some(self.next_id);
-        vec![self.request(
-            "turn/start",
-            json!({ "threadId": thread, "input": [{ "type": "text", "text": text }] }),
-        )]
+        let mut params = json!({ "threadId": thread, "input": [{ "type": "text", "text": text }] });
+        if let Some(mode) = self.mode_change.take() {
+            // Overrides stick for this turn and the ones after it.
+            let (approval, sandbox) = policy(mode);
+            params["approvalPolicy"] = json!(approval);
+            params["sandboxPolicy"] = sandbox_policy(sandbox);
+        }
+        vec![self.request("turn/start", params)]
+    }
+
+    pub(crate) fn set_mode(&mut self, mode: Mode) {
+        self.mode_change = Some(mode);
+    }
+
+    /// The reply to approval request `id`, or `None` when it isn't waiting.
+    pub(crate) fn answer(&mut self, id: &str, decision: Decision) -> Option<String> {
+        let rpc = self.asks.remove(id)?;
+        let decision = match decision {
+            Decision::AllowOnce => "accept",
+            Decision::AllowThread => "acceptForSession",
+            Decision::Deny | Decision::Withdrawn => "decline",
+        };
+        Some(json!({ "id": rpc, "result": { "decision": decision } }).to_string())
+    }
+
+    /// Every open request, withdrawn: its turn is over.
+    fn withdraw_all(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.asks)
+            .into_keys()
+            .map(|id| Event::PermissionResolved {
+                id,
+                decision: Decision::Withdrawn,
+            })
+            .collect()
+    }
+
+    /// A server request: an approval waits for the user; anything else is answered now.
+    fn on_request(
+        &mut self,
+        method: &str,
+        rpc: Value,
+        params: &Value,
+    ) -> (Vec<Event>, Vec<String>) {
+        let (tool, input) = match method {
+            "item/commandExecution/requestApproval" => (
+                "shell",
+                json!({ "command": params["command"], "cwd": params["cwd"], "reason": params["reason"] }),
+            ),
+            "item/fileChange/requestApproval" => (
+                "apply_patch",
+                json!({ "reason": params["reason"], "grantRoot": params["grantRoot"] }),
+            ),
+            _ => return (Vec::new(), vec![answer(method, rpc)]),
+        };
+        let id = format!("codex-{}", rpc);
+        self.asks.insert(id.clone(), rpc);
+        let event = Event::Permission {
+            id,
+            tool: tool.to_owned(),
+            input,
+        };
+        (vec![event], Vec::new())
     }
 
     /// Stops the running turn; before its id is known, as soon as it is.
@@ -174,7 +263,7 @@ impl Codex {
     pub(crate) fn on_line(&mut self, v: Value) -> (Vec<Event>, Vec<String>) {
         let method = v["method"].as_str().map(str::to_owned);
         match (method, v.get("id").filter(|id| !id.is_null()).cloned()) {
-            (Some(method), Some(id)) => (Vec::new(), vec![answer(&method, id)]),
+            (Some(method), Some(id)) => self.on_request(&method, id, &v["params"]),
             (None, Some(id)) => self.on_response(id.as_u64(), &v),
             (Some(method), None) => self.on_notification(&method, v),
             (None, None) => (vec![Event::Unknown(v)], Vec::new()),
@@ -250,7 +339,17 @@ impl Codex {
                         }),
                 };
                 self.end_turn();
-                (vec![result], self.pump())
+                let mut events = self.withdraw_all();
+                events.push(result);
+                (events, self.pump())
+            }
+            "serverRequest/resolved" => {
+                let id = format!("codex-{}", p["requestId"]);
+                let events = self.asks.remove(&id).map(|_| Event::PermissionResolved {
+                    id,
+                    decision: Decision::Withdrawn,
+                });
+                (events.into_iter().collect(), Vec::new())
             }
             "item/started" => (started(&p["item"]).into_iter().collect(), Vec::new()),
             "item/completed" => {
@@ -277,15 +376,11 @@ const NOISE: &[&str] = &[
     "serverRequest/",
 ];
 
-/// Codex asks the client to approve or answer something. There is no one to ask, so the answer is no.
+/// A server request SkyeLab has no UI for (user input, MCP elicitation, old-style approvals): unsupported, so codex
+/// treats it as refused.
 fn answer(method: &str, id: Value) -> String {
-    match method {
-        "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" => {
-            json!({ "id": id, "result": { "decision": "decline" } })
-        }
-        _ => json!({ "id": id, "error": { "code": -32601, "message": format!("SkyeLab doesn't handle {method}") } }),
-    }
-    .to_string()
+    json!({ "id": id, "error": { "code": -32601, "message": format!("SkyeLab doesn't handle {method}") } })
+        .to_string()
 }
 
 fn failed(message: String) -> Event {

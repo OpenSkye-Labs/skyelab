@@ -64,6 +64,15 @@ fn refused(message: impl Into<String>) -> RpcError {
     RpcError::new(ErrorCode::BadRequest, message.into())
 }
 
+pub(super) fn decision_of(a: skyelab_protocol::PermissionAnswer) -> skyelab_agent::Decision {
+    use skyelab_protocol::PermissionAnswer as A;
+    match a {
+        A::AllowOnce => skyelab_agent::Decision::AllowOnce,
+        A::AllowThread => skyelab_agent::Decision::AllowThread,
+        A::Deny => skyelab_agent::Decision::Deny,
+    }
+}
+
 fn not_open(thread_id: i64) -> RpcError {
     RpcError::new(
         ErrorCode::NotFound,
@@ -227,6 +236,30 @@ impl Workspace {
                     None => Err(not_open(thread_id)),
                 };
                 let _ = reply.send(done);
+            }
+            RemoteCall::Answer {
+                thread_id,
+                request_id,
+                decision,
+                reply,
+            } => {
+                let Some(view) = self.open_view(thread_id, cx) else {
+                    let _ = reply.send(Err(not_open(thread_id)));
+                    return;
+                };
+                let late = reply.clone();
+                // Replied once the agent took the answer, or refused it (already answered or withdrawn).
+                let asked = view.update(cx, |v, cx| {
+                    v.answer_then(
+                        &request_id,
+                        decision_of(decision),
+                        move |r| _ = late.send(r.map_err(refused)),
+                        cx,
+                    )
+                });
+                if let Err(why) = asked {
+                    let _ = reply.send(Err(refused(why)));
+                }
             }
         }
     }

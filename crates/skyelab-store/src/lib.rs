@@ -55,6 +55,7 @@ ALTER TABLE threads ADD COLUMN worktree_base TEXT;
 ALTER TABLE threads ADD COLUMN parent_thread_id INTEGER REFERENCES threads(id) ON DELETE SET NULL;
 CREATE INDEX threads_by_parent ON threads(parent_thread_id);
 ",
+    "ALTER TABLE threads ADD COLUMN permission_mode TEXT NOT NULL DEFAULT 'default';",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +89,8 @@ pub struct Thread {
     pub pr_url: Option<String>,
     /// The thread whose agent delegated this one, if any.
     pub parent_thread_id: Option<i64>,
+    /// Which tool calls its agent may make without asking; the agent layer defines the values.
+    pub permission_mode: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,7 +123,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id";
+const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -255,6 +258,7 @@ impl Store {
             worktree_base: None,
             pr_url: None,
             parent_thread_id: None,
+            permission_mode: "default".to_owned(),
         })
     }
 
@@ -304,6 +308,10 @@ impl Store {
 
     pub fn set_thread_worktree_base(&self, id: i64, base: Option<&str>) -> Result<()> {
         self.update_thread(id, "worktree_base", base)
+    }
+
+    pub fn set_thread_permission_mode(&self, id: i64, mode: &str) -> Result<()> {
+        self.update_thread(id, "permission_mode", mode)
     }
 
     pub fn set_thread_pr_url(&self, id: i64, url: Option<&str>) -> Result<()> {
@@ -433,6 +441,7 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         worktree_base: r.get(11)?,
         pr_url: r.get(12)?,
         parent_thread_id: r.get(13)?,
+        permission_mode: r.get(14)?,
     })
 }
 

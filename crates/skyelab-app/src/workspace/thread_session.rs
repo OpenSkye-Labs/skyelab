@@ -45,8 +45,17 @@ impl ThreadView {
             // stdout can outlive the agent (a tool it started holds it), so its exit is watched too, on a timer that
             // events don't restart.
             let mut tick = cx.background_executor().timer(WATCH_EXIT);
+            // stderr to store next, ahead of the agent's next event.
+            let mut output: Option<Event> = None;
             loop {
-                let event = match futures::future::select(events.recv_async(), &mut tick).await {
+                let next = match output.take() {
+                    Some(e) => Either::Left((Ok(e), ())),
+                    None => match futures::future::select(events.recv_async(), &mut tick).await {
+                        Either::Left((e, _)) => Either::Left((e, ())),
+                        Either::Right(r) => Either::Right(r),
+                    },
+                };
+                let event = match next {
                     Either::Left((Ok(event), _)) => event,
                     Either::Left((Err(_), _)) => break, // stdout closed
                     Either::Right(_) if exited => break, // DRAIN passed since the exit
@@ -67,6 +76,7 @@ impl ThreadView {
                         continue;
                     }
                 };
+                let failed = matches!(event, Event::Result { is_error: true, .. });
                 let record = Record::Agent(event);
                 let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let shown = this.update(cx, |this, cx| {
@@ -87,6 +97,21 @@ impl ThreadView {
                 if shown.is_err() {
                     return;
                 }
+                if failed {
+                    output = stderr_of(&watched, false, cx).await;
+                }
+            }
+            // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining.
+            let stopped = this
+                .update(cx, |this, _| this.stop_requested)
+                .unwrap_or(true);
+            if !stopped && let Some(event) = stderr_of(&watched, true, cx).await {
+                let record = Record::Agent(event);
+                let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
+                let _ = this.update(cx, |this, cx| {
+                    this.saved(left, cx);
+                    this.push(&record, cx);
+                });
             }
             let _ = this.update(cx, |this, cx| this.ended(launch, cx));
         }));
@@ -204,6 +229,47 @@ impl ThreadView {
             }
         }
     }
+}
+
+/// How long an agent whose stdout closed gets to exit before its exit status is read.
+const EXIT_WAIT: Duration = Duration::from_secs(1);
+
+/// The agent's stderr since it was last taken, as an event to store, or `None` when there is none. With
+/// `exited`, only after a nonzero exit (waiting up to [`EXIT_WAIT`] for the exit).
+async fn stderr_of(
+    session: &std::sync::Weak<Mutex<Session>>,
+    exited: bool,
+    cx: &mut gpui::AsyncApp,
+) -> Option<Event> {
+    let session = session.upgrade()?;
+    let timer = cx.background_executor().clone();
+    let deadline = std::time::Instant::now() + EXIT_WAIT;
+    let text = cx
+        .background_spawn(async move {
+            loop {
+                if !exited {
+                    break lock(&session).ok().map(|s| s.take_stderr());
+                }
+                let status = lock(&session).ok()?.try_wait().ok()?;
+                match status {
+                    Some(status) if status.success() => break None,
+                    Some(_) => {
+                        // The reader thread may still be draining the pipe.
+                        timer.timer(Duration::from_millis(100)).await;
+                        break lock(&session).ok().map(|s| s.take_stderr());
+                    }
+                    None if std::time::Instant::now() < deadline => {
+                        timer.timer(Duration::from_millis(50)).await
+                    }
+                    None => break None,
+                }
+            }
+        })
+        .await?;
+    let text = text.trim_end();
+    (!text.is_empty()).then(|| Event::Stderr {
+        text: text.to_owned(),
+    })
 }
 
 /// Drops `session` (which kills and reaps its agent, and waits) off the UI thread, then records `id` stopped.

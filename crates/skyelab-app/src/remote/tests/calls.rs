@@ -2,17 +2,17 @@
 
 use super::*;
 
-struct Fixture {
-    _dir: tempfile::TempDir,
-    project_dir: PathBuf,
-    account_dir: PathBuf,
-    store: workspace::SharedStore,
-    ws: Entity<Workspace>,
-    remote: Entity<Remote>,
+pub(super) struct Fixture {
+    pub _dir: tempfile::TempDir,
+    pub project_dir: PathBuf,
+    pub account_dir: PathBuf,
+    pub store: workspace::SharedStore,
+    pub ws: Entity<Workspace>,
+    pub remote: Entity<Remote>,
 }
 
 /// A workspace with one project (bound to "acme" or not), sharing on, its remote calls wired.
-fn sharing_workspace(
+pub(super) fn sharing_workspace(
     bound: bool,
     claude_bin: PathBuf,
     cx: &mut TestAppContext,
@@ -108,7 +108,7 @@ fn sharing_workspace(
     )
 }
 
-fn connect_hello(f: &Fixture, cx: &mut VisualTestContext) -> Client {
+pub(super) fn connect_hello(f: &Fixture, cx: &mut VisualTestContext) -> Client {
     let port = f.remote.read_with(cx, |r, _| match &r.status {
         Status::Sharing { port, .. } => *port,
         other => panic!("not sharing: {other:?}"),

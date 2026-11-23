@@ -11,7 +11,7 @@ use gpui::{
     ListState, SharedString, Subscription, Task, Window, actions, px,
 };
 use gpui_component::input::{InputEvent, TextareaState};
-use skyelab_agent::Session;
+use skyelab_agent::{Decision, Mode, Session};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Store, Thread};
 use std::collections::HashSet;
@@ -104,6 +104,10 @@ pub struct ThreadView {
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
+    /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
+    pub(super) mode: Mode,
+    /// Full access was picked and waits for the user to confirm it.
+    pub(super) confirm_bypass: bool,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
     send_chain: Option<Task<()>>,
@@ -189,6 +193,7 @@ impl ThreadView {
             let _ = this.update(cx, |this, cx| match loaded {
                 Ok((row, (parent, children), skipped, records)) => {
                     if let Some(row) = row {
+                        this.mode = Mode::parse(&row.permission_mode);
                         this.thread = Some(row);
                     }
                     this.parent = parent;
@@ -263,6 +268,8 @@ impl ThreadView {
             parent: None,
             required_account: None,
             children: Vec::new(),
+            mode: Mode::Default,
+            confirm_bypass: false,
             grant: None,
             send_chain: None,
             on_sent: None,
@@ -361,10 +368,79 @@ impl ThreadView {
         if let Some(ix) = self
             .items
             .iter()
-            .position(|i| matches!(i, Item::Tool(t) if t.id == tool_id))
+            .position(|i| i.expand_id() == Some(tool_id))
         {
             self.list.splice(ix..ix + 1, 1);
         }
+        cx.notify();
+    }
+
+    /// Answers the agent's permission request `id` (a click on its row).
+    pub fn answer(&mut self, id: &str, decision: Decision, cx: &mut Context<Self>) {
+        if let Err(e) = self.answer_then(id, decision, |_| {}, cx) {
+            self.show_error(anyhow::anyhow!(e), cx);
+        }
+    }
+
+    /// Sends the answer off the UI thread; `done` gets whether the agent took it (it can't once the request was
+    /// withdrawn). Refused at once when no agent runs.
+    pub(super) fn answer_then(
+        &mut self,
+        id: &str,
+        decision: Decision,
+        done: impl FnOnce(Result<(), String>) + Send + 'static,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let Some(session) = self.session.clone() else {
+            return Err("the agent isn't running".into());
+        };
+        let id = id.to_owned();
+        self.in_background(cx, move || {
+            let r = lock(&session).and_then(|mut s| s.answer(&id, decision));
+            done(r.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
+            r
+        });
+        Ok(())
+    }
+
+    /// Picks the thread's permission mode. Full access waits for [`Self::confirm_mode`].
+    pub fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        if mode == Mode::Bypass && self.mode != Mode::Bypass {
+            self.confirm_bypass = true;
+            return cx.notify();
+        }
+        self.apply_mode(mode, cx);
+    }
+
+    /// The user confirmed Full access (or turned it down).
+    pub fn confirm_mode(&mut self, yes: bool, cx: &mut Context<Self>) {
+        let asked = std::mem::take(&mut self.confirm_bypass);
+        if yes && asked {
+            self.apply_mode(Mode::Bypass, cx);
+        }
+        cx.notify();
+    }
+
+    fn apply_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        self.confirm_bypass = false;
+        if self.mode == mode {
+            return cx.notify();
+        }
+        self.mode = mode;
+        let row = self.thread.as_mut().map(|t| {
+            t.permission_mode = mode.as_str().to_owned();
+            t.id
+        });
+        let (store, session) = (self.backend.store.clone(), self.session.clone());
+        self.in_background(cx, move || {
+            if let Some(id) = row {
+                lock(&store)?.set_thread_permission_mode(id, mode.as_str())?;
+            }
+            if let Some(session) = session {
+                lock(&session)?.set_mode(mode)?;
+            }
+            Ok(())
+        });
         cx.notify();
     }
 

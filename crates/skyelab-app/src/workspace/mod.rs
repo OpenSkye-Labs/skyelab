@@ -562,3 +562,9 @@ mod commit_hook_env_test;
 mod delegation_after_stop_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_thread_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_mode_test;

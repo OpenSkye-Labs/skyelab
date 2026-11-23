@@ -334,11 +334,40 @@ impl ItemsView for RemoteThreadView {
         if let Some(ix) = self
             .items
             .iter()
-            .position(|i| matches!(i, Item::Tool(t) if t.id == tool_id))
+            .position(|i| i.expand_id() == Some(tool_id))
         {
             self.list.splice(ix..ix + 1, 1);
         }
         cx.notify();
+    }
+    fn can_answer(&self, cx: &App) -> bool {
+        self.thread_id.is_some() && self.env.read(cx).state == ConnState::Connected
+    }
+    fn answer(
+        &mut self,
+        id: &str,
+        decision: skyelab_agent::Decision,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use skyelab_client::PermissionAnswer as A;
+        let (Some(thread), Some(answer)) = (
+            self.thread_id,
+            match decision {
+                skyelab_agent::Decision::AllowOnce => Some(A::AllowOnce),
+                skyelab_agent::Decision::AllowThread => Some(A::AllowThread),
+                skyelab_agent::Decision::Deny => Some(A::Deny),
+                skyelab_agent::Decision::Withdrawn => None,
+            },
+        ) else {
+            return;
+        };
+        if !self.can_answer(cx) {
+            return;
+        }
+        // The row updates when the agent's resolved event comes back from the other machine.
+        let pending = self.client.answer_permission(thread, id, answer);
+        self.await_reply(pending, None, window, cx, |_, _, _| {});
     }
 }
 

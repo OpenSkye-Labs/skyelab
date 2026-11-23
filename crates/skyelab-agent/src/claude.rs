@@ -2,9 +2,9 @@
 //! `user_message_uuids`. A prompt sent mid-turn can be folded into the running turn (one result for two prompts),
 //! and a background wake (`origin.kind` `task-notification`, no uuids) answers none of ours.
 
-use crate::Event;
+use crate::{Decision, Event};
 use serde_json::{Value, json};
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 /// The uuids of prompts sent and not answered yet, oldest first, shared by the session and its reader thread.
@@ -12,6 +12,51 @@ pub(crate) type Sent = Arc<Mutex<VecDeque<String>>>;
 
 fn sent(s: &Sent) -> std::sync::MutexGuard<'_, VecDeque<String>> {
     s.lock().unwrap_or_else(|e| e.into_inner()) // a set of ids, consistent after a panic
+}
+
+/// Permission asks (`can_use_tool` control requests) not answered yet, by request id: the tool's input and the
+/// CLI's suggested rules, which an answer sends back.
+pub(crate) type Asks = Arc<Mutex<BTreeMap<String, Ask>>>;
+
+pub(crate) struct Ask {
+    tool: String,
+    input: Value,
+    suggestions: Value,
+}
+
+pub(crate) fn asks(a: &Asks) -> std::sync::MutexGuard<'_, BTreeMap<String, Ask>> {
+    a.lock().unwrap_or_else(|e| e.into_inner()) // plain data, consistent after a panic
+}
+
+/// The `control_response` line answering ask `id` with `decision`, or `None` when `id` isn't open.
+pub(crate) fn answer(open: &Asks, id: &str, decision: Decision) -> Option<Value> {
+    let ask = asks(open).remove(id)?;
+    let response = match decision {
+        Decision::AllowOnce => json!({ "behavior": "allow", "updatedInput": ask.input }),
+        Decision::AllowThread => {
+            // Claude's own suggestions, kept to this process: never written to the project's or user's settings.
+            let mut rules: Vec<Value> = ask.suggestions.as_array().cloned().unwrap_or_default();
+            for r in &mut rules {
+                r["destination"] = json!("session");
+            }
+            if rules.is_empty() {
+                rules.push(json!({
+                    "type": "addRules",
+                    "rules": [{ "toolName": ask.tool }],
+                    "behavior": "allow",
+                    "destination": "session",
+                }));
+            }
+            json!({ "behavior": "allow", "updatedInput": ask.input, "updatedPermissions": rules })
+        }
+        Decision::Deny | Decision::Withdrawn => {
+            json!({ "behavior": "deny", "message": "The user denied this in SkyeLab." })
+        }
+    };
+    Some(json!({
+        "type": "control_response",
+        "response": { "subtype": "success", "request_id": id, "response": response },
+    }))
 }
 
 /// The stream-json line for a user prompt, recorded in `pending`.
@@ -30,7 +75,10 @@ pub(crate) fn user_message(text: &str, pending: &Sent) -> Value {
 /// One stdout line. A result that lists prompt uuids answers those of ours it names. Without the list, one from
 /// another origin than the user (a background wake, a peer) answers none, and any other answers the oldest prompt
 /// (an older CLI).
-pub(crate) fn parse(line: &str, pending: &Sent) -> Event {
+pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
+    if let Some(events) = control(line, open) {
+        return events;
+    }
     let mut event = Event::parse(line);
     if let Event::Result { prompts, .. } = &mut event
         && let Ok(v) = serde_json::from_str::<Value>(line)
@@ -54,6 +102,81 @@ pub(crate) fn parse(line: &str, pending: &Sent) -> Event {
             }
         };
         *prompts = u32::try_from(answered).unwrap_or(u32::MAX);
+        // The turn is over, so nothing still asking can be answered any more.
+        let mut events = withdraw_all(open);
+        events.push(event);
+        return events;
     }
-    event
+    vec![event]
+}
+
+fn withdraw_all(open: &Asks) -> Vec<Event> {
+    std::mem::take(&mut *asks(open))
+        .into_keys()
+        .map(|id| Event::PermissionResolved {
+            id,
+            decision: Decision::Withdrawn,
+        })
+        .collect()
+}
+
+/// A permission ask or its withdrawal, or `None` for any other line.
+fn control(line: &str, open: &Asks) -> Option<Vec<Event>> {
+    if !line.contains("control_") {
+        return None; // most lines: skip the second parse
+    }
+    let v: Value = serde_json::from_str(line).ok()?;
+    let id = v["request_id"].as_str()?.to_owned();
+    match v["type"].as_str()? {
+        "control_request" if v["request"]["subtype"] == "can_use_tool" => {
+            let r = &v["request"];
+            let tool = r["tool_name"].as_str().unwrap_or("tool").to_owned();
+            let input = r["input"].clone();
+            asks(open).insert(
+                id.clone(),
+                Ask {
+                    tool: tool.clone(),
+                    input: input.clone(),
+                    suggestions: r["permission_suggestions"].clone(),
+                },
+            );
+            Some(vec![Event::Permission { id, tool, input }])
+        }
+        "control_cancel_request" => Some(
+            asks(open)
+                .remove(&id)
+                .map(|_| Event::PermissionResolved {
+                    id,
+                    decision: Decision::Withdrawn,
+                })
+                .into_iter()
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_result_withdraws_open_asks() {
+        let (sent, open) = (Sent::default(), Asks::default());
+        let ask = r#"{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{}}}"#;
+        assert!(
+            matches!(&parse(ask, &sent, &open)[..], [Event::Permission { id, .. }] if id == "r1")
+        );
+        let result = r#"{"type":"result","is_error":false,"duration_ms":1,"result":"ok"}"#;
+        let events = parse(result, &sent, &open);
+        assert_eq!(
+            events[0],
+            Event::PermissionResolved {
+                id: "r1".into(),
+                decision: Decision::Withdrawn
+            }
+        );
+        assert!(matches!(events[1], Event::Result { .. }));
+        assert!(answer(&open, "r1", Decision::AllowOnce).is_none());
+    }
 }
