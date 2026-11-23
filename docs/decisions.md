@@ -126,3 +126,5 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   shim starts before the job assignment (microseconds after spawn) is outside the job; a tab folder WebView2 still
   holds when the tab closes stays in the temp dir (a registry policy that pins the folder isn't checked either).
   (2026-11-23)
+- **Repo instructions still load:** checked against the real CLI (2.1.330), `--setting-sources user --strict-mcp-config`
+  still reads the project's `CLAUDE.md`, so blocking project *settings* does not drop project *instructions*. (2026-11-23)
