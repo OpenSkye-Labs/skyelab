@@ -16,7 +16,7 @@ use std::process::{Command, Output};
 
 pub use commit::{commit, snapshot_tree};
 pub use diff::{FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base};
-pub use publish::{GitHub, create_pr, credential_args, gh_login, push};
+pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
 

@@ -87,10 +87,12 @@ impl Workspace {
     /// `git config`), so the job runs off the UI thread.
     pub(super) fn terminal_job(
         &self,
-        _cx: &App,
+        cx: &App,
     ) -> impl FnOnce() -> anyhow::Result<SpawnOptions> + Send + use<> {
-        let (config, folder) = (self.config.clone(), self.folder.clone());
+        let config = self.accounts_job(cx);
+        let folder = self.folder.clone();
         move || {
+            let config = config();
             Ok(SpawnOptions {
                 env: terminal_env(&config, &folder, &unbound_root()?)?,
                 cwd: folder,
@@ -99,6 +101,14 @@ impl Workspace {
                 lines: 24,
             })
         }
+    }
+
+    /// The accounts as accounts.toml says when the job runs (the window's copy without a file), like an agent
+    /// launch: an outside edit applies to the next terminal at once.
+    pub(super) fn accounts_job(&self, cx: &App) -> impl FnOnce() -> AccountsConfig + Send + use<> {
+        let file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
+        let config = self.config.clone();
+        move || super::thread::accounts_now(file.as_deref(), &config)
     }
 
     /// Builds a terminal's options with `job` in the background, then opens it here (or hands the error to `failed`).

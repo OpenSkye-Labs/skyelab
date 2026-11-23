@@ -1,5 +1,6 @@
 //! Push and open a pull request under one account's `gh` login.
 
+use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -22,6 +23,11 @@ pub struct GitHub<'a> {
 /// Pushes the current branch to its upstream, or to `origin/<branch>` (and sets that as the upstream).
 /// Returns `<remote>/<branch>`. https credentials come only from `gh` (see [`credential_args`]).
 pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
+    push_with(dir, gh, &[])
+}
+
+/// [`push`], with `env` added for the repo's hooks (the bound account's git credential binding).
+pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Result<String> {
     let root = repo_root(dir)?;
     let branch = current_branch(&root)?;
     let config = |key: String| -> Result<Option<String>> {
@@ -58,6 +64,7 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
         .arg("--recurse-submodules=no")
         .args(set_upstream.then_some("--set-upstream"))
         .args([&remote, &refspec])
+        .envs(env.iter().map(|(k, v)| (k, v)))
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
     checked(cmd, "git push", None)?;
