@@ -8,6 +8,9 @@ pub(crate) mod prefs;
 #[path = "thread_title.rs"]
 pub(super) mod title;
 
+#[cfg(test)]
+#[path = "context_fence_test.rs"]
+mod context_fence_test;
 #[cfg(all(test, unix))]
 #[path = "draft_test.rs"]
 mod draft_test;
