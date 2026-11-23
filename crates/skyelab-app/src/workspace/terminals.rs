@@ -1,8 +1,9 @@
-//! Opening terminals in the bottom dock, each under its folder's account.
+//! Opening terminals in the bottom dock, each under its folder's account: new tabs, split panes, the tabs that
+//! follow their thread, and a selection sent to the thread's composer.
 
-use super::panels::TerminalPanel;
+use super::terminal_panel::{Pane, SplitTerminal, TerminalPanel};
 use super::{NewTerminal, Workspace};
-use gpui::{AppContext as _, Context, Focusable as _, Window};
+use gpui::{AppContext as _, Context, Entity, Focusable as _, SharedString, Window};
 use gpui_component::dock::{DockPlacement, panel_handle};
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalEvent, TerminalView};
 
@@ -22,6 +23,47 @@ impl Workspace {
         self.open_terminal(job, same_folder, window, cx, |_, e, _| {
             eprintln!("failed to open terminal: {e:#}")
         });
+    }
+
+    /// Splits the focused terminal tab: a new shell beside the focused pane, built like a new tab (the current
+    /// folder's account env).
+    pub(super) fn split_terminal(
+        &mut self,
+        _: &SplitTerminal,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_remote() {
+            return;
+        }
+        let Some(panel) = self
+            .terminals
+            .iter()
+            .find(|p| p.read(cx).focused_pane(window, cx).is_some())
+            .cloned()
+        else {
+            return;
+        };
+        let job = self.terminal_job(cx);
+        let options = cx.background_spawn(async move { job() });
+        cx.spawn_in(window, async move |this, cx| {
+            let options = options.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                let opened = options.and_then(|(o, account)| {
+                    if this.is_remote() || o.cwd != this.folder {
+                        return Ok(()); // the window moved on meanwhile
+                    }
+                    let title = panel.read(cx).title();
+                    let view = this.terminal_view(o, title, window, cx)?;
+                    panel.update(cx, |p, cx| p.split(Pane { view, account }, window, cx));
+                    Ok(())
+                });
+                if let Err(e) = opened {
+                    eprintln!("failed to split terminal: {e:#}");
+                }
+            });
+        })
+        .detach();
     }
 
     /// `account` is the one the shell's env was set up for, shown on its tab (`None`: unbound).
@@ -44,21 +86,65 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let (terminal, events) = Terminal::spawn(options)?;
-        let title = match tab {
-            Some((title, input)) => {
-                terminal.write(input.into_bytes()); // read once the shell starts (scripts_env_test)
-                title
-            }
-            None => format!("Terminal {}", self.terminals.len() + 1).into(),
+        let (title, input) = match tab {
+            Some((title, input)) => (title, Some(input)),
+            None => (
+                format!("Terminal {}", self.terminals.len() + 1).into(),
+                None,
+            ),
         };
+        let view = self.terminal_view(options, title.clone(), window, cx)?;
+        if let Some(input) = input {
+            view.read(cx).terminal().write(input.into_bytes()); // read once the shell starts (scripts_env_test)
+        }
+        let owner = self.current_thread().map(|t| t.entity_id());
+        let panel = cx.new(|_| {
+            TerminalPanel::new(
+                Pane {
+                    view: view.clone(),
+                    account,
+                },
+                title,
+                owner,
+            )
+        });
+        self.dock_terminal(&panel, window, cx);
+        self.terminals.push(panel);
+        view.read(cx).focus_handle(cx).focus(window, cx);
+        Ok(())
+    }
+
+    /// Starts a shell with `options` and listens to it; `label` names it on what it adds to a prompt.
+    fn terminal_view(
+        &mut self,
+        options: SpawnOptions,
+        label: SharedString,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<Entity<TerminalView>> {
+        let (terminal, events) = Terminal::spawn(options)?;
         let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
-        cx.subscribe_in(&view, window, |this, _, event, window, cx| match event {
-            TerminalEvent::OpenPath(path) => this.reveal_in_changes(path, window, cx),
-        })
+        cx.subscribe_in(
+            &view,
+            window,
+            move |this, _, event, window, cx| match event {
+                TerminalEvent::OpenPath(path) => this.reveal_in_changes(path, window, cx),
+                TerminalEvent::AddToPrompt(text) => this.add_to_prompt(&label, text, window, cx),
+            },
+        )
         .detach();
-        let panel = cx.new(|_| TerminalPanel::new(view.clone(), title, account));
+        Ok(view)
+    }
+
+    /// Puts `panel` in the bottom dock and opens the dock; the placeholder leaves once a terminal is there.
+    fn dock_terminal(
+        &mut self,
+        panel: &Entity<TerminalPanel>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let empty = self.terminals_empty.take();
+        panel.update(cx, |p, _| p.docked = true);
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
                 panel_handle(panel.clone()),
@@ -75,9 +161,101 @@ impl Workspace {
                 dock.toggle_dock(DockPlacement::Bottom, window, cx);
             }
         });
-        self.terminals.push(panel);
-        view.read(cx).focus_handle(cx).focus(window, cx);
-        Ok(())
+    }
+
+    /// Shows the terminal tabs that go with the thread now shown (its own and those opened with no thread) and takes
+    /// the others out of the dock. They keep running, scrollback and all, until their thread shows again.
+    pub(super) fn sync_terminals(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        // Settings and Welcome leave thread terminals as they were.
+        let shown = self.current_thread().map(|t| t.entity_id());
+        let wanted = |owner: Option<gpui::EntityId>| match (owner, shown) {
+            (None, _) => Some(true),
+            (Some(o), Some(s)) => Some(o == s),
+            (Some(_), None) => None,
+        };
+        let open = self.dock.read(cx).is_dock_open(DockPlacement::Bottom);
+        let (mut show, mut hide) = (Vec::new(), Vec::new());
+        for panel in &self.terminals {
+            let p = panel.read(cx);
+            match (wanted(p.owner), p.docked) {
+                (Some(true), false) => show.push(panel.clone()),
+                (Some(false), true) => hide.push(panel.clone()),
+                _ => {}
+            }
+        }
+        let others_left = self.terminals.iter().any(|p| {
+            let p = p.read(cx);
+            p.docked && wanted(p.owner) != Some(false)
+        });
+        if hide.is_empty() && show.is_empty() {
+            return;
+        }
+        if show.is_empty() && !others_left && self.terminals_empty.is_none() {
+            // The placeholder goes in first, so the dock never goes empty.
+            let empty = cx.new(super::panels::TerminalsEmpty::new);
+            self.dock.update(cx, |dock, cx| {
+                dock.add_panel_view(
+                    panel_handle(empty.clone()),
+                    DockPlacement::Bottom,
+                    None,
+                    window,
+                    cx,
+                )
+            });
+            self.terminals_empty = Some(empty);
+        }
+        for panel in show {
+            self.dock_terminal(&panel, window, cx);
+        }
+        for panel in hide {
+            panel.update(cx, |p, _| p.docked = false);
+            self.dock
+                .update(cx, |dock, cx| dock.remove_panel(panel, window, cx));
+        }
+        // Taking tabs out or putting them back never opens or closes the dock by itself.
+        self.dock.update(cx, |dock, cx| {
+            if dock.is_dock_open(DockPlacement::Bottom) != open {
+                dock.toggle_dock(DockPlacement::Bottom, window, cx);
+            }
+        });
+    }
+
+    /// A closed thread's terminals keep running and show with every thread from now on.
+    pub(super) fn orphan_terminals(
+        &mut self,
+        thread: gpui::EntityId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        for panel in &self.terminals {
+            panel.update(cx, |p, _| {
+                if p.owner == Some(thread) {
+                    p.owner = None;
+                }
+            });
+        }
+        self.sync_terminals(window, cx);
+    }
+
+    /// A terminal's "Add to prompt": the selection goes into the shown thread's composer as a context chip.
+    fn add_to_prompt(
+        &mut self,
+        label: &SharedString,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(thread) = self.current_thread() else {
+            return self.say(
+                "Open a thread to add terminal output to its prompt.",
+                window,
+                cx,
+            );
+        };
+        thread.update(cx, |t, cx| {
+            t.add_terminal_context(label.clone(), text, cx);
+            t.focus_prompt(window, cx);
+        });
     }
 
     /// A path link from a terminal: shows the first open Changes tab that lists the file; otherwise nothing.

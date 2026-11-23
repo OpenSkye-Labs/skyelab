@@ -147,6 +147,7 @@ fn turned_off_hides_the_sparkles_and_refuses(cx: &mut TestAppContext) {
                 generate_git_text: false,
                 ..Default::default()
             },
+            diff: Default::default(),
         })
     });
     assert!(!shown(cx));

@@ -2,7 +2,7 @@
 //! worktree's base), flattened into fixed-height rows so a long diff renders through `uniform_list`.
 
 use anyhow::{Context as _, Result};
-use skyelab_git::{ChangeKind, Line};
+use skyelab_git::{Against, ChangeKind, Line};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -77,6 +77,7 @@ pub fn load_scope(
     base: Option<&str>,
     scope: Scope,
     key: Option<&str>,
+    ignore_ws: bool,
 ) -> Result<Changes> {
     let checkpoints = match key {
         Some(key) => skyelab_git::checkpoints(dir, key).unwrap_or_default(),
@@ -90,16 +91,24 @@ pub fn load_scope(
             .with_context(|| format!("there is no checkpoint for turn {turn} any more"))
     };
     let mut changes = match scope {
-        Scope::Working => load(dir, base)?,
+        Scope::Working => load_with(dir, base, ignore_ws)?,
         Scope::SinceStart => {
             let now = skyelab_git::snapshot_tree(dir)?;
-            from_diffs(skyelab_git::diff_trees(dir, &tree_of(0)?, &now)?)
+            let from = tree_of(0)?;
+            from_diffs(skyelab_git::diff_with(
+                dir,
+                Against::Trees(&from, &now),
+                ignore_ws,
+            )?)
         }
-        Scope::Turn(n) => from_diffs(skyelab_git::diff_trees(
-            dir,
-            &tree_of(n.saturating_sub(1))?,
-            &tree_of(n)?,
-        )?),
+        Scope::Turn(n) => {
+            let (from, to) = (tree_of(n.saturating_sub(1))?, tree_of(n)?);
+            from_diffs(skyelab_git::diff_with(
+                dir,
+                Against::Trees(&from, &to),
+                ignore_ws,
+            )?)
+        }
     };
     changes.checkpoints = checkpoints;
     Ok(changes)
@@ -152,7 +161,13 @@ pub fn rewind_message(plan: &skyelab_git::RewindPlan, overwrite_ignored: bool) -
 
 /// Tracked changes from `diff HEAD` (staged and unstaged together), untracked files from `status`.
 /// With a `base` commit, tracked changes are since that commit, commits included.
+#[cfg(test)]
 pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
+    load_with(dir, base, false)
+}
+
+/// [`load`], with whitespace-only changes hidden when `ignore_ws`.
+fn load_with(dir: &Path, base: Option<&str>, ignore_ws: bool) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
     // Before and after the diff: if they differ, what's shown may be neither, so Commit refuses (`tree: None`).
     // A failed snapshot (say an unreadable file) still shows the tab, and Commit refuses the same way.
@@ -160,8 +175,8 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     // What is left of the diff's line cap for untracked files, after the tracked ones.
     let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let diffs = match base {
-        Some(base) => skyelab_git::diff_merge_base(dir, base)?,
-        None => diff_head(dir)?,
+        Some(base) => skyelab_git::diff_with(dir, Against::MergeBase(base), ignore_ws)?,
+        None => diff_head(dir, ignore_ws)?,
     };
     let mut entries = diff_entries(diffs, &mut lines_left);
     let mut budget = MAX_UNTRACKED_TOTAL;
@@ -215,6 +230,9 @@ fn diff_entries(
         if let Some(n) = d.too_large {
             rows.push(Row::TooLarge(n));
         }
+        if rows.is_empty() && d.hunks.is_empty() && d.kind == ChangeKind::Modified {
+            rows.push(Row::Placeholder("Only whitespace or mode changed"));
+        }
         for h in &d.hunks {
             *lines_left = lines_left.saturating_sub(h.lines.len());
             rows.push(Row::Hunk(format!(
@@ -249,12 +267,16 @@ fn diff_entries(
 }
 
 /// `diff HEAD`, or against the empty tree while the repo has no commit to compare with.
-fn diff_head(dir: &Path) -> Result<Vec<skyelab_git::FileDiff>> {
-    match skyelab_git::diff(dir, "HEAD") {
+fn diff_head(dir: &Path, ignore_ws: bool) -> Result<Vec<skyelab_git::FileDiff>> {
+    match skyelab_git::diff_with(dir, Against::Rev("HEAD"), ignore_ws) {
         Err(skyelab_git::Error::Git { stderr, .. })
             if stderr.contains("bad revision") || stderr.contains("unknown revision") =>
         {
-            Ok(skyelab_git::diff(dir, EMPTY_TREE)?)
+            Ok(skyelab_git::diff_with(
+                dir,
+                Against::Rev(EMPTY_TREE),
+                ignore_ws,
+            )?)
         }
         other => Ok(other?),
     }

@@ -11,6 +11,7 @@ mod changes_generate;
 mod changes_model;
 mod changes_open;
 mod changes_publish;
+mod changes_tree;
 mod changes_turns;
 mod child_slots;
 mod details_panel;
@@ -27,6 +28,7 @@ mod onboarding;
 mod settings_tab;
 mod setup_flow;
 mod terminal_launch;
+mod terminal_panel;
 mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
 mod accounts_file;
@@ -86,13 +88,14 @@ use gpui_component::{
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
     v_flex,
 };
-use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
+use panels::{BrowserPanel, Sidebar, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
 #[cfg(test)]
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use terminal_panel::TerminalPanel;
 use thread::ThreadView;
 
 actions!(
@@ -401,6 +404,8 @@ mod browser_tests;
 #[cfg(test)]
 mod changes_cap_test;
 #[cfg(test)]
+mod changes_find_test;
+#[cfg(test)]
 mod changes_follow_folder_test;
 #[cfg(test)]
 mod changes_long_test;
@@ -408,6 +413,8 @@ mod changes_long_test;
 mod changes_model_test;
 #[cfg(all(test, unix))]
 mod changes_selection_test;
+#[cfg(test)]
+mod changes_tree_test;
 #[cfg(all(test, unix))]
 mod checkpoint_midturn_test;
 #[cfg(test)]
@@ -452,6 +459,8 @@ mod delegation_turns_test;
 mod devices_review_tests;
 #[cfg(test)]
 mod devices_tests;
+#[cfg(test)]
+mod diff_prefs_test;
 #[cfg(test)]
 mod drive_rebound_test;
 #[cfg(test)]
@@ -549,11 +558,17 @@ mod stale_idle_test;
 #[cfg(test)]
 mod stale_status_test;
 #[cfg(test)]
+mod terminal_context_test;
+#[cfg(test)]
 mod terminal_env_test;
 #[cfg(test)]
 mod terminal_link_subdir_test;
 #[cfg(test)]
 mod terminal_link_test;
+#[cfg(test)]
+mod terminal_owner_test;
+#[cfg(test)]
+mod terminal_split_test;
 #[cfg(test)]
 mod tests;
 #[cfg(all(test, unix))]

@@ -26,7 +26,9 @@ fn terminal_path_link_reveals_the_changed_file(cx: &mut gpui::TestAppContext) {
     cx.run_until_parked();
     let term = ws
         .read_with(&*cx, |ws, cx| {
-            ws.terminals.last().map(|t| t.read(cx).view.clone())
+            ws.terminals
+                .last()
+                .map(|t| t.read(cx).panes[0].view.clone())
         })
         .expect("terminal");
 

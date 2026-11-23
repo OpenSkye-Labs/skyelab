@@ -14,7 +14,6 @@ use gpui_component::{
     v_flex,
 };
 use skyelab_browser::BrowserView;
-use skyelab_terminal::TerminalView;
 
 /// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
 macro_rules! panel {
@@ -207,52 +206,7 @@ impl Render for TerminalsEmpty {
     }
 }
 
-/// One terminal tab in the bottom dock.
-pub struct TerminalPanel {
-    pub view: Entity<TerminalView>,
-    title: SharedString,
-    /// The account the shell was started under (`None`: unbound folder), shown on its tab.
-    account: Option<skyelab_core::Account>,
-}
-
-impl TerminalPanel {
-    pub fn new(
-        view: Entity<TerminalView>,
-        title: SharedString,
-        account: Option<skyelab_core::Account>,
-    ) -> Self {
-        Self {
-            view,
-            title,
-            account,
-        }
-    }
-}
-
-// shortcut: terminal tabs can't be closed yet (the workspace owns their PTYs), add closing with tab management.
-panel!(TerminalPanel, "Terminal", closable: false, |this| {
-    h_flex()
-        .gap_2()
-        .child(this.title.clone())
-        .child(
-            this.account
-                .as_ref()
-                .map_or_else(ui::AccountBadge::unbound, ui::AccountBadge::of)
-                .chip(),
-        )
-});
-
-impl Focusable for TerminalPanel {
-    fn focus_handle(&self, cx: &App) -> FocusHandle {
-        self.view.read(cx).focus_handle(cx)
-    }
-}
-
-impl Render for TerminalPanel {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.view.clone())
-    }
-}
+panel!(super::terminal_panel::TerminalPanel, "Terminal", closable: false, |this| this.tab_title());
 
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 

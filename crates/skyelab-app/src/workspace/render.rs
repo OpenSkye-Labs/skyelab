@@ -14,6 +14,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::open_in_editor_with))
             .on_action(cx.listener(Self::new_terminal))
+            .on_action(cx.listener(Self::split_terminal))
             .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::set_up_accounts))

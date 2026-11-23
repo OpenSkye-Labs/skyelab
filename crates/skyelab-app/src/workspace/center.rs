@@ -160,6 +160,7 @@ impl Workspace {
                 view.into()
             }
         };
+        self.sync_terminals(window, cx);
         self.refresh_details(cx);
         self.center.update(cx, |c, cx| {
             c.content = view;
@@ -181,6 +182,7 @@ impl Workspace {
     ) {
         self.open_threads.retain(|v| v != view);
         view.update(cx, |v, _| v.close());
+        self.orphan_terminals(view.entity_id(), window, cx);
         if self.page == Page::Thread(view.downgrade()) {
             self.page = Page::Welcome;
             self.apply_page(window, cx);

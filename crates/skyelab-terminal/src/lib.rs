@@ -12,4 +12,4 @@ pub use keys::{OptionKey, OptionKeys, key_to_bytes};
 pub use links::{Found, LinkKind, find_links, path_target};
 pub use model::{Event, Link, Listener, SpawnOptions, Terminal};
 pub use mouse::{MouseAction, MouseButton, MouseMods, mouse_report};
-pub use view::{Copy, Paste, TerminalEvent, TerminalView, init};
+pub use view::{AddToPrompt, Copy, Paste, TerminalEvent, TerminalView, init};
