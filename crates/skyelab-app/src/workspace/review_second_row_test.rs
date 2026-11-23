@@ -181,15 +181,17 @@ fn stop_while_starting_stops_the_new_agent(cx: &mut TestAppContext) {
         assert!(t.starting, "precondition: still starting");
         t.stop(&Stop, window, cx)
     });
+    // Read-only or resumable depends on whether claude's Init got out before the kill; either way it is stopped.
     wait(cx, |cx| {
-        view.read_with(cx, |t, _| t.read_only && t.session.is_none())
+        view.read_with(cx, |t, _| !t.starting && t.session.is_none())
+            && store
+                .lock()
+                .expect("lock")
+                .list_threads(project)
+                .expect("list")
+                .first()
+                .is_some_and(|r| r.status == "stopped")
     });
-    let rows = store
-        .lock()
-        .expect("lock")
-        .list_threads(project)
-        .expect("list");
-    assert_eq!(rows[0].status, "stopped");
 }
 
 /// After a Stop, the old session's event stream can stay open (a tool that left claude's process
