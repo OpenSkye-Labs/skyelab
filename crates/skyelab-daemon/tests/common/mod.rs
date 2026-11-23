@@ -51,6 +51,19 @@ impl Backend for Counting {
         self.calls.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
+    fn answer_permission(
+        &self,
+        _: i64,
+        _: &str,
+        _: skyelab_protocol::PermissionAnswer,
+    ) -> Result<(), RpcError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+    fn answer_questions(&self, _: i64, _: &str, _: &[Vec<String>]) -> Result<(), RpcError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
 }
 
 pub fn test_config() -> Config {

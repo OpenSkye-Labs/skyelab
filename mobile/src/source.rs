@@ -102,6 +102,8 @@ impl FakeSource {
             account_id: account.into(),
             account_label: None,
             status: status.into(),
+            pinned: false,
+            preview: None,
             created_at: 0,
             updated_at: 0,
         };

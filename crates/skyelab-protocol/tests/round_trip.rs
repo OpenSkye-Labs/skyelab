@@ -42,7 +42,7 @@ fn round_trip_hello() {
             capabilities: vec!["events".into()],
             device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 3}, "capabilities": ["events"], "device_key": "k"}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 4}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 
@@ -144,6 +144,8 @@ fn round_trip_every_reply() {
             account_id: "work".into(),
             account_label: Some("Work (Team)".into()),
             status: "idle".into(),
+            pinned: false,
+            preview: None,
             created_at: 1,
             updated_at: 2,
         }]),

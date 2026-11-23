@@ -47,6 +47,8 @@ impl ThreadSource for LongSource {
             account_id: "work".into(),
             account_label: None,
             status: "idle".into(),
+            pinned: false,
+            preview: None,
             created_at: 0,
             updated_at: 0,
         }]

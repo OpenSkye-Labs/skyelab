@@ -239,6 +239,13 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
         } => backend
             .answer_permission(thread_id, &request_id, decision)
             .map(|()| Reply::Ok),
+        Call::AnswerQuestions {
+            thread_id,
+            request_id,
+            answers,
+        } => backend
+            .answer_questions(thread_id, &request_id, &answers)
+            .map(|()| Reply::Ok),
     }
 }
 

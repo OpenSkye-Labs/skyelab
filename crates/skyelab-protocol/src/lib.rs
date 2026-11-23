@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 3 };
+pub const VERSION: Version = Version { major: 1, minor: 4 };
 
 /// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7287;
@@ -150,6 +150,13 @@ pub enum Call {
         request_id: String,
         decision: PermissionAnswer,
     },
+    /// Answers an AskUserQuestion the thread's agent is waiting on (1.4): one list of picked labels (or typed text)
+    /// per question, in the question order of the agent event `{"Permission": {"id", "tool": "AskUserQuestion"}}`.
+    AnswerQuestions {
+        thread_id: i64,
+        request_id: String,
+        answers: Vec<Vec<String>>,
+    },
 }
 
 /// What a remote user may answer a permission request with (1.3).
@@ -196,7 +203,7 @@ pub enum Reply {
     ThreadStarted {
         thread_id: i64,
     },
-    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`).
+    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`).
     Ok,
 }
 
@@ -265,9 +272,39 @@ pub struct Thread {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_label: Option<String>,
     pub status: String,
+    /// Pinned on the serving machine (1.4): listed first.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
+    /// The agent's last reply as stored (markdown), cut to [`PREVIEW_CHARS`] (1.4). `None` before any reply, or
+    /// from an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preview: Option<String>,
     /// Unix milliseconds.
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// How much of a thread's last reply [`Thread::preview`] carries: enough for a sidebar row's two lines.
+pub const PREVIEW_CHARS: usize = 400;
+
+/// A tool result's image block as one line: "Image (205 KB)", plus " not kept" once the serving machine's store
+/// dropped its bytes (it leaves `omitted_bytes` in their place). Shared by every client's timeline.
+pub fn image_label(block: &serde_json::Value) -> String {
+    let source = &block["source"];
+    let omitted = source["omitted_bytes"]
+        .as_u64()
+        .or(block["omitted_bytes"].as_u64());
+    let data = source["data"].as_str().or(block["data"].as_str());
+    // Base64 is 4 characters per 3 bytes.
+    let Some(bytes) = omitted.or(data.map(|d| d.len() as u64 / 4 * 3)) else {
+        return "Image".to_owned();
+    };
+    let size = match bytes {
+        b if b >= 1024 * 1024 => format!("{:.1} MB", b as f64 / (1024.0 * 1024.0)),
+        b => format!("{} KB", ((b + 512) / 1024).max(1)),
+    };
+    let kept = if omitted.is_some() { " not kept" } else { "" };
+    format!("Image ({size}){kept}")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
