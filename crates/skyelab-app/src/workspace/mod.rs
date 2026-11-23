@@ -475,7 +475,7 @@ mod env_switch_test;
 mod env_whois_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
-#[cfg(test)]
+#[cfg(all(test, unix))] // uses publish_test's fake-gh helpers
 mod generate_text_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;
