@@ -156,3 +156,46 @@ fn two_windows_share_one_thread_view(cx: &mut TestAppContext) {
     assert!(app.update(|cx| window_handles(cx) == vec![b_window]));
     drop(orch_tx);
 }
+
+/// macOS keeps running with no window: a window opened later owns the threads that kept running, so their turn-end
+/// notification and setup scripts still have a window to run in.
+#[gpui::test]
+fn a_reopened_window_owns_threads_left_without_one(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let id = seed(&f.store, &f.project_dir);
+    let (a, vcx) = open_workspace(&f, cx);
+    vcx.dispatch_action(OpenThread { id });
+    vcx.run_until_parked();
+    let view = vcx
+        .update(|_, cx| a.read(cx).open_view(id, cx))
+        .expect("open in A");
+    vcx.update(|window, _| window.remove_window());
+    vcx.run_until_parked();
+    let (folder, path, store) = (
+        f.project_dir.clone(),
+        f.accounts_path.clone(),
+        f.store.clone(),
+    );
+    let config = AccountsConfig::load(&path).expect("load");
+    let at = gpui::Bounds::new(gpui::point(px(0.), px(0.)), gpui::size(px(1000.), px(700.)));
+    let b = cx
+        .update(|cx| {
+            open_window(
+                at,
+                move |window, cx| {
+                    let backend = Backend {
+                        store,
+                        claude_bin: super::threads_test::fake_bin(),
+                    };
+                    Workspace::new(folder, Some(path), config, None, backend, window, cx)
+                },
+                cx,
+            )
+        })
+        .expect("window");
+    cx.run_until_parked();
+    let (owner, b_window) = cx.update(|cx| (view.read(cx).window, b.read(cx).window_handle));
+    assert_eq!(owner, b_window, "the new window owns the orphaned thread");
+    assert!(cx.update(|cx| b.read(cx).open_threads.contains(&view)));
+}

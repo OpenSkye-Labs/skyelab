@@ -53,12 +53,24 @@ impl ThreadView {
             return;
         }
         self.window = window.window_handle();
-        let text = self.prompt.read(cx).value();
+        let (text, disabled) = (self.prompt.read(cx).value(), self.read_only);
         let prompt = new_prompt(window, cx);
-        prompt.update(cx, |p, cx| p.set_value(text, window, cx));
+        prompt.update(cx, |p, cx| {
+            p.set_value(text, window, cx);
+            p.set_disabled(disabled, cx);
+        });
         self.prompt = prompt;
         // The prompt's subscription is always the first.
         self._subs[0] = prompt_subscription(&self.prompt, window, cx);
+        // The find bar, branch search and Run menu hold inputs of the old window too: close or make them again.
+        self.timeline.find = Default::default();
+        let (owner, cwd) = (cx.weak_entity(), self.cwd.clone());
+        let (store, project) = (self.backend.store.clone(), self.project_id);
+        self.branch_picker = cx.new(|cx| {
+            super::super::branch_picker::BranchPicker::new(owner.clone(), cwd, window, cx)
+        });
+        self.scripts =
+            cx.new(|cx| super::super::scripts::ScriptMenu::new(owner, store, project, window, cx));
         cx.notify();
     }
 }

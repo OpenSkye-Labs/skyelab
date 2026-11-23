@@ -259,6 +259,9 @@ impl Workspace {
     }
 
     fn open_stored(&mut self, thread: Thread, window: &mut Window, cx: &mut Context<Self>) {
+        if self.show_shared(thread.id, window, cx) {
+            return;
+        }
         let (config, backend) = (self.config.clone(), self.backend.clone());
         let view = cx.new(|cx| ThreadView::open(thread, config, backend, window, cx));
         name_project(&self.projects, &view, cx);

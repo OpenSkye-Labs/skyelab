@@ -111,7 +111,8 @@ pub fn check(manual: bool, cx: &mut App) {
             return None;
         }
         let got = fetch();
-        if let Some(p) = &path {
+        // A failed check (offline) is tried again at the next tick, not a day later.
+        if let (Some(p), true) = (&path, got.is_ok()) {
             let _ = AppSettings::update(p, |s| s.updates.last_check = Some(now));
         }
         Some(status(got, &current, settings.skipped.as_deref(), manual))
@@ -121,7 +122,16 @@ pub fn check(manual: bool, cx: &mut App) {
     }
     let task = cx.spawn(async move |cx| {
         let Some(next) = job.await else { return };
-        cx.update(|cx| set_status(next, cx));
+        cx.update(|cx| {
+            // A failed automatic check leaves a notice already shown in place.
+            let shown = matches!(
+                cx.global::<Updates>().status,
+                UpdateStatus::Available { .. }
+            );
+            if manual || !(shown && matches!(next, UpdateStatus::Failed(_))) {
+                set_status(next, cx);
+            }
+        });
     });
     cx.global_mut::<Updates>()._check = Some(task);
 }

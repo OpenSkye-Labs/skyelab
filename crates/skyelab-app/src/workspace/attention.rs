@@ -172,6 +172,9 @@ impl Workspace {
                 // A thread shown here and there last took its prompt (and the focus) to the other window.
                 if window.focused(cx).is_none() {
                     this.apply_page(window, cx);
+                } else if let Some(view) = this.current_thread() {
+                    // The window in use owns the shared thread it shows: its clicks act here.
+                    view.update(cx, |v, cx| v.attach(window, cx));
                 }
                 this.poll_prs(true, cx);
                 // Another window may have added, renamed or removed projects and threads meanwhile.

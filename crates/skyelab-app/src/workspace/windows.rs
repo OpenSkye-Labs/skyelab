@@ -167,8 +167,13 @@ impl Workspace {
             .into_iter()
             .filter(|v| Arc::ptr_eq(&v.read(cx).backend.store, &self.backend.store))
             .collect();
+        let open: Vec<_> = window_handles(cx);
         for view in shared {
             self.track_thread(&view, window, cx);
+            // Its window closed with none left to take it (macOS keeps running): this one owns it now.
+            if !open.contains(&view.read(cx).window) {
+                view.update(cx, |v, cx| v.attach(window, cx));
+            }
         }
         if !std::mem::replace(&mut cx.default_global::<Windows>().watching, true) {
             cx.on_window_closed(|cx, id| window_closed(id, cx)).detach();
@@ -266,6 +271,33 @@ impl Workspace {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// Shows the view another window already has for thread `id` (its share may not have reached this window yet),
+    /// rather than make a second one: one agent session per thread.
+    pub(super) fn show_shared(
+        &mut self,
+        id: i64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let found = cx.try_global::<Windows>().and_then(|reg| {
+            reg.threads
+                .iter()
+                .find(|v| {
+                    Arc::ptr_eq(&v.read(cx).backend.store, &self.backend.store)
+                        && v.read(cx).thread.as_ref().map(|t| t.id) == Some(id)
+                })
+                .cloned()
+        });
+        let Some(view) = found else {
+            return false;
+        };
+        if !self.open_threads.contains(&view) {
+            self.track_thread(&view, window, cx);
+        }
+        self.show(super::center::Page::Thread(view.downgrade()), window, cx);
+        true
     }
 
     /// Whether another window shows thread `id` while it is the active window: the user is looking at it.
