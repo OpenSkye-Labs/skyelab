@@ -1,6 +1,6 @@
 //! Context added to the prompt (T3's context chips): terminal output ("Add to prompt"), another thread's gist or a
-//! linked pull request (the `#` menu, `composer_context_pick.rs`), diff comments (`changes_comments.rs`) or a side
-//! chat's answer (`side_chat.rs`). Each is a chip above the prompt that opens to show its text, and is sent after the
+//! linked pull request (the `#` menu, `composer_context_pick.rs`), a GitHub issue (`gh_pages.rs`), diff comments
+//! (`changes_comments.rs`) or a side chat's answer (`side_chat.rs`). Each is a chip above the prompt that opens to show its text, and is sent after the
 //! typed text as a fenced block.
 
 use super::thread::ThreadView;
@@ -27,6 +27,8 @@ pub(crate) enum ChipKind {
     Review,
     /// A side chat's last answer ("Bring back").
     SideChat,
+    /// A GitHub issue from the Issues page.
+    Issue,
 }
 
 /// One chip waiting in the composer.
@@ -64,6 +66,7 @@ impl ContextChip {
                 "Review comments on the diff (file:lines, the lines, the comment)".into()
             }
             ChipKind::SideChat => format!("From the side chat \"{}\"", self.label),
+            ChipKind::Issue => format!("GitHub {}", self.label),
         }
     }
 }
@@ -208,6 +211,9 @@ impl ThreadView {
                     ChipKind::SideChat => Icon::new(Lucide::MessagesSquare)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.info)),
+                    ChipKind::Issue => Icon::new(Lucide::CircleDot)
+                        .xsmall()
+                        .text_color(ui::ink(theme, theme.success)),
                 })
                 .child(div().min_w_0().truncate().child(c.chip_label()))
                 .child(

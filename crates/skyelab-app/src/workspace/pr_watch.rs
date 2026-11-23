@@ -342,6 +342,28 @@ pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hs
     }
 }
 
+/// The review decision's glyph and tone, `None` when there is none.
+pub(crate) fn review_look(
+    review: skyelab_git::Review,
+    theme: &Theme,
+) -> Option<(IconName, Hsla, &'static str)> {
+    use skyelab_git::Review;
+    match review {
+        Review::None => None,
+        Review::Approved => Some((
+            IconName::UserCheck,
+            ui::ink(theme, theme.success),
+            "Approved",
+        )),
+        Review::ChangesRequested => Some((
+            IconName::UserRoundX,
+            ui::ink(theme, theme.warning),
+            "Changes requested",
+        )),
+        Review::Required => Some((IconName::User, theme.muted_foreground, "Awaiting review")),
+    }
+}
+
 #[cfg(test)]
 #[path = "pr_watch_test.rs"]
 mod tests;

@@ -24,6 +24,8 @@ impl Render for Workspace {
             .on_action(|_: &crate::updates::CheckForUpdates, _, cx| crate::updates::check(true, cx))
             .on_action(cx.listener(Self::open_usage))
             .on_action(cx.listener(Self::schedule_text))
+            .on_action(cx.listener(Self::open_pull_requests))
+            .on_action(cx.listener(Self::open_issues))
             .on_action(cx.listener(Self::set_up_accounts))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::pick_project))

@@ -200,6 +200,9 @@ and how Zed uses it, not blog posts or memory.
 - Logic goes in `skyelab-core` and gets plain `#[test]`s. Views stay thin.
 - View behavior: `#[gpui::test] fn t(cx: &mut TestAppContext)` with the `test-support` feature in dev-deps.
   Use `cx.add_window_view`, `simulate_keystrokes`, `run_until_parked`. The executor is deterministic, so no sleeps.
+- `VisualTestContext::dispatch_action` runs until parked, so background reads have already landed when it returns. To
+  assert an in-between state (a Loading row), call the handler inside one `update_in` and read the state there
+  (`gh_pages_test.rs`).
 - Pointer tests: give the target `.debug_selector(..)`, get it drawn (`cx.notify()` after changing state directly,
   then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
 - Visual or behavior check of the real app: `/loop-verify-ui`.

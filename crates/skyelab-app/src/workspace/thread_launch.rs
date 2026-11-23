@@ -163,6 +163,12 @@ impl ThreadView {
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
         let scheduled_task = self.scheduled_task.filter(|_| is_new);
+        // Cleared once the launch succeeds, so a failed first send keeps it for the next.
+        let link_pr = if is_new {
+            self.composer.extras.pending_pr.clone()
+        } else {
+            None
+        };
         let mode = if side {
             skyelab_agent::Mode::Plan
         } else {
@@ -254,6 +260,15 @@ impl ThreadView {
                         if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
                         }
+                        // Best effort: a link that can't be saved doesn't stop the review.
+                        if let Some(url) = &link_pr {
+                            match lock(&store)
+                                .and_then(|s| s.set_thread_pr_url(thread.id, Some(url)))
+                            {
+                                Ok(()) => thread.pr_url = Some(url.clone()),
+                                Err(e) => eprintln!("skyelab: linking the PR failed: {e:#}"),
+                            }
+                        }
                         if is_new && mode != skyelab_agent::Mode::Default {
                             lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
                             thread.permission_mode = mode.as_str().to_owned();
@@ -323,6 +338,7 @@ impl ThreadView {
                 this.starting = false;
                 match started {
                     Ok((thread, session, grant)) => {
+                        this.composer.extras.pending_pr = None;
                         this.row_saved(&thread, cx);
                         this.thread = Some(thread.clone());
                         if !is_new {

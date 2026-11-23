@@ -1,6 +1,6 @@
-//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), Settings, or a
-//! remote thread. Opening a thread switches the page; it never adds a tab. Thread views stay alive while another page
-//! shows, so a running agent keeps running.
+//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), Settings, a
+//! remote thread, or the Pull requests or Issues page. Opening a thread switches the page; it never adds a tab.
+//! Thread views stay alive while another page shows, so a running agent keeps running.
 
 use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
@@ -18,14 +18,17 @@ pub(crate) enum Page {
     Settings(Section),
     Thread(WeakEntity<ThreadView>),
     RemoteThread(WeakEntity<RemoteThreadView>),
+    /// The Pull requests or Issues page.
+    Github(super::gh_pages::Kind),
 }
 
 impl Page {
-    /// How settings.toml remembers the page: `thread:<id>`, `settings:<section>` or `welcome`. A draft (no row yet)
+    /// How settings.toml remembers the page: `thread:<id>`, `settings:<section>`, `github:<page>` or `welcome`. A draft (no row yet)
     /// and a remote thread (another machine's id) come back as Welcome.
     pub(crate) fn key(&self, cx: &App) -> String {
         match self {
             Page::Settings(section) => format!("settings:{}", section.key()),
+            Page::Github(kind) => format!("github:{}", kind.key()),
             Page::Thread(view) => view
                 .upgrade()
                 .and_then(|v| {
@@ -98,8 +101,8 @@ impl Workspace {
 
     fn alive(&self, page: &Page) -> bool {
         match page {
-            // Settings is made on demand, so it can always show.
-            Page::Welcome | Page::Settings(_) => true,
+            // Settings and the GitHub pages are made on demand, so they can always show.
+            Page::Welcome | Page::Settings(_) | Page::Github(_) => true,
             Page::Thread(view) => view
                 .upgrade()
                 .is_some_and(|v| self.open_threads.contains(&v)),
@@ -158,6 +161,7 @@ impl Workspace {
                 settings.read(cx).focus_handle(cx).focus(window, cx);
                 settings.into()
             }
+            Page::Github(kind) => self.gh_page(kind, window, cx).into(),
             Page::Thread(view) => {
                 let view = view.upgrade().expect("alive() checked it");
                 view.update(cx, |v, cx| {
@@ -231,6 +235,11 @@ impl Workspace {
             self.open_thread(&OpenThread { id }, window, cx);
         } else if let Some(section) = key.strip_prefix("settings:").and_then(Section::parse) {
             self.show(Page::Settings(section), window, cx);
+        } else if let Some(kind) = key
+            .strip_prefix("github:")
+            .and_then(super::gh_pages::Kind::parse)
+        {
+            self.show(Page::Github(kind), window, cx);
         }
     }
 }
