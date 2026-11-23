@@ -208,3 +208,34 @@ fn in_worktrees_gives_each_model_its_own(cx: &mut TestAppContext) {
         assert_eq!(t.account_id, "acme");
     }
 }
+
+#[gpui::test]
+fn the_compare_page_redraws_only_for_what_a_column_shows(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let draft = project_thread(&f, &ws, cx);
+    tick(&draft, &["opus", "sonnet"], false, cx);
+    type_and_send(&draft, cx);
+    let rows = group_rows(&f.store, 2, cx);
+    wait_until(cx, "both done", |cx| {
+        ws.update(cx, |ws, cx| rows.iter().all(|t| !ws.working(t.id, cx)))
+    });
+    cx.run_until_parked();
+    let page = ws
+        .read_with(cx, |ws, _| ws.compare.view.clone())
+        .expect("the Compare page");
+    let redraws = std::rc::Rc::new(std::cell::Cell::new(0));
+    let counted = redraws.clone();
+    let _watch = cx.update(|_, cx| cx.observe(&page, move |_, _| counted.set(counted.get() + 1)));
+    // A notify that changes nothing a column shows (a keystroke, a timer tick).
+    draft.update(cx, |_, cx| cx.notify());
+    cx.run_until_parked();
+    assert_eq!(redraws.get(), 0, "redrawn for nothing it shows");
+    draft.update(cx, |v, cx| {
+        v.error = Some("boom".into());
+        cx.notify();
+    });
+    cx.run_until_parked();
+    assert_eq!(redraws.get(), 1, "a column's failure shows");
+}

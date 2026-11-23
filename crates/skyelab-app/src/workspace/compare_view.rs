@@ -21,6 +21,8 @@ use std::collections::{HashMap, HashSet};
 pub struct CompareView {
     pub(super) group: i64,
     columns: Vec<WeakEntity<ThreadView>>,
+    /// What each column showed when last drawn: a thread's notify redraws the page only when its column changed.
+    drawn: Vec<Column>,
     /// Each thread's cost so far, by thread id (the store's per-turn rows).
     costs: HashMap<i64, f64>,
     store: SharedStore,
@@ -30,8 +32,10 @@ pub struct CompareView {
 }
 
 /// What a column shows of its thread.
+#[derive(Clone, PartialEq)]
 struct Column {
     id: Option<i64>,
+    title: SharedString,
     model: SharedString,
     working: bool,
     limited: bool,
@@ -61,6 +65,7 @@ fn column(v: &ThreadView) -> Column {
         .collect();
     Column {
         id: v.thread.as_ref().map(|t| t.id),
+        title: v.title(),
         model: v.pick_label(false).into(),
         working: v.working(),
         limited: v.live_status() == crate::ui::Status::Limited,
@@ -79,10 +84,17 @@ impl CompareView {
     fn set_columns(&mut self, views: Vec<Entity<ThreadView>>, cx: &mut Context<Self>) {
         self._subs = views
             .iter()
-            .flat_map(|v| {
+            .enumerate()
+            .flat_map(|(ix, v)| {
                 [
-                    // Replies stream in: redraw (this page is the only thing drawing them now).
-                    cx.observe(v, |_, _, cx| cx.notify()),
+                    // A view notifies on every delta, keystroke and tick; redraw only for what a column shows.
+                    cx.observe(v, move |this, v, cx| {
+                        let now = column(v.read(cx));
+                        if this.drawn.get(ix) != Some(&now) {
+                            this.drawn[ix] = now;
+                            cx.notify();
+                        }
+                    }),
                     cx.subscribe(v, |this, _, e: &ThreadViewEvent, cx| {
                         if matches!(e, ThreadViewEvent::TurnDone | ThreadViewEvent::Started(_)) {
                             this.load_costs(cx);
@@ -92,6 +104,7 @@ impl CompareView {
             })
             .collect();
         self.columns = views.iter().map(Entity::downgrade).collect();
+        self.drawn = views.iter().map(|v| column(v.read(cx))).collect();
         self.load_costs(cx);
     }
 
@@ -126,20 +139,13 @@ fn usd(v: f64) -> String {
 
 impl Render for CompareView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let cols: Vec<Column> = self
-            .columns
-            .iter()
-            .filter_map(|v| v.upgrade())
-            .map(|v| column(v.read(cx)))
+        let cols: Vec<Column> = (self.drawn.iter().zip(&self.columns))
+            .filter(|(_, v)| v.upgrade().is_some())
+            .map(|(c, _)| c.clone())
             .collect();
         let theme = cx.theme();
         let busy = cols.iter().any(|c| c.working);
-        let title: SharedString = self
-            .columns
-            .first()
-            .and_then(|v| v.upgrade())
-            .map(|v| v.read(cx).title())
-            .unwrap_or_default();
+        let title = cols.first().map(|c| c.title.clone()).unwrap_or_default();
         // The estimate, once every model has finished: the store's per-turn costs, summed.
         let total = (!busy && !cols.is_empty()).then(|| {
             let sum: f64 = cols.iter().filter_map(|c| self.costs.get(&c.id?)).sum();
@@ -351,6 +357,7 @@ impl Workspace {
                 let page = cx.new(|cx| CompareView {
                     group,
                     columns: Vec::new(),
+                    drawn: Vec::new(),
                     costs: HashMap::new(),
                     store,
                     focus: cx.focus_handle(),
