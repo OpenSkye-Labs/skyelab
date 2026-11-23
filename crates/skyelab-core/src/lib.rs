@@ -21,9 +21,10 @@ pub mod scratch;
 pub mod snooze;
 pub use app_settings::{
     AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
-    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, ThreadSettings, WindowLayout,
+    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, TerminalSettings, ThreadSettings, WindowLayout,
 };
 pub mod terminal_context;
+pub mod terminal_layout;
 pub mod update;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
