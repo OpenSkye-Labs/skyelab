@@ -13,7 +13,7 @@ use skyelab_agent::{Todo, TodoStatus};
 
 use skyelab_agent::timeline::cards::DIFF_LINES;
 /// Most diff lines an edit card draws; the Changes tab has the whole file.
-pub(super) use skyelab_agent::timeline::cards::{edit_lines, is_edit, is_shell, line_diff};
+pub(super) use skyelab_agent::timeline::cards::{edit_lines, is_edit, is_shell};
 /// The 24 px icon slot every work-log row starts with.
 pub(super) fn slot(icon: IconName, color: gpui::Hsla) -> impl IntoElement {
     div()

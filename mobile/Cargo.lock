@@ -6602,6 +6602,7 @@ dependencies = [
  "flume",
  "gpui-component",
  "gpui-pre",
+ "gpui-pre-ios",
  "gpui-pre-platform",
  "rustls",
  "serde_json",

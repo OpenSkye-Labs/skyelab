@@ -12,3 +12,5 @@ fi
 gpui=$(grep -oE '^gpui = \{ package = "gpui-pre", version = "=[^"]+"' mobile/Cargo.toml | grep -oE '=[0-9][^"]*')
 wgpu=$(grep -oE '^gpui_wgpu = \{ package = "gpui-pre-wgpu", version = "=[^"]+"' mobile/Cargo.toml | grep -oE '=[0-9][^"]*')
 [[ -n $gpui && $gpui == "$wgpu" ]] || { echo "mobile/Cargo.toml: gpui-pre-wgpu ($wgpu) must match gpui-pre ($gpui)" >&2; exit 1; }
+ios=$(grep -oE '^gpui_ios = \{ package = "gpui-pre-ios", version = "=[^"]+"' mobile/Cargo.toml | grep -oE '=[0-9][^"]*')
+[[ $gpui == "$ios" ]] || { echo "mobile/Cargo.toml: gpui-pre-ios ($ios) must match gpui-pre ($gpui)" >&2; exit 1; }

@@ -492,6 +492,13 @@ fn follow_appearance(window: &mut Window, cx: &mut App) {
         Some(mode) => Theme::change(mode, Some(window), cx),
         None => Theme::sync_system_appearance(Some(window), cx),
     }
+    // gpui_ios keeps dark status-bar text unless told: light text on the dark theme.
+    #[cfg(target_os = "ios")]
+    gpui_ios::ios::set_status_bar_style(if cx.theme().mode.is_dark() {
+        gpui_ios::StatusBarContentStyle::Light
+    } else {
+        gpui_ios::StatusBarContentStyle::Dark
+    });
 }
 
 /// The app body both platform entry points run. `data_dir` is where the environment name and pinned nodes live.

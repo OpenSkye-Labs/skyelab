@@ -103,7 +103,7 @@ impl MobileApp {
         (!cards.is_empty()).then(|| {
             v_flex()
                 .id("asks")
-                .max_h(px(380.))
+                .max_h(px(240.))
                 .overflow_y_scroll()
                 .gap_2()
                 .children(cards)
