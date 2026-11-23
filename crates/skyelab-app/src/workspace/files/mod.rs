@@ -3,6 +3,8 @@
 
 mod links;
 #[cfg(test)]
+mod links_angle_test;
+#[cfg(test)]
 mod links_test;
 mod picker;
 #[cfg(test)]
@@ -12,7 +14,7 @@ mod preview;
 mod remote_test;
 mod search;
 
-pub(super) use links::{link_line, linkify};
+pub(super) use links::{lexically_inside, link_line, linkify};
 pub(super) use picker::bind_keys;
 
 use super::Workspace;
@@ -29,7 +31,8 @@ actions!(skyelab, [OpenFilePicker, SearchFiles]);
 pub(super) struct FileTabs {
     search: Option<WeakEntity<SearchPanel>>,
     preview: Option<WeakEntity<PreviewPanel>>,
-    _events: Vec<Subscription>,
+    _search: Option<Subscription>,
+    _preview: Option<Subscription>,
 }
 
 impl Workspace {
@@ -85,7 +88,7 @@ impl Workspace {
                 let sub = cx.subscribe_in(&tab, window, |ws, _, e: &PreviewAt, window, cx| {
                     ws.open_preview(e.root.clone(), e.path.clone(), Some(e.line), window, cx)
                 });
-                self.files._events.push(sub);
+                self.files._search = Some(sub);
                 self.add_right_panel(tab.clone(), window, cx);
                 self.files.search = Some(tab.downgrade());
                 tab
@@ -117,7 +120,7 @@ impl Workspace {
                 let sub = cx.subscribe_in(&tab, window, |ws, _, e: &OpenInEditor, window, cx| {
                     ws.open_file_in_editor(&e.root, &e.path, window, cx)
                 });
-                self.files._events.push(sub);
+                self.files._preview = Some(sub);
                 self.add_right_panel(tab.clone(), window, cx);
                 self.files.preview = Some(tab.downgrade());
                 tab

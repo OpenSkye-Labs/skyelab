@@ -194,3 +194,24 @@ fn search_tab_opens_preview_at_line(cx: &mut gpui::TestAppContext) {
         })
     });
 }
+
+#[gpui::test]
+fn file_picker_key_stays_the_shells_in_a_terminal_off_macos(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let unbound = cx.update(|cx| {
+        cx.key_bindings().borrow().bindings().any(|b| {
+            b.action().name() == "zed::NoAction"
+                && b.predicate().is_some_and(|p| p.to_string() == "Terminal")
+                && b.keystrokes()
+                    .iter()
+                    .map(|k| k.unparse(gpui::OperatingSystem::Linux))
+                    .collect::<Vec<_>>()
+                    == [FILE_PICKER_KEY]
+        })
+    });
+    // ctrl-p is readline's previous command; cmd-p has no shell meaning.
+    assert_eq!(unbound, !cfg!(target_os = "macos"));
+}

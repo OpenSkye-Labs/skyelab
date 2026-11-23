@@ -1,9 +1,9 @@
-//! A thread folder's files: the listing, content search and preview reads. Every read goes through [`inside`], and
-//! walks never follow symlinks, so nothing outside the folder is listed, searched or shown.
+//! A thread folder's files: the listing, content search and preview reads. A path that is asked for goes through
+//! [`inside`], and walks never follow symlinks, so nothing outside the folder is listed, searched or shown.
 
 use anyhow::{Context as _, Result, bail};
 use grep_searcher::{BinaryDetection, SearcherBuilder, sinks::Lossy};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Text files larger than this show a note instead of their contents, and search skips them.
@@ -13,19 +13,34 @@ pub const MAX_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
 /// A matched line is cut to this many chars for its preview row.
 pub const MAX_LINE_CHARS: usize = 240;
 
-const IMAGES: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
+// Not SVG: its `<image href>` loads any file (or a network share) when drawn, so it previews as text.
+const IMAGES: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp"];
 
 /// `path` (relative to `root`, or absolute) with symlinks resolved, when that is `root` itself or under it. `None`
 /// when it escapes (`..`, an absolute path elsewhere, a symlink pointing out) or doesn't exist.
 pub fn inside(root: &Path, path: &Path) -> Option<PathBuf> {
-    let root = root.canonicalize().ok()?;
+    let root_real = root.canonicalize().ok()?;
+    // Checked by the text first, so an escaping path is never touched: resolving a network share or an automount
+    // (`\\host\share`, `/net/host`) would reach the network.
+    let climbs = path.components().any(|c| matches!(c, Component::ParentDir));
+    let relative =
+        !path.has_root() && !matches!(path.components().next(), Some(Component::Prefix(_)));
+    let anchored = relative || path.starts_with(root) || path.starts_with(&root_real);
+    if climbs || !anchored {
+        return None;
+    }
+    let root = root_real;
     let full = root.join(path).canonicalize().ok()?;
     full.starts_with(&root).then_some(full)
 }
 
 fn walker(root: &Path) -> ignore::Walk {
-    // Hidden files and .gitignore'd ones are skipped; symlinks aren't followed (the default).
+    // .gitignore'd files are skipped, in a repo or not; dotfiles are kept (git tracks them) but `.git` itself isn't
+    // walked. Symlinks aren't followed (the default).
     ignore::WalkBuilder::new(root)
+        .hidden(false)
+        .require_git(false)
+        .filter_entry(|e| e.file_name() != ".git")
         .sort_by_file_name(|a, b| a.cmp(b))
         .build()
 }
@@ -98,7 +113,7 @@ pub fn search(root: &Path, query: &str, cap: usize, cancel: &AtomicBool) -> Resu
         let Some(path) = relative(root, entry.path()) else {
             continue;
         };
-        let left = cap - count;
+        let left = cap + 1 - count; // one past the cap tells whether there are more
         let mut lines = Vec::new();
         let sink = Lossy(|line, text: &str| {
             let text = text.trim_end_matches(['\n', '\r']);
@@ -111,11 +126,14 @@ pub fn search(root: &Path, query: &str, cap: usize, cancel: &AtomicBool) -> Resu
         // An unreadable file is skipped, like ripgrep does.
         let _ = searcher.search_path(&matcher, entry.path(), sink);
         count += lines.len();
+        if count > cap {
+            lines.pop();
+            found.truncated = true;
+        }
         if !lines.is_empty() {
             found.files.push(FileMatches { path, lines });
         }
-        if count >= cap {
-            found.truncated = true;
+        if found.truncated {
             break;
         }
     }

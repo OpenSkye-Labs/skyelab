@@ -1,7 +1,7 @@
 //! The timeline's text: agent markdown (streamed words fade in, code blocks get a copy button, links are checked),
 //! the turn divider and the usage-limit line.
 
-use super::files::{link_line, linkify};
+use super::files::{lexically_inside, link_line, linkify};
 use super::thread_items::ItemsView;
 use super::thread_render::opens_in_browser;
 use super::tool_cards;
@@ -67,6 +67,7 @@ pub(super) fn markdown<V: ItemsView>(
 ) -> TextView {
     let view = cx.entity().downgrade();
     let text = root.map_or_else(|| text.to_owned(), |root| linkify(text, root));
+    let root = root.map(std::path::Path::to_path_buf);
     TextView::markdown(id, text)
         .selectable(true)
         .stream_fade(live)
@@ -83,7 +84,10 @@ pub(super) fn markdown<V: ItemsView>(
         .on_link_click(move |url, _, _, cx| {
             if opens_in_browser(url) {
                 cx.open_url(url);
-            } else if let Some(path) = file_link(url) {
+            } else if let Some(path) = file_link(url)
+                // A link form linkify didn't unwrap (a reference link) still opens nothing outside the folder.
+                && root.as_deref().is_some_and(|r| lexically_inside(&path, r))
+            {
                 let line = link_line(url);
                 let _ = view.update(cx, |v, cx| v.preview_path(&path, line, cx));
             }

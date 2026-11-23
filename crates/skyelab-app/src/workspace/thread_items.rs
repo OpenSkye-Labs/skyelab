@@ -50,7 +50,7 @@ pub(super) trait ItemsView: Sized + 'static {
     fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>);
     /// Shows `path` (a tool card's file) in the Changes tab. Remote tabs have no local files.
     fn open_path(&mut self, _path: &str, _cx: &mut Context<Self>) {}
-    /// The local folder reply links resolve in; `None` (remote) leaves paths as text.
+    /// The local folder reply links resolve in; `None` (remote) links no paths and opens no file links.
     fn files_root(&self) -> Option<&std::path::Path> {
         None
     }

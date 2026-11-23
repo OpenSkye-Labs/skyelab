@@ -7667,7 +7667,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dirs 7.0.0",
- "grep-matcher",
  "grep-regex",
  "grep-searcher",
  "ignore",

@@ -75,7 +75,10 @@ fn md_link(s: &str, root: &Path, out: &mut String) -> usize {
         out.push('[');
         return 1;
     };
-    let target = target.split_whitespace().next().unwrap_or_default();
+    let target = match target.trim().strip_prefix('<') {
+        Some(t) => t.split('>').next().unwrap_or_default(),
+        None => target.split_whitespace().next().unwrap_or_default(),
+    };
     match file_link(target) {
         Some(path) if !lexically_inside(&path, root) => scan(label, root, out),
         _ => out.push_str(&s[..len]),
@@ -121,7 +124,7 @@ fn is_file_ref(s: &str, root: &Path, need_line: bool) -> bool {
 }
 
 /// `path` is in `root` by its text alone: no `..`, no `~`, and an absolute one starts with `root`.
-fn lexically_inside(path: &str, root: &Path) -> bool {
+pub(in crate::workspace) fn lexically_inside(path: &str, root: &Path) -> bool {
     let p = Path::new(path);
     let climbs = p.components().any(|c| matches!(c, Component::ParentDir));
     !climbs && !path.starts_with('~') && (!p.has_root() || p.starts_with(root))

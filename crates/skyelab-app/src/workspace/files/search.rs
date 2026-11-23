@@ -82,6 +82,9 @@ impl SearchPanel {
     pub fn set_root(&mut self, root: PathBuf, cx: &mut Context<Self>) {
         if root != self.root {
             self.root = root;
+            // Rows found under the old folder would open the wrong file under the new one.
+            self.found = None;
+            self.rows.clear();
             self.run(Duration::ZERO, cx);
         }
     }
@@ -245,6 +248,13 @@ impl SearchPanel {
                     .into_any_element(),
             })
             .collect()
+    }
+}
+
+impl Drop for SearchPanel {
+    // Dropping the task doesn't stop a walk already running on a background thread.
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
     }
 }
 

@@ -88,6 +88,7 @@ pub fn project_files(dir: &Path) -> Result<Vec<String>> {
     let mut files = ls_files(dir, &["--cached", "--others", "--exclude-standard"])?;
     files.sort();
     files.dedup(); // an unmerged file is listed once per stage
+    files.retain(|f| !f.ends_with('/')); // an untracked nested repo is listed as `sub/`
     Ok(files)
 }
 

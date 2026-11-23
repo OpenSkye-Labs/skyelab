@@ -65,10 +65,13 @@ fn search_stops_when_cancelled() {
 }
 
 #[test]
-fn walk_skips_ignored_and_hidden() {
+fn walk_skips_ignored_files_and_the_git_dir() {
     let dir = fixture();
-    assert_eq!(walk(dir.path(), 100), ["blob.bin", "src/a.rs", "src/b.rs"]);
-    assert_eq!(walk(dir.path(), 1), ["blob.bin"]);
+    assert_eq!(
+        walk(dir.path(), 100),
+        [".gitignore", "blob.bin", "src/a.rs", "src/b.rs"]
+    );
+    assert_eq!(walk(dir.path(), 1), [".gitignore"]);
 }
 
 #[cfg(unix)]

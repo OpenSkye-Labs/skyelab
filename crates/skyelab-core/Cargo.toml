@@ -14,7 +14,6 @@ tempfile.workspace = true
 ignore.workspace = true
 grep-searcher.workspace = true
 grep-regex.workspace = true
-grep-matcher.workspace = true
 
 [lints]
 workspace = true
