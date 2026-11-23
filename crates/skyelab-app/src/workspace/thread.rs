@@ -111,7 +111,7 @@ pub struct ThreadView {
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
-    /// The Details tab's state for this thread.
+    /// The details card's state for this thread.
     pub(super) details: super::thread_details::Details,
     /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
     pub(super) mode: Mode,

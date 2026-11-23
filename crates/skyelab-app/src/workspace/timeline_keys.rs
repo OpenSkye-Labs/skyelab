@@ -51,12 +51,14 @@ impl std::ops::DerefMut for Items {
     }
 }
 
+#[cfg(test)] // tests build lists directly
 impl PartialEq<Vec<Item>> for Items {
     fn eq(&self, other: &Vec<Item>) -> bool {
         self.items == *other
     }
 }
 
+#[cfg(test)] // tests build lists directly
 impl FromIterator<Item> for Items {
     fn from_iter<I: IntoIterator<Item = Item>>(iter: I) -> Self {
         let mut items = Items::default();
@@ -73,6 +75,7 @@ impl<'a> IntoIterator for &'a Items {
     }
 }
 
+#[cfg(test)] // tests build lists directly
 impl From<Vec<Item>> for Items {
     fn from(items: Vec<Item>) -> Self {
         items.into_iter().collect()

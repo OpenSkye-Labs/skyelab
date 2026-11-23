@@ -46,7 +46,7 @@ What's built today:
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and
   <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor. The header is a plain breadcrumb;
-  the right panel's **Details** tab holds the folder, branch (with how far behind or ahead of its upstream, kept
+  the **thread details** card (<kbd>⇧⌘B</kbd>, floating over the chat) holds the folder, branch (with how far behind or ahead of its upstream, kept
   fresh by a background fetch, and a fast-forward Pull), git actions, scripts, delegated agents, pull request (its
   state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
@@ -80,7 +80,7 @@ What's built today:
 - **Files.** <kbd>⌘P</kbd> finds a file in the thread's folder, <kbd>⇧⌘F</kbd> searches file contents in a right-panel tab,
   and a read-only Preview tab shows a file with syntax highlighting (or an image). File paths in the agent's replies
   open there at their line. Nothing outside the thread's folder is read.
-- **Branches, checkpoints and scripts.** A branch picker in the Details tab (switch, create, and stash or carry
+- **Branches, checkpoints and scripts.** A branch picker in the thread details card (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder, with
@@ -101,7 +101,7 @@ What's built today:
   shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
   sends or stops, and answers the agent's permission requests. Not packaged for distribution yet.
 - **Agent orchestration.** An agent can start and drive other threads through SkyeLab's own MCP tools, only in
-  projects bound to its own account. A child's breadcrumb links its parent, and the parent's Details tab lists its
+  projects bound to its own account. A child's breadcrumb links its parent, and the parent's thread details card lists its
   delegated threads under Lineage, with their status. macOS and Linux only for now.
 
 - **Tool approvals in the thread.** When an agent needs permission for a tool (a command, an edit), the thread shows

@@ -82,7 +82,7 @@ fn turn_files_list_each_turns_checkpoint_diff(cx: &mut TestAppContext) {
     // Opened, a file row opens Changes on turn 1 at that file.
     let key = thread.read_with(cx, |t, _| {
         let done = t.items.iter().position(|i| matches!(i, Item::Done { .. }));
-        format!("files:{}", t.items.key(done.expect("divider")))
+        super::timeline_fold::files_key(&t.items, done.expect("divider"))
     });
     thread.update(cx, |t, cx| t.toggle_tool(&key, cx));
     cx.run_until_parked();

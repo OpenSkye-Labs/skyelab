@@ -46,7 +46,7 @@ impl ThreadView {
         let project = self.project_name.clone();
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
         // The window's top row: breadcrumb and account, then the dock toggles. The thread's folder, branch, git and
-        // lineage controls are in the right dock's Details tab.
+        // lineage controls are in the thread details card.
         super::layout::page_header(window, cx)
             .child(
                 h_flex()

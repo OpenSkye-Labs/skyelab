@@ -1,5 +1,6 @@
-//! The right dock's Details tab: a card stack for the shown thread (see `thread_details.rs`) with every account's
-//! usage in it. It is always in the dock, so the right-panel toggle opens it.
+//! The thread details card (T3's ⌘⇧B card): the shown thread's folder, branch, git actions, scripts, agents and pull
+//! request (see `thread_details.rs`), with every account's usage. It floats over the chat at the top right
+//! (`render::details_card`).
 
 use super::thread::ThreadView;
 use super::thread_model::Record;
@@ -8,11 +9,7 @@ use gpui::{
     AnyElement, App, Context, EventEmitter, FocusHandle, Focusable, FontWeight, IntoElement,
     Render, Subscription, WeakEntity, Window, div, prelude::*,
 };
-use gpui_component::{
-    ActiveTheme as _, Theme,
-    dock::{Panel, PanelEvent},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Theme, h_flex, v_flex};
 use skyelab_agent::Event;
 use skyelab_core::{Account, Provider};
 use skyelab_store::{Store, UsageReading};
@@ -126,7 +123,7 @@ pub struct DetailsPanel {
     focus: FocusHandle,
     thread: Option<WeakEntity<ThreadView>>,
     /// What the card showed of the thread last time it was drawn: a notify of the view that changes none of it (a
-    /// streamed delta) leaves the tab alone.
+    /// streamed delta) leaves the card alone.
     sig: Option<super::thread_details::DetailsSig>,
     #[cfg(test)]
     pub(super) renders: usize,
@@ -134,6 +131,12 @@ pub struct DetailsPanel {
     /// The usage read in flight; a newer one replaces it.
     pub(super) _load: Option<gpui::Task<()>>,
     _subs: Vec<Subscription>,
+    /// The thread's branch picker and script menu, watched while shown. A view moving windows makes new ones
+    /// (`ThreadView::attach`), so they are watched again when they change.
+    pickers: Option<(gpui::EntityId, gpui::EntityId)>,
+    _picker_subs: Vec<Subscription>,
+    /// "3m" ages and resets move with the clock, not with the thread: one redraw a minute.
+    _tick: gpui::Task<()>,
 }
 
 impl DetailsPanel {
@@ -147,6 +150,34 @@ impl DetailsPanel {
             usage: Vec::new(),
             _load: None,
             _subs: Vec::new(),
+            pickers: None,
+            _picker_subs: Vec::new(),
+            _tick: cx.spawn(async move |this, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs(60))
+                        .await;
+                    if this.update(cx, |_, cx| cx.notify()).is_err() {
+                        break;
+                    }
+                }
+            }),
+        }
+    }
+
+    fn watch_pickers(&mut self, view: &gpui::Entity<ThreadView>, cx: &mut Context<Self>) {
+        let (picker, scripts) = {
+            let v = view.read(cx);
+            (v.branch_picker.clone(), v.scripts.clone())
+        };
+        let ids = Some((picker.entity_id(), scripts.entity_id()));
+        if self.pickers != ids {
+            self.pickers = ids;
+            self._picker_subs = vec![
+                cx.observe(&picker, |_, _, cx| cx.notify()),
+                cx.observe(&scripts, |_, _, cx| cx.notify()),
+            ];
+            cx.notify();
         }
     }
 
@@ -156,21 +187,17 @@ impl DetailsPanel {
             return;
         }
         self._subs.clear();
+        (self.pickers, self._picker_subs) = (None, Vec::new());
         if let Some(view) = &view {
-            let (picker, scripts) = {
-                let v = view.read(cx);
-                (v.branch_picker.clone(), v.scripts.clone())
-            };
             self._subs.push(cx.observe(view, |this, view, cx| {
+                this.watch_pickers(&view, cx);
                 let sig = view.read(cx).details_sig();
                 if this.sig.as_ref() != Some(&sig) {
                     this.sig = Some(sig);
                     cx.notify();
                 }
             }));
-            self._subs.push(cx.observe(&picker, |_, _, cx| cx.notify()));
-            self._subs
-                .push(cx.observe(&scripts, |_, _, cx| cx.notify()));
+            self.watch_pickers(view, cx);
         }
         self.sig = view.as_ref().map(|v| v.read(cx).details_sig());
         self.thread = view.map(|v| v.downgrade());
@@ -185,28 +212,10 @@ impl DetailsPanel {
     }
 }
 
-impl EventEmitter<PanelEvent> for DetailsPanel {}
+/// A press outside the card, at this window point: the workspace closes the card when it covers the chat.
+pub struct OutsidePress(pub gpui::Point<gpui::Pixels>);
 
-impl gpui_component::dock::BasePanel for DetailsPanel {
-    fn panel_name(&self) -> &'static str {
-        "Details"
-    }
-    fn closable(&self, _: &App) -> bool {
-        false
-    }
-    fn zoomable(&self, _: &App) -> bool {
-        false
-    }
-}
-
-impl Panel for DetailsPanel {
-    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        "Details"
-    }
-    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
-        None
-    }
-}
+impl EventEmitter<OutsidePress> for DetailsPanel {}
 
 impl Focusable for DetailsPanel {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -241,23 +250,26 @@ impl Render for DetailsPanel {
                 )
                 .into_any_element(),
         };
-        div()
-            .id("details-panel")
-            .track_focus(&self.focus)
-            .size_full()
-            .overflow_y_scroll()
-            .bg(theme.background)
-            .p_3()
-            .child(
-                v_flex()
-                    .debug_selector(|| "thread-details-card".into())
-                    .p_1p5()
-                    .rounded(ui::RADIUS_XL)
-                    .border_1()
-                    .border_color(theme.border)
-                    .bg(theme.popover)
-                    .child(content),
-            )
+        // The layer is the whole height under the header; the card takes what its content needs and scrolls past that.
+        v_flex().size_full().child(
+            div()
+                .id("details-panel")
+                .debug_selector(|| "thread-details-card".into())
+                .track_focus(&self.focus)
+                .occlude()
+                .max_h_full()
+                .overflow_y_scroll()
+                .p_1p5()
+                .rounded(ui::RADIUS_XL)
+                .border_1()
+                .border_color(theme.border)
+                .bg(theme.popover)
+                .shadow_lg()
+                .on_mouse_down_out(cx.listener(|_, e: &gpui::MouseDownEvent, _, cx| {
+                    cx.emit(OutsidePress(e.position))
+                }))
+                .child(content),
+        )
     }
 }
 

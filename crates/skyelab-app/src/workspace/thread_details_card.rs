@@ -15,7 +15,8 @@ use gpui_kit_assets::IconName;
 
 impl ThreadView {
     /// The card's content: a picker page when one is open, else its titled sections with `usage` (every account's,
-    /// drawn by the Details tab) among them.
+    /// drawn by the details card) among them.
+    /// Every field read here (and in the helpers it calls) is in `DetailsSig`, or the card won't redraw for it.
     pub(in crate::workspace) fn render_details(
         &self,
         usage: AnyElement,
@@ -71,14 +72,17 @@ impl ThreadView {
                 .into_any_element(),
             Page::Main => {
                 let lineage = self.render_lineage(on, cx);
+                // T3's card names only its lists (Lineage); the rows say what they are.
+                let titled = |s: Option<(SharedString, AnyElement)>| s.map(|(t, b)| (Some(t), b));
                 let sections = [
-                    Some(("Environment".into(), self.render_environment(on, cx))),
-                    Some(("Actions".into(), self.render_actions(on, cx))),
-                    lineage,
-                    self.render_side_chats(on, cx),
-                    Some(("Usage".into(), usage)),
-                    self.render_pr(on, cx).map(|pr| ("Pull request".into(), pr)),
-                    Some(("Editor".into(), self.render_editor(on, cx))),
+                    Some((None, self.render_environment(on, cx))),
+                    Some((None, self.render_actions(on, cx))),
+                    titled(lineage),
+                    titled(self.render_side_chats(on, cx)),
+                    Some((None, usage)),
+                    self.render_pr(on, cx)
+                        .map(|pr| (Some("Pull request".into()), pr)),
+                    Some((None, self.render_editor(on, cx))),
                 ];
                 let theme = cx.theme();
                 page.children(
@@ -239,13 +243,18 @@ impl ThreadView {
     }
 }
 
-/// One titled card section; every one but the first starts with a hairline.
-fn section(first: bool, title: SharedString, body: AnyElement, theme: &Theme) -> impl IntoElement {
+/// One card section, titled when it is a list; every one but the first starts with a hairline.
+fn section(
+    first: bool,
+    title: Option<SharedString>,
+    body: AnyElement,
+    theme: &Theme,
+) -> impl IntoElement {
     v_flex()
         .when(!first, |d| {
             d.mt_1p5().pt_1p5().border_t_1().border_color(theme.border)
         })
-        .child(
+        .children(title.map(|title| {
             div()
                 .h(px(28.))
                 .px_2p5()
@@ -254,8 +263,8 @@ fn section(first: bool, title: SharedString, body: AnyElement, theme: &Theme) ->
                 .text_size(ui::META)
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.muted_foreground)
-                .child(title),
-        )
+                .child(title)
+        }))
         .child(body)
 }
 

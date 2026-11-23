@@ -28,7 +28,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
 - UI changes are checked in the running app with `/loop-verify-ui` (native window), not just by compiling.
   Run the app with a throwaway `HOME` (so your real `accounts.toml` is untouched) and `SKYELAB_VERIFY_TOPMOST=1`
   (debug builds: windows open above others, so nothing needs moving). Add `SKYELAB_VERIFY_THEME=dark` or `light` to capture
-  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `alleo-native-window` can't see those
+  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `SKYELAB_DEBUG_RENDERS=1` prints each view's renders per second to stderr (docs/gpui.md). `alleo-native-window` can't see those
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
@@ -38,7 +38,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,
-  `usage` reports two usage windows for the Details tab and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
+  `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
   `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two

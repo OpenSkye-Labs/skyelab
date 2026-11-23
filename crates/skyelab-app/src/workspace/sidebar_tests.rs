@@ -31,3 +31,7 @@ mod sidebar_rebuild_test;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "details_redraw_test.rs"]
 mod details_redraw_test;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "details_card_test.rs"]
+mod details_card_test;

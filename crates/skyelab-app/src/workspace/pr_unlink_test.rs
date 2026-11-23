@@ -1,4 +1,4 @@
-//! Unlink pull request: the Details tab forgets a thread's PR without asking, the sidebar badge goes with it, and
+//! Unlink pull request: the details card forgets a thread's PR without asking, the sidebar badge goes with it, and
 //! the notice's Undo links it again.
 
 use super::manage_harness::{Rig, rig};

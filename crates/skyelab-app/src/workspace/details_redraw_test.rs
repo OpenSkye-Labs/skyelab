@@ -1,8 +1,8 @@
-//! The Details tab redraws when what its card shows of the thread changes, not on every notify of the thread view
+//! The details card redraws when what it shows of the thread changes, not on every notify of the thread view
 //! (a streamed delta, a keystroke).
 
 use super::Workspace;
-use super::layout::ToggleRightPanel;
+use super::layout::ToggleThreadDetails;
 use super::thread_model::Item;
 use super::threads_test::{
     fixture, open_workspace, project_thread, setup, type_and_send, wait_done,
@@ -22,7 +22,7 @@ fn a_streamed_delta_doesnt_redraw_the_details_tab(cx: &mut TestAppContext) {
     let thread = project_thread(&f, &ws, cx);
     type_and_send(&thread, cx);
     wait_done(&thread, cx);
-    cx.dispatch_action(ToggleRightPanel);
+    cx.dispatch_action(ToggleThreadDetails);
     cx.run_until_parked();
     assert!(
         cx.debug_bounds("thread-details-card").is_some(),

@@ -17,6 +17,11 @@ pub(super) fn fold_key(items: &Items, done: usize) -> String {
     format!("fold:{}", items.key(done))
 }
 
+/// The expanded-set key of the changed-files card under the divider at row `done`, by its row key like `fold_key`.
+pub(super) fn files_key(items: &Items, done: usize) -> String {
+    format!("files:{}", items.key(done))
+}
+
 /// The rows a key's toggle changes: a turn's whole fold, or the one row that expands.
 pub(super) fn rows_of(items: &Items, key: &str) -> Option<Range<usize>> {
     let row = |k: &str| k.parse().ok().and_then(|k| items.position(k));

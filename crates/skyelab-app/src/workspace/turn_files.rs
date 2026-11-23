@@ -184,7 +184,7 @@ pub(super) fn render<V: ItemsView>(
         return None;
     }
     let row = this.items().key(done);
-    let key = format!("files:{row}");
+    let key = super::timeline_fold::files_key(this.items(), done);
     let open = this.is_expanded(&key);
     let (added, removed) = files
         .iter()
