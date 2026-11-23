@@ -135,7 +135,10 @@ impl Workspace {
                 cx.background_executor().timer(TICK).await;
                 if this
                     .update(cx, |this, cx| {
-                        this.poll_prs(false, cx);
+                        // One window polls in the background; each still polls when it is focused.
+                        if this.is_hub(cx) {
+                            this.poll_prs(false, cx);
+                        }
                         this.fetch_shown(cx);
                     })
                     .is_err()

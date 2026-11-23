@@ -76,6 +76,12 @@ impl Workspace {
             this.reload_accounts();
             this.push_config(cx);
             cx.notify();
+            // Every window binds folders from the same file.
+            this.each_other_window(cx, |ws, cx| {
+                ws.reload_accounts();
+                ws.push_config(cx);
+                cx.notify();
+            });
         }));
         self._settings_events = Some(cx.subscribe_in(
             &settings,

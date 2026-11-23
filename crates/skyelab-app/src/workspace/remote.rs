@@ -24,7 +24,8 @@ use std::time::Duration;
 pub(super) struct RemoteHook {
     remote: Entity<Remote>,
     panel: Option<Entity<RemotePanel>>,
-    _calls: Task<()>,
+    /// Answers remote calls; only one window does (`windows`).
+    _calls: Option<Task<()>>,
     _observe: Subscription,
 }
 
@@ -75,11 +76,37 @@ impl Workspace {
     pub fn set_remote(
         &mut self,
         remote: Entity<Remote>,
+        calls: Option<flume::Receiver<RemoteCall>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.remote = Some(RemoteHook {
+            _observe: cx.observe(&remote, |_, _, cx| cx.notify()),
+            remote,
+            panel: None,
+            _calls: None,
+        });
+        if let Some(calls) = calls {
+            self.serve_remote_calls(calls, window, cx);
+        }
+        if let Some(settings) = self.settings.clone() {
+            let panel = self.remote_panel(cx);
+            settings.update(cx, |s, _| s.remote = panel);
+        }
+        cx.notify();
+    }
+
+    /// Answers the remote clients' calls in this window.
+    pub(super) fn serve_remote_calls(
+        &mut self,
         calls: flume::Receiver<RemoteCall>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let _calls = cx.spawn_in(window, async move |this, cx| {
+        let Some(hook) = self.remote.as_mut() else {
+            return;
+        };
+        hook._calls = Some(cx.spawn_in(window, async move |this, cx| {
             while let Ok(call) = calls.recv_async().await {
                 if this
                     .update_in(cx, |this, window, cx| this.remote_call(call, window, cx))
@@ -88,18 +115,7 @@ impl Workspace {
                     return; // window closed; dropping `call` tells the client the app is closing
                 }
             }
-        });
-        self.remote = Some(RemoteHook {
-            _observe: cx.observe(&remote, |_, _, cx| cx.notify()),
-            remote,
-            panel: None,
-            _calls,
-        });
-        if let Some(settings) = self.settings.clone() {
-            let panel = self.remote_panel(cx);
-            settings.update(cx, |s, _| s.remote = panel);
-        }
-        cx.notify();
+        }));
     }
 
     pub(super) fn open_remote(

@@ -77,10 +77,10 @@ impl Welcome {
 }
 
 impl Render for Welcome {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         if self.show_setup {
-            let header = super::layout::page_header(cx)
+            let header = super::layout::page_header(window, cx)
                 .child(
                     div()
                         .flex_1()
@@ -88,7 +88,7 @@ impl Render for Welcome {
                         .text_color(theme.muted_foreground.opacity(0.5))
                         .child("Set up"),
                 )
-                .child(super::layout::panel_toggles(cx));
+                .child(super::layout::panel_toggles(window, cx));
             return v_flex()
                 .id("welcome")
                 .track_focus(&self.focus)
@@ -145,7 +145,7 @@ impl Render for Welcome {
                         )),
                 ),
         );
-        let header = super::layout::page_header(cx)
+        let header = super::layout::page_header(window, cx)
             .child(
                 div()
                     .flex_1()
@@ -153,7 +153,7 @@ impl Render for Welcome {
                     .text_color(theme.muted_foreground.opacity(0.5))
                     .child("No active thread"),
             )
-            .child(super::layout::panel_toggles(cx));
+            .child(super::layout::panel_toggles(window, cx));
         v_flex()
             .id("welcome")
             .track_focus(&self.focus)

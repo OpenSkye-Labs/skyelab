@@ -266,7 +266,7 @@ impl RemoteThreadView {
         .detach();
     }
 
-    fn render_header(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn render_header(&self, window: &Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = cx.theme();
         let env = self.env.read(cx);
         let state = env.state.clone();
@@ -283,7 +283,7 @@ impl RemoteThreadView {
                 .child(div().size(px(6.)).rounded_full().bg(dot))
                 .child(child)
         };
-        super::layout::page_header(cx)
+        super::layout::page_header(window, cx)
             .child(
                 div()
                     .flex_1()
@@ -295,7 +295,7 @@ impl RemoteThreadView {
             )
             .child(pill(self.env_badge().into(), state.color(theme)))
             .children(account.map(|a| pill(a.into(), theme.success)))
-            .child(super::layout::panel_toggles(cx))
+            .child(super::layout::panel_toggles(window, cx))
             .into_any_element()
     }
 }
@@ -333,8 +333,8 @@ impl Drop for RemoteThreadView {
 }
 
 impl Render for RemoteThreadView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let header = self.render_header(cx);
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let header = self.render_header(window, cx);
         let find = self.render_find(cx);
         let theme = cx.theme();
         let connected = self.env.read(cx).state == ConnState::Connected;

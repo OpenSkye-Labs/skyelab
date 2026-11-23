@@ -135,6 +135,8 @@ pub struct Sidebar {
     #[cfg(test)]
     pub rebuilds: usize,
     _search: Subscription,
+    /// Redraws when the update check finds (or drops) a newer release.
+    _updates: Subscription,
     /// Redraws each second while a row shows a working timer.
     _tick: Option<gpui::Task<()>>,
 }
@@ -197,6 +199,7 @@ impl Sidebar {
             #[cfg(test)]
             rebuilds: 0,
             _search,
+            _updates: cx.observe_global::<crate::updates::Updates>(|_, cx| cx.notify()),
             _tick: None,
         };
         this.rows_changed(cx);
@@ -399,6 +402,7 @@ impl Render for Sidebar {
                 .min_h_0()
                 .w_full(),
             )
+            .children(super::super::update_notice::notice(cx))
             // T3's footer: Settings and Usage, always in reach.
             .child(
                 h_flex()

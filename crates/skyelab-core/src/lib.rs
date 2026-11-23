@@ -22,6 +22,7 @@ pub use app_settings::{
     WindowLayout,
 };
 pub mod terminal_context;
+pub mod update;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -496,3 +497,6 @@ mod recent_envs_test;
 
 #[cfg(test)]
 mod onboarding_test;
+
+#[cfg(test)]
+mod update_test;

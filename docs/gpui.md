@@ -94,6 +94,20 @@ and how Zed uses it, not blog posts or memory.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 
+## Several windows
+
+- One entity can be drawn in two windows (a shared thread view), and a notify redraws both. But subscriptions made
+  with `subscribe_in`/`on_focus`/`on_blur` (gpui-component's `InputState` makes them in `new`) run in the window that
+  made them and die with it. A shared view re-creates its window-bound parts when another window takes it over
+  (`ThreadView::attach`), and only one window (its owner) acts on its events, or two windows open two tabs.
+- Its `ListState` (scroll and row heights) is shared too: both windows scroll together.
+- Find a closing window with `cx.on_window_closed`, not the root view's `on_release`: a test or a task holding the
+  entity keeps it alive after its window is gone. Inside that callback `cx.windows()` no longer lists it.
+- A window whose focused element moved to another window has no focus, so its key bindings stop: give the page the
+  focus back when the window activates.
+- `on_reopen` (the Dock icon with no window open) is on `Application`, before `run`, not on `App`. The last-window
+  rule is GPUI's own `QuitMode::Default`: quit off macOS, keep running on macOS; don't add a hook for it.
+
 ## Keyboard and focus
 
 - Commands are `actions!(skyelab, [NewThread, ..])`, bound with `KeyBinding::new("cmd-n", NewThread, Some("Workspace"))`. `KeyBinding::new` panics on `secondary-` (it has no OS to resolve it): use `KeyBinding::load(.., cx)` for those.

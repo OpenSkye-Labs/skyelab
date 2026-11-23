@@ -34,7 +34,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
   (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point (`hover:x;y` only moves the mouse there),
   at the window screenshot's own x and y at 1x (no title-bar offset: the window has no separate title strip); `drag:x;y;x2;y2` drags,
-  `scroll:x;y;lines` turns the wheel, positive up). Fake the agent with
+  `scroll:x;y;lines` turns the wheel, positive up; `window:N` sends the entries after it to the Nth open window, 0 being the first). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,

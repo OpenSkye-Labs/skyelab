@@ -85,7 +85,7 @@ pub(super) fn sharing_workspace(
             window,
             cx,
         );
-        ws.set_remote(remote2, calls, window, cx);
+        ws.set_remote(remote2, Some(calls), window, cx);
         window.focus(&gpui::Focusable::focus_handle(&ws, cx), cx);
         ws
     });

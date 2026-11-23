@@ -6,14 +6,17 @@ mod settings;
 #[cfg(test)]
 mod test_wait;
 mod ui;
+mod updates;
+#[cfg(test)]
+mod updates_test;
+mod verify_actions;
 mod window_layout;
 mod workspace;
 
 use anyhow::Context as _;
 use gpui::{
-    App, AppContext as _, Bounds, Focusable as _, WindowBounds, WindowKind, WindowOptions, px, size,
+    App, AppContext as _, Bounds, WindowBounds, WindowKind, WindowOptions, actions, px, size,
 };
-use gpui_component::Root;
 use skyelab_core::{AccountsConfig, AppSettings};
 use skyelab_store::Store;
 use std::sync::{Arc, Mutex};
@@ -32,189 +35,6 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
         titlebar: Some(ui::titlebar_options()),
         window_min_size: Some(size(px(800.), px(560.))),
         ..Default::default()
-    }
-}
-
-/// Long enough for each entry's result (a page loading, a tab switch) to be drawn.
-const VERIFY_ACTION_GAP: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,keys:h i cmd-enter,..` runs each
-/// entry in turn, [`VERIFY_ACTION_GAP`] apart so async work (store loads, page loads, new tabs) lands in between, because
-/// `/loop-verify-ui` can't send input to a topmost window. `keys:` types keystrokes into the focus,
-/// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`), `hover:x;y` only moves the mouse
-/// there (hover cards), `drag:x;y;x2;y2` drags with the left button, and `scroll:x;y;lines` scrolls the wheel there
-/// (positive: up).
-fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
-    let Some(entries) = std::env::var("SKYELAB_VERIFY_ACTIONS")
-        .ok()
-        .filter(|_| cfg!(debug_assertions))
-    else {
-        return;
-    };
-    window
-        .spawn(cx, async move |cx| {
-            let entries: Vec<String> = entries.split(',').map(str::to_owned).collect();
-            for entry in entries {
-                cx.background_executor().timer(VERIFY_ACTION_GAP).await;
-                let _ = cx.update(|window, cx| {
-                    if let Some(keys) = entry.strip_prefix("keys:") {
-                        for key in keys.split_whitespace() {
-                            match gpui::Keystroke::parse_with_os(key, cx.platform_info().os) {
-                                Ok(k) => _ = window.dispatch_keystroke(k, cx),
-                                Err(_) => eprintln!("SKYELAB_VERIFY_ACTIONS: bad key {key}"),
-                            }
-                        }
-                        return;
-                    }
-                    if let Some(at) = entry.strip_prefix("drag:") {
-                        let n: Vec<f32> = at
-                            .split(';')
-                            .filter_map(|v| v.trim().parse().ok())
-                            .collect();
-                        match n[..] {
-                            [x, y, x2, y2] => drag(
-                                window,
-                                cx,
-                                gpui::point(gpui::px(x), gpui::px(y)),
-                                gpui::point(gpui::px(x2), gpui::px(y2)),
-                            ),
-                            _ => eprintln!("SKYELAB_VERIFY_ACTIONS: bad drag {at}"),
-                        }
-                        return;
-                    }
-                    if let Some(at) = entry.strip_prefix("scroll:") {
-                        let n: Vec<f32> = at
-                            .split(';')
-                            .filter_map(|v| v.trim().parse().ok())
-                            .collect();
-                        match n[..] {
-                            [x, y, lines] => {
-                                _ = window.dispatch_event(
-                                    gpui::PlatformInput::Scroll(gpui::ScrollEvent {
-                                        position: gpui::point(gpui::px(x), gpui::px(y)),
-                                        delta: gpui::ScrollDelta::Lines(gpui::point(0., lines)),
-                                        modifiers: Default::default(),
-                                        touch_phase: Default::default(),
-                                        source: Default::default(),
-                                    }),
-                                    cx,
-                                )
-                            }
-                            _ => eprintln!("SKYELAB_VERIFY_ACTIONS: bad scroll {at}"),
-                        };
-                        return;
-                    }
-                    if let Some(at) = entry.strip_prefix("hover:") {
-                        match parse_point(at) {
-                            Some(position) => {
-                                _ = window.dispatch_event(
-                                    gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
-                                        position,
-                                        pressed_button: None,
-                                        modifiers: Default::default(),
-                                    }),
-                                    cx,
-                                )
-                            }
-                            None => eprintln!("SKYELAB_VERIFY_ACTIONS: bad point {at}"),
-                        }
-                        return;
-                    }
-                    if let Some(at) = entry.strip_prefix("click:") {
-                        match parse_point(at) {
-                            Some(position) => click(window, cx, position),
-                            None => eprintln!("SKYELAB_VERIFY_ACTIONS: bad point {at}"),
-                        }
-                        return;
-                    }
-                    match cx.build_action(&entry, None) {
-                        Ok(action) => window.dispatch_action(action, cx),
-                        Err(e) => eprintln!("SKYELAB_VERIFY_ACTIONS: {entry}: {e:#}"),
-                    }
-                });
-            }
-        })
-        .detach();
-}
-
-/// `x;y` in window points, as a screenshot of the window shows them at 1x.
-fn parse_point(at: &str) -> Option<gpui::Point<gpui::Pixels>> {
-    let (x, y) = at.split_once(';')?;
-    Some(gpui::point(
-        gpui::px(x.trim().parse().ok()?),
-        gpui::px(y.trim().parse().ok()?),
-    ))
-}
-
-/// A left click at `position`: move there, press, release.
-fn click(window: &mut gpui::Window, cx: &mut App, position: gpui::Point<gpui::Pixels>) {
-    use gpui::{Modifiers, MouseButton, PlatformInput as P};
-    let (button, modifiers) = (MouseButton::Left, Modifiers::default());
-    window.dispatch_event(
-        P::MouseMove(gpui::MouseMoveEvent {
-            position,
-            pressed_button: None,
-            modifiers,
-        }),
-        cx,
-    );
-    window.dispatch_event(
-        P::MouseDown(gpui::MouseDownEvent {
-            button,
-            position,
-            modifiers,
-            click_count: 1,
-            first_mouse: false,
-        }),
-        cx,
-    );
-    window.dispatch_event(
-        P::MouseUp(gpui::MouseUpEvent {
-            button,
-            position,
-            modifiers,
-            click_count: 1,
-        }),
-        cx,
-    );
-}
-
-/// A left-button drag from `from` to `to`: press, move with the button held, release.
-fn drag(
-    window: &mut gpui::Window,
-    cx: &mut App,
-    from: gpui::Point<gpui::Pixels>,
-    to: gpui::Point<gpui::Pixels>,
-) {
-    use gpui::{Modifiers, MouseButton, PlatformInput as P};
-    let (button, modifiers) = (MouseButton::Left, Modifiers::default());
-    let events = [
-        P::MouseMove(gpui::MouseMoveEvent {
-            position: from,
-            pressed_button: None,
-            modifiers,
-        }),
-        P::MouseDown(gpui::MouseDownEvent {
-            button,
-            position: from,
-            modifiers,
-            click_count: 1,
-            first_mouse: false,
-        }),
-        P::MouseMove(gpui::MouseMoveEvent {
-            position: to,
-            pressed_button: Some(button),
-            modifiers,
-        }),
-        P::MouseUp(gpui::MouseUpEvent {
-            button,
-            position: to,
-            modifiers,
-            click_count: 1,
-        }),
-    ];
-    for event in events {
-        window.dispatch_event(event, cx);
     }
 }
 
@@ -307,6 +127,42 @@ fn orchestration(
         .ok()
 }
 
+/// Opens a workspace window when none is left (the dock, the menu).
+struct FreshWindow(std::rc::Rc<dyn Fn(&mut App)>);
+
+impl gpui::Global for FreshWindow {}
+
+/// accounts.toml, or an empty config and the reason (a broken file binds nothing).
+fn load_accounts(path: Option<&std::path::Path>) -> (AccountsConfig, Option<String>) {
+    match path.map(AccountsConfig::load) {
+        Some(Ok(c)) => (c, None),
+        Some(Err(e)) => (AccountsConfig::default(), Some(format!("{e:#}"))),
+        None => (AccountsConfig::default(), None),
+    }
+}
+
+/// The macOS app menu (other OSes have no app menu bar): New Window, Check for Updates, Settings, Quit.
+fn app_menus(cx: &mut App) {
+    use gpui::{Menu, MenuItem};
+    actions!(skyelab, [Quit]);
+    cx.on_action(|_: &Quit, cx| cx.quit());
+    cx.set_menus([Menu {
+        name: "SkyeLab".into(),
+        items: vec![
+            MenuItem::action("New Window", workspace::NewWindow),
+            MenuItem::action("Check for Updates…", updates::CheckForUpdates),
+            MenuItem::action("Settings…", workspace::OpenSettings),
+            MenuItem::separator(),
+            MenuItem::action("Quit SkyeLab", Quit),
+        ],
+        disabled: false,
+    }]);
+    // Off macOS ctrl-q belongs to the shell (XON), and the window's close button quits.
+    if cfg!(target_os = "macos") {
+        cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
+    }
+}
+
 /// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
 const MCP_PROXY_FLAG: &str = "--mcp-proxy";
 
@@ -322,117 +178,159 @@ fn main() {
         return;
     }
     let path = AccountsConfig::default_path();
-    let (config, error) = match path.as_deref().map(AccountsConfig::load) {
-        Some(Ok(c)) => (c, None),
-        Some(Err(e)) => (AccountsConfig::default(), Some(format!("{e:#}"))),
-        None => (AccountsConfig::default(), None),
-    };
+    let (config, error) = load_accounts(path.as_deref());
 
-    gpui_platform::application()
-        .with_assets(ui::AppAssets)
-        .run(move |cx: &mut App| {
-            gpui_component::init(cx);
-            // OS notifications need it (Windows' AppUserModelID); same id as the bundle's.
-            cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");
-            if let Err(e) = ui::install_theme(cx) {
-                eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
-            }
-            settings::init(cx);
-            skyelab_terminal::init(cx);
-            workspace::init(cx);
-            keymap::init(skyelab_core::keymap::default_path(), cx);
-            cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
-                Some(bin) if cfg!(debug_assertions) => bin.into(),
-                _ => "gh".into(),
-            }));
-            cx.set_global(workspace::CodexBin(agent_bin(
-                std::env::var_os("SKYELAB_CODEX_BIN"),
-                cfg!(debug_assertions),
-                "codex",
-            )));
-            if let Some(path) = &path {
-                cx.set_global(workspace::AccountsFile(path.clone()));
-            }
-            // Home until a project is selected.
-            let folder = dirs::home_dir().unwrap_or_default();
-            let (mut store, store_error) = open_store();
-            // Threads whose delete the last run didn't see out were purged on open: their checkpoints go too.
-            let purged: Vec<_> = store
-                .take_purged()
-                .into_iter()
-                .map(|t| {
-                    let project = store.project(t.project_id).ok().flatten().map(|p| p.path);
-                    (t, project)
-                })
-                .collect();
-            cx.background_spawn(async move {
-                for (thread, project) in purged {
-                    workspace::thread_checkpoints::forget(&thread, project.as_deref());
-                }
+    let app = gpui_platform::application().with_assets(ui::AppAssets);
+    // A dock click with no window open opens one (macOS keeps running without windows).
+    app.on_reopen(|cx| {
+        if workspace::window_handles(cx).is_empty()
+            && let Some(open) = cx.try_global::<FreshWindow>().map(|f| f.0.clone())
+        {
+            open(cx);
+        }
+    });
+    app.run(move |cx: &mut App| {
+        gpui_component::init(cx);
+        // OS notifications need it (Windows' AppUserModelID); same id as the bundle's.
+        cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");
+        if let Err(e) = ui::install_theme(cx) {
+            eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
+        }
+        settings::init(cx);
+        skyelab_terminal::init(cx);
+        workspace::init(cx);
+        keymap::init(skyelab_core::keymap::default_path(), cx);
+        cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
+            Some(bin) if cfg!(debug_assertions) => bin.into(),
+            _ => "gh".into(),
+        }));
+        cx.set_global(workspace::CodexBin(agent_bin(
+            std::env::var_os("SKYELAB_CODEX_BIN"),
+            cfg!(debug_assertions),
+            "codex",
+        )));
+        if let Some(path) = &path {
+            cx.set_global(workspace::AccountsFile(path.clone()));
+        }
+        // Home until a project is selected.
+        let folder = dirs::home_dir().unwrap_or_default();
+        let (mut store, store_error) = open_store();
+        // Threads whose delete the last run didn't see out were purged on open: their checkpoints go too.
+        let purged: Vec<_> = store
+            .take_purged()
+            .into_iter()
+            .map(|t| {
+                let project = store.project(t.project_id).ok().flatten().map(|p| p.path);
+                (t, project)
             })
-            .detach();
-            let slot = remote::DaemonSlot::default();
-            remote::push_events(&mut store, slot.clone());
-            let store = Arc::new(Mutex::new(store));
-            let (agents, calls) = remote::UiAgents::new();
-            let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
-            let device_key = device_key();
-            let host = remote::Host {
-                settings_path: AppSettings::default_path(),
-                tailnet: tailnet.clone(),
-                config: skyelab_daemon::Config::default(),
-                backend: Arc::new(skyelab_daemon::StoreBackend::shared(
-                    store.clone(),
-                    agents,
-                    path.clone(),
-                )),
-                slot,
-            };
-            let remote = cx.new(|cx| remote::Remote::new(host, cx));
-            let backend = workspace::Backend {
-                store,
-                claude_bin: agent_bin(
-                    std::env::var_os("SKYELAB_CLAUDE_BIN"),
-                    cfg!(debug_assertions),
-                    "claude",
-                ),
-            };
-            let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
-            // The last frame when it still shows on a connected display, else most of the primary display.
-            workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
-            let saved = AppSettings::default_path()
-                .and_then(|p| AppSettings::load(&p).ok())
-                .and_then(|s| s.window);
-            let displays: Vec<_> = cx.displays().iter().map(|d| d.bounds()).collect();
-            let visible = cx.primary_display().map_or_else(
-                || Bounds::centered(None, size(px(1200.), px(800.)), cx),
-                |d| d.visible_bounds(),
-            );
-            let bounds = window_layout::initial_bounds(saved.as_ref(), &displays, visible);
-            let opened = cx.open_window(window_options(bounds), |window, cx| {
-                let view = cx.new(|cx| {
-                    let mut ws =
-                        workspace::Workspace::new(folder, path, config, error, backend, window, cx);
-                    ws.store_error = store_error.map(Into::into);
-                    ws.set_remote(remote, calls, window, cx);
-                    let mut options = environment::client_options(tailnet.clone());
-                    options.device_key = device_key.clone();
-                    ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
-                    ws.restore_layout(AppSettings::default_path(), saved.as_ref(), window, cx);
-                    if let Some(o) = orchestrate {
-                        ws.set_orchestrator(o, window, cx);
-                    }
-                    ws
-                });
-                let focus = view.read(cx).focus_handle(cx);
-                window.focus(&focus, cx);
-                dispatch_verify_actions(window, cx);
-                cx.new(|cx| Root::new(view, window, cx))
-            });
-            if let Err(e) = opened {
-                eprintln!("failed to open window: {e:#}");
-                cx.quit();
+            .collect();
+        cx.background_spawn(async move {
+            for (thread, project) in purged {
+                workspace::thread_checkpoints::forget(&thread, project.as_deref());
             }
-            cx.activate(true);
+        })
+        .detach();
+        let slot = remote::DaemonSlot::default();
+        remote::push_events(&mut store, slot.clone());
+        let store = Arc::new(Mutex::new(store));
+        let (agents, calls) = remote::UiAgents::new();
+        let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
+        let device_key = device_key();
+        let host = remote::Host {
+            settings_path: AppSettings::default_path(),
+            tailnet: tailnet.clone(),
+            config: skyelab_daemon::Config::default(),
+            backend: Arc::new(skyelab_daemon::StoreBackend::shared(
+                store.clone(),
+                agents,
+                path.clone(),
+            )),
+            slot,
+        };
+        let remote = cx.new(|cx| remote::Remote::new(host, cx));
+        let backend = workspace::Backend {
+            store,
+            claude_bin: agent_bin(
+                std::env::var_os("SKYELAB_CLAUDE_BIN"),
+                cfg!(debug_assertions),
+                "claude",
+            ),
+        };
+        let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
+        // The last frame when it still shows on a connected display, else most of the primary display.
+        workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
+        let saved = AppSettings::default_path()
+            .and_then(|p| AppSettings::load(&p).ok())
+            .and_then(|s| s.window);
+        let displays: Vec<_> = cx.displays().iter().map(|d| d.bounds()).collect();
+        let visible = cx.primary_display().map_or_else(
+            || Bounds::centered(None, size(px(1200.), px(800.)), cx),
+            |d| d.visible_bounds(),
+        );
+        let bounds = window_layout::initial_bounds(saved.as_ref(), &displays, visible);
+        workspace::set_hub(Some(calls), orchestrate, cx);
+        let setup_tailnet = tailnet.clone();
+        cx.set_global(workspace::WindowKit {
+            options: std::rc::Rc::new(window_options),
+            setup: std::rc::Rc::new(move |ws, window, cx| {
+                ws.set_remote(remote.clone(), None, window, cx);
+                let mut options = environment::client_options(setup_tailnet.clone());
+                options.device_key = device_key.clone();
+                let tailnet = setup_tailnet.clone();
+                ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
+                // Every window saves its frame and page; the last one changed opens at the next launch.
+                ws.restore_layout(AppSettings::default_path(), None, window, cx);
+            }),
         });
+        updates::init(
+            AppSettings::default_path(),
+            updates::fetcher(
+                std::env::var("SKYELAB_UPDATE_FAKE").ok(),
+                cfg!(debug_assertions),
+            ),
+            cx,
+        );
+        app_menus(cx);
+        // A window opened with none left (the dock, the menu): the same store, the accounts as on disk now.
+        let fresh = {
+            let (path, backend) = (path.clone(), backend.clone());
+            move |cx: &mut App| {
+                let (path, backend) = (path.clone(), backend.clone());
+                let (config, error) = load_accounts(path.as_deref());
+                let home = dirs::home_dir().unwrap_or_default();
+                let at = Bounds::centered(None, size(px(1200.), px(800.)), cx);
+                let opened = workspace::open_window(
+                    at,
+                    move |window, cx| {
+                        workspace::Workspace::new(home, path, config, error, backend, window, cx)
+                    },
+                    cx,
+                );
+                if let Err(e) = opened {
+                    eprintln!("failed to open a window: {e:#}");
+                }
+            }
+        };
+        let fresh: std::rc::Rc<dyn Fn(&mut App)> = std::rc::Rc::new(fresh);
+        let on_menu = fresh.clone();
+        cx.on_action(move |_: &workspace::NewWindow, cx| on_menu(cx));
+        cx.set_global(FreshWindow(fresh));
+        let opened = workspace::open_window(
+            bounds,
+            move |window, cx| {
+                let mut ws =
+                    workspace::Workspace::new(folder, path, config, error, backend, window, cx);
+                ws.store_error = store_error.map(Into::into);
+                ws.restore_layout(AppSettings::default_path(), saved.as_ref(), window, cx);
+                ws
+            },
+            cx,
+        );
+        if let Err(e) = opened {
+            eprintln!("failed to open window: {e:#}");
+            cx.quit();
+        }
+        verify_actions::dispatch_verify_actions(cx);
+        cx.activate(true);
+    });
 }

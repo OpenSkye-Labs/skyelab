@@ -18,6 +18,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::split_terminal))
             .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
+            .on_action(cx.listener(Self::new_window))
+            .on_action(|_: &crate::updates::CheckForUpdates, _, cx| crate::updates::check(true, cx))
             .on_action(cx.listener(Self::open_usage))
             .on_action(cx.listener(Self::set_up_accounts))
             .on_action(cx.listener(Self::open_browser))
