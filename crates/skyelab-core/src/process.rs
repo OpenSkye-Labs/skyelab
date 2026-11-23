@@ -14,6 +14,7 @@ use std::fs::File;
 use std::io::{self, Read as _, Seek as _, SeekFrom, Write as _};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 /// Starts `cmd` while no other child of this process is being started (see the module docs).
 pub fn spawn(cmd: &mut Command) -> io::Result<Child> {
@@ -85,4 +86,53 @@ fn read_all(mut file: File) -> io::Result<Vec<u8>> {
 /// Like [`Command::output`], with `input` on stdin: runs `cmd` to its exit and returns what it printed.
 pub fn output(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<Output> {
     Captured::spawn(cmd, input)?.wait()
+}
+
+/// [`output`], with the child killed once `limit` passes: then a `TimedOut` error, never a wait forever.
+pub fn output_within(
+    cmd: &mut Command,
+    input: Option<&[u8]>,
+    limit: Duration,
+) -> io::Result<Output> {
+    let mut run = Captured::spawn(cmd, input)?;
+    let start = Instant::now();
+    loop {
+        if let Some(status) = run.child.try_wait()? {
+            return run.output(status);
+        }
+        if start.elapsed() > limit {
+            let _ = run.child.kill();
+            let _ = run.child.wait();
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("no answer within {}s", limit.as_secs()),
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_within_kills_a_child_past_its_limit() {
+        let start = Instant::now();
+        let err = output_within(
+            Command::new("/bin/sleep").arg("30"),
+            None,
+            Duration::from_millis(200),
+        )
+        .expect_err("timed out");
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut);
+        assert!(start.elapsed() < Duration::from_secs(5));
+        let out = output_within(
+            Command::new("/bin/echo").arg("hi"),
+            None,
+            Duration::from_secs(5),
+        )
+        .expect("runs");
+        assert_eq!(out.stdout, b"hi\n");
+    }
 }

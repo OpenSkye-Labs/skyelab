@@ -175,7 +175,7 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(v, 18);
+    assert_eq!(v, 19);
     drop(conn);
     let after = std::fs::metadata(&path).expect("size").len();
     assert!(after < 1_000_000, "file still {after} bytes");

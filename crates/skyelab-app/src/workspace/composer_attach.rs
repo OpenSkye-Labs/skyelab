@@ -80,15 +80,15 @@ impl ThreadView {
                 ClipboardEntry::String(s)
                     if !taken && skyelab_core::prompt::is_long_paste(s.text()) =>
                 {
-                    taken = true;
                     let names = self.composer.attachments.iter().map(|a| a.name.as_str());
                     let name = skyelab_core::prompt::pasted_file_name(names);
                     let before = self.composer.attachments.len();
-                    match Attachment::new(name.clone(), s.text().as_bytes().to_vec()) {
-                        Ok(a) => self.add_attachment(a),
-                        Err(e) => self.composer.notice = Some(format!("{e:#}").into()),
+                    if let Ok(a) = Attachment::new(name.clone(), s.text().as_bytes().to_vec()) {
+                        self.add_attachment(a);
                     }
-                    if self.composer.attachments.len() > before {
+                    // No chip (no room, too big, a kind the account can't take): it goes in as text, not nowhere.
+                    taken = self.composer.attachments.len() > before;
+                    if taken {
                         self.composer.pasted = Some((name, s.text().clone()));
                     }
                 }

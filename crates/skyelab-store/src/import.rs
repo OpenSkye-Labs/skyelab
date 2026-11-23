@@ -59,6 +59,9 @@ impl Store {
         if taken.is_some() {
             return Ok(None);
         }
+        // The usage trigger counts only events after the thread's start, so the row starts after the history while it
+        // goes in, then moves back to the first event: imported turns are not new usage.
+        let after = events.iter().map(|e| e.2).fold(at, i64::max);
         tx.execute(
             "INSERT INTO threads (project_id, title, cwd, account_id, status, created_at, updated_at, title_source,
                                   agent_session_id, imported_session)
@@ -69,7 +72,7 @@ impl Store {
                 path_str(new.cwd)?,
                 new.account_id,
                 new.status,
-                events.first().map_or(at, |e| e.2),
+                after,
                 at,
                 session_id
             ],
@@ -85,6 +88,10 @@ impl Store {
                 params![id, seq as i64 + 1, kind, payload, created],
             )?;
         }
+        tx.execute(
+            "UPDATE threads SET created_at = ?2 WHERE id = ?1",
+            params![id, events.first().map_or(at, |e| e.2)],
+        )?;
         let sql = format!("SELECT {THREAD_COLS} FROM threads WHERE id = ?1");
         let thread = tx.query_row(&sql, [id], thread_from_row)?;
         tx.commit()?;

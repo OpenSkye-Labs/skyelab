@@ -295,7 +295,21 @@ UPDATE turn_usage SET cost_usd = COALESCE((SELECT ",
 DROP TABLE turn_raw;
 "
     ),
-    // Version 18: side chats (T3's `/side`): a small thread beside `side_of`, in its folder under its account. Hidden
+    // Version 18: imported history wrongly counted as turns (an import dated the thread at its first event, so every
+    // later imported turn passed the trigger's date check). Such a turn is the importer's empty result; a live turn
+    // with no time, tokens or text added nothing either.
+    "
+DELETE FROM turn_usage WHERE (thread_id, seq) IN (
+    SELECT e.thread_id, e.seq FROM events e JOIN threads t ON t.id = e.thread_id
+    WHERE t.imported_session IS NOT NULL AND e.kind = 'agent' AND json_valid(e.payload_json)
+      AND json_type(e.payload_json, '$.Result') = 'object'
+      AND json_extract(e.payload_json, '$.Result.is_error') = 0
+      AND json_extract(e.payload_json, '$.Result.duration_ms') = 0
+      AND COALESCE(json_type(e.payload_json, '$.Result.usage'), 'null') = 'null'
+      AND COALESCE(json_type(e.payload_json, '$.Result.result'), 'null') = 'null'
+);
+",
+    // Version 19: side chats (T3's `/side`): a small thread beside `side_of`, in its folder under its account. Hidden
     // from the thread lists and listed under its parent; its first session starts with `fork_context`.
     "ALTER TABLE threads ADD COLUMN side_of INTEGER;",
 ];

@@ -361,3 +361,67 @@ fn an_imported_sessions_restored_total_is_not_charged_to_its_first_live_turn() {
     s.append_event(t, "agent", &result(9.3, 1, 1)).expect("e");
     assert!(close(cost(&s), 0.2), "{}", cost(&s));
 }
+
+/// What `skyelab_agent::import` stores for an imported turn's end.
+const IMPORTED_END: &str = r#"{"Result":{"is_error":false,"duration_ms":0,"total_cost_usd":0.0,"result":null,"prompts":1,"usage":null}}"#;
+
+fn import_two_turns(s: &mut Store, p: i64) -> i64 {
+    let new = NewThread {
+        project_id: p,
+        title: "imported",
+        cwd: Path::new("/p"),
+        account_id: "a",
+        status: "stopped",
+    };
+    let events = [
+        ("prompt", "\"hi\"".to_owned(), 1_000),
+        ("agent", IMPORTED_END.to_owned(), 2_000),
+        ("prompt", "\"again\"".to_owned(), 3_000),
+        ("agent", IMPORTED_END.to_owned(), 4_000),
+    ];
+    let t = s
+        .import_thread(&new, "sess", 5_000, &events)
+        .expect("import")
+        .expect("new");
+    assert_eq!(
+        t.created_at, 1_000,
+        "the thread still starts at its first event"
+    );
+    t.id
+}
+
+fn turns(s: &Store) -> u64 {
+    s.usage_days(0).expect("rows").iter().map(|r| r.turns).sum()
+}
+
+#[test]
+fn a_multi_turn_import_adds_no_turns() {
+    let mut s = Store::open_in_memory().expect("store");
+    let p = s.create_project("p", Path::new("/p")).expect("p").id;
+    let t = import_two_turns(&mut s, p);
+    assert_eq!(turns(&s), 0, "imported history counted as turns");
+    s.append_event(t, "agent", &result(1.0, 1, 1)).expect("e");
+    assert_eq!(turns(&s), 1, "a turn after the import counts");
+}
+
+#[test]
+fn migration_18_drops_imported_turns_counted_before() {
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("old.db");
+    {
+        let mut s = Store::open(&path).expect("store");
+        let p = s.create_project("p", Path::new("/p")).expect("p").id;
+        let t = import_two_turns(&mut s, p);
+        s.append_event(t, "agent", &result(1.0, 1, 1)).expect("e");
+    }
+    // As v17 left it: both imported turns counted.
+    let conn = Connection::open(&path).expect("open");
+    conn.execute_batch(
+        "INSERT INTO turn_usage SELECT thread_id, seq, 'a', 1, 0, 0, 0, created_at FROM events WHERE seq IN (2, 4);
+         ALTER TABLE threads DROP COLUMN side_of; PRAGMA user_version = 17;",
+    )
+    .expect("downgrade");
+    drop(conn);
+    let s = Store::open(&path).expect("reopen");
+    assert_eq!(turns(&s), 1, "only the live turn is left");
+}

@@ -251,8 +251,22 @@ pub(crate) fn current_branch(root: &Path) -> Result<String> {
 }
 
 /// Runs `cmd` with `input` on stdin; a non-zero exit is an error carrying stderr.
-pub(crate) fn checked(mut cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
-    let out = skyelab_core::process::output(&mut cmd, input).map_err(|e| match e.kind() {
+pub(crate) fn checked(cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
+    checked_within(cmd, what, input, None)
+}
+
+/// [`checked`], killed after `limit` when one is given.
+pub(crate) fn checked_within(
+    mut cmd: Command,
+    what: &str,
+    input: Option<&[u8]>,
+    limit: Option<std::time::Duration>,
+) -> Result<Output> {
+    let out = match limit {
+        Some(limit) => skyelab_core::process::output_within(&mut cmd, input, limit),
+        None => skyelab_core::process::output(&mut cmd, input),
+    };
+    let out = out.map_err(|e| match e.kind() {
         io::ErrorKind::NotFound if what.starts_with("gh") => Error::GhNotInstalled,
         io::ErrorKind::NotFound => Error::GitNotInstalled,
         _ => Error::Io(e),

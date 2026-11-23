@@ -1,11 +1,12 @@
 //! Scratch threads: quick questions outside any project. Each still runs in a folder bound to the account the user
 //! picked (`<data dir>/skyelab/scratch/<account>`), so the accounts invariant holds: no default account, ever.
 
-use crate::{AccountsConfig, onboarding::bind_project};
+use crate::{AccountsConfig, Binding};
 use anyhow::{Context as _, Result, bail};
 use std::path::{Path, PathBuf};
 
-/// The scratch folder for `account` under `root`. Ids are free text: a plain one is used as is, anything else hex.
+/// The scratch folder for `account` under `root`. Ids are free text: a plain one is used as is, anything else hex
+/// after a `~`, which no plain id has, so two accounts never share a folder.
 pub fn folder(root: &Path, account: &str) -> PathBuf {
     let plain = !account.is_empty()
         && !account.starts_with('.')
@@ -15,7 +16,9 @@ pub fn folder(root: &Path, account: &str) -> PathBuf {
     let name = if plain {
         account.to_owned()
     } else {
-        account.bytes().map(|b| format!("{b:02x}")).collect()
+        std::iter::once("~".to_owned())
+            .chain(account.bytes().map(|b| format!("{b:02x}")))
+            .collect()
     };
     root.join(name)
 }
@@ -32,7 +35,14 @@ pub fn prepare(config: &mut AccountsConfig, root: &Path, account: &str) -> Resul
     if std::fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
         bail!("{} is a symlink, not a scratch folder", dir.display());
     }
-    bind_project(config, &dir, account)?;
+    // Bound on the folder itself, never through a parent: rebinding the parent must not move scratch threads.
+    let real = crate::binding_root(&dir)?;
+    let own = config.bindings.iter().any(|b| {
+        b.account == account && (b.path == dir || b.resolved.as_deref() == Some(real.as_path()))
+    });
+    if !own {
+        config.add_binding(Binding::new(dir.clone(), account.to_owned()))?;
+    }
     Ok(dir)
 }
 
@@ -78,6 +88,21 @@ mod tests {
     }
 
     #[test]
+    fn a_bound_parent_still_gets_its_own_scratch_binding() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let home = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let mut c = config();
+        c.add_binding(Binding::new(home.clone(), "work".into()))
+            .expect("bind home");
+        let dir = prepare(&mut c, &home.join("scratch"), "work").expect("prepare");
+        // The user later moves the parent to another account: the scratch folder stays on the picked one.
+        c.remove_binding(&home).expect("unbind home");
+        c.add_binding(Binding::new(home.clone(), "lab".into()))
+            .expect("rebind home");
+        assert_eq!(c.resolve(&dir).map(|a| a.id.as_str()), Some("work"));
+    }
+
+    #[test]
     fn unknown_account_is_refused_before_any_folder() {
         let root = tempfile::tempdir().expect("tempdir");
         let mut c = config();
@@ -102,7 +127,12 @@ mod tests {
     fn odd_ids_become_hex() {
         let root = Path::new("/r");
         assert_eq!(folder(root, "work-1"), Path::new("/r/work-1"));
-        assert_eq!(folder(root, "../x"), Path::new("/r/2e2e2f78"));
-        assert_eq!(folder(root, ".."), Path::new("/r/2e2e"));
+        assert_eq!(folder(root, "../x"), Path::new("/r/~2e2e2f78"));
+        assert_eq!(folder(root, ".."), Path::new("/r/~2e2e"));
+        assert_ne!(
+            folder(root, "/"),
+            folder(root, "2f"),
+            "a hex name never equals a plain id"
+        );
     }
 }
