@@ -256,14 +256,29 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                 _ => false,
             };
             if !explained {
-                let previous = items
-                    .iter()
-                    .rev()
-                    .find_map(|i| match i {
-                        Item::Done { total_usd, .. } if *total_usd > 0.0 => Some(*total_usd),
-                        _ => None,
-                    })
-                    .unwrap_or_default();
+                // The baseline (see `turn_cost`); a zero total needs none, so a long Codex thread isn't scanned.
+                let previous = if *total_cost_usd > 0.0 {
+                    items
+                        .iter()
+                        .rev()
+                        .find_map(|i| match i {
+                            Item::Done { total_usd, .. } if *total_usd > 0.0 => {
+                                Some(Some(*total_usd))
+                            }
+                            // An imported turn recorded no cost: the session's running total is unknown.
+                            Item::Done {
+                                total_usd,
+                                duration_ms: 0,
+                                usage: None,
+                                is_error: false,
+                                ..
+                            } if *total_usd == 0.0 => Some(None),
+                            _ => None,
+                        })
+                        .unwrap_or(Some(0.0))
+                } else {
+                    None
+                };
                 items.push(Item::Done {
                     is_error: *is_error,
                     duration_ms: *duration_ms,

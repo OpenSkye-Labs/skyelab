@@ -256,13 +256,13 @@ fn claudes_running_total_counts_each_turn_once() {
     s.append_event(t, "agent", &result(0.007, 10, 1))
         .expect("e");
     assert!(close(cost(&s), 0.057), "{}", cost(&s));
-    // Codex reports no cost; its tokens are already per turn.
+    // Tokens are the turn's own and are summed as they are.
     let rows = s.usage_days(0).expect("rows");
     assert_eq!(rows.iter().map(|r| r.input).sum::<u64>(), 60);
 }
 
 #[test]
-fn a_forks_first_turn_counts_only_its_growth_over_the_copied_history() {
+fn a_forks_first_turn_is_never_charged_its_sources_spend() {
     let mut s = Store::open_in_memory().expect("store");
     let p = s.create_project("p", Path::new("/p")).expect("p").id;
     let new = NewThread {
@@ -278,7 +278,8 @@ fn a_forks_first_turn_counts_only_its_growth_over_the_copied_history() {
     std::thread::sleep(std::time::Duration::from_millis(2));
     let fork = s.create_fork(&new, t, "ctx", &events).expect("fork").id;
     std::thread::sleep(std::time::Duration::from_millis(2));
-    // The forked session restored the source's 1.0.
+    // A fork starts a fresh session, so this total is its own; the copied history's 1.0 is still the baseline, so the
+    // turn undercounts rather than repeating the source's spend.
     s.append_event(fork, "agent", &result(1.25, 1, 1))
         .expect("e");
     assert!(close(cost(&s), 1.25), "{}", cost(&s));
@@ -333,4 +334,30 @@ fn migration_17_turns_stored_running_totals_into_turn_costs() {
     // 0.01 + 0.015 + 0 + 0.015 + 0.002 (a drop: a fresh process).
     assert!(close(sum(&conn, kept), 0.042), "{}", sum(&conn, kept));
     assert!(close(sum(&conn, purged), 0.75), "{}", sum(&conn, purged));
+}
+
+#[test]
+fn an_imported_sessions_restored_total_is_not_charged_to_its_first_live_turn() {
+    let mut s = Store::open_in_memory().expect("store");
+    let p = s.create_project("p", Path::new("/p")).expect("p").id;
+    let new = NewThread {
+        project_id: p,
+        title: "imported",
+        cwd: Path::new("/p"),
+        account_id: "a",
+        status: "idle",
+    };
+    // What `skyelab_agent::import` stores for a transcript turn (the app's thread_model_test builds it from the
+    // serializer and checks the same).
+    let imported = r#"{"Result":{"is_error":false,"duration_ms":0,"total_cost_usd":0.0,"result":null,"prompts":1,"usage":null}}"#.to_owned();
+    let t = s
+        .import_thread(&new, "sess", 1_000, &[("agent", imported, 1_000)])
+        .expect("import")
+        .expect("new")
+        .id;
+    // `--resume` on Claude Code 2.1.277+ restores the session's $9.00 before this $0.10 turn.
+    s.append_event(t, "agent", &result(9.1, 1, 1)).expect("e");
+    assert!(close(cost(&s), 0.0), "{}", cost(&s));
+    s.append_event(t, "agent", &result(9.3, 1, 1)).expect("e");
+    assert!(close(cost(&s), 0.2), "{}", cost(&s));
 }

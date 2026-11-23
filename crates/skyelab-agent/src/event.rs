@@ -97,18 +97,18 @@ pub enum DeltaKind {
     Thinking,
 }
 
-/// What one turn's result adds to its thread's spend, given the thread's previous non-zero `total_cost_usd`
-/// (0 for none). Claude reports a running total for the process, and since Claude Code 2.1.277 a resumed session
-/// starts from the session's restored total, so a turn costs the growth since the last one. A total that dropped
-/// started over (an older CLI's resume, `/clear`) and is the turn's own. Zero (an aborted turn, a crash, Codex) adds
-/// nothing and is no baseline. Never more than the turn spent. `skyelab-store`'s migration 17 does the same in SQL.
-pub fn turn_cost(previous: f64, total: f64) -> f64 {
-    if total <= 0.0 {
-        0.0
-    } else if total < previous {
-        total
-    } else {
-        total - previous
+/// What one turn's result adds to its thread's spend. Claude reports a running total for the process, and since Claude
+/// Code 2.1.277 a resumed session starts from the session's restored total, so a turn costs the growth over
+/// `previous`: the thread's latest earlier non-zero total, `Some(0.0)` for none, or `None` when it is unknown (after an
+/// imported turn, which recorded no cost), and then the turn counts nothing. A total that dropped started over (an
+/// older CLI's resume, a fresh session) and is the turn's own. Zero (an aborted turn, a crash, Codex) adds nothing and
+/// is no baseline. Never more than the turn spent. `skyelab-store`'s migration 17 does the same in SQL.
+pub fn turn_cost(previous: Option<f64>, total: f64) -> f64 {
+    match previous {
+        _ if total <= 0.0 => 0.0,
+        None => 0.0,
+        Some(previous) if total < previous => total,
+        Some(previous) => total - previous,
     }
 }
 

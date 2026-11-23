@@ -9,7 +9,7 @@ fn costs(totals: &[f64]) -> Vec<f64> {
     totals
         .iter()
         .map(|&total| {
-            let cost = turn_cost(previous, total);
+            let cost = turn_cost(Some(previous), total);
             if total > 0.0 {
                 previous = total;
             }
@@ -70,4 +70,10 @@ fn a_results_usage_is_the_turns_own() {
     };
     let usage = usage.expect("usage");
     assert_eq!((usage.input, usage.output), (11814, 7));
+}
+
+#[test]
+fn after_an_imported_turn_the_baseline_is_unknown_and_counts_nothing() {
+    // A resumed imported session's first total includes its spend from before the import.
+    assert_eq!(turn_cost(None, 9.1), 0.0);
 }

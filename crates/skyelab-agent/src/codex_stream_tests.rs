@@ -141,7 +141,7 @@ fn turns_sum_to_the_threads_growth_and_a_resumed_thread_starts_fresh() {
     ];
     assert_eq!(three, [(100, 10), (350, 20), (50, 1)]);
     assert_eq!(three.iter().map(|t| t.0).sum::<u64>(), 500);
-    // A new process resuming that thread: Codex's total carries on from 500, but the turn is only its own.
+    // A new process whose first reading carries the thread's earlier total (as on a resume): it carries on from 500, but the turn is only its own.
     let mut c = open();
     assert_eq!(turn(&mut c, "d", &[((620, 40), (120, 9))]), (120, 9));
     assert_eq!(turn(&mut c, "e", &[((700, 45), (80, 5))]), (80, 5));
