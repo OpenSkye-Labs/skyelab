@@ -129,11 +129,11 @@ pub fn restore_windows(
     } else {
         saved.into_iter().map(Some).collect()
     };
-    let mut opened = Vec::new();
+    let (mut opened, mut failed) = (Vec::new(), None);
     for (n, layout) in saved.into_iter().enumerate() {
         let bounds = crate::window_layout::initial_bounds(layout.as_ref(), displays, visible);
         let (make, settings) = (make.clone(), settings.clone());
-        opened.push(open(
+        let made = open(
             bounds,
             move |window, cx| {
                 let mut ws = make(n, window, cx);
@@ -141,9 +141,20 @@ pub fn restore_windows(
                 ws
             },
             cx,
-        )?);
+        );
+        // One window that can't open doesn't take the others down; only none opening is an error.
+        match made {
+            Ok(ws) => opened.push(ws),
+            Err(e) => {
+                eprintln!("couldn't reopen a window: {e:#}");
+                failed = Some(e);
+            }
+        }
     }
-    Ok(opened)
+    match failed {
+        Some(e) if opened.is_empty() => Err(e),
+        _ => Ok(opened),
+    }
 }
 
 /// Opens a workspace window at `bounds`: the kit's options and setup, then the call queues if no window has them.

@@ -86,7 +86,7 @@ docks and terminals. A thread open in two windows is the same thread with one ag
 and its message input follows the window that opened it last, with its text and files (undo starts over there); the other window shows the draft, and clicking it brings the input there. A notification for it comes once. Saving accounts in
 Settings applies to every window, and a window catches up with projects and threads changed elsewhere when you switch
 to it. Each window scrolls a thread on its own. Every open window saves its frame and page, and the next launch opens all
-of them again; a window you close leaves that list (quitting keeps every window).
+of them again; a window you close leaves that list, except the last one, so a launch always has a window to reopen (quitting keeps every window).
 Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps running, agents included, until you quit
 (<kbd>⌘Q</kbd>); click its Dock icon to open a window again.
 
