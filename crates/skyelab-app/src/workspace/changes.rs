@@ -1,10 +1,18 @@
 //! The Changes tab: a folder's changed files (as a folder tree) and their diff against `HEAD`, or against the
 //! commit a worktree thread started from; unified or split, clipped or wrapped, with find (T3's DiffPanel).
 
+#[cfg(test)]
+#[path = "diff_comment_view_test.rs"]
+mod comment_view_test;
+#[path = "changes_comments.rs"]
+mod comments;
 #[path = "changes_find.rs"]
 mod find;
 #[path = "changes_rows.rs"]
 mod rows;
+#[cfg(test)]
+#[path = "diff_comment_split_click_test.rs"]
+mod split_click_test;
 
 use super::changes_model::{self, Changes, Scope};
 use super::changes_tree::{self, SplitRow, TreeRow};
@@ -77,6 +85,11 @@ pub struct ChangesView {
     pub(super) scope: Scope,
     /// A rewind shown for confirming.
     pub(super) rewind: Option<super::changes_turns::PendingRewind>,
+    pub(super) drag: Option<comments::Drag>,
+    /// The comment being written (`changes_comments.rs`).
+    pub(super) draft: Option<comments::Draft>,
+    /// Comments or a draft show, so rows are measured.
+    pub(super) annotated: bool,
     _load: Option<Task<()>>,
 }
 
@@ -131,6 +144,9 @@ impl ChangesView {
             _generate: None,
             scope: Scope::Working,
             rewind: None,
+            drag: None,
+            draft: None,
+            annotated: false,
             _load: None,
         };
         this.refresh(cx);
@@ -158,6 +174,7 @@ impl ChangesView {
                             this.selected
                                 .retain(|p| c.files.iter().any(|f| &f.path == p));
                         }
+                        this.reanchor_comments(&c, cx);
                         this.set_loaded(c);
                         if let Some(path) = this.reveal_after_load.take() {
                             this.reveal(&path, cx);
@@ -229,7 +246,7 @@ impl ChangesView {
     }
 
     /// Recomputes the split rows and resets the list for the current layout (clipped rows share one height;
-    /// wrapped ones are measured).
+    /// wrapped or commented ones are measured).
     pub(super) fn relayout(&mut self) {
         let rows = self.changes.as_ref().map_or(&[][..], |c| &c.rows[..]);
         self.split = if self.prefs.split {
@@ -242,7 +259,7 @@ impl ChangesView {
         } else {
             rows.len()
         };
-        if self.prefs.wrap {
+        if self.prefs.wrap || self.annotated {
             self.list.reset(n);
         } else {
             self.list.reset_with_uniform_height(n, px(ROW_HEIGHT));
@@ -377,6 +394,10 @@ impl Render for ChangesView {
                             MouseButton::Left,
                             cx.listener(|this, _, window, cx| this.focus.focus(window, cx)),
                         )
+                        .on_mouse_up(
+                            MouseButton::Left,
+                            cx.listener(|this, _, window, cx| this.finish_drag(window, cx)),
+                        )
                         .child(list(self.list.clone(), cx.processor(Self::render_item)).size_full())
                         .children(find_bar),
                 )
@@ -417,6 +438,7 @@ impl Render for ChangesView {
                         .child(n)
                 }))
             })
+            .children(self.render_comments_bar(cx))
             .child(body)
     }
 }

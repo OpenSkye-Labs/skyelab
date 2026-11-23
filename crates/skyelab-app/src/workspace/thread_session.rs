@@ -257,11 +257,10 @@ impl ThreadView {
             let n = self.items.len();
             self.list.splice(first..n, n - first);
         }
-        // A fork has no session until its first send starts one (with its context prompt).
-        self.read_only = self
-            .thread
-            .as_ref()
-            .is_none_or(|t| t.agent_session_id.is_none() && t.forked_from.is_none());
+        // A fork or side chat has no session until its first send starts one (with its context prompt).
+        self.read_only = self.thread.as_ref().is_none_or(|t| {
+            t.agent_session_id.is_none() && t.forked_from.is_none() && t.side_of.is_none()
+        });
         let disabled = self.read_only;
         self.prompt.update(cx, |p, cx| p.set_disabled(disabled, cx));
         cx.notify();

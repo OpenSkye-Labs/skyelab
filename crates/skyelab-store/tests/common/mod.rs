@@ -25,8 +25,10 @@ ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN fo
 ALTER TABLE threads DROP COLUMN fork_context;
 ";
 
-/// Undoes migration 14: the imported session column.
+pub const UNDO_V19: &str =
+    "DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of;";
 /// Undoes migration 16: the turn usage table.
 pub const UNDO_V16: &str = "DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage;";
 pub const UNDO_V15: &str = "ALTER TABLE threads DROP COLUMN pr_state;";
+/// Undoes migration 14: the imported session column.
 pub const UNDO_V14: &str = "ALTER TABLE threads DROP COLUMN imported_session;";
