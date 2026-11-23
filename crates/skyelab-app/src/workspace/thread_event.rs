@@ -47,5 +47,7 @@ pub enum GitAction {
     Commit,
     CommitPush,
     Push,
+    /// Fast-forward only.
+    Pull,
     OpenPr,
 }

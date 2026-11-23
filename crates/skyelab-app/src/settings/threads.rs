@@ -26,6 +26,15 @@ const MODES: [(Mode, &str); 3] = [
 const CODEX_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 
 /// A model or effort name safe on a command line, as the agent layer checks it at launch.
+/// Settings → Threads' fetch intervals, in minutes; 0 is off.
+const FETCH_CHOICES: [(u32, &str); 5] = [
+    (0, "Off"),
+    (1, "Every minute"),
+    (5, "Every 5 minutes"),
+    (15, "Every 15 minutes"),
+    (30, "Every 30 minutes"),
+];
+
 fn valid_name(v: &str) -> bool {
     !v.starts_with('-')
         && v.len() <= 128
@@ -183,6 +192,23 @@ impl Settings {
                         this.set_threads(|t| t.new_worktree = on, cx)
                     }))
                     .into_any_element(),
+                cx,
+            ),
+            row(
+                false,
+                "Fetch remote",
+                "While a thread is shown, its folder fetches its branch's upstream in the background, as its own \
+                 account, so Details can show how far behind it is.",
+                self.choice(
+                    "threads-fetch",
+                    &Some(t.fetch_minutes.to_string()),
+                    FETCH_CHOICES
+                        .iter()
+                        .map(|(m, l)| (Some(m.to_string()), (*l).to_owned()))
+                        .collect(),
+                    |t, v| t.fetch_minutes = v.and_then(|v| v.parse().ok()).unwrap_or(5),
+                    cx,
+                ),
                 cx,
             ),
             row(

@@ -167,13 +167,21 @@ fn thread_row(
                         .child(badge)
                 }))
                 .child(div().flex_1())
-                .children(marks.pr.clone().map(|pr| {
+                .children(marks.pr.as_ref().map(|pr| {
+                    use crate::workspace::pr_watch::{checks_look, state_look};
+                    let (icon, color, _) = state_look(pr.state, theme);
+                    // Checks only matter while the PR can still merge.
+                    let checks = checks_look(pr.checks, theme)
+                        .filter(|_| !pr.state.is_some_and(skyelab_git::PrState::is_done));
                     h_flex()
                         .flex_shrink_0()
                         .gap_0p5()
-                        .text_color(ui::ink(theme, theme.success))
-                        .child(Icon::new(Lucide::GitPullRequest).size_3())
-                        .child(pr)
+                        .text_color(color)
+                        .child(Icon::new(icon).size_3())
+                        .child(pr.label.clone())
+                        .children(checks.map(|(icon, color, _)| {
+                            Icon::new(icon).size_3().ml_0p5().text_color(color)
+                        }))
                 }))
                 .children(marks.branch.clone().map(|b| {
                     h_flex()

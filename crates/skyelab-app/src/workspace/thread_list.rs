@@ -41,8 +41,10 @@ impl Workspace {
         for v in &self.open_threads {
             if let Some(t) = &v.read(cx).thread
                 && let Some(row) = self.threads.iter_mut().find(|r| r.id == t.id)
+                && row.pr_url != t.pr_url
             {
                 row.pr_url.clone_from(&t.pr_url); // a PR opened or linked in the tab
+                row.pr_state = None; // the store dropped the old link's state with it
             }
         }
         let live = self.live_rows(cx);
@@ -112,7 +114,10 @@ impl Workspace {
                         .filter(|p| !p.is_empty())
                         .map(Into::into),
                     branch,
-                    pr: t.pr_url.as_deref().map(|u| pr_label(u).into()),
+                    pr: t
+                        .pr_url
+                        .as_deref()
+                        .map(|u| super::pr_watch::badge(t, u, cx)),
                 },
             );
             SidebarItem {

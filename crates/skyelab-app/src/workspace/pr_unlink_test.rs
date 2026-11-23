@@ -9,7 +9,7 @@ fn badge(r: &Rig, id: i64, cx: &mut VisualTestContext) -> Option<SharedString> {
     sidebar.read_with(cx, |s, _| {
         s.marks
             .get(&SharedString::from(format!("thread-{id}")))
-            .and_then(|m| m.pr.clone())
+            .and_then(|m| m.pr.as_ref().map(|p| p.label.clone()))
     })
 }
 

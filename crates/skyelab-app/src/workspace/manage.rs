@@ -141,7 +141,14 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.update_row(id, |t| t.pr_url = None, cx);
+        self.update_row(
+            id,
+            |t| {
+                t.pr_url = None;
+                t.pr_state = None;
+            },
+            cx,
+        );
         let text = format!(
             "Unlinked pull request {}",
             super::thread_list::pr_label(&url)
@@ -179,7 +186,14 @@ impl Workspace {
                     let url = url.clone();
                     view.update(cx, |v, cx| v.set_pr_url(Some(url), cx));
                 }
-                this.update_row(id, |t| t.pr_url = Some(url), cx);
+                this.update_row(
+                    id,
+                    |t| {
+                        t.pr_url = Some(url);
+                        t.pr_state = None;
+                    },
+                    cx,
+                );
             });
         })
         .detach(); // one short write; `this` is weak

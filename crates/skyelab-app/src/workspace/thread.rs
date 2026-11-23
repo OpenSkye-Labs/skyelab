@@ -356,6 +356,7 @@ impl ThreadView {
     pub fn set_pr_url(&mut self, url: Option<String>, cx: &mut Context<Self>) {
         if let Some(t) = self.thread.as_mut() {
             t.pr_url = url;
+            t.pr_state = None; // the store clears it with the link
             cx.notify();
         }
     }

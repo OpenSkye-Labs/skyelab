@@ -107,7 +107,7 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
             .read(cx)
             .marks
             .get(&gpui::SharedString::from(format!("thread-{id}")))
-            .and_then(|m| m.pr.clone())
+            .and_then(|m| m.pr.as_ref().map(|p| p.label.clone()))
     });
     assert_eq!(badge.as_deref(), Some("#42"), "the sidebar badge");
 

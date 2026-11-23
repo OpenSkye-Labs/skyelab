@@ -49,6 +49,7 @@ mod thread;
 use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
+mod pr_watch;
 mod shell_card;
 pub(crate) mod thread_checkpoints;
 mod thread_details;
@@ -215,6 +216,7 @@ pub struct Workspace {
     thread_search: Option<(String, Option<std::collections::HashSet<i64>>)>,
     _search: Option<Task<()>>,
     _attention: Vec<Subscription>,
+    pr_watch: pr_watch::Watch,
     /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
     purges: std::collections::HashMap<i64, Task<()>>,
     /// The last unread-mark write; each new one waits for it.
@@ -347,6 +349,7 @@ impl Workspace {
             thread_search: None,
             _search: None,
             _attention: Vec::new(),
+            pr_watch: Default::default(),
             purges: Default::default(),
             _unread_write: None,
             files: Default::default(),
@@ -354,6 +357,7 @@ impl Workspace {
             notices: Vec::new(),
         };
         this.watch_attention(window, cx);
+        this.watch_remote(cx);
         this.watch_setup(cx);
         this.refresh_details(cx);
         this.refresh_sidebar(cx);
