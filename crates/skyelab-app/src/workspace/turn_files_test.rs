@@ -79,9 +79,9 @@ fn turn_files_list_each_turns_checkpoint_diff(cx: &mut TestAppContext) {
     let key = format!("files:{}", done.expect("divider"));
     thread.update(cx, |t, cx| t.toggle_tool(&key, cx));
     cx.run_until_parked();
-    assert!(cx.debug_bounds("turn-file").is_some());
-    let path = f.project.join("agent-edit.txt");
-    thread.update(cx, |t, cx| t.open_turn_file(1, &path, cx));
+    // A click on the file row (not a direct call): the row itself must take it.
+    let row = cx.debug_bounds("turn-file").expect("file row");
+    cx.simulate_click(row.center(), gpui::Modifiers::none());
     cx.run_until_parked();
     let changes = ws
         .read_with(cx, |ws, _| {

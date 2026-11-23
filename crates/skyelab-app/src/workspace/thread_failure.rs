@@ -142,15 +142,12 @@ impl ThreadView {
     pub(super) fn render_failure(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let f = self.shown_failure()?;
         let title = self.failure_title(&f);
-        let detail = if f.signed_out {
-            format!(
-                "{} Sign in to this account again in Settings → Accounts, then retry. This folder only runs on its \
-                 bound account.",
-                f.text
-            )
-        } else {
-            f.text.clone()
-        };
+        // What the agent said, then (signed out) what to do about it, on its own line.
+        let hint = f.signed_out.then_some(
+            "Sign in to this account again in Settings → Accounts, then retry. This folder only runs on its bound \
+             account.",
+        );
+        let detail = f.text.clone();
         let row = f.row;
         let actions = h_flex()
             .gap_2()
@@ -226,6 +223,12 @@ impl ThreadView {
                                 .text_color(theme.muted_foreground)
                                 .child(detail),
                         )
+                        .children(hint.map(|h| {
+                            div()
+                                .text_size(ui::META)
+                                .text_color(theme.muted_foreground)
+                                .child(h)
+                        }))
                         .child(div().pt_1().child(actions)),
                 )
                 .child(
