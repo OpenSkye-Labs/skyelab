@@ -32,6 +32,13 @@ pub enum RemoteCall {
         reply: Reply<()>,
         gate: CallGate,
     },
+    Questions {
+        thread_id: i64,
+        request_id: String,
+        answers: Vec<Vec<String>>,
+        reply: Reply<()>,
+        gate: CallGate,
+    },
 }
 
 impl RemoteCall {
@@ -42,7 +49,10 @@ impl RemoteCall {
             RemoteCall::Start { reply, gate, .. } => reply.is_disconnected() || gate.cancelled(),
             RemoteCall::Send { reply, gate, .. }
             | RemoteCall::Interrupt { reply, gate, .. }
-            | RemoteCall::Answer { reply, gate, .. } => reply.is_disconnected() || gate.cancelled(),
+            | RemoteCall::Answer { reply, gate, .. }
+            | RemoteCall::Questions { reply, gate, .. } => {
+                reply.is_disconnected() || gate.cancelled()
+            }
         }
     }
 
@@ -52,7 +62,8 @@ impl RemoteCall {
             RemoteCall::Start { reply, .. } => _ = reply.send(Err(error)),
             RemoteCall::Send { reply, .. }
             | RemoteCall::Interrupt { reply, .. }
-            | RemoteCall::Answer { reply, .. } => _ = reply.send(Err(error)),
+            | RemoteCall::Answer { reply, .. }
+            | RemoteCall::Questions { reply, .. } => _ = reply.send(Err(error)),
         }
     }
 }
@@ -146,6 +157,22 @@ impl Agents for UiAgents {
             thread_id,
             request_id,
             decision,
+            reply,
+            gate,
+        })
+    }
+
+    fn answer_questions(
+        &self,
+        thread_id: i64,
+        request_id: &str,
+        answers: &[Vec<String>],
+    ) -> Result<(), RpcError> {
+        let (request_id, answers) = (request_id.to_owned(), answers.to_vec());
+        self.ask(|reply, gate| RemoteCall::Questions {
+            thread_id,
+            request_id,
+            answers,
             reply,
             gate,
         })

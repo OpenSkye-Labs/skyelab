@@ -1,6 +1,7 @@
 //! How a thread page looks. State and behavior live in `thread.rs`.
 
 use super::thread::{CONTEXT, ThreadView};
+use super::thread_find::FindHost as _;
 use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;

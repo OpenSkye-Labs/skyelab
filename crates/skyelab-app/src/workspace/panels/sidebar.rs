@@ -1,6 +1,6 @@
 //! The sidebar: the environment picker, the search / project scope / new thread row, then every project's threads in
-//! one flat list (T3's default layout), and Settings at the bottom. Another machine's sidebar keeps its projects with
-//! the selected one's threads under it.
+//! one flat list (T3's default layout), and Settings at the bottom. Another machine's sidebar shows the same list, then
+//! its projects.
 
 use super::sidebar_rows::{THREAD_INDENT, scope_button, section_button, sidebar_row};
 use super::*;
@@ -29,7 +29,7 @@ pub struct SidebarItem {
     pub updated_ms: Option<i64>,
     /// Project rows, and flat thread rows: the account the folder runs on.
     pub account: Option<RowAccount>,
-    /// Flat thread rows: the project's name, drawn above the title. `None` for project rows and nested threads.
+    /// Flat thread rows: the project's name, drawn above the title. `None` for project rows.
     pub project: Option<SharedString>,
 }
 
@@ -41,9 +41,6 @@ pub struct SidebarSection {
     pub empty_hint: SharedString,
     /// A small button next to the title, e.g. "Add".
     pub button: Option<(SharedString, Box<dyn Action>)>,
-    /// Drawn under the previous section's selected row (a project's threads, as in T3). With no row selected
-    /// there, it is drawn as its own section.
-    pub nested: bool,
 }
 
 /// What a thread row carries besides its section item: kept apart so remote sections build rows as before.
@@ -252,44 +249,22 @@ impl Render for Sidebar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let now = ui::now_ms();
-        let mut blocks = Vec::new();
-        let mut i = 0;
-        while let Some(s) = self.sections.get(i) {
-            // A project's threads go under its row (T3's folder layout); with no project selected they stand alone.
-            let nested = self
-                .sections
-                .get(i + 1)
-                .filter(|n| n.nested && s.items.iter().any(|it| it.selected));
-            let body =
-                match nested {
-                    None => self.rows(s, false, now, theme),
-                    Some(n) => v_flex().gap_0p5().children(s.items.iter().map(|item| {
-                        let row = self.row(item, false, now, theme);
-                        if !item.selected {
-                            return row;
-                        }
-                        v_flex()
-                            .gap_0p5()
-                            .child(row)
-                            .child(self.rows(n, true, now, theme))
-                            .children(self.archived(now, theme))
-                            .children(section_button(n).map(|b| {
-                                h_flex().pl(gpui::px(THREAD_INDENT - 10.)).pb_1().child(b)
-                            }))
-                            .into_any_element()
-                    })),
-                };
-            blocks.push(
+        let blocks: Vec<_> = self
+            .sections
+            .iter()
+            .map(|s| {
                 v_flex()
                     .gap_1()
                     .child(
                         ui::SectionHeader::new(s.title.clone())
                             .when_some(section_button(s), |h, b| h.trailing(b)),
                     )
-                    .child(body),
-            );
-            i += if nested.is_some() { 2 } else { 1 };
-        }
+                    .child(self.rows(s, false, now, theme))
+                    .into_any_element()
+            })
+            // "Archived" at the end of the list, as the user guide says.
+            .chain(self.archived(now, theme).map(IntoElement::into_any_element))
+            .collect();
         let focus = self.focus.clone();
         v_flex()
             .id("sidebar")

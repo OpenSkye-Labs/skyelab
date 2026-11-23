@@ -3,7 +3,7 @@
 
 #[cfg(unix)]
 use super::claude_folded_turns_test::one_view;
-use super::thread_find::matches;
+use super::thread_find::{FindHost as _, matches};
 use super::thread_model::{Item, ToolItem};
 #[cfg(unix)]
 use super::timeline_fold::fold_key;

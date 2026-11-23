@@ -6,9 +6,8 @@
 use super::Workspace;
 use super::center::Page;
 use super::env_picker::{ConnectTyped, EnvPicker, ToggleEnvironments};
-use super::panels::{SidebarItem, SidebarSection};
 use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
-use crate::environment::{ConnState, EnvEvent, RemoteEnv};
+use crate::environment::{EnvEvent, RemoteEnv};
 use gpui::{
     Action, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement, SharedString,
     Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
@@ -285,118 +284,7 @@ impl Workspace {
         }));
     }
 
-    /// The sidebar in remote mode: the remote's projects and the selected one's threads. `None` on this machine.
-    pub(super) fn remote_sections(&self, cx: &Context<Self>) -> Option<Vec<SidebarSection>> {
-        let env = self.env.remote.as_ref()?.read(cx);
-        let projects = env
-            .projects
-            .iter()
-            .map(|p| SidebarItem {
-                project: None,
-                id: format!("remote-project-{}", p.id).into(),
-                label: p.name.clone().into(),
-                selected: env.project == Some(p.id),
-                action: Box::new(SelectRemoteProject { id: p.id }),
-                status: None,
-                updated_ms: None,
-                // A project row; its binding lives on the other machine, so no badge.
-                account: Some(super::panels::RowAccount::Hidden),
-            })
-            .collect();
-        let threads = env
-            .threads
-            .iter()
-            .map(|t| SidebarItem {
-                project: None,
-                id: format!("remote-thread-{}", t.id).into(),
-                label: t.title.clone().into(),
-                selected: false,
-                action: Box::new(OpenRemoteThread { id: t.id }),
-                status: Some(crate::ui::Status::parse(&t.status)),
-                updated_ms: Some(t.updated_at),
-                account: None,
-            })
-            .collect();
-        let connected = env.state == ConnState::Connected;
-        let trust = match &env.state {
-            // Only a node the connection really presents can be trusted (none: an old server sent no id).
-            ConnState::NodeChanged { now, .. } if env.presented_node() == Some(now) => Some((
-                SharedString::from("Trust it"),
-                Box::new(TrustRemoteNode {
-                    node_id: now.clone(),
-                }) as Box<_>,
-            )),
-            _ => None,
-        };
-        let has_project = env.project.is_some();
-        // Open local threads marked unread: background starts, and turns that finished unseen.
-        let waiting = self
-            .open_threads
-            .iter()
-            .filter(|v| v.read(cx).thread.as_ref().is_some_and(|t| t.unread))
-            .count();
-        let here = (waiting > 0).then(|| SidebarSection {
-            title: super::env_picker::THIS_MAC.into(),
-            items: vec![SidebarItem {
-                project: None,
-                id: "queued-local-tabs".into(),
-                label: match waiting {
-                    1 => "1 new thread here".into(),
-                    n => format!("{n} new threads here").into(),
-                },
-                selected: false,
-                action: Box::new(SwitchEnvironment { host: None }),
-                status: None,
-                updated_ms: None,
-                account: None,
-            }],
-            empty_title: SharedString::default(),
-            empty_hint: SharedString::default(),
-            button: None,
-            nested: false,
-        });
-        let sections = vec![
-            SidebarSection {
-                title: "Projects".into(),
-                items: projects,
-                empty_title: match (&env.error, connected) {
-                    (Some(e), true) => format!("Couldn't list projects: {e}").into(),
-                    (None, true) => "No projects there".into(),
-                    _ => env.state.label(),
-                },
-                empty_hint: match (&trust, &env.error) {
-                    (Some(_), Some(e)) => e.clone(),
-                    _ => format!("Projects on {}. Add them on that machine.", env.host).into(),
-                },
-                button: trust,
-                nested: false,
-            },
-            SidebarSection {
-                title: "Threads".into(),
-                items: threads,
-                empty_title: match (&env.error, has_project) {
-                    (Some(e), true) => format!("Couldn't list threads: {e}").into(),
-                    _ => "No threads".into(),
-                },
-                empty_hint: if has_project {
-                    "Start one with New thread. It runs on the other machine."
-                } else {
-                    "Select a project to see its threads."
-                }
-                .into(),
-                button: has_project.then(|| {
-                    (
-                        SharedString::from("New thread"),
-                        Box::new(NewRemoteThread) as Box<_>,
-                    )
-                }),
-                nested: true,
-            },
-        ];
-        Some(sections.into_iter().chain(here).collect())
-    }
-
-    fn select_remote_project(
+    pub(super) fn select_remote_project(
         &mut self,
         a: &SelectRemoteProject,
         _: &mut Window,

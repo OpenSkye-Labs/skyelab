@@ -2,7 +2,8 @@
 //! its cards name.
 
 use super::{ThreadView, ThreadViewEvent, lock};
-use crate::workspace::ask_cards::{OTHER, QuestionDraft, questions};
+use crate::workspace::ask_cards::QuestionDraft;
+use crate::workspace::question_drafts;
 use crate::workspace::thread_items::ItemsView;
 use gpui::{App, AppContext as _, Context, Entity, Window};
 use gpui_component::input::InputState;
@@ -48,34 +49,9 @@ impl ThreadView {
         cx.emit(ThreadViewEvent::OpenPath(path));
     }
 
-    fn draft_mut(&mut self, id: &str) -> &mut QuestionDraft {
-        let n = self
-            .items
-            .iter()
-            .find_map(|i| match i {
-                super::Item::Approval(a) if a.id == id => Some(questions(&a.raw).len()),
-                _ => None,
-            })
-            .unwrap_or_default();
-        let d = self.drafts.entry(id.to_owned()).or_default();
-        d.picked
-            .resize_with(n.max(d.picked.len()), Default::default);
-        d.other.resize_with(n.max(d.other.len()), Default::default);
-        d
-    }
-
     /// Toggles a pick. A single-choice question keeps one pick; "Other" is a pick too.
     pub fn pick(&mut self, id: &str, q: usize, option: usize, multi: bool, cx: &mut Context<Self>) {
-        let d = self.draft_mut(id);
-        let Some(set) = d.picked.get_mut(q) else {
-            return;
-        };
-        if !set.remove(&option) {
-            if !multi {
-                set.clear();
-            }
-            set.insert(option);
-        }
+        question_drafts::pick(&self.items, &mut self.drafts, id, q, option, multi);
         self.redraw(id, cx);
     }
 
@@ -87,53 +63,12 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<InputState> {
-        let existing = self.draft_mut(id).other.get(q).cloned().flatten();
-        if let Some(input) = existing {
-            return input;
-        }
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Your answer"));
-        if let Some(slot) = self.draft_mut(id).other.get_mut(q) {
-            *slot = Some(input.clone());
-        }
-        input
+        question_drafts::other_input(&self.items, &mut self.drafts, id, q, window, cx)
     }
 
     /// Each question's picks as labels (a typed "Other" answer is its text), or why they can't be sent yet.
     pub(super) fn answers(&self, id: &str, cx: &gpui::App) -> Result<Vec<Vec<String>>, String> {
-        let qs = self
-            .items
-            .iter()
-            .find_map(|i| match i {
-                super::Item::Approval(a) if a.id == id => Some(questions(&a.raw)),
-                _ => None,
-            })
-            .ok_or("that question is gone")?;
-        let draft = self.drafts.get(id);
-        qs.iter()
-            .enumerate()
-            .map(|(qi, q)| {
-                let picked = draft.and_then(|d| d.picked.get(qi));
-                let mut labels: Vec<String> = picked
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|&o| q.options.get(o).map(|(l, _)| l.clone()))
-                    .collect();
-                if picked.is_some_and(|p| p.contains(&OTHER)) {
-                    let typed = draft
-                        .and_then(|d| d.other.get(qi).cloned().flatten())
-                        .map(|i| i.read(cx).value().trim().to_owned())
-                        .unwrap_or_default();
-                    if typed.is_empty() {
-                        return Err(format!("Type your answer to \"{}\".", q.question));
-                    }
-                    labels.push(typed);
-                }
-                if labels.is_empty() {
-                    return Err(format!("Pick an answer to \"{}\".", q.question));
-                }
-                Ok(labels)
-            })
-            .collect()
+        question_drafts::answers(&self.items, &self.drafts, id, cx)
     }
 
     /// Sends every question's answer to the agent, off the UI thread.
@@ -170,17 +105,31 @@ impl ThreadView {
     /// Approve lets the agent leave plan mode and start (the thread goes to Ask, so edits ask first); Keep planning
     /// tells it no.
     pub fn answer_plan(&mut self, id: &str, approve: bool, cx: &mut Context<Self>) {
+        if let Err(e) = self.answer_plan_then(id, approve, |_| {}, cx) {
+            self.show_error(anyhow::anyhow!(e), cx);
+        }
+    }
+
+    /// [`Self::answer_plan`], from here or another device; `done` gets whether the agent took the answer.
+    pub(in crate::workspace) fn answer_plan_then(
+        &mut self,
+        id: &str,
+        approve: bool,
+        done: impl FnOnce(Result<(), String>) + Send + 'static,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
         if !approve {
-            return self.answer(id, Decision::Deny, cx);
+            return self.answer_then(id, Decision::Deny, done, cx);
         }
         let Some(session) = self.session.clone() else {
-            return self.show_error(anyhow::anyhow!("the agent isn't running"), cx);
+            return Err("the agent isn't running".into());
         };
         let id = id.to_owned();
         let sent =
             cx.background_spawn(async move { lock(&session)?.answer(&id, Decision::AllowOnce) });
         cx.spawn(async move |this, cx| {
             let sent = sent.await;
+            done(sent.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
             let _ = this.update(cx, |this, cx| match sent {
                 Err(e) => this.show_error(e, cx),
                 // Only once the agent has the approval, so it reads that before the mode change. Whether `-p` claude
@@ -190,6 +139,35 @@ impl ThreadView {
             });
         })
         .detach();
+        Ok(())
+    }
+
+    /// Whether `id` is an ExitPlanMode request: answering it allows or denies the plan, and an approval leaves Plan.
+    pub(in crate::workspace) fn is_plan(&self, id: &str) -> bool {
+        self.items.iter().any(
+            |i| matches!(i, super::Item::Approval(a) if a.id == id && a.tool == skyelab_agent::PLAN_TOOL),
+        )
+    }
+
+    /// Another device's answers to AskUserQuestion `id` (one list of labels per question), sent as a local Submit
+    /// sends them; `done` gets whether the agent took them (it refuses a count that doesn't match).
+    pub(in crate::workspace) fn answer_questions_then(
+        &mut self,
+        id: &str,
+        answers: Vec<Vec<String>>,
+        done: impl FnOnce(Result<(), String>) + Send + 'static,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let Some(session) = self.session.clone() else {
+            return Err("the agent isn't running".into());
+        };
+        let id = id.to_owned();
+        self.in_background(cx, move || {
+            let r = lock(&session).and_then(|mut s| s.answer_questions(&id, &answers));
+            done(r.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
+            r
+        });
+        Ok(())
     }
 
     fn redraw(&mut self, id: &str, cx: &mut Context<Self>) {

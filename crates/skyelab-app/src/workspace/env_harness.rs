@@ -124,7 +124,42 @@ pub(super) fn state(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Strin
 }
 
 /// The sidebar's sections as (title, row labels).
+/// The sidebar as (title, row labels), folded to what the switcher tests check: "Projects", then "Threads" (every
+/// thread section's rows: Pinned, Working, the days), then any other section ("This Mac").
 pub(super) fn sidebar(
+    ws: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> Vec<(String, Vec<String>)> {
+    const THREADS: [&str; 7] = [
+        "Pinned",
+        "Working",
+        "Today",
+        "Yesterday",
+        "Previous 7 days",
+        "Older",
+        "Threads",
+    ];
+    let raw = raw_sidebar(ws, cx);
+    let rows_of = |pick: &dyn Fn(&str) -> bool| -> Vec<String> {
+        raw.iter()
+            .filter(|(t, _)| pick(t))
+            .flat_map(|(_, rows)| rows.clone())
+            .collect()
+    };
+    let mut out = vec![
+        ("Projects".to_owned(), rows_of(&|t| t == "Projects")),
+        ("Threads".to_owned(), rows_of(&|t| THREADS.contains(&t))),
+    ];
+    out.extend(
+        raw.iter()
+            .filter(|(t, _)| t != "Projects" && !THREADS.contains(&t.as_str()))
+            .cloned(),
+    );
+    out
+}
+
+/// The sidebar's sections as drawn: (title, row labels).
+pub(super) fn raw_sidebar(
     ws: &Entity<Workspace>,
     cx: &mut VisualTestContext,
 ) -> Vec<(String, Vec<String>)> {
@@ -166,7 +201,7 @@ pub(super) fn connect(ws: &Entity<Workspace>, remote: &RemoteSide, cx: &mut Visu
     wait_until(cx, "remote projects", |cx| {
         sidebar(ws, cx)
             .first()
-            .is_some_and(|(_, rows)| rows == &["app".to_owned()])
+            .is_some_and(|(_, rows)| rows.contains(&"app".to_owned()))
     });
 }
 

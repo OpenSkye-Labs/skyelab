@@ -2,7 +2,9 @@
 //! client), are mapped with the same `thread_model::apply` and drawn with the same item renderer as a local thread.
 //! Sending and Stop go to the remote daemon; nothing here touches the local store or launches anything.
 
-use super::thread_items::{ItemsView, render_item};
+use super::question_drafts::Drafts;
+use super::thread_find::{Find, FindHost as _};
+use super::thread_items::render_item;
 use super::thread_model::{Item, Record, apply, stamp_done};
 use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use gpui::{
@@ -23,7 +25,9 @@ use std::rc::Rc;
 
 actions!(skyelab, [SendRemotePrompt, RemoteStop]);
 
-const CONTEXT: &str = "RemoteThread";
+mod items;
+
+pub(super) const CONTEXT: &str = "RemoteThread";
 
 pub enum RemoteThreadEvent {
     /// A thread was started on the remote, so its project's thread list is stale.
@@ -50,6 +54,9 @@ pub struct RemoteThreadView {
     pub(super) prompt: Entity<TextareaState>,
     error: Option<SharedString>,
     starting: bool,
+    find: Find,
+    /// AskUserQuestion picks not yet sent, by request id.
+    drafts: Drafts,
     _subs: Vec<Subscription>,
 }
 
@@ -119,6 +126,8 @@ impl RemoteThreadView {
             prompt,
             error: None,
             starting: false,
+            find: Find::default(),
+            drafts: Drafts::default(),
             _subs: subs,
         }
     }
@@ -136,7 +145,7 @@ impl RemoteThreadView {
         self.listed_account(cx).or_else(|| self.account.clone())
     }
 
-    /// The account in the environment's list, which only holds the selected project's threads.
+    /// The account in the environment's list.
     fn listed_account(&self, cx: &App) -> Option<String> {
         let id = self.thread_id?;
         let env = self.env.read(cx);
@@ -161,6 +170,7 @@ impl RemoteThreadView {
         let old = self.items.len();
         if let Some(first) = apply(&mut self.items, &record) {
             stamp_done(&mut self.items, event.created_at);
+            self.find_rows_changed();
             self.list.splice(first..old, self.items.len() - first);
             cx.notify();
         }
@@ -298,57 +308,6 @@ fn account_text(t: &Thread) -> String {
     }
 }
 
-impl ItemsView for RemoteThreadView {
-    fn items(&self) -> &[Item] {
-        &self.items
-    }
-    fn is_expanded(&self, tool_id: &str) -> bool {
-        self.expanded.contains(tool_id)
-    }
-    fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>) {
-        if !self.expanded.remove(tool_id) {
-            self.expanded.insert(tool_id.to_owned());
-        }
-        if let Some(rows) = super::timeline_fold::rows_of(&self.items, tool_id) {
-            let n = rows.len();
-            self.list.splice(rows, n);
-        }
-        cx.notify();
-    }
-    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.stop(&RemoteStop, window, cx)
-    }
-    fn can_answer(&self, cx: &App) -> bool {
-        self.thread_id.is_some() && self.env.read(cx).state == ConnState::Connected
-    }
-    fn answer(
-        &mut self,
-        id: &str,
-        decision: skyelab_agent::Decision,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        use skyelab_client::PermissionAnswer as A;
-        let (Some(thread), Some(answer)) = (
-            self.thread_id,
-            match decision {
-                skyelab_agent::Decision::AllowOnce => Some(A::AllowOnce),
-                skyelab_agent::Decision::AllowThread => Some(A::AllowThread),
-                skyelab_agent::Decision::Deny => Some(A::Deny),
-                skyelab_agent::Decision::Withdrawn => None,
-            },
-        ) else {
-            return;
-        };
-        if !self.can_answer(cx) {
-            return;
-        }
-        // The row updates when the agent's resolved event comes back from the other machine.
-        let pending = self.client.answer_permission(thread, id, answer);
-        self.await_reply(pending, None, window, cx, |_, _, _| {});
-    }
-}
-
 impl Focusable for RemoteThreadView {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus.clone()
@@ -376,6 +335,7 @@ impl Drop for RemoteThreadView {
 impl Render for RemoteThreadView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
+        let find = self.render_find(cx);
         let theme = cx.theme();
         let connected = self.env.read(cx).state == ConnState::Connected;
         let host = self.env.read(cx).host.clone();
@@ -394,9 +354,17 @@ impl Render for RemoteThreadView {
                 })
                 .into_any_element()
         } else {
-            list(self.list.clone(), cx.processor(render_item))
+            div()
+                .relative()
                 .flex_1()
-                .py_2()
+                .min_h_0()
+                .flex()
+                .child(
+                    list(self.list.clone(), cx.processor(render_item))
+                        .flex_1()
+                        .py_2(),
+                )
+                .children(find)
                 .into_any_element()
         };
         v_flex()
@@ -405,6 +373,10 @@ impl Render for RemoteThreadView {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::send))
             .on_action(cx.listener(Self::stop))
+            .on_action(cx.listener(Self::find_in_thread))
+            .on_action(cx.listener(Self::find_next))
+            .on_action(cx.listener(Self::find_previous))
+            .on_action(cx.listener(Self::close_find))
             .size_full()
             .bg(theme.background)
             .child(header)

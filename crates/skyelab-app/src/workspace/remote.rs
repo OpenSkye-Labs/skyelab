@@ -50,7 +50,7 @@ fn answer_within(
     .detach();
 }
 
-fn refused(message: impl Into<String>) -> RpcError {
+pub(super) fn refused(message: impl Into<String>) -> RpcError {
     RpcError::new(ErrorCode::BadRequest, message.into())
 }
 
@@ -63,7 +63,7 @@ pub(super) fn decision_of(a: skyelab_protocol::PermissionAnswer) -> skyelab_agen
     }
 }
 
-fn not_open(thread_id: i64) -> RpcError {
+pub(super) fn not_open(thread_id: i64) -> RpcError {
     RpcError::new(
         ErrorCode::NotFound,
         format!("thread {thread_id} isn't running here (it ended, or it was closed)"),
@@ -220,25 +220,14 @@ impl Workspace {
                 decision,
                 reply,
                 ..
-            } => {
-                let Some(view) = self.open_view(thread_id, cx) else {
-                    let _ = reply.send(Err(not_open(thread_id)));
-                    return;
-                };
-                let late = reply.clone();
-                // Replied once the agent took the answer, or refused it (already answered or withdrawn).
-                let asked = view.update(cx, |v, cx| {
-                    v.answer_then(
-                        &request_id,
-                        decision_of(decision),
-                        move |r| _ = late.send(r.map_err(refused)),
-                        cx,
-                    )
-                });
-                if let Err(why) = asked {
-                    let _ = reply.send(Err(refused(why)));
-                }
-            }
+            } => self.remote_answer(thread_id, &request_id, decision, reply, cx),
+            RemoteCall::Questions {
+                thread_id,
+                request_id,
+                answers,
+                reply,
+                ..
+            } => self.remote_questions(thread_id, &request_id, answers, reply, cx),
         }
     }
 

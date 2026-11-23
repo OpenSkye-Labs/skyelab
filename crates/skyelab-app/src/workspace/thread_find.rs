@@ -3,12 +3,13 @@
 //! folded turn or collapsed row it sits in, and tints the rows that match. Esc closes it.
 
 use super::thread::{CONTEXT, ThreadView};
+use super::thread_items::ItemsView;
 use super::thread_model::Item;
 use super::timeline_fold::{fold_key, folded_by};
 use crate::ui;
 use gpui::{
-    AnyElement, App, AppContext as _, Context, Entity, KeyBinding, Subscription, Window, actions,
-    div, prelude::*, px,
+    AnyElement, App, AppContext as _, Context, Entity, KeyBinding, ListState, Subscription, Window,
+    actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Disableable as _, IconName, Sizable as _,
@@ -30,6 +31,7 @@ const FIND_KEY: &str = if cfg!(target_os = "macos") {
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new(FIND_KEY, FindInThread, Some(CONTEXT)),
+        KeyBinding::new(FIND_KEY, FindInThread, Some(super::remote_thread::CONTEXT)),
         KeyBinding::new("escape", CloseFind, Some(FIND_CONTEXT)),
     ]);
 }
@@ -113,18 +115,20 @@ pub fn matches(items: &[Item], query: &str) -> Vec<usize> {
         .collect()
 }
 
-impl ThreadView {
+/// A view with a timeline the find bar searches: a local thread or another machine's.
+pub(super) trait FindHost: ItemsView {
+    fn find(&self) -> &Find;
+    fn find_mut(&mut self) -> &mut Find;
+    fn list_state(&self) -> &ListState;
+    /// Where focus goes once the bar closes (the composer).
+    fn focus_after_find(&self, window: &mut Window, cx: &mut App);
+
     /// mod+F: opens the bar (or focuses it again), its query selected.
-    pub(super) fn find_in_thread(
-        &mut self,
-        _: &FindInThread,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.items.is_empty() {
+    fn find_in_thread(&mut self, _: &FindInThread, window: &mut Window, cx: &mut Context<Self>) {
+        if self.items().is_empty() {
             return; // nothing to find, and the bar only draws over a timeline
         }
-        let input = match &self.timeline.find.input {
+        let input = match &self.find().input {
             Some(input) => input.clone(),
             None => {
                 let input = cx.new(|cx| InputState::new(window, cx).placeholder("Find in thread"));
@@ -134,7 +138,7 @@ impl ThreadView {
                         InputEvent::PressEnter { shift, .. } => this.find_step(!*shift, cx),
                         _ => {}
                     });
-                self.timeline.find = Find {
+                *self.find_mut() = Find {
                     input: Some(input.clone()),
                     _sub: Some(sub),
                     ..Find::default()
@@ -149,33 +153,23 @@ impl ThreadView {
         cx.notify();
     }
 
-    pub(super) fn close_find(
-        &mut self,
-        _: &CloseFind,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.timeline.find = Find::default();
-        self.focus_prompt(window, cx);
+    fn close_find(&mut self, _: &CloseFind, window: &mut Window, cx: &mut Context<Self>) {
+        *self.find_mut() = Find::default();
+        self.focus_after_find(window, cx);
         cx.notify();
     }
 
-    pub(super) fn find_next(&mut self, _: &FindNext, _: &mut Window, cx: &mut Context<Self>) {
+    fn find_next(&mut self, _: &FindNext, _: &mut Window, cx: &mut Context<Self>) {
         self.find_step(true, cx);
     }
 
-    pub(super) fn find_previous(
-        &mut self,
-        _: &FindPrevious,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn find_previous(&mut self, _: &FindPrevious, _: &mut Window, cx: &mut Context<Self>) {
         self.find_step(false, cx);
     }
 
     fn find_query(&self, cx: &App) -> String {
-        let f = &self.timeline.find;
-        f.input
+        self.find()
+            .input
             .as_ref()
             .map(|i| i.read(cx).value().to_string())
             .unwrap_or_default()
@@ -185,19 +179,21 @@ impl ThreadView {
     /// text: that one keeps the place.
     fn find_query_changed(&mut self, cx: &mut Context<Self>) {
         let query = self.find_query(cx);
-        if query == self.timeline.find.query {
+        if query == self.find().query {
             return;
         }
-        self.timeline.find.matches = matches(&self.items, &query);
-        self.timeline.find.query = query;
-        self.timeline.find.active = 0;
+        let found = matches(self.items(), &query);
+        let f = self.find_mut();
+        f.matches = found;
+        f.query = query;
+        f.active = 0;
         self.reveal_match(cx);
     }
 
     /// The next (or previous) match, wrapping around. Rows may have changed since the count, so it counts again.
-    pub(super) fn find_step(&mut self, forward: bool, cx: &mut Context<Self>) {
+    fn find_step(&mut self, forward: bool, cx: &mut Context<Self>) {
         self.find_rows_changed();
-        let f = &mut self.timeline.find;
+        let f = self.find_mut();
         let n = f.matches.len();
         f.active = match n {
             0 => 0,
@@ -209,12 +205,12 @@ impl ThreadView {
 
     /// Rows streamed in or changed while the bar is open: count again, keeping the place (the first match at or
     /// after the current one's row).
-    pub(super) fn find_rows_changed(&mut self) {
-        let f = &mut self.timeline.find;
-        if f.input.is_none() {
+    fn find_rows_changed(&mut self) {
+        if self.find().input.is_none() {
             return;
         }
-        let now = matches(&self.items, &f.query);
+        let now = matches(self.items(), &self.find().query);
+        let f = self.find_mut();
         if now == f.matches {
             return;
         }
@@ -227,33 +223,33 @@ impl ThreadView {
 
     /// Scrolls to the current match, opening the fold and the row it is in.
     fn reveal_match(&mut self, cx: &mut Context<Self>) {
-        let Some(&ix) = self.timeline.find.matches.get(self.timeline.find.active) else {
+        let Some(&ix) = self.find().matches.get(self.find().active) else {
             return cx.notify();
         };
-        if let Some(done) = folded_by(&self.items, ix) {
+        if let Some(done) = folded_by(self.items(), ix) {
             let key = fold_key(done);
             if !self.is_expanded(&key) {
                 self.toggle_tool(&key, cx);
             }
         }
-        let collapsed = match &self.items[ix] {
+        let collapsed = match &self.items()[ix] {
             Item::Tool(_) | Item::Subagent(_) | Item::Thinking { .. } | Item::Output { .. } => {
-                self.items[ix].expand_id().map(str::to_owned)
+                self.items()[ix].expand_id().map(str::to_owned)
             }
             _ => None,
         };
         if let Some(id) = collapsed.filter(|id| !self.is_expanded(id)) {
             self.toggle_tool(&id, cx);
         }
-        self.list.scroll_to_reveal_item(ix);
+        self.list_state().scroll_to_reveal_item(ix);
         cx.notify();
     }
 
     /// The bar, over the timeline's top right (T3: 12 px in, popover surface).
-    pub(super) fn render_find(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let input = self.timeline.find.input.clone()?;
+    fn render_find(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let input = self.find().input.clone()?;
         let query = input.read(cx).value().to_string();
-        let f = &self.timeline.find;
+        let f = self.find();
         let theme = cx.theme();
         let none = !query.trim().is_empty() && f.matches.is_empty();
         let step = |id: &'static str, icon: IconName, forward: bool| {
@@ -315,5 +311,20 @@ impl ThreadView {
                 )
                 .into_any_element(),
         )
+    }
+}
+
+impl FindHost for ThreadView {
+    fn find(&self) -> &Find {
+        &self.timeline.find
+    }
+    fn find_mut(&mut self) -> &mut Find {
+        &mut self.timeline.find
+    }
+    fn list_state(&self) -> &ListState {
+        &self.list
+    }
+    fn focus_after_find(&self, window: &mut Window, cx: &mut App) {
+        self.focus_prompt(window, cx);
     }
 }

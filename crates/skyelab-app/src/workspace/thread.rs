@@ -3,6 +3,7 @@
 //! Store writes and every Session call run off the UI thread: SQLite is file I/O, and killing
 //! reaps the child while holding the session lock.
 
+use super::thread_find::FindHost as _;
 use super::thread_model::{Item, Record, apply, limit_after, stamp_done};
 use super::{Backend, SharedStore, lock};
 use anyhow::Result;

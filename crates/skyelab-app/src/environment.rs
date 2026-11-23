@@ -130,6 +130,9 @@ pub enum EnvEvent {
     Untrusted,
 }
 
+/// How long after a pushed event the thread list is fetched again.
+const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(1);
+
 pub struct RemoteEnv {
     /// What the user picked: a MagicDNS name.
     pub host: String,
@@ -144,13 +147,16 @@ pub struct RemoteEnv {
     trusted: Option<String>,
     pub state: ConnState,
     pub projects: Vec<Project>,
+    /// Where New thread starts: the project picked last, else the first one.
     pub project: Option<i64>,
-    /// The selected project's threads, as the remote lists them.
+    /// Every project's threads, newest first, as the remote lists them.
     pub threads: Vec<Thread>,
     pub error: Option<SharedString>,
     _drain: Task<()>,
     _projects: Option<Task<()>>,
     _threads: Option<Task<()>>,
+    /// A thread listing due after pushed events (status and previews change as turns run).
+    _refresh: Option<Task<()>>,
     _node: Option<Task<()>>,
     _trust: Option<Task<()>>,
 }
@@ -192,6 +198,7 @@ impl RemoteEnv {
             _drain,
             _projects: None,
             _threads: None,
+            _refresh: None,
             _node: None,
             _trust: None,
         }
@@ -206,6 +213,7 @@ impl RemoteEnv {
             // The client delivers events only once `up` approved the connection; this guards the
             // ones still queued from a connection that has since been refused.
             Update::Event(event) if self.state == ConnState::Connected => {
+                self.refresh_soon(cx);
                 cx.emit(EnvEvent::Thread(event))
             }
             Update::Event(_) => {}
@@ -299,6 +307,7 @@ impl RemoteEnv {
         self.project = None;
         self._projects = None;
         self._threads = None;
+        self._refresh = None;
         cx.emit(EnvEvent::Untrusted);
         cx.notify();
     }
@@ -347,39 +356,84 @@ impl RemoteEnv {
             self.client.approve(hello);
         }
         self.load_projects(cx);
-        self.load_threads(cx);
         cx.notify();
     }
 
+    /// Whether the connected machine speaks protocol 1.`minor` or later (a call it doesn't know would fail).
+    pub fn speaks(&self, minor: u32) -> bool {
+        self.hello.as_ref().is_some_and(|h| {
+            h.protocol.major == skyelab_protocol::VERSION.major && h.protocol.minor >= minor
+        })
+    }
+
+    /// The projects, then every project's threads.
     fn load_projects(&mut self, cx: &mut Context<Self>) {
         let pending = self.client.list_projects();
-        self._projects = Some(self.await_reply(pending, cx, |this, projects, _| {
+        self._projects = Some(self.await_reply(pending, cx, |this, projects, cx| {
             this.projects = projects;
+            if !this
+                .project
+                .is_some_and(|id| this.projects.iter().any(|p| p.id == id))
+            {
+                this.project = this.projects.first().map(|p| p.id);
+            }
+            this.load_threads(cx);
         }));
     }
 
+    /// The project New thread starts in.
     pub fn select_project(&mut self, id: i64, cx: &mut Context<Self>) {
         self.project = Some(id);
-        self.threads.clear(); // never show another project's threads while this one's load
-        self.load_threads(cx);
         cx.notify();
     }
 
-    /// Only from a trusted connection; `up` loads them once it is.
-    pub fn load_threads(&mut self, cx: &mut Context<Self>) {
-        let Some(id) = self.project else {
+    /// Lists every project's threads again within a second, once however many events arrive meanwhile.
+    fn refresh_soon(&mut self, cx: &mut Context<Self>) {
+        if self._refresh.is_some() {
             return;
-        };
+        }
+        let timer = cx.background_executor().timer(REFRESH_AFTER);
+        self._refresh = Some(cx.spawn(async move |this, cx| {
+            timer.await;
+            let _ = this.update(cx, |this, cx| {
+                this._refresh = None;
+                this.load_threads(cx);
+            });
+        }));
+    }
+
+    /// Every project's threads, newest first. Only from a trusted connection; `up` loads them once it is. A listing
+    /// that fails keeps the rows shown and says why.
+    // shortcut: one `list_threads` per project; a `list_all_threads` call is the upgrade if machines have many.
+    pub fn load_threads(&mut self, cx: &mut Context<Self>) {
         if self.state != ConnState::Connected {
             return;
         }
-        let pending = self.client.list_threads(id);
-        self._threads = Some(self.await_reply(pending, cx, move |this, mut threads, _| {
-            // A slow reply for a project no longer selected changes nothing.
-            if this.project == Some(id) {
-                threads.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
-                this.threads = threads;
+        let pending: Vec<_> = self
+            .projects
+            .iter()
+            .map(|p| self.client.list_threads(p.id))
+            .collect();
+        self._threads = Some(cx.spawn(async move |this, cx| {
+            let mut all = Vec::new();
+            let mut failed = None;
+            for p in pending {
+                match p.recv_async().await {
+                    Ok(threads) => all.extend(threads),
+                    Err(e) => failed = Some(e.to_string()),
+                }
             }
+            let _ = this.update(cx, |this, cx| {
+                match failed {
+                    Some(e) => this.error = Some(e.into()),
+                    None => {
+                        all.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
+                        this.error = None;
+                        this.threads = all;
+                    }
+                }
+                cx.notify();
+            });
         }));
     }
 
@@ -407,59 +461,5 @@ impl RemoteEnv {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use skyelab_client::Disconnect;
-
-    fn gone(kind: DisconnectKind, message: &str) -> Update {
-        Update::Disconnected(Disconnect {
-            kind,
-            message: message.into(),
-        })
-    }
-
-    #[test]
-    fn states_from_updates() {
-        let state = |u| ConnState::from_update(&u);
-        // Only the client's typed refusal is a refusal, whatever the text says.
-        assert_eq!(
-            state(gone(DisconnectKind::Refused, "anything")),
-            Some(ConnState::Refused)
-        );
-        let bad_cert = "TLS with x.ts.net failed: invalid peer certificate: NotValidForName";
-        assert_eq!(
-            state(gone(DisconnectKind::Certificate, bad_cert)),
-            Some(ConnState::Reconnecting(bad_cert.into()))
-        );
-        let reset = "TLS with x.ts.net failed: Connection reset by peer (os error 54)";
-        assert_eq!(
-            state(gone(DisconnectKind::Other, reset)),
-            Some(ConnState::Reconnecting(reset.into()))
-        );
-        assert_eq!(
-            state(gone(
-                DisconnectKind::NotApproved,
-                "x hasn't approved (code AB12-CD34)"
-            )),
-            Some(ConnState::NotApproved(
-                "x hasn't approved (code AB12-CD34)".into()
-            ))
-        );
-        assert_eq!(
-            state(gone(DisconnectKind::Denied, "x turned this device down")),
-            Some(ConnState::Denied)
-        );
-        assert_eq!(
-            state(gone(DisconnectKind::NotYourDevice, "tagged")),
-            Some(ConnState::NotYourDevice("tagged".into()))
-        );
-        assert_eq!(
-            state(gone(DisconnectKind::IdentityMismatch, "n1 vs n2")),
-            Some(ConnState::IdentityMismatch("n1 vs n2".into()))
-        );
-        assert!(matches!(
-            state(Update::Fatal(Error::UnsupportedVersion("2.0".into()))),
-            Some(ConnState::VersionMismatch(_))
-        ));
-    }
-}
+#[path = "environment_tests.rs"]
+mod tests;
