@@ -62,7 +62,7 @@ impl Workspace {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // only the unix-only remote question tests use them
 impl Workspace {
     /// The open thread's permission mode.
     pub(crate) fn thread_mode(&self, id: i64, cx: &gpui::App) -> Option<skyelab_agent::Mode> {
