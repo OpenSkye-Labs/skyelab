@@ -37,3 +37,31 @@ fn a_typo_or_wrong_type_is_a_load_error() {
     std::fs::write(&path, "share_on_tailnet = \"yes\"\n").unwrap();
     assert!(AppSettings::load(&path).is_err());
 }
+
+#[test]
+fn thread_defaults_round_trip_and_titles_default_on() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    assert!(
+        skyelab_core::AppSettings::load(&path)
+            .expect("load")
+            .threads
+            .generate_titles
+    );
+    std::fs::write(
+        &path,
+        "[threads]\npermission_mode = \"plan\"\nnew_worktree = true\n",
+    )
+    .expect("write");
+    let s = skyelab_core::AppSettings::load(&path).expect("load");
+    assert!(s.threads.generate_titles, "a missing key keeps the default");
+    assert_eq!(s.threads.permission_mode.as_deref(), Some("plan"));
+    assert!(s.threads.new_worktree);
+    skyelab_core::AppSettings::update(&path, |s| s.threads.claude_model = Some("haiku".into()))
+        .expect("save");
+    let s = skyelab_core::AppSettings::load(&path).expect("load");
+    assert_eq!(
+        s.threads.model_for(skyelab_core::Provider::Claude),
+        (Some("haiku".into()), None)
+    );
+}

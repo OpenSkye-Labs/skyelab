@@ -379,8 +379,14 @@ impl Store {
         self.update_thread(id, "status", status)
     }
 
+    /// A fork's context prompt (see `create_fork`) is dropped once it has a session of its own.
     pub fn set_agent_session_id(&self, id: i64, session_id: Option<&str>) -> Result<()> {
-        self.update_thread(id, "agent_session_id", session_id)
+        self.update_thread(id, "agent_session_id", session_id)?;
+        if session_id.is_some() {
+            self.conn
+                .execute("UPDATE threads SET fork_context = NULL WHERE id = ?1", [id])?;
+        }
+        Ok(())
     }
 
     pub fn set_thread_worktree(
