@@ -56,6 +56,11 @@ and how Zed uses it, not blog posts or memory.
 - A click on a gpui-component `Checkbox` also reaches a clickable row around it, so handlers on both toggle twice
   (no change). Put the handler on the row only and leave the checkbox as its picture.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
+- `img()` takes its height from its width and the image's aspect ratio, even with `.h(..)` set: a wide box draws a
+  square image as tall as the box is wide. Cap it with `.max_h(..)` (the image viewer does), and check a fit in a live
+  screenshot, not only by reading the layout.
+- `Textarea::on_paste` sees the `ClipboardItem` before the text goes in; returning `true` keeps it out (long pastes
+  become attachments that way).
 
 ## Redraw discipline
 

@@ -45,7 +45,7 @@ sessions); to switch, add a new account and re-bind the folder.
 
 Codex threads run `codex app-server` in the `workspace-write` sandbox by default: Codex can edit files in the folder
 but not outside it, and has no network for its commands. When it wants to run a command it doesn't trust or step
-outside the sandbox, the thread asks you (see [Permissions](user-guide.md#permissions)). The repo's own `.codex/` config, hooks and rules never load; your account's own
+outside the sandbox, the thread asks you (see [Permissions](user-guide-permissions.md#permissions)). The repo's own `.codex/` config, hooks and rules never load; your account's own
 `CODEX_HOME/config.toml` (MCP servers, model) does.
 
 Accounts and bindings are saved in `accounts.toml` in the platform config folder:

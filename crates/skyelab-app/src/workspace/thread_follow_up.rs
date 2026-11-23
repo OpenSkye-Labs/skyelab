@@ -42,6 +42,7 @@ impl ThreadView {
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
         let shown = super::composer::shown_prompt(&text, &attachments);
+        self.keep_images(&shown, &attachments);
         // Claude folds any message sent into a running turn into that turn (one result answers both), so one sent
         // from another device or agent mid-turn is a steer too.
         let joins = self.turn_running() && account.provider == skyelab_core::Provider::Claude;

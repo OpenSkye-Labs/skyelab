@@ -76,10 +76,9 @@ impl ThreadView {
     ) {
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         self.restore_draft(window, cx); // set_value emits no Change
-        self.push(
-            &Record::Prompt(super::composer::shown_prompt(&text, &attachments)),
-            cx,
-        );
+        let shown = super::composer::shown_prompt(&text, &attachments);
+        self.keep_images(&shown, &attachments);
+        self.push(&Record::Prompt(shown), cx);
         self.start_agent(text, attachments, account, resume, false, cx);
     }
 

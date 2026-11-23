@@ -67,7 +67,8 @@ impl ThreadView {
         .detach();
     }
 
-    /// A paste: images and copied files become attachments; text goes into the prompt as usual (`false`).
+    /// A paste: images and copied files become attachments, and so does long text (T3's fold), with an offer to
+    /// paste it as text after all. Other text goes into the prompt as usual (`false`).
     pub(in crate::workspace) fn attach_clipboard(
         &mut self,
         item: &ClipboardItem,
@@ -76,6 +77,21 @@ impl ThreadView {
         let mut taken = false;
         for entry in item.entries() {
             match entry {
+                ClipboardEntry::String(s)
+                    if !taken && skyelab_core::prompt::is_long_paste(s.text()) =>
+                {
+                    taken = true;
+                    let names = self.composer.attachments.iter().map(|a| a.name.as_str());
+                    let name = skyelab_core::prompt::pasted_file_name(names);
+                    let before = self.composer.attachments.len();
+                    match Attachment::new(name.clone(), s.text().as_bytes().to_vec()) {
+                        Ok(a) => self.add_attachment(a),
+                        Err(e) => self.composer.notice = Some(format!("{e:#}").into()),
+                    }
+                    if self.composer.attachments.len() > before {
+                        self.composer.pasted = Some((name, s.text().clone()));
+                    }
+                }
                 ClipboardEntry::Image(img) => {
                     taken = true;
                     let n = self.composer.attachments.len() + 1;
@@ -114,9 +130,32 @@ impl ThreadView {
 
     pub(in crate::workspace) fn remove_attachment(&mut self, ix: usize, cx: &mut Context<Self>) {
         if ix < self.composer.attachments.len() {
-            self.composer.attachments.remove(ix);
+            let gone = self.composer.attachments.remove(ix);
+            if self
+                .composer
+                .pasted
+                .as_ref()
+                .is_some_and(|(n, _)| *n == gone.name)
+            {
+                self.composer.pasted = None;
+            }
         }
         self.composer.notice = None;
+        cx.notify();
+    }
+
+    /// "Paste as text": the last long paste leaves its chip and goes into the prompt at the caret.
+    pub(in crate::workspace) fn paste_as_text(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((name, text)) = self.composer.pasted.take() else {
+            return;
+        };
+        self.composer.attachments.retain(|a| a.name != name);
+        self.prompt.update(cx, |p, cx| p.replace(text, window, cx));
+        self.focus_prompt(window, cx);
         cx.notify();
     }
 }

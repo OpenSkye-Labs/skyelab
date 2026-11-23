@@ -47,7 +47,10 @@ What's built today:
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
   `/` and skills with `$`, and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
-  files and branch.
+  files and branch. A long paste (8 KB or 200 lines) attaches as a text file instead, and images you sent or preview
+  open large in a zoomable viewer.
+- **Scratch threads.** **New Scratch Thread** asks for an account and runs a quick question in that account's own
+  scratch folder, bound to it on first use and listed as **Scratch · <account>**. No default account, even here.
 - **Titles, drafts, history and forks.** After the first reply, the thread's own account names it (off in Settings →
   Threads, which also holds the defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
   recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point

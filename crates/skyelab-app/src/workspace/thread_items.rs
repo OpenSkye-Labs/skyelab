@@ -50,6 +50,10 @@ pub(super) trait ItemsView: Sized + 'static {
     fn files_root(&self) -> Option<&std::path::Path> {
         None
     }
+    /// The images a message with this shown text carried, while this tab still holds them.
+    fn sent_images(&self, _text: &str) -> Option<&super::image_viewer::Sent> {
+        None
+    }
     /// Shows a file a reply links to in the Preview tab, at `line`.
     fn preview_path(&mut self, _path: &str, _line: Option<u32>, _cx: &mut Context<Self>) {}
     /// The checkpoint turn and changed files of the turn whose divider is row `done`.
@@ -181,9 +185,14 @@ fn render_row<V: ItemsView>(
     };
     match item {
         Item::Prompt(text) | Item::Steer(text) => column(
-            h_flex()
+            v_flex()
                 .w_full()
-                .justify_end()
+                .items_end()
+                .gap_1p5()
+                .children(
+                    this.sent_images(text)
+                        .map(|images| super::image_viewer::thumbnails(ix, images)),
+                )
                 .child(
                     div()
                         .max_w(relative(0.8))

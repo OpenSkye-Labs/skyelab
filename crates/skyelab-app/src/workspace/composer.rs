@@ -11,11 +11,16 @@ pub(crate) mod composer_context;
 mod composer_draft;
 #[path = "composer_footer.rs"]
 mod composer_footer;
+#[path = "composer_machine.rs"]
+mod composer_machine;
 #[path = "composer_menu.rs"]
 mod composer_menu;
 #[cfg(test)]
 #[path = "composer_menu_test.rs"]
 mod composer_menu_test;
+#[cfg(all(test, unix))]
+#[path = "composer_paste_test.rs"]
+mod composer_paste_test;
 #[path = "composer_picker.rs"]
 mod composer_picker;
 #[path = "composer_queue.rs"]
@@ -33,7 +38,7 @@ mod composer_review_test;
 mod composer_send;
 #[path = "composer_state.rs"]
 mod composer_state;
-pub(in crate::workspace) use composer_state::machine_name;
+pub(in crate::workspace) use composer_machine::machine_name;
 
 #[cfg(test)]
 use crate::workspace::*;
@@ -158,6 +163,24 @@ impl ThreadView {
                     .text_size(ui::META)
                     .text_color(ui::ink(theme, theme.danger))
                     .child(n)
+            }))
+            .children(self.composer.pasted.as_ref().map(|(name, _)| {
+                h_flex()
+                    .px_2()
+                    .pt_1()
+                    .gap_1()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(format!("Long paste attached as {name}."))
+                    .child(
+                        Button::new("paste-as-text")
+                            .ghost()
+                            .xsmall()
+                            .label("Paste as text")
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.paste_as_text(window, cx)),
+                            ),
+                    )
             }))
             .child(footer)
             .into_any_element()

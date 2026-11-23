@@ -17,6 +17,6 @@ and the search never follows a symlink. They aren't available while the window s
 - **Preview**: a read-only tab with line numbers and syntax highlighting, scrolled to the line asked for. Images show
   as images (an SVG shows as its text, since drawing one can load files from elsewhere); a binary file or a file over
   2 MB (images: 16 MB) shows a note instead. The button at the top right opens the file in your editor. One Preview
-  tab is reused for each file you open.
+  tab is reused for each file you open. Click an image to view it large (zoom, <kbd>Esc</kbd> closes).
 
-File paths in the agent's replies open in the Preview tab too; see [What the timeline shows](user-guide.md#what-the-timeline-shows).
+File paths in the agent's replies open in the Preview tab too; see [What the timeline shows](user-guide-using-threads.md#what-the-timeline-shows).

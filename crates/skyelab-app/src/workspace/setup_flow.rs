@@ -90,7 +90,7 @@ impl Workspace {
 
     /// One edit of accounts.toml as it is on disk now, saved only if the whole edit succeeds. Refused while the file
     /// can't be read, so a broken file is never replaced.
-    fn edit_accounts(
+    pub(super) fn edit_accounts(
         &mut self,
         edit: impl FnOnce(&mut AccountsConfig) -> anyhow::Result<()>,
         cx: &mut Context<Self>,

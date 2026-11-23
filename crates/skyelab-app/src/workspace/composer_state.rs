@@ -118,6 +118,8 @@ pub(crate) struct Composer {
     pub footer: Footer,
     /// Why the last attach or send was refused.
     pub notice: Option<SharedString>,
+    /// The last long paste made into a chip (its name and text), for "Paste as text".
+    pub pasted: Option<(String, String)>,
     /// An interrupt was sent and the turn hasn't ended yet ("Stopping…"); its number, so a late timer can't clear a newer one.
     pub interrupting: Option<u64>,
     /// The last interrupt went unanswered for [`INTERRUPT_WAIT`]: Force stop shows.
@@ -161,34 +163,6 @@ pub(in crate::workspace) fn fits(provider: Provider, model: &str) -> bool {
     let claude =
         CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model) || model.starts_with("claude");
     claude == (provider == Provider::Claude)
-}
-
-/// This machine's name as people know it (macOS's Computer Name), read once.
-pub(in crate::workspace) fn machine_name() -> Option<String> {
-    static NAME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
-    NAME.get_or_init(|| {
-        #[cfg(target_os = "macos")]
-        {
-            // Absolute path and an empty env: nothing of ours leaks into the child.
-            let mut cmd = std::process::Command::new("/usr/sbin/scutil");
-            cmd.args(["--get", "ComputerName"]).env_clear();
-            let out = skyelab_core::process::output(&mut cmd, None).ok()?;
-            let name = String::from_utf8_lossy(&out.stdout).trim().to_owned();
-            (out.status.success() && !name.is_empty()).then_some(name)
-        }
-        #[cfg(windows)]
-        {
-            std::env::var("COMPUTERNAME").ok().filter(|n| !n.is_empty())
-        }
-        #[cfg(not(any(target_os = "macos", windows)))]
-        {
-            let name = std::fs::read_to_string("/proc/sys/kernel/hostname")
-                .or_else(|_| std::fs::read_to_string("/etc/hostname"))
-                .ok()?;
-            Some(name.trim().to_owned()).filter(|n| !n.is_empty())
-        }
-    })
-    .clone()
 }
 
 impl ThreadView {
@@ -266,7 +240,7 @@ impl ThreadView {
                 paths.len()
             });
             let branch = skyelab_git::current_branch(&cwd).ok().flatten();
-            (machine_name(), branch, changes)
+            (super::composer_machine::machine_name(), branch, changes)
         });
         cx.spawn(async move |this, cx| {
             let (machine, branch, changes) = task.await;

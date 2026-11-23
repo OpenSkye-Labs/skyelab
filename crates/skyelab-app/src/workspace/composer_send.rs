@@ -46,6 +46,7 @@ impl ThreadView {
         if external {
             Vec::new()
         } else {
+            self.composer.pasted = None;
             std::mem::take(&mut self.composer.attachments)
         }
     }
@@ -224,6 +225,12 @@ impl ThreadView {
             && !(self.composer.attachments.is_empty()
                 && self.composer.terminal_contexts.is_empty());
         if (text.is_empty() && !has_files) || self.read_only || self.starting {
+            return;
+        }
+        // Over the provider's limit: refused here, with the text kept, rather than by the agent mid-turn.
+        if let Some(why) = skyelab_core::prompt::over_limit(&text) {
+            self.composer.notice = Some(why.into());
+            cx.notify();
             return;
         }
         // The folder decides the account. Unbound means ask the user, never pick one.
