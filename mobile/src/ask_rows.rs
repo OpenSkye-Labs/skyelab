@@ -4,6 +4,7 @@
 //! request until then).
 
 use super::*;
+use crate::timeline_rows::clip;
 use skyelab_agent::timeline::cards::{Question, questions};
 
 /// Each question's picked labels, or why they can't be sent yet. `picked[q]` holds question `q`'s option indexes.
@@ -120,7 +121,7 @@ impl MobileApp {
                 div()
                     .text_sm()
                     .font_weight(FontWeight::SEMIBOLD)
-                    .child(q.question.clone()),
+                    .child(clip(&q.question)),
             );
             for (oi, (label, description)) in q.options.iter().enumerate() {
                 let on = draft
@@ -143,14 +144,14 @@ impl MobileApp {
                         .child(
                             div()
                                 .text_sm()
-                                .child(format!("{} {label}", if on { "●" } else { "○" })),
+                                .child(clip(&format!("{} {label}", if on { "●" } else { "○" }))),
                         )
                         .when(!description.is_empty(), |d| {
                             d.child(
                                 div()
                                     .text_xs()
                                     .text_color(theme.muted_foreground)
-                                    .child(description.clone()),
+                                    .child(clip(description)),
                             )
                         })
                         .when(answerable, |d| {
@@ -189,7 +190,12 @@ impl MobileApp {
                 .label(label)
                 .on_click(cx.listener(move |this, _, _, cx| this.answer(&request, d, cx)))
         };
-        let plan: String = plan.lines().take(40).collect::<Vec<_>>().join("\n");
+        let plan: String = plan
+            .lines()
+            .take(40)
+            .map(clip)
+            .collect::<Vec<_>>()
+            .join("\n");
         card(cx)
             .child(title("Proposed plan", cx))
             .child(div().text_sm().child(plan))
@@ -214,7 +220,7 @@ impl MobileApp {
         };
         card(cx)
             .child(title("Waiting for approval", cx))
-            .child(div().text_sm().child(what.to_owned()))
+            .child(div().text_sm().child(clip(what)))
             .child(
                 h_flex()
                     .flex_wrap()

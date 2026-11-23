@@ -176,6 +176,10 @@ impl MobileApp {
                             {
                                 app.screen = Screen::Threads;
                             }
+                            // Its rows mean nothing on whatever node is trusted next.
+                            if source.connection().is_untrusted() {
+                                app.shown = None;
+                            }
                         }
                         cx.notify();
                     });

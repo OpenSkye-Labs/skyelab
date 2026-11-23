@@ -18,7 +18,7 @@ const TEXT_LINES: usize = 500;
 /// Characters any one line keeps.
 const LINE_CHARS: usize = 2_000;
 
-fn clip(line: &str) -> String {
+pub fn clip(line: &str) -> String {
     match line.char_indices().nth(LINE_CHARS) {
         Some((at, _)) => format!("{}…", &line[..at]),
         None => line.to_owned(),
@@ -41,7 +41,8 @@ fn images(result: Option<&str>) -> impl Iterator<Item = String> + '_ {
         .into_iter()
         .flat_map(str::lines)
         .filter(|l| l.starts_with("Image (") || *l == "Image")
-        .map(str::to_owned)
+        .take(OUTPUT_LINES)
+        .map(clip)
 }
 
 fn now_secs() -> i64 {
@@ -66,6 +67,7 @@ pub fn row_lines(item: &Item, open: bool) -> Vec<String> {
         Item::Subagent(s) => subagent_lines(s, open),
         Item::Todo(todos) => todos
             .iter()
+            .take(OUTPUT_LINES)
             .map(|t| {
                 let mark = match t.status {
                     TodoStatus::Completed => "✓",
@@ -140,12 +142,12 @@ fn tool_lines(t: &ToolItem, open: bool) -> Vec<String> {
         let lines = edit_lines(t);
         let count = |k| lines.iter().filter(|l| l.2 == k).count();
         let file = t.raw["file_path"].as_str().unwrap_or_default();
-        let mut out = vec![format!(
+        let mut out = vec![clip(&format!(
             "{} {file} +{} −{}",
             t.name,
             count(LineKind::Added),
             count(LineKind::Removed)
-        )];
+        ))];
         let changed: Vec<&(Option<u32>, Option<u32>, LineKind, String)> =
             lines.iter().filter(|l| l.2 != LineKind::Context).collect();
         let shown = if open { OUTPUT_LINES } else { DIFF_LINES };
@@ -195,7 +197,12 @@ fn subagent_lines(s: &SubagentItem, open: bool) -> Vec<String> {
     line.push_str(&format!(" · {} calls", s.tools.len()));
     out.push(clip(&line));
     if open {
-        out.extend(s.tools.iter().map(|t| clip(&call_line(t))));
+        out.extend(
+            s.tools
+                .iter()
+                .take(OUTPUT_LINES)
+                .map(|t| clip(&call_line(t))),
+        );
         out.extend(s.summary.iter().flat_map(|r| head(r, OUTPUT_LINES)));
     }
     out
