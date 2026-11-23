@@ -3,7 +3,7 @@
 //! Store writes and every Session call run off the UI thread: SQLite is file I/O, and killing
 //! reaps the child while holding the session lock.
 
-use super::thread_model::{Item, Record, apply};
+use super::thread_model::{Item, Record, apply, limit_after};
 use super::{Backend, SharedStore, lock};
 use anyhow::Result;
 use gpui::{
@@ -11,7 +11,7 @@ use gpui::{
     ListState, SharedString, Subscription, Task, Window, actions, px,
 };
 use gpui_component::input::{InputEvent, TextareaState};
-use skyelab_agent::{Decision, Mode, Session};
+use skyelab_agent::{Mode, Session};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Store, Thread};
 use std::collections::HashSet;
@@ -38,6 +38,8 @@ pub(super) fn accounts_now(
     )
 }
 
+#[path = "thread_answers.rs"]
+mod answers;
 /// The composer under the thread (`composer.rs` and its parts).
 #[path = "composer.rs"]
 pub(super) mod composer;
@@ -78,10 +80,18 @@ pub struct ThreadView {
     /// The folder was unbound at send time; the view shows the bind call to action.
     pub(super) needs_binding: bool,
     pub(super) items: Vec<Item>,
+    /// `Some(resets_at)` while the account's usage limit holds the agent back.
+    pub(super) limited: Option<Option<i64>>,
     pub(super) list: ListState,
     expanded: HashSet<String>,
+    /// Unsent AskUserQuestion picks, by ask id.
+    pub(super) drafts: std::collections::HashMap<String, super::ask_cards::QuestionDraft>,
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
+    /// The prompt a resume launch sent, kept until its session answers: rerun in a new session if it was gone.
+    pub(super) resumed_prompt: Option<String>,
+    /// Set when the resumed session was gone: rerun when this agent has ended.
+    pub(super) rerun: Option<String>,
     /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
     pub(super) background: bool,
     stop_requested: bool,
@@ -212,6 +222,7 @@ impl ThreadView {
                     this.finish(cx);
                     for r in &records {
                         apply(&mut this.items, r);
+                        this.limited = limit_after(this.limited, r);
                     }
                     this.list.reset(this.items.len());
                     if skipped > 0 {
@@ -275,10 +286,14 @@ impl ThreadView {
             session: None,
             needs_binding: false,
             items: Vec::new(),
+            limited: None,
             list,
             expanded: HashSet::new(),
+            drafts: Default::default(),
             error: None,
             starting: false,
+            resumed_prompt: None,
+            rerun: None,
             background: false,
             stop_requested: false,
             launches: 0,
@@ -368,14 +383,15 @@ impl ThreadView {
     /// may still say running from before).
     pub(super) fn live_status(&self) -> crate::ui::Status {
         use crate::ui::Status;
+        let running = self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0;
         if self.starting {
             Status::Starting
+        } else if self.session.is_some() && running {
+            Status::Running // still working, so closing it would cut the work off
+        } else if self.limited.is_some() {
+            Status::Limited
         } else if self.session.is_some() {
-            if self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0 {
-                Status::Running
-            } else {
-                Status::Idle
-            }
+            Status::Idle
         } else {
             match self.thread.as_ref().map(|t| Status::parse(&t.status)) {
                 Some(Status::Starting | Status::Running) | None => Status::Stopped,
@@ -400,34 +416,6 @@ impl ThreadView {
             self.list.splice(ix..ix + 1, 1);
         }
         cx.notify();
-    }
-
-    /// Answers the agent's permission request `id` (a click on its row).
-    pub fn answer(&mut self, id: &str, decision: Decision, cx: &mut Context<Self>) {
-        if let Err(e) = self.answer_then(id, decision, |_| {}, cx) {
-            self.show_error(anyhow::anyhow!(e), cx);
-        }
-    }
-
-    /// Sends the answer off the UI thread; `done` gets whether the agent took it (it can't once the request was
-    /// withdrawn). Refused at once when no agent runs.
-    pub(super) fn answer_then(
-        &mut self,
-        id: &str,
-        decision: Decision,
-        done: impl FnOnce(Result<(), String>) + Send + 'static,
-        cx: &mut Context<Self>,
-    ) -> Result<(), String> {
-        let Some(session) = self.session.clone() else {
-            return Err("the agent isn't running".into());
-        };
-        let id = id.to_owned();
-        self.in_background(cx, move || {
-            let r = lock(&session).and_then(|mut s| s.answer(&id, decision));
-            done(r.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
-            r
-        });
-        Ok(())
     }
 
     /// Picks the thread's permission mode. Full access waits for [`Self::confirm_mode`].
@@ -486,6 +474,11 @@ impl ThreadView {
     }
 
     fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
+        let limited = limit_after(self.limited, record);
+        if limited != self.limited {
+            self.limited = limited;
+            cx.notify();
+        }
         let old = self.items.len();
         if let Some(first) = apply(&mut self.items, record) {
             self.list.splice(first..old, self.items.len() - first);

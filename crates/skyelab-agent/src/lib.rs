@@ -8,6 +8,7 @@ mod event;
 mod launch;
 mod pipes;
 mod prompts;
+mod reap;
 pub use launch::resolve_bin;
 use pipes::{read_events, read_stderr, write_lines};
 #[cfg(unix)]
@@ -16,7 +17,8 @@ mod models;
 mod permission;
 
 pub use attach::{Attachment, Kind as AttachmentKind, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
-pub use event::{Block, Event};
+pub use claude::{PLAN_TOOL, QUESTION_TOOL};
+pub use event::{Block, DeltaKind, Event, TODO_TOOL, Todo, TodoStatus, Usage, session_gone, todos};
 pub use models::{CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, list_codex_models};
 pub use permission::{Decision, Mode, summary};
 
@@ -266,6 +268,8 @@ fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str
         "--output-format",
         "stream-json",
         "--verbose",
+        // Text and thinking as they stream, as `Event::Delta`.
+        "--include-partial-messages",
         // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
         "--setting-sources",
         "user",
@@ -345,6 +349,31 @@ impl Session {
         Ok(())
     }
 
+    /// Answers the AskUserQuestion ask `id` with each question's picked labels, in question order (a typed "Other"
+    /// answer is a label too). Then the session's events carry [`Event::PermissionResolved`] (allowed once). Fails,
+    /// sending nothing, when `id` isn't a waiting question or the count doesn't match its questions.
+    pub fn answer_questions(&mut self, id: &str, answers: &[Vec<String>]) -> Result<()> {
+        let line = match &self.codex {
+            Some(state) => lock(state).answer_questions(id, answers),
+            None => claude::answer_questions(&self.asks, id, answers).map(|v| v.to_string()),
+        };
+        let Some(line) = line else {
+            bail!("the agent is no longer waiting for these answers");
+        };
+        self.queue(line)?;
+        match &self.codex {
+            Some(state) => lock(state).forget(id),
+            None => claude::forget(&self.asks, id),
+        }
+        if let Some(tx) = self.events_tx.upgrade() {
+            let _ = tx.send(Event::PermissionResolved {
+                id: id.to_owned(),
+                decision: Decision::AllowOnce,
+            });
+        }
+        Ok(())
+    }
+
     /// Changes the running agent's permission mode: Claude's at once, Codex's from its next turn. Claude takes Full
     /// access only if it started in it; otherwise this fails and it keeps its mode until it starts again.
     pub fn set_mode(&mut self, mode: Mode) -> Result<()> {
@@ -385,69 +414,6 @@ impl Session {
             "request_id": request_id,
             "request": { "subtype": "interrupt" },
         }))
-    }
-
-    /// The exit status once the agent has exited (reaping it), or `None` while it runs. Reaping it also ends what
-    /// is left of its process group (a tool it started that still holds its stdout).
-    pub fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
-        if self.status.is_some() {
-            return Ok(self.status);
-        }
-        // Unix: signal the group while the unreaped leader still holds its pid and group id, so it can't reach
-        // anyone else's. Windows: the Job Object names the tree, so it closes after the reap.
-        #[cfg(unix)]
-        {
-            if !self.exited_unreaped()? {
-                return Ok(None);
-            }
-            self.kill_group();
-        }
-        self.status = self
-            .child
-            .try_wait()
-            .context("checking whether the agent exited")?;
-        #[cfg(not(unix))]
-        if self.status.is_some() {
-            self.kill_group();
-        }
-        Ok(self.status)
-    }
-
-    /// Kills the process (and on unix its whole process group) and waits for it. Does nothing
-    /// once the process has been reaped, by an earlier `kill` or a `try_wait` that returned `Some`.
-    pub fn kill(&mut self) -> Result<()> {
-        // Unreaped, even a zombie leader still holds its pid and process group id, so they are safe to signal.
-        if self.status.is_some() {
-            return Ok(());
-        }
-        self.kill_group();
-        // An already-exited child makes kill() error; wait() still reaps it.
-        let _ = self.child.kill();
-        self.status = Some(self.child.wait().context("waiting for the agent to exit")?);
-        Ok(())
-    }
-
-    /// Whether the agent has exited, without reaping it.
-    #[cfg(unix)]
-    fn exited_unreaped(&self) -> Result<bool> {
-        use rustix::process::{Pid, WaitId, WaitIdOptions, waitid};
-        let pid = i32::try_from(self.child.id())
-            .ok()
-            .and_then(Pid::from_raw)
-            .context("the agent's pid")?;
-        let options = WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT;
-        Ok(waitid(WaitId::Pid(pid), options)
-            .context("checking whether the agent exited")?
-            .is_some())
-    }
-
-    /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing
-    /// its kill-on-close Job Object on Windows.
-    fn kill_group(&mut self) {
-        #[cfg(windows)]
-        drop(self.job.take());
-        #[cfg(unix)]
-        launch::kill_group(self.child.id());
     }
 
     fn write(&mut self, msg: &serde_json::Value) -> Result<()> {

@@ -25,7 +25,9 @@ What's built today:
   with its project, state and the account its folder is bound to. A project filter narrows it, and New thread asks
   which project when it can't tell.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
-  account, renders its messages and tool calls as they arrive, and saves everything to a local SQLite database.
+  account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
+  commands with their output, a live todo list, answerable questions and plans), and saves the conversation to a
+  local SQLite database (complete messages; streamed partial text is shown, not saved).
   Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and

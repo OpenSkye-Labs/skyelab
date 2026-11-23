@@ -74,12 +74,58 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        self.push(
+            &Record::Prompt(super::composer::shown_prompt(&text, &attachments)),
+            cx,
+        );
+        self.start_agent(text, attachments, account, resume, false, cx);
+    }
+
+    /// The resumed session was gone: start `text` again in a new session. Its prompt is already shown and stored.
+    /// The row keeps the dead session id until the new session reports its own, so a failed start leaves the thread
+    /// able to send again. `Err` says why nothing started.
+    pub(super) fn start_fresh(
+        &mut self,
+        text: String,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let mut thread = self.thread.clone().ok_or("the thread has no row")?;
+        match self.config.resolve(&self.cwd).cloned() {
+            Some(account) if account.id == thread.account_id => {
+                thread.agent_session_id = None;
+                // shortcut: the rerun sends the prompt's text only, not its attachments; keep them if that matters.
+                self.start_agent(text, Vec::new(), account, Some(thread), true, cx);
+                Ok(())
+            }
+            _ => Err(format!(
+                "The agent's earlier session couldn't be found, and {} isn't bound to {} any more, so it can't \
+                 start a new one. Bind the folder again, then send a message.",
+                self.cwd.display(),
+                thread.account_id
+            )),
+        }
+    }
+
+    /// Starts the agent; `again` reruns a prompt that is already shown and stored (no second prompt row).
+    fn start_agent(
+        &mut self,
+        text: String,
+        attachments: Vec<skyelab_agent::Attachment>,
+        account: Account,
+        resume: Option<Thread>,
+        again: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.rerun = None;
+        self.resumed_prompt = resume
+            .as_ref()
+            .filter(|t| t.agent_session_id.is_some())
+            .map(|_| text.clone());
         self.starting = true;
         self.stop_requested = false;
         self.launches += 1;
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         let record = Record::Prompt(super::composer::shown_prompt(&text, &attachments));
-        self.push(&record, cx);
         let pick = self.composer.pick.clone();
 
         let bin = match account.provider {
@@ -191,7 +237,9 @@ impl ThreadView {
                         unsaved
                             .flush(&store, thread.id)
                             .context("earlier events of this thread aren't saved yet")?;
-                        append(&mut *lock(&store)?, thread.id, &record)?;
+                        if !again {
+                            append(&mut *lock(&store)?, thread.id, &record)?;
+                        }
                         if is_new {
                             lock(&store)?.set_thread_model(thread.id, &pick)?;
                         }

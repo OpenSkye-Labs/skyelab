@@ -310,6 +310,7 @@ impl Workspace {
                     }
                 }
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
+                ThreadViewEvent::OpenPath(path) => this.open_path(view, path, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =
                         (this.accounts_job(cx), cwd.clone(), account_id.clone());
@@ -397,6 +398,36 @@ impl Workspace {
         self.add_right_panel(changes.clone(), window, cx);
         self.changes_views.push(changes.downgrade());
         cx.notify();
+    }
+
+    /// A file the thread's timeline names: its folder's Changes tab, scrolled to the file once the diff lists it.
+    fn open_path(
+        &mut self,
+        view: &Entity<ThreadView>,
+        path: &std::path::Path,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_changes(view, window, cx);
+        let dir = view.read(cx).cwd.clone();
+        let base = view
+            .read(cx)
+            .thread
+            .as_ref()
+            .and_then(|t| t.worktree_base.clone());
+        let tab = self
+            .changes_views
+            .iter()
+            .filter_map(|c| c.upgrade())
+            .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
+        if let Some(changes) = tab {
+            let path = path.to_owned();
+            changes.update(cx, |c, cx| {
+                // A refresh is on its way (open_changes started it): reveal against what it loads.
+                c.reveal_after_load = Some(path.clone());
+                c.reveal(&path, cx);
+            });
+        }
     }
 
     /// A thread's turn ended: every Changes tab on its folder may be out of date.

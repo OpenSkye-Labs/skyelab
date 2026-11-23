@@ -40,6 +40,8 @@ mod scripts;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
+mod ask_cards;
+mod shell_card;
 pub(crate) mod thread_checkpoints;
 mod thread_items;
 mod thread_list;
@@ -47,6 +49,8 @@ use thread_list::{NewThreadIn, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
+mod timeline_text;
+mod tool_cards;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
@@ -452,6 +456,9 @@ mod browser_tests;
 
 #[cfg(test)]
 mod thread_model_test;
+
+#[cfg(test)]
+mod timeline_tests;
 
 #[cfg(test)]
 mod threads_test;
