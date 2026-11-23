@@ -597,3 +597,8 @@ mod commit_hook_env_test;
 mod delegation_after_stop_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
+
+#[cfg(all(test, unix))]
+mod saved_view_draft_test;
+#[cfg(all(test, unix))]
+mod settings_reopen_stale_test;

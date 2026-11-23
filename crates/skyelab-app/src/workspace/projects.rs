@@ -328,7 +328,13 @@ impl Workspace {
             &view,
             window,
             |this, view, e: &ThreadViewEvent, window, cx| match e {
-                ThreadViewEvent::Started(thread) => this.thread_started(thread, cx),
+                ThreadViewEvent::Started(thread) => {
+                    this.thread_started(thread, cx);
+                    // A draft just got its row, so the saved page can name it now.
+                    if this.current_thread().as_ref() == Some(view) {
+                        this.schedule_layout_save(window, cx);
+                    }
+                }
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =

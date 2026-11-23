@@ -179,6 +179,8 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
     config
         .add_binding(Binding::new(acme.clone(), "acme".into()))
         .expect("bind");
+    // Settings edits the file as it is on disk, so the fixture's config is the file's.
+    config.save(&path).expect("save");
     std::fs::remove_dir(&acme).expect("rm");
     std::os::unix::fs::symlink(&other, &acme).expect("swap for a symlink");
 

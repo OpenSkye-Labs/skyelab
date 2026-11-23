@@ -274,14 +274,18 @@ impl Settings {
             cx.notify();
             return false;
         }
-        let mut next = self.config.clone();
-        let result = edit(&mut next).and_then(|()| {
-            let path = self
-                .path
-                .as_deref()
-                .context("no config directory on this OS")?;
-            next.save(path)
-        });
+        // From the file as it is now, not this page's copy: the page lives all session, and the file may have been
+        // edited elsewhere since it loaded.
+        let mut next = AccountsConfig::default();
+        let result = self
+            .path
+            .as_deref()
+            .context("no config directory on this OS")
+            .and_then(|path| {
+                next = AccountsConfig::load(path)?;
+                edit(&mut next)?;
+                next.save(path)
+            });
         let ok = match result {
             Ok(()) => {
                 self.config = next;
