@@ -42,7 +42,7 @@ fn thread_context(store: &SharedStore, id: i64) -> Result<(String, String)> {
             Ok(Record::Prompt(p)) => Some(p),
             _ => None,
         })
-        .last()
+        .next_back()
         .unwrap_or_default();
     Ok((title, last))
 }

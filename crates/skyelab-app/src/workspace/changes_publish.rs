@@ -293,7 +293,12 @@ impl ChangesView {
                             .flex_1()
                             .child(Textarea::new(&self.commit_message).small()),
                     )
-                    .children(self.generate_button(Gen::Commit, cx))
+                    .children(self.generate_button(Gen::Commit, cx)),
+            )
+            .child(
+                h_flex()
+                    .justify_end()
+                    .gap_2()
                     .child(
                         button("commit", commit_label)
                             .primary()
