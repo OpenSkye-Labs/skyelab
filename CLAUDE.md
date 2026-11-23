@@ -118,7 +118,7 @@ Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager
 - **Locally (macOS):** `cargo packager --release -p skyelab-app -f app,dmg` writes `target/release/SkyeLab.app` and the `.dmg`.
   Prefix `CI=true` when the terminal has no Automation permission for Finder; that skips only the dmg window layout.
   `test/acceptance/packaging.sh all` checks the icons, release profile, Info.plist and workflow.
-- **Icon:** a placeholder. Edit `crates/skyelab-app/icons/icon.svg`, then run `scripts/icons.sh` on macOS (needs `cargo install resvg`).
+- **Icon:** see [the brand guide](docs/design/brand.md). Edit `crates/skyelab-app/icons/icon.svg`, then run `scripts/icons.sh` on macOS (needs `cargo install resvg`).
 - **Re-running** a tag's workflow makes a second draft; delete the stale draft first.
 - **Signing** is skipped unless these repository secrets exist. Never commit them. Each set is all-or-nothing.
   - macOS, sign + notarize: `APPLE_CERTIFICATE` (base64 Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD`,

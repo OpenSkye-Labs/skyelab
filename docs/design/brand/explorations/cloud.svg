@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="tile" x2="0" y2="1">
+      <stop stop-color="#7370B2"/>
+      <stop offset="1" stop-color="#423976"/>
+    </linearGradient>
+    <linearGradient id="face" x2="0" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#CAE8E8"/>
+    </linearGradient>
+    <radialGradient id="light" cx=".35" cy=".05" r=".9">
+      <stop stop-color="#FFFFFF" stop-opacity=".20"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="100" y="112" width="824" height="824" rx="185" fill="#102B35"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#light)"/>
+  <g fill="#102B35" opacity=".30" transform="translate(0 12)"><path d="M272 605C234 525 289 433 383 424C407 334 496 297 568 331C615 352 640 387 649 433C738 431 785 500 763 575C748 631 704 660 643 660H389C333 660 291 644 272 605Z"/><path fill="#423976" d="M405 507a30 39 0 1 0 60 0a30 39 0 1 0-60 0m154 0a30 39 0 1 0 60 0a30 39 0 1 0-60 0"/></g>
+  <g fill="url(#face)"><path d="M272 605C234 525 289 433 383 424C407 334 496 297 568 331C615 352 640 387 649 433C738 431 785 500 763 575C748 631 704 660 643 660H389C333 660 291 644 272 605Z"/><path fill="#423976" d="M405 507a30 39 0 1 0 60 0a30 39 0 1 0-60 0m154 0a30 39 0 1 0 60 0a30 39 0 1 0-60 0"/></g>
+</svg>

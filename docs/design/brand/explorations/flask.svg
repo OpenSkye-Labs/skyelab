@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="tile" x2="0" y2="1">
+      <stop stop-color="#CB7851"/>
+      <stop offset="1" stop-color="#8A3A25"/>
+    </linearGradient>
+    <linearGradient id="face" x2="0" y2="1">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#CAE8E8"/>
+    </linearGradient>
+    <radialGradient id="light" cx=".35" cy=".05" r=".9">
+      <stop stop-color="#FFFFFF" stop-opacity=".20"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="100" y="112" width="824" height="824" rx="185" fill="#102B35"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#light)"/>
+  <g fill="#102B35" opacity=".30" transform="translate(0 12)"><path fill-rule="evenodd" d="M438 305H586Q618 305 618 337Q618 369 586 369H582V452L697 633Q733 700 657 710H367Q291 700 327 633L442 452V369H438Q406 369 406 337Q406 305 438 305Z M465 512L418 586Q454 561 506 584T605 582L561 512Z"/></g>
+  <g fill="url(#face)"><path fill-rule="evenodd" d="M438 305H586Q618 305 618 337Q618 369 586 369H582V452L697 633Q733 700 657 710H367Q291 700 327 633L442 452V369H438Q406 369 406 337Q406 305 438 305Z M465 512L418 586Q454 561 506 584T605 582L561 512Z"/></g>
+</svg>
