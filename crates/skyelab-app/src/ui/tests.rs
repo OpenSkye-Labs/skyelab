@@ -133,6 +133,11 @@ fn skyelab_theme_installs_for_both_modes(cx: &mut TestAppContext) {
         light.sidebar, light.background,
         "the sidebar is one step off the canvas"
     );
+    // Every dialog's backdrop: the canvas, dense enough to push the page back without a blur.
+    for t in [&light, &dark] {
+        assert!(t.overlay.a >= 0.7, "overlay {:?}", t.overlay);
+        assert!((t.overlay.l - t.background.l).abs() < 0.01, "overlay is the canvas color");
+    }
 }
 
 #[test]

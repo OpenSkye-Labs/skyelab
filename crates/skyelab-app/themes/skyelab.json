@@ -13,6 +13,7 @@
       "shadow": false,
       "colors": {
         "background": "#fcfcfc",
+        "overlay": "#fcfcfcbf",
         "foreground": "zinc-900",
         "border": "zinc-200",
         "input.border": "zinc-300",
@@ -84,6 +85,7 @@
       "shadow": false,
       "colors": {
         "background": "#000000",
+        "overlay": "#000000bf",
         "foreground": "neutral-100",
         "border": "#ffffff14",
         "input.border": "#ffffff1c",
