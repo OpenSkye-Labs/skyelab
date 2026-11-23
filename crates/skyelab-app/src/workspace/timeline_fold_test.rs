@@ -25,6 +25,7 @@ fn done(is_error: bool) -> Item {
         usage: None,
         at_ms: Some(1),
         error: None,
+        copied: false,
     }
 }
 

@@ -109,6 +109,8 @@ pub enum Item {
         at_ms: Option<i64>,
         /// A failed turn's error text, when the agent gave one.
         error: Option<String>,
+        /// Copied into a fork from its source ([`mark_copied`]): no baseline for the fork's own turns.
+        copied: bool,
     },
     /// The usage limit was hit; it resets at `resets_at` (Unix seconds), when known.
     Limit {
@@ -262,6 +264,8 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                         .iter()
                         .rev()
                         .find_map(|i| match i {
+                            // A fork's first session is fresh: its running total is all its own.
+                            Item::Done { copied: true, .. } => Some(Some(0.0)),
                             Item::Done { total_usd, .. } if *total_usd > 0.0 => {
                                 Some(Some(*total_usd))
                             }
@@ -287,6 +291,7 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                     usage: *usage,
                     at_ms: None,
                     error: result.clone().filter(|_| *is_error),
+                    copied: false,
                 });
                 // The finished turn folds its work rows (`timeline_fold`), so all of them change.
                 let start = super::timeline_fold::turn_start(items, items.len() - 1);
@@ -467,6 +472,21 @@ pub fn stamp_done(items: &mut [Item], at_ms: i64) {
     }) = items.last_mut()
     {
         *at = Some(at_ms);
+    }
+}
+
+/// Marks the turns that ended by `fork_made_ms` as copied into a fork (see `Item::Done::copied`).
+pub fn mark_copied(items: &mut [Item], fork_made_ms: i64) {
+    for i in items {
+        if let Item::Done {
+            at_ms: Some(at),
+            copied,
+            ..
+        } = i
+            && *at <= fork_made_ms
+        {
+            *copied = true;
+        }
     }
 }
 

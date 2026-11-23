@@ -151,6 +151,7 @@ fn divider_limit_notice_question_and_plan_draw(cx: &mut TestAppContext) {
                 }),
                 at_ms: None,
                 error: None,
+                copied: false,
             },
             Item::Limit { resets_at: Some(1) },
             Item::Notice {

@@ -228,6 +228,9 @@ impl ThreadView {
                         stamp_done(&mut this.items, *at);
                         this.limited = limit_after(this.limited, r);
                     }
+                    if let Some(t) = this.thread.as_ref().filter(|t| t.forked_from.is_some()) {
+                        super::thread_model::mark_copied(&mut this.items, t.created_at);
+                    }
                     this.list.reset(this.items.len());
                     this.load_turn_files(cx);
                     if skipped > 0 {
