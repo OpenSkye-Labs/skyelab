@@ -160,7 +160,7 @@ pub struct Workspace {
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
     settings: Option<WeakEntity<Settings>>,
     backend: Backend,
@@ -249,7 +249,7 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
             browsers: Vec::new(),
-            #[cfg(test)]
+            #[cfg(all(test, unix))]
             browser_engine: None,
             settings: None,
             backend,
@@ -487,7 +487,7 @@ mod agent_bin_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
 mod codex_thread_test;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_second_row_test;
 
 #[cfg(test)]
@@ -514,7 +514,7 @@ mod worktree_discard_test;
 #[cfg(test)]
 mod worktree_review_test;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_cta_folder_test;
 
 #[cfg(test)]

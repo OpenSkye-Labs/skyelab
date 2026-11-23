@@ -19,7 +19,7 @@ fn codex_home_passes_only_when_the_account_sets_it() {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-        let (_, args, env) = launch(Some(("prog".into(), vec![])), env);
+        let (_, args, env) = launch(Some(("prog".into(), vec![])), env, false);
         (args, env)
     };
     let (args, _) = removed(&[]);
