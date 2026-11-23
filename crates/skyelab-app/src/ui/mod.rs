@@ -8,6 +8,8 @@ mod components;
 #[cfg(test)]
 mod contrast_test;
 #[cfg(test)]
+mod terminal_colors_test;
+#[cfg(test)]
 mod tests;
 pub mod themes;
 #[cfg(test)]

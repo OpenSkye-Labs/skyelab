@@ -48,6 +48,17 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
   row's own colors still show under it.
 
+- A draggable divider between flex children (terminal splits) is its own child with a width, not a 1px line with an
+  overhanging `absolute()` grab strip: the next sibling is drawn later and wins the hit test over the overhang. Size
+  the children with `style().flex_grow = Some(share)` over `flex_basis(relative(0.))`, so the dividers come out of the
+  space first. The drag is `on_drag(payload, ..)` on the divider and `on_drag_move::<Payload>` on the split, which
+  gets the split's bounds; nested splits all see the move, so the payload names the split's path and each checks it.
+- A tab title that needs clicks (rename on double-click, its own ×) implements `Panel` by hand instead of the
+  `panel!` macro: `Panel::title` gets `&mut Context<Self>` for `cx.listener`. Name the view's own title getter
+  differently (`tab_label`): `self.title()` on `&mut self` resolves to the trait's `title(window, cx)` first.
+- Read `ClickEvent::click_count()` for a double-click; the × inside a dock tab calls `cx.stop_propagation()` so the
+  tab's own click doesn't also run.
+
 ### Settings modal, themes and text size
 
 - Text sizes are rems (`ui::BODY`…): `Root` sets the rem to `theme.font_size`, so Appearance's text size scales
@@ -58,5 +69,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A `Dialog` sits in `Root`'s layer, outside the workspace: actions dispatched inside it never reach the workspace.
   A modal that must reach it is a `deferred` layer in `Workspace::render` (`settings_tab::settings_modal`).
 - A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.
+- gpui-component ignores theme JSON keys it doesn't know, so per-theme data it has no field for (the terminal's
+  `terminal.ansi`) lives in the same file and SkyeLab reads it itself (`ui::themes::ansi`) into a global.
 - `on_focus_out` fires only in an active window (tests: `activate_window()`), and going inactive counts as one:
   check `window.is_window_active()` first.

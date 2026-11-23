@@ -81,4 +81,3 @@ impl Probe {
         Foreground { command, cwd }
     }
 }
-

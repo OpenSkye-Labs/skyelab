@@ -60,6 +60,36 @@ impl Settings {
                 cx,
             ))
             .child(section(
+                "Terminal",
+                "The shells in the bottom panel.",
+                [setting(
+                    true,
+                    "Terminal close confirmation",
+                    "Ask before closing a terminal pane or tab whose shell is still running a command. Closing \
+                     stops the process.",
+                    Switch::new("terminal-confirm-close")
+                        .checked(prefs::get_terminal(cx).confirm_close)
+                        .accessibility_label("Terminal close confirmation")
+                        .on_click(cx.listener(|_, on: &bool, _, cx| {
+                            let mut t = prefs::get_terminal(cx);
+                            t.confirm_close = *on;
+                            let save = prefs::save_terminal(t, cx);
+                            cx.spawn(async move |this, cx| {
+                                if let Err(e) = save.await {
+                                    let _ = this.update(cx, |this, cx| {
+                                        this.error = Some(format!("Saving the terminal setting failed: {e:#}"));
+                                        cx.notify();
+                                    });
+                                }
+                            })
+                            .detach();
+                            cx.notify();
+                        })),
+                    cx,
+                )],
+                cx,
+            ))
+            .child(section(
                 "Updates",
                 "SkyeLab only looks; it never installs anything itself.",
                 [setting(
@@ -138,6 +168,7 @@ impl Settings {
                     .update(cx, |i, cx| i.set_value("", window, cx));
                 self.save_editor(cx);
                 crate::updates::set_enabled(true, cx).detach_and_log_err(cx);
+                prefs::save_terminal(Default::default(), cx).detach_and_log_err(cx);
             }
             _ => {}
         }

@@ -280,6 +280,7 @@ impl Workspace {
     ) {
         if let Some(saved) = saved {
             self.restore_page(&saved.view, window, cx);
+            self.restore_terminals(saved.terminals.clone(), window, cx);
             self.dock.update(cx, |dock, cx| {
                 if saved.right_panel_width > 0 {
                     let w = px(saved.right_panel_width as f32);
@@ -319,6 +320,7 @@ impl Workspace {
         let dock = self.dock.read(cx);
         let layout = skyelab_core::WindowLayout {
             view: self.page.key(cx),
+            terminals: self.terminal_layouts(cx),
             ..crate::window_layout::to_layout(
                 window.window_bounds().get_bounds(),
                 dock.is_dock_open(DockPlacement::Right),

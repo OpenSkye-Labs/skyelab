@@ -5,6 +5,7 @@
   "themes": [
     {
       "name": "Dawn Light",
+      "terminal.ansi": ["#18181b", "#dc2626", "#15803d", "#a16207", "#2563eb", "#bc25cf", "#0e7490", "#a1a1aa", "#71717a", "#b91c1c", "#166534", "#854d0e", "#1d4ed8", "#a21caf", "#155e75", "#d4d4d8"],
       "mode": "light",
       "font.size": 14,
       "mono_font.size": 13,
@@ -77,6 +78,7 @@
     },
     {
       "name": "Dawn Dark",
+      "terminal.ansi": ["#3f3f46", "#f87171", "#4ade80", "#facc15", "#60a5fa", "#e879f9", "#22d3ee", "#d4d4d8", "#71717a", "#fca5a5", "#86efac", "#fde047", "#93c5fd", "#f0abfc", "#67e8f9", "#fafafa"],
       "mode": "dark",
       "font.size": 14,
       "mono_font.size": 13,

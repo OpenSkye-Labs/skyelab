@@ -1,10 +1,11 @@
 //! Opening terminals in the bottom dock, each under its folder's account: new tabs, split panes, the tabs that
 //! follow their thread, and a selection sent to the thread's composer.
 
-use super::terminal_panel::{Pane, SplitTerminal, TerminalPanel};
+use super::terminal_panel::{Pane, SplitTerminal, SplitTerminalDown, TabEvent, TerminalPanel};
 use super::{NewTerminal, Workspace};
 use gpui::{AppContext as _, Context, Entity, Focusable as _, SharedString, Window};
 use gpui_component::dock::{DockPlacement, panel_handle};
+use skyelab_core::terminal_layout::Axis;
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalEvent, TerminalView};
 
 impl Workspace {
@@ -25,14 +26,27 @@ impl Workspace {
         });
     }
 
-    /// Splits the focused terminal tab: a new shell beside the focused pane, built like a new tab (the current
-    /// folder's account env).
     pub(super) fn split_terminal(
         &mut self,
         _: &SplitTerminal,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.split_focused(Axis::Row, window, cx);
+    }
+
+    pub(super) fn split_terminal_down(
+        &mut self,
+        _: &SplitTerminalDown,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.split_focused(Axis::Column, window, cx);
+    }
+
+    /// Splits the focused pane: a new shell beside it (`Row`) or under it (`Column`), built like a new tab (its
+    /// folder's account env).
+    fn split_focused(&mut self, axis: Axis, window: &mut Window, cx: &mut Context<Self>) {
         if self.is_remote() {
             return;
         }
@@ -59,9 +73,10 @@ impl Workspace {
                         return Ok(()); // the window moved on meanwhile
                     }
                     let p = panel.read(cx);
-                    let title = format!("{} · {}", p.title(), p.panes.len() + 1).into();
+                    let title = format!("{} · {}", p.tab_label(), p.panes.len() + 1).into();
                     let view = this.terminal_view(o, title, window, cx)?;
-                    panel.update(cx, |p, cx| p.split(Pane { view, account }, window, cx));
+                    let pane = Pane::new(view, account, cx);
+                    panel.update(cx, |p, cx| p.split(pane, axis, window, cx));
                     Ok(())
                 });
                 if let Err(e) = opened {
@@ -92,36 +107,58 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let (title, input) = match tab {
-            Some((title, input)) => (title, Some(input)),
-            None => (
-                format!("Terminal {}", self.terminals.len() + 1).into(),
-                None,
-            ),
+        let (name, input) = match tab {
+            Some((title, input)) => (Some(title), Some(input)),
+            None => (None, None),
         };
-        let view = self.terminal_view(options, title.clone(), window, cx)?;
+        let label = name
+            .clone()
+            .unwrap_or_else(|| format!("Terminal {}", self.terminals.len() + 1).into());
+        let view = self.terminal_view(options, label, window, cx)?;
         if let Some(input) = input {
             view.read(cx).terminal().write(input.into_bytes()); // read once the shell starts (scripts_env_test)
         }
-        let owner = self.current_thread().map(|t| t.entity_id());
-        let panel = cx.new(|_| {
-            TerminalPanel::new(
-                Pane {
-                    view: view.clone(),
-                    account,
-                },
-                title,
-                owner,
-            )
-        });
-        self.dock_terminal(&panel, window, cx);
-        self.terminals.push(panel);
+        let pane = Pane::new(view.clone(), account, cx);
+        let owner = self.current_thread();
+        let panel = cx.new(|cx| TerminalPanel::new(pane, name, None, cx));
+        self.set_terminal_owner(&panel, owner, cx);
+        self.add_terminal_panel(panel, window, cx);
         view.read(cx).focus_handle(cx).focus(window, cx);
         Ok(())
     }
 
+    /// The tab goes with `thread`; `None` shows it with every thread.
+    pub(super) fn set_terminal_owner(
+        &self,
+        panel: &Entity<TerminalPanel>,
+        thread: Option<Entity<super::ThreadView>>,
+        cx: &mut Context<Self>,
+    ) {
+        panel.update(cx, |p, _| p.owner = thread.map(|t| t.entity_id()));
+    }
+
+    /// Docks a new tab and follows what it tells: changes are saved with the window, its × closes it.
+    pub(super) fn add_terminal_panel(
+        &mut self,
+        panel: Entity<TerminalPanel>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        cx.subscribe_in(
+            &panel,
+            window,
+            |this, panel, e: &TabEvent, window, cx| match e {
+                TabEvent::Changed => this.schedule_layout_save(window, cx),
+                TabEvent::Close => this.close_terminal_tab(panel, window, cx),
+            },
+        )
+        .detach();
+        self.dock_terminal(&panel, window, cx);
+        self.terminals.push(panel);
+    }
+
     /// Starts a shell with `options` and listens to it; `label` names it on what it adds to a prompt.
-    fn terminal_view(
+    pub(super) fn terminal_view(
         &mut self,
         options: SpawnOptions,
         label: SharedString,
@@ -172,6 +209,7 @@ impl Workspace {
     /// Shows the terminal tabs that go with the thread now shown (its own and those opened with no thread) and takes
     /// the others out of the dock. They keep running, scrollback and all, until their thread shows again.
     pub(super) fn sync_terminals(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_saved_terminals(window, cx);
         // Settings and Welcome leave thread terminals as they were.
         let shown = self.current_thread().map(|t| t.entity_id());
         let wanted = |owner: Option<gpui::EntityId>| match (owner, shown) {
