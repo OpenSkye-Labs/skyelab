@@ -318,6 +318,19 @@ impl Render for ThreadView {
             .children(cta)
             .children(discard_confirm)
             .children(refused)
+            .children((self.unsaved_events > 0).then(|| {
+                div()
+                    .debug_selector(|| "unsaved-events".into())
+                    .mx_4()
+                    .mb_2()
+                    .text_xs()
+                    .text_color(theme.warning)
+                    .child(format!(
+                        "{} agent events weren't saved (the store refused them). SkyeLab saves them with the \
+                         next event; quitting now loses them.",
+                        self.unsaved_events
+                    ))
+            }))
             .children(self.error.clone().map(|e| {
                 div()
                     .mx_4()

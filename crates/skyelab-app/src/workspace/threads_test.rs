@@ -7,11 +7,11 @@ use skyelab_store::{Store, Thread};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-fn fake_bin() -> PathBuf {
+pub(super) fn fake_bin() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh")
 }
 
-fn setup(cx: &mut TestAppContext) {
+pub(super) fn setup(cx: &mut TestAppContext) {
     // The fake agent and the terminals are real processes whose reader threads wake the UI.
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -30,16 +30,16 @@ pub(super) fn test_backend() -> Backend {
     }
 }
 
-struct Fixture {
-    _home: tempfile::TempDir,
-    project_dir: PathBuf,
-    account_dir: PathBuf,
-    accounts_path: PathBuf,
-    store: SharedStore,
+pub(super) struct Fixture {
+    pub(super) _home: tempfile::TempDir,
+    pub(super) project_dir: PathBuf,
+    pub(super) account_dir: PathBuf,
+    pub(super) accounts_path: PathBuf,
+    pub(super) store: SharedStore,
 }
 
 /// A project folder, optionally bound to "acme", and an in-memory store.
-fn fixture(bound: bool) -> Fixture {
+pub(super) fn fixture(bound: bool) -> Fixture {
     let home = tempfile::tempdir().expect("tempdir");
     let root = std::fs::canonicalize(home.path()).expect("canonicalize");
     let project_dir = root.join("demo");
@@ -71,7 +71,7 @@ fn fixture(bound: bool) -> Fixture {
     }
 }
 
-fn open_workspace<'a>(
+pub(super) fn open_workspace<'a>(
     f: &Fixture,
     cx: &'a mut TestAppContext,
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
@@ -92,7 +92,7 @@ fn open_workspace<'a>(
 }
 
 /// Runs the app until `done` holds, giving the fake agent's threads real time to write.
-fn wait_until(
+pub(super) fn wait_until(
     cx: &mut VisualTestContext,
     what: &str,
     mut done: impl FnMut(&mut VisualTestContext) -> bool,
@@ -108,7 +108,7 @@ fn wait_until(
 }
 
 /// Waits for the fake's result, failing with the view's own error if the start or a write failed.
-fn wait_done(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
+pub(super) fn wait_done(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     wait_until(cx, "the fake's result", |cx| {
         thread.read_with(cx, |t, _| {
             assert_eq!(t.error, None, "the thread showed an error");
@@ -118,7 +118,7 @@ fn wait_done(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
 }
 
 /// Adds the fixture's folder through the workspace, selects it and opens a new thread tab.
-fn project_thread(
+pub(super) fn project_thread(
     f: &Fixture,
     ws: &Entity<Workspace>,
     cx: &mut VisualTestContext,
@@ -138,7 +138,7 @@ fn project_thread(
 }
 
 /// Types into the thread's prompt like a user and sends with cmd-enter (ctrl-enter off macOS).
-fn type_and_send(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
+pub(super) fn type_and_send(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
     cx.simulate_keystrokes("h i enter t h e r e");
     cx.simulate_keystrokes(if cfg!(target_os = "macos") {
@@ -149,7 +149,7 @@ fn type_and_send(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
-fn stored_records(store: &SharedStore, thread_id: i64) -> Vec<Record> {
+pub(super) fn stored_records(store: &SharedStore, thread_id: i64) -> Vec<Record> {
     let store = store.lock().expect("store lock");
     store
         .events_since(thread_id, 0)
@@ -401,7 +401,7 @@ fn interrupt_is_sent_and_stop_kills(cx: &mut TestAppContext) {
 }
 
 /// Runs a thread to its result, stops it, and returns its store row.
-fn stopped_thread<'a>(
+pub(super) fn stopped_thread<'a>(
     f: &Fixture,
     cx: &'a mut TestAppContext,
 ) -> (Thread, Entity<Workspace>, &'a mut VisualTestContext) {
@@ -425,7 +425,7 @@ fn stopped_thread<'a>(
 }
 
 /// Reopens `row` like the sidebar does, with the accounts file as it is now.
-fn reopen(f: &Fixture, row: &Thread, cx: &mut VisualTestContext) -> Entity<ThreadView> {
+pub(super) fn reopen(f: &Fixture, row: &Thread, cx: &mut VisualTestContext) -> Entity<ThreadView> {
     let config = AccountsConfig::load(&f.accounts_path).expect("load");
     let backend = Backend {
         store: f.store.clone(),
@@ -449,7 +449,7 @@ fn send_text(view: &Entity<ThreadView>, text: &'static str, cx: &mut VisualTestC
     cx.run_until_parked();
 }
 
-fn env_reports(store: &SharedStore, thread_id: i64) -> Vec<serde_json::Value> {
+pub(super) fn env_reports(store: &SharedStore, thread_id: i64) -> Vec<serde_json::Value> {
     stored_records(store, thread_id)
         .into_iter()
         .filter_map(|r| match r {
@@ -460,7 +460,7 @@ fn env_reports(store: &SharedStore, thread_id: i64) -> Vec<serde_json::Value> {
 }
 
 /// Rebinds the fixture's folder: to `to`, or unbound when `None`.
-fn rebind(f: &Fixture, to: Option<&str>) {
+pub(super) fn rebind(f: &Fixture, to: Option<&str>) {
     let mut config = AccountsConfig::load(&f.accounts_path).expect("load");
     config
         .add_account(Account {
@@ -521,14 +521,13 @@ fn assert_refused(f: &Fixture, row: &Thread, cx: &mut VisualTestContext, says: &
         view.read_with(cx, |t, _| !t.read_only)
     });
     send_text(&view, "again", cx);
+    // `launch` sets `starting` before anything else, so a refused send that left it false launched nothing.
     view.read_with(cx, |t, _| {
         let why = t.resume_refused.clone().expect("resume refused");
         assert!(why.contains(says), "{why}");
         assert!(t.session.is_none(), "nothing started");
         assert!(!t.starting);
     });
-    std::thread::sleep(Duration::from_millis(300));
-    cx.run_until_parked();
     let thread_id = view.read_with(cx, |t, _| t.thread.as_ref().map(|t| t.id));
     assert_eq!(
         env_reports(&f.store, thread_id.expect("row")).len(),

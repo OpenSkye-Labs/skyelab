@@ -338,6 +338,7 @@ impl ThreadView {
         let draft = self.prompt.read(cx).value().to_string();
         // Cleared so a refusal that sets the same message again (a rebound folder) still shows up as new.
         let error = self.error.take();
+        let refused = self.resume_refused.take();
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
         self.send_prompt(&SendPrompt, window, cx);
@@ -348,6 +349,12 @@ impl ThreadView {
         if taken {
             return Ok(());
         }
+        // A stopped thread's resume was refused: its folder no longer resolves to the thread's account.
+        if let Some(why) = &self.resume_refused {
+            self.error = error;
+            return Err(why.to_string());
+        }
+        self.resume_refused = refused;
         let rebound = self.error.is_some(); // the only refusal send_prompt explains in `error`
         if !rebound {
             self.error = error;

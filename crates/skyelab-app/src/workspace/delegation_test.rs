@@ -29,10 +29,10 @@ fn mcp_proxy_child() {
 }
 
 pub(super) struct Rig {
-    _home: tempfile::TempDir,
+    pub(super) _home: tempfile::TempDir,
     pub(super) store: SharedStore,
     pub(super) work_a: i64,
-    work_b: i64,
+    pub(super) work_b: i64,
     personal: i64,
     unbound: i64,
     /// A thread recorded under the other account.
@@ -367,7 +367,7 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
 }
 
 /// Runs a host call off the UI thread (it waits for the UI's answer) while the test keeps the UI running.
-fn host_call(
+pub(super) fn host_call(
     cx: &mut VisualTestContext,
     caller: Caller,
     tool: Tool,

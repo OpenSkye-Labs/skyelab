@@ -43,6 +43,8 @@ pub enum Row {
     },
     /// No lines to show (binary, too large, a symlink).
     Placeholder(&'static str),
+    /// A file whose diff has too many changed lines to show; the count is in the row.
+    TooLarge(usize),
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -56,6 +58,8 @@ pub struct Changes {
 pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
+    // What is left of the diff's line cap for untracked files, after the tracked ones.
+    let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let diffs = match base {
         Some(base) => skyelab_git::diff_merge_base(dir, base)?,
         None => diff_head(dir)?,
@@ -68,7 +72,11 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
         if d.binary {
             rows.push(Row::Placeholder("Binary file"));
         }
+        if let Some(n) = d.too_large {
+            rows.push(Row::TooLarge(n));
+        }
         for h in &d.hunks {
+            lines_left = lines_left.saturating_sub(h.lines.len());
             rows.push(Row::Hunk(format!(
                 "@@ -{},{} +{},{} @@ {}",
                 h.old_start, h.old_lines, h.new_start, h.new_lines, h.header
@@ -99,7 +107,13 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     }
     let mut budget = MAX_UNTRACKED_TOTAL;
     for rel in skyelab_git::status(dir)?.untracked {
-        let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget);
+        let (binary, mut rows) = untracked_rows(&root.join(&rel), &mut budget);
+        let n = rows.len();
+        if n > skyelab_git::MAX_FILE_LINES || n > lines_left {
+            rows = vec![Row::TooLarge(n)];
+        } else {
+            lines_left -= n;
+        }
         entries.push((file(rel, None, ChangeKind::Added, binary), rows));
     }
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));

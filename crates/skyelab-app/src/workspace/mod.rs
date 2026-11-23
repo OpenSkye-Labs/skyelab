@@ -572,3 +572,13 @@ mod browser_agent_cap_test;
 
 #[cfg(all(test, unix))]
 mod browser_agent_review_test;
+#[cfg(test)]
+mod changes_cap_test;
+#[cfg(test)]
+mod close_tab_test;
+#[cfg(test)]
+mod drive_rebound_test;
+#[cfg(test)]
+mod remote_resume_test;
+#[cfg(test)]
+mod save_retry_test;

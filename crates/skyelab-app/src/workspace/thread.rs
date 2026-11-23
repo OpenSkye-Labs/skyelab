@@ -72,6 +72,8 @@ pub struct ThreadView {
     pub(super) wt: super::thread_worktree::WorktreeState,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
+    /// Agent events shown but not stored yet (the store refused them); retried before each new event.
+    pub(super) unsaved_events: usize,
     /// The thread whose agent started this one: (id, title).
     pub(super) parent: Option<(i64, SharedString)>,
     /// A delegated start runs only under the account its delegation was approved for.
@@ -225,6 +227,7 @@ impl ThreadView {
             read_only: false,
             wt: Default::default(),
             resume_refused: None,
+            unsaved_events: 0,
             parent: None,
             required_account: None,
             children: Vec::new(),

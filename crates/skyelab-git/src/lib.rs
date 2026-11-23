@@ -13,7 +13,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-pub use diff::{FileDiff, Hunk, Line, diff, diff_merge_base};
+pub use diff::{FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base};
 pub use publish::{GitHub, commit, create_pr, credential_args, gh_login, push};
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};

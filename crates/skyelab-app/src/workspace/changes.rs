@@ -171,6 +171,13 @@ impl ChangesView {
                         .italic()
                         .text_color(theme.muted_foreground)
                         .child(*p),
+                    Row::TooLarge(n) => base
+                        .px_2()
+                        .italic()
+                        .text_color(theme.muted_foreground)
+                        .child(format!(
+                            "Diff too large: {n} lines. Open it in a terminal or editor."
+                        )),
                     Row::Line {
                         old,
                         new,
