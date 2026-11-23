@@ -18,8 +18,10 @@ the bottom.
   plain threads: a synchronous pipe handle serializes its I/O, so a blocked read would stall the other thread's write.
   tokio takes the descriptor only as a raw `SECURITY_ATTRIBUTES` pointer and the tree has no safe ACL crate, so
   `skyelab-pipe-sys` holds the unsafe calls (the user's SID, the SDDL conversion, and the pid check for stale runs).
-  `mcp/transport/{unix,windows}.rs` are the only per-OS code; server and proxy are shared. Grant files sit in the run
-  dir under the profile's data dir, private through its inherited ACL. Limit: compile-checked only
+  `mcp/transport/{unix,windows}.rs` are the only per-OS code; server and proxy are shared. The proxy checks that the
+  pipe's server is the process its name names (`GetNamedPipeServerProcessId`), so once that SkyeLab is gone another
+  user who re-creates the freed name gets no token. Grant files sit in the run dir under the local (never roaming,
+  which can live on a file share) app data dir, private through its inherited ACL. Limit: compile-checked only
   (`scripts/check-windows.sh`), not run on Windows.
 - **A lost tool connection is an error, not a reconnect (2026-11-23).** The server lives as long as the app and its
   grants only in its memory, so it "restarts" only with the app, and then the old token is spent (its file deleted)

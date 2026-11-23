@@ -121,3 +121,28 @@ fn stale_runs_go_and_live_ones_stay() {
     assert!(!tmp.path().join(dead_pid.to_string()).exists());
     assert!(tmp.path().join(std::process::id().to_string()).exists());
 }
+
+#[test]
+fn the_proxy_refuses_a_pipe_another_process_serves() {
+    // A pipe named as if process pid+4 served it, as a squatter's would be once that SkyeLab quit; we serve it.
+    let rt = tokio::runtime::Runtime::new().expect("runtime");
+    let name = format!(
+        r"\\.\pipe\skyelab-{}-{}",
+        std::process::id() + 4,
+        uuid::Uuid::new_v4().simple()
+    );
+    let _squat = {
+        let _in = rt.enter();
+        tokio::net::windows::named_pipe::ServerOptions::new()
+            .create(&name)
+            .expect("pipe")
+    };
+    let err = run_proxy(
+        std::path::Path::new(&name),
+        &"0".repeat(64),
+        std::io::Cursor::new(Vec::new()),
+        Vec::new(),
+    )
+    .expect_err("refused before the token is sent");
+    assert!(format!("{err:#}").contains("not SkyeLab's"), "{err:#}");
+}

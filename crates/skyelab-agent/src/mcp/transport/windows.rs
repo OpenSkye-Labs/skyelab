@@ -192,6 +192,8 @@ impl Listener {
             None => create(&self.name, false)?,
         };
         let connected = runtime()?.block_on(server.connect());
+        // shortcut: a failed next instance is made on the next accept; until then a Server::drop can't wake the accept
+        // thread, which then waits in connect for good. Retry the create here if that is ever seen.
         *lock(&self.next) = create(&self.name, false).ok();
         connected?;
         Ok((Conn::new(Pipe::Server(server)), ()))
@@ -233,12 +235,30 @@ pub(crate) fn bind(_run_dir: &Path, random: &str) -> Result<(Listener, PathBuf, 
     Ok((listener, name, None))
 }
 
+/// Connects only to the pipe the process named in `address` serves: once that SkyeLab is gone its name is free, and
+/// another user could create a pipe under it to collect the token.
 pub(crate) fn connect(address: &Path) -> io::Result<Conn> {
+    let owner = address
+        .file_name()
+        .and_then(|n| n.to_str())
+        .and_then(|n| n.strip_prefix("skyelab-"))
+        .and_then(|n| n.split('-').next())
+        .and_then(|pid| pid.parse::<u32>().ok())
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "not a SkyeLab pipe name"))?;
     let _runtime = runtime()?.enter();
     let deadline = Instant::now() + BUSY_WAIT;
     loop {
         match ClientOptions::new().open(address) {
-            Ok(client) => return Ok(Conn::new(Pipe::Client(client))),
+            Ok(client) => {
+                let server = skyelab_pipe_sys::pipe_server_pid(&client)?;
+                if server != owner {
+                    return Err(io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        format!("the pipe is served by process {server}, not SkyeLab's {owner}"),
+                    ));
+                }
+                return Ok(Conn::new(Pipe::Client(client)));
+            }
             Err(e) if e.raw_os_error() == Some(ERROR_PIPE_BUSY) && Instant::now() < deadline => {
                 std::thread::sleep(Duration::from_millis(50));
             }

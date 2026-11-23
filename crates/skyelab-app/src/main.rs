@@ -286,7 +286,8 @@ fn orchestration(
     config: AccountsConfig,
 ) -> Option<flume::Receiver<workspace::orchestrate::OrchCall>> {
     let installed = (|| {
-        let runs = dirs::data_dir()
+        // Local, not roaming: on Windows a roaming profile can live on a file share, and grant files hold tokens.
+        let runs = dirs::data_local_dir()
             .context("no platform data dir")?
             .join("skyelab")
             .join("run");

@@ -4,12 +4,13 @@
 #![allow(unsafe_code)]
 
 #[cfg(windows)]
-pub use win::{create_private_pipe, private_sddl, process_alive};
+pub use win::{create_private_pipe, pipe_server_pid, private_sddl, process_alive};
 
 #[cfg(windows)]
 mod win {
     use std::ffi::{OsStr, c_void};
     use std::io;
+    use std::os::windows::io::AsRawHandle;
     use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
     use windows_sys::Win32::Foundation::{
         CloseHandle, ERROR_INVALID_PARAMETER, HANDLE, LocalFree, STILL_ACTIVE,
@@ -21,6 +22,7 @@ mod win {
     use windows_sys::Win32::Security::{
         GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
     };
+    use windows_sys::Win32::System::Pipes::GetNamedPipeServerProcessId;
     use windows_sys::Win32::System::Threading::{
         GetCurrentProcess, GetExitCodeProcess, OpenProcess, OpenProcessToken,
         PROCESS_QUERY_LIMITED_INFORMATION,
@@ -117,6 +119,16 @@ mod win {
         };
         // SAFETY: `attrs` is a valid SECURITY_ATTRIBUTES, and its descriptor (`sd`) outlives the call.
         unsafe { options.create_with_security_attributes_raw(name, (&raw mut attrs).cast()) }
+    }
+
+    /// The pid of the process serving the pipe `client` is connected to.
+    pub fn pipe_server_pid(client: &impl AsRawHandle) -> io::Result<u32> {
+        let mut pid = 0u32;
+        // SAFETY: `client` keeps its pipe handle open for the call; `pid` is a valid out pointer.
+        if unsafe { GetNamedPipeServerProcessId(client.as_raw_handle(), &mut pid) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(pid)
     }
 
     /// Whether `pid` still runs. Only "no such process" counts as gone: a process we may not query is kept.

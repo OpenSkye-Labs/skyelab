@@ -123,3 +123,23 @@ fn refused_token_answers_initialize_with_an_error() {
     assert_gone_text(answer["error"]["message"].as_str().expect("message"));
     agent.finish();
 }
+
+#[test]
+fn a_last_line_without_a_newline_is_answered() {
+    let (_tmp, server) = rig();
+    let grant = server.grant(caller(), &proxy()).expect("grant");
+    let (input, mut to_proxy) = std::io::pipe().expect("pipe");
+    let (mut from_proxy, output) = std::io::pipe().expect("pipe");
+    let (socket, token) = (server.socket_path().to_owned(), grant.token().to_owned());
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(run_proxy(&socket, &token, input, output).is_ok());
+    });
+    write!(to_proxy, r#"{{"jsonrpc":"2.0","id":1,"method":"ping"}}"#).expect("write");
+    drop(to_proxy);
+    let done = rx.recv_timeout(std::time::Duration::from_secs(5));
+    assert!(matches!(done, Ok(true)), "the proxy hung: {done:?}");
+    let mut out = String::new();
+    std::io::Read::read_to_string(&mut from_proxy, &mut out).expect("read");
+    assert!(out.contains(r#""id":1"#), "{out}");
+}

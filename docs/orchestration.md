@@ -43,9 +43,9 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   sidebar row (and its project's row) gets an unread dot until the user opens it. While the window shows another
   machine, the sidebar gets a "This Mac · N new threads here" row that switches back. Its agent runs meanwhile, and
   delegated sends and Stop still reach it.
-- **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<data dir>/skyelab/run/<pid>/` (0700), or on
+- **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<local data dir>/skyelab/run/<pid>/` (0700), or on
   Windows on a named pipe `\\.\pipe\skyelab-<pid>-<64 random hex>` whose DACL lets only the current user open it
-  (local clients only, created as the first instance). Each agent session gets a grant: a one-use random token and a
+  (local clients only, created as the first instance; the proxy opens it only if the process named in it serves it). Each agent session gets a grant: a one-use random token and a
   0600 `--mcp-config` file in the run dir that runs `skyelab --mcp-proxy`. The proxy's first connection consumes the
   token and deletes the file. Ending the session revokes the grant and cuts the connection. Never TCP. The run dir is
   created 0700 (and chmod'ed again, past the umask), the token line must arrive whole within 5 s of connecting, and

@@ -72,6 +72,10 @@ pub fn run_proxy(
             let mut input = BufReader::new(input);
             let mut line = Vec::new();
             while matches!(input.read_until(b'\n', &mut line), Ok(n) if n > 0) {
+                // The server reads whole lines; with no half-close it would never see this one end.
+                if !line.ends_with(b"\n") {
+                    line.push(b'\n');
+                }
                 let request = request_of(&line);
                 let gone = {
                     let mut p = lock(&sent);
@@ -84,9 +88,15 @@ pub fn run_proxy(
                     if let Some((_, id, tool)) = request {
                         let _ = to_main.send(Msg::Unsent(id, tool));
                     }
-                } else {
-                    // A failed write means the server closed: `ServerClosed` answers what is pending.
-                    let _ = upstream.write_all(&line).and_then(|()| upstream.flush());
+                } else if upstream
+                    .write_all(&line)
+                    .and_then(|()| upstream.flush())
+                    .is_err()
+                    && let Some((key, ..)) = &request
+                    // Still pending (`ServerClosed` didn't answer it yet): it was never sent, so answer it here.
+                    && let Some((id, tool)) = lock(&sent).ids.remove(key)
+                {
+                    let _ = to_main.send(Msg::Unsent(id, tool));
                 }
                 line.clear();
             }
