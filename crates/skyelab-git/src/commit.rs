@@ -228,7 +228,7 @@ pub fn snapshot_tree(dir: &Path) -> Result<String> {
         let run = |args: &[&str]| -> Result<Vec<u8>> {
             let mut cmd = command(Path::new("git"), &root);
             cmd.args(args).env("GIT_INDEX_FILE", &scratch);
-            crate::finish(&root, args, cmd.output()?)
+            crate::finish(&root, args, skyelab_core::process::output(&mut cmd, None)?)
         };
         run(&["add", "-A"]).and_then(|_| run(&["write-tree"]))
     })();

@@ -72,13 +72,15 @@ fn commit_is_refused_once_the_file_rebinds_the_folder(cx: &mut TestAppContext) {
     assert!(e.contains("bound to other"), "{e}");
     assert_eq!(
         String::from_utf8_lossy(
-            &std::process::Command::new("git")
-                .arg("-C")
-                .arg(&f.project)
-                .args(["rev-list", "--count", "HEAD"])
-                .output()
-                .expect("git")
-                .stdout
+            &skyelab_core::process::output(
+                std::process::Command::new("git")
+                    .arg("-C")
+                    .arg(&f.project)
+                    .args(["rev-list", "--count", "HEAD"]),
+                None,
+            )
+            .expect("git")
+            .stdout
         )
         .trim(),
         "1",

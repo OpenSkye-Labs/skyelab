@@ -144,7 +144,7 @@ fn git_succeeds(dir: &Path, args: &[&str]) -> Result<bool> {
 }
 
 fn output<S: AsRef<OsStr>>(bin: &Path, dir: &Path, args: &[S]) -> Result<Output> {
-    command(bin, dir).args(args).output().map_err(|e| {
+    skyelab_core::process::output(command(bin, dir).args(args), None).map_err(|e| {
         if e.kind() == io::ErrorKind::NotFound {
             Error::GitNotInstalled
         } else {

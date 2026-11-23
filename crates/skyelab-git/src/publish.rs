@@ -1,8 +1,8 @@
 //! Push and open a pull request under one account's `gh` login.
 
-use std::io::{self, Write as _};
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 
 use crate::{Error, Result, git, git_succeeds, hooked_command, lossy, repo_root};
 
@@ -240,28 +240,10 @@ fn current_branch(root: &Path) -> Result<String> {
 
 /// Runs `cmd` with `input` on stdin; a non-zero exit is an error carrying stderr.
 pub(crate) fn checked(mut cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
-    cmd.stdin(if input.is_some() {
-        Stdio::piped()
-    } else {
-        Stdio::null()
-    })
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| match e.kind() {
+    let out = skyelab_core::process::output(&mut cmd, input).map_err(|e| match e.kind() {
         io::ErrorKind::NotFound if what.starts_with("gh") => Error::GhNotInstalled,
         io::ErrorKind::NotFound => Error::GitNotInstalled,
         _ => Error::Io(e),
-    })?;
-    let stdin = child.stdin.take();
-    let out = std::thread::scope(|s| {
-        if let (Some(mut stdin), Some(input)) = (stdin, input) {
-            // A child that exits without reading closes the pipe; its exit status tells what went wrong.
-            s.spawn(move || match stdin.write_all(input) {
-                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(()),
-                other => other,
-            });
-        }
-        child.wait_with_output()
     })?;
     if out.status.success() {
         return Ok(out);

@@ -231,8 +231,8 @@ pub fn scoped_extra_headers(dir: &Path) -> Vec<String> {
 
 /// [`scoped_extra_headers`] with another `git`, so tests can run a fake.
 pub fn scoped_extra_headers_with(git: &Path, dir: &Path) -> Vec<String> {
-    let out = std::process::Command::new(git)
-        .arg("-C")
+    let mut cmd = std::process::Command::new(git);
+    cmd.arg("-C")
         .arg(dir)
         .args([
             "config",
@@ -241,10 +241,8 @@ pub fn scoped_extra_headers_with(git: &Path, dir: &Path) -> Vec<String> {
             r"^http\..+\.extraheader$",
         ])
         .env_clear()
-        .envs(inherited_agent_env(false))
-        .stdin(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .output();
+        .envs(inherited_agent_env(false));
+    let out = crate::process::output(&mut cmd, None);
     let Ok(out) = out else {
         return Vec::new();
     };

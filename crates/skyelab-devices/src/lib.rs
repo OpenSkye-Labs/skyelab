@@ -478,13 +478,12 @@ impl Emulator {
 }
 
 fn run<S: AsRef<OsStr>>(tool: &Path, args: &[S]) -> Result<Vec<u8>, Error> {
-    let out = Command::new(tool)
-        .args(args)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|source| Error::Io {
-            path: tool.to_owned(),
-            source,
+    let out =
+        skyelab_core::process::output(Command::new(tool).args(args), None).map_err(|source| {
+            Error::Io {
+                path: tool.to_owned(),
+                source,
+            }
         })?;
     if out.status.success() {
         return Ok(out.stdout);

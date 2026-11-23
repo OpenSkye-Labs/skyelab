@@ -82,12 +82,14 @@ fn failed_row_save_removes_the_new_worktree() {
 }
 
 fn head(dir: &Path) -> String {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .expect("git runs");
+    let out = skyelab_core::process::output(
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["rev-parse", "HEAD"]),
+        None,
+    )
+    .expect("git runs");
     String::from_utf8(out.stdout)
         .expect("utf-8")
         .trim()
