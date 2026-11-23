@@ -2,9 +2,9 @@
 //! the same `ThreadView` path a local prompt takes.
 
 use super::Workspace;
-use super::thread::{Interrupt, SendPrompt, ThreadView};
+use super::thread::{SendPrompt, ThreadView};
 use crate::remote::{
-    AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel,
+    AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
     RevokeDevice, ToggleSharing,
 };
 use gpui::{
@@ -58,6 +58,28 @@ impl StartQueue {
     pub(super) fn loaded(&mut self) {
         self.loading = None;
     }
+}
+
+/// How long a remote follow-up or interrupt waits to reach the agent; under the daemon's own 30 s wait, so the
+/// client hears this answer rather than a timeout.
+const DELIVERY_WAIT: Duration = Duration::from_secs(20);
+
+/// Sends `delivered`'s result to `reply`, or a timeout error once [`DELIVERY_WAIT`] passes.
+fn answer_within(
+    delivered: impl std::future::Future<Output = Result<(), RpcError>> + 'static,
+    reply: Reply<()>,
+    cx: &mut Context<Workspace>,
+) {
+    use futures::FutureExt as _;
+    let timer = cx.background_executor().timer(DELIVERY_WAIT);
+    cx.spawn(async move |_, _| {
+        let answer = futures::select! {
+            r = delivered.fuse() => r,
+            () = timer.fuse() => Err(crate::remote::internal("the agent didn't take it in time")),
+        };
+        let _ = reply.send(answer);
+    })
+    .detach();
 }
 
 fn refused(message: impl Into<String>) -> RpcError {
@@ -177,6 +199,11 @@ impl Workspace {
         }
     }
 
+    /// Whether sharing is switched on; `None` when this window has no sharing hook.
+    pub(super) fn sharing_enabled(&self, cx: &gpui::App) -> Option<bool> {
+        Some(self.remote.as_ref()?.remote.read(cx).enabled)
+    }
+
     fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
         self.remote.as_ref()?.remote.read(cx).sharing_session()
     }
@@ -206,29 +233,88 @@ impl Workspace {
                 thread_id,
                 text,
                 reply,
-            } => {
-                let sent = match self.open_view(thread_id, cx) {
-                    Some(view) => view
-                        .update(cx, |v, cx| v.submit_remote(&text, window, cx))
-                        .map_err(refused),
-                    None => Err(not_open(thread_id)),
-                };
-                let _ = reply.send(sent);
-            }
+            } => self.remote_send(thread_id, &text, reply, window, cx),
             RemoteCall::Interrupt { thread_id, reply } => {
-                let done = match self.open_view(thread_id, cx) {
-                    Some(view) => view.update(cx, |v, cx| {
-                        if v.session.is_none() {
-                            return Err(refused("the agent isn't running"));
-                        }
-                        v.interrupt(&Interrupt, window, cx);
-                        Ok(())
-                    }),
-                    None => Err(not_open(thread_id)),
-                };
-                let _ = reply.send(done);
+                self.remote_interrupt(thread_id, reply, cx)
             }
         }
+    }
+
+    /// Answers once the follow-up reached the agent (its store write and the session's input queue), or with why it
+    /// didn't. A stopped thread resumes, and is answered once its agent runs.
+    fn remote_send(
+        &mut self,
+        thread_id: i64,
+        text: &str,
+        reply: Reply<()>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(view) = self.open_view(thread_id, cx) else {
+            let _ = reply.send(Err(not_open(thread_id)));
+            return;
+        };
+        let (sent, delivered) = flume::bounded(1);
+        let (taken, unused) = view.update(cx, |v, cx| {
+            v.on_sent = Some(sent);
+            let taken = v.submit_remote(text, window, cx);
+            (taken, v.on_sent.take())
+        });
+        match (taken, unused) {
+            (Err(why), _) => _ = reply.send(Err(refused(why))),
+            // No follow-up took it: the thread resumed, so the prompt goes in with the new agent.
+            (Ok(()), Some(_)) => {
+                let (started, resumed) = flume::bounded(1);
+                self.reply_when_started(&view, move |r| _ = started.send(r), cx);
+                let resumed = async move {
+                    match resumed.recv_async().await {
+                        Ok(r) => r.map(drop).map_err(refused),
+                        Err(_) => Err(crate::remote::internal("the thread's tab closed")),
+                    }
+                };
+                answer_within(resumed, reply, cx);
+            }
+            (Ok(()), None) => {
+                let delivered = async move {
+                    match delivered.recv_async().await {
+                        Ok(r) => r.map_err(refused),
+                        Err(_) => Err(crate::remote::internal("the message was dropped")),
+                    }
+                };
+                answer_within(delivered, reply, cx);
+            }
+        }
+    }
+
+    /// Answers once the interrupt is in the agent's input, or with why it couldn't be.
+    fn remote_interrupt(&mut self, thread_id: i64, reply: Reply<()>, cx: &mut Context<Self>) {
+        let session = match self.open_view(thread_id, cx) {
+            Some(view) => view.read(cx).session.clone(),
+            None => {
+                let _ = reply.send(Err(not_open(thread_id)));
+                return;
+            }
+        };
+        let (Some(session), Some(view)) = (session, self.open_view(thread_id, cx)) else {
+            let _ = reply.send(Err(refused("the agent isn't running")));
+            return;
+        };
+        let work = cx.background_spawn(async move { super::lock(&session)?.interrupt() });
+        let view = view.downgrade();
+        let mut async_cx = cx.to_async();
+        let delivered = async move {
+            let result = work.await;
+            // The local tab shows a failure too, as a local interrupt does.
+            if let Err(e) = &result {
+                let shown = format!("{e:#}");
+                let _ = view.update(&mut async_cx, |v, cx| {
+                    v.error = Some(shown.into());
+                    cx.notify();
+                });
+            }
+            result.map_err(|e| refused(format!("{e:#}")))
+        };
+        answer_within(delivered, reply, cx);
     }
 
     /// Opens a new thread tab (without taking the user's focus) and sends `prompt` from it. Replies with the
@@ -270,6 +356,8 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let mut done = Some(done);
+        // A launch already under way that ends with no agent failed, even on a thread that stays resumable.
+        let began = view.read(cx).starting;
         self._thread_events
             .push(cx.observe(view, move |_, view, cx| {
                 let view = view.read(cx);
@@ -277,6 +365,7 @@ impl Workspace {
                 let result = match (&view.thread, view.starting) {
                     (Some(t), _) if view.session.is_some() => Ok(t.id),
                     (Some(_), _) if view.read_only => Err("the agent didn't start"),
+                    (Some(_), false) if began => Err("the agent didn't start"),
                     (None, false) => Err("the thread couldn't be created"),
                     _ => return,
                 };

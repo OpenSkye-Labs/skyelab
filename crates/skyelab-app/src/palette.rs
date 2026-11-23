@@ -3,10 +3,11 @@
 
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding, NoAction,
-    ParentElement as _, Render, SharedString, Styled as _, WeakEntity, Window, actions, px,
+    ParentElement as _, Render, SharedString, Styled as _, WeakEntity, Window, actions, div,
+    prelude::FluentBuilder as _, px,
 };
 use gpui_component::{
-    ActiveTheme as _, WindowExt as _,
+    ActiveTheme as _, Icon, IconName, Sizable as _, WindowExt as _,
     command::{Command, CommandItem, CommandState},
     h_flex,
     kbd::Kbd,
@@ -50,6 +51,8 @@ pub struct Entry {
     pub label: SharedString,
     pub kind: Kind,
     pub binding: Option<Kbd>,
+    /// A toggle's current state, shown as a checkbox and On/Off; `None` for anything else.
+    pub checked: Option<bool>,
     pub run: Run,
 }
 
@@ -229,6 +232,29 @@ fn row(entry: &Entry, cx: &App) -> gpui::Div {
             h_flex()
                 .gap_2()
                 .text_color(muted)
+                .children(entry.checked.map(|on| {
+                    let theme = cx.theme();
+                    // Drawn, not a control: the row is what toggles (T3's box is pointer-events-none too).
+                    let tick = div()
+                        .size_3p5()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(3.))
+                        .border_1()
+                        .border_color(if on { theme.primary } else { muted })
+                        .when(on, |b| {
+                            b.bg(theme.primary).child(
+                                Icon::new(IconName::Check)
+                                    .xsmall()
+                                    .text_color(theme.primary_foreground),
+                            )
+                        });
+                    h_flex()
+                        .gap_1()
+                        .child(if on { "On" } else { "Off" })
+                        .child(tick)
+                }))
                 .child(entry.kind.label())
                 .children(entry.binding.clone()),
         )

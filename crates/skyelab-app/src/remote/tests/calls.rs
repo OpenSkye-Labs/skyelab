@@ -2,17 +2,17 @@
 
 use super::*;
 
-struct Fixture {
-    _dir: tempfile::TempDir,
-    project_dir: PathBuf,
-    account_dir: PathBuf,
-    store: workspace::SharedStore,
-    ws: Entity<Workspace>,
-    remote: Entity<Remote>,
+pub(super) struct Fixture {
+    pub(super) _dir: tempfile::TempDir,
+    pub(super) project_dir: PathBuf,
+    pub(super) account_dir: PathBuf,
+    pub(super) store: workspace::SharedStore,
+    pub(super) ws: Entity<Workspace>,
+    pub(super) remote: Entity<Remote>,
 }
 
 /// A workspace with one project (bound to "acme" or not), sharing on, its remote calls wired.
-fn sharing_workspace(
+pub(super) fn sharing_workspace(
     bound: bool,
     claude_bin: PathBuf,
     cx: &mut TestAppContext,
@@ -108,7 +108,7 @@ fn sharing_workspace(
     )
 }
 
-fn connect_hello(f: &Fixture, cx: &mut VisualTestContext) -> Client {
+pub(super) fn connect_hello(f: &Fixture, cx: &mut VisualTestContext) -> Client {
     let port = f.remote.read_with(cx, |r, _| match &r.status {
         Status::Sharing { port, .. } => *port,
         other => panic!("not sharing: {other:?}"),
@@ -131,7 +131,7 @@ fn connect_hello(f: &Fixture, cx: &mut VisualTestContext) -> Client {
     }
 }
 
-fn error_of(msg: ServerMessage) -> skyelab_protocol::RpcError {
+pub(super) fn error_of(msg: ServerMessage) -> skyelab_protocol::RpcError {
     match msg {
         ServerMessage::Error { error, .. } => error,
         other => panic!("expected an error, got {other:?}"),
