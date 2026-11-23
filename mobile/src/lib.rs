@@ -6,3 +6,4 @@ pub mod app;
 pub mod env_store;
 pub mod remote;
 pub mod source;
+mod text;

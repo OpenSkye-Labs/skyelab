@@ -18,6 +18,8 @@
 mod conn;
 mod device_key;
 mod guard;
+#[cfg(any(test, feature = "test-support"))]
+pub mod testing;
 #[cfg(test)]
 mod tests;
 mod tls;
@@ -53,6 +55,15 @@ pub struct Options {
     /// This install's device key, sent in hello; the machine dialled admits only keys approved there. `None`
     /// can never be approved. Load it with [`load_or_create_device_key`] (or the keychain on macOS).
     pub device_key: Option<String>,
+    /// Checks each dialled address with this machine's own Tailscale before TLS starts. `None` (mobile, where no
+    /// local Tailscale CLI exists) trusts the node id the server sends in hello, which a machine that took over the
+    /// name can fake.
+    pub verify_peer: Option<PeerVerifier>,
+    /// Hold every connection after hello until [`Client::approve`] approves its hello: until then no request or
+    /// watch refill is sent (requests fail with [`Error::NotConnected`]; only keepalive pings go out) and no pushed
+    /// event is delivered.
+    /// For a caller that checks the server's identity (a pin) before trusting a connection, reconnects included.
+    pub approve_each_connection: bool,
     /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) allow_loopback: bool,
@@ -82,6 +93,8 @@ impl Default for Options {
             backoff_min: Duration::from_millis(250),
             backoff_max: Duration::from_secs(30),
             device_key: None,
+            verify_peer: None,
+            approve_each_connection: false,
             #[cfg(any(test, feature = "test-support"))]
             allow_loopback: false,
             #[cfg(any(test, feature = "test-support"))]
@@ -93,6 +106,28 @@ impl Default for Options {
             #[cfg(any(test, feature = "test-support"))]
             resolve_to: None,
         }
+    }
+}
+
+/// Says who a dialled address is: `Ok` with the node StableID of one of the user's own devices, `Err` with why not.
+/// Runs on a blocking thread, so it may shell out; it must return within its own timeout (an error fails closed).
+///
+/// With a verifier the hello's node id must equal the verified one, and [`Update::Connected`] carries the verified
+/// id in `node_id`, so whatever the caller pins came from its own Tailscale.
+#[derive(Clone)]
+pub struct PeerVerifier(Arc<dyn Fn(std::net::SocketAddr) -> Result<String, String> + Send + Sync>);
+
+impl PeerVerifier {
+    pub fn new(
+        verify: impl Fn(std::net::SocketAddr) -> Result<String, String> + Send + Sync + 'static,
+    ) -> Self {
+        Self(Arc::new(verify))
+    }
+}
+
+impl std::fmt::Debug for PeerVerifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PeerVerifier")
     }
 }
 
@@ -145,7 +180,8 @@ pub enum Error {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Update {
-    /// A connection passed hello. Watched threads are being resynced.
+    /// A connection passed hello. Watched threads are being resynced, or with
+    /// [`Options::approve_each_connection`], will be once [`Client::approve`] approves this hello.
     Connected(Hello),
     /// The connection is gone (or never came up), with why. The client retries after a backoff.
     Disconnected(Disconnect),
@@ -181,6 +217,11 @@ pub enum DisconnectKind {
     NotApproved,
     /// The user turned this device down on that machine. The client keeps trying, slowly.
     Denied,
+    /// The [`Options::verify_peer`] check refused the dialled address: this machine's Tailscale says it isn't one of
+    /// the user's own untagged devices, or couldn't say (whois failed or timed out). Nothing was sent to it.
+    NotYourDevice,
+    /// The hello named another node than this machine's Tailscale reports for the dialled address.
+    IdentityMismatch,
     /// Anything else: resolving, dialling, timeouts, a dropped connection, a malformed reply.
     Other,
 }
@@ -286,7 +327,7 @@ impl Client {
         })
     }
 
-    /// The code the machine dialled shows for this device's approval request, `ABCD-1234`. `None` without a key.
+    /// The code the machine dialled shows for this device's approval request. `None` without a key.
     pub fn device_code(&self) -> Option<String> {
         self.device_code.clone()
     }
@@ -360,6 +401,13 @@ impl Client {
             after_seq: after_seq.max(0), // seqs start at 1
         });
         id
+    }
+
+    /// Releases a connection held by [`Options::approve_each_connection`], if its hello is still `hello`. An
+    /// approval for a connection that has gone applies to its successor only when that one sent the same hello,
+    /// so the caller's decision (made from the hello alone) holds for it too.
+    pub fn approve(&self, hello: &Hello) {
+        self.command(conn::Command::Approve(hello.clone()));
     }
 
     /// Ends one watch. Unwatching the same id twice does nothing.

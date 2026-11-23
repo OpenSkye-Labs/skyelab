@@ -26,6 +26,11 @@ pub enum ConnState {
     NotApproved(String),
     /// The user turned this device down on the remote.
     Denied,
+    /// This machine's own Tailscale doesn't vouch for the dialled address as one of the user's own untagged devices
+    /// (or whois failed). Nothing was sent to it. The client keeps retrying.
+    NotYourDevice(String),
+    /// The remote's hello named another node than this machine's Tailscale reports for its address. Retrying.
+    IdentityMismatch(String),
     /// The name answered from another Tailscale node than the one trusted for it (a reused device name in a shared
     /// tailnet, or a replaced machine). Nothing is listed or sent until the user trusts `now`.
     NodeChanged {
@@ -49,6 +54,12 @@ impl ConnState {
                 Self::NotApproved(d.message.clone())
             }
             Update::Disconnected(d) if d.kind == DisconnectKind::Denied => Self::Denied,
+            Update::Disconnected(d) if d.kind == DisconnectKind::NotYourDevice => {
+                Self::NotYourDevice(d.message.clone())
+            }
+            Update::Disconnected(d) if d.kind == DisconnectKind::IdentityMismatch => {
+                Self::IdentityMismatch(d.message.clone())
+            }
             Update::Disconnected(d) => Self::Reconnecting(d.message.clone()),
             Update::Fatal(Error::UnsupportedVersion(why)) => Self::VersionMismatch(why.clone()),
             Update::Fatal(e) => Self::Stopped(e.to_string()),
@@ -65,6 +76,14 @@ impl ConnState {
             Self::NotApproved(why) => format!("Waiting for approval: {why}").into(),
             Self::Denied => "That machine denied this device. It can ask again after sharing restarts there."
                 .into(),
+            Self::NotYourDevice(why) => format!(
+                "Not connected: your Tailscale can't confirm that machine is one of your own devices ({why})"
+            )
+            .into(),
+            Self::IdentityMismatch(why) => format!(
+                "Not connected: that machine's identity doesn't match what your Tailscale reports ({why})"
+            )
+            .into(),
             Self::NodeChanged { was, now } => format!(
                 "This name now answers from a different machine (node {now}, trusted: {was}). \
                  Trust it only if you replaced or renamed that machine."
@@ -91,10 +110,24 @@ impl ConnState {
     }
 }
 
+/// Checks each dialled environment with this machine's own Tailscale (whois), so the node pinned per name is the
+/// one the local tailnet sees at that address, never only what the server says about itself.
+fn peer_verifier(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::PeerVerifier {
+    skyelab_client::PeerVerifier::new(move |peer| skyelab_tailnet::verify_own_peer(&*tailnet, peer))
+}
+
+/// The desktop's client options: every connection checked with `tailnet`. Without a verifier the pin is only the
+/// server's word, so the app never builds them any other way.
+pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::Options {
+    let mut options = skyelab_client::Options::default();
+    options.verify_peer = Some(peer_verifier(tailnet));
+    options
+}
+
 pub enum EnvEvent {
     Thread(ThreadEvent),
-    /// The name moved to another machine: its tabs show threads of a machine no longer trusted, so they close.
-    NodeChanged,
+    /// The connection was refused or its identity failed: its tabs show threads of a machine not trusted now.
+    Untrusted,
 }
 
 pub struct RemoteEnv {
@@ -105,6 +138,8 @@ pub struct RemoteEnv {
     settings_path: Option<PathBuf>,
     /// The node the current connection presented, `None` while disconnected or from a 1.0 server.
     node: Option<String>,
+    /// The current connection's hello. The client holds the connection until `up` approves it.
+    hello: Option<Hello>,
     /// The node checked and trusted on this connection's predecessors, so a reconnect to it needs no disk read.
     trusted: Option<String>,
     pub state: ConnState,
@@ -118,8 +153,6 @@ pub struct RemoteEnv {
     _threads: Option<Task<()>>,
     _node: Option<Task<()>>,
     _trust: Option<Task<()>>,
-    /// Events that came while the connection's node was being checked, delivered once it is trusted.
-    held: Vec<ThreadEvent>,
 }
 
 impl EventEmitter<EnvEvent> for RemoteEnv {}
@@ -149,6 +182,7 @@ impl RemoteEnv {
             client,
             settings_path,
             node: None,
+            hello: None,
             trusted: None,
             state: ConnState::Connecting,
             projects: Vec::new(),
@@ -160,7 +194,6 @@ impl RemoteEnv {
             _threads: None,
             _node: None,
             _trust: None,
-            held: Vec::new(),
         }
     }
 
@@ -170,18 +203,31 @@ impl RemoteEnv {
 
     fn on_update(&mut self, update: Update, cx: &mut Context<Self>) {
         match update {
-            // Events reach the tabs only from a trusted connection. Those that arrive while it is being
-            // checked are held: the client delivers each event once, so dropping them would lose them.
+            // The client delivers events only once `up` approved the connection; this guards the
+            // ones still queued from a connection that has since been refused.
             Update::Event(event) if self.state == ConnState::Connected => {
                 cx.emit(EnvEvent::Thread(event))
             }
-            Update::Event(event) if self.state == ConnState::Connecting => self.held.push(event),
             Update::Event(_) => {}
             Update::Connected(hello) => self.on_connected(hello, cx),
             update => {
+                // Whoever answered wasn't proven to be this machine (a certificate for another name included).
+                let untrusted = matches!(
+                    &update,
+                    Update::Disconnected(d) if matches!(
+                        d.kind,
+                        DisconnectKind::Refused
+                            | DisconnectKind::Certificate
+                            | DisconnectKind::NotYourDevice
+                            | DisconnectKind::IdentityMismatch
+                    )
+                );
                 if let Some(state) = ConnState::from_update(&update) {
                     self.node = None;
-                    self.held.clear();
+                    self.hello = None;
+                    if untrusted {
+                        return self.refuse(state, cx);
+                    }
                     self.state = state;
                     cx.notify();
                 }
@@ -199,8 +245,8 @@ impl RemoteEnv {
     /// A server that sends no node id connects only to a name never pinned, so leaving the id out can't get
     /// past a pin. Settings that can't be read refuse the connection: nothing to check against.
     fn on_connected(&mut self, hello: Hello, cx: &mut Context<Self>) {
-        self.node = hello.node_id;
-        self.held.clear();
+        self.node = hello.node_id.clone();
+        self.hello = Some(hello);
         let Some(path) = self.settings_path.clone() else {
             return self.up(cx); // no config directory: nowhere to pin
         };
@@ -236,24 +282,24 @@ impl RemoteEnv {
                     Ok(None) => this.up(cx),
                     Ok(Some(was)) => {
                         let now = node.unwrap_or_else(|| "none (it sent no node id)".into());
-                        this.node_changed(ConnState::NodeChanged { was, now }, cx)
+                        this.refuse(ConnState::NodeChanged { was, now }, cx)
                     }
-                    Err(e) => this.node_changed(ConnState::Unverified(format!("{e:#}")), cx),
+                    Err(e) => this.refuse(ConnState::Unverified(format!("{e:#}")), cx),
                 }
             });
         }));
     }
 
-    /// Refuses this connection: nothing listed, nothing sent, and its tabs close.
-    fn node_changed(&mut self, state: ConnState, cx: &mut Context<Self>) {
+    /// Clears what the window still shows from this machine and closes its tabs. A refused connection that did
+    /// pass hello stays held by the client, so nothing is sent on it.
+    fn refuse(&mut self, state: ConnState, cx: &mut Context<Self>) {
         self.state = state;
-        self.held.clear();
         self.projects.clear();
         self.threads.clear();
         self.project = None;
         self._projects = None;
         self._threads = None;
-        cx.emit(EnvEvent::NodeChanged);
+        cx.emit(EnvEvent::Untrusted);
         cx.notify();
     }
 
@@ -297,8 +343,8 @@ impl RemoteEnv {
     fn up(&mut self, cx: &mut Context<Self>) {
         self.trusted = self.node.clone();
         self.state = ConnState::Connected;
-        for event in std::mem::take(&mut self.held) {
-            cx.emit(EnvEvent::Thread(event));
+        if let Some(hello) = &self.hello {
+            self.client.approve(hello);
         }
         self.load_projects(cx);
         self.load_threads(cx);
@@ -402,6 +448,14 @@ mod tests {
         assert_eq!(
             state(gone(DisconnectKind::Denied, "x turned this device down")),
             Some(ConnState::Denied)
+        );
+        assert_eq!(
+            state(gone(DisconnectKind::NotYourDevice, "tagged")),
+            Some(ConnState::NotYourDevice("tagged".into()))
+        );
+        assert_eq!(
+            state(gone(DisconnectKind::IdentityMismatch, "n1 vs n2")),
+            Some(ConnState::IdentityMismatch("n1 vs n2".into()))
         );
         assert!(matches!(
             state(Update::Fatal(Error::UnsupportedVersion("2.0".into()))),

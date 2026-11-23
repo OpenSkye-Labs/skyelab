@@ -1,4 +1,4 @@
-//! The agent path into the browser: http and https only (docs/architecture.md, "Decisions").
+//! The agent path into the browser: http and https only (docs/decisions.md).
 
 use anyhow::bail;
 
@@ -27,8 +27,10 @@ pub(crate) fn check_agent_eval(current_url: &str, loaded: bool) -> anyhow::Resul
         .split(':')
         .next()
         .unwrap_or_default();
-    if !matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https") {
-        bail!("agents may only run scripts in http or https pages, not {current_url:?}");
+    // The scheme only: the URL of a local file page is a path the agent must not learn.
+    let scheme = scheme.to_ascii_lowercase();
+    if !matches!(scheme.as_str(), "http" | "https") {
+        bail!("agents may only run scripts in http or https pages, not a {scheme}: page");
     }
     Ok(())
 }

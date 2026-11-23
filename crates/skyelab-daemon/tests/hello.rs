@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use common::*;
+use skyelab_daemon::testing::Peer;
 use skyelab_protocol::{Call, ErrorCode, VERSION, Version};
 
 #[test]

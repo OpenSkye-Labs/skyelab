@@ -220,7 +220,7 @@ fn go_to_tab_opens_the_closed_bottom_dock_and_focuses_the_terminal(cx: &mut Test
 #[gpui::test]
 fn new_thread_and_add_project_do_nothing_while_on_another_machine(cx: &mut TestAppContext) {
     use super::env_harness::*;
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, _, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     let dir = tempfile::tempdir().expect("tempdir").keep();
     ws.update(cx, |ws, cx| ws.add_project(dir, cx));

@@ -2,6 +2,8 @@
 //! [`crate::remote::RemoteSource`] fills it from an environment; [`FakeSource`] holds canned data for tests and
 //! the `demo` build.
 
+use std::collections::HashMap;
+
 use skyelab_protocol::{Project, Thread, ThreadEvent};
 
 /// The connection to the environment, as the screens show it.
@@ -13,10 +15,28 @@ pub enum Connection {
     Reconnecting(String),
     /// The machine dropped us at its gate: this device isn't one of the user's own untagged tailnet devices.
     Refused,
+    /// The name answered from another node than the one pinned for it (`now`: the id its hello named, `None` if it
+    /// sent none). Nothing is listed or sent until the user trusts `now`.
+    NodeChanged {
+        was: String,
+        now: Option<String>,
+    },
+    /// The pins can't be read or saved (or the client couldn't confirm the node), so the machine can't be checked.
+    Unverified(String),
     /// The machine speaks another protocol version. The client has stopped.
     VersionMismatch(String),
     /// The client stopped for another reason.
     Stopped(String),
+}
+
+impl Connection {
+    /// Refused, or the machine's identity failed: nothing of it may stay on screen.
+    pub fn is_untrusted(&self) -> bool {
+        matches!(
+            self,
+            Self::Refused | Self::NodeChanged { .. } | Self::Unverified(_)
+        )
+    }
 }
 
 /// Something that arrived for a source in the background. Hand it back with [`ThreadSource::apply`].
@@ -35,13 +55,15 @@ pub trait ThreadSource {
     fn projects(&self) -> Vec<Project>;
     /// The threads of a project, once [`ThreadSource::load_threads`] has fetched them.
     fn threads(&self, project_id: i64) -> Vec<Thread>;
-    /// A watched thread's events, in seq order.
-    fn events(&self, thread_id: i64) -> Vec<ThreadEvent>;
+    /// A watched thread's events, in seq order. Borrowed: the thread screen reads it every frame.
+    fn events(&self, thread_id: i64) -> &[ThreadEvent];
     fn load_threads(&mut self, project_id: i64);
     /// Follow this thread's events live, and stop following any other.
     fn watch(&mut self, thread_id: i64);
     fn send_message(&mut self, thread_id: i64, text: &str);
     fn interrupt(&mut self, thread_id: i64);
+    /// Pins the name to `node_id` and connects, if that is still the node the `NodeChanged` warning shows.
+    fn trust(&mut self, _node_id: &str) {}
     /// Where background results arrive. Keep receiving from it and pass each to `apply`. `None`: the source
     /// only changes when called.
     fn inbox(&self) -> Option<flume::Receiver<Msg>> {
@@ -55,7 +77,7 @@ pub trait ThreadSource {
 pub struct FakeSource {
     projects: Vec<Project>,
     threads: Vec<Thread>,
-    events: Vec<ThreadEvent>,
+    events: HashMap<i64, Vec<ThreadEvent>>,
 }
 
 impl FakeSource {
@@ -83,7 +105,7 @@ impl FakeSource {
                 thread(3, 1, "Bump tokio", "personal", "done"),
                 thread(4, 2, "Rewrite the pricing page", "work", "idle"),
             ],
-            events: Vec::new(),
+            events: HashMap::new(),
         };
         fake.prompt(
             1,
@@ -91,7 +113,7 @@ impl FakeSource {
         );
         fake.agent_text(
             1,
-            "Found it: the redirect drops the `next` query parameter. Fixing auth/login.rs.",
+            "Found it 🔍 the redirect drops the `next` query parameter. Fixing auth/login.rs 🦀✅",
         );
         fake.push(
             1,
@@ -117,15 +139,10 @@ impl FakeSource {
     }
 
     fn push(&mut self, thread_id: i64, kind: &str, payload: serde_json::Value) {
-        let seq = self
-            .events
-            .iter()
-            .filter(|e| e.thread_id == thread_id)
-            .count() as i64
-            + 1;
-        self.events.push(ThreadEvent {
+        let events = self.events.entry(thread_id).or_default();
+        events.push(ThreadEvent {
             thread_id,
-            seq,
+            seq: events.len() as i64 + 1,
             kind: kind.into(),
             payload_json: payload.to_string(),
             created_at: 0,
@@ -166,12 +183,8 @@ impl ThreadSource for FakeSource {
             .collect()
     }
 
-    fn events(&self, thread_id: i64) -> Vec<ThreadEvent> {
-        self.events
-            .iter()
-            .filter(|e| e.thread_id == thread_id)
-            .cloned()
-            .collect()
+    fn events(&self, thread_id: i64) -> &[ThreadEvent] {
+        self.events.get(&thread_id).map_or(&[], Vec::as_slice)
     }
 
     fn load_threads(&mut self, _project_id: i64) {}

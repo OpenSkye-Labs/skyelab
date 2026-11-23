@@ -1,7 +1,6 @@
 //! Failed connections are retried with a growing delay, not in a tight loop.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use super::*;
@@ -9,7 +8,7 @@ use super::*;
 #[test]
 fn rejected_connections_back_off() {
     let tailnet = Arc::new(FakeTailnet::default());
-    tailnet.whois_fails.store(true, Ordering::SeqCst);
+    tailnet.set_peer(Peer::WhoisError);
     let env = Env::new();
     let daemon = start_daemon(tailnet.clone(), env.backend(), 0);
     let opts = Options {

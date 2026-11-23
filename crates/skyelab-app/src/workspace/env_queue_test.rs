@@ -30,7 +30,7 @@ fn background_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<
 
 #[gpui::test]
 fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, _, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     connect(&ws, &remote, cx);
 
@@ -66,7 +66,7 @@ fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext
 
 #[gpui::test]
 fn a_background_tab_on_this_machine_opens_at_once(cx: &mut TestAppContext) {
-    let remote = RemoteSide::new(FakeTailnet::default());
+    let remote = remote_side(FakeTailnet::default());
     let (ws, _, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     let view = background_tab(&ws, cx);
     cx.run_until_parked();

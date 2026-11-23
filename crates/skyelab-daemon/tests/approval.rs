@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use common::*;
 use skyelab_daemon::Approval;
+use skyelab_daemon::testing::{ME, Peer};
 use skyelab_protocol::{Call, ErrorCode, Reply, ServerMessage, device_code, device_key_hash};
 
 const OTHER_KEY: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";

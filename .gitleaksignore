@@ -1,0 +1,2 @@
+# False positive: a doc comment showing the device-approval code format, not a credential (since reworded).
+cc8159e88a157f2c34346d39e555218c54507ffd:crates/skyelab-protocol/src/lib.rs:generic-api-key:54

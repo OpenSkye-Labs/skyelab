@@ -1,4 +1,4 @@
-use std::{future::Future, sync::Mutex};
+use std::{future::Future, rc::Rc};
 
 use anyhow::Context as _;
 use futures::channel::oneshot;
@@ -14,7 +14,9 @@ use gpui_component::{
 use gpui_webview::WebView;
 
 use crate::{
+    Engine,
     agent::{check_agent_eval, parse_agent_url},
+    engine::Wry,
     js, parse_url,
 };
 
@@ -23,10 +25,14 @@ use crate::{
 pub struct BrowserView {
     /// `None` when the native webview couldn't be built (e.g. a Wayland window); `error` says why.
     webview: Option<Entity<WebView>>,
+    /// What loads and runs scripts: the webview, or a test's fake. `None` once closed.
+    engine: Option<Rc<dyn Engine>>,
     url_bar: Entity<InputState>,
     error: Option<SharedString>,
     /// A page has committed (wry's `Started`). Until then wry queues scripts for the next page.
     loaded: bool,
+    /// Pages committed so far, so a caller can wait for the next one.
+    loads: u64,
     focus: FocusHandle,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
@@ -37,9 +43,25 @@ impl BrowserView {
     /// native webview attached to `window`. A rejected URL or a webview that can't be built shows
     /// as an error in the pane.
     pub fn new(url: Option<&str>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_wry(url, false, window, cx)
+    }
+
+    /// A blank pane for an agent, on a private, in-memory web data store of its own: no cookies,
+    /// storage or cache shared with the user's tabs, other agents' tabs or later runs.
+    pub fn new_agent(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_wry(None, true, window, cx)
+    }
+
+    fn with_wry(
+        url: Option<&str>,
+        private: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
-        let mut builder =
-            wry::WebViewBuilder::new().with_on_page_load_handler(move |event, url| {
+        let mut builder = wry::WebViewBuilder::new()
+            .with_incognito(private)
+            .with_on_page_load_handler(move |event, url| {
                 if matches!(event, wry::PageLoadEvent::Started) {
                     let _ = loaded_tx.send(url);
                 }
@@ -57,7 +79,30 @@ impl BrowserView {
                 None
             }
         };
+        let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
+        Self::build(webview, engine, loaded_rx, url, error, window, cx)
+    }
 
+    /// A pane on `engine` (a test's fake page). `loads` reports each page that commits, as wry's
+    /// `Started` does. Nothing is drawn for the page.
+    pub fn with_engine(
+        engine: Rc<dyn Engine>,
+        loads: flume::Receiver<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::build(None, Some(engine), loads, None, None, window, cx)
+    }
+
+    fn build(
+        webview: Option<Entity<WebView>>,
+        engine: Option<Rc<dyn Engine>>,
+        loaded_rx: flume::Receiver<String>,
+        url: Option<&str>,
+        error: Option<anyhow::Error>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let url_bar = cx.new(|cx| {
             InputState::new(window, cx)
                 .placeholder("localhost:3000")
@@ -77,6 +122,7 @@ impl BrowserView {
             while let Ok(url) = loaded_rx.recv_async().await {
                 let updated = this.update_in(cx, |this, window, cx| {
                     this.loaded = true;
+                    this.loads += 1;
                     this.url_bar
                         .update(cx, |bar, cx| bar.set_value(url, window, cx));
                 });
@@ -88,9 +134,11 @@ impl BrowserView {
 
         Self {
             webview,
+            engine,
             url_bar,
             error: error.map(|e| format!("{e:#}").into()),
             loaded: false,
+            loads: 0,
             focus: cx.focus_handle(),
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
@@ -117,8 +165,12 @@ impl BrowserView {
         self.load(&url, cx)
     }
 
+    fn engine(&self) -> anyhow::Result<&dyn Engine> {
+        self.engine.as_deref().context("no webview in this window")
+    }
+
     fn load(&mut self, url: &url::Url, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        self.page(cx)?.raw().load_url(url.as_str())?;
+        self.engine()?.load(url.as_str(), cx)?;
         self.error = None;
         cx.notify();
         Ok(())
@@ -135,19 +187,25 @@ impl BrowserView {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         self.set_visible(false, cx);
         self.webview = None;
+        self.engine = None;
         self.loaded = false;
         cx.notify();
     }
 
+    /// How many pages have committed since the pane opened; one more after a load the caller started.
+    pub fn load_count(&self) -> u64 {
+        self.loads
+    }
+
     /// The page for an agent call, and its URL as the engine reports it (which may be a pending load).
     /// Refused before the first load (wry panics on the nil URL then) and on non-http(s) pages.
-    fn agent_page<'a>(&self, cx: &'a gpui::App) -> anyhow::Result<(&'a WebView, String)> {
+    fn agent_page(&self, cx: &gpui::App) -> anyhow::Result<(&dyn Engine, String)> {
         let url = match self.loaded {
-            true => self.page(cx)?.url()?,
+            true => self.engine()?.url(cx)?,
             false => String::new(),
         };
         check_agent_eval(&url, self.loaded)?;
-        Ok((self.page(cx)?, url))
+        Ok((self.engine()?, url))
     }
 
     /// The URL the page is on now, as the engine reports it. Refused for local files, so an agent
@@ -166,14 +224,12 @@ impl BrowserView {
         cx: &gpui::App,
     ) -> impl Future<Output = anyhow::Result<serde_json::Value>> + use<> {
         let (tx, rx) = oneshot::channel();
-        let tx = Mutex::new(Some(tx));
         let started = self.agent_page(cx).and_then(|(page, _)| {
-            page.evaluate_script_with_callback(&js::wrap(expression), move |raw| {
-                if let Some(tx) = tx.lock().ok().and_then(|mut tx| tx.take()) {
-                    let _ = tx.send(raw);
-                }
-            })
-            .context("evaluate script")
+            page.eval(
+                &js::wrap(expression),
+                Box::new(move |raw| _ = tx.send(raw)),
+                cx,
+            )
         });
         async move {
             started?;
@@ -199,8 +255,9 @@ impl BrowserView {
         self.report(result, cx);
     }
 
-    fn reload(&mut self, cx: &mut Context<Self>) {
-        let result = self.page(cx).and_then(|p| Ok(p.reload()?));
+    /// Reloads the page, which also ends every script running in it.
+    pub fn reload(&mut self, cx: &mut Context<Self>) {
+        let result = self.engine().and_then(|e| e.reload(cx));
         self.report(result, cx);
     }
 

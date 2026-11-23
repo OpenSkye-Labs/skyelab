@@ -51,8 +51,8 @@ pub fn device_key_hash(key: &str) -> String {
     hex(ring::digest::digest(&ring::digest::SHA256, key.as_bytes()).as_ref())
 }
 
-/// The code both screens show for a key, `ABCD-1234-EF56-7890`, so the person approving can tell their device's
-/// request from another one. 64 bits of the hash: too many to grind a look-alike key for a code seen on screen.
+/// The code both screens show for a key, four groups of four hex digits, so the person approving can tell their
+/// device's request from another one. 64 bits of the hash: too many to grind a look-alike key for a code seen on screen.
 pub fn device_code(key_hash: &str) -> String {
     let head = key_hash.get(..16).unwrap_or(key_hash).to_ascii_uppercase();
     head.as_bytes()

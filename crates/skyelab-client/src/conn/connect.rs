@@ -42,6 +42,24 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
     // Each address gets a share of the budget, so a black-holed first one can't starve the rest.
     let per_addr = cx.options.connect_timeout / addrs.len().max(1) as u32;
     let stream = dial(&addrs, per_addr).await.map_err(lost)?;
+    // Who is really at that address, from this machine's own Tailscale, before a byte goes to it.
+    let verified = match &cx.options.verify_peer {
+        None => None,
+        Some(verifier) => {
+            let peer = stream
+                .peer_addr()
+                .map_err(|e| lost(format!("can't read the peer address: {e}")))?;
+            // tailscaled knows its peers by plain IPv4, not the IPv4-mapped form a v6 socket may report.
+            let peer = std::net::SocketAddr::new(peer.ip().to_canonical(), peer.port());
+            let verify = verifier.clone();
+            let id = tokio::task::spawn_blocking(move || (verify.0)(peer))
+                .await
+                .map_err(|e| e.to_string())
+                .and_then(|r| r)
+                .map_err(|why| lost_as(DisconnectKind::NotYourDevice, why))?;
+            Some(id)
+        }
+    };
     let heard = Arc::new(AtomicBool::new(false));
     let stream = Heard {
         inner: stream,
@@ -107,17 +125,18 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
             Some(Err(e)) => return Err(lost(format!("hello failed: {e}"))),
         };
         return match serde_json::from_str::<ServerMessage>(&text) {
+            // Identity first: another node can't make the client stop for good by claiming another version.
             Ok(ServerMessage::Response {
                 id: 0,
                 result: Reply::Hello(h),
-            }) if h.protocol.major == cx.protocol.major => Ok((ws, h)),
-            Ok(ServerMessage::Response {
-                id: 0,
-                result: Reply::Hello(h),
-            }) => Err(End::Fatal(Error::UnsupportedVersion(format!(
-                "the environment answered with protocol {}.{}",
-                h.protocol.major, h.protocol.minor
-            )))),
+            }) => match adopt_verified_id(h, verified) {
+                Ok(h) if h.protocol.major == cx.protocol.major => Ok((ws, h)),
+                Ok(h) => Err(End::Fatal(Error::UnsupportedVersion(format!(
+                    "the environment answered with protocol {}.{}",
+                    h.protocol.major, h.protocol.minor
+                )))),
+                Err(end) => Err(end),
+            },
             Ok(ServerMessage::Error { id: Some(0), error })
                 if error.code == ErrorCode::UnsupportedVersion =>
             {
@@ -145,6 +164,27 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
             Ok(other) => Err(lost(format!("unexpected answer to hello: {other:?}"))),
             Err(e) => Err(lost(format!("malformed answer to hello: {e}"))),
         };
+    }
+}
+
+/// With a verified id, the hello must name the same node (or none), and the caller sees the verified one.
+fn adopt_verified_id(mut hello: Hello, verified: Option<String>) -> Result<Hello, End> {
+    let Some(verified) = verified else {
+        return Ok(hello);
+    };
+    match hello.node_id.as_deref() {
+        Some(said) if said != verified => Err(lost_as(
+            DisconnectKind::IdentityMismatch,
+            // The server's words, so quoted and cut short.
+            format!(
+                "it says it is node {:?}, your Tailscale says {verified:?}",
+                said.chars().take(64).collect::<String>()
+            ),
+        )),
+        _ => {
+            hello.node_id = Some(verified);
+            Ok(hello)
+        }
     }
 }
 

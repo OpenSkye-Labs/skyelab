@@ -32,7 +32,7 @@ fn hang_up_with(reply: &'static [u8]) -> u16 {
 fn the_gate_turning_this_device_away_is_a_refusal() {
     let env = Env::new();
     let tailnet = Arc::new(FakeTailnet::default());
-    tailnet.whois_fails.store(true, Ordering::SeqCst);
+    tailnet.set_peer(Peer::WhoisError);
     let daemon = start_daemon(tailnet, env.backend(), 0);
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     let d = disconnect(&client);
@@ -82,4 +82,41 @@ fn plaintext_peer_hanging_up_before_any_byte_is_a_refusal() {
     opts.plaintext = true;
     let client = Client::connect(HOST, opts).expect("client");
     assert_eq!(disconnect(&client).kind, DisconnectKind::Refused);
+}
+
+#[test]
+fn a_refused_peer_gets_not_a_single_byte() {
+    use std::io::Read as _;
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    let (got_tx, got) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let Ok((mut stream, _)) = listener.accept() else {
+            return;
+        };
+        let mut buf = Vec::new();
+        let _ = stream.read_to_end(&mut buf); // until the client hangs up
+        let _ = got_tx.send(buf.len());
+    });
+    let seen = Arc::new(std::sync::Mutex::new(None));
+    let saw = seen.clone();
+    let mut opts = options(port);
+    opts.verify_peer = Some(crate::PeerVerifier::new(move |peer| {
+        *saw.lock().expect("lock") = Some(peer);
+        Err("not yours".into())
+    }));
+    let client = Client::connect(HOST, opts).expect("client");
+    let d = disconnect(&client);
+    assert_eq!(d.kind, DisconnectKind::NotYourDevice, "{d:?}");
+    assert!(d.message.contains("not yours"), "{d:?}");
+    let peer = seen.lock().expect("lock").expect("verifier ran");
+    assert_eq!(peer.port(), port, "it checks the socket's own peer address");
+    drop(client);
+    let bytes = got
+        .recv_timeout(Duration::from_secs(5))
+        .expect("server saw the hang-up");
+    assert_eq!(
+        bytes, 0,
+        "nothing (not even a TLS hello) went to a refused peer"
+    );
 }

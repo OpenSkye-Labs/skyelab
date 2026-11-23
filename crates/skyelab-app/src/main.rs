@@ -274,7 +274,7 @@ fn main() {
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
                 ws.store_error = store_error.map(Into::into);
                 ws.set_remote(remote, calls, window, cx);
-                let mut options = skyelab_client::Options::default();
+                let mut options = environment::client_options(tailnet.clone());
                 options.device_key = device_key.clone();
                 ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                 #[cfg(unix)]

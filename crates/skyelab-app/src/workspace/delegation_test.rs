@@ -28,10 +28,10 @@ fn mcp_proxy_child() {
     std::process::exit(code);
 }
 
-struct Rig {
+pub(super) struct Rig {
     _home: tempfile::TempDir,
-    store: SharedStore,
-    work_a: i64,
+    pub(super) store: SharedStore,
+    pub(super) work_a: i64,
     work_b: i64,
     personal: i64,
     unbound: i64,
@@ -39,7 +39,7 @@ struct Rig {
     other_thread: i64,
 }
 
-fn rig() -> (Rig, PathBuf, AccountsConfig) {
+pub(super) fn rig() -> (Rig, PathBuf, AccountsConfig) {
     let home = tempfile::tempdir().expect("tempdir");
     let root = std::fs::canonicalize(home.path()).expect("canonicalize");
     let mut config = AccountsConfig::default();
@@ -94,7 +94,7 @@ fn rig() -> (Rig, PathBuf, AccountsConfig) {
     (rig, accounts, config)
 }
 
-fn open<'a>(
+pub(super) fn open<'a>(
     rig: &Rig,
     accounts: PathBuf,
     config: AccountsConfig,
@@ -138,7 +138,7 @@ fn open<'a>(
     (ws, cx)
 }
 
-fn wait_until(
+pub(super) fn wait_until(
     cx: &mut VisualTestContext,
     what: &str,
     mut done: impl FnMut(&mut VisualTestContext) -> bool,
@@ -154,7 +154,7 @@ fn wait_until(
 }
 
 /// A thread tab in `project`, with `prompt` sent from it.
-fn start(
+pub(super) fn start(
     ws: &Entity<Workspace>,
     project: i64,
     prompt: &str,
@@ -175,13 +175,13 @@ fn start(
     view
 }
 
-fn send(view: &Entity<ThreadView>, prompt: &str, cx: &mut VisualTestContext) {
+pub(super) fn send(view: &Entity<ThreadView>, prompt: &str, cx: &mut VisualTestContext) {
     view.update_in(cx, |v, window, cx| v.submit_remote(prompt, window, cx))
         .expect("prompt taken");
 }
 
 /// The `n`th MCP tool result the thread stored: (is_error, text).
-fn tool_result(store: &SharedStore, thread: i64, n: usize) -> Option<(bool, String)> {
+pub(super) fn tool_result(store: &SharedStore, thread: i64, n: usize) -> Option<(bool, String)> {
     let rows = store
         .lock()
         .expect("lock")
@@ -205,7 +205,7 @@ fn tool_result(store: &SharedStore, thread: i64, n: usize) -> Option<(bool, Stri
         .nth(n)
 }
 
-fn wait_result(
+pub(super) fn wait_result(
     cx: &mut VisualTestContext,
     store: &SharedStore,
     thread: i64,
@@ -219,7 +219,7 @@ fn wait_result(
     got.expect("waited")
 }
 
-fn thread_id(view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> i64 {
+pub(super) fn thread_id(view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> i64 {
     let mut id = None;
     wait_until(cx, "the thread row", |cx| {
         id = view.read_with(cx, |v, _| v.thread.as_ref().map(|t| t.id));

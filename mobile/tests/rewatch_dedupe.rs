@@ -2,7 +2,7 @@ pub mod common;
 
 use std::time::{Duration, Instant};
 
-use common::{Env, NODE_NAME, options};
+use common::{NODE_NAME, options, start};
 use skyelab_mobile::{
     remote::RemoteSource,
     source::{Connection, ThreadSource},
@@ -21,8 +21,10 @@ fn settle(source: &mut RemoteSource, done: impl Fn(&RemoteSource) -> bool) {
 
 #[test]
 fn rewatching_a_thread_does_not_duplicate_events() {
-    let env = Env::start();
-    let mut source = RemoteSource::connect(NODE_NAME, options(env.port())).expect("client");
+    let env = start();
+    let pins = tempfile::tempdir().expect("pin dir");
+    let mut source =
+        RemoteSource::connect(NODE_NAME, options(env.port), pins.path()).expect("client");
     let inbox = source.inbox().expect("inbox");
     settle(&mut source, |s| {
         s.connection() == Connection::Connected && !s.projects().is_empty()

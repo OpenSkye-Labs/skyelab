@@ -36,3 +36,11 @@ fn agent_eval_refuses_before_the_first_load() {
     let err = check_agent_eval("https://example.com/", false).expect_err("not loaded");
     assert!(format!("{err:#}").contains("not loaded"), "{err:#}");
 }
+
+#[test]
+fn agent_refusal_never_names_the_local_path() {
+    let err = check_agent_eval("file:///Users/me/.ssh/config", true).expect_err("file page");
+    let err = format!("{err:#}");
+    assert!(!err.contains("/Users/me"), "{err}");
+    assert!(err.contains("file:"), "{err}");
+}

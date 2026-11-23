@@ -21,12 +21,18 @@ val copyGpuiMobile = tasks.register<Copy>("copyGpuiMobile") {
         rename { "gpui-mobile-LICENSE-APACHE.txt" }
         into("assets/licenses")
     }
+    // The emoji font gpui-mobile loads when the system one is COLR v1 (Android 13+), fetched by the same script.
+    from(mobile.resolve("target/emoji/NotoColorEmoji.ttf")) { into("assets/fonts") }
+    from(mobile.resolve("target/emoji/twemoji-mozilla-LICENSE.md")) { into("assets/licenses") }
     into(gpuiGenerated)
 }
 tasks.named("preBuild") {
     dependsOn(copyGpuiMobile)
     // Here, not on the copy: a Copy task with no source files is skipped, doFirst included.
-    doFirst { check(gpuiMobile.resolve(".ported").exists()) { "run mobile/scripts/fetch-gpui-mobile.sh first" } }
+    doFirst {
+        val fetched = gpuiMobile.resolve(".ported").exists() && mobile.resolve("target/emoji/NotoColorEmoji.ttf").exists()
+        check(fetched) { "run mobile/scripts/fetch-gpui-mobile.sh first" }
+    }
 }
 
 // Release signing reads only the environment, never a committed file. With none set, the APK is unsigned (CI).

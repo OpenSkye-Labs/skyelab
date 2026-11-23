@@ -2,6 +2,7 @@
 //! They live in the crate because the loopback exception only exists under `cfg(test)`.
 
 mod approval;
+mod approve_gate;
 mod backoff;
 mod disconnect_kind;
 mod events;
@@ -16,176 +17,41 @@ mod rpc;
 mod tls;
 mod watch_handles;
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
-use skyelab_daemon::testing::{NODE_NAME, TestCa, ca};
-use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
-use skyelab_store::{NewThread, Store};
-use skyelab_tailnet::{Cert, Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
+pub use skyelab_daemon::testing::{Env, FakeTailnet, NODE_NAME, Peer};
+use skyelab_daemon::testing::{ca, config};
+use skyelab_daemon::{Backend, Daemon};
 
 use crate::{Client, Options, Update};
-
-const ME: u64 = 1001;
 
 /// The name every test dials. `options` points it at loopback; TLS still checks the certificate names it.
 pub const HOST: &str = NODE_NAME;
 
-/// A root store holding only `ca`'s root.
-pub fn roots_of(ca: &TestCa) -> Arc<rustls::RootCertStore> {
-    let mut roots = rustls::RootCertStore::empty();
-    roots.add(ca.root()).expect("add test root");
-    Arc::new(roots)
+/// Appends `n` events to the env's thread and returns the last one, as the daemon would push it.
+pub fn append(env: &Env, n: usize) -> skyelab_protocol::ThreadEvent {
+    let mut last = None;
+    for _ in 0..n {
+        last = Some(env.append(env.thread_id, "assistant", "{}"));
+    }
+    last.expect("n > 0")
 }
 
-/// The daemon's view of the tailnet: this node is 127.0.0.1, every peer is the user's own phone (or whois fails).
-#[derive(Default)]
-pub struct FakeTailnet {
-    pub whois_fails: AtomicBool,
-    pub whois_calls: AtomicUsize,
-}
+/// The device key [`options`] sends, which the harness's daemon config approves.
+pub const TEST_KEY: &str = crate::testing::DEVICE_KEY;
 
-impl FakeTailnet {
-    pub fn whois_calls(&self) -> usize {
-        self.whois_calls.load(Ordering::SeqCst)
-    }
-}
-
-impl Tailnet for FakeTailnet {
-    fn self_node(&self) -> Result<Node, TailnetError> {
-        Ok(Node {
-            stable_id: "nSelf".into(),
-            hostname: "desktop".into(),
-            dns_name: "desktop.example.ts.net.".into(),
-            tailscale_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
-            os: "macOS".into(),
-            online: true,
-            user_id: Some(ME),
-            tags: vec![],
-        })
-    }
-
-    fn peers(&self) -> Result<Vec<Node>, TailnetError> {
-        Ok(vec![])
-    }
-
-    fn cert(&self, name: &str) -> Result<Cert, TailnetError> {
-        Ok(ca().issue(name))
-    }
-
-    fn whois(&self, _addr: SocketAddr) -> Result<WhoIs, TailnetError> {
-        self.whois_calls.fetch_add(1, Ordering::SeqCst);
-        if self.whois_fails.load(Ordering::SeqCst) {
-            return Err(TailnetError::Command {
-                command: "whois",
-                stderr: "no such peer".into(),
-            });
-        }
-        Ok(WhoIs {
-            node: WhoIsNode {
-                stable_id: "nPhone".into(),
-                name: "phone.example.ts.net.".into(),
-                user: Some(ME),
-                tags: vec![],
-            },
-            user_profile: UserProfile {
-                id: Some(ME),
-                login_name: "me@example.com".into(),
-                display_name: "Me".into(),
-            },
-        })
-    }
-}
-
-/// A store on disk, so the test can append events while the daemon serves the same file.
-pub struct Env {
-    _dir: tempfile::TempDir,
-    pub db: PathBuf,
-    pub project_id: i64,
-    pub thread_id: i64,
-}
-
-impl Env {
-    pub fn new() -> Self {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let db = dir.path().join("store.db");
-        let store = Store::open(&db).expect("open store");
-        let project = store
-            .create_project("app", Path::new("/src/app"))
-            .expect("project");
-        let thread = store
-            .create_thread(&NewThread {
-                project_id: project.id,
-                title: "fix it",
-                cwd: Path::new("/src/app"),
-                account_id: "work",
-                status: "idle",
-            })
-            .expect("thread");
-        Self {
-            _dir: dir,
-            db,
-            project_id: project.id,
-            thread_id: thread.id,
-        }
-    }
-
-    pub fn backend(&self) -> Arc<dyn Backend> {
-        Arc::new(StoreBackend::new(
-            Store::open(&self.db).expect("open store"),
-            NotWired,
-        ))
-    }
-
-    /// Appends `n` events and returns the last one, as the daemon would push it.
-    pub fn append(&self, n: usize) -> skyelab_protocol::ThreadEvent {
-        let mut store = Store::open(&self.db).expect("open store");
-        let mut last = None;
-        for _ in 0..n {
-            last = Some(
-                store
-                    .append_event(self.thread_id, "assistant", "{}")
-                    .expect("append"),
-            );
-        }
-        skyelab_daemon::event(last.expect("n > 0"))
-    }
-}
-
-/// The device key [`options`] sends; [`daemon_config`] approves it for the phone.
-pub const TEST_KEY: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
-
-pub fn daemon_config(port: u16) -> Config {
-    Config {
-        port,
-        gate_timeout: Duration::from_millis(500),
-        approved: vec![skyelab_daemon::Approval {
-            node_id: "nPhone".into(),
-            key_hash: skyelab_protocol::device_key_hash(TEST_KEY),
-        }],
-        ..Config::default()
-    }
+pub fn daemon_config(port: u16) -> skyelab_daemon::Config {
+    config(port)
 }
 
 pub fn start_daemon(tailnet: Arc<FakeTailnet>, backend: Arc<dyn Backend>, port: u16) -> Daemon {
-    Daemon::start(daemon_config(port), tailnet, backend).expect("start daemon")
+    Daemon::start(config(port), tailnet, backend).expect("start daemon")
 }
 
 /// Options for a loopback test server: HOST dials 127.0.0.1, the test CA is trusted, quick backoff.
 pub fn options(port: u16) -> Options {
-    Options {
-        port,
-        allow_loopback: true,
-        resolve_to: Some(IpAddr::V4(Ipv4Addr::LOCALHOST)),
-        roots: Some(roots_of(ca())),
-        backoff_min: Duration::from_millis(50),
-        backoff_max: Duration::from_millis(200),
-        device_key: Some(TEST_KEY.into()),
-        ..Options::default()
-    }
+    crate::testing::options(port, ca().root())
 }
 
 pub fn port(daemon: &Daemon) -> u16 {

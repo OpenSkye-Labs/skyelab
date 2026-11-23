@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use common::*;
 use skyelab_daemon::Config;
+use skyelab_daemon::testing::Peer;
 
 #[test]
 fn pending_cap_bounds_running_whois_after_gate_timeout() {

@@ -1,158 +1,24 @@
-//! Shared harness: a fake Tailnet (with a test CA issuing this node's cert), a counting backend, and a blocking
-//! TLS client over real loopback sockets.
+//! This crate's test helpers on top of the shared harness (`skyelab_daemon::testing`: fake tailnet, test CA): a
+//! counting backend and a blocking WebSocket client over real loopback sockets.
 #![allow(dead_code)] // shared helpers; each test binary uses a subset
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::net::{SocketAddr, TcpStream};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use skyelab_daemon::testing::{NODE_NAME, TlsStream, ca, tls_connect};
+pub use skyelab_daemon::testing::FakeTailnet;
+
+/// The test client's device key, which [`test_config`] approves for the phone ("nPhone").
+pub const KEY: &str = skyelab_daemon::testing::DEVICE_KEY;
+use skyelab_daemon::testing::{NODE_NAME, TlsStream, ca, config, tls_connect};
 use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
 use skyelab_protocol::{
     Call, ErrorCode, Project, Request, RpcError, ServerMessage, Thread, ThreadEvent, VERSION,
     Version,
 };
 use skyelab_store::Store;
-use skyelab_tailnet::{Cert, Error, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
 use tungstenite::{Message, WebSocket};
-
-pub const ME: u64 = 1001;
-
-/// The test client's device key; [`start`] approves it for the phone ("nPhone").
-pub const KEY: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-
-#[derive(Clone, Copy)]
-pub enum Peer {
-    Own,
-    /// Another of the user's own untagged devices, with this StableID.
-    OwnNode(&'static str),
-    OtherUser,
-    Tagged,
-    WhoisError,
-    Hang(Duration),
-}
-
-pub struct FakeTailnet {
-    pub ips: Vec<IpAddr>,
-    pub down: AtomicBool,
-    pub peer: Mutex<Peer>,
-    pub whois_calls: AtomicUsize,
-    /// What `cert` returns; an `Err` is the CLI's error text.
-    pub cert: Mutex<Result<Cert, String>>,
-    /// `cert` sleeps this long first (a hung `tailscale cert`).
-    pub cert_hang: Mutex<Duration>,
-    pub cert_calls: AtomicUsize,
-    /// `Self.DNSName`; empty means MagicDNS is off.
-    pub dns_name: Mutex<String>,
-}
-
-impl Default for FakeTailnet {
-    fn default() -> Self {
-        Self {
-            ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
-            down: AtomicBool::new(false),
-            peer: Mutex::new(Peer::Own),
-            whois_calls: AtomicUsize::new(0),
-            cert: Mutex::new(Ok(ca().issue(NODE_NAME))),
-            cert_hang: Mutex::new(Duration::ZERO),
-            cert_calls: AtomicUsize::new(0),
-            dns_name: Mutex::new(format!("{NODE_NAME}.")),
-        }
-    }
-}
-
-impl FakeTailnet {
-    pub fn new(peer: Peer) -> Arc<Self> {
-        Arc::new(Self {
-            peer: Mutex::new(peer),
-            ..Self::default()
-        })
-    }
-}
-
-pub fn self_node(ips: Vec<IpAddr>) -> Node {
-    Node {
-        stable_id: "nSelf".into(),
-        hostname: "desktop".into(),
-        dns_name: "desktop.example.ts.net.".into(),
-        tailscale_ips: ips,
-        os: "macOS".into(),
-        online: true,
-        user_id: Some(ME),
-        tags: vec![],
-    }
-}
-
-fn whois(user: u64, tags: Vec<String>) -> WhoIs {
-    whois_node("nPhone", user, tags)
-}
-
-fn whois_node(stable_id: &str, user: u64, tags: Vec<String>) -> WhoIs {
-    WhoIs {
-        node: WhoIsNode {
-            stable_id: stable_id.into(),
-            name: "phone.example.ts.net.".into(),
-            user: Some(user),
-            tags,
-        },
-        user_profile: UserProfile {
-            id: Some(user),
-            login_name: format!("user{user}@example.com"),
-            display_name: "Someone".into(),
-        },
-    }
-}
-
-impl Tailnet for FakeTailnet {
-    fn self_node(&self) -> Result<Node, Error> {
-        if self.down.load(Ordering::SeqCst) {
-            return Err(Error::NotRunning("Stopped".into()));
-        }
-        Ok(Node {
-            dns_name: self.dns_name.lock().expect("test setup").clone(),
-            ..self_node(self.ips.clone())
-        })
-    }
-
-    fn peers(&self) -> Result<Vec<Node>, Error> {
-        Ok(vec![])
-    }
-
-    fn whois(&self, _addr: SocketAddr) -> Result<WhoIs, Error> {
-        self.whois_calls.fetch_add(1, Ordering::SeqCst);
-        // Copy out first: holding the lock through a Hang would serialize every whois.
-        let peer = *self.peer.lock().expect("test setup");
-        match peer {
-            Peer::Own => Ok(whois(ME, vec![])),
-            Peer::OwnNode(id) => Ok(whois_node(id, ME, vec![])),
-            Peer::OtherUser => Ok(whois(2002, vec![])),
-            Peer::Tagged => Ok(whois(ME, vec!["tag:server".into()])),
-            Peer::WhoisError => Err(Error::Command {
-                command: "whois",
-                stderr: "no such peer".into(),
-            }),
-            Peer::Hang(d) => {
-                std::thread::sleep(d);
-                Ok(whois(ME, vec![]))
-            }
-        }
-    }
-
-    fn cert(&self, _name: &str) -> Result<Cert, Error> {
-        self.cert_calls.fetch_add(1, Ordering::SeqCst);
-        let hang = *self.cert_hang.lock().expect("test setup");
-        std::thread::sleep(hang);
-        self.cert
-            .lock()
-            .expect("test setup")
-            .clone()
-            .map_err(|stderr| Error::Command {
-                command: "cert",
-                stderr,
-            })
-    }
-}
 
 /// A backend that only counts calls, so a test can prove nothing was served.
 #[derive(Default)]
@@ -187,17 +53,8 @@ impl Backend for Counting {
     }
 }
 
-/// Approves [`KEY`] on the phone, so tests about other things get past hello.
 pub fn test_config() -> Config {
-    Config {
-        port: 0,
-        gate_timeout: Duration::from_millis(500),
-        approved: vec![skyelab_daemon::Approval {
-            node_id: "nPhone".into(),
-            key_hash: skyelab_protocol::device_key_hash(KEY),
-        }],
-        ..Config::default()
-    }
+    config(0)
 }
 
 pub fn start(tailnet: Arc<FakeTailnet>, backend: Arc<dyn Backend>, config: Config) -> Daemon {

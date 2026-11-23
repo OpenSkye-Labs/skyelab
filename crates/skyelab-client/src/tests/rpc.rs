@@ -9,7 +9,11 @@ use skyelab_protocol::VERSION;
 #[test]
 fn hello_then_every_method() {
     let env = Env::new();
-    env.append(3);
+    // Every agent call fails like a desktop with no agents wired up.
+    env.agents
+        .fail
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    append(&env, 3);
     let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let client = Client::connect(HOST, options(port(&daemon))).expect("client");
     match next(&client) {
@@ -40,7 +44,7 @@ fn hello_then_every_method() {
         .expect("events");
     assert_eq!(events.iter().map(|e| e.seq).collect::<Vec<_>>(), [2, 3]);
 
-    // The store backend runs no agents: each write comes back as the daemon's NotWired error.
+    // Each write comes back as NotWired.
     let not_wired = |r: Result<_, Error>| match r {
         Err(Error::Rpc(e)) => assert_eq!(e.code, ErrorCode::NotWired),
         other => panic!("expected NotWired, got {other:?}"),

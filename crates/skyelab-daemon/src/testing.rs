@@ -1,9 +1,11 @@
-//! Test certificates and a blocking TLS client, for this crate's tests and its dependents' (feature `test-support`).
+//! The remote-test harness every crate shares (feature `test-support`): test certificates, a blocking TLS client,
+//! a configurable fake tailnet, and an [`Env`] that serves a store through an in-process daemon on loopback.
 //! Never enabled in a shipped build.
 
-use std::net::{SocketAddr, TcpStream};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use rcgen::{
@@ -12,7 +14,11 @@ use rcgen::{
 };
 use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
-use skyelab_tailnet::Cert;
+use skyelab_protocol::{ErrorCode, Project, RpcError, Thread, ThreadEvent};
+use skyelab_store::{NewThread, Store};
+use skyelab_tailnet::{Cert, Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
+
+use crate::{Agents, Backend, Config, Daemon, StoreBackend};
 
 /// The MagicDNS name the fake tailnets in tests give this node.
 pub const NODE_NAME: &str = "desktop.example.ts.net";
@@ -112,4 +118,443 @@ pub fn tls_connect(
         tls.conn.complete_io(&mut tls.sock)?;
     }
     Ok(tls)
+}
+
+/// The tailnet user every fake node belongs to unless a test says otherwise.
+pub const ME: u64 = 1001;
+
+/// The test client's device key. [`config`] approves it for the phone ("nPhone"), the node whois names by default.
+/// `skyelab_client::testing::DEVICE_KEY` is the same key (a client test checks they agree).
+pub const DEVICE_KEY: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
+/// [`DEVICE_KEY`] approved on "nPhone".
+pub fn approvals() -> Vec<crate::Approval> {
+    vec![crate::Approval {
+        node_id: "nPhone".into(),
+        key_hash: skyelab_protocol::device_key_hash(DEVICE_KEY),
+    }]
+}
+
+/// Who `FakeTailnet::whois` says is calling.
+#[derive(Clone, Copy, Debug)]
+pub enum Peer {
+    /// One of the user's own untagged devices: the gate admits it.
+    Own,
+    /// Another of the user's own untagged devices, with this StableID.
+    OwnNode(&'static str),
+    OtherUser,
+    /// The user's node, but tagged: refused.
+    Tagged,
+    WhoisError,
+    /// Admitted, after this long.
+    Hang(Duration),
+}
+
+/// A tailnet node on loopback.
+pub fn node(id: &str, dns: &str, user: u64, online: bool, tags: &[&str]) -> Node {
+    Node {
+        stable_id: id.into(),
+        hostname: dns.split('.').next().unwrap_or_default().into(),
+        dns_name: format!("{dns}."),
+        tailscale_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        os: "macOS".into(),
+        online,
+        user_id: Some(user),
+        tags: tags.iter().map(|t| (*t).to_owned()).collect(),
+    }
+}
+
+/// The daemon's view of the tailnet: this node is `NODE_NAME` on `ips` (127.0.0.1), `peers` is what
+/// `tailscale status` lists, and whois answers as `peer` says. The atomic and `Mutex` knobs can change while a
+/// daemon uses them.
+pub struct FakeTailnet {
+    pub ips: Vec<IpAddr>,
+    /// `self_node` fails like a stopped Tailscale.
+    pub down: AtomicBool,
+    pub peer: Mutex<Peer>,
+    pub peers: Vec<Node>,
+    pub whois_calls: AtomicUsize,
+    /// What `cert` returns; an `Err` is the CLI's error text.
+    pub cert: Mutex<Result<Cert, String>>,
+    /// `cert` sleeps this long first (a hung `tailscale cert`).
+    pub cert_hang: Mutex<Duration>,
+    pub cert_calls: AtomicUsize,
+    /// `Self.DNSName`; empty means MagicDNS is off.
+    pub dns_name: Mutex<String>,
+    /// This node's StableID; `None` is `nSelf`.
+    pub self_id: Mutex<Option<String>>,
+}
+
+impl Default for FakeTailnet {
+    fn default() -> Self {
+        Self {
+            ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            down: AtomicBool::new(false),
+            peer: Mutex::new(Peer::Own),
+            peers: Vec::new(),
+            whois_calls: AtomicUsize::new(0),
+            cert: Mutex::new(Ok(ca().issue(NODE_NAME))),
+            cert_hang: Mutex::new(Duration::ZERO),
+            cert_calls: AtomicUsize::new(0),
+            dns_name: Mutex::new(format!("{NODE_NAME}.")),
+            self_id: Mutex::new(None),
+        }
+    }
+}
+
+impl FakeTailnet {
+    pub fn new(peer: Peer) -> Arc<Self> {
+        Arc::new(Self {
+            peer: Mutex::new(peer),
+            ..Self::default()
+        })
+    }
+
+    pub fn set_peer(&self, peer: Peer) {
+        *self.peer.lock().expect("peer lock") = peer;
+    }
+
+    pub fn whois_calls(&self) -> usize {
+        self.whois_calls.load(Ordering::SeqCst)
+    }
+}
+
+fn whois(user: u64, tags: Vec<String>) -> WhoIs {
+    whois_node("nPhone", user, tags)
+}
+
+fn whois_node(stable_id: &str, user: u64, tags: Vec<String>) -> WhoIs {
+    WhoIs {
+        node: WhoIsNode {
+            stable_id: stable_id.into(),
+            name: "phone.example.ts.net.".into(),
+            user: Some(user),
+            tags,
+        },
+        user_profile: UserProfile {
+            id: Some(user),
+            login_name: format!("user{user}@example.com"),
+            display_name: "Someone".into(),
+        },
+    }
+}
+
+impl Tailnet for FakeTailnet {
+    fn self_node(&self) -> Result<Node, TailnetError> {
+        if self.down.load(Ordering::SeqCst) {
+            return Err(TailnetError::NotRunning("Stopped".into()));
+        }
+        let id = self.self_id.lock().expect("self id lock").clone();
+        Ok(Node {
+            tailscale_ips: self.ips.clone(),
+            dns_name: self.dns_name.lock().expect("dns lock").clone(),
+            ..node(id.as_deref().unwrap_or("nSelf"), NODE_NAME, ME, true, &[])
+        })
+    }
+
+    fn peers(&self) -> Result<Vec<Node>, TailnetError> {
+        Ok(self.peers.clone())
+    }
+
+    fn whois(&self, _addr: SocketAddr) -> Result<WhoIs, TailnetError> {
+        self.whois_calls.fetch_add(1, Ordering::SeqCst);
+        // Copy out first: holding the lock through a Hang would serialize every whois.
+        let peer = *self.peer.lock().expect("peer lock");
+        match peer {
+            Peer::Own => Ok(whois(ME, vec![])),
+            Peer::OwnNode(id) => Ok(whois_node(id, ME, vec![])),
+            Peer::OtherUser => Ok(whois(2002, vec![])),
+            Peer::Tagged => Ok(whois(ME, vec!["tag:server".into()])),
+            Peer::WhoisError => Err(TailnetError::Command {
+                command: "whois",
+                stderr: "no such peer".into(),
+            }),
+            Peer::Hang(d) => {
+                std::thread::sleep(d);
+                Ok(whois(ME, vec![]))
+            }
+        }
+    }
+
+    fn cert(&self, _name: &str) -> Result<Cert, TailnetError> {
+        self.cert_calls.fetch_add(1, Ordering::SeqCst);
+        let hang = *self.cert_hang.lock().expect("cert lock");
+        std::thread::sleep(hang);
+        self.cert
+            .lock()
+            .expect("cert lock")
+            .clone()
+            .map_err(|stderr| TailnetError::Command {
+                command: "cert",
+                stderr,
+            })
+    }
+}
+
+/// Daemon settings for tests: `port` (0 picks one), a short gate timeout, and the test key approved
+/// ([`approvals`]).
+pub fn config(port: u16) -> Config {
+    Config {
+        port,
+        gate_timeout: Duration::from_millis(500),
+        approved: approvals(),
+        ..Config::default()
+    }
+}
+
+/// What the agents backend was asked to run.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Ran {
+    Start(i64, String),
+    Send(i64, String),
+    Interrupt(i64),
+}
+
+/// The agent calls an [`Env`] saw. With `fail`, every call is still recorded, then fails like an unwired desktop.
+#[derive(Default)]
+pub struct Recorder {
+    pub ran: Mutex<Vec<Ran>>,
+    pub fail: AtomicBool,
+}
+
+/// Records calls; a start creates the thread row (account "work") with its prompt, so it can be listed and watched.
+struct RecordingAgents {
+    recorder: Arc<Recorder>,
+    store: Arc<Mutex<Store>>,
+    cwd: PathBuf,
+}
+
+impl RecordingAgents {
+    fn record(&self, call: Ran) -> Result<(), RpcError> {
+        self.recorder.ran.lock().expect("ran lock").push(call);
+        if self.recorder.fail.load(Ordering::SeqCst) {
+            return Err(RpcError::new(
+                ErrorCode::NotWired,
+                "running agents remotely is not wired up yet",
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl Agents for RecordingAgents {
+    fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError> {
+        self.record(Ran::Start(project_id, prompt.into()))?;
+        let mut store = self.store.lock().expect("store lock");
+        let thread = store
+            .create_thread(&NewThread {
+                project_id,
+                title: prompt,
+                cwd: &self.cwd,
+                account_id: "work",
+                status: "running",
+            })
+            .expect("thread");
+        // The desktop's prompt row (`thread_model::Record::Prompt`): kind "prompt", the text as a JSON string.
+        let payload = serde_json::Value::String(prompt.into()).to_string();
+        store
+            .append_event(thread.id, "prompt", &payload)
+            .expect("append");
+        Ok(thread.id)
+    }
+    fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError> {
+        self.record(Ran::Send(thread_id, text.into()))
+    }
+    fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
+        self.record(Ran::Interrupt(thread_id))
+    }
+}
+
+/// The store backend, except that the next `fail_lists` thread listings fail. Every call is logged in `asked`.
+struct Flaky {
+    inner: StoreBackend<RecordingAgents>,
+    fail_lists: Arc<AtomicUsize>,
+    asked: Arc<Mutex<Vec<&'static str>>>,
+}
+
+impl Flaky {
+    fn ask(&self, call: &'static str) {
+        self.asked.lock().expect("asked lock").push(call);
+    }
+}
+
+impl Backend for Flaky {
+    fn list_projects(&self) -> Result<Vec<Project>, RpcError> {
+        self.ask("list_projects");
+        self.inner.list_projects()
+    }
+    fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
+        self.ask("list_threads");
+        let failing = self
+            .fail_lists
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
+        if failing.is_ok() {
+            return Err(RpcError::new(ErrorCode::Internal, "store busy"));
+        }
+        self.inner.list_threads(project_id)
+    }
+    fn thread_events_since(&self, thread_id: i64, seq: i64) -> Result<Vec<ThreadEvent>, RpcError> {
+        self.ask("thread_events_since");
+        self.inner.thread_events_since(thread_id, seq)
+    }
+    fn start_thread(&self, project_id: i64, prompt: &str) -> Result<i64, RpcError> {
+        self.ask("start_thread");
+        self.inner.start_thread(project_id, prompt)
+    }
+    fn send_message(&self, thread_id: i64, text: &str) -> Result<(), RpcError> {
+        self.ask("send_message");
+        self.inner.send_message(thread_id, text)
+    }
+    fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
+        self.ask("interrupt");
+        self.inner.interrupt(thread_id)
+    }
+}
+
+/// Another machine: a store on disk (one project "app", one thread on account "work") and, once served, a daemon
+/// on a fixed loopback port with the recording agents backend.
+pub struct Env {
+    /// The store file, for tests that open their own connection.
+    pub db: PathBuf,
+    pub store: Arc<Mutex<Store>>,
+    pub project_id: i64,
+    pub thread_id: i64,
+    pub tailnet: Arc<FakeTailnet>,
+    pub agents: Arc<Recorder>,
+    /// How many of the next thread listings fail.
+    pub fail_lists: Arc<AtomicUsize>,
+    /// Every backend call any client made, by name, across restarts. See [`Env::asked`].
+    pub asked_log: Arc<Mutex<Vec<&'static str>>>,
+    /// Where `serve` listens: picked by the first `serve`, then the same on every restart. 0 until then.
+    pub port: u16,
+    pub daemon: Option<Daemon>,
+    /// This machine's accounts.toml, for account labels. Takes effect on the next `serve`.
+    pub accounts: Option<PathBuf>,
+    cwd: PathBuf,
+    /// Holds the store; tests may put other files in it. Last, so the daemon and store let go first.
+    pub _dir: tempfile::TempDir,
+}
+
+impl Env {
+    /// Project "app" at /src/app with thread "fix it", not served yet.
+    pub fn new() -> Self {
+        Self::with(FakeTailnet::default(), "/src/app", "fix it")
+    }
+
+    /// [`Env::new`], served.
+    pub fn start() -> Self {
+        let mut env = Self::new();
+        env.serve();
+        env
+    }
+
+    /// Project "app" at `cwd` with one thread titled `title`, on `tailnet`, not served yet.
+    pub fn with(tailnet: FakeTailnet, cwd: &str, title: &str) -> Self {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let db = dir.path().join("store.db");
+        let store = Store::open(&db).expect("open store");
+        let cwd = PathBuf::from(cwd);
+        let project = store.create_project("app", &cwd).expect("project");
+        let thread = store
+            .create_thread(&NewThread {
+                project_id: project.id,
+                title,
+                cwd: &cwd,
+                account_id: "work",
+                status: "idle",
+            })
+            .expect("thread");
+        Self {
+            _dir: dir,
+            db,
+            store: Arc::new(Mutex::new(store)),
+            project_id: project.id,
+            thread_id: thread.id,
+            tailnet: Arc::new(tailnet),
+            agents: Arc::default(),
+            fail_lists: Arc::default(),
+            asked_log: Arc::default(),
+            port: 0,
+            daemon: None,
+            accounts: None,
+            cwd,
+        }
+    }
+
+    /// A backend over this env's store and recorder, for a test that starts its own daemon.
+    pub fn backend(&self) -> Arc<dyn Backend> {
+        Arc::new(Flaky {
+            inner: StoreBackend::shared(
+                self.store.clone(),
+                RecordingAgents {
+                    recorder: self.agents.clone(),
+                    store: self.store.clone(),
+                    cwd: self.cwd.clone(),
+                },
+                self.accounts.clone(),
+            ),
+            fail_lists: self.fail_lists.clone(),
+            asked: self.asked_log.clone(),
+        })
+    }
+
+    /// (Re)starts the daemon: on a free port the first time, then on that same port.
+    pub fn serve(&mut self) {
+        self.daemon = None;
+        let backend = self.backend();
+        let mut last = None;
+        for _ in 0..100 {
+            match Daemon::start(config(self.port), self.tailnet.clone(), backend.clone()) {
+                Ok(d) => {
+                    self.port = d.local_addrs()[0].port();
+                    self.daemon = Some(d);
+                    return;
+                }
+                // The old listener's port can take a moment to free.
+                Err(e) => {
+                    last = Some(e);
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            }
+        }
+        panic!("daemon didn't start on port {}: {last:?}", self.port);
+    }
+
+    pub fn stop(&mut self) {
+        self.daemon = None;
+    }
+
+    /// Stores an event on `thread_id` without pushing it.
+    pub fn append(&self, thread_id: i64, kind: &str, payload: &str) -> ThreadEvent {
+        let mut store = self.store.lock().expect("store lock");
+        crate::event(
+            store
+                .append_event(thread_id, kind, payload)
+                .expect("append"),
+        )
+    }
+
+    /// Stores an event on the env's thread and pushes it to connected clients, as the desktop does.
+    pub fn push(&self, kind: &str, payload: &str) -> ThreadEvent {
+        let event = self.append(self.thread_id, kind, payload);
+        if let Some(daemon) = &self.daemon {
+            daemon.push_event(event.clone());
+        }
+        event
+    }
+
+    /// The backend calls served so far (`list_projects`, `thread_events_since`, ...), oldest first.
+    pub fn asked(&self) -> Vec<&'static str> {
+        self.asked_log.lock().expect("asked lock").clone()
+    }
+
+    pub fn ran(&self) -> Vec<Ran> {
+        self.agents.ran.lock().expect("ran lock").clone()
+    }
+}
+
+impl Default for Env {
+    fn default() -> Self {
+        Self::new()
+    }
 }

@@ -73,6 +73,21 @@ Threads are saved, and opening an old one and sending a follow-up resumes the sa
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
 
+### Agent browser tabs
+
+An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read
+`browser_url` and run `browser_eval` (a JavaScript expression; the JSON result comes back, up to 64 KiB, within 10
+seconds). Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
+local file page. Each thread has one tab, titled **Agent browser**, with a bar saying the agent controls it:
+
+- **Take over** makes it your tab. The agent can't reach it any more; its next `browser_open` opens a new tab.
+- **Close** closes the tab.
+
+An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or another thread's tab. Its tab has private,
+in-memory cookies and storage, so it is not signed in to anything you are, and nothing it sets reaches your tabs.
+Take over reloads the page, which stops any script the agent left running. While the agent still has the tab,
+don't sign in to anything in it: the agent can read that page. macOS and Linux only. There is no screenshot tool yet.
+
 ### Delegated threads
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
@@ -128,7 +143,7 @@ Only your own devices can connect: same Tailscale user, not tagged, and not this
 allowed here once:
 
 - The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and the Remote tab
-  lists it under **Waiting for approval** with a code such as `4F2A-91C3-07BE-55D1`. The device shows the same code. Click
+  lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
   **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
   the app you just opened. **Deny** turns it down until sharing restarts here.
 - Allowed devices are listed under **Allowed devices** (saved in `settings.toml`). **Revoke** closes its connection
@@ -152,6 +167,18 @@ follow-ups and stop them. The account shown is the one that machine resolved. Te
 local only. Switching back to **This Mac** closes all remote tabs. A thread that starts on this machine while you
 look at another one (a delegated thread, or one started from your phone) doesn't open among the remote tabs: the
 sidebar shows **This Mac · 1 new thread here**, and clicking it switches back and shows it.
+
+Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
+one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
+name. If the name later answers from another node, its tabs close and a warning offers **Trust it**: trust it only if
+you replaced or renamed that machine. If your Tailscale says the machine isn't yours or can't answer, the status says
+so and nothing is sent to it. If the machine claims to be a different node than your Tailscale sees, the status says
+so and nothing is listed or sent after the handshake. After a reconnect nothing is asked of the machine until it is
+checked again, and a refusal clears its projects, threads and tabs from the window.
+
+The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
+you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:
+that catches a reused name or a replaced machine, but not a machine that lies about its id.
 
 ## Device hub
 

@@ -5,7 +5,7 @@ pub mod common;
 
 use std::time::{Duration, Instant};
 
-use common::{Env, NODE_NAME, options};
+use common::{NODE_NAME, options, start};
 use gpui::TestAppContext;
 use skyelab_mobile::{app::MobileApp, remote::RemoteSource, source::ThreadSource};
 
@@ -14,13 +14,17 @@ fn pushed_events_appear_on_the_thread_screen(cx: &mut TestAppContext) {
     // Real sockets and client threads wake the app's task.
     cx.executor().allow_parking();
     cx.update(gpui_component::init);
-    let env = Env::start();
-    let port = env.port();
+    let env = start();
+    let port = env.port;
     let dir = tempfile::tempdir().expect("temp dir");
     let data = dir.path().to_path_buf();
     let (app, cx) = cx.add_window_view(|window, cx| {
+        let pins = data.clone();
         let connect = Box::new(move |_: &str| {
-            Ok(Box::new(RemoteSource::connect(NODE_NAME, options(port))?) as Box<dyn ThreadSource>)
+            Ok(
+                Box::new(RemoteSource::connect(NODE_NAME, options(port), &pins)?)
+                    as Box<dyn ThreadSource>,
+            )
         });
         MobileApp::new(data.clone(), connect, window, cx)
     });
