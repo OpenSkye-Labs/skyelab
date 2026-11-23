@@ -13,8 +13,6 @@ pub const TRUNCATED: &str = "[diff truncated]";
 /// The most of the commit list and of a PR template sent.
 const MAX_COMMITS: usize = 8 << 10;
 const MAX_TEMPLATE: usize = 8_000;
-/// git's hash of the empty tree: what a repo with no commits yet is compared against.
-const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
 /// GitHub's single-file PR template places, in the order GitHub looks. shortcut: a template folder
 /// (`PULL_REQUEST_TEMPLATE/`) is not read; add it if a user relies on one.
@@ -73,6 +71,7 @@ fn folder_spec(rel: &Path) -> String {
     }
 }
 
+/// shortcut: git's whole output is read before the cap; stream and stop at the cap if huge tracked diffs get slow.
 /// What Commit would commit, as `diff --stat --patch` text plus the picked untracked files' contents: `paths` (repo
 /// root relative, as the Changes tab lists them) or, when empty, everything changed. Only paths inside `dir`.
 pub fn commit_diff(dir: &Path, paths: &[PathBuf]) -> Result<String> {
@@ -89,12 +88,15 @@ pub fn commit_diff(dir: &Path, paths: &[PathBuf]) -> Result<String> {
             .map(|p| p.to_string_lossy().into_owned())
             .collect()
     };
+    // A repo with no commits yet is compared against the empty tree, hashed in the repo's own format (sha1 or sha256).
     let head = if rev_parse(&root, "HEAD").is_ok() {
-        "HEAD"
+        "HEAD".to_owned()
     } else {
-        EMPTY_TREE
+        lossy(&git(&root, &["hash-object", "-t", "tree", "--stdin"])?)
+            .trim()
+            .to_owned()
     };
-    let args = [DIFF, &["--end-of-options", head, "--"]].concat();
+    let args = [DIFF, &["--end-of-options", &head, "--"]].concat();
     let mut out = lossy(&git(
         &root,
         &[

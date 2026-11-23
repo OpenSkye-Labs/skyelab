@@ -108,10 +108,10 @@ fn unfenced(raw: &str) -> Vec<String> {
 
 /// One line of title text: label, heading marks and quotes stripped, cut to `max` characters.
 fn one_line(line: &str, labels: &[&str], max: usize) -> String {
-    let mut l = line.trim().trim_start_matches(['#', '>', ' ']);
+    let mut l = line.trim().trim_start_matches(['#', '>', '*', '_', ' ']);
     for label in labels {
         if let Some(rest) = l.strip_prefix(label) {
-            l = rest;
+            l = rest.trim_start_matches(['*', '_', ' ']);
         }
     }
     let l = l.trim_matches(|c: char| c.is_whitespace() || "\"'`*“”‘’".contains(c));
@@ -214,6 +214,10 @@ mod tests {
             ("feat: add X".to_owned(), "## Summary\n- did X".to_owned())
         );
         assert_eq!(clean_pr("only a title").expect("pr").1, "");
+        assert_eq!(
+            clean_pr("**Title:** feat: add x").expect("pr").0,
+            "feat: add x"
+        );
         assert_eq!(clean_pr("   "), None);
     }
 

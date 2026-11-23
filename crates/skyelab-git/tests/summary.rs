@@ -111,6 +111,17 @@ fn a_repo_with_no_commits_diffs_against_nothing() {
 }
 
 #[test]
+fn an_unborn_sha256_repo_diffs_against_its_own_empty_tree() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let repo = std::fs::canonicalize(tmp.path()).expect("canon");
+    git(&repo, &["init", "-q", "--object-format=sha256"]);
+    std::fs::write(repo.join("a.txt"), "hello\n").expect("w");
+    git(&repo, &["add", "a.txt"]);
+    let d = commit_diff(&repo, &[]).expect("diff");
+    assert!(d.contains("+hello"), "{d}");
+}
+
+#[test]
 fn pr_context_has_the_commits_diff_and_template() {
     let (_tmp, repo) = repo();
     std::fs::create_dir(repo.join(".github")).expect("mkdir");
