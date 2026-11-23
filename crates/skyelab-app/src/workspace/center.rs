@@ -146,6 +146,9 @@ impl Workspace {
                     s.section = section;
                     cx.notify();
                 });
+                if section == crate::settings::Section::Usage {
+                    self.reload_usage(cx);
+                }
                 settings.read(cx).focus_handle(cx).focus(window, cx);
                 settings.into()
             }

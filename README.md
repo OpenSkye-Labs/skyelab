@@ -41,12 +41,14 @@ What's built today:
   the right panel's **Details** tab holds the folder, branch (with how far behind or ahead of its upstream, kept
   fresh by a background fetch, and a fast-forward Pull), git actions, scripts, delegated agents, pull request (its
   state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
+- **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
+  per account and per project, with a daily chart, from what the agents reported (no account is asked).
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user (a sparkle writes the commit
   message or PR text, from the PR template too, with that account's agent); inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
-  `/` and skills with `$`, and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
+  `/` and skills with `$`, add another thread's gist or its pull request with `#` (same account only), and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
   files and branch. A long paste (8 KB or 200 lines) attaches as a text file instead, and images you sent or preview
   open large in a zoomable viewer.

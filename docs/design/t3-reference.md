@@ -121,7 +121,13 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - Section header (`ui/collapsible-section-header.tsx:5-44`): 32 tall, `px-2`, `text-xs font-medium` muted, a 1 px
   `sidebar-border/50` rule filling the rest of the line, a `tabular-nums` count.
 - Context chip (`W/components/ContextChip.tsx:1-104`): inline, no box: `font-medium`, the chip's accent as ink, a 1em
-  icon. Environment/model chips in the composer strip are this shape.
+  icon. Environment/model chips in the composer strip are this shape. SkyeLab's prompt chips (terminal, thread, pull request;
+  `composer_context.rs`) keep a 28 px boxed chip above the prompt instead, with the kind's icon in its accent, since
+  they open to show their text.
+- Usage page (`W/usage/UsagePage.tsx`): header with segmented range/metric toggles, a `text-4xl` semibold total, one
+  line per provider (dot, name, `text-2xs` session count, value, "x% of cost · tokens"), the daily chart beside it,
+  then a table. SkyeLab: Settings → Usage (`workspace/usage_page*.rs`), one line per **account** (the comparison is the
+  point), with that account's limit bars, a stacked 30-day bar chart drawn with divs, and a per-project table.
 
 ## 7. Empty states
 
