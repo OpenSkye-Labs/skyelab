@@ -363,6 +363,7 @@ impl ThreadView {
         let cwd = self.cwd.clone();
         let account = self.composer_account();
         let contexts = (kind == MenuKind::Context).then(|| self.context_menu_items());
+        let side_commands = !self.is_side_chat();
         let task = cx.background_spawn(async move {
             match (kind, account) {
                 // Its own check: only threads of the composer's account (none when unbound).
@@ -375,7 +376,7 @@ impl ThreadView {
                 // Unbound: no account dir to read, so nothing (never the parent's).
                 (_, None) => Vec::new(),
                 (MenuKind::Commands, Some(a)) => {
-                    composer_menu::command_items(a.provider, &a.config_dir, &cwd)
+                    composer_menu::command_items(a.provider, &a.config_dir, &cwd, side_commands)
                 }
                 (MenuKind::Skills, Some(a)) => {
                     composer_menu::skill_items(a.provider, &a.config_dir)
