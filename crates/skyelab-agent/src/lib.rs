@@ -340,15 +340,25 @@ impl Session {
     /// The exit status once the agent has exited (reaping it), or `None` while it runs. Reaping it also ends what
     /// is left of its process group (a tool it started that still holds its stdout).
     pub fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
-        if self.status.is_none() {
-            self.status = self
-                .child
-                .try_wait()
-                .context("checking whether the agent exited")?;
-            if self.status.is_some() {
-                // The group id stays reserved while any member lives, so this reaches only the agent's own tools.
-                self.kill_group();
+        if self.status.is_some() {
+            return Ok(self.status);
+        }
+        // Unix: signal the group while the unreaped leader still holds its pid and group id, so it can't reach
+        // anyone else's. Windows: the Job Object names the tree, so it closes after the reap.
+        #[cfg(unix)]
+        {
+            if !self.exited_unreaped()? {
+                return Ok(None);
             }
+            self.kill_group();
+        }
+        self.status = self
+            .child
+            .try_wait()
+            .context("checking whether the agent exited")?;
+        #[cfg(not(unix))]
+        if self.status.is_some() {
+            self.kill_group();
         }
         Ok(self.status)
     }
@@ -365,6 +375,20 @@ impl Session {
         let _ = self.child.kill();
         self.status = Some(self.child.wait().context("waiting for claude to exit")?);
         Ok(())
+    }
+
+    /// Whether the agent has exited, without reaping it.
+    #[cfg(unix)]
+    fn exited_unreaped(&self) -> Result<bool> {
+        use rustix::process::{Pid, WaitId, WaitIdOptions, waitid};
+        let pid = i32::try_from(self.child.id())
+            .ok()
+            .and_then(Pid::from_raw)
+            .context("the agent's pid")?;
+        let options = WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT;
+        Ok(waitid(WaitId::Pid(pid), options)
+            .context("checking whether the agent exited")?
+            .is_some())
     }
 
     /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing

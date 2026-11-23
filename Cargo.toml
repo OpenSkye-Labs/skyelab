@@ -28,6 +28,8 @@ alacritty_terminal = "0.26"
 rustix-openpty = "0.2"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent"] }
 futures = "0.3"
+# waitid(WNOWAIT): see an agent exit before reaping it, while its group id is still its own.
+rustix = { version = "1.1", features = ["process"] }
 # Windows Job Objects (kill an agent with its whole process tree), a safe API.
 win32job = "2.1"
 # Prompt ids claude echoes back in a result (user_message_uuids).
