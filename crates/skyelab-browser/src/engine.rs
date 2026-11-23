@@ -53,6 +53,29 @@ impl Engine for Wry {
         Ok(())
     }
 
+    // shortcut: written against the webkit2gtk 2.0.1 docs and only cross-checked, never run; test it on a Linux box.
+    #[cfg(target_os = "linux")]
+    fn snapshot(&self, done: SnapshotDone, cx: &App) -> anyhow::Result<()> {
+        use webkit2gtk::{SnapshotOptions, SnapshotRegion, WebViewExt as _};
+        use wry::WebViewExtUnix as _;
+        // The visible region only: like WKWebView's snapshot, nothing outside the web view's own area.
+        self.0.read(cx).raw().webview().snapshot(
+            SnapshotRegion::Visible,
+            SnapshotOptions::NONE,
+            None::<&webkit2gtk::gio::Cancellable>,
+            move |shot| {
+                done(shot.map_err(|e| e.to_string()).and_then(|surface| {
+                    let mut png = Vec::new();
+                    surface
+                        .write_to_png(&mut png)
+                        .map_err(|e| format!("encode the snapshot: {e}"))?;
+                    Ok(png)
+                }))
+            },
+        );
+        Ok(())
+    }
+
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()> {
         let page = self.0.read(cx);
         // No callback, so wry never serializes what the agent's script evaluates to.

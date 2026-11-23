@@ -20,8 +20,9 @@
 //!   `http://localhost`. Only that input is checked. wry's
 //!   navigation handler also fires for iframes, so filtering there would break `about:`, `data:`
 //!   and `blob:` frames that real web apps use; links and scripts in the page go unfiltered.
-//! - Screenshots (`screenshot`, the agent path's rules) are macOS only: WKWebView's snapshot through
-//!   `skyelab-webkit-sys`, since wry has no API and the call is `unsafe`. WebKitGTK and WebView2 say "not supported yet".
+//! - Screenshots (`screenshot`, the agent path's rules): macOS through WKWebView's snapshot in `skyelab-webkit-sys`
+//!   (wry has no API and the call is `unsafe`), Linux through WebKitGTK's safe `WebView::snapshot` (visible region,
+//!   encoded by cairo; cross-checked only, never run). WebView2 says "not supported yet".
 //! - [`Engine`] is the seam under the agent path: [`BrowserView::with_engine`] runs it on a test's fake page.
 
 mod agent;
