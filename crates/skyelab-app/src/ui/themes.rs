@@ -4,9 +4,11 @@
 use gpui::{App, AppContext as _, Global, Hsla, Task};
 use gpui_component::{Colorize as _, Theme, ThemeConfig, ThemeMode, ThemeRegistry};
 use skyelab_core::{AppSettings, AppearanceSettings, ColorMode};
-use std::path::PathBuf;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 /// A theme family: a light and a dark theme named `<label> Light` / `<label> Dark` in its file.
 pub struct Family {
@@ -55,6 +57,8 @@ pub struct Accent {
     pub label: &'static str,
     pub light: (&'static str, &'static str),
     pub dark: (&'static str, &'static str),
+    /// Links on a dark background: the dark fill is too deep for 4.5:1 text in blue and violet.
+    pub dark_link: &'static str,
 }
 
 pub const ACCENTS: [Accent; 6] = [
@@ -63,36 +67,42 @@ pub const ACCENTS: [Accent; 6] = [
         label: "Blue",
         light: ("#1b4ed8", "#ffffff"),
         dark: ("#346bf1", "#ffffff"),
+        dark_link: "#7aa2f7",
     },
     Accent {
         key: "violet",
         label: "Violet",
         light: ("#6d28d9", "#ffffff"),
         dark: ("#7c3aed", "#ffffff"),
+        dark_link: "#a78bfa",
     },
     Accent {
         key: "teal",
         label: "Teal",
         light: ("#0f766e", "#ffffff"),
         dark: ("#2dd4bf", "#042f2e"),
+        dark_link: "#2dd4bf",
     },
     Accent {
         key: "green",
         label: "Green",
         light: ("#15803d", "#ffffff"),
         dark: ("#4ade80", "#052e16"),
+        dark_link: "#4ade80",
     },
     Accent {
         key: "amber",
         label: "Amber",
         light: ("#b45309", "#ffffff"),
         dark: ("#fbbf24", "#451a03"),
+        dark_link: "#fbbf24",
     },
     Accent {
         key: "rose",
         label: "Rose",
         light: ("#be123c", "#ffffff"),
         dark: ("#fb7185", "#4c0519"),
+        dark_link: "#fb7185",
     },
 ];
 
@@ -171,12 +181,31 @@ pub fn set(settings: AppearanceSettings, cx: &mut App) -> Task<anyhow::Result<()
         settings: settings.clone(),
     });
     apply(cx);
+    let n = next_save();
     cx.background_spawn(async move {
         match path {
-            Some(p) => AppSettings::update(&p, |s| s.appearance = settings).map(drop),
+            Some(p) => save(n, &p, settings),
             None => Ok(()),
         }
     })
+}
+
+/// Numbers each save in the order `set` was called.
+pub(crate) fn next_save() -> u64 {
+    static SAVES: AtomicU64 = AtomicU64::new(0);
+    SAVES.fetch_add(1, Ordering::SeqCst) + 1
+}
+
+/// Writes save `n` unless a newer one already landed: quick changes save on the thread pool in any order.
+pub(crate) fn save(n: u64, path: &Path, settings: AppearanceSettings) -> anyhow::Result<()> {
+    static WRITTEN: Mutex<BTreeMap<PathBuf, u64>> = Mutex::new(BTreeMap::new());
+    let mut written = WRITTEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if written.get(path).is_some_and(|w| *w > n) {
+        return Ok(());
+    }
+    AppSettings::update(path, |s| s.appearance = settings)?;
+    written.insert(path.to_owned(), n);
+    Ok(())
 }
 
 /// The mode to show: the verify override (debug builds), else the setting, else the system's.
@@ -254,7 +283,7 @@ pub(crate) fn adjust(base: &ThemeConfig, s: &AppearanceSettings, dark: bool) -> 
         k.sidebar_primary = Some(fill.into());
         k.sidebar_primary_foreground = Some(text.into());
         k.ring = Some(fill.into());
-        k.link = Some(fill.into());
+        k.link = Some(if dark { a.dark_link } else { fill }.into());
         k.list_active = Some(format!("{fill}{}", if dark { "26" } else { "1a" }).into());
         k.list_active_border = Some(fill.into());
         k.selection = Some(format!("{fill}{}", if dark { "4d" } else { "33" }).into());

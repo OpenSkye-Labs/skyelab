@@ -115,3 +115,19 @@ fn the_choice_is_read_from_and_saved_to_settings_toml(cx: &mut TestAppContext) {
         ("grove", Some("violet"))
     );
 }
+
+#[test]
+fn an_older_save_finishing_last_never_wins() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("settings.toml");
+    let (older, newer) = (themes::next_save(), themes::next_save());
+    let pick = |accent: &str| AppearanceSettings {
+        accent: Some(accent.into()),
+        ..Default::default()
+    };
+    // Two quick clicks: the newer save's thread runs first.
+    themes::save(newer, &path, pick("rose")).expect("save");
+    themes::save(older, &path, pick("violet")).expect("save");
+    let saved = skyelab_core::AppSettings::load(&path).expect("load");
+    assert_eq!(saved.appearance.accent.as_deref(), Some("rose"));
+}

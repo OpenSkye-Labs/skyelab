@@ -149,3 +149,31 @@ fn focus_leaving_the_modal_closes_it(cx: &mut TestAppContext) {
         "focus inside the modal keeps it"
     );
 }
+
+#[gpui::test]
+fn what_took_the_focus_keeps_it_when_the_modal_closes(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    cx.update(|window, _| window.activate_window());
+    let before = cx.update(|window, cx| window.focused(cx));
+    cx.dispatch_action(OpenSettingsSection {
+        section: Section::Appearance,
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes(crate::palette::OPEN_PALETTE_KEY);
+    cx.run_until_parked();
+    assert!(
+        !ws.read_with(cx, |ws, _| ws.settings_open),
+        "the palette closed it"
+    );
+    assert!(
+        cx.update(gpui_component::WindowExt::has_active_dialog),
+        "the palette is open"
+    );
+    let now = cx.update(|window, cx| window.focused(cx));
+    assert!(
+        now.is_some() && now != before,
+        "the palette lost its focus to the page behind"
+    );
+}
