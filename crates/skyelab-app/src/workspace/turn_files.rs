@@ -1,7 +1,7 @@
 //! The files a finished turn changed, under its reply (T3's changed-files card in `TimelineAssistantRows`): read from
 //! the turn's checkpoint diff, never from a new walk of the tree. Turn divider k is checkpoint turn k, which holds
-//! only while the thread has as many dividers as checkpointed turns (the newest one may still wait for its
-//! checkpoint); a crash or a rerun that took a checkpoint without a divider turns the rows off rather than list
+//! only while the thread has as many dividers as checkpointed turns. A crash or rerun that took a checkpoint
+//! without a divider, or a turn that took none (the folder wasn't a repo yet), turns the rows off rather than list
 //! another turn's files.
 
 use super::thread::ThreadView;
@@ -45,26 +45,26 @@ pub struct TurnFiles {
     pub turns: usize,
     /// Diffs read, by (from tree, to tree): a pair's diff never changes, so each is read once.
     cache: HashMap<(String, String), Vec<FileStat>>,
-    /// Set by a load; a new checkpoint (or opening the thread) clears it.
-    pub loaded: bool,
+    /// How many dividers the thread had when that load landed. A divider newer than it may still wait for its
+    /// checkpoint; one counted then without a checkpoint never gets one.
+    pub dividers_at_load: usize,
     _task: Option<Task<()>>,
 }
 
-/// The checkpoint turn of the divider at row `done`, if the dividers and checkpoints line up.
-pub fn turn_of(items: &[Item], done: usize, turns: usize) -> Option<u32> {
-    let dividers = items
-        .iter()
-        .filter(|i| matches!(i, Item::Done { .. }))
-        .count();
-    if !(dividers == turns || dividers == turns + 1) {
+/// The checkpoint turn of the divider at row `done`, if the dividers and checkpoints line up: as many of each, or
+/// one newer divider whose checkpoint is still being taken (the load before it matched).
+pub fn turn_of(items: &[Item], done: usize, turns: usize, dividers_at_load: usize) -> Option<u32> {
+    if !matches!(items.get(done)?, Item::Done { .. }) {
         return None;
     }
-    matches!(items.get(done)?, Item::Done { .. }).then(|| {
-        items[..=done]
-            .iter()
+    let count = |rows: &[Item]| {
+        rows.iter()
             .filter(|i| matches!(i, Item::Done { .. }))
-            .count() as u32
-    })
+            .count()
+    };
+    let dividers = count(items);
+    let pending = dividers == turns + 1 && dividers_at_load == turns;
+    (dividers == turns || pending).then(|| count(&items[..=done]) as u32)
 }
 
 type Loaded = (
@@ -129,7 +129,6 @@ impl ThreadView {
         let Some(t) = &self.thread else { return };
         let (cwd, key) = (t.cwd.clone(), super::thread_checkpoints::key(t));
         let cache = self.timeline.files.cache.clone();
-        self.timeline.files.loaded = true;
         let task = cx.background_spawn(async move { load(&cwd, &key, cache) });
         self.timeline.files._task = Some(cx.spawn(async move |this, cx| {
             let Some((turns, by_turn, cache)) = task.await else {
@@ -138,6 +137,11 @@ impl ThreadView {
             let _ = this.update(cx, |this, cx| {
                 let f = &mut this.timeline.files;
                 (f.turns, f.by_turn, f.cache) = (turns, by_turn, cache);
+                f.dividers_at_load = this
+                    .items
+                    .iter()
+                    .filter(|i| matches!(i, Item::Done { .. }))
+                    .count();
                 // The dividers grow a row: measure them again.
                 for ix in 0..this.items.len() {
                     if matches!(this.items[ix], Item::Done { .. }) {

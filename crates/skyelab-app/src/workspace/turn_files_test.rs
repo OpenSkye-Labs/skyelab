@@ -27,20 +27,25 @@ fn turn_numbers_need_matching_counts() {
         Item::Prompt("b".into()),
         done(), // 3
     ];
-    assert_eq!(turn_of(&items, 1, 2), Some(1));
-    assert_eq!(turn_of(&items, 3, 2), Some(2));
+    assert_eq!(turn_of(&items, 1, 2, 2), Some(1));
+    assert_eq!(turn_of(&items, 3, 2, 2), Some(2));
     assert_eq!(
-        turn_of(&items, 3, 1),
+        turn_of(&items, 3, 1, 1),
         Some(2),
         "the newest divider may wait for its checkpoint"
     );
     assert_eq!(
-        turn_of(&items, 1, 3),
+        turn_of(&items, 1, 1, 2),
+        None,
+        "a divider that had no checkpoint at the last load never gets one (a turn before the repo existed)"
+    );
+    assert_eq!(
+        turn_of(&items, 1, 3, 2),
         None,
         "a checkpoint without a divider shifts the numbers"
     );
-    assert_eq!(turn_of(&items, 1, 0), None);
-    assert_eq!(turn_of(&items, 0, 2), None, "not a divider");
+    assert_eq!(turn_of(&items, 1, 0, 0), None);
+    assert_eq!(turn_of(&items, 0, 2, 2), None, "not a divider");
 }
 
 #[gpui::test]

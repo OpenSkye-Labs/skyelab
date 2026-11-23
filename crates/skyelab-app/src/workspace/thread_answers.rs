@@ -228,7 +228,8 @@ impl ItemsView for ThreadView {
     }
     fn turn_files(&self, done: usize) -> Option<(u32, &[super::super::turn_files::FileStat])> {
         let f = &self.timeline.files;
-        let turn = super::super::turn_files::turn_of(&self.items, done, f.turns)?;
+        let turn =
+            super::super::turn_files::turn_of(&self.items, done, f.turns, f.dividers_at_load)?;
         Some((turn, f.by_turn.get(&turn)?))
     }
     fn open_turn_file(&mut self, turn: u32, path: &std::path::Path, cx: &mut Context<Self>) {
