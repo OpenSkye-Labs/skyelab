@@ -1,6 +1,9 @@
 mod environment;
 mod keymap;
 mod palette;
+#[cfg(test)]
+#[path = "quit_key_test.rs"]
+mod quit_key_test;
 mod remote;
 mod settings;
 #[cfg(test)]
@@ -141,10 +144,18 @@ fn load_accounts(path: Option<&std::path::Path>) -> (AccountsConfig, Option<Stri
     }
 }
 
+actions!(skyelab, [Quit]);
+
+/// The app's menus and keys, then the user's keybindings file over them. The keymap keeps only the bindings made
+/// before it starts, so nothing binds a key after this.
+fn init_keys(path: Option<std::path::PathBuf>, cx: &mut App) {
+    app_menus(cx);
+    keymap::init(path, cx);
+}
+
 /// The macOS app menu (other OSes have no app menu bar): New Window, Check for Updates, Settings, Quit.
 fn app_menus(cx: &mut App) {
     use gpui::{Menu, MenuItem};
-    actions!(skyelab, [Quit]);
     cx.on_action(|_: &Quit, cx| cx.quit());
     cx.set_menus([Menu {
         name: "SkyeLab".into(),
@@ -199,7 +210,7 @@ fn main() {
         settings::init(cx);
         skyelab_terminal::init(cx);
         workspace::init(cx);
-        keymap::init(skyelab_core::keymap::default_path(), cx);
+        init_keys(skyelab_core::keymap::default_path(), cx);
         cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
             Some(bin) if cfg!(debug_assertions) => bin.into(),
             _ => "gh".into(),
@@ -290,7 +301,6 @@ fn main() {
             ),
             cx,
         );
-        app_menus(cx);
         // A window opened with none left (the dock, the menu): the same store, the accounts as on disk now.
         let fresh = {
             let (path, backend) = (path.clone(), backend.clone());
