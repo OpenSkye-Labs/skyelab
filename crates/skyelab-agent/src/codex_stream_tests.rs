@@ -167,12 +167,13 @@ fn codex_rate_limits_report_each_window() {
     );
     assert_eq!(full[..1], [reading("five_hour", 1.0, 5)]);
     assert_eq!(full.len(), 2);
-    // A model-specific limit and a monthly window aren't account readings; the summary still comes.
+    // A model-specific limit says nothing about the account, not even a summary; a monthly window isn't a reading,
+    // but its summary still comes.
     let other = events(
         &mut c,
         json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"gpt-x","primary":{"usedPercent":10,"windowDurationMins":300}}}}),
     );
-    assert_eq!(other.len(), 1);
+    assert_eq!(other.len(), 0);
     let monthly = events(
         &mut c,
         json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":43200}}}}),

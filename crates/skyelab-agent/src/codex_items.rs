@@ -53,18 +53,19 @@ pub(super) fn plan(p: &Value) -> Option<Event> {
 /// whoever keeps only the newest event sees whether the account is limited: limited once Codex says a limit was
 /// reached, or a window is used up; it resets when the latest used-up window does. (Recorded transcripts only show
 /// windows under 100%, so "reached" is unconfirmed.) Model-specific limits (a `limitId` other than `codex`) are left
-/// out of the readings, like T3's `codexUsageLimits`.
+/// out entirely, like T3's `codexUsageLimits`: they describe one model, not whether the account is limited.
 pub(super) fn rate_limit(r: &Value) -> Vec<Event> {
+    if r["limitId"].as_str().is_some_and(|id| id != "codex") {
+        return Vec::new();
+    }
     let windows = [&r["primary"], &r["secondary"]];
     let full = windows
         .iter()
         .filter(|w| w["usedPercent"].as_f64().is_some_and(|u| u >= 100.0));
     let resets_at = full.clone().filter_map(|w| w["resetsAt"].as_i64()).max();
-    let main = r["limitId"].as_str().is_none_or(|id| id == "codex");
     let readings = windows
         .iter()
         .zip([300, 10_080])
-        .filter(|_| main)
         .filter_map(|(w, fallback_mins)| {
             let used = w["usedPercent"].as_f64().filter(|u| u.is_finite())?;
             let window = match w["windowDurationMins"].as_i64().unwrap_or(fallback_mins) {
@@ -83,7 +84,11 @@ pub(super) fn rate_limit(r: &Value) -> Vec<Event> {
         window: None,
         used: None,
         limited: !r["rateLimitReachedType"].is_null() || full.count() > 0,
-        resets_at: resets_at.or(r["primary"]["resetsAt"].as_i64()),
+        resets_at: resets_at.or_else(|| match r["rateLimitReachedType"].is_null() {
+            true => r["primary"]["resetsAt"].as_i64(),
+            // Reached with no window at 100%: which one is unknown, so the later reset, never a too-early one.
+            false => windows.iter().filter_map(|w| w["resetsAt"].as_i64()).max(),
+        }),
     };
     readings.chain(std::iter::once(summary)).collect()
 }
@@ -224,5 +229,38 @@ impl Codex {
             .map(|(q, a)| (q.clone(), json!({ "answers": a })))
             .collect();
         Some(json!({ "id": rpc, "result": { "answers": map } }).to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rate_limit;
+    use crate::Event;
+    use serde_json::json;
+
+    fn summary(events: &[Event]) -> Option<(bool, Option<i64>)> {
+        events.iter().rev().find_map(|e| match e {
+            Event::RateLimit {
+                window: None,
+                limited,
+                resets_at,
+                ..
+            } => Some((*limited, *resets_at)),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn a_model_limit_never_speaks_for_the_account() {
+        let r = json!({"limitId": "gpt-x", "primary": {"usedPercent": 100, "windowDurationMins": 300, "resetsAt": 5}});
+        assert!(rate_limit(&r).is_empty());
+    }
+
+    #[test]
+    fn reached_without_a_full_window_waits_for_the_later_reset() {
+        let r = json!({"limitId": "codex", "rateLimitReachedType": "x",
+            "primary": {"usedPercent": 40, "windowDurationMins": 300, "resetsAt": 100},
+            "secondary": {"usedPercent": 90, "windowDurationMins": 10080, "resetsAt": 900}});
+        assert_eq!(summary(&rate_limit(&r)), Some((true, Some(900))));
     }
 }
