@@ -24,6 +24,8 @@ use std::path::PathBuf;
 actions!(skyelab, [RefreshChanges]);
 
 const ROW_HEIGHT: f32 = 20.;
+/// The file list's rows, T3's 28.
+const FILE_ROW_HEIGHT: f32 = 28.;
 
 pub struct ChangesView {
     focus: FocusHandle,
@@ -168,6 +170,8 @@ impl ChangesView {
                     }
                     Row::Hunk(h) => base
                         .px_3()
+                        .font_family(theme.font_family.clone())
+                        .text_size(px(11.))
                         .text_color(theme.muted_foreground.opacity(0.7))
                         .child(h.clone()),
                     Row::Placeholder(p) => base
@@ -235,7 +239,7 @@ impl ChangesView {
                 h_flex()
                     .id(("file", ix))
                     .w_full()
-                    .h(px(ROW_HEIGHT))
+                    .h(px(FILE_ROW_HEIGHT))
                     .px_2()
                     .gap_2()
                     .text_size(ui::META)
@@ -347,7 +351,7 @@ impl Render for ChangesView {
             div()
                 .p_4()
                 .text_size(ui::BODY)
-                .text_color(theme.danger)
+                .text_color(crate::ui::ink(theme, theme.danger))
                 .child(e.clone())
                 .into_any_element()
         } else if empty {

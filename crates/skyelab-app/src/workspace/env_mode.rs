@@ -376,7 +376,7 @@ impl Workspace {
                     _ => "No threads".into(),
                 },
                 empty_hint: if has_project {
-                    "Start one with New. It runs on the other machine."
+                    "Start one with New thread. It runs on the other machine."
                 } else {
                     "Select a project to see its threads."
                 }

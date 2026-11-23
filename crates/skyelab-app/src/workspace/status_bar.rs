@@ -21,7 +21,7 @@ impl Workspace {
             .ghost()
             .xsmall()
             .tooltip("Accounts and folder bindings")
-            .child(badge)
+            .child(badge.chip())
             .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
         let remote = self.is_remote();
         StatusBar::new()
@@ -42,7 +42,7 @@ impl Workspace {
                     })
                     .children(self.store_error.clone().map(|e| {
                         div()
-                            .text_color(theme.danger)
+                            .text_color(crate::ui::ink(theme, theme.danger))
                             .child(format!("Store error: {e}"))
                     })),
             )

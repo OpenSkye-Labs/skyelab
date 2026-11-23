@@ -25,6 +25,7 @@ impl Workspace {
                 match loaded {
                     Ok(projects) => {
                         this.projects = projects;
+                        this.resolve_project_accounts(cx);
                         let current = this.project.as_ref().map(|p| p.id);
                         if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id))
                         {
@@ -139,6 +140,30 @@ impl Workspace {
         }));
     }
 
+    /// Resolves each project's account in the background (it touches the disk), then redraws the sidebar. A newer
+    /// call replaces (cancels) an older one, so the latest config wins.
+    fn resolve_project_accounts(&mut self, cx: &mut Context<Self>) {
+        let config = self.config.clone();
+        let projects: Vec<(i64, PathBuf)> = self
+            .projects
+            .iter()
+            .map(|p| (p.id, p.path.clone()))
+            .collect();
+        let task = cx.background_spawn(async move {
+            projects
+                .into_iter()
+                .map(|(id, path)| (id, config.resolve(&path).cloned()))
+                .collect()
+        });
+        self._project_accounts = Some(cx.spawn(async move |this, cx| {
+            let resolved = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.project_accounts = resolved;
+                this.refresh_sidebar(cx);
+            });
+        }));
+    }
+
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
         if let Some(sections) = self.remote_sections(cx) {
             return self.sidebar.update(cx, |sidebar, cx| {
@@ -157,9 +182,10 @@ impl Workspace {
                 action: Box::new(SelectProject { id: p.id }),
                 status: None,
                 updated_ms: None,
-                account: Some(match self.config.resolve(&p.path) {
-                    Some(a) => RowAccount::Bound(a.clone()),
-                    None => RowAccount::Unbound,
+                account: Some(match self.project_accounts.get(&p.id) {
+                    Some(Some(a)) => RowAccount::Bound(a.clone()),
+                    Some(None) => RowAccount::Unbound,
+                    None => RowAccount::Resolving,
                 }),
             })
             .collect();
@@ -191,9 +217,9 @@ impl Workspace {
                 SidebarSection {
                     title: "Threads".into(),
                     items: threads,
-                    empty_title: "No threads".into(),
+                    empty_title: "No threads yet".into(),
                     empty_hint: if has_project {
-                        "Start one with New."
+                        "Start one with New thread."
                     } else {
                         "Select a project to see its threads."
                     }
@@ -410,6 +436,7 @@ impl Workspace {
     /// Settings saved: open threads start their next session from the new bindings.
     pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
         crate::ui::set_accounts(cx, &self.config);
+        self.resolve_project_accounts(cx);
         super::orchestrate::set_config(cx, &self.config);
         let config = self.config.clone();
         for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {

@@ -196,6 +196,7 @@ impl Render for RemotePanel {
                                 .child(
                                     v_flex()
                                         .flex_1()
+                                        .min_w_0()
                                         .gap_1()
                                         .child(
                                             h_flex()
@@ -241,7 +242,7 @@ impl Render for RemotePanel {
                             remote
                                 .approval_error
                                 .clone()
-                                .map(|e| div().px_1().text_color(theme.danger).child(e)),
+                                .map(|e| div().px_1().text_color(crate::ui::ink(theme, theme.danger)).child(e)),
                         ),
                     )
                     .child(section("Connected devices", peers)),

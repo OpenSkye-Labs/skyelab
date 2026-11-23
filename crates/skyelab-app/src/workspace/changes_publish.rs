@@ -262,7 +262,7 @@ impl ChangesView {
                 div()
                     .id("publish-error")
                     .text_xs()
-                    .text_color(theme.danger)
+                    .text_color(crate::ui::ink(theme, theme.danger))
                     .child(e)
             }))
             .children(self.publish_note.clone().map(|n| {

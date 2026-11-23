@@ -117,18 +117,25 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - **Theme, not views.** All values in §1 live in `crates/skyelab-app/themes/skyelab.json` (gpui-component's theme
   format: `background`, `sidebar.background`, `sidebar.accent.background`, `border`, `input.border`, `primary.background`,
   `ring`, `base.*`…). `ui::install_theme` loads it as the light and dark themes; views read `cx.theme()` only.
-- **Tokens** in `crates/skyelab-app/src/ui/mod.rs`: radii (`RADIUS_SM` 4, `RADIUS_MD` 6, `RADIUS` 8, `RADIUS_XL` 16),
-  type (`CAPTION` 11, `META` 12, `BODY` 14, `CODE` 13), heights (`ROW_H` 32, `THREAD_ROW_H` 30, `HEADER_H` 52), `CHAT_MAX_W` 736.
+- **Tokens** in `crates/skyelab-app/src/ui/mod.rs`: radii (`RADIUS_SM` 4, `RADIUS_MD` 6, `RADIUS` 8, `RADIUS_LG` 12,
+  `RADIUS_XL` 16), type (`META` 12, `CODE` 13, `BODY` 14, `SECTION` 16, `PAGE` 20), geometry (`ROW_H` 32, `HEADER_H` 52,
+  `CHAT_MAX_W` 736, `PAGE_MAX_W` 896). `ui::ink` darkens a status color for text in light themes (T3's 700 shades).
 - **Components** in `ui/components.rs`: `row` (sidebar menu row), `SectionHeader` (caption + rule + trailing control),
-  `StatusDot`, `Pill` (T3 badge), `EmptyState` (§7), `KeyHint` (label + gpui-component `Kbd`), `toolbar` (52 px header),
-  `AccountBadge`.
+  `StatusDot`, `Pill` (T3 badge), `EmptyState` (§7; `.page()` for the large one), `KeyHint` (label + gpui-component
+  `Kbd`), `Monogram`, `header` (52 px view header), `page_title`, `section_title`, `group`/`group_row` (settings groups),
+  `mono`, `AccountBadge`.
 - **gpui-component reused as is:** `Button` (ghost/outline/primary; xsmall = 24, small = 28), `Kbd`, `Input`/`Textarea`
   (with `appearance(false)` inside the composer), `Checkbox`, `Switch`, `Tooltip`, `IconName` icons (needs
   `gpui-kit-assets` registered), the dock's tab bar (styled through `tab_bar.*`/`tab.*` theme fields).
 - **SkyeLab's one addition: the account badge.** T3 has no account concept. Ours follows T3's context chip: inline,
-  no box in rows (6 px dot in the account's color, label `font-medium`, provider muted), and a 20 px tinted chip
-  (color 12%, border 32%, radius 4, like T3's badge) where it labels a whole surface (thread header, composer strip,
-  status bar, terminal tab, publish controls). The color is picked from the theme's `base.*` palette by FNV-1a of the
-  account id, so it is the same in every session; red is excluded so an account never reads as an error.
+  no box in sidebar rows (6 px dot in the account's color, label `font-medium`), and a 20 px tinted chip (color 12%,
+  radius 4, like T3's badge, plus the provider in muted text) where it labels a surface: thread header, composer,
+  status bar, terminal tab, publish controls, settings. The color comes from the theme's `base.*` palette (red
+  excluded, so an account never reads as an error): FNV-1a of the id picks a slot, and configured accounts that clash
+  move to the next free slot in sorted-id order, so it is stable across sessions and distinct until there are more
+  accounts than colors.
 - **Where SkyeLab differs on purpose:** a status bar stays (it carries the bound account and sharing state, which T3 has
-  no equivalent for); dock tabs stay (gpui-component's dock); the "Delegated by" link stays in the header.
+  no equivalent for); dock tabs stay (gpui-component's dock); the parent thread link stays in the header breadcrumb;
+  Interrupt and Stop stay in the header (a running session still takes follow-ups, so Send never turns into Stop).
+- **Not matched yet:** T3's transparent title bar (ours is the native one), the terminal's 12 px font (skyelab-terminal),
+  a collapsible PR form, and lifting the open thread's row in the sidebar.

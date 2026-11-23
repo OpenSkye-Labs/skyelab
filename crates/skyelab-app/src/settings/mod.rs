@@ -505,7 +505,7 @@ impl Render for Settings {
                             .flex()
                             .flex_col()
                             .gap_1()
-                            .child(crate::ui::page_title("Accounts", theme))
+                            .child(crate::ui::page_title("Settings", theme))
                             .child(
                                 div()
                                     .text_size(crate::ui::BODY)
@@ -523,7 +523,7 @@ impl Render for Settings {
                             .border_1()
                             .border_color(theme.danger.opacity(0.35))
                             .text_size(crate::ui::BODY)
-                            .text_color(theme.danger)
+                            .text_color(crate::ui::ink(theme, theme.danger))
                             .child(e)
                     }))
                     .child(self.render_accounts(cx))

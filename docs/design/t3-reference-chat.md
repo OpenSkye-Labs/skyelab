@@ -93,9 +93,10 @@ there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main,
   radius 16 and padding 12; assistant markdown through gpui-component's `TextView::markdown`.
 - Tool rows: `ui` tool row = 24 tall, 16 px `IconName` icon in `muted_foreground`, name medium, summary muted mono,
   chevron 12 px; expanded blocks indented 28, mono at `ui::CODE`, on `muted`.
-- Turn meta: "Done in 4.2s · $0.04" as muted 12 px between hairlines.
+- Turn meta: "Worked for 4.2s · $0.0421" as muted 12 px between hairlines.
 - Composer: one `v_flex` card, radius 16, `popover` surface, `border` outline; `Textarea` with `appearance(false)`
-  inside; a footer row with the account chip, the worktree switch and a 32 px round primary Send (icon `ArrowUp`).
+  inside; a footer row with the account chip and a 32 px round primary Send (icon `ArrowUp`); a strip under it with
+  the worktree checkbox or the thread's worktree branch.
 - Changes: 40 px header; file rows 28; `+/−` in `success`/`danger`; added/removed line fills at 10–12% alpha.
 - Settings: 896 max width, grouped rows (radius 12, hairline dividers), section titles 16 semibold.
 - Palette: gpui-component's own; only theme fields (`list.*`, `popover`) are ours.

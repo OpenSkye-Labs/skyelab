@@ -247,7 +247,7 @@ impl Settings {
                                     }),
                             )
                             .children(warning.map(|why| {
-                                div().text_size(ui::META).text_color(theme.warning).child(why)
+                                div().text_size(ui::META).text_color(ui::ink(theme, theme.warning)).child(why)
                             }))
                             .children(now.as_deref().map(|now| labelled("Now:", "now", now)))
                             .children(

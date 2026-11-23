@@ -155,6 +155,18 @@ pub fn account_color_in(cx: &gpui::App, id: &str) -> Hsla {
     slot.unwrap_or_else(|| account_color(gpui_component::ActiveTheme::theme(cx), id))
 }
 
+/// A status color used as text. In light themes the 500-weight status colors are too light to read on the canvas
+/// (amber is about 2:1), so text takes them 40% toward the foreground, like T3's `-foreground` 700 shades; dots and
+/// icons keep the plain color. Dark themes read fine as is.
+pub fn ink(theme: &Theme, color: Hsla) -> Hsla {
+    use gpui_component::Colorize as _;
+    if theme.is_dark() {
+        color
+    } else {
+        color.mix_oklab(theme.foreground, 0.6)
+    }
+}
+
 /// A thread's state as the UI shows it: the store's status strings, plus a stale binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Status {

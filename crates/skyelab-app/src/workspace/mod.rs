@@ -11,6 +11,7 @@ mod devices;
 mod env_mode;
 mod env_picker;
 mod terminal_launch;
+mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
 pub(crate) mod github;
 #[cfg(unix)]
@@ -49,7 +50,6 @@ use gpui_component::{
 use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
-use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thread::ThreadView;
@@ -144,6 +144,9 @@ pub struct Workspace {
     account: Option<SharedString>,
     /// The id of `account`, for its color.
     account_id: Option<String>,
+    /// Each project's account (`None`: unbound), resolved off the UI thread since resolving touches the disk.
+    project_accounts: std::collections::HashMap<i64, Option<skyelab_core::Account>>,
+    _project_accounts: Option<Task<()>>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
@@ -231,6 +234,8 @@ impl Workspace {
             dock,
             account: account_label(&config, &folder),
             account_id: config.resolve(&folder).map(|a| a.id.clone()),
+            project_accounts: Default::default(),
+            _project_accounts: None,
             folder_label: match dirs::home_dir() {
                 Some(home) if folder == home => "~".into(),
                 _ => folder.display().to_string().into(),
@@ -291,66 +296,6 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.toggle(DockPlacement::Bottom, window, cx);
-    }
-
-    fn new_terminal(&mut self, _: &NewTerminal, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_remote() {
-            return; // the project is on another machine; a local shell here would be misleading
-        }
-        if let Err(e) = self.add_terminal(window, cx) {
-            eprintln!("failed to open terminal: {e:#}");
-        }
-    }
-
-    /// What a new terminal runs with: the current folder, under its bound account or none.
-    fn terminal_options(&self) -> anyhow::Result<SpawnOptions> {
-        Ok(SpawnOptions {
-            cwd: self.folder.clone(),
-            command: None,
-            env: terminal_env(&self.config, &self.folder, &unbound_root()?)?,
-            cols: 80,
-            lines: 24,
-        })
-    }
-
-    fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        let options = self.terminal_options()?;
-        self.add_terminal_with(options, window, cx)
-    }
-
-    fn add_terminal_with(
-        &mut self,
-        options: SpawnOptions,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        let cwd = options.cwd.clone();
-        let (terminal, events) = Terminal::spawn(options)?;
-        let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
-        let title = format!("Terminal {}", self.terminals.len() + 1).into();
-        // The same config terminal_env used to pick the shell's account.
-        let account = self.config.resolve(&cwd).cloned();
-        let panel = cx.new(|_| TerminalPanel::new(view.clone(), title, account));
-        let empty = self.terminals_empty.take();
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Bottom,
-                None,
-                window,
-                cx,
-            );
-            // Added before the placeholder leaves, so the dock never goes empty.
-            if let Some(empty) = empty {
-                dock.remove_panel(empty, window, cx);
-            }
-            if !dock.is_dock_open(DockPlacement::Bottom) {
-                dock.toggle_dock(DockPlacement::Bottom, window, cx);
-            }
-        });
-        self.terminals.push(panel);
-        view.read(cx).focus_handle(cx).focus(window, cx);
-        Ok(())
     }
 
     fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
@@ -480,6 +425,9 @@ mod thread_model_test;
 
 #[cfg(test)]
 mod threads_test;
+
+#[cfg(test)]
+mod sidebar_account_test;
 
 #[cfg(test)]
 mod agent_bin_test;

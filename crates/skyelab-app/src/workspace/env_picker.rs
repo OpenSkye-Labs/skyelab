@@ -236,7 +236,7 @@ impl Render for EnvPicker {
                 div()
                     .px_2p5()
                     .text_size(ui::META)
-                    .text_color(theme.danger)
+                    .text_color(crate::ui::ink(theme, theme.danger))
                     .child(e)
             }));
         v_flex()

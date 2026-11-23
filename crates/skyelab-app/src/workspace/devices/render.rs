@@ -127,10 +127,12 @@ impl DevicesPanel {
                     .child(actions),
             )
             .children(url_row)
-            .children(
-                ops.and_then(|o| o.error.clone())
-                    .map(|e| div().text_size(ui::META).text_color(theme.danger).child(e)),
-            )
+            .children(ops.and_then(|o| o.error.clone()).map(|e| {
+                div()
+                    .text_size(ui::META)
+                    .text_color(crate::ui::ink(&theme, theme.danger))
+                    .child(e)
+            }))
             .children(ops.and_then(|o| o.screenshot.clone()).map(|shot| {
                 img(shot)
                     .w_full()

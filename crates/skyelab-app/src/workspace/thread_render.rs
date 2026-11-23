@@ -222,7 +222,12 @@ impl ThreadView {
                     .px_3()
                     .pb_2()
                     .gap_2()
-                    .child(div().flex_1().min_w_0().child(self.account_badge()))
+                    .child(
+                        h_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(self.account_badge().chip()),
+                    )
                     .child(
                         Button::new("send")
                             .primary()
@@ -248,14 +253,8 @@ impl ThreadView {
             .gap_3()
             .text_size(ui::META)
             .text_color(theme.muted_foreground)
-            .child(
-                div()
-                    .min_w_0()
-                    .truncate()
-                    .child(ui::short_path(&self.cwd, dirs::home_dir().as_deref())),
-            )
-            .children(branch.map(|b| div().flex_shrink_0().child(b)))
-            .children(self.render_worktree_option(cx));
+            .children(self.render_worktree_option(cx))
+            .children(branch.map(|b| div().min_w_0().truncate().child(b)));
         v_flex()
             .w_full()
             .max_w(ui::CHAT_MAX_W)
@@ -342,7 +341,10 @@ impl Render for ThreadView {
                 .justify_center()
                 .px_6()
                 .child(
-                    ui::EmptyState::new(format!("New thread in {folder}"))
+                    ui::EmptyState::new(match &self.thread {
+                        None => format!("New thread in {folder}"),
+                        Some(_) => "Nothing here yet".to_string(),
+                    })
                         .hint(
                             "Write a prompt below. The agent runs in this folder under its bound account.",
                         )
@@ -400,11 +402,11 @@ impl Render for ThreadView {
                                 self.unsaved_events
                             )
                             .into(),
-                            theme.warning,
+                            ui::ink(theme, theme.warning),
                         )
                         .debug_selector(|| "unsaved-events".into())
                     }))
-                    .children(self.error.clone().map(|e| line(e, theme.danger)))
+                    .children(self.error.clone().map(|e| line(e, ui::ink(theme, theme.danger))))
                     .children(note.map(|n| line(n.into(), theme.muted_foreground)))
                     .child(composer),
             )

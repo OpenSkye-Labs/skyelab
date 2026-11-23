@@ -72,6 +72,15 @@ pub(super) fn render_item<V: ItemsView>(
             .child(div().w_full().max_w(ui::CHAT_MAX_W).py_2().child(child))
             .into_any_element()
     };
+    // Tool rows sit close together, like T3's work log.
+    let tight = |child: AnyElement| {
+        h_flex()
+            .w_full()
+            .justify_center()
+            .px_6()
+            .child(div().w_full().max_w(ui::CHAT_MAX_W).py_0p5().child(child))
+            .into_any_element()
+    };
     match item {
         Item::Prompt(text) => column(
             h_flex()
@@ -103,7 +112,7 @@ pub(super) fn render_item<V: ItemsView>(
                 )
                 .into_any_element(),
         ),
-        Item::Tool(tool) => column(render_tool(this, tool, cx)),
+        Item::Tool(tool) => tight(render_tool(this, tool, cx)),
         Item::Done {
             is_error,
             duration_ms,
@@ -116,7 +125,7 @@ pub(super) fn render_item<V: ItemsView>(
             };
             let secs = *duration_ms as f64 / 1000.;
             let color = if *is_error {
-                theme.danger
+                ui::ink(theme, theme.danger)
             } else {
                 theme.muted_foreground
             };
@@ -139,13 +148,15 @@ pub(super) fn render_item<V: ItemsView>(
 fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> AnyElement {
     let theme = cx.theme();
     let open = this.is_expanded(&tool.id);
+    // The first argument's value, as T3 shows it (`ls crates`, not `"command": "ls crates"`).
     let summary: String = tool
         .input
         .lines()
-        .find(|l| l.contains(':'))
+        .find_map(|l| l.split_once(':').map(|(_, v)| v))
         .unwrap_or_default()
         .trim()
         .trim_end_matches(',')
+        .trim_matches('"')
         .chars()
         .take(80)
         .collect();
