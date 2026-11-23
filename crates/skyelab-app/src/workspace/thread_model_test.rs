@@ -162,3 +162,88 @@ fn oversize_remote_stand_in_decodes_as_a_row() {
         assert!(shown.contains("too large"), "{kind}: {shown}");
     }
 }
+
+#[test]
+fn each_divider_shows_what_its_turn_added_to_claudes_running_total() {
+    let result = |total: f64| {
+        format!(
+            r#"{{"type":"result","is_error":false,"duration_ms":5,"total_cost_usd":{total},"result":"x"}}"#
+        )
+    };
+    // Three turns of one process, an interrupted one (0), then a resumed older CLI that starts over.
+    let lines = [0.01, 0.025, 0.04, 0.0, 0.05, 0.003].map(result).join("\n");
+    let costs: Vec<f64> = replay(&lines)
+        .iter()
+        .filter_map(|i| match i {
+            Item::Done { cost_usd, .. } => Some(*cost_usd),
+            _ => None,
+        })
+        .collect();
+    let want = [0.01, 0.015, 0.015, 0.0, 0.01, 0.003];
+    assert!(
+        costs.len() == want.len() && costs.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-9),
+        "{costs:?}"
+    );
+}
+
+#[test]
+fn a_resumed_imported_sessions_restored_total_is_not_its_first_turns_cost() {
+    // The row `skyelab_agent::import` stores for a transcript turn, through the real serializer.
+    let imported = Record::Agent(Event::Result {
+        is_error: false,
+        duration_ms: 0,
+        total_cost_usd: 0.0,
+        result: None,
+        prompts: 1,
+        usage: None,
+    });
+    let live = |total: f64| {
+        Record::Agent(Event::parse(&format!(
+            r#"{{"type":"result","is_error":false,"duration_ms":5,"total_cost_usd":{total},"result":"x"}}"#
+        )))
+    };
+    let mut items = Vec::new();
+    let mut store = skyelab_store::Store::open_in_memory().expect("store");
+    let p = store
+        .create_project("p", std::path::Path::new("/p"))
+        .expect("p")
+        .id;
+    let new = skyelab_store::NewThread {
+        project_id: p,
+        title: "t",
+        cwd: std::path::Path::new("/p"),
+        account_id: "a",
+        status: "idle",
+    };
+    let (kind, row) = imported.to_row();
+    let t = store
+        .import_thread(&new, "sess", 1_000, &[(kind, row, 1_000)])
+        .expect("import")
+        .expect("new")
+        .id;
+    apply(&mut items, &imported);
+    // `--resume` restores the session's $9.00 before a $0.10 turn, then a $0.20 turn.
+    for record in [live(9.1), live(9.3)] {
+        apply(&mut items, &record);
+        let (kind, row) = record.to_row();
+        store.append_event(t, kind, &row).expect("event");
+    }
+    let costs: Vec<f64> = items
+        .iter()
+        .filter_map(|i| match i {
+            Item::Done { cost_usd, .. } => Some(*cost_usd),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        (costs[1]).abs() < 1e-9 && (costs[2] - 0.2).abs() < 1e-9,
+        "{costs:?}"
+    );
+    let stored: f64 = store
+        .usage_days(0)
+        .expect("rows")
+        .iter()
+        .map(|r| r.cost_usd)
+        .sum();
+    assert!((stored - 0.2).abs() < 1e-9, "{stored}");
+}

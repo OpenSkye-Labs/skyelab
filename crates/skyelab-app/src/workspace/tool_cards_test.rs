@@ -144,6 +144,7 @@ fn divider_limit_notice_question_and_plan_draw(cx: &mut TestAppContext) {
                 is_error: false,
                 duration_ms: 4200,
                 cost_usd: 0.1667,
+                total_usd: 0.1667,
                 usage: Some(Usage {
                     input: 269_947,
                     output: 175,

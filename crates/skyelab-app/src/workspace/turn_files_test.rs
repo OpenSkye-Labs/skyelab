@@ -13,6 +13,7 @@ fn done() -> Item {
         is_error: false,
         duration_ms: 1,
         cost_usd: 0.,
+        total_usd: 0.,
         usage: None,
         at_ms: None,
         error: None,

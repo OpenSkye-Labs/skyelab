@@ -56,3 +56,21 @@ Each entry is dated; newest at the bottom.
   thread keeps its newest 64 KiB per session. Nothing waits on its EOF. After a failed turn, or a nonzero exit that
   wasn't a Stop, what is new is stored as an `Event::Stderr` row and shown as a collapsed **Agent output** row.
   (2026-11-23)
+- **A turn's cost is its growth over Claude's running total.** Claude's `result.total_cost_usd` (and `modelUsage`) is a
+  running total for the process, and since Claude Code 2.1.277 a resumed session starts from the session's restored
+  total; `usage` is the turn's own (main loop only, no subagents). Evidence: the Agent SDK cost-tracking docs ("Track
+  costs in streaming input mode": `usage` "covers only that turn", the totals "carry the running total for the whole
+  call so far, plus any spend restored when the call resumed a session"), and T3 Code's recorded `multi_turn`
+  transcript, where turn 2's $0.0154371 is turn 1's $0.01171425 plus turn 2's own usage priced at $0.00372285.
+  `skyelab_agent::turn_cost` takes the growth over the thread's previous non-zero total; a total that dropped (an older
+  CLI's resume, a fresh session) counts whole; zero (an aborted turn, a crash) counts nothing and is no baseline. An
+  imported turn recorded no cost, so after one the baseline is unknown and the next turn counts nothing: a resumed
+  imported session's first total includes its spend from before the import. It never overstates, and undercounts in
+  three cases: that first turn after an import; a fork's or a session-gone rerun's first turn (a fresh session, still
+  diffed against the copied or earlier total) when it spends more than that total; and an older CLI's resumed first
+  turn that exceeds the old total. The timeline
+  divider and the store trigger (migration 17, which also recomputed stored `turn_usage` rows, from the events or, for
+  a purged thread, from the stored totals) apply the same rule. Codex's `thread/tokenUsage/updated` `total` is
+  thread-wide and `last` the newest model call, so a turn is its `total` growth, based at `total - last` when the
+  process has no earlier reading (a resumed thread). Stored Codex rows can't be checked (only the turn's difference was
+  kept), so they are left as they are. (2026-11-24)

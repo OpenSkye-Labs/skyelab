@@ -6,6 +6,7 @@
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,
 # reports it as `fake_answer` and ends the turn; one starting "crash" writes to stderr and exits 3, and one starting
 # "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
+# "turn" ends a plain turn ($0.0125, 1200 in, 80 out) with Claude's running totals.
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
 # plan and a question (left waiting). "subagent" runs two subagents (fake-subagent.sh), and "login" fails the turn
@@ -64,6 +65,9 @@ if [ -f .fake-session-gone ]; then
   printf '{"type":"system","subtype":"init","cwd":"/tmp/x","session_id":"fake-sess-new","tools":[],"model":"claude-opus-5-5"}\n'
 fi
 printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s","pid":%s}\n' "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$*" "$$"
+# Like Claude Code, `total_cost_usd` and `modelUsage` are the process's running totals (the replayed session's $0.0421
+# first); `usage` is the turn's own.
+total=0.0421 in_total=0 out_total=0
 while IFS= read -r line; do
   printf '%s\n' "$line"
   case "$line" in
@@ -82,6 +86,10 @@ while IFS= read -r line; do
       IFS= read -r reply
       printf '{"type":"fake_answer","reply":%s}\n' "$reply"
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
+    *'"content":"turn'*)
+      total=$(awk "BEGIN{print $total + 0.0125}") in_total=$((in_total + 1200)) out_total=$((out_total + 80))
+      printf '{"type":"assistant","message":{"id":"msg_t%s","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Turn done."}]},"session_id":"fake-sess-1"}\n' "$in_total"
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":900,"num_turns":1,"result":"Turn done.","session_id":"fake-sess-1","total_cost_usd":%s,"usage":{"input_tokens":3,"cache_creation_input_tokens":200,"cache_read_input_tokens":997,"output_tokens":80},"modelUsage":{"claude-opus-5-5":{"inputTokens":%s,"outputTokens":%s,"costUSD":%s}}}\n' "$total" "$in_total" "$out_total" "$total" ;;
     *'"content":"timeline'*)
       sh "$(dirname "$0")/fake-timeline.sh" ;;
     *'"content":"mermaid'*)

@@ -41,7 +41,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `usage` reports two usage windows for the Details tab and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
-  `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
+  `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
   subagent cards (one holds 4 s mid-run), `login` fails the turn as a signed-out account, a
   `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, and one starting `crash` writes
   to stderr and exits 3), Codex with

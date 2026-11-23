@@ -68,4 +68,6 @@ accounts.toml side by side. Pick **Today**, **7 days** or **30 days**, and **Cos
 
 The numbers are what this machine's agents reported at the end of each turn (Claude reports a cost, Codex only
 tokens); SkyeLab never asks an account. Imported session history isn't counted, and a deleted thread's turns still
-are. Claude's reported cost is summed per turn as it arrives, so treat it as an estimate.
+are. Claude reports a running total for its process (and, since Claude Code 2.1.277, for a resumed session), so
+each turn counts what it added to that total; turns stored by older SkyeLab builds were corrected when the store
+upgraded. Claude's cost is its own estimate from list prices, not a bill.
