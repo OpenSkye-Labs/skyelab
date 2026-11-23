@@ -54,8 +54,10 @@ the app only edits the list.
   hello was approved.
 - Revoke applies first, then saves (an off switch works even when saving fails): `set_approved` closes every open
   connection whose pair is gone. The hello check and the record of which pair a connection used happen under one
-  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A call that was
-  already running when the revoke came still finishes; a connection blocked writing to a client that stopped
+  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A revoke or Disconnect
+  also cancels the connection's `CallGate`: a call already read but not yet dispatched is refused, and an agent
+  call still waiting for the UI (`UiAgents`) is abandoned, so it never runs. A read the store is already serving
+  still finishes. A connection blocked writing to a client that stopped
   reading closes when that write times out.
 - The client maps the codes to `DisconnectKind::NotApproved` / `Denied` (additive kinds; match with `_`) and, while
   not approved, retries at least every 3 s, so an Allow takes effect within seconds. Desktop shows "Waiting for
@@ -165,4 +167,3 @@ them from reaching the port at all. A grant that lets only your own devices reac
 
 With the default "allow all" policy any tailnet member can open a TCP connection to the port; they are refused at
 whois, but replacing the default with grants like the one above is better.
-

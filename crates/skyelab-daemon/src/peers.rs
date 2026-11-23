@@ -22,6 +22,8 @@ pub struct Peer {
 pub(crate) struct Entry {
     pub(crate) peer: Peer,
     pub(crate) kick: Arc<Notify>,
+    /// Cancelled with every kick, so calls already read from this connection don't act.
+    pub(crate) gate: crate::CallGate,
     /// Set once hello passed with an approved key; a revoke of it closes the connection.
     pub(crate) approval: Option<crate::Approval>,
 }
