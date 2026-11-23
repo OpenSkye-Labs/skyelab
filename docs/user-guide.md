@@ -5,7 +5,9 @@ Shortcuts are shown for macOS. On Linux and Windows, use <kbd>Ctrl</kbd> for <kb
 ## Command palette
 
 Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with its shortcut), a project to switch to, a
-thread of the current project to open, or an open tab to go to. Type a few letters in order (`os` finds
+thread of the current project to open, or an open tab to go to. Threads of every project are also found by their
+messages: type a few words from a prompt or an answer (three letters or more) and matching threads list after the
+rest, with their project's name. Type a few letters in order (`os` finds
 **Open Settings**), move with the arrow keys, press <kbd>↩</kbd> to run it and <kbd>Esc</kbd> to close. The action runs
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
@@ -139,6 +141,30 @@ When a turn fails, or the agent exits with an error, what it wrote to stderr (th
 **Agent output** row; click it to open it. Claude's `AskUserQuestion` also arrives as a request: allowing it runs the
 tool, but SkyeLab has no way to answer its question yet.
 
+### Finding and managing threads
+
+- **Search.** The field at the top of the sidebar filters the selected project's threads by title and by what was
+  said in them (your prompts and the agent's answers, not tool output).
+- **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
+  it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete
+  show a notice with **Undo**. A deleted thread is gone for good about eight seconds later (or at the next start if
+  you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
+  worktree can't be deleted until you discard the worktree.
+- **Right-click a project** to **Rename** it or **Remove from SkyeLab**. Removing never touches the folder or its
+  files, and keeps the threads' history: add the same folder again and the project comes back with its threads. If
+  agents are running in it, SkyeLab asks first, and removing stops them.
+- **Unread.** When a turn finishes in a thread you aren't looking at, the thread's title turns bold with a dot until
+  you open it. You also get a notice: a toast in the window if SkyeLab is in front, or a system notification if it
+  is in the background (system notifications need the bundled app; macOS asks for permission the first time).
+  Archived threads stay quiet.
+- **Keys.** <kbd>⌘N</kbd> new thread, <kbd>⇧⌘]</kbd> / <kbd>⇧⌘[</kbd> next / previous thread, <kbd>⌘1</kbd>–<kbd>⌘9</kbd>
+  jump to a thread in sidebar order, <kbd>⌘O</kbd> open the folder in your editor. All are in the palette. On Linux
+  and Windows these <kbd>Ctrl</kbd> keys stay the shell's while a terminal is focused.
+- **Open in editor** (<kbd>⌘O</kbd>) opens the shown thread's folder (its worktree, if it has one), else the project's.
+  It runs `editor` from `settings.toml` (for example `editor = "zed --new"`; split on spaces, no shell), else
+  `$VISUAL`, else `$EDITOR`, else `code` or `zed` from your PATH. The editor gets a terminal's environment, never an
+  account's config dir.
+
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
 as. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
 
@@ -200,75 +226,9 @@ The thread header then has:
 - **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.
 
-## Sharing this machine over Tailscale
+## Other machines
 
-You can drive this machine's projects and threads from your other devices. Its agents keep running here, on its
-own accounts.
-
-### One-time tailnet setup
-
-1. Install Tailscale on each machine and sign in with the same user.
-2. In the Tailscale admin console, open **DNS** (<https://login.tailscale.com/admin/dns>) and turn on **MagicDNS**
-   and **HTTPS Certificates**. SkyeLab only speaks `wss://` with the machine's Tailscale certificate, so sharing
-   won't start without them. Turning on HTTPS certificates publishes your machine names in the public Certificate
-   Transparency logs (names only, not addresses).
-3. Recommended: in **Access controls**, limit the port to your own devices:
-
-   ```jsonc
-   {
-     "grants": [
-       { "src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["tcp:7287"] }
-     ]
-   }
-   ```
-
-### Turn sharing on
-
-Click **Not sharing** in the status bar to open the Remote tab, then turn on **Share this machine on my tailnet**.
-The status bar then reads `Sharing on <machine>.example.ts.net:7287` with the certificate's expiry date, or tells
-you why it couldn't start (Tailscale not installed, not running, logged out, or no certificate).
-
-Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Each one must also be
-allowed here once:
-
-- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and the Remote tab
-  lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
-  **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
-  the app you just opened. **Deny** turns it down until sharing restarts here.
-- Allowed devices are listed under **Allowed devices** (saved in `settings.toml`). **Revoke** closes its connection
-  at once and forgets it; it has to ask again.
-- An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
-
-Connected devices are listed in the Remote tab, each with a **Disconnect** button, which closes the connection at once.
-A connected device can list projects and threads, start a thread in an existing project, send follow-ups and
-interrupt. A follow-up or interrupt is answered once the agent took it, or with why it couldn't (within 20 seconds). It can't add projects, change accounts or
-bindings, or open terminals. Turning sharing off closes every connection.
-
-## The environment switcher
-
-The top of the sidebar (**SkyeLab on This Mac ▾**) picks which machine the window shows. Open it to see your online
-devices and recent ones, or type a MagicDNS name such as `desktop.example.ts.net` and click **Connect**. Only full
-MagicDNS names work, not IP addresses or short names. The other machine must have sharing turned on. The first
-time, it must also allow this device: the status bar says **Waiting for approval** with this device's code; check
-that the other machine shows the same code, click **Allow** there, and this window connects within a few seconds.
-
-On a remote machine, the sidebar lists its projects and threads. You can open threads, start new ones, send
-follow-ups and stop them. The account shown is the one that machine resolved. Terminals and worktree controls are
-local only. Switching back to **This Mac** closes all remote tabs. A thread that starts on this machine while you
-look at another one (a delegated thread, or one started from your phone) doesn't open among the remote tabs: the
-sidebar shows **This Mac · 1 new thread here**, and clicking it switches back and shows it.
-
-Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
-one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
-name. If the name later answers from another node, its tabs close and a warning offers **Trust it**: trust it only if
-you replaced or renamed that machine. If your Tailscale says the machine isn't yours or can't answer, the status says
-so and nothing is sent to it. If the machine claims to be a different node than your Tailscale sees, the status says
-so and nothing is listed or sent after the handshake. After a reconnect nothing is asked of the machine until it is
-checked again, and a refusal clears its projects, threads and tabs from the window.
-
-The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
-you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:
-that catches a reused name or a replaced machine, but not a machine that lies about its id.
+Sharing this machine over Tailscale, device approval and the environment switcher: [user-guide-remote.md](user-guide-remote.md).
 
 ## Device hub
 

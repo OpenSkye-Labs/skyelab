@@ -67,7 +67,9 @@ macro_rules! panel {
 }
 
 mod sidebar;
-pub use sidebar::{RowAccount, Sidebar, SidebarItem, SidebarSection};
+pub use sidebar::{
+    ArchivedRows, RowAccount, RowMarks, Sidebar, SidebarItem, SidebarSearch, SidebarSection,
+};
 
 /// The center's first tab: what SkyeLab is and the keys that do things today.
 pub struct Welcome {

@@ -315,6 +315,8 @@ fn main() {
         .with_assets(gpui_kit_assets::Assets)
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
+            // OS notifications need it (Windows' AppUserModelID); same id as the bundle's.
+            cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");
             if let Err(e) = ui::install_theme(cx) {
                 eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
             }

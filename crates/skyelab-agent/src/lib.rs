@@ -6,6 +6,7 @@ mod codex;
 mod event;
 mod launch;
 mod pipes;
+pub use launch::resolve_bin;
 use pipes::{read_events, read_stderr, write_lines};
 #[cfg(unix)]
 pub mod mcp;

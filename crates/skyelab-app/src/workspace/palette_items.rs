@@ -3,7 +3,9 @@
 use super::env_mode::{OpenRemoteThread, SelectRemoteProject};
 use super::{OpenThread, SelectProject, Workspace};
 use crate::palette::{self, Entry, Kind, OpenCommandPalette};
-use gpui::{Action, App, Context, Entity, FocusHandle, Focusable, SharedString, Window};
+use gpui::{
+    Action, App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Window,
+};
 use gpui_component::{dock::DockPlacement, kbd::Kbd};
 use std::rc::Rc;
 
@@ -28,7 +30,43 @@ impl Workspace {
             return;
         };
         let entries = self.palette_entries(&prev, window, cx);
-        palette::open(entries, prev, window, cx);
+        let search = (!self.is_remote()).then(|| self.palette_search());
+        palette::open(entries, search, prev, window, cx);
+    }
+
+    /// Threads of every project whose title or message text matches, as "Open thread" entries. The selected
+    /// project's are labeled like its fixed entries (so a title match isn't listed twice); others name their project.
+    pub(crate) fn palette_search(&self) -> palette::Search {
+        let store = self.backend.store.clone();
+        let current = self.project.as_ref().map(|p| p.id);
+        let names: std::collections::HashMap<i64, String> = self
+            .projects
+            .iter()
+            .map(|p| (p.id, p.name.clone()))
+            .collect();
+        Rc::new(move |query: String, cx: &mut App| {
+            let (store, names) = (store.clone(), names.clone());
+            let found = cx.background_spawn(async move {
+                super::lock(&store).and_then(|s| s.search_threads(&query, None, 50))
+            });
+            cx.spawn(async move |_| {
+                // A failed search adds nothing: the palette's fixed entries still work.
+                found
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|t| {
+                        let label = match names.get(&t.project_id) {
+                            Some(name) if Some(t.project_id) != current => {
+                                format!("Open thread: {} · {name}", t.title)
+                            }
+                            _ => format!("Open thread: {}", t.title),
+                        };
+                        dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
+                    })
+                    .collect()
+            })
+        })
     }
 
     pub(crate) fn palette_entries(

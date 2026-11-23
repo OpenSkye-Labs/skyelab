@@ -24,8 +24,15 @@ fn old_threads_read_default_and_the_mode_persists() {
     drop(store);
     // Back to v5, as an older build left it.
     let conn = Connection::open(&path).expect("raw");
-    conn.execute_batch("ALTER TABLE threads DROP COLUMN permission_mode; PRAGMA user_version = 5;")
-        .expect("downgrade");
+    // Undo v7 first (search table, pin/archive/unread/delete columns), then v6.
+    conn.execute_batch(
+        "DROP TRIGGER event_text_insert; DROP TRIGGER event_text_thread_delete; DROP TABLE event_text;
+         ALTER TABLE threads DROP COLUMN pinned_at; ALTER TABLE threads DROP COLUMN archived_at;
+         ALTER TABLE threads DROP COLUMN deleted_at; ALTER TABLE threads DROP COLUMN unread;
+         ALTER TABLE projects DROP COLUMN removed_at;
+         ALTER TABLE threads DROP COLUMN permission_mode; PRAGMA user_version = 5;",
+    )
+    .expect("downgrade");
     drop(conn);
 
     let store = Store::open(&path).expect("migrates");

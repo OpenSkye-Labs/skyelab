@@ -19,6 +19,9 @@ pub struct AppSettings {
     pub approved_devices: Vec<ApprovedDevice>,
     /// The main window's last frame and right panel, restored at the next launch.
     pub window: Option<WindowLayout>,
+    /// "Open in editor": the command to run, split on whitespace (no shell), the folder appended. Unset: `$VISUAL`,
+    /// `$EDITOR`, then `code` or `zed` from PATH.
+    pub editor: Option<String>,
 }
 
 /// Where the main window was and how its right panel was set, in logical points.

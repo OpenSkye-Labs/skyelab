@@ -23,14 +23,17 @@ What's built today:
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, renders its messages and tool calls as they arrive, and saves everything to a local SQLite database.
-  Reopening a thread resumes the same session. The thread header names the provider.
+  Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete
+  threads (with undo), search them by title and message text, see which ones finished while you were away (unread
+  markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and
+  <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor.
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
 - **Worktrees and diff review.** Tick "Run in a new worktree" and the thread gets its own git worktree on a
   `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
-  switches project, opens a thread or goes to an open tab.
+  switches project, opens a thread (also found by its messages, in any project) or goes to an open tab.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
