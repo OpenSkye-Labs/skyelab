@@ -293,28 +293,13 @@ impl Workspace {
         if self.is_remote() {
             return; // the project is on another machine; a local shell here would be misleading
         }
-        if let Err(e) = self.add_terminal(window, cx) {
-            eprintln!("failed to open terminal: {e:#}");
-        }
+        let job = self.terminal_job(cx);
+        self.open_terminal(job, window, cx, |_, e, _| {
+            eprintln!("failed to open terminal: {e:#}")
+        });
     }
 
-    /// What a new terminal runs with: the current folder, under its bound account or none.
-    fn terminal_options(&self) -> anyhow::Result<SpawnOptions> {
-        Ok(SpawnOptions {
-            cwd: self.folder.clone(),
-            command: None,
-            env: terminal_env(&self.config, &self.folder, &unbound_root()?)?,
-            cols: 80,
-            lines: 24,
-        })
-    }
-
-    fn add_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> anyhow::Result<()> {
-        let options = self.terminal_options()?;
-        self.add_terminal_with(options, window, cx)
-    }
-
-    fn add_terminal_with(
+    pub(super) fn add_terminal_with(
         &mut self,
         options: SpawnOptions,
         window: &mut Window,
@@ -618,3 +603,16 @@ mod save_retry_test;
 mod save_turns_test;
 #[cfg(test)]
 mod stale_idle_test;
+
+#[cfg(all(test, unix))]
+mod accounts_file_reread_test;
+#[cfg(all(test, unix))]
+mod claude_folded_turns_test;
+#[cfg(all(test, unix))]
+mod codex_open_failure_turns_test;
+#[cfg(all(test, unix))]
+mod commit_hook_env_test;
+#[cfg(all(test, unix))]
+mod delegation_after_stop_test;
+#[cfg(all(test, unix))]
+mod exit_holding_stdout_test;

@@ -7548,6 +7548,7 @@ dependencies = [
  "gpui-webview",
  "lb-wry",
  "serde_json",
+ "tempfile",
  "url",
 ]
 

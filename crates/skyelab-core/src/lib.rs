@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 mod app_settings;
 pub mod delegation;
 pub mod env;
+pub mod process;
 pub use app_settings::{AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS};
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.

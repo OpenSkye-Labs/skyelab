@@ -11,7 +11,7 @@ use gpui::{TestAppContext, VisualTestContext};
 use skyelab_core::Binding;
 
 /// A thread row in the fixture's project, and its Changes tab.
-fn thread_and_changes<'a>(
+pub(super) fn thread_and_changes<'a>(
     f: &Fixture,
     cx: &'a mut TestAppContext,
 ) -> (
@@ -37,7 +37,7 @@ fn thread_and_changes<'a>(
     (thread, changes, cx)
 }
 
-fn set_input(
+pub(super) fn set_input(
     input: &Entity<gpui_component::input::InputState>,
     text: &str,
     cx: &mut VisualTestContext,
@@ -46,7 +46,7 @@ fn set_input(
     input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
 }
 
-fn error(changes: &Entity<ChangesView>, cx: &mut VisualTestContext) -> Option<String> {
+pub(super) fn error(changes: &Entity<ChangesView>, cx: &mut VisualTestContext) -> Option<String> {
     changes.read_with(cx, |c, _| c.publish_error.as_ref().map(|e| e.to_string()))
 }
 

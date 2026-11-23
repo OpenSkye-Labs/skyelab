@@ -1,0 +1,68 @@
+//! N1, N2: once a parent is stopped, a browser call it had on its way is refused like start and send, and its
+//! `wait_thread` stops polling instead of holding the connection for the rest of its timeout.
+
+use super::browser_agent_test::fake_pages;
+use super::delegation_test::{host_call, open, rig, start, thread_id, wait_until};
+use super::thread::Stop;
+use gpui::TestAppContext;
+use skyelab_agent::mcp::{BrowserTool, Caller, Tool};
+
+#[gpui::test]
+fn a_stopped_parent_cannot_open_a_tab_or_keep_waiting(cx: &mut TestAppContext) {
+    let (rig, accounts, config) = rig();
+    let (ws, cx) = open(&rig, accounts, config, cx);
+    let _pages = fake_pages(&ws, cx);
+    let parent = start(&ws, rig.work_a, "plain work", cx);
+    let parent_id = thread_id(&parent, cx);
+    let caller = || Caller {
+        thread_id: parent_id,
+        account_id: "work".into(),
+    };
+    let child = host_call(
+        cx,
+        caller(),
+        Tool::StartThread {
+            project_id: rig.work_b,
+            prompt: "hold".into(),
+            worktree: false,
+            request_id: None,
+        },
+    )
+    .expect("a live parent delegates");
+    let child = child["thread_id"].as_i64().expect("id");
+
+    parent.update_in(cx, |v, window, cx| v.stop(&Stop, window, cx));
+    wait_until(cx, "the parent stopped", |cx| {
+        parent.read_with(cx, |v, _| v.session.is_none())
+    });
+
+    let err = host_call(
+        cx,
+        caller(),
+        Tool::Browser(BrowserTool::Open {
+            url: "http://localhost:3000/".into(),
+        }),
+    )
+    .expect_err("a stopped parent opens no tab");
+    assert!(err.contains("isn't running"), "{err}");
+    assert!(
+        ws.read_with(cx, |ws, _| ws
+            .browsers
+            .iter()
+            .all(|b| b.upgrade().is_none())),
+        "no agent tab"
+    );
+
+    let started = std::time::Instant::now();
+    let err = host_call(
+        cx,
+        caller(),
+        Tool::WaitThread {
+            thread_id: child,
+            timeout_s: 60,
+        },
+    )
+    .expect_err("a stopped parent's wait ends");
+    assert!(err.contains("isn't running"), "{err}");
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+}

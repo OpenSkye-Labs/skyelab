@@ -226,7 +226,12 @@ pub fn git_credential_env(
 /// The URLs of every `http.<url>.extraHeader` the git config seen from `dir` sets (system, global, the repo's),
 /// so [`git_credential_env`] can reset each by name. Best effort: no git, or no such keys, is an empty list.
 pub fn scoped_extra_headers(dir: &Path) -> Vec<String> {
-    let out = std::process::Command::new("git")
+    scoped_extra_headers_with(Path::new("git"), dir)
+}
+
+/// [`scoped_extra_headers`] with another `git`, so tests can run a fake.
+pub fn scoped_extra_headers_with(git: &Path, dir: &Path) -> Vec<String> {
+    let out = std::process::Command::new(git)
         .arg("-C")
         .arg(dir)
         .args([

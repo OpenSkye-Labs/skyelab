@@ -17,7 +17,7 @@ use std::time::Duration;
 
 /// A page that answers a few expressions the way a browser would, and runs the page guard itself: on a
 /// non-http(s) page the script "throws", which wry reports as an empty result.
-struct FakePage {
+pub(super) struct FakePage {
     url: RefCell<String>,
     title: RefCell<String>,
     loads: flume::Sender<String>,
@@ -96,10 +96,10 @@ fn serve_page(title: &str) -> String {
     format!("http://127.0.0.1:{port}/")
 }
 
-type Pages = Rc<RefCell<Vec<Rc<FakePage>>>>;
+pub(super) type Pages = Rc<RefCell<Vec<Rc<FakePage>>>>;
 
 /// Agent tabs in `ws` get fake pages, collected in the returned list.
-fn fake_pages(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Pages {
+pub(super) fn fake_pages(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Pages {
     let pages: Pages = Rc::default();
     let made = pages.clone();
     ws.update(cx, |ws, _| {

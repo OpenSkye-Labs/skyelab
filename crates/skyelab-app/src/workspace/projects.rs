@@ -296,14 +296,16 @@ impl Workspace {
                 ThreadViewEvent::Started(thread) => this.thread_started(thread, cx),
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
-                    let opened = worktree::terminal_options(&this.config, cwd, account_id)
-                        .and_then(|o| this.add_terminal_with(o, window, cx));
-                    if let Err(e) = opened {
-                        view.update(cx, |v, cx| {
+                    let (config, cwd, account_id) =
+                        (this.config.clone(), cwd.clone(), account_id.clone());
+                    let view = view.downgrade();
+                    let job = move || worktree::terminal_options(&config, &cwd, &account_id);
+                    this.open_terminal(job, window, cx, move |_, e, cx| {
+                        let _ = view.update(cx, |v, cx| {
                             v.error = Some(format!("{e:#}").into());
                             cx.notify();
                         });
-                    }
+                    });
                 }
                 ThreadViewEvent::TurnDone => this.refresh_changes(view, cx),
             },

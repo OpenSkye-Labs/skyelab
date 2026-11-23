@@ -29,6 +29,16 @@ mod js;
 mod url;
 mod view;
 
+/// A fresh private folder for one agent tab's web data, removed when dropped. WebView2 shares an InPrivate
+/// session between webviews of one user-data folder, so on Windows each agent tab gets its own.
+pub fn agent_data_dir() -> std::io::Result<tempfile::TempDir> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("skyelab-agent-tab-");
+    #[cfg(unix)]
+    builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700));
+    builder.tempdir()
+}
+
 pub use agent::parse_agent_url;
 pub use engine::{Engine, EvalDone};
 pub use url::parse_url;
