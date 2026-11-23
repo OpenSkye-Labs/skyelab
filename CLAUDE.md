@@ -54,6 +54,10 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
   (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.
+- Never kill processes by command-line match (`pkill -f`, `pgrep -f … | xargs kill`): other sessions on this machine run
+  the same commands. Kill only PIDs you started and recorded yourself.
+- Hand-written `accounts.toml` bindings in a throwaway HOME need `resolved = "<same path>"`, or they load as stale
+  ("No account").
 - Mutation probes (break the code to prove a test catches it): undo them by re-applying the edit or from a copy, never
   with `git checkout`/`git restore` on the file, which also wipes your other uncommitted edits there.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
