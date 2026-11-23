@@ -113,13 +113,9 @@ fn machine_name() -> Option<String> {
         #[cfg(target_os = "macos")]
         {
             // Absolute path and an empty env: nothing of ours leaks into the child.
-            let out = std::process::Command::new("/usr/sbin/scutil")
-                .args(["--get", "ComputerName"])
-                .env_clear()
-                .stdin(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .output()
-                .ok()?;
+            let mut cmd = std::process::Command::new("/usr/sbin/scutil");
+            cmd.args(["--get", "ComputerName"]).env_clear();
+            let out = skyelab_core::process::output(&mut cmd, None).ok()?;
             let name = String::from_utf8_lossy(&out.stdout).trim().to_owned();
             (out.status.success() && !name.is_empty()).then_some(name)
         }

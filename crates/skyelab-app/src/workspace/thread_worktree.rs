@@ -24,7 +24,7 @@ actions!(
 
 #[derive(Default)]
 pub struct WorktreeState {
-    /// "Run in a new worktree" in the composer; read when the first prompt starts the thread.
+    /// "New worktree" (the checkout toggle under the composer); read when the first prompt starts the thread.
     pub use_worktree: bool,
     /// A dirty worktree's status the user was asked to confirm discarding.
     pub discard_pending: Option<skyelab_git::Status>,

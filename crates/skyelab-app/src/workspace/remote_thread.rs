@@ -372,6 +372,7 @@ impl Render for RemoteThreadView {
         let header = self.render_header(cx);
         let theme = cx.theme();
         let connected = self.env.read(cx).state == ConnState::Connected;
+        let host = self.env.read(cx).host.clone();
         let body = if self.items.is_empty() {
             div()
                 .flex_1()
@@ -427,6 +428,19 @@ impl Render for RemoteThreadView {
                                 this.send(&SendRemotePrompt, window, cx)
                             })),
                     ),
+            )
+            // The composer footer's machine, here the one the thread runs on.
+            .child(
+                h_flex()
+                    .id("remote-composer-footer")
+                    .px_5()
+                    .pb_2()
+                    .gap_1p5()
+                    .text_size(crate::ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(gpui_component::Icon::new(gpui_kit_assets::IconName::Laptop).xsmall())
+                    .child(host)
+                    .children(self.account.clone().map(|a| format!("· {a}"))),
             )
     }
 }

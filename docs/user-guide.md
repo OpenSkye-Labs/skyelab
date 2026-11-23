@@ -104,6 +104,30 @@ didn't review, the commit is undone and they stay staged. Push never pushes subm
 2. Select the project and click **New** under Threads.
 3. Type a prompt and press <kbd>⌘↩</kbd> (or click **Send**).
 
+### The composer
+
+- **Attach** (the paperclip), drag files onto the composer, or paste an image or copied files. Images (PNG, JPEG,
+  GIF, WebP), PDFs and text files work, up to 5 MB each and 10 per message; each shows as a chip you can remove.
+  Claude gets them as image and document blocks. Codex gets images and text files, not PDFs.
+- **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
+  then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it.
+- **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
+  account's `commands/` folder (in its config dir) and the project's `.claude/commands/`. SkyeLab starts Claude
+  with only your user settings, so a project command may not run. Codex has no slash commands.
+- **`$`** lists your account's skills (`skills/<name>/SKILL.md` in its config dir). Picking one inserts `/name` for
+  Claude and `$name` for Codex. Commands and skills come only from the account the folder is bound to.
+- **The model picker** (right of the composer, **Default model** until you pick) sets the model and effort for this
+  thread: Opus, Sonnet, Haiku or Fable with effort Low to Max for Claude, or the models Codex lists for your account.
+  A pick is kept on the thread and becomes the project's default for new threads. A running Claude agent switches
+  model from the next message; a new effort applies the next time it starts.
+- **While the agent works**, Send queues the message instead: it shows above the composer with **Sends when the
+  agent finishes**, and goes as soon as the turn ends, in order. **Steer** on a queued message, or
+  <kbd>⇧⌘↩</kbd> while typing, sends it into the running turn now. A `/command` always waits for the turn to end.
+  Messages from another device or another agent are sent at once, as before.
+- **The strip under the composer** shows this machine's name, the account, **Local checkout** or **Worktree** (click
+  it before the first send to run in a new worktree), how many files changed (click it to open Changes, refreshed
+  after each turn) and the current branch.
+
 The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
 current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
@@ -160,7 +184,7 @@ it had already sent. Codex threads get the same tools, with the same account rul
 
 ## Worktrees
 
-Tick **Run in a new worktree** in the composer before you send the first prompt. The thread then works in its own
+Click **Local checkout** under the composer (it turns into **New worktree**) before you send the first prompt. The thread then works in its own
 git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`. The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
 

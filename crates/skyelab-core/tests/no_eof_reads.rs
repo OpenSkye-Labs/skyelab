@@ -4,10 +4,13 @@
 
 use std::path::Path;
 
-/// (file, line) pairs allowed to pipe: the agent session's streaming stdin and stdout.
+/// (file, line) pairs allowed to pipe: the agent session's streaming stdin and stdout, and Codex's model list, which
+/// speaks the same app-server protocol, reads only up to its reply under a deadline, then kills the process.
 const STREAMING: &[(&str, &str)] = &[
     ("skyelab-agent/src/lib.rs", ".stdin(Stdio::piped())"),
     ("skyelab-agent/src/lib.rs", ".stdout(Stdio::piped())"),
+    ("skyelab-agent/src/models.rs", ".stdin(Stdio::piped())"),
+    ("skyelab-agent/src/models.rs", ".stdout(Stdio::piped())"),
 ];
 const PIPE_READS: &[&str] = &[".output()", "wait_with_output", "Stdio::piped()"];
 
