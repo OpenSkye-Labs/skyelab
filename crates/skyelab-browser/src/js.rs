@@ -24,25 +24,28 @@ pub const MAX_EVAL_OUTPUT: usize = 64 << 10;
 /// every unit (6 bytes for a control character).
 const MAX_THROWN: usize = MAX_EVAL_OUTPUT / 8;
 
-/// The agent's script: run it without a result callback, then run [`read_back`] for its answer.
+/// The agent's script: run it without a result callback, then run [`read_back`] for its answer. It ends in
+/// `void 0` so engines that hand a no-callback script's value to the app anyway (WebView2) get nothing big.
 pub(crate) fn wrap(expression: &str) -> String {
     format!(
         "{PAGE_GUARD}window.{SLOT} = (() => {{ try {{ const v = (\n{expression}\n); \
          return `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; }} \
-         catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}`.slice(0, {MAX_THROWN}) }})}}`; }} }})();"
+         catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}`.slice(0, {MAX_THROWN}) }})}}`; }} }})();\nvoid 0;"
     )
 }
 
 /// Takes the answer [`wrap`] left and returns it as a string primitive, or "" (a refusal) when there is none.
-/// Only syntax the page can't replace: `typeof`, `.length` and indexing of a string primitive, comparisons. A lone
-/// surrogate is refused: wry turns the result into UTF-8 and unwraps that.
+/// Only syntax the page can't replace: `typeof`, `.length` and in-range indexing of a string primitive (an index
+/// past the end reads `String.prototype`), comparisons. A lone surrogate is refused: wry turns the result into
+/// UTF-8 and unwraps that. A page that isn't http or https gets nothing back, even if it filled the slot itself.
 pub(crate) fn read_back() -> String {
-    r#"(() => { let s; try { s = window.SLOT; delete window.SLOT; } catch (e) { return ""; }
+    r#"(() => { if (location.protocol !== "http:" && location.protocol !== "https:") return "";
+  let s; try { s = window.SLOT; delete window.SLOT; } catch (e) { return ""; }
   if (typeof s !== "string") return "";
   if (s.length > MAX) return `{"too_big":${s.length}}`;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
-    if (c >= "\ud800" && c <= "\udbff" && s[i + 1] >= "\udc00" && s[i + 1] <= "\udfff") { i++; continue; }
+    if (c >= "\ud800" && c <= "\udbff" && i + 1 < s.length && s[i + 1] >= "\udc00" && s[i + 1] <= "\udfff") { i++; continue; }
     if (c >= "\ud800" && c <= "\udfff") return `{"error":"the result is not valid text"}`;
   }
   return s; })()"#

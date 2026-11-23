@@ -18,7 +18,7 @@ mod mac {
     use gpui::{AppContext as _, AsyncApp, Entity, WindowOptions};
     use skyelab_browser::BrowserView;
 
-    /// Leaves the wrapper's IIFE and makes `value` the script's own last value: what wry's callback serializes.
+    /// Leaves the wrapper's IIFE and makes `value` the script's own last value, which wry's callback used to serialize.
     fn break_out(value: &str) -> String {
         format!("0); return 0; }} catch (e) {{}} }})(); {value}; var _ = (() => {{ try {{ (0")
     }
@@ -145,8 +145,26 @@ mod mac {
         )
         .await;
         println!("planted lone surrogate -> {planted:?}");
+        anyhow::ensure!(
+            planted
+                .as_ref()
+                .is_err_and(|e| format!("{e:#}").contains("not valid text")),
+            "planted: {planted:?}"
+        );
+        // Index 1 past the end of "\ud800" reads String.prototype, which the agent can fill.
+        let prototype = eval(
+            browser,
+            &break_out(
+                "Object.defineProperty(String.prototype, '1', { get() { return '\\udc00'; }, configurable: true }); \
+                 window.__skyelab_eval = '\\ud800'",
+            ),
+            cx,
+        )
+        .await;
+        println!("prototype-paired lone surrogate -> {prototype:?}");
+        anyhow::ensure!(prototype.is_err(), "prototype: {prototype:?}");
 
-        // Leaving the wrapper leaves nothing to read back: a refusal, not a value.
+        // Breaking out leaves the number 0 at the slot, not a string: a refusal, not a value.
         let err = eval(browser, &break_out("NaN"), cx)
             .await
             .expect_err("broke out");

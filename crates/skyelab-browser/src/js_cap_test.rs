@@ -105,6 +105,32 @@ fn read_back_refuses_what_wry_cannot_carry() {
         let got = run_scripts_in_jsc(&format!("window.__skyelab_eval = {planted};"));
         assert_eq!(got, "", "{planted}");
     }
-    // Nothing left: the slot is cleared by the read.
-    assert_eq!(run_scripts_in_jsc(""), "");
+    // An index past the end reads String.prototype, which the page owns: a getter there can't pair a lone surrogate.
+    let prototype = run_scripts_in_jsc(
+        "Object.defineProperty(String.prototype, \"1\", { get() { return \"\\udc00\"; } }); \
+         window.__skyelab_eval = \"\\ud800\";",
+    );
+    assert_eq!(prototype, r#"{"error":"the result is not valid text"}"#);
+    // The read clears the slot: a second read-back on the same page finds nothing.
+    let twice = run_scripts_in_jsc(&format!("{}\n;{}", wrap("1"), read_back()));
+    assert_eq!(twice, "");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn read_back_gives_a_local_page_nothing() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("page.js");
+    let page = format!(
+        "var location = {{ protocol: \"file:\" }}; var window = this;\n\
+         window.__skyelab_eval = '{{\"ok\":\"secret\"}}';\n{}",
+        read_back()
+    );
+    std::fs::write(&path, page).expect("write script");
+    let out = std::process::Command::new("/usr/bin/osascript")
+        .args(["-l", "JavaScript"])
+        .arg(&path)
+        .output()
+        .expect("osascript runs");
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim_end(), "");
 }
