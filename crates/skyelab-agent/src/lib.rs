@@ -1,14 +1,18 @@
 //! Runs agent sessions (Claude Code, or Codex) under the account bound to their folder. No GPUI, no
 //! tokio: a std reader thread feeds a flume channel, which GPUI's executor can await.
 
+mod attach;
 mod claude;
 mod codex;
 mod event;
 mod launch;
 #[cfg(unix)]
 pub mod mcp;
+mod models;
 
+pub use attach::{Attachment, Kind as AttachmentKind, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 pub use event::{Block, Event};
+pub use models::{CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, list_codex_models};
 
 use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
@@ -54,6 +58,12 @@ pub struct Launch<'a> {
     /// A `--mcp-config` file for SkyeLab's own tools (an [`mcp::Grant`]'s), or `None` for no tools. Codex gets
     /// the same server, read from this file and sent with `thread/start`.
     pub mcp_config: Option<&'a Path>,
+    /// `--model` for Claude (an alias or a full id), `model` for Codex. `None`: the account's own default.
+    pub model: Option<&'a str>,
+    /// `--effort` for Claude, the turn's `effort` for Codex. `None`: the default.
+    pub effort: Option<&'a str>,
+    /// Files sent with the first prompt.
+    pub attachments: &'a [Attachment],
 }
 
 /// Starts the account's agent (`claude` or `codex`) per `launch` and sends its prompt as the first turn.
@@ -78,56 +88,44 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         resume,
         prompt,
         mcp_config,
+        model,
+        effort,
+        attachments,
     } = launch;
-    // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
-    let dir = &std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
-    match config.resolve(dir) {
-        Some(now) if now.same_login(account) => {}
-        Some(now) if now.id == account.id => bail!(
-            "account '{}' changed since this launch was prepared (its config dir, gh login or ssh setting); \
-             nothing was started",
-            now.id
-        ),
-        Some(now) => bail!(
-            "{} is now bound to '{}', not '{}'; nothing was started",
-            dir.display(),
-            now.id,
-            account.id
-        ),
-        None => bail!("{} is not bound to an account", dir.display()),
-    }
     if let Some(id) = resume
         && !valid_session_id(id)
     {
         bail!("refusing to resume session id {id:?}");
     }
-    let env = account.launch_env()?;
-    // A relative dir would resolve inside the untrusted project, and an empty one means ~/.claude.
-    if let Some((var, v)) = env.iter().find(|(_, v)| !v.is_absolute()) {
-        bail!(
-            "{var} for {} must be an absolute path, got {v:?}",
-            dir.display()
-        );
+    for (what, v) in [("model", model), ("effort", effort)] {
+        if let Some(v) = v
+            && !models::valid_name(v)
+        {
+            bail!("refusing {what} {v:?}");
+        }
     }
-    let bin = launch::resolve_bin(bin)?;
-    let mut cmd = Command::new(&bin);
-    // Never inherit the parent's account or credentials: start empty, add the allowlist, then the bound account,
-    // and git's https credentials from that account's gh only (`git push` in the agent's own shell).
-    cmd.env_clear()
-        .envs(skyelab_core::env::inherited_agent_env(account.ssh_agent))
-        .envs(env)
-        .envs(skyelab_core::env::account_git_env(account, dir));
-    #[cfg(unix)]
-    std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
+    attach::check_count(attachments)?;
+    let (mut cmd, bin, dir) = launch::agent_command(bin, config, account, dir)?;
+    let dir = &dir;
     let codex = match account.provider {
         Provider::Claude => {
             claude_args(&mut cmd, mcp_config, resume);
+            cmd.args(model.into_iter().flat_map(|m| ["--model", m]))
+                .args(effort.into_iter().flat_map(|e| ["--effort", e]));
             None
         }
         Provider::Codex => {
             cmd.args(codex::args(dir)?);
             let mcp = mcp_config.map(codex::mcp_servers).transpose()?;
-            Some(codex::Codex::new(dir, resume, mcp))
+            Some(codex::Codex::new(
+                dir,
+                resume,
+                mcp,
+                codex::Pick {
+                    model: model.map(str::to_owned),
+                    effort: effort.map(str::to_owned),
+                },
+            ))
         }
     };
     cmd.current_dir(dir)
@@ -190,7 +188,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         .name("skyelab-agent-writer".into())
         .spawn(move || write_lines(stdin, &stdin_rx))
         .context("spawning writer thread")?;
-    session.send_user_message(prompt)?;
+    session.send_message(prompt, attachments)?;
     Ok(session)
 }
 
@@ -307,12 +305,53 @@ impl Session {
 
     /// Sends a follow-up user turn. Codex queues it behind a running turn, as `claude` does.
     pub fn send_user_message(&mut self, text: &str) -> Result<()> {
+        self.send_message(text, &[])
+    }
+
+    /// [`send_user_message`](Self::send_user_message) with files attached.
+    pub fn send_message(&mut self, text: &str, attachments: &[Attachment]) -> Result<()> {
+        attach::check_count(attachments)?;
         if let Some(state) = &self.codex {
-            let lines = lock(state).prompt(text)?;
+            let lines = lock(state).prompt(text, attachments, false)?;
             return lines.into_iter().try_for_each(|l| self.queue(l));
         }
-        let message = claude::user_message(text, &self.sent);
+        let message = claude::user_message(text, attachments, &self.sent);
         self.write(&message)
+    }
+
+    /// Sends a message into the running turn instead of after it. Claude folds a message sent mid-turn into that
+    /// turn already; Codex gets `turn/steer` (or a new turn when none runs).
+    pub fn steer(&mut self, text: &str, attachments: &[Attachment]) -> Result<()> {
+        attach::check_count(attachments)?;
+        if let Some(state) = &self.codex {
+            let lines = lock(state).prompt(text, attachments, true)?;
+            return lines.into_iter().try_for_each(|l| self.queue(l));
+        }
+        self.send_message(text, attachments)
+    }
+
+    /// Switches the model for the next turns. Claude takes `set_model` (its effort is fixed at launch, so `effort`
+    /// applies from the next start); Codex sends both with every turn.
+    pub fn set_model(&mut self, model: Option<&str>, effort: Option<&str>) -> Result<()> {
+        for v in [model, effort].into_iter().flatten() {
+            if !models::valid_name(v) {
+                bail!("refusing model {v:?}");
+            }
+        }
+        if let Some(state) = &self.codex {
+            lock(state).pick = codex::Pick {
+                model: model.map(str::to_owned),
+                effort: effort.map(str::to_owned),
+            };
+            return Ok(());
+        }
+        self.next_request += 1;
+        let request_id = format!("skyelab-{}", self.next_request);
+        self.write(&json!({
+            "type": "control_request",
+            "request_id": request_id,
+            "request": { "subtype": "set_model", "model": model },
+        }))
     }
 
     /// Asks the agent to stop the current turn; the process stays alive for the next message.

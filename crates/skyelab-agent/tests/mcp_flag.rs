@@ -28,6 +28,9 @@ fn args_for(mcp_config: Option<&Path>) -> String {
         resume: None,
         prompt: "hi",
         mcp_config,
+        model: None,
+        effort: None,
+        attachments: &[],
     };
     let session = start_with_bin(&bin, &config, &launch).expect("start");
     loop {

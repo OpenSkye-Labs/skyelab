@@ -15,12 +15,12 @@ fn sent(s: &Sent) -> std::sync::MutexGuard<'_, VecDeque<String>> {
 }
 
 /// The stream-json line for a user prompt, recorded in `pending`.
-pub(crate) fn user_message(text: &str, pending: &Sent) -> Value {
+pub(crate) fn user_message(text: &str, attachments: &[crate::Attachment], pending: &Sent) -> Value {
     let uuid = uuid::Uuid::new_v4().to_string();
     sent(pending).push_back(uuid.clone());
     json!({
         "type": "user",
-        "message": { "role": "user", "content": text },
+        "message": { "role": "user", "content": crate::attach::claude_content(text, attachments) },
         "parent_tool_use_id": null,
         "session_id": "",
         "uuid": uuid,

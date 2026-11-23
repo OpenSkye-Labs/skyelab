@@ -61,6 +61,9 @@ fn start(
         resume,
         prompt,
         mcp_config: mcp,
+        model: None,
+        effort: None,
+        attachments: &[],
     };
     start_with_bin(&fake(), &f.config, &launch)
 }
@@ -194,6 +197,9 @@ fn unbound_or_rebound_folder_starts_nothing() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
     };
     let err = start_with_bin(&fake(), &AccountsConfig::default(), &launch)
         .err()

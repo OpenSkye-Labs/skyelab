@@ -19,6 +19,9 @@ pub fn start_in(
         resume: None,
         prompt,
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
     };
     start_with_bin(bin, cfg, &launch)
 }

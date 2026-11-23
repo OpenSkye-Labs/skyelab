@@ -41,6 +41,9 @@ sleep 5
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
     };
     let mut session = start_with_bin(&bin, &config, &launch).expect("start");
     let prompts = loop {
