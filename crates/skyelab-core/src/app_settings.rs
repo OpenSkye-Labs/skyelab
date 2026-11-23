@@ -32,6 +32,9 @@ pub struct AppSettings {
 pub struct ThreadSettings {
     /// After a thread's first reply, its account's agent writes a short title for it.
     pub generate_titles: bool,
+    /// The Changes tab offers a generated commit message and PR title and body (written by the thread's own account's
+    /// agent, only when asked).
+    pub generate_git_text: bool,
     /// The permission mode (the agent layer's value: `default`, `plan`, `acceptEdits`); unset is Ask.
     pub permission_mode: Option<String>,
     pub claude_model: Option<String>,
@@ -56,6 +59,7 @@ impl Default for ThreadSettings {
     fn default() -> Self {
         Self {
             generate_titles: true,
+            generate_git_text: true,
             permission_mode: None,
             claude_model: None,
             claude_effort: None,

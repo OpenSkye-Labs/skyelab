@@ -12,7 +12,9 @@
 # the way a signed-out Claude Code does. With a .fake-session-gone file in the folder, a --resume start fails the way
 # Claude Code does for a session it doesn't have; a fresh start then reports session fake-sess-new.
 # A title call (`-p ... --no-session-persistence`) appends its config dir, args (one per line) and stdin to
-# .fake-title-call in its folder and answers "Fake title from <config dir name>".
+# .fake-title-call in its folder and answers "Fake title from <config dir name>"; a commit message prompt gets
+# "feat(fake): commit from <config dir name>" plus a body, a pull request prompt a title and a body that says
+# whether the prompt held a <template>.
 case " $* " in
   *" --no-session-persistence "*)
     input=$(cat)
@@ -21,7 +23,17 @@ case " $* " in
       for a in "$@"; do printf 'arg=[%s]\n' "$a"; done
       printf '%s\n---\n' "$input"
     } >> .fake-title-call
-    printf 'Fake title from %s\n' "$(basename "$CLAUDE_CONFIG_DIR")"
+    who=$(basename "$CLAUDE_CONFIG_DIR")
+    case "$input" in
+      "Write a git commit message"*) printf 'feat(fake): commit from %s\n\nWritten by the fake agent.\n' "$who" ;;
+      "Write a pull request title"*)
+        printf 'feat(fake): pull request from %s\n\n' "$who"
+        case "$input" in
+          *"<template>"*) printf '## Summary\nFilled from the template.\n' ;;
+          *) printf 'Fake PR body.\n' ;;
+        esac ;;
+      *) printf 'Fake title from %s\n' "$who" ;;
+    esac
     exit 0 ;;
 esac
 if [ -f .fake-session-gone ]; then

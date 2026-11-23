@@ -3,7 +3,7 @@
 //! account allows it, and git never prompts.
 
 use super::changes_model_test::git;
-use super::publish_test::{error, set_input, thread_and_changes};
+use super::publish_test::{error, set_text, thread_and_changes};
 use super::worktree_thread_test::{fixture, wait_until};
 use gpui::TestAppContext;
 use std::os::unix::fs::PermissionsExt as _;
@@ -63,7 +63,7 @@ fn commit_hooks_get_the_accounts_git_credential_binding(cx: &mut TestAppContext)
                 .is_some_and(|ch| ch.files.iter().any(|f| f.path.ends_with("new.txt")))
         })
     });
-    set_input(
+    set_text(
         &changes.read_with(cx, |c, _| c.commit_message.clone()),
         "Add new.txt",
         cx,

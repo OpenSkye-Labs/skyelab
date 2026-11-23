@@ -46,6 +46,16 @@ pub(super) fn set_input(
     input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
 }
 
+/// [`set_input`] for a multi-line field (the commit message).
+pub(super) fn set_text(
+    input: &Entity<gpui_component::input::TextareaState>,
+    text: &str,
+    cx: &mut VisualTestContext,
+) {
+    let text = text.to_string();
+    input.update_in(cx, |s, window, cx| s.set_value(text, window, cx));
+}
+
 pub(super) fn error(changes: &Entity<ChangesView>, cx: &mut VisualTestContext) -> Option<String> {
     changes.read_with(cx, |c, _| c.publish_error.as_ref().map(|e| e.to_string()))
 }
@@ -98,7 +108,7 @@ fn commit_then_open_pr_stores_the_link_on_the_thread(cx: &mut TestAppContext) {
                 .is_some_and(|ch| ch.files.iter().any(|f| f.path.ends_with("new.txt")))
         })
     });
-    set_input(
+    set_text(
         &changes.read_with(cx, |c, _| c.commit_message.clone()),
         "Add new.txt",
         cx,

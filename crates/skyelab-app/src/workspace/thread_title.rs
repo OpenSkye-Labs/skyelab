@@ -24,6 +24,14 @@ impl Bins {
             codex: crate::workspace::github::codex_bin(cx),
         }
     }
+
+    /// The binary for `provider`'s one-shot calls.
+    pub(in crate::workspace) fn of(&self, provider: Provider) -> &PathBuf {
+        match provider {
+            Provider::Claude => &self.claude,
+            Provider::Codex => &self.codex,
+        }
+    }
 }
 
 /// A thread's first prompt and the text of its first reply (empty if that turn wrote none).
@@ -78,10 +86,7 @@ pub(in crate::workspace) fn generate(
             thread.account_id
         ),
     };
-    let bin = match account.provider {
-        Provider::Claude => &bins.claude,
-        Provider::Codex => &bins.codex,
-    };
+    let bin = bins.of(account.provider);
     let prompt = skyelab_agent::title_prompt(&prompt, &reply);
     let title = skyelab_agent::generate_title(bin, config, &account, &thread.cwd, &prompt)?;
     Ok(lock(store)?

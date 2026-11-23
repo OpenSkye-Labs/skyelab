@@ -2,6 +2,7 @@
 //! thread's recorded account; Push and Open PR also need that account's GitHub login.
 
 use super::changes::ChangesView;
+use super::changes_generate::Gen;
 use super::thread::GitAction;
 use super::worktree::push_account;
 use super::{SharedStore, lock};
@@ -22,18 +23,18 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// What an action runs against, read from the thread at click time.
-struct Target {
-    dir: PathBuf,
-    config: AccountsConfig,
-    account_id: String,
-    thread_id: i64,
-    store: SharedStore,
+pub(super) struct Target {
+    pub(super) dir: PathBuf,
+    pub(super) config: AccountsConfig,
+    pub(super) account_id: String,
+    pub(super) thread_id: i64,
+    pub(super) store: SharedStore,
     /// The account's `GH_CONFIG_DIR`, when the action needs GitHub.
     gh_dir: Option<PathBuf>,
 }
 
 impl ChangesView {
-    fn target(&self, cx: &App) -> Result<Target> {
+    pub(super) fn target(&self, cx: &App) -> Result<Target> {
         let view = self
             .thread
             .as_ref()
@@ -124,18 +125,29 @@ impl ChangesView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let (field, empty) = match action {
+        let (text, focus, empty) = match action {
             GitAction::Push => return self.push(window, cx),
-            GitAction::Commit | GitAction::CommitPush => (
-                self.commit_message.clone(),
-                "Write a commit message, then commit.",
-            ),
-            GitAction::OpenPr => (self.pr_title.clone(), "Write a PR title, then open it."),
+            GitAction::Commit | GitAction::CommitPush => {
+                let f = self.commit_message.read(cx);
+                (
+                    f.value(),
+                    f.focus_handle(cx),
+                    "Write a commit message, then commit.",
+                )
+            }
+            GitAction::OpenPr => {
+                let f = self.pr_title.read(cx);
+                (
+                    f.value(),
+                    f.focus_handle(cx),
+                    "Write a PR title, then open it.",
+                )
+            }
         };
-        if field.read(cx).value().trim().is_empty() {
+        if text.trim().is_empty() {
             self.publish_note = None;
             self.publish_error = Some(empty.into());
-            field.read(cx).focus_handle(cx).focus(window, cx);
+            focus.focus(window, cx);
             cx.notify();
             return;
         }
@@ -152,19 +164,12 @@ impl ChangesView {
     /// Commits, then pushes when `push` and the commit worked.
     fn commit_then(&mut self, push: bool, window: &mut Window, cx: &mut Context<Self>) {
         let message = self.commit_message.read(cx).value().to_string();
-        let (files, tree) = self
+        let (nothing, tree) = self
             .changes
             .as_ref()
-            .map(|c| (c.files.as_slice(), c.tree.clone()))
-            .unwrap_or_default();
-        let nothing = files.is_empty();
-        // A ticked rename takes its old path along, so the deletion lands in the same commit. Nothing ticked is
-        // everything, which `commit` only does while the tree is exactly the one shown (`tree`).
-        let paths: Vec<PathBuf> = files
-            .iter()
-            .filter(|f| self.selected.contains(&f.path))
-            .flat_map(|f| std::iter::once(f.path.clone()).chain(f.old_path.clone()))
-            .collect();
+            .map(|c| (c.files.is_empty(), c.tree.clone()))
+            .unwrap_or((true, None));
+        let paths = self.picked_paths();
         self.run(
             false,
             window,
@@ -190,6 +195,21 @@ impl ChangesView {
                 }
             },
         );
+    }
+
+    /// The ticked files' paths. A ticked rename takes its old path along, so the deletion lands in the same commit.
+    /// Nothing ticked is everything, which `commit` only does while the tree is exactly the one shown.
+    pub(super) fn picked_paths(&self) -> Vec<PathBuf> {
+        let files = self
+            .changes
+            .as_ref()
+            .map(|c| c.files.as_slice())
+            .unwrap_or_default();
+        files
+            .iter()
+            .filter(|f| self.selected.contains(&f.path))
+            .flat_map(|f| std::iter::once(f.path.clone()).chain(f.old_path.clone()))
+            .collect()
     }
 
     pub(super) fn push(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -266,12 +286,19 @@ impl ChangesView {
             }))
             .child(
                 h_flex()
+                    .items_start()
                     .gap_2()
                     .child(
                         div()
                             .flex_1()
-                            .child(Input::new(&self.commit_message).small()),
+                            .child(Textarea::new(&self.commit_message).small()),
                     )
+                    .children(self.generate_button(Gen::Commit, cx)),
+            )
+            .child(
+                h_flex()
+                    .justify_end()
+                    .gap_2()
                     .child(
                         button("commit", commit_label)
                             .primary()
@@ -287,6 +314,7 @@ impl ChangesView {
                 h_flex()
                     .gap_2()
                     .child(div().flex_1().child(Input::new(&self.pr_title).small()))
+                    .children(self.generate_button(Gen::Pr, cx))
                     .child(
                         button("open-pr", "Open PR".into())
                             .outline()

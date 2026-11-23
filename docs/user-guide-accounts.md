@@ -93,3 +93,14 @@ To let one account's agents push over ssh anyway, add `ssh_agent = true` to that
 button says how many files). If anything changed since the tab loaded, Commit refuses; refresh, look again, and
 commit. Repo hooks run on Commit and Push, with the same clean environment; if a commit hook adds files you
 didn't review, the commit is undone and they stay staged. Push never pushes submodules.
+
+**Generated commit messages and PRs.** The sparkle next to the commit message asks the thread's own account's agent
+for a conventional commit message (a subject of 72 characters at most, and a short body when it helps) from the
+diff Commit would commit: the ticked files, or every listed file with none ticked. The sparkle next to the PR title
+writes the title and description from the branch's commits and its diff against its base (`origin/HEAD`, else
+`main` or `master`), filling the repo's PR template (`.github/pull_request_template.md` and the usual other
+places) when it has one. Both send only files inside the thread's folder, never ignored files, and at most 60 KB of
+diff (the rest is cut, with a note). The thread's title and last prompt go along as context. The agent gets no
+tools and keeps no session, and if the folder is now bound to another account it refuses. The text only fills the
+fields: nothing is committed or opened until you click. If you edit the field while it writes, your edit stays.
+Turn the sparkles off in **Settings → Threads → Generate commit messages and PRs**.

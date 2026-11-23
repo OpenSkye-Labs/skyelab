@@ -41,7 +41,8 @@ What's built today:
   the right panel's **Details** tab holds the folder, branch, git actions, scripts, delegated agents, pull request
   and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
-  and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
+  and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user (a sparkle writes the commit
+  message or PR text, from the PR template too, with that account's agent); inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
   `/` and skills with `$`, and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues

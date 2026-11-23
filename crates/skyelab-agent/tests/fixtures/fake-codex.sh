@@ -10,8 +10,8 @@
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 here=$(dirname "$0")
-# `codex exec` (a title call): logs CODEX_HOME, its args and stdin to .fake-title-call, answers in the
-# --output-last-message file.
+# `codex exec` (a one-shot call): logs CODEX_HOME, its args and stdin to .fake-title-call, answers in the
+# --output-last-message file (a commit message or PR for those prompts, else a title).
 if [ "$1" = exec ]; then
   input=$(cat)
   out=
@@ -25,7 +25,11 @@ if [ "$1" = exec ]; then
     for a in "$@"; do printf 'arg=[%s]\n' "$a"; done
     printf '%s\n---\n' "$input"
   } >> .fake-title-call
-  printf 'Codex fake title\n' > "$out"
+  case "$input" in
+    "Write a git commit message"*) printf 'fix(codex): commit from codex\n' > "$out" ;;
+    "Write a pull request title"*) printf 'fix(codex): pull request\n\nCodex PR body.\n' > "$out" ;;
+    *) printf 'Codex fake title\n' > "$out" ;;
+  esac
   exit 0
 fi
 v() { eval "printf '%s' \"\${$1-<unset>}\""; }

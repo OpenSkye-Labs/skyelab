@@ -9,6 +9,7 @@ mod commit;
 mod diff;
 mod publish;
 mod status;
+mod summary;
 mod worktree;
 
 use std::ffi::OsStr;
@@ -28,6 +29,7 @@ pub use diff::{
 };
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use status::{FileChange, Status, status, status_with_ignored};
+pub use summary::{MAX_DIFF, PrContext, TRUNCATED, commit_diff, pr_context};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
 
 #[derive(Debug, thiserror::Error)]
