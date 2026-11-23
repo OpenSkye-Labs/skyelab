@@ -1,23 +1,23 @@
 //! Claude's side of turn accounting: each prompt carries a `uuid`, and a `result` names the prompts it answered in
 //! `user_message_uuids`. A prompt sent mid-turn can be folded into the running turn (one result for two prompts),
-//! and a background wake ends with a result for none of ours.
+//! and a background wake (`origin.kind` `task-notification`, no uuids) answers none of ours.
 
 use crate::Event;
 use serde_json::{Value, json};
-use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-/// The uuids of prompts sent and not answered yet, shared by the session and its reader thread.
-pub(crate) type Sent = Arc<Mutex<HashSet<String>>>;
+/// The uuids of prompts sent and not answered yet, oldest first, shared by the session and its reader thread.
+pub(crate) type Sent = Arc<Mutex<VecDeque<String>>>;
 
-fn sent(s: &Sent) -> std::sync::MutexGuard<'_, HashSet<String>> {
+fn sent(s: &Sent) -> std::sync::MutexGuard<'_, VecDeque<String>> {
     s.lock().unwrap_or_else(|e| e.into_inner()) // a set of ids, consistent after a panic
 }
 
 /// The stream-json line for a user prompt, recorded in `pending`.
 pub(crate) fn user_message(text: &str, pending: &Sent) -> Value {
     let uuid = uuid::Uuid::new_v4().to_string();
-    sent(pending).insert(uuid.clone());
+    sent(pending).push_back(uuid.clone());
     json!({
         "type": "user",
         "message": { "role": "user", "content": text },
@@ -27,8 +27,9 @@ pub(crate) fn user_message(text: &str, pending: &Sent) -> Value {
     })
 }
 
-/// One stdout line. A result that lists prompt uuids answers those of ours it names; one without the list (an
-/// older CLI) answers one.
+/// One stdout line. A result that lists prompt uuids answers those of ours it names. Without the list, one from
+/// another origin than the user (a background wake, a peer) answers none, and any other answers the oldest prompt
+/// (an older CLI).
 pub(crate) fn parse(line: &str, pending: &Sent) -> Event {
     let mut event = Event::parse(line);
     if let Event::Result { prompts, .. } = &mut event
@@ -39,11 +40,20 @@ pub(crate) fn parse(line: &str, pending: &Sent) -> Event {
             (_, Value::String(id)) => Some(vec![id.as_str()]),
             _ => None,
         };
-        if let Some(listed) = listed {
-            let mut pending = sent(pending);
-            let ours = listed.iter().filter(|id| pending.remove(**id)).count();
-            *prompts = u32::try_from(ours).unwrap_or(u32::MAX);
-        }
+        let mut pending = sent(pending);
+        let answered = match listed {
+            Some(listed) => {
+                let before = pending.len();
+                pending.retain(|id| !listed.contains(&id.as_str()));
+                before - pending.len()
+            }
+            None if v["origin"]["kind"].as_str().is_some_and(|k| k != "human") => 0,
+            None => {
+                pending.pop_front();
+                1
+            }
+        };
+        *prompts = u32::try_from(answered).unwrap_or(u32::MAX);
     }
     event
 }
