@@ -150,7 +150,8 @@ it had already sent. Codex threads get the same tools, with the same account rul
 ## Worktrees
 
 Tick **Run in a new worktree** in the composer before you send the first prompt. The thread then works in its own
-git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`. The `.skyelab` folder is
+git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`, started from the branch the
+header's picker shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
 
 The thread header then has:
@@ -161,6 +162,46 @@ The thread header then has:
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.
 - **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.
+
+## Branches
+
+The thread header's branch button lists the folder's local branches, most recent first, with a search. On a thread
+that runs in the project folder, picking one switches the folder's checkout; type a name that doesn't exist and
+pick **Create branch** to make it from the current commit and switch to it (your changes stay as they are). Stop the
+agent first. With uncommitted changes, SkyeLab asks before switching:
+
+- **Stash and switch** stashes every change, untracked files included, as `skyelab: changes left on the way to <branch>`.
+  Get them back with `git stash pop` on the old branch.
+- **Take changes along** switches with the changes, as plain `git switch` does. If a change would be overwritten,
+  git refuses and nothing moves.
+
+Ignored files are never touched. If the changes move on while the question is shown, SkyeLab asks again.
+
+## Project scripts
+
+The header's **Run** menu holds a project's scripts: a name and a command, such as `npm run dev`. Click one to run
+it in a new terminal tab in the thread's folder (or its worktree), on the folder's account, with the terminal's
+usual environment plus `SKYELAB_PROJECT_ROOT` and, in a worktree, `SKYELAB_WORKTREE_PATH`. A folder with no
+account bound runs nothing. Tick **Run in every new worktree** for setup scripts such as `pnpm install`: they run as
+soon as a worktree thread starts. The command palette lists every script as **Run script: <name>** (it runs in the
+project folder). Scripts are kept in SkyeLab's own database, never in the repo, so an agent can't add one.
+
+## Turns and rewind
+
+SkyeLab records a checkpoint of the thread's folder right before each agent turn and when it ends: every file git
+would see, untracked ones included and ignored ones not. Checkpoints live under `refs/skyelab/checkpoints/` in the
+repo; your branches, index and stashes are never touched. Once a turn has ended, the Changes tab shows a row of
+scopes: **Working tree** (the diff it always showed), **Since thread start**, and **Turn 1**, **Turn 2** and so on.
+
+On a turn, **Rewind to before turn N** puts the files back as they were when that turn started. It lists every file
+it would restore and delete before it does anything, and changes nothing if the files moved since. Stop the agent
+first. Notes:
+
+- It rewinds files only, not the conversation, and leaves your staging (the index) as it is.
+- On a thread in the project folder (no worktree) it also undoes your own edits made since that turn started.
+- Ignored files are left alone. If the checkpoint has a file that is now ignored, the confirm names it, and it is
+  overwritten only if you tick **Overwrite ignored files**.
+- It never writes through a symlinked folder, so nothing outside the repo changes, and it skips submodules.
 
 ## Sharing this machine over Tailscale
 

@@ -264,6 +264,10 @@ impl ThreadView {
         self.cwd = thread.cwd.clone();
         self.thread = Some(thread.clone());
         cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
+        if let Some(cwd) = thread.worktree_path.clone() {
+            let account_id = thread.account_id.clone();
+            cx.emit(ThreadViewEvent::WorktreeCreated { cwd, account_id });
+        }
         cx.notify();
     }
 

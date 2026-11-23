@@ -32,9 +32,27 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
+        self.add_terminal_tab(options, account, None, window, cx)
+    }
+
+    /// [`Self::add_terminal_with`], with `tab`'s title and its text typed into the new shell (a project script).
+    pub(super) fn add_terminal_tab(
+        &mut self,
+        options: SpawnOptions,
+        account: Option<skyelab_core::Account>,
+        tab: super::TerminalTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
         let (terminal, events) = Terminal::spawn(options)?;
+        let title = match tab {
+            Some((title, input)) => {
+                terminal.write(input.into_bytes()); // the PTY holds it until the shell reads it
+                title
+            }
+            None => format!("Terminal {}", self.terminals.len() + 1).into(),
+        };
         let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
-        let title = format!("Terminal {}", self.terminals.len() + 1).into();
         let panel = cx.new(|_| TerminalPanel::new(view.clone(), title, account));
         let empty = self.terminals_empty.take();
         self.dock.update(cx, |dock, cx| {

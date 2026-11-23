@@ -128,3 +128,21 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   (2026-11-23)
 - **Repo instructions still load:** checked against the real CLI (2.1.330), `--setting-sources user --strict-mcp-config`
   still reads the project's `CLAUDE.md`, so blocking project *settings* does not drop project *instructions*. (2026-11-23)
+- **Checkpoints and rewind (2026-11-23):** a checkpoint is a commit (fixed SkyeLab identity, signing off) of the
+  snapshot tree, at `refs/skyelab/checkpoints/<thread id>-<created at>/<n>`: `n` is rewritten right before turn
+  `n + 1` starts, and `n + 1` is taken when it ends, so Turn N diffs `n - 1` against `n`. The refs keep the snapshots
+  from `git gc`; deleting a thread must call `delete_checkpoints` (the app has no thread delete yet). Rewind
+  deletes what was created since itself and writes the rest with `checkout-index` from a scratch index, so the
+  user's index stays; it refuses a path under a symlinked folder, skips submodules, overwrites an existing ignored
+  file only when the user ticks it, and refuses if the snapshot moved after the confirm. It is allowed on a project
+  folder (T3 refuses file restore outside an isolated worktree); the confirm lists every file instead. Limit: with a
+  prompt queued, the agent starts the next turn before the end checkpoint is taken, so it can include early edits
+  of that turn.
+- **Project scripts live in the store, not the repo (2026-11-23):** an agent can write the repo, and a script runs
+  in a terminal, which gets the user's `SSH_AUTH_SOCK` (agents don't). The command is typed into the folder's login
+  shell with a leading space; the env is the terminal's for the bound account plus `SKYELAB_PROJECT_ROOT` /
+  `SKYELAB_WORKTREE_PATH`. An unbound folder runs nothing. The table's migration is one step that needs only
+  `projects`, planned as schema version 8.
+- **Branch switch:** `git switch` with hooks off (post-checkout hooks don't run), refused while the thread's agent
+  runs and, with changes, until the user picks stash (`--include-untracked`, popped back if the switch then fails)
+  or carry (git refuses an overwrite). The confirm is re-checked against the status it showed. (2026-11-23)

@@ -53,6 +53,15 @@ pub enum ThreadViewEvent {
     OpenChanges,
     /// The folder's files or checkpoints changed (a turn's checkpoint, a branch switch): Changes tabs reload.
     FilesChanged,
+    /// Run a project script in this thread's folder, on its account.
+    RunScript(Box<skyelab_store::ProjectScript>),
+    /// The project's scripts were edited.
+    ScriptsChanged,
+    /// The thread got a new worktree: the project's setup scripts run there.
+    WorktreeCreated {
+        cwd: PathBuf,
+        account_id: String,
+    },
     /// A terminal in the thread's worktree, under the thread's account.
     OpenTerminal {
         cwd: PathBuf,
@@ -97,6 +106,8 @@ pub struct ThreadView {
     pub(super) wt: super::thread_worktree::WorktreeState,
     /// The header's branch picker, on the folder this view opened on.
     pub(super) branch_picker: Entity<super::branch_picker::BranchPicker>,
+    /// The header's Run menu: the project's scripts.
+    pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
@@ -240,10 +251,15 @@ impl ThreadView {
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
         let owner = cx.weak_entity();
-        let branch_picker =
-            cx.new(|cx| super::branch_picker::BranchPicker::new(owner, cwd.clone(), window, cx));
+        let branch_picker = cx.new(|cx| {
+            super::branch_picker::BranchPicker::new(owner.clone(), cwd.clone(), window, cx)
+        });
+        let scripts = cx.new(|cx| {
+            super::scripts::ScriptMenu::new(owner, backend.store.clone(), project_id, window, cx)
+        });
         Self {
             branch_picker,
+            scripts,
             folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,

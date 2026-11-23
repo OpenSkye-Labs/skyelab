@@ -58,6 +58,15 @@ impl Workspace {
                 let label = format!("Switch to project: {}", p.name);
                 dispatch(label, Kind::Project, Box::new(SelectProject { id: p.id }))
             }));
+            out.extend(self.scripts.iter().map(|s| {
+                let label = format!("Run script: {}", s.name);
+                let action = super::scripts::RunProjectScript { id: s.id };
+                dispatch(
+                    label,
+                    Kind::Action("skyelab::RunProjectScript"),
+                    Box::new(action),
+                )
+            }));
             out.extend(self.threads.iter().map(|t| {
                 let label = format!("Open thread: {}", t.title);
                 dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))

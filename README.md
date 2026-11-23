@@ -31,6 +31,9 @@ What's built today:
   `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
   switches project, opens a thread or goes to an open tab.
+- **Branches, checkpoints and scripts.** A branch picker in the thread header (switch, create, and stash or carry
+  changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
+  turn N", and per-project scripts with a Run menu, palette entries and setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
@@ -102,7 +105,7 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 | `skyelab-app` | The GPUI desktop app (binary `skyelab`). |
 | `skyelab-agent` | Launches `claude` (stream-json) or `codex app-server` with the bound account and maps both onto one event stream. |
 | `skyelab-store` | SQLite storage for projects, threads and thread events. |
-| `skyelab-git` | Git status, diffs and worktrees. |
+| `skyelab-git` | Git status, diffs, worktrees, branches and per-turn checkpoints. |
 | `skyelab-terminal` | PTY terminal and its GPUI view. |
 | `skyelab-browser` | The webview browser tab. |
 | `skyelab-devices` | iOS Simulator and Android emulator control (`simctl`, `adb`, `emulator`). |

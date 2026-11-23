@@ -30,6 +30,7 @@ mod panels;
 mod projects;
 mod remote;
 mod remote_thread;
+mod scripts;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
@@ -87,6 +88,9 @@ pub struct OpenThread {
 
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;
+
+/// A terminal tab's title and the text typed into its shell once it starts (a project script); `None` for a plain one.
+pub(super) type TerminalTab = Option<(gpui::SharedString, String)>;
 
 pub(super) fn lock<T>(m: &Mutex<T>) -> anyhow::Result<std::sync::MutexGuard<'_, T>> {
     m.lock()
@@ -172,6 +176,9 @@ pub struct Workspace {
     project: Option<Project>,
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
+    /// The current project's scripts, for the palette.
+    scripts: Vec<skyelab_store::ProjectScript>,
+    _scripts: Option<Task<()>>,
     open_threads: Vec<WeakEntity<ThreadView>>,
     /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
     queued_tabs: Vec<Entity<ThreadView>>,
@@ -283,6 +290,8 @@ impl Workspace {
             projects: Vec::new(),
             project: None,
             threads: Vec::new(),
+            scripts: Vec::new(),
+            _scripts: None,
             open_threads: Vec::new(),
             queued_tabs: Vec::new(),
             #[cfg(unix)]
@@ -347,6 +356,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::new_terminal))
+            .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::pick_project))
@@ -435,6 +445,12 @@ mod checkpoint_turns_test;
 
 #[cfg(all(test, unix))]
 mod worktree_base_test;
+
+#[cfg(all(test, unix))]
+mod scripts_env_test;
+
+#[cfg(test)]
+mod scripts_palette_test;
 
 #[cfg(test)]
 mod worktree_guard_test;
