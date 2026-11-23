@@ -49,26 +49,53 @@ pub struct Transcript {
 /// Sessions in `home` (the account's `CLAUDE_CONFIG_DIR` or `CODEX_HOME`) that ran in `folder` or under it, newest
 /// first. Unreadable files are left out.
 pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
-    let files = match provider {
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = match provider {
         Provider::Claude => claude_files(home, folder),
         Provider::Codex => codex::files(home, folder),
+    }
+    .into_iter()
+    .filter_map(|p| Some((regular_file(&p)?.modified().ok()?, p)))
+    .collect();
+    // Newest first, and only as many as are listed: each one is read whole to count its messages.
+    files.sort_by_key(|f| std::cmp::Reverse(f.0));
+    files.truncate(MAX_SESSIONS);
+    let names = match provider {
+        Provider::Claude => Default::default(),
+        Provider::Codex => codex::names(home),
     };
-    let mut found: Vec<Transcript> = files
+    files
         .iter()
-        .filter_map(|f| read(provider, home, f, MAX_TRANSCRIPT_BYTES))
+        .filter_map(|(_, f)| read_file(provider, f, MAX_TRANSCRIPT_BYTES))
         .filter(|t| t.cwd.starts_with(folder))
         .map(|mut t| {
+            if let Some(name) = names.get(&t.id) {
+                t.title.clone_from(name);
+            }
             t.entries = Vec::new();
             t
         })
-        .collect();
-    found.sort_by_key(|t| std::cmp::Reverse(t.modified_ms));
-    found.truncate(MAX_SESSIONS);
-    found
+        .collect()
+}
+
+/// `path`'s metadata when it is a plain file: not a link (it could point into another account's dir) and not a FIFO
+/// or device (opening one can block for ever).
+fn regular_file(path: &Path) -> Option<std::fs::Metadata> {
+    std::fs::symlink_metadata(path).ok().filter(|m| m.is_file())
 }
 
 /// Reads one transcript, up to `cap` bytes. `None` when it can't be opened or names no session or folder.
 pub fn read(provider: Provider, home: &Path, path: &Path, cap: u64) -> Option<Transcript> {
+    let mut t = read_file(provider, path, cap)?;
+    if provider == Provider::Codex
+        && let Some(name) = codex::names(home).remove(&t.id)
+    {
+        t.title = name;
+    }
+    Some(t)
+}
+
+fn read_file(provider: Provider, path: &Path, cap: u64) -> Option<Transcript> {
+    regular_file(path)?;
     let file = std::fs::File::open(path).ok()?;
     let meta = file.metadata().ok()?;
     let modified_ms = meta
@@ -76,10 +103,10 @@ pub fn read(provider: Provider, home: &Path, path: &Path, cap: u64) -> Option<Tr
         .ok()
         .and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok())
         .map_or(0, |d| d.as_millis() as i64);
-    let mut lines = Lines::new(file, cap);
+    let mut lines = Lines::new(file, cap, meta.len() > cap);
     let mut t = match provider {
         Provider::Claude => claude(path, &mut lines)?,
-        Provider::Codex => codex::parse(home, &mut lines)?,
+        Provider::Codex => codex::parse(&mut lines)?,
     };
     (t.path, t.modified_ms, t.skipped, t.truncated) = (
         path.to_owned(),
@@ -87,7 +114,15 @@ pub fn read(provider: Provider, home: &Path, path: &Path, cap: u64) -> Option<Tr
         lines.skipped,
         meta.len() > cap,
     );
-    valid_id(&t.id).then_some(t)
+    (valid_id(&t.id) && plain_path(&t.cwd)).then_some(t)
+}
+
+/// An absolute path without `.` or `..`, so comparing it with a folder by its components means what it says.
+fn plain_path(p: &Path) -> bool {
+    use std::path::Component;
+    p.is_absolute()
+        && p.components()
+            .all(|c| !matches!(c, Component::CurDir | Component::ParentDir))
 }
 
 /// A session id is passed to the agent as an argument: ids and uuids only, never something that reads as a flag.
@@ -117,7 +152,9 @@ fn claude_files(home: &Path, folder: &Path) -> Vec<PathBuf> {
     let Ok(dirs) = std::fs::read_dir(home.join("projects")) else {
         return Vec::new();
     };
+    // `file_type` doesn't follow links: a linked dir could be another account's.
     dirs.flatten()
+        .filter(|d| d.file_type().is_ok_and(|t| t.is_dir()))
         .filter(|d| d.file_name().to_string_lossy().starts_with(prefix))
         .filter_map(|d| std::fs::read_dir(d.path()).ok())
         .flat_map(|files| files.flatten().map(|f| f.path()))
@@ -129,17 +166,16 @@ fn claude_files(home: &Path, folder: &Path) -> Vec<PathBuf> {
 pub(crate) struct Lines {
     reader: BufReader<std::io::Take<std::fs::File>>,
     pub(crate) skipped: usize,
-    cap: u64,
-    read: u64,
+    /// The file is longer than the cap, so the last line read may be cut off.
+    cut: bool,
 }
 
 impl Lines {
-    fn new(file: std::fs::File, cap: u64) -> Self {
+    fn new(file: std::fs::File, cap: u64, cut: bool) -> Self {
         Lines {
             reader: BufReader::new(file.take(cap)),
             skipped: 0,
-            cap,
-            read: 0,
+            cut,
         }
     }
 }
@@ -155,8 +191,7 @@ impl Iterator for Lines {
             if n == 0 {
                 return None;
             }
-            self.read += n as u64;
-            if buf.last() != Some(&b'\n') && self.read >= self.cap {
+            if buf.last() != Some(&b'\n') && self.cut {
                 return None; // cut off by the cap: not the file's fault
             }
             if buf.iter().all(u8::is_ascii_whitespace) {
@@ -303,7 +338,10 @@ fn claude(path: &Path, lines: &mut Lines) -> Option<Transcript> {
         let content = &v["message"]["content"];
         match kind {
             "user" if content.is_string() || !has_tool_result(content) => {
-                let typed = claude_user_text(&text_of(content, &["text"]));
+                let mut typed = claude_user_text(&text_of(content, &["text"]));
+                if typed.is_empty() && has_block(content, "image") {
+                    typed = "[image]".into(); // still a prompt: its reply is its own turn
+                }
                 if !typed.is_empty() {
                     tl.prompt(typed);
                 }
@@ -338,7 +376,11 @@ fn claude(path: &Path, lines: &mut Lines) -> Option<Transcript> {
 }
 
 fn has_tool_result(content: &Value) -> bool {
+    has_block(content, "tool_result")
+}
+
+fn has_block(content: &Value, kind: &str) -> bool {
     content
         .as_array()
-        .is_some_and(|a| a.iter().any(|b| b["type"] == "tool_result"))
+        .is_some_and(|a| a.iter().any(|b| b["type"] == kind))
 }

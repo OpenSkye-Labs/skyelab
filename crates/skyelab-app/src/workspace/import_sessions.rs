@@ -49,7 +49,12 @@ pub(super) fn scan(
             project.path.display()
         );
     };
-    let rows = import::list(account.provider, &account.config_dir, &project.path)
+    // Agents record the real folder (`/private/tmp`, not `/tmp`): compare with that.
+    let folder = project
+        .path
+        .canonicalize()
+        .unwrap_or_else(|_| project.path.clone());
+    let rows = import::list(account.provider, &account.config_dir, &folder)
         .into_iter()
         // A subfolder bound to another account runs there: its sessions aren't this account's to continue.
         .filter(|t| config.resolve(&t.cwd).is_some_and(|a| a.id == account.id))
@@ -128,7 +133,10 @@ pub(super) fn import_picks(
             account_id: &account.id,
             status: "stopped",
         };
-        match lock(store)?.import_thread(&new, &t.id, t.modified_ms, &rows)? {
+        // One failed write leaves that session out; the ones already stored still reach the sidebar.
+        let stored =
+            lock(store).and_then(|mut s| s.import_thread(&new, &t.id, t.modified_ms, &rows));
+        match stored.ok().flatten() {
             Some(thread) => {
                 done.skipped += t.skipped;
                 done.truncated += usize::from(t.truncated);

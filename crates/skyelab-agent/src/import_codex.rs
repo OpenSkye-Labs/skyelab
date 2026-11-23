@@ -4,6 +4,7 @@
 use super::{Lines, Timeline, Transcript, text_of, title_of};
 use crate::{Block, Event};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::io::{BufRead as _, BufReader, Read as _};
 use std::path::{Path, PathBuf};
 
@@ -49,19 +50,23 @@ fn meta_cwd(path: &Path) -> Option<PathBuf> {
     (v["type"] == "session_meta").then(|| v["payload"]["cwd"].as_str().map(PathBuf::from))?
 }
 
-/// The newest name Codex's index gives thread `id`.
-fn indexed_name(home: &Path, id: &str) -> Option<String> {
-    let file = std::fs::File::open(home.join("session_index.jsonl")).ok()?;
+/// Thread names from Codex's index: the newest per thread.
+pub(super) fn names(home: &Path) -> HashMap<String, String> {
+    let Ok(file) = std::fs::File::open(home.join("session_index.jsonl")) else {
+        return HashMap::new();
+    };
     BufReader::new(file.take(INDEX_MAX))
         .lines()
         .map_while(Result::ok)
         .filter_map(|l| serde_json::from_str::<Value>(&l).ok())
-        .filter(|v| v["id"] == id)
-        .filter_map(|v| v["thread_name"].as_str().and_then(title_of))
-        .last()
+        .filter_map(|v| {
+            let name = v["thread_name"].as_str().and_then(title_of)?;
+            Some((v["id"].as_str()?.to_owned(), name))
+        })
+        .collect()
 }
 
-pub(super) fn parse(home: &Path, lines: &mut Lines) -> Option<Transcript> {
+pub(super) fn parse(lines: &mut Lines) -> Option<Transcript> {
     let mut tl = Timeline::default();
     let (mut id, mut cwd) = (None, None);
     for v in lines {
@@ -91,8 +96,10 @@ pub(super) fn parse(home: &Path, lines: &mut Lines) -> Option<Transcript> {
     }
     tl.end_turn();
     let id: String = id?;
-    let title = indexed_name(home, &id)
-        .or_else(|| tl.first_prompt.as_deref().and_then(title_of))
+    let title = tl
+        .first_prompt
+        .as_deref()
+        .and_then(title_of)
         .unwrap_or_else(|| "Untitled session".into());
     Some(Transcript {
         id,
