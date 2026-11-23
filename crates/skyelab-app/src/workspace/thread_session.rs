@@ -136,6 +136,7 @@ impl ThreadView {
                         this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
                         this.after_turn(cx);
+                        this.title_after_turn(cx);
                     }
                 });
                 if shown.is_err() {
@@ -239,10 +240,11 @@ impl ThreadView {
             let n = self.items.len();
             self.list.splice(first..n, n - first);
         }
+        // A fork has no session until its first send starts one (with its context prompt).
         self.read_only = self
             .thread
             .as_ref()
-            .is_none_or(|t| t.agent_session_id.is_none());
+            .is_none_or(|t| t.agent_session_id.is_none() && t.forked_from.is_none());
         let disabled = self.read_only;
         self.prompt.update(cx, |p, cx| p.set_disabled(disabled, cx));
         cx.notify();
@@ -319,7 +321,9 @@ impl ThreadView {
         self.stop_requested = true; // a late `ended` must not write exited over stopped
         let job = self.session.take().zip(self.thread.as_ref().map(|t| t.id));
         let store = self.backend.store.clone();
+        let drafts = self.draft_flush();
         async move {
+            drafts();
             let Some((session, id)) = job else { return };
             if let Ok(store) = lock(&store) {
                 let _ = store.set_thread_status(id, "stopped");

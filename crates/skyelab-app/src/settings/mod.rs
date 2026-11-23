@@ -109,6 +109,9 @@ pub struct Settings {
     stale: Vec<(PathBuf, Option<PathBuf>)>,
     account_select: Entity<AccountSelect>,
     pub section: Section,
+    /// Settings → Threads' Codex model field, and why its last save failed.
+    codex_model_input: Entity<InputState>,
+    threads_error: Option<String>,
     /// The Sharing section's content; `None` without a tailnet hook.
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
     focus: FocusHandle,
@@ -141,15 +144,27 @@ impl Settings {
             cx,
         );
         let test_input = input("/path/to/a/folder", window, cx);
+        let codex_model_input = input("Account default", window, cx);
+        let codex_model = crate::workspace::thread_extras::prefs::get(cx).codex_model;
+        codex_model_input.update(cx, |i, cx| {
+            i.set_value(codex_model.unwrap_or_default(), window, cx)
+        });
         let ids = account_ids(&config);
         let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
         let account_select = cx.new(|cx| SelectState::new(ids, selected, window, cx));
-        let subs = vec![cx.subscribe(&test_input, |this, _, e: &InputEvent, cx| {
-            if matches!(e, InputEvent::Change) {
-                this.refresh_fs(cx);
-                cx.notify();
-            }
-        })];
+        let subs = vec![
+            cx.subscribe(&test_input, |this, _, e: &InputEvent, cx| {
+                if matches!(e, InputEvent::Change) {
+                    this.refresh_fs(cx);
+                    cx.notify();
+                }
+            }),
+            cx.subscribe(&codex_model_input, |this, _, e: &InputEvent, cx| {
+                if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                    this.save_codex_model(cx);
+                }
+            }),
+        ];
         let locked = match (&path, error) {
             (None, _) => Some("no config directory on this OS, so nothing can be saved".into()),
             (Some(p), Some(e)) => Some(format!(
@@ -172,6 +187,8 @@ impl Settings {
             dir_input,
             gh_input,
             test_input,
+            codex_model_input,
+            threads_error: None,
             gh_logins: HashMap::new(),
             gh_errors: HashMap::new(),
             _gh_check: None,
@@ -497,6 +514,7 @@ impl Focusable for Settings {
 mod page;
 pub use page::Section;
 mod render;
+mod threads;
 mod widgets;
 
 #[cfg(test)]

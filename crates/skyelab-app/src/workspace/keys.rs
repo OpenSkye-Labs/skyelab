@@ -14,6 +14,24 @@ pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-
 pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
 pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
 
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenSettingsSection {
+    pub section: crate::settings::Section,
+}
+
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct SelectProject {
+    pub id: i64,
+}
+
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenThread {
+    pub id: i64,
+}
+
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
     cx.bind_keys([

@@ -208,6 +208,15 @@ impl ItemsView for ThreadView {
     fn items(&self) -> &[super::Item] {
         &self.items
     }
+    fn fork(&self, ix: usize) -> Option<crate::workspace::thread_extras::fork::ForkThread> {
+        let id = self.thread.as_ref()?.id;
+        let done = crate::workspace::timeline_fold::reply_of(&self.items, ix)?;
+        let turns = self.items[..=done]
+            .iter()
+            .filter(|i| matches!(i, super::Item::Done { .. }))
+            .count();
+        Some(crate::workspace::thread_extras::fork::ForkThread { id, turns })
+    }
     fn is_expanded(&self, tool_id: &str) -> bool {
         ThreadView::is_expanded(self, tool_id)
     }

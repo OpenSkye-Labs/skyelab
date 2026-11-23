@@ -61,6 +61,7 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
         ),
         KeyBinding::new(STOP_KEY, super::thread::Stop, Some(super::thread::CONTEXT)),
     ]);
+    super::composer_draft::bind_keys(cx);
 }
 
 /// An open menu: its rows (already ranked) and the highlighted one.
@@ -115,6 +116,8 @@ pub(crate) struct Composer {
     pub stalled: bool,
     /// A message the agent refused after it left the composer: put back once the composer is empty.
     pub restore: Option<(String, Vec<Attachment>)>,
+    /// The draft's saving, prompt history and a fork's source (`composer_draft.rs`).
+    pub extras: super::composer_draft::ComposerExtras,
     /// The card's width at the last paint (0 before the first), for the compact control row.
     pub width: std::rc::Rc<std::cell::Cell<gpui::Pixels>>,
 }
@@ -220,6 +223,14 @@ impl ThreadView {
                         && !fits(p, m)
                     {
                         pick = ModelChoice::default();
+                    }
+                    // Never picked in this project: a new thread takes Settings → Threads' default for its provider.
+                    if let (None, Some(p), true) =
+                        (&this.thread, provider, pick == ModelChoice::default())
+                    {
+                        let (model, effort) =
+                            crate::workspace::thread_extras::prefs::get(cx).model_for(p);
+                        pick = ModelChoice { model, effort };
                     }
                     this.composer.pick = pick;
                     cx.notify();

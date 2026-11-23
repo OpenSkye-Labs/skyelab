@@ -133,6 +133,8 @@ first). Approvals, the agent's questions and plans show as cards in the thread. 
 
 - **Search.** The field at the top of the sidebar filters the listed threads by title and by what was
   said in them (your prompts and the agent's answers, not tool output).
+- Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Threads and **Fork from here**:
+  [user-guide-threads.md](user-guide-threads.md).
 - **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
   it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete
   show a notice with **Undo**. A deleted thread is gone for good about eight seconds later (or at the next start if

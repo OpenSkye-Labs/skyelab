@@ -47,6 +47,7 @@ mod ask_cards;
 mod shell_card;
 pub(crate) mod thread_checkpoints;
 mod thread_details;
+pub(crate) mod thread_extras;
 mod thread_items;
 mod thread_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
@@ -64,8 +65,8 @@ use center::{Center, Page};
 pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
-    Action, App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task,
-    WeakEntity, Window, actions, div, prelude::*, px,
+    App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task, WeakEntity,
+    Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _,
@@ -95,24 +96,6 @@ actions!(
         GoForward
     ]
 );
-
-#[derive(Clone, PartialEq, Action)]
-#[action(namespace = skyelab, no_json)]
-pub struct OpenSettingsSection {
-    pub section: crate::settings::Section,
-}
-
-#[derive(Clone, PartialEq, Action)]
-#[action(namespace = skyelab, no_json)]
-pub struct SelectProject {
-    pub id: i64,
-}
-
-#[derive(Clone, PartialEq, Action)]
-#[action(namespace = skyelab, no_json)]
-pub struct OpenThread {
-    pub id: i64,
-}
 
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;

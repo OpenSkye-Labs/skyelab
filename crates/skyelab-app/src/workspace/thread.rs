@@ -118,7 +118,7 @@ pub struct ThreadView {
     pub(super) composer: composer::Composer,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
-    _subs: Vec<Subscription>,
+    pub(super) _subs: Vec<Subscription>,
 }
 
 impl EventEmitter<ThreadViewEvent> for ThreadView {}
@@ -146,6 +146,7 @@ impl ThreadView {
         );
         this.project_name = project.name.clone().into();
         this.load_composer(cx);
+        this.init_extras(window, cx);
         this
     }
 
@@ -168,6 +169,7 @@ impl ThreadView {
         let (store, id) = (this.backend.store.clone(), thread.id);
         this.thread = Some(thread);
         this.load_composer(cx);
+        this.init_extras(window, cx);
         // Read-only until the fresh row below says whether there's a session to resume.
         this.read_only = true;
         this.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
@@ -357,28 +359,6 @@ impl ThreadView {
             Some(t) => t.title.clone().into(),
             None => "New thread".into(),
         }
-    }
-
-    /// "Label · id" of the account the thread was started with, from its store row.
-    #[cfg(all(test, unix))] // only the unix-only thread tests read it
-    pub fn badge(&self) -> Option<SharedString> {
-        let id = &self.thread.as_ref()?.account_id;
-        let label = self
-            .config
-            .accounts
-            .iter()
-            .find(|a| &a.id == id)
-            .map_or("Unknown account", |a| a.label.as_str());
-        Some(format!("{label} · {id}").into())
-    }
-
-    /// The provider of the account the thread was started with (`None` before the thread has a row,
-    /// or when that account is gone).
-    #[cfg(all(test, unix))]
-    pub fn provider(&self) -> Option<skyelab_core::Provider> {
-        let id = &self.thread.as_ref()?.account_id;
-        let account = self.config.accounts.iter().find(|a| &a.id == id)?;
-        Some(account.provider)
     }
 
     /// What the sidebar shows for this thread: its live session's state, or with no session, stopped (the stored row

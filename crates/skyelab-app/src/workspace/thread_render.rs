@@ -81,7 +81,11 @@ impl ThreadView {
                             )
                     }))
                     // The title keeps some room when the center is narrow (a right panel open), the folder gives way first.
-                    .child(div().min_w(px(72.)).truncate().child(self.title())),
+                    .child(div().min_w(px(72.)).truncate().child(self.title()))
+                    .children(self.composer.extras.forked_from.clone().map(|(id, title)| {
+                        let label = super::thread_extras::fork::forked_label(&title);
+                        thread_link("forked-from", id, label).flex_shrink_0()
+                    })),
             )
             .child(
                 div()
@@ -363,6 +367,8 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::send_prompt))
             .on_action(cx.listener(Self::steer_prompt))
             .on_action(cx.listener(Self::attach_files))
+            .on_action(cx.listener(Self::history_up))
+            .on_action(cx.listener(Self::history_down))
             .on_action(cx.listener(Self::menu_up))
             .on_action(cx.listener(Self::menu_down))
             .on_action(cx.listener(Self::menu_accept))

@@ -399,6 +399,7 @@ fn main() {
             #[cfg(unix)]
             let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
             // The last frame when it still shows on a connected display, else most of the primary display.
+            workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
             let saved = AppSettings::default_path()
                 .and_then(|p| AppSettings::load(&p).ok())
                 .and_then(|s| s.window);
