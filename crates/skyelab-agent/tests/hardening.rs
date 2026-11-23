@@ -172,6 +172,7 @@ fn path_lookup_in_child() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        mode: Default::default(),
     };
     let session = start(&cfg, &launch).expect("start");
     let which = next_unknown(session.events(), Some("which"));

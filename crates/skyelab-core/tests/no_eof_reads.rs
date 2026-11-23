@@ -1,13 +1,15 @@
 //! A short-lived child's output is read through `skyelab_core::process` (temp files, read after the child exits),
 //! never through a pipe read to EOF, which any process that inherited the pipe can hold open forever. This scans
-//! every crate's src/. The one exception is the agent's own stdin/stdout, which stream for the session's life.
+//! every crate's src/. The exceptions are the agent's own stdin, stdout and stderr, which stream for the session's life.
 
 use std::path::Path;
 
-/// (file, line) pairs allowed to pipe: the agent session's streaming stdin and stdout.
+/// (file, line) pairs allowed to pipe: the agent session's streaming stdin, stdout and stderr. Nothing waits on
+/// the stderr pipe's EOF: a thread keeps its tail, and the session ends on the agent's exit.
 const STREAMING: &[(&str, &str)] = &[
     ("skyelab-agent/src/lib.rs", ".stdin(Stdio::piped())"),
     ("skyelab-agent/src/lib.rs", ".stdout(Stdio::piped())"),
+    ("skyelab-agent/src/lib.rs", ".stderr(Stdio::piped());"),
 ];
 const PIPE_READS: &[&str] = &[".output()", "wait_with_output", "Stdio::piped()"];
 

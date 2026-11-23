@@ -1,5 +1,5 @@
-//! Acceptance: project scripts are stored per project, and their migration applies on its own to a database at
-//! main's version 5 (it is planned as version 8 and must be movable to that slot).
+//! Acceptance: project scripts are stored per project (schema version 8). Older databases (v5, and a v7 one with
+//! thread management data and search) upgrade in place and keep what they hold.
 
 use rusqlite::Connection;
 use skyelab_store::Store;
@@ -71,5 +71,71 @@ fn a_v5_database_gains_project_scripts() {
         .expect("add");
     drop(store);
     let store = Store::open(&path).expect("reopen");
+    assert_eq!(store.project_scripts(1).expect("list").len(), 1);
+}
+
+#[test]
+fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
+    use skyelab_store::NewThread;
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("store.db");
+    let (pinned, archived, gone) = {
+        let mut store = Store::open(&path).expect("create");
+        let p = store
+            .create_project("demo", Path::new("/work/demo"))
+            .expect("project");
+        let thread = |title: &str| {
+            store
+                .create_thread(&NewThread {
+                    project_id: p.id,
+                    title,
+                    cwd: &p.path,
+                    account_id: "acme",
+                    status: "exited",
+                })
+                .expect("thread")
+                .id
+        };
+        let (pinned, archived, gone) = (thread("pinned"), thread("archived"), thread("gone"));
+        store.set_thread_pinned(pinned, true).expect("pin");
+        store.set_thread_unread(pinned, true).expect("unread");
+        store.set_thread_archived(archived, true).expect("archive");
+        store.set_thread_deleted(gone, true).expect("delete");
+        store
+            .append_event(pinned, "prompt", "\"find the needle here\"")
+            .expect("event");
+        (pinned, archived, gone)
+    };
+    // Back to v7: as a build with thread management but no scripts left it.
+    let conn = Connection::open(&path).expect("raw");
+    conn.execute_batch("DROP TABLE project_scripts; PRAGMA user_version = 7;")
+        .expect("downgrade");
+    drop(conn);
+
+    let store = Store::open(&path).expect("migrates");
+    let version: i64 = Connection::open(&path)
+        .expect("raw")
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .expect("version");
+    assert_eq!(version, 8);
+    let t = store.thread(pinned).expect("read").expect("kept");
+    assert!(t.pinned_at.is_some() && t.unread);
+    let a = store.thread(archived).expect("read").expect("kept");
+    assert!(a.archived_at.is_some());
+    let hits = store.search_threads("needle", None, 10).expect("search");
+    assert_eq!(hits.iter().map(|t| t.id).collect::<Vec<_>>(), [pinned]);
+    let listed: Vec<i64> = store
+        .list_threads(1)
+        .expect("list")
+        .iter()
+        .map(|t| t.id)
+        .collect();
+    assert!(
+        !listed.contains(&gone),
+        "a deleted thread stays out of the list"
+    );
+    store
+        .add_project_script(1, "Install", "pnpm i", true)
+        .expect("scripts work");
     assert_eq!(store.project_scripts(1).expect("list").len(), 1);
 }

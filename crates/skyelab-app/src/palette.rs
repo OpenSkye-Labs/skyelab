@@ -3,10 +3,11 @@
 
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding, NoAction,
-    ParentElement as _, Render, SharedString, Styled as _, WeakEntity, Window, actions, px,
+    ParentElement as _, Render, SharedString, Styled as _, Task, WeakEntity, Window, actions, div,
+    prelude::FluentBuilder as _, px,
 };
 use gpui_component::{
-    ActiveTheme as _, WindowExt as _,
+    ActiveTheme as _, Icon, IconName, Sizable as _, WindowExt as _,
     command::{Command, CommandItem, CommandState},
     h_flex,
     kbd::Kbd,
@@ -50,6 +51,8 @@ pub struct Entry {
     pub label: SharedString,
     pub kind: Kind,
     pub binding: Option<Kbd>,
+    /// A toggle's current state, shown as a checkbox and On/Off; `None` for anything else.
+    pub checked: Option<bool>,
     pub run: Run,
 }
 
@@ -142,6 +145,16 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::OpenRemote", "Open Remote Access"),
     ("skyelab::BindFolder", "Bind Folder to Account"),
     ("skyelab::ToggleWorktree", "Toggle Thread Worktree"),
+    ("skyelab::OpenInEditor", "Open in Editor"),
+    ("skyelab::JumpToThread1", "Jump to Thread 1"),
+    ("skyelab::JumpToThread2", "Jump to Thread 2"),
+    ("skyelab::JumpToThread3", "Jump to Thread 3"),
+    ("skyelab::JumpToThread4", "Jump to Thread 4"),
+    ("skyelab::JumpToThread5", "Jump to Thread 5"),
+    ("skyelab::JumpToThread6", "Jump to Thread 6"),
+    ("skyelab::JumpToThread7", "Jump to Thread 7"),
+    ("skyelab::JumpToThread8", "Jump to Thread 8"),
+    ("skyelab::JumpToThread9", "Jump to Thread 9"),
 ];
 
 const HIDDEN: &[&str] = &[
@@ -174,20 +187,37 @@ pub fn listed(name: &str) -> bool {
     name.starts_with("skyelab::") && !HIDDEN.contains(&name)
 }
 
+/// More entries for a query, found off the UI thread (the store's thread search over message text). They list after
+/// the ranked entries, minus any label already there.
+pub type Search = Rc<dyn Fn(String, &mut App) -> Task<Vec<Entry>>>;
+
 struct Palette {
     state: Entity<CommandState>,
     entries: Vec<Entry>,
     row_to_entry: Vec<usize>,
     prev: FocusHandle,
+    /// How many of `entries` are the fixed ones; the rest are the last search's.
+    fixed: usize,
+    search: Option<Search>,
+    _search: Option<Task<()>>,
 }
 
-pub fn open(entries: Vec<Entry>, prev: FocusHandle, window: &mut Window, cx: &mut App) {
+pub fn open(
+    entries: Vec<Entry>,
+    search: Option<Search>,
+    prev: FocusHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let state = cx.new(|cx| CommandState::new(window, cx));
     let palette = cx.new(|_| Palette {
         state: state.clone(),
         row_to_entry: (0..entries.len()).collect(),
+        fixed: entries.len(),
         entries,
         prev,
+        search,
+        _search: None,
     });
     window.open_dialog(cx, move |dialog, _, _| {
         let palette = palette.clone();
@@ -229,9 +259,59 @@ fn row(entry: &Entry, cx: &App) -> gpui::Div {
             h_flex()
                 .gap_2()
                 .text_color(muted)
+                .children(entry.checked.map(|on| {
+                    let theme = cx.theme();
+                    // Drawn, not a control: the row is what toggles (T3's box is pointer-events-none too).
+                    let tick = div()
+                        .size_3p5()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(3.))
+                        .border_1()
+                        .border_color(if on { theme.primary } else { muted })
+                        .when(on, |b| {
+                            b.bg(theme.primary).child(
+                                Icon::new(IconName::Check)
+                                    .xsmall()
+                                    .text_color(theme.primary_foreground),
+                            )
+                        });
+                    h_flex()
+                        .gap_1()
+                        .child(if on { "On" } else { "Off" })
+                        .child(tick)
+                }))
                 .child(entry.kind.label())
                 .children(entry.binding.clone()),
         )
+}
+
+impl Palette {
+    /// Runs the search for `query` and appends what it finds; a newer query drops (cancels) an older search.
+    fn find_more(&mut self, query: &str, cx: &mut Context<Self>) {
+        let Some(search) = self.search.clone().filter(|_| !query.trim().is_empty()) else {
+            self._search = None;
+            return;
+        };
+        let task = search(query.to_owned(), cx);
+        self._search = Some(cx.spawn(async move |p, cx| {
+            let found = task.await;
+            _ = p.update(cx, |p, cx| {
+                p.entries.truncate(p.fixed);
+                let shown: std::collections::HashSet<SharedString> = p
+                    .row_to_entry
+                    .iter()
+                    .map(|&i| p.entries[i].label.clone())
+                    .collect();
+                for entry in found.into_iter().filter(|e| !shown.contains(&e.label)) {
+                    p.row_to_entry.push(p.entries.len());
+                    p.entries.push(entry);
+                }
+                cx.notify();
+            });
+        }));
+    }
 }
 
 impl Render for Palette {
@@ -252,7 +332,9 @@ impl Render for Palette {
             .on_query(move |query, _, cx| {
                 // A confirm deferred after this query must index the rows it ranks, before any redraw.
                 _ = on_query.update(cx, |p, cx| {
+                    p.entries.truncate(p.fixed);
                     p.row_to_entry = rank(query, p.entries.iter().map(|e| e.label.as_ref()));
+                    p.find_more(query, cx);
                     cx.notify();
                 });
             })

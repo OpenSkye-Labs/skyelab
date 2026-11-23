@@ -26,6 +26,21 @@ pub enum Event {
         #[serde(default = "one")]
         prompts: u32,
     },
+    /// The agent asks to use a tool and waits until [`crate::Session::answer`] answers `id`.
+    Permission {
+        id: String,
+        tool: String,
+        input: Value,
+    },
+    /// Permission request `id` was answered, or withdrawn by the agent.
+    PermissionResolved {
+        id: String,
+        decision: crate::Decision,
+    },
+    /// What the agent wrote to stderr, stored when a turn failed or the agent exited with an error.
+    Stderr {
+        text: String,
+    },
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.
     Unknown(Value),
 }

@@ -26,6 +26,19 @@ pub(super) fn after_turn(cwd: &Path, key: &str) {
     }
 }
 
+/// Drops a purged thread's checkpoints, so `git gc` can prune their snapshots. Blocking: run it off the UI thread.
+/// A discarded worktree's folder is gone, but its refs live in the project's repo, so that is used instead.
+pub(crate) fn forget(thread: &Thread, project: Option<&Path>) {
+    let dir = match project {
+        _ if thread.cwd.is_dir() => thread.cwd.as_path(),
+        Some(p) => p,
+        None => return,
+    };
+    if let Err(e) = skyelab_git::delete_checkpoints(dir, &key(thread)) {
+        note(dir, &e);
+    }
+}
+
 fn latest(cwd: &Path, key: &str) -> Option<u32> {
     skyelab_git::checkpoints(cwd, key)
         .ok()?

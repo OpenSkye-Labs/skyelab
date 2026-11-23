@@ -137,7 +137,7 @@ impl Workspace {
         + Send
         + 'static,
         wanted: impl FnOnce(&Self, &SpawnOptions) -> bool + 'static,
-        tab: super::TerminalTab,
+        tab: super::terminals::TerminalTab,
         window: &mut Window,
         cx: &mut Context<Self>,
         failed: impl FnOnce(&mut Self, anyhow::Error, &mut Context<Self>) + 'static,

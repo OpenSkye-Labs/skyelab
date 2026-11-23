@@ -1,5 +1,6 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
+mod attention;
 mod branch_picker;
 #[cfg(unix)]
 mod browser_agent;
@@ -13,6 +14,8 @@ mod devices;
 mod env_mode;
 mod env_picker;
 pub(crate) mod layout;
+mod manage;
+mod manage_projects;
 mod settings_tab;
 mod terminal_launch;
 mod terminals;
@@ -29,13 +32,15 @@ mod palette_items;
 mod panels;
 mod projects;
 mod remote;
+mod remote_queue;
 mod remote_thread;
 mod scripts;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
-mod thread_checkpoints;
+pub(crate) mod thread_checkpoints;
 mod thread_items;
+mod thread_list;
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
@@ -89,9 +94,6 @@ pub struct OpenThread {
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;
 
-/// A terminal tab's title and the text typed into its shell once it starts (a project script); `None` for a plain one.
-pub(super) type TerminalTab = Option<(gpui::SharedString, String)>;
-
 pub(super) fn lock<T>(m: &Mutex<T>) -> anyhow::Result<std::sync::MutexGuard<'_, T>> {
     m.lock()
         .map_err(|_| anyhow::anyhow!("a background task panicked holding the lock"))
@@ -134,6 +136,7 @@ pub fn init(cx: &mut App) {
         ]);
     }
     layout::bind_keys(cx);
+    attention::init(cx);
     crate::palette::init(cx);
 }
 
@@ -176,7 +179,7 @@ pub struct Workspace {
     project: Option<Project>,
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
-    /// The current project's scripts, for the palette.
+    /// The project's scripts, for the palette.
     scripts: Vec<skyelab_store::ProjectScript>,
     _scripts: Option<Task<()>>,
     open_threads: Vec<WeakEntity<ThreadView>>,
@@ -203,6 +206,22 @@ pub struct Workspace {
     /// Which machine the sidebar and remote tabs show (this one unless the picker chose another).
     env: env_mode::EnvMode,
     starts: remote::StartQueue,
+    /// Archived threads are listed under their toggle row.
+    show_archived: bool,
+    /// A project whose removal waits for the user's OK (it has running agents).
+    pending_removal: Option<i64>,
+    _dialog_input: Option<Subscription>,
+    /// The sidebar's thread filter and, once the store answered, the threads whose title or messages match.
+    thread_search: Option<(String, Option<std::collections::HashSet<i64>>)>,
+    _search: Option<Task<()>>,
+    _attention: Vec<Subscription>,
+    /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
+    purges: std::collections::HashMap<i64, Task<()>>,
+    /// The last unread-mark write; each new one waits for it.
+    _unread_write: Option<Task<()>>,
+    /// Every notice shown (warnings, undo notices, thread notifications), for tests: the toast list is private.
+    #[cfg(test)]
+    notices: Vec<SharedString>,
 }
 
 impl Workspace {
@@ -220,7 +239,7 @@ impl Workspace {
             crate::ui::sync_appearance(window, cx);
         });
 
-        let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
+        let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), window, cx));
         let welcome = cx.new(Welcome::new);
         let terminals_empty = cx.new(TerminalsEmpty::new);
         let right_empty = cx.new(RightEmpty::new);
@@ -310,7 +329,18 @@ impl Workspace {
             remote: None,
             env: Default::default(),
             starts: remote::StartQueue::new(),
+            show_archived: false,
+            pending_removal: None,
+            _dialog_input: None,
+            thread_search: None,
+            _search: None,
+            _attention: Vec::new(),
+            purges: Default::default(),
+            _unread_write: None,
+            #[cfg(test)]
+            notices: Vec::new(),
         };
+        this.watch_attention(window, cx);
         this.refresh_sidebar(cx);
         this.sync_toggles(cx);
         this.load_projects(None, cx);
@@ -372,6 +402,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::revoke_device))
             .on_action(cx.listener(Self::open_palette))
             .map(|el| self.env_actions(el, cx))
+            .map(|el| self.manage_actions(el, cx))
+            .map(|el| self.attention_actions(el, cx))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -394,6 +426,23 @@ impl Render for Workspace {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod manage_harness;
+#[cfg(test)]
+mod manage_projects_test;
+#[cfg(test)]
+mod manage_sidebar_test;
+#[cfg(test)]
+mod manage_threads_test;
+#[cfg(test)]
+mod palette_search_test;
+#[cfg(test)]
+mod review_fixes_d_test;
+#[cfg(test)]
+mod thread_keys_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod unread_test;
 
 #[cfg(test)]
 mod stale_status_test;
@@ -445,6 +494,9 @@ mod checkpoint_turns_test;
 
 #[cfg(all(test, unix))]
 mod checkpoint_midturn_test;
+
+#[cfg(test)]
+mod checkpoint_purge_test;
 
 #[cfg(all(test, unix))]
 mod changes_selection_test;
@@ -511,6 +563,10 @@ mod remote_start_test;
 
 #[cfg(test)]
 mod changes_follow_folder_test;
+#[cfg(test)]
+mod terminal_link_subdir_test;
+#[cfg(test)]
+mod terminal_link_test;
 
 #[cfg(test)]
 mod delegation_test;
@@ -542,6 +598,10 @@ mod delegation_turns_test;
 mod env_approval_test;
 #[cfg(test)]
 mod env_queue_test;
+#[cfg(test)]
+mod palette_remote_test;
+#[cfg(test)]
+mod remote_resume_reply_test;
 
 #[cfg(test)]
 mod long_thread_test;
@@ -593,3 +653,9 @@ mod commit_hook_env_test;
 mod delegation_after_stop_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_thread_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_mode_test;

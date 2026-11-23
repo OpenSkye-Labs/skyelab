@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 mod app_settings;
 pub mod delegation;
+mod editor;
+pub use editor::editor_argv;
 pub mod env;
 pub mod process;
 pub use app_settings::{AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS, WindowLayout};

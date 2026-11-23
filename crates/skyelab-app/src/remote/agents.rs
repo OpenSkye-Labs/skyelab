@@ -1,7 +1,7 @@
 //! The daemon's agent calls, forwarded to the UI thread so they run through the thread view's own launch path.
 
 use skyelab_daemon::Agents;
-use skyelab_protocol::{ErrorCode, RpcError};
+use skyelab_protocol::{ErrorCode, PermissionAnswer, RpcError};
 use std::time::Duration;
 
 pub type Reply<T> = flume::Sender<Result<T, RpcError>>;
@@ -21,6 +21,12 @@ pub enum RemoteCall {
         thread_id: i64,
         reply: Reply<()>,
     },
+    Answer {
+        thread_id: i64,
+        request_id: String,
+        decision: PermissionAnswer,
+        reply: Reply<()>,
+    },
 }
 
 impl RemoteCall {
@@ -28,9 +34,9 @@ impl RemoteCall {
     pub fn abandoned(&self) -> bool {
         match self {
             RemoteCall::Start { reply, .. } => reply.is_disconnected(),
-            RemoteCall::Send { reply, .. } | RemoteCall::Interrupt { reply, .. } => {
-                reply.is_disconnected()
-            }
+            RemoteCall::Send { reply, .. }
+            | RemoteCall::Interrupt { reply, .. }
+            | RemoteCall::Answer { reply, .. } => reply.is_disconnected(),
         }
     }
 
@@ -38,9 +44,9 @@ impl RemoteCall {
         // A send fails only if the client stopped waiting, and then there's nobody to tell.
         match self {
             RemoteCall::Start { reply, .. } => _ = reply.send(Err(error)),
-            RemoteCall::Send { reply, .. } | RemoteCall::Interrupt { reply, .. } => {
-                _ = reply.send(Err(error))
-            }
+            RemoteCall::Send { reply, .. }
+            | RemoteCall::Interrupt { reply, .. }
+            | RemoteCall::Answer { reply, .. } => _ = reply.send(Err(error)),
         }
     }
 }
@@ -97,5 +103,20 @@ impl Agents for UiAgents {
 
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
         self.ask(|reply| RemoteCall::Interrupt { thread_id, reply })
+    }
+
+    fn answer_permission(
+        &self,
+        thread_id: i64,
+        request_id: &str,
+        decision: PermissionAnswer,
+    ) -> Result<(), RpcError> {
+        let request_id = request_id.to_owned();
+        self.ask(|reply| RemoteCall::Answer {
+            thread_id,
+            request_id,
+            decision,
+            reply,
+        })
     }
 }

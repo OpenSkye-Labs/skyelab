@@ -43,6 +43,8 @@ pub struct ChangesView {
     pub(super) pr_body: Entity<TextareaState>,
     /// Files ticked for the next commit; none ticked commits everything.
     pub(super) selected: HashSet<PathBuf>,
+    /// The file last jumped to (sidebar click or a terminal link), highlighted in the sidebar.
+    pub(super) active_file: Option<PathBuf>,
     pub(super) publish_error: Option<SharedString>,
     pub(super) publish_note: Option<SharedString>,
     /// A commit, push or PR is running; another click is ignored.
@@ -87,6 +89,7 @@ impl ChangesView {
             pr_title,
             pr_body,
             selected: HashSet::new(),
+            active_file: None,
             publish_error: None,
             publish_note: None,
             busy: false,
@@ -127,6 +130,28 @@ impl ChangesView {
                 cx.notify();
             });
         }));
+    }
+
+    /// Scrolls the diff to `path` (absolute) when this tab lists it; `false` when it doesn't.
+    pub(super) fn reveal(&mut self, path: &std::path::Path, cx: &mut Context<Self>) -> bool {
+        // The listed paths are relative to the repo root, which can be above the project folder.
+        let Some(root) = self.dir.ancestors().find(|a| a.join(".git").exists()) else {
+            return false;
+        };
+        let Ok(rel) = path.strip_prefix(root) else {
+            return false;
+        };
+        let Some(f) = self
+            .changes
+            .as_ref()
+            .and_then(|c| c.files.iter().find(|f| f.path == rel))
+        else {
+            return false;
+        };
+        self.scroll.scroll_to_item(f.first_row, ScrollStrategy::Top);
+        self.active_file = Some(f.path.clone());
+        cx.notify();
+        true
     }
 
     fn on_refresh(&mut self, _: &RefreshChanges, _: &mut Window, cx: &mut Context<Self>) {
@@ -239,6 +264,7 @@ impl ChangesView {
                 let row = f.first_row;
                 let path = f.path.clone();
                 let ticked = self.selected.contains(&f.path);
+                let active = self.active_file.as_ref() == Some(&f.path);
                 let tick = Checkbox::new(SharedString::from(format!("pick-{}", f.path.display())))
                     .xsmall()
                     .checked(ticked)
@@ -257,10 +283,15 @@ impl ChangesView {
                     .text_size(ui::META)
                     .rounded(ui::RADIUS_MD)
                     .cursor_pointer()
+                    .when(active, |d| d.bg(theme.accent))
                     .hover(|s| s.bg(theme.accent))
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.scroll.scroll_to_item(row, ScrollStrategy::Top);
-                        cx.notify();
+                    .on_click(cx.listener({
+                        let path = f.path.clone();
+                        move |this, _, _, cx| {
+                            this.scroll.scroll_to_item(row, ScrollStrategy::Top);
+                            this.active_file = Some(path.clone());
+                            cx.notify();
+                        }
                     }))
                     .child(tick)
                     .child(kind_badge(f.kind, cx))

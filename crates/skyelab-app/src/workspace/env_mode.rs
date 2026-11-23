@@ -121,7 +121,6 @@ impl Workspace {
         self.env.remote.is_some()
     }
 
-    #[cfg(test)]
     pub(crate) fn remote_env(&self) -> Option<Entity<RemoteEnv>> {
         self.env.remote.clone()
     }

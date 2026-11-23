@@ -39,7 +39,8 @@ const VERIFY_ACTION_GAP: std::time::Duration = std::time::Duration::from_secs(2)
 /// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,keys:h i cmd-enter,..` runs each
 /// entry in turn, [`VERIFY_ACTION_GAP`] apart so async work (store loads, page loads, new tabs) lands in between, because
 /// `/loop-verify-ui` can't send input to a topmost window. `keys:` types keystrokes into the focus,
-/// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`).
+/// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`), `drag:x;y;x2;y2` drags with the
+/// left button, and `scroll:x;y;lines` scrolls the wheel there (positive: up).
 fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
     let Some(entries) = std::env::var("SKYELAB_VERIFY_ACTIONS")
         .ok()
@@ -60,6 +61,44 @@ fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
                                 Err(_) => eprintln!("SKYELAB_VERIFY_ACTIONS: bad key {key}"),
                             }
                         }
+                        return;
+                    }
+                    if let Some(at) = entry.strip_prefix("drag:") {
+                        let n: Vec<f32> = at
+                            .split(';')
+                            .filter_map(|v| v.trim().parse().ok())
+                            .collect();
+                        match n[..] {
+                            [x, y, x2, y2] => drag(
+                                window,
+                                cx,
+                                gpui::point(gpui::px(x), gpui::px(y)),
+                                gpui::point(gpui::px(x2), gpui::px(y2)),
+                            ),
+                            _ => eprintln!("SKYELAB_VERIFY_ACTIONS: bad drag {at}"),
+                        }
+                        return;
+                    }
+                    if let Some(at) = entry.strip_prefix("scroll:") {
+                        let n: Vec<f32> = at
+                            .split(';')
+                            .filter_map(|v| v.trim().parse().ok())
+                            .collect();
+                        match n[..] {
+                            [x, y, lines] => {
+                                _ = window.dispatch_event(
+                                    gpui::PlatformInput::Scroll(gpui::ScrollEvent {
+                                        position: gpui::point(gpui::px(x), gpui::px(y)),
+                                        delta: gpui::ScrollDelta::Lines(gpui::point(0., lines)),
+                                        modifiers: Default::default(),
+                                        touch_phase: Default::default(),
+                                        source: Default::default(),
+                                    }),
+                                    cx,
+                                )
+                            }
+                            _ => eprintln!("SKYELAB_VERIFY_ACTIONS: bad scroll {at}"),
+                        };
                         return;
                     }
                     if let Some(at) = entry.strip_prefix("click:") {
@@ -119,6 +158,45 @@ fn click(window: &mut gpui::Window, cx: &mut App, position: gpui::Point<gpui::Pi
         }),
         cx,
     );
+}
+
+/// A left-button drag from `from` to `to`: press, move with the button held, release.
+fn drag(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    from: gpui::Point<gpui::Pixels>,
+    to: gpui::Point<gpui::Pixels>,
+) {
+    use gpui::{Modifiers, MouseButton, PlatformInput as P};
+    let (button, modifiers) = (MouseButton::Left, Modifiers::default());
+    let events = [
+        P::MouseMove(gpui::MouseMoveEvent {
+            position: from,
+            pressed_button: None,
+            modifiers,
+        }),
+        P::MouseDown(gpui::MouseDownEvent {
+            button,
+            position: from,
+            modifiers,
+            click_count: 1,
+            first_mouse: false,
+        }),
+        P::MouseMove(gpui::MouseMoveEvent {
+            position: to,
+            pressed_button: Some(button),
+            modifiers,
+        }),
+        P::MouseUp(gpui::MouseUpEvent {
+            button,
+            position: to,
+            modifiers,
+            click_count: 1,
+        }),
+    ];
+    for event in events {
+        window.dispatch_event(event, cx);
+    }
 }
 
 /// An agent binary: `name`, or in debug builds the env override (`SKYELAB_CLAUDE_BIN`,
@@ -237,6 +315,8 @@ fn main() {
         .with_assets(gpui_kit_assets::Assets)
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
+            // OS notifications need it (Windows' AppUserModelID); same id as the bundle's.
+            cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");
             if let Err(e) = ui::install_theme(cx) {
                 eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
             }
@@ -258,6 +338,21 @@ fn main() {
             // Home until a project is selected.
             let folder = dirs::home_dir().unwrap_or_default();
             let (mut store, store_error) = open_store();
+            // Threads whose delete the last run didn't see out were purged on open: their checkpoints go too.
+            let purged: Vec<_> = store
+                .take_purged()
+                .into_iter()
+                .map(|t| {
+                    let project = store.project(t.project_id).ok().flatten().map(|p| p.path);
+                    (t, project)
+                })
+                .collect();
+            cx.background_spawn(async move {
+                for (thread, project) in purged {
+                    workspace::thread_checkpoints::forget(&thread, project.as_deref());
+                }
+            })
+            .detach();
             let slot = remote::DaemonSlot::default();
             remote::push_events(&mut store, slot.clone());
             let store = Arc::new(Mutex::new(store));

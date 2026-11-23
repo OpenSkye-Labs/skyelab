@@ -99,7 +99,9 @@ a hostile network (a phone with the VPN off) from pointing the name at another s
 certificate check does.
 
 **What a connected device can do.** List projects and threads, read thread events, start a thread in an existing
-project, send follow-ups and interrupt. It can't add projects, change accounts or bindings, open terminals or run
+project, send follow-ups, interrupt, and answer a permission request the thread's agent waits on
+(`answer_permission`, 1.3: Allow once, Allow for this thread or Deny, exactly as a click in the thread there; the
+reply waits until the agent took it). It can't change a thread's permission mode, add projects, change accounts or bindings, open terminals or run
 anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread opens as a tab in the local window (without
