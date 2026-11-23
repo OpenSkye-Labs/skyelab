@@ -90,6 +90,24 @@ fn a_side_chat_starts_in_plan_without_tools(cx: &mut gpui::TestAppContext) {
         !side_args.contains("--mcp-config"),
         "no SkyeLab tools: {side_args}"
     );
+    // Started in Plan while the view held Ask: the agent is not then switched to the view's mode.
+    wait_until(cx, "the side chat's answer", |cx| {
+        side_view.read_with(cx, |v, _| v.last_answer().is_some() && !v.turn_running())
+    });
+    let sent = f
+        .store
+        .lock()
+        .expect("store")
+        .events_since(side.id, 0)
+        .expect("events");
+    assert!(
+        !sent
+            .iter()
+            .any(|e| e.payload_json.contains("set_permission_mode")
+                && !e.payload_json.contains(r#""mode":"plan""#)),
+        "{sent:#?}"
+    );
+    assert_eq!(side_view.read_with(cx, |v, _| v.mode), Mode::Plan);
 
     // A file link in its reply opens the Preview tab at that file.
     side_view.update(cx, |v, cx| v.preview_path("README.md", None, cx));

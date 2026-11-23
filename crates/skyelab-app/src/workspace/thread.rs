@@ -4,7 +4,7 @@
 //! reaps the child while holding the session lock.
 
 use super::thread_find::FindHost as _;
-use super::thread_model::{Item, Record, apply, limit_after, stamp_done};
+use super::thread_model::{Item, Record, apply, limit_after, mark_copied, stamp_done};
 use super::{Backend, SharedStore, lock};
 use anyhow::Result;
 use gpui::{
@@ -229,7 +229,7 @@ impl ThreadView {
                         this.limited = limit_after(this.limited, r);
                     }
                     if let Some(t) = this.thread.as_ref().filter(|t| t.forked_from.is_some()) {
-                        super::thread_model::mark_copied(&mut this.items, t.created_at);
+                        mark_copied(&mut this.items, t.created_at);
                     }
                     this.list.reset(this.items.len());
                     this.load_turn_files(cx);
@@ -383,7 +383,7 @@ impl ThreadView {
     /// Picks the thread's permission mode. Full access waits for [`Self::confirm_mode`].
     pub fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
         if self.is_side_chat() && mode != Mode::Plan {
-            return cx.notify(); // read-only by construction (side_chat.rs)
+            return cx.notify();
         }
         if mode == Mode::Bypass && self.mode != Mode::Bypass {
             self.confirm_bypass = true;
@@ -413,6 +413,9 @@ impl ThreadView {
 
     /// Sends the newest mode to the running agent, then to the store row.
     pub(super) fn write_mode(&mut self, cx: &mut Context<Self>) {
+        if self.is_side_chat() {
+            self.mode = Mode::Plan; // its agent never leaves Plan
+        }
         let ix = Mode::ALL.iter().position(|m| *m == self.mode).unwrap_or(0);
         self.mode_now.store(ix, std::sync::atomic::Ordering::SeqCst);
         let row = self.thread.as_mut().map(|t| {
