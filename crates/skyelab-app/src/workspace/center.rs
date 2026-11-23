@@ -11,7 +11,7 @@ use gpui::{
     NavigationDirection, WeakEntity, Window, div, prelude::*,
 };
 
-/// What the center shows. Threads are weak: closing one (archive, delete) drops it even if history names it.
+/// What the center shows. Threads are weak, so history never keeps a closed view alive.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Page {
     Welcome,
@@ -40,7 +40,7 @@ impl Page {
     }
 }
 
-/// The dock's only center panel: it hosts the current page and draws no tab bar.
+/// The dock's only center panel; it hosts the current page.
 pub struct Center {
     pub(super) content: AnyView,
     focus: FocusHandle,
@@ -80,7 +80,6 @@ impl Render for Center {
 }
 
 impl Workspace {
-    /// The thread the center shows, if it shows one.
     pub(crate) fn current_thread(&self) -> Option<Entity<ThreadView>> {
         match &self.page {
             Page::Thread(view) => view.upgrade(),
@@ -88,7 +87,6 @@ impl Workspace {
         }
     }
 
-    /// Shows `page`, remembering the current one for Back.
     pub(super) fn show(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
         if page != self.page {
             self.back.push(std::mem::replace(&mut self.page, page));
@@ -97,7 +95,6 @@ impl Workspace {
         self.apply_page(window, cx);
     }
 
-    /// A page that can still be shown: its view wasn't closed.
     fn alive(&self, page: &Page) -> bool {
         match page {
             // Settings is made on demand, so it can always show.
@@ -134,7 +131,6 @@ impl Workspace {
         }
     }
 
-    /// Puts the current page in the center and focuses it.
     pub(super) fn apply_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.alive(&self.page) {
             self.page = Page::Welcome;
@@ -174,8 +170,8 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Drops a thread's view: its agent stops and its row ends `stopped`, as closing its tab used to. The page falls
-    /// back to Welcome if it showed the thread.
+    /// Drops a thread's view: its agent stops at once (the last drawn frames may hold the view a moment longer) and
+    /// its row ends `stopped`. The page falls back to Welcome if it showed the thread.
     // shortcut: nothing in the app closes a thread yet; the sidebar's archive/delete (package D) will call this, then
     // drop the cfg. Its tests run the fake agent, a shell script, so they are unix-only.
     #[cfg(all(test, unix))]
@@ -204,7 +200,6 @@ impl Workspace {
         self.show(Page::Settings(a.section), window, cx);
     }
 
-    /// Restores the page settings.toml remembered (see [`Page::key`]).
     pub(super) fn restore_page(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = key.strip_prefix("thread:").and_then(|id| id.parse().ok()) {
             self.open_thread(&OpenThread { id }, window, cx);

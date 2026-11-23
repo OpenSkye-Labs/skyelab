@@ -74,7 +74,6 @@ actions!(
     ]
 );
 
-/// Shows a section of the Settings page.
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct OpenSettingsSection {
@@ -139,9 +138,11 @@ pub fn init(cx: &mut App) {
         cx.bind_keys([
             KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
-            // alt-left/right move by word in a shell (text fields keep them through their own, deeper binding).
+            // alt-left/right move by word in a shell; in a text field they would surprise more than help.
             KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
+            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Input")),
+            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Input")),
         ]);
     } else {
         // A text field binds cmd-[ to Outdent; the prompt is focused on most pages, so history wins there.
@@ -200,7 +201,6 @@ pub struct Workspace {
     open_threads: Vec<Entity<ThreadView>>,
     /// Views that started in the background (delegated, or from another device) and weren't shown yet.
     unseen: std::collections::HashSet<gpui::EntityId>,
-    /// The dock's only center panel; it hosts `page`.
     center: Entity<Center>,
     welcome: Entity<Welcome>,
     page: Page,
@@ -278,6 +278,8 @@ impl Workspace {
             );
             dock.set_dock_size(DockPlacement::Right, layout::RIGHT_DEFAULT_W, window, cx);
             dock.toggle_dock(DockPlacement::Right, window, cx);
+            // A tab dropped on the center would bring back a tab strip there; nothing is rearranged by dragging.
+            dock.set_locked(true, window, cx);
         });
         let _dock_events = cx.subscribe_in(&dock, window, |this, _, e, window, cx| {
             this.dock_changed(e, window, cx)

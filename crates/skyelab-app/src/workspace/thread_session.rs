@@ -249,9 +249,9 @@ impl Drop for NewSession {
 }
 
 impl ThreadView {
-    /// Ends the agent and makes a last try for held events, off the UI thread. The workspace calls it when it closes
-    /// the thread (the view may live a frame longer); dropping the view runs it too, and a second run does nothing.
-    /// A launch still in progress sees `stop_requested` and ends its own agent.
+    /// Ends the agent and makes a last try for held events, off the UI thread. `Workspace::close_thread` calls it, as
+    /// the view may outlive the close by a frame; dropping the view runs it too, and a second run does nothing. A
+    /// launch still in progress sees `stop_requested` and ends its own agent.
     pub(in crate::workspace) fn close(&mut self) {
         self.stop_requested = true;
         let session = self.session.take();

@@ -55,7 +55,7 @@ panel!(super::center::Center, "Center", closable: false, title_bar: false, |_thi
 mod sidebar;
 pub use sidebar::{RowAccount, Sidebar, SidebarItem, SidebarSection};
 
-/// The page with no thread open: what SkyeLab is and the keys that do things today.
+/// The page with no thread open: what SkyeLab is and its main keys.
 pub struct Welcome {
     focus: FocusHandle,
 }
@@ -127,7 +127,6 @@ impl Render for Welcome {
                             )),
                     ),
             );
-        // T3's empty thread state: a quiet "No active thread" in the header.
         let header = super::layout::page_header(cx)
             .child(
                 div()

@@ -108,9 +108,8 @@ pub struct Settings {
     /// Stale bindings' paths and where each resolves now (`None`: can't be resolved).
     stale: Vec<(PathBuf, Option<PathBuf>)>,
     account_select: Entity<AccountSelect>,
-    /// The section the page shows; the workspace sets it when it navigates.
     pub section: Section,
-    /// The Sharing section's content; `None` when this window doesn't share (tests).
+    /// The Sharing section's content; `None` without a tailnet hook.
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,

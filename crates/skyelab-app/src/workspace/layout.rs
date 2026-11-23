@@ -63,7 +63,6 @@ pub(crate) fn page_header(cx: &App) -> Div {
     })
 }
 
-/// The three dock toggles, for the end of a page header.
 pub(crate) fn panel_toggles(cx: &App) -> impl IntoElement {
     h_flex()
         .flex_shrink_0()
@@ -71,7 +70,6 @@ pub(crate) fn panel_toggles(cx: &App) -> impl IntoElement {
         .children(dock_toggles(cx))
 }
 
-/// The three dock toggles: sidebar, bottom drawer, right panel.
 fn dock_toggles(cx: &App) -> Vec<Button> {
     let open = cx.try_global::<DockToggles>().copied().unwrap_or_default();
     // The tooltip shows the action's key binding for this OS.

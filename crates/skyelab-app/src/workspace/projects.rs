@@ -173,6 +173,13 @@ impl Workspace {
             });
         }
         let current = self.project.as_ref().map(|p| p.id);
+        // A background start in a project that isn't selected still shows, on its project's row.
+        let unread_projects: std::collections::HashSet<i64> = self
+            .open_threads
+            .iter()
+            .filter(|v| self.unseen.contains(&v.entity_id()))
+            .filter_map(|v| v.read(cx).thread.as_ref().map(|t| t.project_id))
+            .collect();
         let projects = self
             .projects
             .iter()
@@ -188,7 +195,7 @@ impl Workspace {
                     Some(None) => RowAccount::Unbound,
                     None => RowAccount::Hidden,
                 }),
-                unread: false,
+                unread: unread_projects.contains(&p.id),
             })
             .collect();
         // An open view knows its thread's state now; the row is only as fresh as the last project load.

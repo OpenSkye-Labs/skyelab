@@ -147,7 +147,8 @@ impl Settings {
                 .child(self.render_bindings(cx))
                 .child(self.render_test(cx)),
             Section::GitHub => div().child(self.render_github(cx)),
-            Section::Appearance | Section::Sharing => div().child(widgets::section(
+            Section::Sharing => unreachable!("returned above"),
+            Section::Appearance => div().child(widgets::section(
                 "Appearance",
                 [widgets::row(true, cx)
                     .text_size(crate::ui::BODY)
@@ -205,9 +206,12 @@ impl Render for Settings {
             .id("settings")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
-            .on_action(cx.listener(Self::save_account))
-            .on_action(cx.listener(Self::cancel_edit))
-            .on_action(cx.listener(Self::bind_folder))
+            // The form's keys act only where the form shows.
+            .when(self.section == Section::Accounts, |d| {
+                d.on_action(cx.listener(Self::save_account))
+                    .on_action(cx.listener(Self::cancel_edit))
+                    .on_action(cx.listener(Self::bind_folder))
+            })
             .on_action(cx.listener(Self::edit_account))
             .on_action(cx.listener(Self::remove_account))
             .on_action(cx.listener(Self::gh_log_in))

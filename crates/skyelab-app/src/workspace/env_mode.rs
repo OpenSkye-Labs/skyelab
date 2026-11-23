@@ -416,7 +416,7 @@ impl Workspace {
         if let Some(tab) = self
             .remote_tabs()
             .into_iter()
-            .find(|t| t.read(cx).thread_id() == Some(a.id) && !t.read(cx).closed)
+            .find(|t| t.read(cx).thread_id() == Some(a.id))
         {
             return self.show(Page::RemoteThread(tab.downgrade()), window, cx);
         }

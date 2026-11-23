@@ -102,7 +102,6 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The Sharing section of the Settings page.
     pub(super) fn open_remote(
         &mut self,
         _: &OpenRemote,
@@ -116,7 +115,7 @@ impl Workspace {
         );
     }
 
-    /// What the Sharing section shows; `None` when this window doesn't share (tests).
+    /// What the Sharing section shows; `None` without a tailnet hook.
     pub(super) fn remote_panel(&mut self, cx: &mut Context<Self>) -> Option<Entity<RemotePanel>> {
         let hook = self.remote.as_mut()?;
         let remote = hook.remote.clone();

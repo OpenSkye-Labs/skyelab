@@ -37,10 +37,8 @@ pub struct RemoteThreadView {
     host: SharedString,
     project_id: i64,
     thread_id: Option<i64>,
-    /// This view's own watch, so closing it never ends a reopened tab's watch on the same thread.
+    /// This view's own watch, so closing it never ends another view's watch on the same thread.
     watch: Option<WatchId>,
-    /// Out of the dock. The entity can outlive its tab for a moment, and must not be picked again as the tab.
-    pub(super) closed: bool,
     title: SharedString,
     account: Option<String>,
     pub(super) items: Vec<Item>,
@@ -111,7 +109,6 @@ impl RemoteThreadView {
             project_id,
             thread_id,
             watch,
-            closed: false,
             title,
             account,
             items: Vec::new(),
@@ -343,7 +340,6 @@ impl Focusable for RemoteThreadView {
 impl RemoteThreadView {
     /// The machine changed: stop following the thread, so the client stops fetching its events.
     pub(super) fn closed(&mut self, _: &mut Context<Self>) {
-        self.closed = true;
         if let Some(watch) = self.watch.take() {
             self.client.unwatch(watch);
         }

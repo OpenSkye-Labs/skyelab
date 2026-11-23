@@ -24,7 +24,8 @@ pub struct SidebarItem {
     pub updated_ms: Option<i64>,
     /// Project rows: the account the folder runs on.
     pub account: Option<RowAccount>,
-    /// Thread rows: it started in the background (delegated, or from another device) and wasn't opened yet.
+    /// It started in the background (delegated, or from another device) and wasn't opened yet; on a project row,
+    /// one of its threads did.
     pub unread: bool,
 }
 
