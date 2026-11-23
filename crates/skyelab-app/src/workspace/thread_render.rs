@@ -310,6 +310,11 @@ impl Render for ThreadView {
             .map(|r| self.render_refused(r, cx));
         let composer = self.render_composer(cx);
         let theme = cx.theme();
+        // T3's working row: how long the turn has run, ticking (`tick_while_working`).
+        let working = self
+            .turn_started_ms
+            .filter(|_| self.turn_running())
+            .map(|at| format!("Working for {}", ui::elapsed(ui::now_ms() - at)));
         let note = if self.starting {
             Some("Starting the agent…")
         } else if self.thread.is_none() || self.session.is_some() || refused.is_some() {
@@ -411,7 +416,32 @@ impl Render for ThreadView {
                     }))
                     .children(self.error.clone().map(|e| line(e, ui::ink(theme, theme.danger))))
                     .children(note.map(|n| line(n.into(), theme.muted_foreground)))
+                    .children(working.map(|w| {
+                        line(w.into(), theme.muted_foreground).debug_selector(|| "working-for".into())
+                    }))
                     .child(composer),
             )
+    }
+}
+
+impl ThreadView {
+    /// Redraws each second while a turn runs, so "Working for …" ticks. A new turn replaces the last one's timer.
+    // shortcut: redraws the whole view each second; give the line its own entity if long timelines draw slowly.
+    pub(super) fn tick_while_working(&mut self, cx: &mut Context<Self>) {
+        self._tick = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_secs(1))
+                    .await;
+                let working = this.update(cx, |this, cx| {
+                    let working = this.starting || this.turn_running();
+                    cx.notify();
+                    working
+                });
+                if !matches!(working, Ok(true)) {
+                    return;
+                }
+            }
+        }));
     }
 }

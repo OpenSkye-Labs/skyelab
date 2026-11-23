@@ -80,6 +80,13 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - Status: icon + `text-xs font-medium` label in the status color, replacing the time (567-576, 789-849): working info,
   waiting muted, approval/limited warning, failed error, done success.
 - Time: right-aligned, `text-xs tabular-nums` secondary label, format `now`, `5m`, `3h`, `2d` (151-165).
+- Working rows add the turn's elapsed time after the label (`WorkingDuration`, 178-197, ticking each second); SkyeLab
+  formats it like the chat's `AgentElapsed` (`12s`, `1m 12s`, `1h 05m`) and the thread view repeats it as
+  "Working for …" (`chat/TimelineWorkGroupRows.tsx` `WorkingTimelineRow`).
+- Hover card (`SidebarThreadTooltip`, 263-403, `ThreadHoverCard.tsx`): to the row's right, max width 320, title
+  `text-xs font-medium`, then `text-xs` muted lines with 12 px icons (project, branch, worktree, provider). SkyeLab adds
+  the PR link, the account + provider, the binding folder and the times (`panels/sidebar_card.rs`, gpui-component
+  `HoverCard` anchored `LeftCenter`, 500 ms open delay).
 
 ## 5. Thread header
 

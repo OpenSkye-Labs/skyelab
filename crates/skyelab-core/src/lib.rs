@@ -325,6 +325,12 @@ impl AccountsConfig {
     /// The account bound to `dir`: deepest binding wins. `None` means unbound, and the
     /// caller must ask the user. Never fall back to a default account, that is the bug we exist to prevent.
     pub fn resolve(&self, dir: &Path) -> Option<&Account> {
+        let b = self.binding_for(dir)?;
+        self.accounts.iter().find(|a| a.id == b.account)
+    }
+
+    /// The binding [`AccountsConfig::resolve`] goes by for `dir`: the folder that decides its account.
+    pub fn binding_for(&self, dir: &Path) -> Option<&Binding> {
         if !dir.is_absolute() {
             return None;
         }
@@ -356,7 +362,7 @@ impl AccountsConfig {
         if *stale || deepest.next().is_some() {
             return None; // not the folder the user confirmed, or two bindings now name the same folder: ask
         }
-        self.accounts.iter().find(|a| a.id == b.account)
+        Some(b)
     }
 
     /// Env to launch the bound account's agent with for `dir`. Errors when the folder is unbound.

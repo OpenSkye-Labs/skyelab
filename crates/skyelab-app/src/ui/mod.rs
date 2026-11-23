@@ -271,6 +271,19 @@ pub fn ago(now_ms: i64, then_ms: i64) -> String {
     }
 }
 
+/// How long a running turn has run, T3's working timer: `12s`, `1m 12s`, `1h 05m`.
+pub fn elapsed(ms: i64) -> String {
+    let secs = ms.max(0) / 1000;
+    let (m, h) = (secs / 60, secs / 3600);
+    if m < 1 {
+        format!("{secs}s")
+    } else if h < 1 {
+        format!("{m}m {:02}s", secs % 60)
+    } else {
+        format!("{h}h {:02}m", m % 60)
+    }
+}
+
 /// Milliseconds since the epoch, for [`ago`].
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()

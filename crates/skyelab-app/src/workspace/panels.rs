@@ -53,9 +53,10 @@ macro_rules! panel {
 panel!(super::center::Center, "Center", closable: false, title_bar: false, |_this| "Center");
 
 mod sidebar;
+mod sidebar_card;
 mod sidebar_rows;
 pub use sidebar::{
-    ArchivedRows, RowAccount, RowMarks, ScopeMenu, ScopeProject, Sidebar, SidebarItem,
+    ArchivedRows, RowAccount, RowCard, RowMarks, ScopeMenu, ScopeProject, Sidebar, SidebarItem,
     SidebarSearch, SidebarSection,
 };
 

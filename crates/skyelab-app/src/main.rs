@@ -39,8 +39,9 @@ const VERIFY_ACTION_GAP: std::time::Duration = std::time::Duration::from_secs(2)
 /// Debug builds only: `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,keys:h i cmd-enter,..` runs each
 /// entry in turn, [`VERIFY_ACTION_GAP`] apart so async work (store loads, page loads, new tabs) lands in between, because
 /// `/loop-verify-ui` can't send input to a topmost window. `keys:` types keystrokes into the focus,
-/// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`), `drag:x;y;x2;y2` drags with the
-/// left button, and `scroll:x;y;lines` scrolls the wheel there (positive: up).
+/// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`), `hover:x;y` only moves the mouse
+/// there (hover cards), `drag:x;y;x2;y2` drags with the left button, and `scroll:x;y;lines` scrolls the wheel there
+/// (positive: up).
 fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
     let Some(entries) = std::env::var("SKYELAB_VERIFY_ACTIONS")
         .ok()
@@ -99,6 +100,22 @@ fn dispatch_verify_actions(window: &mut gpui::Window, cx: &mut App) {
                             }
                             _ => eprintln!("SKYELAB_VERIFY_ACTIONS: bad scroll {at}"),
                         };
+                        return;
+                    }
+                    if let Some(at) = entry.strip_prefix("hover:") {
+                        match parse_point(at) {
+                            Some(position) => {
+                                _ = window.dispatch_event(
+                                    gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                                        position,
+                                        pressed_button: None,
+                                        modifiers: Default::default(),
+                                    }),
+                                    cx,
+                                )
+                            }
+                            None => eprintln!("SKYELAB_VERIFY_ACTIONS: bad point {at}"),
+                        }
                         return;
                     }
                     if let Some(at) = entry.strip_prefix("click:") {

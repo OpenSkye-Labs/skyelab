@@ -82,6 +82,9 @@ pub struct ThreadView {
     pub(super) drafts: std::collections::HashMap<String, super::ask_cards::QuestionDraft>,
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
+    /// When the running (or last) turn's prompt was sent, ms since the epoch: the "Working 1m 12s" timers.
+    pub(super) turn_started_ms: Option<i64>,
+    pub(super) _tick: Option<Task<()>>,
     /// The prompt a resume launch sent, kept until its session answers: rerun in a new session if it was gone.
     pub(super) resumed_prompt: Option<String>,
     /// Set when the resumed session was gone: rerun when this agent has ended.
@@ -296,6 +299,8 @@ impl ThreadView {
             drafts: Default::default(),
             error: None,
             starting: false,
+            turn_started_ms: None,
+            _tick: None,
             resumed_prompt: None,
             rerun: None,
             background: false,
@@ -457,6 +462,11 @@ impl ThreadView {
     }
 
     fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
+        // A prompt with no turn running starts one; a steer or a queued send joins the running one.
+        if matches!(record, Record::Prompt(_)) && !self.turn_running() {
+            self.turn_started_ms = Some(crate::ui::now_ms());
+            self.tick_while_working(cx);
+        }
         let limited = limit_after(self.limited, record);
         if limited != self.limited {
             self.limited = limited;
