@@ -59,7 +59,8 @@ impl ThreadView {
                     .tooltip(move |window, cx| Tooltip::new(path.clone()).build(window, cx))
                     .child(
                         div()
-                            .flex_shrink_0()
+                            .min_w_0()
+                            .truncate()
                             .text_color(theme.muted_foreground)
                             .child(folder),
                     )
@@ -80,7 +81,8 @@ impl ThreadView {
                                     .child("/"),
                             )
                     }))
-                    .child(div().min_w_0().truncate().child(self.title())),
+                    // The title keeps some room when the center is narrow (a right panel open), the folder gives way first.
+                    .child(div().min_w(px(72.)).truncate().child(self.title())),
             )
             .child(
                 div()
