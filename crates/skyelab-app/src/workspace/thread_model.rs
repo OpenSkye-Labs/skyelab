@@ -255,6 +255,7 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
         Record::Agent(Event::RateLimit {
             limited: true,
             resets_at,
+            ..
         }) => items.push(Item::Limit {
             resets_at: *resets_at,
         }),
@@ -280,7 +281,9 @@ pub const SESSION_GONE_NOTE: &str =
 /// unlimited one, or a turn that succeeded, clears it.
 pub fn limit_after(now: Option<Option<i64>>, record: &Record) -> Option<Option<i64>> {
     match record {
-        Record::Agent(Event::RateLimit { limited, resets_at }) => limited.then_some(*resets_at),
+        Record::Agent(Event::RateLimit {
+            limited, resets_at, ..
+        }) => limited.then_some(*resets_at),
         Record::Agent(Event::Result {
             is_error: false, ..
         }) => None,

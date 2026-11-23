@@ -108,10 +108,14 @@ fn deltas_thinking_and_usage_parse_and_chatter_is_dropped() {
     assert!(events.iter().any(|e| matches!(e, Event::Assistant { content }
         if matches!(&content[..], [Block::Thinking { thinking }] if thinking.starts_with("The user wants")))));
     assert!(
-        events.contains(&Event::RateLimit {
-            limited: false,
-            resets_at: None
-        }),
+        events.iter().any(|e| matches!(
+            e,
+            Event::RateLimit {
+                limited: false,
+                resets_at: None,
+                ..
+            }
+        )),
         "{events:?}"
     );
     // Block starts and stops, tool input JSON, message deltas, thinking token counts and status pings are dropped.
@@ -167,7 +171,9 @@ fn a_rejected_rate_limit_is_limited_unless_overage_allows_it() {
         Event::parse(rejected),
         Event::RateLimit {
             limited: true,
-            resets_at: Some(1791804000)
+            resets_at: Some(1791804000),
+            window: Some("five_hour".into()),
+            used: None,
         }
     );
     let overage = r#"{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1,"overageStatus":"allowed"}}"#;

@@ -254,6 +254,8 @@ impl Workspace {
         let link = ChildLink {
             id: child.id,
             title: child.title.clone().into(),
+            status: crate::ui::Status::parse(&child.status),
+            started_ms: child.created_at,
         };
         parent.update(cx, |p, cx| {
             if !p.children.iter().any(|c| c.id == link.id) {

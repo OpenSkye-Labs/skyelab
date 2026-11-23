@@ -82,3 +82,24 @@ fn a_stored_result_without_prompts_answered_one() {
     .expect("an old row parses");
     assert!(matches!(old, Event::Result { prompts: 1, .. }), "{old:?}");
 }
+
+#[test]
+fn rate_limit_events_name_their_window() {
+    let line = |t: &str, u: &str| {
+        Event::parse(&format!(
+            r#"{{"type":"rate_limit_event","rate_limit_info":{{"status":"allowed","rateLimitType":"{t}"{u}}}}}"#
+        ))
+    };
+    assert_eq!(
+        line("seven_day", r#","utilization":0.62"#).rate_limit(),
+        Some(("Weekly", 0.62))
+    );
+    assert_eq!(
+        line("five_hour", r#","utilization":1.5"#).rate_limit(),
+        Some(("Session", 1.0))
+    );
+    // Most events carry only a status; an unknown window is not guessed at.
+    assert_eq!(line("seven_day", "").rate_limit(), None);
+    assert_eq!(line("overage", r#","utilization":0.1"#).rate_limit(), None);
+    assert_eq!(Event::parse(r#"{"type":"result"}"#).rate_limit(), None);
+}

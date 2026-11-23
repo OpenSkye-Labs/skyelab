@@ -278,7 +278,20 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
 gpui_kit_assets::icon_assets!(
     ExtraIcons,
     [
-        Paperclip, GitBranch, Laptop, Folder, FolderGit2, FileDiff, X, Clock, Square
+        Paperclip,
+        GitBranch,
+        Laptop,
+        Folder,
+        FolderGit2,
+        FileDiff,
+        X,
+        Clock,
+        Square,
+        Monitor,
+        SquareCode,
+        CloudUpload,
+        Trash,
+        GitPullRequest
     ]
 );
 

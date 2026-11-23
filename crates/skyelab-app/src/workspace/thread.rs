@@ -54,14 +54,8 @@ mod session;
 
 #[path = "thread_event.rs"]
 mod event;
+pub use super::thread_details::ChildLink;
 pub use event::ThreadViewEvent;
-
-/// A thread this one delegated, listed under its header.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChildLink {
-    pub id: i64,
-    pub title: SharedString,
-}
 
 pub struct ThreadView {
     pub(super) focus: FocusHandle,
@@ -116,6 +110,8 @@ pub struct ThreadView {
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
+    /// The Details tab's state for this thread.
+    pub(super) details: super::thread_details::Details,
     /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
     pub(super) mode: Mode,
     /// Full access was picked and waits for the user to confirm it.
@@ -199,6 +195,8 @@ impl ThreadView {
                         .into_iter()
                         .map(|t| ChildLink {
                             id: t.id,
+                            status: crate::ui::Status::parse(&t.status),
+                            started_ms: t.created_at,
                             title: t.title.into(),
                         })
                         .collect();
@@ -307,6 +305,7 @@ impl ThreadView {
             parent: None,
             required_account: None,
             children: Vec::new(),
+            details: Default::default(),
             mode: Mode::Default,
             confirm_bypass: false,
             mode_writes: Arc::default(),
@@ -381,25 +380,6 @@ impl ThreadView {
 
     /// What the sidebar shows for this thread: its live session's state, or with no session, stopped (the stored row
     /// may still say running from before).
-    pub(super) fn live_status(&self) -> crate::ui::Status {
-        use crate::ui::Status;
-        let running = self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0;
-        if self.starting {
-            Status::Starting
-        } else if self.session.is_some() && running {
-            Status::Running // still working, so closing it would cut the work off
-        } else if self.limited.is_some() {
-            Status::Limited
-        } else if self.session.is_some() {
-            Status::Idle
-        } else {
-            match self.thread.as_ref().map(|t| Status::parse(&t.status)) {
-                Some(Status::Starting | Status::Running) | None => Status::Stopped,
-                Some(other) => other,
-            }
-        }
-    }
-
     pub fn is_expanded(&self, tool_id: &str) -> bool {
         self.expanded.contains(tool_id)
     }

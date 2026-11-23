@@ -54,6 +54,12 @@ pub enum Event {
     RateLimit {
         limited: bool,
         resets_at: Option<i64>,
+        /// Which window this reading is (Claude's `rateLimitType`: `five_hour`, `seven_day`, …), when it says.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        window: Option<String>,
+        /// How much of that window is used, 0 to 1, when it says.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        used: Option<f32>,
     },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
@@ -217,6 +223,27 @@ impl Event {
         };
         Some(typed.unwrap_or(Event::Unknown(v)))
     }
+
+    /// A usage window's reading: its label and how much is used (0 to 1). `None` for anything else, and for the
+    /// many rate-limit lines that carry only a status.
+    pub fn rate_limit(&self) -> Option<(&'static str, f32)> {
+        let Event::RateLimit {
+            window: Some(window),
+            used: Some(used),
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let label = match window.as_str() {
+            "five_hour" => "Session",
+            "seven_day" => "Weekly",
+            "seven_day_opus" => "Weekly · Opus",
+            "seven_day_sonnet" => "Weekly · Sonnet",
+            _ => return None,
+        };
+        Some((label, *used))
+    }
 }
 
 /// Whether a failed result line says the resumed session is gone, in its `errors`. A successful result's text is
@@ -259,6 +286,11 @@ fn rate_limit(info: &Value) -> Option<Event> {
     Some(Event::RateLimit {
         limited: info["status"].as_str()? == "rejected" && !overage,
         resets_at: info["resetsAt"].as_i64(),
+        window: info["rateLimitType"].as_str().map(str::to_owned),
+        used: info["utilization"]
+            .as_f64()
+            .filter(|u| u.is_finite())
+            .map(|u| u.clamp(0.0, 1.0) as f32),
     })
 }
 

@@ -79,7 +79,8 @@ Binding folders to accounts, and a GitHub login per account: see [user-guide-acc
   it before the first send to run in a new worktree), how many files changed (click it to open Changes, refreshed
   after each turn) and the current branch.
 
-The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. While a turn runs and the
+The thread header is a breadcrumb (project / parent thread / title) with the provider (**Claude** or **Codex**) and
+the account it runs on. While a turn runs and the
 composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
 ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
 **Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. Threads are saved, and opening an old one and sending a follow-up resumes the
@@ -88,6 +89,12 @@ another SkyeLab on the same data), the thread still shows it and says how many e
 event, and saves them in order once the store works again. Quitting before then loses them.
 Switching to another page doesn't stop a thread's agent; **Stop** or quitting SkyeLab does. A thread that was still running when SkyeLab last closed
 without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
+
+### Thread details
+
+The right panel's **Details** tab (the right-panel toggle opens it) holds the thread's folder, branch, git actions,
+scripts, delegated agents, pull request and editor, and every account's usage. Details and the dialog backdrop:
+[user-guide-thread-details.md](user-guide-thread-details.md).
 
 ### Permissions
 
@@ -206,8 +213,8 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 ### Delegated threads
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
-`wait_thread`, and others). The new thread appears in the sidebar marked unread; the page you're on stays. Its header says **Delegated by** and links back to the
-parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
+`wait_thread`, and others). The new thread appears in the sidebar marked unread; the page you're on stays. Its header's breadcrumb links back to the
+parent, and the parent's Details tab lists it under **Lineage**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
 when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
@@ -218,10 +225,10 @@ it had already sent. Codex threads get the same tools, with the same account rul
 
 Click **Local checkout** under the composer (it turns into **New worktree**) before you send the first prompt. The thread then works in its own
 git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`, started from the branch the
-header's picker shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
+Details tab's branch row shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
 
-The thread header then has:
+The Details tab then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not. **Refresh** reloads it.
   A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one

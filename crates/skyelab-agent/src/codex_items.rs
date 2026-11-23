@@ -58,6 +58,8 @@ pub(super) fn rate_limit(r: &Value) -> Event {
         .filter(|w| w["usedPercent"].as_f64().is_some_and(|u| u >= 100.0));
     let resets_at = full.clone().filter_map(|w| w["resetsAt"].as_i64()).max();
     Event::RateLimit {
+        window: None,
+        used: None,
         limited: !r["rateLimitReachedType"].is_null() || full.count() > 0,
         resets_at: resets_at.or(r["primary"]["resetsAt"].as_i64()),
     }

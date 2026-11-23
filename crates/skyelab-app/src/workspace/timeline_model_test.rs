@@ -199,10 +199,14 @@ fn the_turn_divider_carries_usage_and_cost() {
 fn a_limited_rate_limit_adds_a_row_and_an_unlimited_one_does_not() {
     let items = run(&[
         agent(Event::RateLimit {
+            window: None,
+            used: None,
             limited: false,
             resets_at: None,
         }),
         agent(Event::RateLimit {
+            window: None,
+            used: None,
             limited: true,
             resets_at: Some(1_791_804_000),
         }),
@@ -218,6 +222,8 @@ fn a_limited_rate_limit_adds_a_row_and_an_unlimited_one_does_not() {
 #[test]
 fn the_limit_state_follows_rate_limits_and_clears_on_success() {
     let limited = agent(Event::RateLimit {
+        window: None,
+        used: None,
         limited: true,
         resets_at: Some(5),
     });
@@ -227,6 +233,8 @@ fn the_limit_state_follows_rate_limits_and_clears_on_success() {
     assert_eq!(limit_after(s, &result(true, None)), s, "a failure keeps it");
     assert_eq!(limit_after(s, &result(false, None)), None);
     let free = agent(Event::RateLimit {
+        window: None,
+        used: None,
         limited: false,
         resets_at: None,
     });

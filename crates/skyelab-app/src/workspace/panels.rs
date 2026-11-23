@@ -230,39 +230,6 @@ impl Render for TerminalPanel {
     }
 }
 
-/// The right dock's content while no tool is open in it.
-pub struct RightEmpty {
-    focus: FocusHandle,
-}
-
-impl RightEmpty {
-    pub fn new(cx: &mut Context<Self>) -> Self {
-        Self {
-            focus: cx.focus_handle(),
-        }
-    }
-}
-
-panel!(RightEmpty, "RightEmpty", closable: false, |_this| "Tools");
-
-impl Render for RightEmpty {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("right-empty")
-            .track_focus(&self.focus)
-            .size_full()
-            .flex()
-            .items_center()
-            .justify_center()
-            .p_6()
-            .bg(cx.theme().background)
-            .child(
-                ui::EmptyState::new("Nothing open here").hint(
-                    "Changes, the browser and devices open on this side, next to the thread.",
-                ),
-            )
-    }
-}
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
@@ -394,4 +361,4 @@ macro_rules! focusable {
         }
     )*};
 }
-focusable!(Sidebar, Welcome, TerminalsEmpty, RightEmpty);
+focusable!(Sidebar, Welcome, TerminalsEmpty);

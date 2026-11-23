@@ -1,0 +1,263 @@
+//! The details card's look: its sections and pages, and the Environment, Actions and Editor rows.
+
+use super::super::thread::ThreadView;
+use super::{OpenInEditorWith, Page, editor_name, is_running};
+use crate::ui;
+use gpui::{
+    AnyElement, ClickEvent, Context, FontWeight, SharedString, Window, div, prelude::*, px,
+};
+use gpui_component::{
+    ActiveTheme as _, Icon, Sizable as _, Theme,
+    button::{Button, ButtonVariants as _},
+    h_flex, v_flex,
+};
+use gpui_kit_assets::IconName;
+
+impl ThreadView {
+    /// The card's content: a picker page when one is open, else its titled sections with `usage` (every account's,
+    /// drawn by the Details tab) among them.
+    pub(in crate::workspace) fn render_details(
+        &mut self,
+        usage: AnyElement,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let page = v_flex().w_full();
+        if self.branch_picker.read(cx).open {
+            let picker = self.branch_picker.clone();
+            return page
+                .child(self.back_row("Branch", cx, move |_, cx| {
+                    picker.update(cx, |p, cx| p.set_open(false, cx))
+                }))
+                .child(self.branch_picker.clone())
+                .into_any_element();
+        }
+        if self.scripts.read(cx).open {
+            let scripts = self.scripts.clone();
+            return page
+                .child(self.back_row("Project scripts", cx, move |_, cx| {
+                    scripts.update(cx, |m, cx| m.set_open(false, cx))
+                }))
+                .child(self.scripts.clone())
+                .into_any_element();
+        }
+        match self.details.page {
+            Page::Editors => page
+                .child(self.back_row("Open in", cx, |v, cx| v.details_page(Page::Main, cx)))
+                .children(self.render_editor_choices(cx))
+                .into_any_element(),
+            Page::Previous => page
+                .child(self.back_row("Previous agents", cx, |v, cx| {
+                    v.details_page(Page::Main, cx)
+                }))
+                .children(
+                    self.children
+                        .iter()
+                        .filter(|c| !is_running(c.status))
+                        .map(|c| self.agent_row(c, cx)),
+                )
+                .into_any_element(),
+            Page::Main => {
+                let lineage = self.render_lineage(cx);
+                let sections = [
+                    Some(("Environment".into(), self.render_environment(cx))),
+                    Some(("Actions".into(), self.render_actions(cx))),
+                    lineage,
+                    Some(("Usage".into(), usage)),
+                    self.render_pr(cx).map(|pr| ("Pull request".into(), pr)),
+                    Some(("Editor".into(), self.render_editor(cx))),
+                ];
+                let theme = cx.theme().clone();
+                page.children(
+                    sections
+                        .into_iter()
+                        .flatten()
+                        .enumerate()
+                        .map(|(i, (title, body))| section(i == 0, title, body, &theme)),
+                )
+                .into_any_element()
+            }
+        }
+    }
+
+    /// This machine (with the folder button), then the branch and git rows on a repo.
+    fn render_environment(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let machine = self
+            .details
+            .machine
+            .clone()
+            .unwrap_or_else(|| "This machine".into());
+        let cwd = self.cwd.clone();
+        v_flex()
+            .child(
+                row("details-machine", IconName::Monitor, machine, &theme)
+                    .cursor_default()
+                    .child(
+                        Button::new("details-open-folder")
+                            .ghost()
+                            .xsmall()
+                            .icon(Icon::new(IconName::FolderOpen))
+                            .tooltip("Open the thread's folder")
+                            .on_click(move |_, _, cx| cx.open_with_system(&cwd)),
+                    ),
+            )
+            .children(self.render_git_rows(cx))
+            .into_any_element()
+    }
+
+    fn render_actions(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let no_scripts = self.scripts.read(cx).scripts.is_empty();
+        let (icon, label) = if no_scripts {
+            (IconName::Plus, "Add project script")
+        } else {
+            (IconName::Play, "Run project script")
+        };
+        row("details-scripts", icon, label, &theme)
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.scripts.update(cx, |m, cx| m.set_open(true, cx));
+                cx.notify();
+            }))
+            .into_any_element()
+    }
+
+    fn render_editor(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let editors = self.details.editors.as_ref();
+        let open_in = match editors.and_then(|e| e.current.as_deref()) {
+            Some(bin) => format!("Open in {}", editor_name(bin)),
+            None if editors.is_some() => "No editor found".into(),
+            None => "Open in editor".into(),
+        };
+        let can_choose = editors.is_some_and(|e| !e.choices.is_empty());
+        row("details-open-in", IconName::SquareCode, open_in, &theme)
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.details_home(cx);
+                window.dispatch_action(Box::new(super::super::attention::OpenInEditor), cx);
+            }))
+            .when(can_choose, |r| {
+                r.child(chevron_button(
+                    "details-editor-choices",
+                    IconName::ChevronDown,
+                    cx.listener(|this, _, _, cx| this.details_page(Page::Editors, cx)),
+                ))
+            })
+            .into_any_element()
+    }
+
+    fn render_editor_choices(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let theme = cx.theme().clone();
+        let Some(editors) = &self.details.editors else {
+            return Vec::new();
+        };
+        editors
+            .choices
+            .iter()
+            .map(|bin| {
+                let current = editors.current.as_deref() == Some(bin.as_str());
+                let editor = bin.clone();
+                row(
+                    SharedString::from(format!("details-editor-{bin}")),
+                    IconName::SquareCode,
+                    editor_name(bin),
+                    &theme,
+                )
+                .when(current, |r| {
+                    r.child(
+                        Icon::new(IconName::Check)
+                            .size_4()
+                            .text_color(theme.muted_foreground),
+                    )
+                })
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.details_home(cx);
+                    window.dispatch_action(
+                        Box::new(OpenInEditorWith {
+                            editor: editor.clone(),
+                        }),
+                        cx,
+                    );
+                }))
+                .into_any_element()
+            })
+            .collect()
+    }
+
+    fn back_row(
+        &self,
+        title: &'static str,
+        cx: &mut Context<Self>,
+        back: impl Fn(&mut ThreadView, &mut Context<ThreadView>) + 'static,
+    ) -> AnyElement {
+        let theme = cx.theme().clone();
+        row("details-back", IconName::ChevronLeft, title, &theme)
+            .on_click(cx.listener(move |this, _, _, cx| back(this, cx)))
+            .into_any_element()
+    }
+}
+
+/// One titled card section; every one but the first starts with a hairline.
+fn section(first: bool, title: SharedString, body: AnyElement, theme: &Theme) -> impl IntoElement {
+    v_flex()
+        .when(!first, |d| {
+            d.mt_1p5().pt_1p5().border_t_1().border_color(theme.border)
+        })
+        .child(
+            div()
+                .h(px(28.))
+                .px_2p5()
+                .flex()
+                .items_center()
+                .text_size(ui::META)
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(theme.muted_foreground)
+                .child(title),
+        )
+        .child(body)
+}
+
+/// T3's details row: 32 tall, a 16 px muted icon, a 13 px medium label; hover fills.
+pub(super) fn row(
+    id: impl Into<gpui::ElementId>,
+    icon: IconName,
+    label: impl Into<SharedString>,
+    theme: &Theme,
+) -> gpui::Stateful<gpui::Div> {
+    h_flex()
+        .id(id)
+        .h(ui::ROW_H)
+        .px_2p5()
+        .gap_2p5()
+        .rounded(ui::RADIUS)
+        .cursor_pointer()
+        .hover(|s| s.bg(theme.accent))
+        .text_size(ui::CODE)
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(theme.foreground.opacity(0.8))
+        .child(
+            Icon::new(icon)
+                .size_4()
+                .flex_shrink_0()
+                .text_color(theme.muted_foreground),
+        )
+        .child(div().flex_1().min_w_0().truncate().child(label.into()))
+}
+
+pub(super) fn chevron(icon: IconName, theme: &Theme) -> Icon {
+    Icon::new(icon).size_4().text_color(theme.muted_foreground)
+}
+
+fn chevron_button(
+    id: &'static str,
+    icon: IconName,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> Button {
+    Button::new(id)
+        .ghost()
+        .xsmall()
+        .icon(Icon::new(icon))
+        .on_click(move |e, window, cx| {
+            cx.stop_propagation();
+            on_click(e, window, cx)
+        })
+}

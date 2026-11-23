@@ -4,7 +4,7 @@ Back to the [user guide](user-guide.md).
 
 ## Branches
 
-The thread header's branch button lists the folder's local branches, most recent first, with a search. On a thread
+The branch row in the right panel's Details tab lists the folder's local branches, most recent first, with a search. On a thread
 that runs in the project folder, picking one switches the folder's checkout; type a name that doesn't exist and
 pick **Create branch** to make it from the current commit and switch to it (your changes stay as they are). Stop the
 agent first. With uncommitted changes, SkyeLab asks before switching:
@@ -19,7 +19,7 @@ refused. If the changes move on while the question is shown, SkyeLab asks again.
 
 ## Project scripts
 
-The header's **Run** menu holds a project's scripts: a name and a command, such as `npm run dev`. Click one to run
+The Details tab's **Add project script** / **Run project script** row holds a project's scripts: a name and a command, such as `npm run dev`. Click one to run
 it in a new terminal tab in the thread's folder (or its worktree), on the folder's account, with the terminal's
 usual environment plus `SKYELAB_PROJECT_ROOT` and, in a worktree, `SKYELAB_WORKTREE_PATH`. A folder with no
 account bound runs nothing. Tick **Run in every new worktree** for setup scripts such as `pnpm install`: they run as

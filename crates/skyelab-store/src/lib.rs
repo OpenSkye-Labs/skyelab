@@ -17,6 +17,7 @@ mod manage;
 mod model;
 pub use model::ModelChoice;
 mod migrations;
+mod usage;
 use migrations::MIGRATIONS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

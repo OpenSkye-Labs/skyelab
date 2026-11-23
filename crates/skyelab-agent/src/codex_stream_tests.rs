@@ -117,6 +117,8 @@ fn rate_limits_say_when_a_window_is_used_up() {
     assert_eq!(
         ok,
         vec![Event::RateLimit {
+            window: None,
+            used: None,
             limited: false,
             resets_at: Some(1777429830)
         }]
@@ -128,6 +130,8 @@ fn rate_limits_say_when_a_window_is_used_up() {
     assert_eq!(
         full,
         vec![Event::RateLimit {
+            window: None,
+            used: None,
             limited: true,
             resets_at: Some(2000100000)
         }]

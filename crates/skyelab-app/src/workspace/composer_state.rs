@@ -151,7 +151,7 @@ pub(in crate::workspace) fn fits(provider: Provider, model: &str) -> bool {
 }
 
 /// This machine's name as people know it (macOS's Computer Name), read once.
-fn machine_name() -> Option<String> {
+pub(in crate::workspace) fn machine_name() -> Option<String> {
     static NAME: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     NAME.get_or_init(|| {
         #[cfg(target_os = "macos")]

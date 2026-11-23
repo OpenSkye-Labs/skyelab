@@ -160,6 +160,7 @@ impl Workspace {
                 view.into()
             }
         };
+        self.refresh_details(cx);
         self.center.update(cx, |c, cx| {
             c.content = view;
             cx.notify();

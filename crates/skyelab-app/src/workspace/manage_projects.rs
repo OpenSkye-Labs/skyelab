@@ -40,7 +40,7 @@ impl Workspace {
                     },
                 );
             }
-            ProjectOp::OpenFolder => self.open_dir_in_editor(project.path, window, cx),
+            ProjectOp::OpenFolder => self.open_dir_in_editor(project.path, None, window, cx),
             ProjectOp::Accounts => window.dispatch_action(Box::new(super::OpenSettings), cx),
             ProjectOp::Remove => {
                 let live = self
