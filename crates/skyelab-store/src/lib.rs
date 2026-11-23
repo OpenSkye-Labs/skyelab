@@ -22,7 +22,7 @@ mod manage;
 mod model;
 pub use model::ModelChoice;
 mod migrations;
-mod usage;
+pub mod usage;
 use migrations::MIGRATIONS;
 pub use usage::UsageReading;
 
