@@ -36,11 +36,10 @@ for s, b in zip(sizes, blobs):
     offset += len(b)
 pathlib.Path(out).write_bytes(header + entries + b"".join(blobs))
 PY
-# Phones mask the icon themselves (iOS squircle, Android adaptive shape), so they get the artwork full bleed:
-# the rounded square becomes the whole canvas. The mark sits inside both platforms' safe zones.
+# Mobile launchers apply their own masks. Render the tile bounds full bleed and remove the desktop corner radius.
 mobile="$(cd "$dir/../../../mobile" && pwd)"
-sed 's|<rect x="100" y="100" width="824" height="824" rx="185"|<rect width="1024" height="1024"|' "$dir/icon.svg" > "$tmp/full.svg"
-grep -q '<rect width="1024" height="1024"' "$tmp/full.svg" || { echo "icon.svg changed: update the full-bleed rect in $0" >&2; exit 1; }
+sed -e 's|viewBox="0 0 1024 1024"|viewBox="100 100 824 824"|' -e 's| rx="185"||' "$dir/icon.svg" > "$tmp/full.svg"
+grep -q 'viewBox="100 100 824 824"' "$tmp/full.svg" || { echo "icon.svg changed: update the tile bounds in $0" >&2; exit 1; }
 # Android (minSdk 26, so adaptive icons only): the art is the 108 dp background layer at each density.
 for d in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
   res="$mobile/android-host/app/src/main/res/mipmap-${d%%:*}"

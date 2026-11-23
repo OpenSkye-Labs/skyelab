@@ -1,21 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="tile" x2="0" y2="1">
-      <stop stop-color="#357A92"/>
-      <stop offset="1" stop-color="#184553"/>
-    </linearGradient>
-    <linearGradient id="face" x2="0" y2="1">
-      <stop stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#CAE8E8"/>
-    </linearGradient>
-    <radialGradient id="light" cx=".35" cy=".05" r=".9">
-      <stop stop-color="#FFFFFF" stop-opacity=".20"/>
-      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
+    <clipPath id="tile">
+      <rect x="100" y="100" width="824" height="824" rx="185"/>
+    </clipPath>
   </defs>
-  <rect x="100" y="112" width="824" height="824" rx="185" fill="#102B35"/>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)"/>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#light)"/>
-  <g fill="#102B35" opacity=".30" transform="translate(0 12)"><path fill-rule="evenodd" d="M6 7H15L19 11H27Q30 11 30 14V24Q30 27 27 27H5Q2 27 2 24V11Q2 7 6 7Z M16 13L21 18L16 23L11 18Z" transform="translate(192 174) scale(20)" /></g>
-  <g fill="url(#face)"><path fill-rule="evenodd" d="M6 7H15L19 11H27Q30 11 30 14V24Q30 27 27 27H5Q2 27 2 24V11Q2 7 6 7Z M16 13L21 18L16 23L11 18Z" transform="translate(192 174) scale(20)" /></g>
+  <g clip-path="url(#tile)">
+    <rect x="100" y="100" width="824" height="824" fill="#101420"/>
+    <g fill="#FFFFFF" transform="translate(100 100) scale(.8046875)">
+    <!-- Cloud and face cutouts. The paw is a separate silhouette. -->
+    <path fill-rule="evenodd" d="M -20,734
+         C 39,757 88,730 99,684
+         C 150,662 141,602 66,560
+         C 70,544 85,535 111,528
+         C 102,421 225,330 332,376
+         C 433,246 643,293 659,460
+         C 761,452 835,567 776,673
+         C 883,811 792,1000 626,1024
+         L 625,1050 H 460
+         C 345,1034 241,1003 170,955
+         C 99,969 31,947 -20,875 Z
+
+         M 332,631 a 58,59 0 1 0 -116,0 a 58,59 0 1 0 116,0 Z
+         M 612,692 a 58,59 0 1 0 -116,0 a 58,59 0 1 0 116,0 Z
+         M 340,734
+         C 334,714 364,704 371,725
+         C 379,753 414,760 431,740
+         C 446,722 469,744 455,760
+         C 425,800 354,787 340,734 Z"/>
+    <path d="M -20,566
+         C 38,556 108,600 114,633
+         C 120,657 98,672 77,661
+         C 83,702 47,731 -20,707 Z"/>
+    </g>
+  </g>
 </svg>

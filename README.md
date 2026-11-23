@@ -1,4 +1,4 @@
-# <img src="crates/skyelab-app/icons/128x128.png" width="40" height="40" alt=""> SkyeLab
+# <img src="crates/skyelab-app/icons/128x128.png" width="44" height="44" alt=""> SkyeLab
 
 SkyeLab is a native agentic development environment (ADE) written in Rust with [GPUI](https://www.gpui.rs/).
 You run Claude Code agents in threads over your projects, review their changes, and keep a terminal, a browser

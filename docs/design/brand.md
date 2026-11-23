@@ -2,41 +2,38 @@
 
 <img src="../../crates/skyelab-app/icons/128x128.png" width="64" height="64" alt=""> **SkyeLab**
 
-The mark is a folder with one diamond-shaped opening. The folder is the workspace boundary. The single opening stands for the one provider account bound to that folder. The blue-green tile and pale face evoke a clear sky, while the precise cut and beveled tile suggest a tool on a workbench. The same mark represents the workspace across machines connected through Tailscale.
+Grip is Bean, the SkyeLab cloud, pulling itself into view from the lower-left corner. The tilted eyes and small smile are the first read. A separate puff hand hooks the left edge and gives the crop a purpose. The cloud connects to the Skye name, and the grip makes the workspace feel approachable.
 
-## Explorations
+The [launcher master](../../crates/skyelab-app/icons/icon.svg) redraws the [approved Grip study](brand/explorations/round5/grip-1024.png) as editable paths. The slightly larger hand and open gap keep the gesture visible at 32 px. At 16 px, the face carries the expression.
 
-| Direction | 1024 px | 32 px | 16 px | Decision |
-| --- | --- | --- | --- | --- |
-| Folder | [PNG](brand/explorations/folder-1024.png) | ![Folder](brand/explorations/folder-32.png) | ![Folder](brand/explorations/folder-16.png) | Chosen. The tab and a single open counter survive reduction, and both have a direct connection to the account binding. |
-| Cloud mascot | [PNG](brand/explorations/cloud-1024.png) | ![Cloud](brand/explorations/cloud-32.png) | ![Cloud](brand/explorations/cloud-16.png) | Friendly and legible. The cloud suggests hosted compute, which is secondary to the local workspace. |
-| Sky flask | [PNG](brand/explorations/flask-1024.png) | ![Flask](brand/explorations/flask-32.png) | ![Flask](brand/explorations/flask-16.png) | The flask carries the Lab half of the name. The wave inside it loses definition at launcher scale. |
+## Glyphs and wordmark
 
-The SVGs live alongside the PNGs. The folder also has [512 px](brand/explorations/folder-512.png) and [128 px](brand/explorations/folder-128.png) proofs.
+Use [Grip](../../crates/skyelab-app/icons/grip.svg) in larger native placements such as the 28 px Welcome mark. Use the [uncropped mini-Bean](../../crates/skyelab-app/icons/mark.svg) at 16 px, where the short gap around Grip's hand reads less clearly. Both SVGs have transparent facial cutouts and take a single foreground color.
 
-## Glyph and wordmark
+Set **SkyeLab** in a medium or semibold system sans, with normal spacing and capital S and L. Vertically align the mark and wordmark, with at least a quarter of the mark's width between them. The README lockup uses a 44 px launcher icon beside live text.
 
-<img src="../../crates/skyelab-app/icons/mark.svg" width="32" height="32" alt="Folder with a diamond cutout"> **SkyeLab**
-
-Use the flat SVG at 16 px in compact chrome and menu-bar artwork, and at 28 px above the Welcome prompt. Its single-color silhouette can take the native foreground color. The diamond is transparent.
-
-Set the wordmark as **SkyeLab**, preserving the capital S and L. Use a medium or semibold system sans, with normal spacing. Align it vertically to the mark and leave at least a quarter of the mark’s width between the two. The README pairs the launcher asset with the live heading. Both SVGs are path artwork and contain no font data.
-
-## Color
+## Palette
 
 | Role | Light | Dark |
 | --- | --- | --- |
-| Brand ink on neutral backgrounds | `#184553` | `#CAE8E8` |
-| Flat glyph in app chrome | Theme foreground or sidebar foreground | Theme foreground or sidebar foreground |
-| Launcher tile | `#357A92` → `#184553` | `#357A92` → `#184553` |
-| Launcher face | `#FFFFFF` → `#CAE8E8` | `#FFFFFF` → `#CAE8E8` |
+| Launcher tile | Midnight `#101420` | Midnight `#101420` |
+| Launcher cloud | White `#FFFFFF` | White `#FFFFFF` |
+| Standalone glyph | Midnight `#101420` on white `#FFFFFF` | White `#FFFFFF` on midnight `#101420` |
+| Native glyph | Active theme foreground | Active theme foreground |
 
-The launcher uses one high-contrast tile on both light and dark wallpapers. The brand colors belong to the launcher and external brand treatments. Native chrome follows the zinc light and true-black dark [UI theme](t3-reference.md). Existing account and status tokens carry their existing meanings.
+The native glyph inherits the T3-grounded [UI theme](t3-reference.md). Account and status colors retain their existing meanings.
 
 ## Usage
 
-- Use the rounded tile for launchers and the flat shape in native chrome.
-- Keep the diamond open and preserve the folder tab, proportions, and clear space.
-- Avoid putting the glyph inside an account badge or using brand teal as a status color.
-- Avoid extra outlines, recolored launcher tiles, and small text inside the tile.
-- Regenerate packaged artwork with `scripts/icons.sh` after editing the [launcher source](../../crates/skyelab-app/icons/icon.svg). Keep the folder path aligned with the [flat source](../../crates/skyelab-app/icons/mark.svg).
+- Use the launcher tile for package icons and the one-color glyphs in native chrome.
+- Keep Grip's lower-left crop, tilted face, and hand gap intact. Use mini-Bean when the placement needs a complete silhouette.
+- Keep the navy tile flat and avoid outlines, glow, shadows, extra color, and text inside the tile.
+- Run `scripts/icons.sh` after changing the master. The desktop artwork clips both shapes to the rounded tile. Mobile uses the full tile bounds and the launcher applies its own mask.
+
+## Exploration history
+
+1. [Round 1](brand/explorations/) compared a folder, a flask, and a cloud.
+2. [Round 2](brand/explorations/round2/comparison.png) tried softly lit, glossy cloud mascots.
+3. [Round 3](brand/explorations/round3/comparison.png) moved to flat marks and established Bean.
+4. [Round 4](brand/explorations/round4/comparison.png) reframed Bean and established the Corner crop.
+5. [Round 5](brand/explorations/round5/comparison.png) explored expressions and gestures. Grip was selected for its small hand on the tile edge.
