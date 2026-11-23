@@ -87,6 +87,14 @@ fn regular_file(path: &Path) -> Option<std::fs::Metadata> {
     std::fs::symlink_metadata(path).ok().filter(|m| m.is_file())
 }
 
+/// `dir`'s entries when it is a real dir, not a link: a linked `projects/` or `sessions/` could be another account's.
+fn real_dir(dir: &Path) -> Option<std::fs::ReadDir> {
+    std::fs::symlink_metadata(dir)
+        .ok()
+        .filter(|m| m.is_dir())
+        .and_then(|_| std::fs::read_dir(dir).ok())
+}
+
 /// Reads one transcript, up to `cap` bytes. `None` when it can't be opened or names no session or folder.
 pub fn read(provider: Provider, home: &Path, path: &Path, cap: u64) -> Option<Transcript> {
     let mut t = read_file(provider, path, cap)?;
@@ -183,7 +191,7 @@ fn claude_files(home: &Path, folder: &Path) -> Vec<PathBuf> {
     let name = claude_dir_name(folder);
     // A subfolder's name starts with the folder's, up to the cut; a long folder's own dir is matched whole.
     let prefix = &name[..name.len().min(CLAUDE_DIR_NAME_MAX)];
-    let Ok(dirs) = std::fs::read_dir(home.join("projects")) else {
+    let Some(dirs) = real_dir(&home.join("projects")) else {
         return Vec::new();
     };
     // `file_type` doesn't follow links: a linked dir could be another account's.
