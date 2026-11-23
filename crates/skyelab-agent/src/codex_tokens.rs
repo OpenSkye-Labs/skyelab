@@ -1,7 +1,7 @@
 //! Codex's token readings: `thread/tokenUsage/updated` carries the thread-wide `total` and the newest model call's
 //! `last`.
 
-use crate::Usage;
+use crate::{Event, Usage};
 use serde_json::Value;
 
 /// The thread's `total` from a `tokenUsage` reading. A resumed thread's total starts where it left off, so with no
@@ -22,4 +22,13 @@ pub(super) fn reading(usage: &Value, base: &mut Option<Usage>) -> Option<Usage> 
         });
     }
     Some(total)
+}
+
+/// How full the context is after the newest model call: its `last.totalTokens` against `modelContextWindow`.
+pub(super) fn context(usage: &Value) -> Option<Event> {
+    let tokens = usage["last"]["totalTokens"].as_u64().filter(|t| *t > 0)?;
+    Some(Event::Context {
+        tokens: Some(tokens),
+        window: usage["modelContextWindow"].as_u64().filter(|w| *w > 0),
+    })
 }

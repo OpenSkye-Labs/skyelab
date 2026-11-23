@@ -120,6 +120,15 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
     let Some(mut event) = Event::from_claude(v.clone()) else {
         return Vec::new();
     };
+    if let Some(tokens) = crate::event::claude_context_tokens(&v) {
+        return vec![
+            event,
+            Event::Context {
+                tokens: Some(tokens),
+                window: None,
+            },
+        ];
+    }
     if let Event::Result { prompts, .. } = &mut event {
         let listed: Option<Vec<&str>> = match (&v["user_message_uuids"], &v["user_message_uuid"]) {
             (Value::Array(ids), _) => Some(ids.iter().filter_map(Value::as_str).collect()),
@@ -150,6 +159,12 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
             events.push(Event::SessionGone);
         }
         events.push(event);
+        if let Some(window) = crate::event::claude_context_window(&v) {
+            events.push(Event::Context {
+                tokens: None,
+                window: Some(window),
+            });
+        }
         return events;
     }
     vec![event]

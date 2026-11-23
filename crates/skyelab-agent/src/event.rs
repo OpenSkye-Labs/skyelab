@@ -81,6 +81,16 @@ pub enum Event {
         parent: String,
         content: Vec<Block>,
     },
+    /// How full the context window is: `tokens` the newest model call took in and wrote (Claude: a main assistant
+    /// message's input, cache and output tokens; Codex: `last.totalTokens`), `window` the model's window when the agent
+    /// says (Claude's result `modelUsage.*.contextWindow`, Codex's `modelContextWindow`). Claude sends the two on
+    /// different lines, so either may be missing; the newest of each holds.
+    Context {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tokens: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        window: Option<u64>,
+    },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.
@@ -409,4 +419,27 @@ fn claude_usage(u: &Value) -> Usage {
         input: n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens"),
         output: n("output_tokens"),
     }
+}
+
+/// A main-thread assistant line's context tokens: input, cache writes, cache reads and output. `None` for a subagent's
+/// line and for a placeholder usage with no input.
+pub(crate) fn claude_context_tokens(v: &Value) -> Option<u64> {
+    if v["type"] != "assistant" || !v["parent_tool_use_id"].is_null() {
+        return None;
+    }
+    let u = v["message"].get("usage").filter(|u| u.is_object())?;
+    let n = |k: &str| u[k].as_u64().unwrap_or_default();
+    let input = n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens");
+    (input > 0).then(|| input + n("output_tokens"))
+}
+
+/// The context window a result's `modelUsage` reports. shortcut: the largest of its models (a subagent's Haiku is
+/// listed next to the main model, which in practice has the larger window); upgrade when results name the main model.
+pub(crate) fn claude_context_window(v: &Value) -> Option<u64> {
+    v["modelUsage"]
+        .as_object()?
+        .values()
+        .filter_map(|m| m["contextWindow"].as_u64())
+        .filter(|w| *w > 0)
+        .max()
 }

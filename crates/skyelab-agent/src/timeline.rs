@@ -325,7 +325,11 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
             text: text.clone(),
         }),
         Record::Agent(
-            Event::Init { .. } | Event::Unknown(_) | Event::RateLimit { .. } | Event::SessionGone,
+            Event::Init { .. }
+            | Event::Unknown(_)
+            | Event::RateLimit { .. }
+            | Event::Context { .. }
+            | Event::SessionGone,
         ) => {}
     }
     if items.len() > before {

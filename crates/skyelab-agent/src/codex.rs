@@ -437,7 +437,10 @@ impl Codex {
                 if let Some(total) = tokens::reading(&p["tokenUsage"], &mut self.turn_base) {
                     self.tokens = Some(total);
                 }
-                (Vec::new(), Vec::new())
+                (
+                    tokens::context(&p["tokenUsage"]).into_iter().collect(),
+                    Vec::new(),
+                )
             }
             "turn/plan/updated" => (plan(p).into_iter().collect(), Vec::new()),
             "account/rateLimits/updated" if p["rateLimits"].is_object() => {
@@ -464,3 +467,7 @@ mod tests;
 #[cfg(test)]
 #[path = "codex_stream_tests.rs"]
 mod stream_tests;
+
+#[cfg(test)]
+#[path = "context_stream_test.rs"]
+mod context_stream_test;
