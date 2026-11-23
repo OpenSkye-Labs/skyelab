@@ -12,7 +12,7 @@ const PAGE_GUARD: &str =
     "if (location.protocol !== \"http:\" && location.protocol !== \"https:\") throw 0;\n";
 
 /// Largest eval result handed back, in bytes of JSON text. The page checks it in UTF-16 units (never more than
-/// the bytes), so a huge value stays in the page; the app checks the bytes again.
+/// the bytes), so a huge value stays in the page; the app checks the bytes again. A thrown message is cut to it too.
 pub const MAX_EVAL_OUTPUT: usize = 64 << 10;
 
 pub(crate) fn wrap(expression: &str) -> String {
@@ -21,7 +21,7 @@ pub(crate) fn wrap(expression: &str) -> String {
          const s = `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; \
          if (s.length > {MAX_EVAL_OUTPUT}) return `${{JSON.stringify({{ too_big: s.length }})}}`; \
          return s; }} \
-         catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}` }})}}`; }} }})()"
+         catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}`.slice(0, {MAX_EVAL_OUTPUT}) }})}}`; }} }})()"
     )
 }
 

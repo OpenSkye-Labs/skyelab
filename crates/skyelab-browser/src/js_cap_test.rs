@@ -69,3 +69,17 @@ fn wrapper_refuses_huge_results_in_page() {
         Some(MAX_EVAL_OUTPUT - 20)
     );
 }
+
+#[cfg(target_os = "macos")]
+#[test]
+fn wrapper_cuts_a_huge_thrown_message_in_page() {
+    let thrown = run_in_jsc(&format!(
+        "(() => {{ throw \"x\".repeat({}); }})()",
+        MAX_EVAL_OUTPUT * 4
+    ));
+    let envelope: Value = serde_json::from_str(&thrown).expect("json");
+    assert_eq!(
+        envelope["error"].as_str().map(str::len),
+        Some(MAX_EVAL_OUTPUT)
+    );
+}
