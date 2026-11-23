@@ -7,7 +7,7 @@ use gpui_component::dock::{DockPlacement, panel_handle};
 use skyelab_browser::BrowserView;
 
 /// Makes a fake page engine and its load reports, for a test's agent tabs.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub type FakeEngineFactory = std::rc::Rc<
     dyn Fn() -> (
         std::rc::Rc<dyn skyelab_browser::Engine>,
@@ -29,6 +29,7 @@ impl Workspace {
     }
 
     /// A blank browser pane for an agent tab: a test's fake page, or a real webview.
+    #[cfg(unix)] // agent tabs come from `browser_agent`, which is unix-only
     pub(super) fn new_agent_browser(
         &self,
         window: &mut Window,

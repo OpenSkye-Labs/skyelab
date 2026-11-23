@@ -49,6 +49,11 @@ impl AccountsConfig {
     }
 }
 
+/// A thread with this store status is working on a turn, so it holds one of its parent's child slots.
+pub fn is_busy(status: &str) -> bool {
+    matches!(status, "starting" | "running")
+}
+
 /// Refuses a start from a caller at `depth` that already has `live_children`.
 pub fn check_limits(depth: u32, live_children: usize) -> Result<(), String> {
     if depth >= MAX_DEPTH {
@@ -56,6 +61,11 @@ pub fn check_limits(depth: u32, live_children: usize) -> Result<(), String> {
             "delegation depth limit reached: this thread is {depth} levels down (max {MAX_DEPTH})"
         ));
     }
+    check_children(live_children)
+}
+
+/// Refuses starting or resuming one more child of a parent that already has `live_children` busy.
+pub fn check_children(live_children: usize) -> Result<(), String> {
     if live_children >= MAX_CHILDREN {
         return Err(format!(
             "this thread already has {live_children} running children (max {MAX_CHILDREN}); wait for one to finish"

@@ -13,8 +13,8 @@ const TOKENS: [&str; 8] = [
     "GH_REPO",
 ];
 
-/// The vars the child won't inherit, and the env it gets.
-fn unset(account: &[(&str, &str)]) -> (Vec<String>, HashMap<String, String>) {
+/// The vars the child won't inherit, and the env it gets, on Windows or unix.
+fn unset(account: &[(&str, &str)], windows: bool) -> (Vec<String>, HashMap<String, String>) {
     let env = account
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -28,9 +28,9 @@ fn unset(account: &[(&str, &str)]) -> (Vec<String>, HashMap<String, String>) {
         Some(("prog".into(), vec!["a".into()])),
         env,
         &parent,
-        cfg!(windows),
+        windows,
     );
-    if cfg!(windows) {
+    if windows {
         assert_eq!(program, "prog");
         let gone = env
             .iter()
@@ -66,24 +66,31 @@ fn names(extra: &[&str]) -> Vec<String> {
 
 #[test]
 fn unbound_terminal_drops_every_account_var() {
-    let (gone, _) = unset(&[]);
-    assert_eq!(
-        sorted(gone),
-        names(&["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GH_CONFIG_DIR"])
-    );
+    for windows in [false, true] {
+        let (gone, _) = unset(&[], windows);
+        assert_eq!(
+            sorted(gone),
+            names(&["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GH_CONFIG_DIR"])
+        );
+    }
 }
 
 #[test]
 fn bound_without_gh_dir_still_drops_gh_and_tokens() {
-    let (gone, env) = unset(&[("CLAUDE_CONFIG_DIR", "/acct")]);
-    assert_eq!(sorted(gone), names(&["CODEX_HOME", "GH_CONFIG_DIR"]));
-    assert_eq!(env["CLAUDE_CONFIG_DIR"], "/acct");
+    for windows in [false, true] {
+        let (gone, env) = unset(&[("CLAUDE_CONFIG_DIR", "/acct")], windows);
+        assert_eq!(sorted(gone), names(&["CODEX_HOME", "GH_CONFIG_DIR"]));
+        assert_eq!(env["CLAUDE_CONFIG_DIR"], "/acct");
+    }
 }
 
 #[test]
 fn bound_with_gh_dir_passes_both_dirs_and_drops_tokens() {
-    let (gone, env) = unset(&[("CLAUDE_CONFIG_DIR", "/acct"), ("GH_CONFIG_DIR", "/gh")]);
-    assert_eq!(sorted(gone), names(&["CODEX_HOME"]));
-    assert_eq!(env["CLAUDE_CONFIG_DIR"], "/acct");
-    assert_eq!(env["GH_CONFIG_DIR"], "/gh");
+    for windows in [false, true] {
+        let account = [("CLAUDE_CONFIG_DIR", "/acct"), ("GH_CONFIG_DIR", "/gh")];
+        let (gone, env) = unset(&account, windows);
+        assert_eq!(sorted(gone), names(&["CODEX_HOME"]));
+        assert_eq!(env["CLAUDE_CONFIG_DIR"], "/acct");
+        assert_eq!(env["GH_CONFIG_DIR"], "/gh");
+    }
 }

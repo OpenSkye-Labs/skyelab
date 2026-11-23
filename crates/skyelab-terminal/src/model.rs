@@ -211,6 +211,7 @@ fn parent_names() -> Vec<String> {
 /// agents' allowlist plus shell vars), the caller's env (the bound account), and `TERM`/`COLORTERM`. Every other
 /// var in `parent` is removed: unix runs the command through `env -u ..`. On Windows alacritty adds every inherited
 /// var the env map doesn't name, and has no way to remove one, so each is overridden with an empty value instead.
+/// `windows` picks the branch, so tests cover both on any OS.
 fn launch(
     command: Option<(String, Vec<String>)>,
     mut env: HashMap<String, String>,
@@ -309,11 +310,17 @@ mod env_tests {
 
     #[test]
     fn child_env_never_inherits_the_parents_config_dir() {
+        for windows in [false, true] {
+            config_dir_case(windows);
+        }
+    }
+
+    fn config_dir_case(windows: bool) {
         let cmd = || Some(("prog".to_string(), vec!["a".to_string()]));
         let parent = [CLAUDE_CONFIG_DIR.to_string()];
-        let (program, args, env) = launch(cmd(), HashMap::new(), &parent, cfg!(windows));
+        let (program, args, env) = launch(cmd(), HashMap::new(), &parent, windows);
         assert_eq!(env["TERM"], "xterm-256color");
-        if cfg!(windows) {
+        if windows {
             assert_eq!(
                 (program.as_str(), args.as_slice()),
                 ("prog", &["a".to_string()][..])
@@ -327,7 +334,7 @@ mod env_tests {
         }
 
         let account = HashMap::from([(CLAUDE_CONFIG_DIR.to_string(), "/acct".to_string())]);
-        let (_, args, env) = launch(cmd(), account, &parent, cfg!(windows));
+        let (_, args, env) = launch(cmd(), account, &parent, windows);
         assert!(!args.iter().any(|a| a == CLAUDE_CONFIG_DIR), "{args:?}");
         assert_eq!(env[CLAUDE_CONFIG_DIR], "/acct");
     }
@@ -340,3 +347,7 @@ mod codex_env_test;
 #[cfg(test)]
 #[path = "env_policy_test.rs"]
 mod env_policy_test;
+
+#[cfg(test)]
+#[path = "account_env_platform_test.rs"]
+mod account_env_platform_test;

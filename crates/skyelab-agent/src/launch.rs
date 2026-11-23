@@ -25,15 +25,21 @@ fn candidates(dir: &Path, bin: &Path) -> Vec<PathBuf> {
     vec![dir.join(bin)]
 }
 
-/// Like Windows itself: a name without an extension only matches with a PATHEXT one, so npm's
-/// extensionless sh shim next to `claude.cmd` is never picked.
 #[cfg(windows)]
 fn candidates(dir: &Path, bin: &Path) -> Vec<PathBuf> {
+    pathext_candidates(dir, bin, std::env::var("PATHEXT").ok().as_deref())
+}
+
+/// Like Windows itself: a name without an extension only matches with a PATHEXT one, so npm's
+/// extensionless sh shim next to `claude.cmd` is never picked.
+#[cfg(any(windows, test))]
+fn pathext_candidates(dir: &Path, bin: &Path, pathext: Option<&str>) -> Vec<PathBuf> {
     if bin.extension().is_some() {
         return vec![dir.join(bin)];
     }
-    let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
-    exts.split(';')
+    pathext
+        .unwrap_or(".COM;.EXE;.BAT;.CMD")
+        .split(';')
         .filter(|e| !e.is_empty())
         .map(|e| dir.join(format!("{}{e}", bin.display())))
         .collect()
@@ -49,4 +55,28 @@ fn is_executable(p: &Path) -> bool {
 #[cfg(windows)]
 fn is_executable(p: &Path) -> bool {
     p.is_file()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pathext_candidates;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn pathext_candidates_follow_pathext_and_skip_bare_names() {
+        let dir = Path::new("bin");
+        let got =
+            |bin: &str, pathext: Option<&str>| pathext_candidates(dir, Path::new(bin), pathext);
+        assert_eq!(
+            got("claude", Some(".EXE;;.CMD")),
+            [dir.join("claude.EXE"), dir.join("claude.CMD")]
+        );
+        // a name with an extension is tried as is, never with PATHEXT appended
+        assert_eq!(got("claude.cmd", Some(".EXE")), [dir.join("claude.cmd")]);
+        // no PATHEXT: Windows' own default list, still never the bare (sh shim) name
+        let default: Vec<PathBuf> = got("claude", None);
+        assert_eq!(default.len(), 4);
+        assert!(!default.contains(&dir.join("claude")));
+        assert!(default.contains(&dir.join("claude.CMD")));
+    }
 }

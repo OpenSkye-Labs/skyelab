@@ -48,6 +48,22 @@ fn command_env_is_only_the_allowlist() {
     }
 }
 
+/// None of the vars that point git at another repo is set on the command (`env_clear` drops inherited ones;
+/// scrubbed_env_hooks.rs plants them in a real parent env).
+#[test]
+fn command_strips_inherited_repo_env() {
+    let cmd = command(Path::new("git"), Path::new("."));
+    let set: Vec<_> = cmd.get_envs().map(|(k, _)| k).collect();
+    for var in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_CONFIG_PARAMETERS",
+    ] {
+        assert!(!set.contains(&std::ffi::OsStr::new(var)), "{var} is set");
+    }
+}
+
 #[test]
 fn default_dest_is_per_repo_and_stable() {
     // Pinned values: changing the hash would orphan every existing default worktree directory.

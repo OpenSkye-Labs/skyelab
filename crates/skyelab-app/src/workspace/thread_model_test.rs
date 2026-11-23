@@ -130,3 +130,34 @@ fn agent_links_open_only_web_pages() {
         assert!(!opens_in_browser(bad), "{bad}");
     }
 }
+
+/// The daemon's stand-in for an event too big to send decodes as this app's own row, for both kinds.
+#[test]
+fn oversize_remote_stand_in_decodes_as_a_row() {
+    let big = "x".repeat(skyelab_daemon::MAX_REPLY_BYTES + 1);
+    for record in [
+        Record::Prompt(big.clone()),
+        Record::Agent(Event::Assistant {
+            content: vec![skyelab_agent::Block::Text { text: big.clone() }],
+        }),
+    ] {
+        let (kind, payload) = record.to_row();
+        let wire = skyelab_daemon::event(skyelab_store::Event {
+            thread_id: 1,
+            seq: 7,
+            kind: kind.into(),
+            payload_json: payload,
+            created_at: 0,
+        });
+        assert_eq!(wire.seq, 7);
+        let shown = match Record::from_row(&wire.kind, &wire.payload_json).expect("decodes") {
+            Record::Prompt(text) => text,
+            Record::Agent(Event::Assistant { content }) => match &content[..] {
+                [skyelab_agent::Block::Text { text }] => text.clone(),
+                other => panic!("{other:?}"),
+            },
+            other => panic!("{other:?}"),
+        };
+        assert!(shown.contains("too large"), "{kind}: {shown}");
+    }
+}

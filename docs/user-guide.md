@@ -90,7 +90,9 @@ didn't review, the commit is undone and they stay staged. Push never pushes subm
 
 The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
 current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
-same session (Claude's `--resume`, or Codex's `thread/resume`).
+same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
+another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
+event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
@@ -124,8 +126,9 @@ An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread
 `wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
 parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
-delegate once more (two levels), and a thread can have four children running at a time. Codex threads get the same
-tools, with the same account rule. Not available on Windows yet.
+delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
+when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
+tab says why. Codex threads get the same tools, with the same account rule. Not available on Windows yet.
 
 ## Worktrees
 
@@ -136,6 +139,8 @@ added to the repo's local `info/exclude`, so it never shows up in `git status`.
 The thread header then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not. **Refresh** reloads it.
+  A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one
+  "Diff too large" row with the line count instead: open those in a terminal or your editor.
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.
 - **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.
@@ -168,8 +173,18 @@ Click **Not sharing** in the status bar to open the Remote tab, then turn on **S
 The status bar then reads `Sharing on <machine>.example.ts.net:7287` with the certificate's expiry date, or tells
 you why it couldn't start (Tailscale not installed, not running, logged out, or no certificate).
 
-Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Connected devices are
-listed in the Remote tab, each with a **Disconnect** button. A connected device can list projects and threads,
+Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Each one must also be
+allowed here once:
+
+- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and the Remote tab
+  lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
+  **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
+  the app you just opened. **Deny** turns it down until sharing restarts here.
+- Allowed devices are listed under **Allowed devices** (saved in `settings.toml`). **Revoke** closes its connection
+  at once and forgets it; it has to ask again.
+- An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
+
+Connected devices are listed in the Remote tab, each with a **Disconnect** button. A connected device can list projects and threads,
 start a thread in an existing project, send follow-ups and interrupt. It can't add projects, change accounts or
 bindings, or open terminals. Turning sharing off closes every connection.
 
@@ -177,11 +192,15 @@ bindings, or open terminals. Turning sharing off closes every connection.
 
 The top of the sidebar (**SkyeLab on This Mac ▾**) picks which machine the window shows. Open it to see your online
 devices and recent ones, or type a MagicDNS name such as `desktop.example.ts.net` and click **Connect**. Only full
-MagicDNS names work, not IP addresses or short names. The other machine must have sharing turned on.
+MagicDNS names work, not IP addresses or short names. The other machine must have sharing turned on. The first
+time, it must also allow this device: the status bar says **Waiting for approval** with this device's code; check
+that the other machine shows the same code, click **Allow** there, and this window connects within a few seconds.
 
 On a remote machine, the sidebar lists its projects and threads. You can open threads, start new ones, send
 follow-ups and stop them. The account shown is the one that machine resolved. Terminals and worktree controls are
-local only. Switching back to **This Mac** closes all remote tabs.
+local only. Switching back to **This Mac** closes all remote tabs. A thread that starts on this machine while you
+look at another one (a delegated thread, or one started from your phone) doesn't open among the remote tabs: the
+sidebar shows **This Mac · 1 new thread here**, and clicking it switches back and shows it.
 
 Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
 one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the

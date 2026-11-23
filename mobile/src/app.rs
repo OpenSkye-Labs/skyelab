@@ -38,14 +38,18 @@ pub fn source_for(data_dir: &Path, name: &str) -> std::io::Result<Box<dyn Thread
     }
     #[cfg(not(feature = "demo"))]
     {
-        // Options::default() keeps whatever transport skyelab-client defaults to (wss:// once it lands).
+        let mut options = skyelab_client::Options::default();
+        options.device_key = Some(skyelab_client::load_or_create_device_key(
+            &data_dir.join(DEVICE_KEY_FILE),
+        )?);
         Ok(Box::new(crate::remote::RemoteSource::connect(
-            name,
-            skyelab_client::Options::default(),
-            data_dir,
+            name, options, data_dir,
         )?))
     }
 }
+
+/// This install's device key, in the app's data directory.
+pub const DEVICE_KEY_FILE: &str = "device-key";
 
 pub struct MobileApp {
     data_dir: PathBuf,

@@ -3,7 +3,10 @@
 
 use super::Workspace;
 use super::thread::{Interrupt, SendPrompt, ThreadView};
-use crate::remote::{DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, ToggleSharing};
+use crate::remote::{
+    AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel,
+    RevokeDevice, ToggleSharing,
+};
 use gpui::{
     AppContext as _, Context, Entity, Focusable as _, IntoElement, Subscription, Task, WeakEntity,
     Window, div, prelude::*, px,
@@ -145,6 +148,32 @@ impl Workspace {
     ) {
         if let Some(hook) = &self.remote {
             hook.remote.update(cx, |r, cx| r.disconnect(a.id, cx));
+        }
+    }
+
+    pub(super) fn allow_device(&mut self, a: &AllowDevice, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(hook) = &self.remote {
+            hook.remote
+                .update(cx, |r, cx| r.allow(&a.node_id, &a.key_hash, cx));
+        }
+    }
+
+    pub(super) fn deny_device(&mut self, a: &DenyDevice, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(hook) = &self.remote {
+            hook.remote
+                .update(cx, |r, cx| r.deny(&a.node_id, &a.key_hash, cx));
+        }
+    }
+
+    pub(super) fn revoke_device(
+        &mut self,
+        a: &RevokeDevice,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(hook) = &self.remote {
+            hook.remote
+                .update(cx, |r, cx| r.revoke(&a.node_id, &a.key_hash, cx));
         }
     }
 
@@ -306,7 +335,11 @@ impl Workspace {
 
     pub(super) fn render_remote_status(&self, cx: &Context<Self>) -> Option<impl IntoElement> {
         let remote = self.remote.as_ref()?.remote.read(cx);
-        let (label, dot) = (remote.status.label(), remote.status.color(cx.theme()));
+        // A device waiting for approval matters more than the sharing details.
+        let (label, dot) = match remote.requests.first() {
+            Some(r) => (Remote::request_label(r).into(), cx.theme().warning),
+            None => (remote.status.label(), remote.status.color(cx.theme())),
+        };
         Some(
             Button::new("status-remote")
                 .ghost()
@@ -338,6 +371,7 @@ impl ThreadView {
         let draft = self.prompt.read(cx).value().to_string();
         // Cleared so a refusal that sets the same message again (a rebound folder) still shows up as new.
         let error = self.error.take();
+        let refused = self.resume_refused.take();
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
         self.send_prompt(&SendPrompt, window, cx);
@@ -348,6 +382,12 @@ impl ThreadView {
         if taken {
             return Ok(());
         }
+        // A stopped thread's resume was refused: its folder no longer resolves to the thread's account.
+        if let Some(why) = &self.resume_refused {
+            self.error = error;
+            return Err(why.to_string());
+        }
+        self.resume_refused = refused;
         let rebound = self.error.is_some(); // the only refusal send_prompt explains in `error`
         if !rebound {
             self.error = error;

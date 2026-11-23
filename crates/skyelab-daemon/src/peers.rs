@@ -15,14 +15,21 @@ pub struct Peer {
     /// MagicDNS name, without the trailing dot.
     pub device: String,
     pub user: String,
+    /// The node's Tailscale StableID.
+    pub node_id: String,
 }
 
-pub(crate) type Peers = Arc<Mutex<BTreeMap<u64, (Peer, Arc<Notify>)>>>;
+pub(crate) struct Entry {
+    pub(crate) peer: Peer,
+    pub(crate) kick: Arc<Notify>,
+    /// Set once hello passed with an approved key; a revoke of it closes the connection.
+    pub(crate) approval: Option<crate::Approval>,
+}
+
+pub(crate) type Peers = Arc<Mutex<BTreeMap<u64, Entry>>>;
 
 /// Nothing that holds this lock can panic, but a poisoned map is still a usable map.
-pub(crate) fn lock_peers(
-    peers: &Peers,
-) -> std::sync::MutexGuard<'_, BTreeMap<u64, (Peer, Arc<Notify>)>> {
+pub(crate) fn lock_peers(peers: &Peers) -> std::sync::MutexGuard<'_, BTreeMap<u64, Entry>> {
     peers
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)

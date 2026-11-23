@@ -230,10 +230,7 @@ impl AppHost {
     }
 }
 
-/// Still working on a turn.
-fn busy(status: &str) -> bool {
-    matches!(status, "starting" | "running")
-}
+use skyelab_core::delegation::is_busy as busy;
 
 impl Host for AppHost {
     fn call(&self, caller: &Caller, tool: Tool) -> Result<Value, String> {

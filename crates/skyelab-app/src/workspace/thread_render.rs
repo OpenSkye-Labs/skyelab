@@ -318,6 +318,19 @@ impl Render for ThreadView {
             .children(cta)
             .children(discard_confirm)
             .children(refused)
+            .children((self.unsaved_events > 0).then(|| {
+                div()
+                    .debug_selector(|| "unsaved-events".into())
+                    .mx_4()
+                    .mb_2()
+                    .text_xs()
+                    .text_color(theme.warning)
+                    .child(format!(
+                        "{} events weren't saved (the store refused them). SkyeLab keeps retrying; \
+                         closing this tab or quitting before then loses them.",
+                        self.unsaved_events
+                    ))
+            }))
             .children(self.error.clone().map(|e| {
                 div()
                     .mx_4()

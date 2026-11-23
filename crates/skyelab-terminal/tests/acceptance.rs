@@ -1,14 +1,19 @@
+#[cfg(unix)]
 use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
 
 use alacritty_terminal::term::TermMode;
+#[cfg(unix)]
 use futures::channel::mpsc::UnboundedReceiver;
 use gpui::Keystroke;
-use skyelab_terminal::{Event, OptionKey, SpawnOptions, Terminal, key_to_bytes};
+#[cfg(unix)]
+use skyelab_terminal::{Event, SpawnOptions, Terminal};
+use skyelab_terminal::{OptionKey, key_to_bytes};
 
 /// Feeds events into the model until `done` holds or 10s pass.
+#[cfg(unix)]
 fn pump(term: &mut Terminal, rx: &mut UnboundedReceiver<Event>, done: impl Fn(&Terminal) -> bool) {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !done(term) {
@@ -24,6 +29,7 @@ fn pump(term: &mut Terminal, rx: &mut UnboundedReceiver<Event>, done: impl Fn(&T
     }
 }
 
+#[cfg(unix)]
 fn spawn(
     program: &str,
     args: &[&str],

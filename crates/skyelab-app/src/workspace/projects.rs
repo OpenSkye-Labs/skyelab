@@ -218,6 +218,11 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Some(view) = self.open_view(a.id, cx) {
+            if let Some(at) = self.queued_tabs.iter().position(|q| q == &view) {
+                self.queued_tabs.remove(at);
+                self.dock_thread(&view, window, cx);
+                self.refresh_sidebar(cx);
+            }
             let id = view.entity_id().into();
             self.dock
                 .update(cx, |dock, cx| dock.select_panel(id, window, cx));
@@ -252,6 +257,30 @@ impl Workspace {
         self.add_thread_tab(view, true, window, cx);
     }
 
+    fn dock_thread(
+        &mut self,
+        view: &Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.dock.update(cx, |dock, cx| {
+            dock.add_panel_view(
+                panel_handle(view.clone()),
+                DockPlacement::Center,
+                None,
+                window,
+                cx,
+            );
+        });
+    }
+
+    /// Back on this machine: the tabs that opened meanwhile join the dock.
+    pub(super) fn show_queued_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for view in std::mem::take(&mut self.queued_tabs) {
+            self.dock_thread(&view, window, cx);
+        }
+    }
+
     /// `focus: false` for a tab a remote client opened, so it never takes the local user's keyboard.
     pub(super) fn add_thread_tab(
         &mut self,
@@ -281,15 +310,14 @@ impl Workspace {
         ));
         self.open_threads.retain(|t| t.upgrade().is_some());
         self.open_threads.push(view.downgrade());
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(view.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
+        // Another machine is shown: a tab of this one would sit among its tabs. It waits until the user is back.
+        if !focus && self.is_remote() {
+            self.queued_tabs.push(view);
+            self.refresh_sidebar(cx);
+            cx.notify();
+            return;
+        }
+        self.dock_thread(&view, window, cx);
         if focus {
             view.update(cx, |v, cx| v.focus_prompt(window, cx));
         }

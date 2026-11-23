@@ -292,16 +292,50 @@ fn resolve(bin: &Path) -> Result<PathBuf> {
         )));
     }
     let path = std::env::var_os("PATH").unwrap_or_default();
+    let pathext = std::env::var("PATHEXT").ok();
     std::env::split_paths(&path)
         .filter(|d| d.is_absolute())
-        .flat_map(|d| {
-            let exe = cfg!(windows).then(|| d.join(bin).with_extension("exe"));
-            std::iter::once(d.join(bin)).chain(exe)
-        })
+        .flat_map(|d| candidates(&d, bin, cfg!(windows), pathext.as_deref()))
         .find(|p| p.is_file())
         .ok_or(Error::GhNotInstalled)
 }
 
+/// Like Windows itself: there, a name without an extension only matches with a PATHEXT one, so an extensionless sh
+/// shim is never picked (the same rule as skyelab-agent's `claude` lookup).
+fn candidates(dir: &Path, bin: &Path, windows: bool, pathext: Option<&str>) -> Vec<PathBuf> {
+    if !windows || bin.extension().is_some() {
+        return vec![dir.join(bin)];
+    }
+    pathext
+        .unwrap_or(".COM;.EXE;.BAT;.CMD")
+        .split(';')
+        .filter(|e| !e.is_empty())
+        .map(|e| dir.join(format!("{}{e}", bin.display())))
+        .collect()
+}
+
 pub(crate) fn invalid(why: impl Into<String>) -> Error {
     Error::Invalid(why.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::candidates;
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn gh_candidates_follow_pathext_on_windows_only() {
+        let dir = Path::new("bin");
+        let got = |bin: &str, windows: bool, pathext: Option<&str>| -> Vec<PathBuf> {
+            candidates(dir, Path::new(bin), windows, pathext)
+        };
+        assert_eq!(got("gh", false, Some(".EXE")), [dir.join("gh")]);
+        // Windows: never the extensionless name (a sh shim), and .cmd shims are found too
+        assert_eq!(
+            got("gh", true, Some(".EXE;;.CMD")),
+            [dir.join("gh.EXE"), dir.join("gh.CMD")]
+        );
+        assert!(!got("gh", true, None).contains(&dir.join("gh")));
+        assert_eq!(got("gh.exe", true, Some(".CMD")), [dir.join("gh.exe")]);
+    }
 }

@@ -24,6 +24,8 @@ pub(super) const CONTEXT: &str = "Thread";
 
 #[path = "thread_launch.rs"]
 mod launch;
+#[path = "thread_saves.rs"]
+mod saves;
 #[path = "thread_session.rs"]
 mod session;
 
@@ -56,6 +58,9 @@ pub struct ThreadView {
     pub(super) prompt: Entity<TextareaState>,
     pub(super) thread: Option<Thread>,
     pub(super) session: Option<Arc<Mutex<Session>>>,
+    /// Prompts the session was sent that haven't had their result yet. The row says `idle` only at zero, so a
+    /// follow-up queued behind a running turn keeps its child slot until that one is done too.
+    pub(super) turns: Arc<std::sync::atomic::AtomicUsize>,
     /// The folder was unbound at send time; the view shows the bind call to action.
     pub(super) needs_binding: bool,
     pub(super) items: Vec<Item>,
@@ -72,6 +77,10 @@ pub struct ThreadView {
     pub(super) wt: super::thread_worktree::WorktreeState,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
+    /// Records the store refused, held for a retry, and how many there are (shown as a warning).
+    unsaved: saves::Unsaved,
+    pub(super) unsaved_events: usize,
+    retrying_saves: bool,
     /// The thread whose agent started this one: (id, title).
     pub(super) parent: Option<(i64, SharedString)>,
     /// A delegated start runs only under the account its delegation was approved for.
@@ -225,6 +234,10 @@ impl ThreadView {
             read_only: false,
             wt: Default::default(),
             resume_refused: None,
+            unsaved: Default::default(),
+            unsaved_events: 0,
+            retrying_saves: false,
+            turns: Arc::default(),
             parent: None,
             required_account: None,
             children: Vec::new(),

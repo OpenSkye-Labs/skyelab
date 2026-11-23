@@ -92,23 +92,44 @@ impl ThreadView {
         let tools = crate::workspace::orchestrate::Tools::get(cx);
         let is_new = resume.is_none();
         let pump_store = store.clone();
+        let unsaved = self.unsaved.clone();
         self._task = Some(cx.spawn(async move |this, cx| {
             let started = cx
                 .background_spawn(async move {
-                    let worktree = use_worktree
-                        .then(|| {
-                            crate::workspace::worktree::create(&config, &cwd, &account.id, &text)
-                        })
-                        .transpose()
-                        .context("creating the thread's worktree")?;
-                    let project = cwd;
-                    let cwd = worktree
-                        .as_ref()
-                        .map_or(project.clone(), |w| w.path.clone());
-                    let thread = match resume {
-                        Some(thread) => thread,
-                        None => {
-                            let mut thread = crate::workspace::worktree::save(
+                    // The thread whose slot this launch took, so a failure below gives it back.
+                    let mut claimed = None;
+                    let started = (|| {
+                        let worktree = use_worktree
+                            .then(|| {
+                                crate::workspace::worktree::create(
+                                    &config,
+                                    &cwd,
+                                    &account.id,
+                                    &text,
+                                )
+                            })
+                            .transpose()
+                            .context("creating the thread's worktree")?;
+                        let project = cwd;
+                        let cwd = worktree
+                            .as_ref()
+                            .map_or(project.clone(), |w| w.path.clone());
+                        let thread = match resume {
+                            Some(thread) => {
+                                // A resumed child takes a slot again, under the same lock as its status.
+                                if let Some(parent) = thread.parent_thread_id {
+                                    let store = lock(&store)?;
+                                    crate::workspace::child_slots::claim(
+                                        &store,
+                                        parent,
+                                        Some(thread.id),
+                                    )?;
+                                    store.set_thread_status(thread.id, "starting")?;
+                                    claimed = Some(thread.id);
+                                }
+                                thread
+                            }
+                            None => crate::workspace::worktree::save(
                                 &store,
                                 &project,
                                 &NewThread {
@@ -119,32 +140,40 @@ impl ThreadView {
                                     status: "starting",
                                 },
                                 worktree,
-                            )?;
-                            if let Some(parent) = parent {
-                                lock(&store)?.set_thread_parent(thread.id, Some(parent))?;
-                                thread.parent_thread_id = Some(parent);
-                            }
-                            thread
+                                parent,
+                            )?,
+                        };
+                        if thread.parent_thread_id.is_some() {
+                            claimed = Some(thread.id);
                         }
-                    };
-                    append(
-                        &mut *lock(&store)?,
-                        thread.id,
-                        &Record::Prompt(text.clone()),
-                    )?;
-                    let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
-                    // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
-                    let launch = Launch {
-                        account: &account,
-                        dir: &cwd,
-                        resume: thread.agent_session_id.as_deref(), // a new row has none
-                        prompt: &text,
-                        mcp_config: grant.as_ref().map(|g| g.config_path()),
-                    };
-                    let session = skyelab_agent::start_with_bin(&bin, &config, &launch);
-                    let status = if session.is_ok() { "running" } else { "failed" };
-                    lock(&store)?.set_thread_status(thread.id, status)?;
-                    anyhow::Ok((thread, session, grant))
+                        // A resumed thread's held events go first, or its prompt would be stored ahead of them.
+                        unsaved
+                            .flush(&store, thread.id)
+                            .context("earlier events of this thread aren't saved yet")?;
+                        append(
+                            &mut *lock(&store)?,
+                            thread.id,
+                            &Record::Prompt(text.clone()),
+                        )?;
+                        let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
+                        // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
+                        let launch = Launch {
+                            account: &account,
+                            dir: &cwd,
+                            resume: thread.agent_session_id.as_deref(), // a new row has none
+                            prompt: &text,
+                            mcp_config: grant.as_ref().map(|g| g.config_path()),
+                        };
+                        let session = skyelab_agent::start_with_bin(&bin, &config, &launch);
+                        let status = if session.is_ok() { "running" } else { "failed" };
+                        lock(&store)?.set_thread_status(thread.id, status)?;
+                        anyhow::Ok((thread, session, grant))
+                    })();
+                    // A slot is never held by a thread that isn't running.
+                    if let (Err(_), Some(id)) = (&started, claimed) {
+                        let _ = lock(&store).and_then(|s| s.set_thread_status(id, "failed"));
+                    }
+                    started
                 })
                 .await;
             let _ = this.update(cx, |this, cx| {
@@ -200,7 +229,13 @@ impl ThreadView {
             cx.notify();
             return;
         }
-        let (store, id) = (self.backend.store.clone(), thread.id);
+        let (store, id, parent) = (
+            self.backend.store.clone(),
+            thread.id,
+            thread.parent_thread_id,
+        );
+        let turns = self.turns.clone();
+        let unsaved = self.unsaved.clone();
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         let record = Record::Prompt(text.clone());
         self.push(&record, cx);
@@ -213,15 +248,43 @@ impl ThreadView {
             }
             let sent = write
                 .spawn(async move {
+                    // An idle child that gets a new turn takes a slot again: claimed with its status write.
+                    let was = {
+                        let store = lock(&store)?;
+                        let was = store.thread(id)?.map(|t| t.status).unwrap_or_default();
+                        // Stop or an exit got here first: writing "running" would hold a slot with no process.
+                        if !matches!(was.as_str(), "idle" | "running" | "starting") {
+                            anyhow::bail!("the agent has ended; send again to resume it");
+                        }
+                        if let Some(parent) = parent
+                            && !skyelab_core::delegation::is_busy(&was)
+                        {
+                            crate::workspace::child_slots::claim(&store, parent, Some(id))?;
+                        }
+                        store.set_thread_status(id, "running")?;
+                        // Counted before it is sent, so a quick result can't find zero and mark the row idle early,
+                        // and under the store lock, so a held idle can't land between "running" and the count.
+                        turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        was
+                    };
                     // Queued first, so a full queue stores no prompt claude never got.
-                    lock(&session)?.send_user_message(&text)?;
-                    append(&mut *lock(&store)?, id, &record)?;
-                    lock(&store)?.set_thread_status(id, "running")
+                    if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
+                        turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                        // Only if nothing (a result, Stop) has written since.
+                        let _ = lock(&store).and_then(|s| match s.thread(id)? {
+                            Some(t) if t.status == "running" => s.set_thread_status(id, &was),
+                            _ => Ok(()),
+                        });
+                        return Err(e);
+                    }
+                    // Behind any held replies, and held itself if the store refuses it.
+                    Ok(unsaved.push_and_save(&store, id, Some(record), None).0)
                 })
                 .await;
-            if let Err(e) = sent {
-                let _ = this.update(cx, |this, cx| this.show_error(e, cx));
-            }
+            let _ = this.update(cx, |this, cx| match sent {
+                Ok(left) => this.saved(left, cx),
+                Err(e) => this.show_error(e, cx),
+            });
         }));
     }
 }

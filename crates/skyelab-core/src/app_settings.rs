@@ -15,6 +15,21 @@ pub struct AppSettings {
     /// MagicDNS name (lowercase) → the Tailscale node StableID it answered from when it was trusted. A name that
     /// later answers from another node (a reused device name in a shared tailnet) is refused until trusted again.
     pub environment_nodes: BTreeMap<String, String>,
+    /// Devices allowed to use this machine while it is shared: a client install's key on one tailnet node.
+    pub approved_devices: Vec<ApprovedDevice>,
+}
+
+/// One device the user allowed in the Remote tab.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ApprovedDevice {
+    /// The node's Tailscale StableID.
+    pub node_id: String,
+    /// SHA-256 of the client's device key, hex. The key itself is never stored here.
+    pub key_hash: String,
+    /// The MagicDNS name and login it had when allowed, for the list.
+    pub name: String,
+    pub user: String,
 }
 
 pub const MAX_RECENT_ENVIRONMENTS: usize = 8;

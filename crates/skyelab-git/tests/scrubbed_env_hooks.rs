@@ -20,8 +20,21 @@ const PLANTED: &[&str] = &[
     "GITHUB_TOKEN",
 ];
 
+/// Set inside hooks; inherited, any of them points git at another repo. Planted too, and the setup git here
+/// drops them so only SkyeLab's own calls meet them.
+const REPO_VARS: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_CONFIG_PARAMETERS",
+];
+
 fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
+    let mut cmd = Command::new("git");
+    for var in REPO_VARS {
+        cmd.env_remove(var);
+    }
+    let out = cmd
         .arg("-C")
         .arg(dir)
         .args(args)
@@ -48,6 +61,12 @@ fn assert_clean_env(file: &Path) {
             .any(|l| l.split_once('=').is_some_and(|(k, _)| k == *var));
         assert!(!leaked, "{var} reached {}:\n{env}", file.display());
     }
+    // git sets its own GIT_DIR for hooks; the parent's value must never be the one they see.
+    assert!(
+        !env.contains("=parent-"),
+        "a parent value reached {}:\n{env}",
+        file.display()
+    );
 }
 
 fn setup(base: &Path) -> PathBuf {
@@ -130,6 +149,10 @@ fn scrubbed_in_child() {
             "{var}: {text}"
         );
     }
+    assert!(
+        !text.contains("=parent-"),
+        "a parent value reached the hook: {text}"
+    );
 
     let gh_dir = base.join("gh");
     fs::create_dir_all(&gh_dir).expect("mkdir");
@@ -156,7 +179,7 @@ fn skyelab_git_never_hands_parent_credentials_to_hooks_filters_or_gh() {
     let mut cmd = Command::new(std::env::current_exe().expect("test binary path"));
     cmd.args(["scrubbed_in_child", "--exact", "--nocapture"])
         .env(BASE, &base);
-    for var in PLANTED {
+    for var in PLANTED.iter().chain(REPO_VARS) {
         cmd.env(var, format!("parent-{var}"));
     }
     let out = cmd.output().expect("run child test");

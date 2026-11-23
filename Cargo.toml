@@ -41,6 +41,10 @@ webpki = { package = "rustls-webpki", version = "0.103", default-features = fals
 webpki-roots = "1"
 x509-parser = "0.18"
 rcgen = "0.14"
+# SHA-256 and the system RNG for device keys; already in the tree through rustls.
+ring = "0.17"
+# The macOS keychain, for the desktop's device key. Already in the tree.
+security-framework = "3.7"
 tungstenite = "0.30"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-browser = { path = "crates/skyelab-browser" }

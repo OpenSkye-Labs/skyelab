@@ -1,4 +1,6 @@
 //! A folder that doesn't exist yet, written through a symlink or `..`, must resolve to the binding that owns its real location.
+// Symlinks need unix here: Windows symlink creation needs admin or developer mode.
+#![cfg(unix)]
 
 use skyelab_core::{AccountsConfig, Binding};
 use std::path::Path;
@@ -19,7 +21,6 @@ fn binding(path: &Path, id: &str) -> String {
     )
 }
 
-#[cfg(unix)]
 #[test]
 fn nonexistent_dir_through_symlink_resolves_to_owning_binding() {
     let tmp = tempfile::tempdir().expect("tempdir");

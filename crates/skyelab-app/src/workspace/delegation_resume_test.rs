@@ -26,8 +26,8 @@ fn wait_until(
     panic!("timed out waiting for {what}");
 }
 
-/// How many SkyeLab MCP tool results the thread stored.
-fn mcp_results(store: &SharedStore, thread: i64) -> usize {
+/// `is_error` of each SkyeLab MCP tool result the thread stored, in order.
+fn mcp_results(store: &SharedStore, thread: i64) -> Vec<bool> {
     store
         .lock()
         .expect("lock")
@@ -35,13 +35,19 @@ fn mcp_results(store: &SharedStore, thread: i64) -> usize {
         .expect("events")
         .iter()
         .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
-        .filter(|r| match r {
-            Record::Agent(Event::User { content }) => content.iter().any(|b| {
-                matches!(b, Block::ToolResult { tool_use_id, .. } if tool_use_id.starts_with("toolu_mcp"))
-            }),
-            _ => false,
+        .flat_map(|r| match r {
+            Record::Agent(Event::User { content }) => content,
+            _ => vec![],
         })
-        .count()
+        .filter_map(|b| match b {
+            Block::ToolResult {
+                tool_use_id,
+                is_error,
+                ..
+            } if tool_use_id.starts_with("toolu_mcp") => Some(is_error),
+            _ => None,
+        })
+        .collect()
 }
 
 fn send(view: &Entity<ThreadView>, prompt: &str, cx: &mut VisualTestContext) {
@@ -132,7 +138,7 @@ fn a_resumed_session_still_gets_the_orchestration_tools(cx: &mut TestAppContext)
     });
     let id = id.expect("waited");
     wait_until(cx, "the first session's MCP tool result", |_| {
-        mcp_results(&store, id) == 1
+        mcp_results(&store, id).len() == 1
     });
 
     // Stop, then resume the same thread: the new process must get a grant too.
@@ -144,6 +150,11 @@ fn a_resumed_session_still_gets_the_orchestration_tools(cx: &mut TestAppContext)
     });
     send(&view, "mcp:list_projects:{}", cx);
     wait_until(cx, "the resumed session's MCP tool result", |_| {
-        mcp_results(&store, id) == 2
+        mcp_results(&store, id).len() == 2
     });
+    assert_eq!(
+        mcp_results(&store, id),
+        [false, false],
+        "both sessions' tool calls succeeded under their grant"
+    );
 }

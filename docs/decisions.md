@@ -24,6 +24,9 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   enough). Agents get `--mcp-config <grant file> --allowedTools mcp__skyelab`, and `--strict-mcp-config` keeps
   every other server out. Starts and sends run on the UI thread through `ThreadView`, which re-checks the account rule
   with the config the launch uses. (2026-11-23)
+- **Remote devices are approved one by one.** Whois can't tell the SkyeLab app from another process of the same
+  user, so the daemon also requires an approved per-install device key (keychain on macOS release builds). A key
+  over a TLS client cert: the same storage question, and one less TLS mode to get right. (2026-11-23)
 - **Remote calls reuse the thread view.** The daemon's agent calls are forwarded to the UI thread and run through
   `ThreadView::send_prompt`, so there is one launch path and one place the account is resolved. Sharing is off by
   default and only an explicit toggle turns it on. (2026-11-23)
@@ -91,3 +94,9 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   HOME. Then the socket goes in a fresh dir under the temp dir (else `/tmp`), created exclusively with mode 0700 and
   checked to be a real dir owned like the run dir; grant files stay in the run dir. Removed when the server drops; a
   crash leaves it for the OS's temp cleanup. (2026-11-23)
+- **`AccountsConfig::resolve` stays on the UI thread.** Measured on 2026-11-23 (Apple silicon, internal APFS, release
+  build, `crates/skyelab-core/tests/resolve_cost.rs`): resolve() cost with 20 bindings is about 245 µs per call for an
+  existing folder and 265 µs for a missing one. It runs on keystrokes in Settings' test field, on send and on folder
+  changes, never per frame, so it stays synchronous. Limit: a binding on an unmounted or hung network volume makes
+  each `realpath` wait for the volume's timeout and the UI freezes for that long; move resolve off the UI thread if
+  that shows up. (2026-11-23)

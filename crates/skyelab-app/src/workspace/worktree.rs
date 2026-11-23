@@ -95,17 +95,32 @@ pub(super) fn create(
     Ok(Created { path, branch, base })
 }
 
-/// Creates a new thread's row, with its worktree recorded on it. If that fails, the worktree is
-/// removed again: nothing would point at it, so it would sit in the project forever.
+/// Creates a new thread's row, with its worktree recorded on it, as a child of `parent` if it has one (only
+/// while that parent has a free child slot). If that fails, the worktree is removed again: nothing would point
+/// at it, so it would sit in the project forever.
 pub(super) fn save(
     store: &super::SharedStore,
     project: &Path,
     new: &skyelab_store::NewThread,
     worktree: Option<Created>,
+    parent: Option<i64>,
 ) -> Result<skyelab_store::Thread> {
     let path = worktree.as_ref().map(|w| w.path.clone());
     let saved = super::lock(store).and_then(|store| {
+        if let Some(parent) = parent {
+            super::child_slots::claim(&store, parent, None)?;
+        }
         let mut thread = store.create_thread(new)?;
+        if let Some(parent) = parent {
+            let linked = store.set_thread_parent(thread.id, Some(parent));
+            if let Err(e) = linked {
+                return Err(match store.delete_thread(thread.id) {
+                    Ok(()) => e,
+                    Err(d) => e.context(format!("deleting its half-saved row also failed: {d}")),
+                });
+            }
+            thread.parent_thread_id = Some(parent);
+        }
         let Some(w) = worktree else { return Ok(thread) };
         let recorded = store
             .set_thread_worktree(thread.id, Some(&w.path), Some(&w.branch))

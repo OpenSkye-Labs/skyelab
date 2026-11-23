@@ -5,6 +5,20 @@ use super::*;
 const CODEX: [&str; 3] = ["CODEX_HOME", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"];
 
 #[test]
+fn every_codex_var_is_an_account_var() {
+    for v in CODEX {
+        for windows in [false, true] {
+            for ssh in [false, true] {
+                assert!(
+                    !skyelab_core::env::agent_allowed(v.as_ref(), windows, ssh),
+                    "{v}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn no_codex_var_is_terminal_allowed() {
     for v in CODEX {
         for windows in [false, true] {

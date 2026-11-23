@@ -54,6 +54,8 @@ impl Agents for NotWired {
 
 /// Keeps one reply well under a client's message limit; a client pages by asking again from the last seq.
 pub const MAX_EVENTS_PER_REPLY: usize = 500;
+/// Encoded events in one reply (or one push) stay under this: half the client's 16 MiB message limit.
+pub const MAX_REPLY_BYTES: usize = 8 << 20;
 
 /// Reads come from the store; agent calls go to `A`.
 pub struct StoreBackend<A> {
@@ -148,10 +150,16 @@ impl<A: Agents> Backend for StoreBackend<A> {
 
     fn thread_events_since(&self, thread_id: i64, seq: i64) -> Result<Vec<ThreadEvent>, RpcError> {
         let events = self.with_store(|s| s.events_since(thread_id, seq))?;
+        let mut bytes = 0;
+        // At least one event per page, so paging always makes progress; `event` keeps each one under the cap.
         Ok(events
             .into_iter()
             .take(MAX_EVENTS_PER_REPLY)
             .map(event)
+            .take_while(|e| {
+                bytes += encoded_len(e);
+                bytes <= MAX_REPLY_BYTES
+            })
             .collect())
     }
 
@@ -168,13 +176,34 @@ impl<A: Agents> Backend for StoreBackend<A> {
     }
 }
 
-/// Store event → wire event, for [`crate::Daemon::push_event`].
+/// Store event → wire event, for [`crate::Daemon::push_event`]. One too big for [`MAX_REPLY_BYTES`] keeps its
+/// seq and kind but carries a short notice instead, so a client never gets a frame over its limit.
 pub fn event(e: skyelab_store::Event) -> ThreadEvent {
-    ThreadEvent {
+    let mut ev = ThreadEvent {
         thread_id: e.thread_id,
         seq: e.seq,
         kind: e.kind,
         payload_json: e.payload_json,
         created_at: e.created_at,
+    };
+    let len = encoded_len(&ev);
+    if len > MAX_REPLY_BYTES {
+        let notice = format!(
+            "[This event is too large to show remotely ({} MiB). Open the thread on its own machine.]",
+            len >> 20
+        );
+        // Same shape as the original: a prompt row is a JSON string, an agent row an `Event` (shown as text).
+        ev.payload_json = if ev.payload_json.starts_with('"') {
+            serde_json::Value::String(notice).to_string()
+        } else {
+            serde_json::json!({"Assistant": {"content": [{"type": "text", "text": notice}]}})
+                .to_string()
+        };
     }
+    ev
+}
+
+/// Bytes `ev` takes inside a reply.
+fn encoded_len(ev: &ThreadEvent) -> usize {
+    serde_json::to_vec(ev).map_or(usize::MAX, |v| v.len())
 }
