@@ -123,7 +123,8 @@ impl Workspace {
                 match loaded {
                     // A slow load for a project that is no longer selected changes nothing.
                     Ok(threads) if this.project.as_ref().map(|p| p.id) == Some(project_id) => {
-                        this.threads = threads
+                        this.threads = threads;
+                        this.rerun_search(cx);
                     }
                     Ok(_) => {}
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
@@ -369,6 +370,7 @@ impl Workspace {
                 Some(row) => *row = thread.clone(),
                 None => self.threads.insert(0, thread.clone()),
             }
+            self.rerun_search(cx);
             self.refresh_sidebar(cx);
         }
     }

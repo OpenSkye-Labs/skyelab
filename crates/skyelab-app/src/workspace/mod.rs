@@ -207,6 +207,8 @@ pub struct Workspace {
     thread_search: Option<(String, Option<std::collections::HashSet<i64>>)>,
     _search: Option<Task<()>>,
     _attention: Vec<Subscription>,
+    /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
+    purges: std::collections::HashMap<i64, Task<()>>,
     /// Every notice shown (warnings, undo notices, thread notifications), for tests: the toast list is private.
     #[cfg(test)]
     notices: Vec<SharedString>,
@@ -321,6 +323,7 @@ impl Workspace {
             thread_search: None,
             _search: None,
             _attention: Vec::new(),
+            purges: Default::default(),
             #[cfg(test)]
             notices: Vec::new(),
         };
@@ -420,6 +423,8 @@ mod manage_sidebar_test;
 mod manage_threads_test;
 #[cfg(test)]
 mod palette_search_test;
+#[cfg(test)]
+mod review_fixes_d_test;
 #[cfg(test)]
 mod thread_keys_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script

@@ -272,8 +272,18 @@ impl Workspace {
                 cx,
             );
         }
-        let row = self.threads.iter().find(|t| t.id == id);
-        if row.is_some_and(|t| t.worktree_path.is_some()) {
+        // The open tab's row too: the thread may belong to a project the sidebar no longer lists.
+        let in_list = self
+            .threads
+            .iter()
+            .any(|t| t.id == id && t.worktree_path.is_some());
+        let in_tab = self.open_view(id, cx).is_some_and(|v| {
+            v.read(cx)
+                .thread
+                .as_ref()
+                .is_some_and(|t| t.worktree_path.is_some())
+        });
+        if in_list || in_tab {
             return self.say(
                 "This thread has its own worktree. Discard the worktree first.",
                 window,
@@ -298,14 +308,15 @@ impl Workspace {
                 );
                 let store = ws.backend.store.clone();
                 let timer = cx.background_executor().timer(UNDO_WINDOW);
-                cx.background_spawn(async move {
+                // Replacing an earlier delete's purge cancels it, so each delete gets its full undo window.
+                let purge = cx.background_spawn(async move {
                     timer.await;
                     if let Ok(s) = lock(&store) {
                         // Best effort: a failed purge is retried by the next open.
                         let _ = s.purge_thread(id);
                     }
-                })
-                .detach();
+                });
+                ws.purges.insert(id, purge);
             },
             window,
             cx,
@@ -314,6 +325,7 @@ impl Workspace {
 
     /// Undo for a delete: the thread is listed again (once purged, the store says there is no such thread).
     pub(super) fn undelete_thread(&mut self, id: i64, window: &mut Window, cx: &mut Context<Self>) {
+        self.purges.remove(&id);
         let job: Job = Box::new(move |s| s.set_thread_deleted(id, false));
         self.store_then(job, |ws, _, cx| ws.load_threads(cx), window, cx);
     }

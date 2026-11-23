@@ -137,11 +137,14 @@ impl Workspace {
     /// The selected project's threads as the sidebar lists them: (pinned first, then by last change; the
     /// archived ones), both narrowed by the thread filter.
     pub(super) fn listed_threads(&self) -> (Vec<&Thread>, Vec<&Thread>) {
+        // A title is checked live (rows change after a search ran); message matches come from the last search,
+        // which reruns whenever the thread list reloads.
         let matches = |t: &&Thread| match &self.thread_search {
             None => true,
-            Some((_, Some(ids))) => ids.contains(&t.id),
-            // The store hasn't answered yet: titles only, for now.
-            Some((q, None)) => t.title.to_lowercase().contains(&q.to_lowercase()),
+            Some((q, ids)) => {
+                t.title.to_lowercase().contains(&q.to_lowercase())
+                    || ids.as_ref().is_some_and(|ids| ids.contains(&t.id))
+            }
         };
         let (mut listed, archived): (Vec<&Thread>, Vec<&Thread>) = self
             .threads
@@ -157,6 +160,14 @@ impl Workspace {
         self.listed_threads().0.iter().map(|t| t.id).collect()
     }
 
+    /// The thread list changed (a load, a project switch, a finished turn): run the filter's search again.
+    pub(super) fn rerun_search(&mut self, cx: &mut Context<Self>) {
+        if let Some((q, _)) = &self.thread_search {
+            let q = SharedString::from(q.clone());
+            self.search_threads(q, cx);
+        }
+    }
+
     /// The sidebar's filter changed: search titles and message text of the selected project's threads.
     pub(super) fn search_threads(&mut self, query: SharedString, cx: &mut Context<Self>) {
         let query = query.trim().to_owned();
@@ -165,7 +176,12 @@ impl Workspace {
             self._search = None;
             return self.refresh_sidebar(cx);
         }
-        self.thread_search = Some((query.clone(), None));
+        // Keep the last answer until the new one lands, so rows don't flicker on a rerun.
+        let kept = match self.thread_search.take() {
+            Some((q, ids)) if q == query => ids,
+            _ => None,
+        };
+        self.thread_search = Some((query.clone(), kept));
         self.refresh_sidebar(cx);
         let (store, project) = (
             self.backend.store.clone(),

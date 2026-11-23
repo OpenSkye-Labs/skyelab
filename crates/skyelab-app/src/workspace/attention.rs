@@ -128,6 +128,7 @@ impl Workspace {
         if let Some(t) = self.threads.iter_mut().find(|t| t.id == id) {
             t.unread = true;
         }
+        self.rerun_search(cx); // the turn added message text the filter may match
         self.refresh_sidebar(cx);
         if thread.archived_at.is_none() {
             let note = Notification::success(thread.title).title("Thread completed");
