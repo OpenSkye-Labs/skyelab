@@ -10,6 +10,20 @@ thread of the current project to open, or an open tab to go to. Type a few lette
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
 
+## Layout
+
+The sidebar lists your projects, each with the account its folder is bound to; the selected project's threads sit
+under it with their state (**Working**, **Interrupted**, **Failed**) or how long ago they last changed. Threads open
+in the center. Tools open in the right panel beside the thread: **Changes**, browsers and **Devices**. Settings and
+Remote open in the center.
+
+The three buttons at the right end of the center's tab bar show and hide the sidebar (<kbd>⌘B</kbd>), the terminal
+drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag a panel's edge to resize it.
+
+SkyeLab remembers the window's size and position and the right panel's width and whether it was open, in
+`settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
+no longer connected is ignored.
+
 ## Accounts and bindings
 
 SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
@@ -96,8 +110,8 @@ event, and saves them in order once the store works again. Closing the tab or qu
 Closing a thread's tab or quitting SkyeLab stops its agent. A thread that was still running when SkyeLab last closed
 without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
 
-The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
-tab for your dev server.
+The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
+as. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
 
 A terminal runs as the folder's account: `claude` or `codex` typed there uses that account's config dir, and
 `gh` and `git push` over https use its GitHub login when it has one (without one, `gh` keeps your default login
@@ -125,7 +139,7 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 ### Delegated threads
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
-`wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
+`wait_thread`, and others). The new thread opens as a tab. Its header starts with a link back to the
 parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
