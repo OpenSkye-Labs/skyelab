@@ -35,6 +35,7 @@ pub(super) fn rig(cx: &mut TestAppContext) -> Rig {
                 label: format!("{id} account"),
                 config_dir: root.join(format!(".claude-{id}")),
                 gh_config_dir: None,
+                ssh_agent: false,
                 provider: Default::default(),
             })
             .expect("account");
