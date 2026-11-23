@@ -1,6 +1,6 @@
 //! A short-lived child's output is read through `skyelab_core::process` (temp files, read after the child exits),
 //! never through a pipe read to EOF, which any process that inherited the pipe can hold open forever. This scans
-//! every crate's src/. The one exception is the agent's own stdin/stdout, which stream for the session's life.
+//! every crate's src/. The exceptions are the agent's own stdin, stdout and stderr, which stream for the session's life.
 
 use std::path::Path;
 

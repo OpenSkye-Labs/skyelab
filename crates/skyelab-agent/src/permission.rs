@@ -30,7 +30,7 @@ impl Mode {
         }
     }
 
-    /// An unknown value (a newer build's) reads as the safest mode.
+    /// An unknown value (a newer build's) reads as Ask.
     pub fn parse(s: &str) -> Mode {
         Mode::ALL
             .into_iter()
@@ -61,26 +61,43 @@ pub enum Decision {
     Withdrawn,
 }
 
-/// One line saying what a tool call does: its command, or the file it touches, else its input as JSON. At most
-/// 200 characters.
+const SUMMARY_MAX: usize = 200;
+
+/// One line saying what a tool call does: its command, the file it touches, or the folder it wants to write in,
+/// else its input as JSON. At most [`SUMMARY_MAX`] characters.
 pub fn summary(input: &Value) -> String {
-    let text = ["command", "file_path", "path", "url", "pattern", "query"]
-        .iter()
-        .find_map(|k| match &input[k] {
-            Value::String(s) => Some(s.clone()),
-            Value::Array(parts) => Some(
-                parts
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            ),
-            _ => None,
-        })
-        .unwrap_or_else(|| input.to_string());
+    let text = [
+        "command",
+        "file_path",
+        "path",
+        "url",
+        "pattern",
+        "query",
+        "grantRoot",
+        "reason",
+    ]
+    .iter()
+    .find_map(|k| match &input[k] {
+        Value::String(s) => Some(s.clone()),
+        Value::Array(parts) => Some(
+            parts
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" "),
+        ),
+        _ => None,
+    })
+    .unwrap_or_else(|| input.to_string());
     let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    match line.char_indices().nth(200) {
-        Some((at, _)) => format!("{}…", &line[..at]),
+    match line.char_indices().nth(SUMMARY_MAX) {
+        Some(_) => {
+            let cut = line
+                .char_indices()
+                .nth(SUMMARY_MAX - 1)
+                .map_or(0, |(at, _)| at);
+            format!("{}…", &line[..cut])
+        }
         None => line,
     }
 }
@@ -107,6 +124,12 @@ mod tests {
         );
         assert_eq!(summary(&json!({"x": 1})), r#"{"x":1}"#);
         let long = summary(&json!({ "command": "a".repeat(500) }));
-        assert_eq!(long.chars().count(), 201);
+        assert_eq!(long.chars().count(), 200);
+        let exact = summary(&json!({ "command": "b".repeat(200) }));
+        assert_eq!(exact, "b".repeat(200), "fits, so not cut");
+        assert_eq!(
+            summary(&json!({ "grantRoot": "/Users/x", "reason": "r" })),
+            "/Users/x"
+        );
     }
 }

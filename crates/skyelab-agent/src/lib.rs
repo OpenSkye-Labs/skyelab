@@ -42,8 +42,9 @@ pub struct Session {
     /// Set for Codex: the protocol state the reader thread shares.
     codex: Option<Arc<Mutex<codex::Codex>>>,
     sent: claude::Sent,
-    /// Claude's permission asks waiting for [`Session::answer`].
     asks: claude::Asks,
+    /// The mode it started in: Claude takes Full access later only if it started with it.
+    launched: Mode,
     /// Where [`Session::answer`] reports its answer. Weak, so the channel still closes with the agent's stdout.
     events_tx: flume::WeakSender<Event>,
     /// stderr not yet taken by [`Session::take_stderr`], at most [`STDERR_TAIL`] bytes.
@@ -157,7 +158,12 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
 
     let (tx, events) = flume::unbounded();
     let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
-    let codex = codex.map(|(state, opening)| (Arc::new(Mutex::new(state)), opening));
+    // Ask ids carry this, so one stored by an earlier process never names an ask of this one.
+    let nonce = format!("{}-", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+    let codex = codex.map(|(mut state, opening)| {
+        state.nonce = nonce.clone();
+        (Arc::new(Mutex::new(state)), opening)
+    });
     // Built before the threads spawn, so every error below still kills and reaps the child on drop.
     let mut session = Session {
         child,
@@ -167,7 +173,8 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         next_request: 0,
         codex: codex.as_ref().map(|(state, _)| state.clone()),
         sent: claude::Sent::default(),
-        asks: claude::Asks::default(),
+        asks: claude::Book::new(nonce),
+        launched: mode,
         events_tx: tx.downgrade(),
         stderr: Arc::default(),
         #[cfg(windows)]
@@ -178,16 +185,22 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     {
         session.job = Some(job_for(&session.child).context("putting the agent in a Job Object")?);
     }
-    let parse: Box<Parse> = match codex {
+    // At stdout's end the agent is gone: nothing it still asks can be answered.
+    let (parse, eof): (Box<Parse>, Box<dyn FnOnce() -> Vec<Event> + Send>) = match codex {
         None => {
             let (sent, asks) = (session.sent.clone(), session.asks.clone());
-            Box::new(move |line| claude::parse(line, &sent, &asks))
+            let open = asks.clone();
+            (
+                Box::new(move |line| claude::parse(line, &sent, &asks)),
+                Box::new(move || claude::withdraw_all(&open)),
+            )
         }
         Some((state, opening)) => {
             for line in opening {
                 session.queue(line)?;
             }
-            Box::new(move |line| {
+            let open = state.clone();
+            let parse = Box::new(move |line: &str| {
                 let Ok(v) = serde_json::from_str::<Value>(line) else {
                     return vec![Event::Unknown(Value::String(line.to_owned()))];
                 };
@@ -196,12 +209,18 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
                     let _ = stdin_tx.try_send(reply); // a full queue: codex stopped reading, nothing to save
                 }
                 events
-            })
+            });
+            (parse, Box::new(move || lock(&open).withdraw_all()))
         }
     };
     std::thread::Builder::new()
         .name("skyelab-agent-reader".into())
-        .spawn(move || read_events(stdout, &tx, parse))
+        .spawn(move || {
+            read_events(stdout, &tx, parse);
+            for e in eof() {
+                let _ = tx.send(e);
+            }
+        })
         .context("spawning reader thread")?;
     let tail = session.stderr.clone();
     std::thread::Builder::new()
@@ -251,9 +270,9 @@ fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str
         "--permission-prompt-tool",
         "stdio",
     ])
+    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
     .args(match mode {
-        Mode::Default => vec![],
-        Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
+        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
         Mode::Bypass => vec![
             "--permission-mode",
             mode.claude(),
@@ -317,7 +336,12 @@ impl Session {
         let Some(line) = line else {
             bail!("the agent is no longer waiting for that answer");
         };
+        // Forgotten only once queued: a full queue leaves it open, to be answered again.
         self.queue(line)?;
+        match &self.codex {
+            Some(state) => lock(state).forget(id),
+            None => claude::forget(&self.asks, id),
+        }
         if let Some(tx) = self.events_tx.upgrade() {
             let _ = tx.send(Event::PermissionResolved {
                 id: id.to_owned(),
@@ -327,11 +351,17 @@ impl Session {
         Ok(())
     }
 
-    /// Changes the running agent's permission mode: Claude's at once, Codex's from its next turn.
+    /// Changes the running agent's permission mode: Claude's at once, Codex's from its next turn. Claude takes Full
+    /// access only if it started in it; otherwise this fails and it keeps its mode until it starts again.
     pub fn set_mode(&mut self, mode: Mode) -> Result<()> {
         if let Some(state) = &self.codex {
             lock(state).set_mode(mode);
             return Ok(());
+        }
+        if mode == Mode::Bypass && self.launched != Mode::Bypass {
+            bail!(
+                "Full access applies when this agent starts again: stop it, then send a message to continue"
+            );
         }
         self.next_request += 1;
         let request_id = format!("skyelab-{}", self.next_request);

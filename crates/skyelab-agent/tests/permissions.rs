@@ -72,12 +72,12 @@ fn args(s: &Session) -> String {
 #[test]
 fn claude_mode_flags() {
     let cases = [
-        (Mode::Default, None),
-        (Mode::Plan, Some("--permission-mode plan")),
-        (Mode::AcceptEdits, Some("--permission-mode acceptEdits")),
+        (Mode::Default, "--permission-mode default"),
+        (Mode::Plan, "--permission-mode plan"),
+        (Mode::AcceptEdits, "--permission-mode acceptEdits"),
         (
             Mode::Bypass,
-            Some("--permission-mode bypassPermissions --allow-dangerously-skip-permissions"),
+            "--permission-mode bypassPermissions --allow-dangerously-skip-permissions",
         ),
     ];
     for (mode, flag) in cases {
@@ -87,10 +87,7 @@ fn claude_mode_flags() {
             args.contains("--permission-prompt-tool stdio"),
             "{mode:?}: {args}"
         );
-        match flag {
-            Some(flag) => assert!(args.contains(flag), "{mode:?}: {args}"),
-            None => assert!(!args.contains("--permission-mode"), "{mode:?}: {args}"),
-        }
+        assert!(args.contains(flag), "{mode:?}: {args}");
     }
 }
 
@@ -101,7 +98,12 @@ fn asked(prompt: &str) -> (Session, tempfile::TempDir, String) {
         Event::Permission { id, tool, input } => Some((id.clone(), tool.clone(), input.clone())),
         _ => None,
     });
-    assert_eq!((id.as_str(), tool.as_str()), ("perm-1", "Bash"));
+    // The CLI's request id, after this session's nonce.
+    assert!(
+        id.ends_with("-perm-1") && id.len() > "-perm-1".len(),
+        "{id}"
+    );
+    assert_eq!(tool, "Bash");
     assert_eq!(input, json!({ "command": "make deploy" }));
     (s, tmp, id)
 }
@@ -121,7 +123,7 @@ fn claude_allow_reaches_agent_and_waits() {
         Event::PermissionResolved { id, decision } => Some((id.clone(), *decision)),
         _ => None,
     });
-    assert_eq!(resolved, ("perm-1".into(), Decision::AllowOnce));
+    assert_eq!(resolved, (id.clone(), Decision::AllowOnce));
     let r = reply(&s);
     assert_eq!(r["type"], "control_response");
     assert_eq!(r["response"]["request_id"], "perm-1");
@@ -158,6 +160,10 @@ fn claude_allow_thread_sends_session_rules() {
 fn answer_unknown_id_fails() {
     let (mut s, _tmp, id) = asked("permit please");
     assert!(s.answer("perm-9", Decision::AllowOnce).is_err());
+    assert!(
+        s.answer("perm-1", Decision::AllowOnce).is_err(),
+        "the bare CLI id isn't ours"
+    );
     assert!(s.answer(&id, Decision::Withdrawn).is_err());
     s.answer(&id, Decision::Deny).expect("first answer");
     assert!(s.answer(&id, Decision::AllowOnce).is_err(), "answered once");
@@ -170,6 +176,7 @@ fn claude_cancel_withdraws() {
         Event::PermissionResolved { id, decision } => Some((id.clone(), *decision)),
         _ => None,
     });
-    assert_eq!(resolved, ("perm-2".into(), Decision::Withdrawn));
-    assert!(s.answer("perm-2", Decision::AllowOnce).is_err());
+    assert!(resolved.0.ends_with("-perm-2"), "{resolved:?}");
+    assert_eq!(resolved.1, Decision::Withdrawn);
+    assert!(s.answer(&resolved.0, Decision::AllowOnce).is_err());
 }

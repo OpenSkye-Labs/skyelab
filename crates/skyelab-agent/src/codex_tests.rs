@@ -105,11 +105,12 @@ fn approval_requests_wait_for_an_answer_and_others_are_refused() {
         vec![Event::Permission {
             id: "codex-7".into(),
             tool: "shell".into(),
-            input: json!({ "command": "make deploy", "cwd": "/w", "reason": null }),
+            input: json!({ "command": "make deploy", "cwd": "/w" }),
         }]
     );
     assert_eq!(c.answer("codex-8", Decision::AllowOnce), None);
     let reply = c.answer("codex-7", Decision::AllowThread).expect("open");
+    c.forget("codex-7");
     assert_eq!(
         parse(&reply),
         json!({ "id": 7, "result": { "decision": "acceptForSession" } })
@@ -145,7 +146,7 @@ fn resolved_elsewhere_or_turn_end_withdraws_requests() {
 fn mode_sets_the_policy_and_a_change_rides_the_next_turn() {
     for (mode, approval, sandbox) in [
         (Mode::Default, "untrusted", "workspace-write"),
-        (Mode::AcceptEdits, "on-request", "workspace-write"),
+        (Mode::AcceptEdits, "untrusted", "workspace-write"),
         (Mode::Plan, "on-request", "read-only"),
         (Mode::Bypass, "never", "danger-full-access"),
     ] {
@@ -162,6 +163,15 @@ fn mode_sets_the_policy_and_a_change_rides_the_next_turn() {
     let params = &parse(&turn[0])["params"];
     assert_eq!(params["approvalPolicy"], "on-request");
     assert_eq!(params["sandboxPolicy"], json!({ "type": "readOnly" }));
+
+    // A refused turn/start never applied it, so the next turn carries it again.
+    let mut c = open();
+    c.set_mode(Mode::Bypass);
+    let turn = p(&mut c, "a");
+    p(&mut c, "b");
+    let id = parse(&turn[0])["id"].clone();
+    let (_, writes) = c.on_line(json!({ "id": id, "error": { "code": 1, "message": "nope" } }));
+    assert_eq!(parse(&writes[0])["params"]["approvalPolicy"], "never");
 }
 
 #[test]

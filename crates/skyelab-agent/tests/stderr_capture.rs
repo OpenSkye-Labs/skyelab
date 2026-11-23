@@ -1,5 +1,5 @@
 #![cfg(unix)]
-//! The agent's stderr is kept per session, newest bytes first, at most `STDERR_TAIL`.
+//! The agent's stderr is kept per session: only the newest `STDERR_TAIL` bytes, in order.
 
 use skyelab_agent::{Launch, STDERR_TAIL, Session, start_with_bin};
 use skyelab_core::{Account, AccountsConfig, Binding};
@@ -42,19 +42,24 @@ fn stderr_capture_is_capped() {
     let (_tmp, dir) = tempdir();
     let s = start("stderr-flood", &dir);
     let deadline = Instant::now() + Duration::from_secs(10);
-    let mut seen = String::new();
-    while !seen.ends_with("END") {
+    let (mut all, mut largest) = (String::new(), 0);
+    while !all.ends_with("END") {
         assert!(
             Instant::now() < deadline,
             "no END on stderr: {} bytes",
-            seen.len()
+            all.len()
         );
         std::thread::sleep(Duration::from_millis(50));
         let more = s.take_stderr();
-        seen = if more.is_empty() { seen } else { more };
+        largest = largest.max(more.len());
+        all += &more;
     }
-    assert!(seen.len() <= STDERR_TAIL, "{} bytes kept", seen.len());
-    assert_eq!(seen.len(), STDERR_TAIL, "the newest bytes fill the tail");
+    assert!(largest <= STDERR_TAIL, "{largest} bytes kept at once");
+    assert!(
+        all.len() < 204_800,
+        "the oldest bytes were dropped: {} kept",
+        all.len()
+    );
     assert!(s.take_stderr().is_empty(), "taken once");
 }
 

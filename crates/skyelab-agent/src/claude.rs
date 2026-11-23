@@ -14,49 +14,83 @@ fn sent(s: &Sent) -> std::sync::MutexGuard<'_, VecDeque<String>> {
     s.lock().unwrap_or_else(|e| e.into_inner()) // a set of ids, consistent after a panic
 }
 
-/// Permission asks (`can_use_tool` control requests) not answered yet, by request id: the tool's input and the
-/// CLI's suggested rules, which an answer sends back.
-pub(crate) type Asks = Arc<Mutex<BTreeMap<String, Ask>>>;
+/// Permission asks (`can_use_tool` control requests) not answered yet. The id an [`Event::Permission`] carries is
+/// `nonce` + the CLI's request id: the nonce is new per process, so an ask stored by an earlier process can never
+/// name one of this process's.
+#[derive(Default)]
+pub(crate) struct Book {
+    nonce: String,
+    open: BTreeMap<String, Ask>,
+}
 
-pub(crate) struct Ask {
+impl Book {
+    pub(crate) fn new(nonce: String) -> Asks {
+        Arc::new(Mutex::new(Book {
+            nonce,
+            open: BTreeMap::new(),
+        }))
+    }
+}
+
+pub(crate) type Asks = Arc<Mutex<Book>>;
+
+struct Ask {
+    request_id: String,
     tool: String,
     input: Value,
     suggestions: Value,
 }
 
-pub(crate) fn asks(a: &Asks) -> std::sync::MutexGuard<'_, BTreeMap<String, Ask>> {
+pub(crate) fn asks(a: &Asks) -> std::sync::MutexGuard<'_, Book> {
     a.lock().unwrap_or_else(|e| e.into_inner()) // plain data, consistent after a panic
 }
 
-/// The `control_response` line answering ask `id` with `decision`, or `None` when `id` isn't open.
+/// The `control_response` line answering ask `id` with `decision`, or `None` when `id` isn't open. The ask stays
+/// open until [`forget`]: the line may still fail to reach the agent.
 pub(crate) fn answer(open: &Asks, id: &str, decision: Decision) -> Option<Value> {
-    let ask = asks(open).remove(id)?;
+    let book = asks(open);
+    let ask = book.open.get(id)?;
     let response = match decision {
         Decision::AllowOnce => json!({ "behavior": "allow", "updatedInput": ask.input }),
-        Decision::AllowThread => {
-            // Claude's own suggestions, kept to this process: never written to the project's or user's settings.
-            let mut rules: Vec<Value> = ask.suggestions.as_array().cloned().unwrap_or_default();
-            for r in &mut rules {
-                r["destination"] = json!("session");
-            }
-            if rules.is_empty() {
-                rules.push(json!({
-                    "type": "addRules",
-                    "rules": [{ "toolName": ask.tool }],
-                    "behavior": "allow",
-                    "destination": "session",
-                }));
-            }
-            json!({ "behavior": "allow", "updatedInput": ask.input, "updatedPermissions": rules })
-        }
+        Decision::AllowThread => json!({
+            "behavior": "allow",
+            "updatedInput": ask.input,
+            "updatedPermissions": session_rules(ask),
+        }),
         Decision::Deny | Decision::Withdrawn => {
             json!({ "behavior": "deny", "message": "The user denied this in SkyeLab." })
         }
     };
     Some(json!({
         "type": "control_response",
-        "response": { "subtype": "success", "request_id": id, "response": response },
+        "response": { "subtype": "success", "request_id": ask.request_id, "response": response },
     }))
+}
+
+pub(crate) fn forget(open: &Asks, id: &str) {
+    asks(open).open.remove(id);
+}
+
+/// What "Allow for this thread" adds: only Claude's suggested allow rules, kept to this process (never written to
+/// a settings file). Suggestions that change the mode, add directories or replace rules are dropped. With none left,
+/// a rule for this exact command, or for the tool when it has no command.
+fn session_rules(ask: &Ask) -> Vec<Value> {
+    let mut rules: Vec<Value> = ask
+        .suggestions
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|r| r["type"] == "addRules" && r["behavior"] == "allow" && r["rules"].is_array())
+        .map(|r| json!({ "type": "addRules", "rules": r["rules"], "behavior": "allow", "destination": "session" }))
+        .collect();
+    if rules.is_empty() {
+        let rule = match ask.input["command"].as_str() {
+            Some(command) => json!({ "toolName": ask.tool, "ruleContent": command }),
+            None => json!({ "toolName": ask.tool }),
+        };
+        rules.push(json!({ "type": "addRules", "rules": [rule], "behavior": "allow", "destination": "session" }));
+    }
+    rules
 }
 
 /// The stream-json line for a user prompt, recorded in `pending`.
@@ -102,16 +136,21 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
             }
         };
         *prompts = u32::try_from(answered).unwrap_or(u32::MAX);
-        // The turn is over, so nothing still asking can be answered any more.
-        let mut events = withdraw_all(open);
+        // A turn of ours ended, so nothing it asked can be answered any more. A background wake ends none.
+        let mut events = if answered > 0 {
+            withdraw_all(open)
+        } else {
+            Vec::new()
+        };
         events.push(event);
         return events;
     }
     vec![event]
 }
 
-fn withdraw_all(open: &Asks) -> Vec<Event> {
-    std::mem::take(&mut *asks(open))
+/// Every open ask, withdrawn: its turn or its process is over.
+pub(crate) fn withdraw_all(open: &Asks) -> Vec<Event> {
+    std::mem::take(&mut asks(open).open)
         .into_keys()
         .map(|id| Event::PermissionResolved {
             id,
@@ -126,15 +165,18 @@ fn control(line: &str, open: &Asks) -> Option<Vec<Event>> {
         return None; // most lines: skip the second parse
     }
     let v: Value = serde_json::from_str(line).ok()?;
-    let id = v["request_id"].as_str()?.to_owned();
+    let request_id = v["request_id"].as_str()?.to_owned();
+    let mut book = asks(open);
+    let id = format!("{}{request_id}", book.nonce);
     match v["type"].as_str()? {
         "control_request" if v["request"]["subtype"] == "can_use_tool" => {
             let r = &v["request"];
             let tool = r["tool_name"].as_str().unwrap_or("tool").to_owned();
             let input = r["input"].clone();
-            asks(open).insert(
+            book.open.insert(
                 id.clone(),
                 Ask {
+                    request_id,
                     tool: tool.clone(),
                     input: input.clone(),
                     suggestions: r["permission_suggestions"].clone(),
@@ -143,7 +185,7 @@ fn control(line: &str, open: &Asks) -> Option<Vec<Event>> {
             Some(vec![Event::Permission { id, tool, input }])
         }
         "control_cancel_request" => Some(
-            asks(open)
+            book.open
                 .remove(&id)
                 .map(|_| Event::PermissionResolved {
                     id,
@@ -178,5 +220,23 @@ mod tests {
         );
         assert!(matches!(events[1], Event::Result { .. }));
         assert!(answer(&open, "r1", Decision::AllowOnce).is_none());
+        assert!(withdraw_all(&open).is_empty());
+    }
+
+    #[test]
+    fn a_background_wake_keeps_the_turns_open_asks() {
+        let (sent, open) = (Sent::default(), Asks::default());
+        user_message("hello", &sent);
+        let ask = r#"{"type":"control_request","request_id":"r","request":{"subtype":"can_use_tool","tool_name":"Read","input":{}}}"#;
+        let id = match &parse(ask, &sent, &open)[..] {
+            [Event::Permission { id, .. }] => id.clone(),
+            other => panic!("{other:?}"),
+        };
+        let wake = r#"{"type":"result","is_error":false,"duration_ms":1,"result":"wake","origin":{"kind":"task-notification"}}"#;
+        parse(wake, &sent, &open);
+        assert!(
+            answer(&open, &id, Decision::Deny).is_some(),
+            "background wake discarded foreground approval"
+        );
     }
 }

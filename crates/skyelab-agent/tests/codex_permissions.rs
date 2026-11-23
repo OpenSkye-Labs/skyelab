@@ -41,7 +41,7 @@ fn next(s: &Session) -> Event {
         .expect("event within 10s")
 }
 
-/// The params of the fake's echo of the first line it read with `method`, or the first JSON-RPC reply with `id`.
+/// The params of the first line the fake echoes back that `pick` accepts.
 fn report(s: &Session, pick: impl Fn(&Value) -> bool) -> Value {
     loop {
         if let Event::Unknown(v) = next(s)
