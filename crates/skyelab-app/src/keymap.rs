@@ -54,25 +54,52 @@ pub fn init(path: Option<PathBuf>, cx: &mut App) {
     });
     let Some(path) = path else { return };
     let (stamp, text) = read(&path, None);
-    load(text.as_deref(), cx);
+    load_read(text.unwrap_or(Ok(String::new())), cx);
     let watch = cx.spawn(async move |cx| watch(path, stamp, cx).await);
     cx.global_mut::<Keymap>()._watch = Some(watch);
 }
 
 type Stamp = Option<(SystemTime, u64)>;
 
-/// The file's stamp, and its text when the stamp differs from `last` (a missing file reads as empty).
-fn read(path: &Path, last: Option<Stamp>) -> (Stamp, Option<String>) {
-    let stamp = std::fs::metadata(path)
+/// The file at its last read: its text, or why it couldn't be read.
+type Read = Result<String, String>;
+
+/// Files over this are refused unread: a keymap is a few KB.
+const MAX_FILE: u64 = 1024 * 1024;
+
+/// The file's stamp, and what it holds when the stamp differs from `last` (a missing file reads as empty). Only a
+/// regular file is opened: a FIFO there would block the read for good.
+fn read(path: &Path, last: Option<Stamp>) -> (Stamp, Option<Read>) {
+    let meta = std::fs::metadata(path);
+    let stamp = meta
+        .as_ref()
         .ok()
         .and_then(|m| Some((m.modified().ok()?, m.len())));
     if last == Some(stamp) {
         return (stamp, None);
     }
-    (
-        stamp,
-        Some(std::fs::read_to_string(path).unwrap_or_default()),
-    )
+    let text = match meta {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(e.to_string()),
+        Ok(m) if !m.is_file() => Err("it isn't a regular file".to_owned()),
+        Ok(m) if m.len() > MAX_FILE => Err("it is over 1 MB".to_owned()),
+        Ok(_) => std::fs::read_to_string(path).map_err(|e| e.to_string()),
+    };
+    (stamp, Some(text))
+}
+
+/// [`load`] from what [`read`] found; a file that can't be read keeps only the defaults and says why.
+fn load_read(read: Read, cx: &mut App) {
+    match read {
+        Ok(text) => load(Some(&text), cx),
+        Err(why) => {
+            load(None, cx);
+            cx.global_mut::<Keymap>().problems.push(Problem {
+                line: 1,
+                reason: format!("can't read the file ({why}), so only the built-in keys apply"),
+            });
+        }
+    }
 }
 
 async fn watch(path: PathBuf, mut stamp: Stamp, cx: &mut AsyncApp) {
@@ -86,7 +113,7 @@ async fn watch(path: PathBuf, mut stamp: Stamp, cx: &mut AsyncApp) {
             .await;
         stamp = now;
         if let Some(text) = text {
-            cx.update(|cx| load(Some(&text), cx));
+            cx.update(|cx| load_read(text, cx));
         }
     }
 }
@@ -133,7 +160,22 @@ fn binding(rule: &Rule, cx: &App) -> Result<KeyBinding, String> {
     };
     let context = KeyBindingContextPredicate::parse(&rule.context)
         .map_err(|e| format!("bad context `{}`: {e}", rule.context))?;
-    if rule.key.contains('+') {
+    // GPUI takes any name, so a typo would bind a key that never fires: names come from the built-in bindings.
+    let known = known_contexts(&cx.global::<Keymap>().defaults);
+    if let Some(name) = names(&context).into_iter().find(|n| !known.contains(n)) {
+        let mut all: Vec<&str> = known.iter().map(|n| n.as_ref()).collect();
+        all.sort_unstable();
+        return Err(format!(
+            "unknown context `{name}` (known: {})",
+            all.join(", ")
+        ));
+    }
+    // `+` is a key of its own (cmd-+), never a join (cmd+k).
+    if rule
+        .key
+        .split('-')
+        .any(|part| part.len() > 1 && part.contains('+'))
+    {
         return Err(format!(
             "bad key `{}`: join keys with `-`, e.g. cmd-shift-k",
             rule.key
@@ -141,6 +183,29 @@ fn binding(rule: &Rule, cx: &App) -> Result<KeyBinding, String> {
     }
     KeyBinding::load(&rule.key, action, Some(Rc::new(context)), false, None, cx)
         .map_err(|_| format!("bad key `{}`", rule.key))
+}
+
+/// The context names a predicate tests for (`a > b && !c` names a, b and c).
+fn names(p: &KeyBindingContextPredicate) -> Vec<gpui::SharedString> {
+    use KeyBindingContextPredicate as P;
+    match p {
+        P::Identifier(n) | P::Equal(n, _) | P::NotEqual(n, _) => vec![n.clone()],
+        P::Not(a) => names(a),
+        P::Descendant(a, b) | P::And(a, b) | P::Or(a, b) => {
+            let mut all = names(a);
+            all.extend(names(b));
+            all
+        }
+    }
+}
+
+/// Every context name the built-in bindings use, which is every context a view sets that has keys.
+fn known_contexts(defaults: &[KeyBinding]) -> std::collections::HashSet<gpui::SharedString> {
+    defaults
+        .iter()
+        .filter_map(KeyBinding::predicate)
+        .flat_map(|p| names(&p))
+        .collect()
 }
 
 #[cfg(test)]

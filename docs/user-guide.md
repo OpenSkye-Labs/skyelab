@@ -35,8 +35,8 @@ context = "Workspace"    # optional: Workspace (the default, the whole window), 
 
 The built-in keys stay; your rules go on top and win where they share a key. A rule only applies where its context
 is: one in `Terminal` works only with a terminal focused, and a text field's own keys still win inside it. Saved
-changes apply within a second, no restart. A rule SkyeLab can't use (an unknown action, a bad key or context) is
-skipped and shown once in a notice and on the Settings page, with its line number; the rest of the file still loads.
+changes apply within a second, no restart. A rule SkyeLab can't use (an unknown action, a bad key, or a context
+that is misspelled or one no built-in key uses) is skipped and shown once in a notice and on the Settings page, with its line number; the rest of the file still loads.
 The palette and the Welcome page show the keys in effect.
 
 ## Files
