@@ -57,6 +57,8 @@ pub struct ThreadSettings {
     pub codex_effort: Option<String>,
     /// New threads start with "New worktree" on.
     pub new_worktree: bool,
+    /// Minutes between background `git fetch`es of the shown thread's folder; 0 is off.
+    pub fetch_minutes: u32,
 }
 
 impl ThreadSettings {
@@ -80,6 +82,7 @@ impl Default for ThreadSettings {
             codex_model: None,
             codex_effort: None,
             new_worktree: false,
+            fetch_minutes: 5,
         }
     }
 }

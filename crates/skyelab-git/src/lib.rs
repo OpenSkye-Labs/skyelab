@@ -8,6 +8,7 @@ mod checkpoint;
 mod commit;
 mod diff;
 mod publish;
+mod remote;
 mod status;
 mod summary;
 mod worktree;
@@ -28,6 +29,10 @@ pub use diff::{
     diff_stat, diff_trees, diff_with,
 };
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
+pub use remote::{
+    Checks, FailedCheck, MAX_FAILED_CHECKS, PrState, PrStatus, Review, ahead_behind, fetch,
+    gh_logged_in, parse_pr_view, pr_status, pull_ff,
+};
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use summary::{MAX_DIFF, PrContext, TRUNCATED, commit_diff, pr_context};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};

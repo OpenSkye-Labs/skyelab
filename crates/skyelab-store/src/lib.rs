@@ -66,6 +66,8 @@ pub struct Thread {
     pub unread: bool,
     /// The thread this one was forked from, if any.
     pub forked_from: Option<i64>,
+    /// The linked pull request's state when it was last read (`open`, `draft`, `merged`, `closed`).
+    pub pr_state: Option<String>,
 }
 
 /// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
@@ -112,7 +114,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from";
+pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from, pr_state";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -329,6 +331,7 @@ impl Store {
             archived_at: None,
             unread: false,
             forked_from: None,
+            pr_state: None,
         })
     }
 
@@ -411,8 +414,23 @@ impl Store {
         self.update_thread(id, "permission_mode", mode)
     }
 
+    /// Links (or unlinks) the thread's pull request; the state read for the old one goes with it.
     pub fn set_thread_pr_url(&self, id: i64, url: Option<&str>) -> Result<()> {
-        self.update_thread(id, "pr_url", url)
+        let n = self.conn.execute(
+            "UPDATE threads SET pr_url = ?2, pr_state = NULL, updated_at = ?3 WHERE id = ?1",
+            params![id, url, now_ms()],
+        )?;
+        expect_one(n, "thread", id)
+    }
+
+    /// The state the PR at `url` was read in. A background read, so `updated_at` (the sidebar's order) stays, and a
+    /// PR relinked since the read began is left alone.
+    pub fn set_thread_pr_state(&self, id: i64, url: &str, state: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE threads SET pr_state = ?3 WHERE id = ?1 AND pr_url = ?2",
+            params![id, url, state],
+        )?;
+        Ok(())
     }
 
     fn update_thread(
@@ -480,6 +498,7 @@ pub(crate) fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         archived_at: r.get(16)?,
         unread: r.get(17)?,
         forked_from: r.get(18)?,
+        pr_state: r.get(19)?,
     })
 }
 

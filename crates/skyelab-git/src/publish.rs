@@ -54,7 +54,7 @@ pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Resul
             "SkyeLab won't push to a remote named {remote}"
         )));
     }
-    let urls = check_push_urls(&root, &remote)?;
+    let urls = check_urls(&root, &remote, true)?;
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let refspec = format!("HEAD:refs/heads/{branch}");
     let mut cmd = hooked_command(Path::new("git"), &root);
@@ -71,14 +71,14 @@ pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Resul
     Ok(format!("{remote}/{branch}"))
 }
 
-/// Every URL `remote` pushes to (git pushes to all of them), each only an https URL without credentials (the bound
-/// gh answers) or a local path (nothing to log in to). An ssh key, a token in the URL or a rewrite to either would
-/// push as someone no account binds.
-fn check_push_urls(root: &Path, remote: &str) -> Result<Vec<String>> {
-    let out = lossy(&git(
-        root,
-        &["remote", "get-url", "--push", "--all", remote],
-    )?);
+/// Every URL `remote` pushes to (git pushes to all of them), or fetches from without `push`, each only an https URL
+/// without credentials (the bound gh answers) or a local path (nothing to log in to). An ssh key, a token in the URL
+/// or a rewrite to either would act as someone no account binds.
+pub(crate) fn check_urls(root: &Path, remote: &str, push: bool) -> Result<Vec<String>> {
+    let mut args = vec!["remote", "get-url"];
+    args.extend(push.then_some("--push"));
+    args.extend(["--all", remote]);
+    let out = lossy(&git(root, &args)?);
     let urls: Vec<String> = out
         .lines()
         .map(str::trim)
@@ -98,8 +98,9 @@ fn check_push_urls(root: &Path, remote: &str) -> Result<Vec<String>> {
     }
     // The URL itself isn't shown: it may hold a token.
     Err(invalid(format!(
-        "a push URL of {remote} isn't a plain https:// URL. SkyeLab pushes only over https, where the account's \
-         gh login answers; an ssh key or a token in the URL can't be bound to an account"
+        "a {} URL of {remote} isn't a plain https:// URL. SkyeLab pushes and fetches only over https, where the \
+         account's gh login answers; an ssh key or a token in the URL can't be bound to an account",
+        if push { "push" } else { "fetch" }
     )))
 }
 
@@ -213,7 +214,7 @@ pub fn gh_login(gh: &GitHub) -> Result<Option<String>> {
 }
 
 /// `gh` in `dir` with the scrubbed env (see `hooked_command`) and the bound config dir.
-fn gh_command(gh: &GitHub, dir: &Path, args: &[&str]) -> Result<Command> {
+pub(crate) fn gh_command(gh: &GitHub, dir: &Path, args: &[&str]) -> Result<Command> {
     let mut cmd = Command::new(resolve(gh.gh)?);
     cmd.env_clear()
         .envs(skyelab_core::env::inherited_agent_env(false))
@@ -226,7 +227,7 @@ fn gh_command(gh: &GitHub, dir: &Path, args: &[&str]) -> Result<Command> {
     Ok(cmd)
 }
 
-fn current_branch(root: &Path) -> Result<String> {
+pub(crate) fn current_branch(root: &Path) -> Result<String> {
     let out = crate::output(Path::new("git"), root, &["symbolic-ref", "--quiet", "HEAD"])?;
     let full = lossy(&out.stdout).trim().to_owned();
     // Not `--short`: with a tag of the same name it answers `heads/<branch>`.

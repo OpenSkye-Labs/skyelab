@@ -178,4 +178,7 @@ CREATE TRIGGER drafts_thread_delete AFTER DELETE ON threads BEGIN
     DELETE FROM draft_files WHERE owner = 'thread:' || OLD.id;
 END;
 ",
+    // Version 14: the linked pull request's last read state ('open', 'draft', 'merged', 'closed'), so an ended PR
+    // isn't read again after a restart.
+    "ALTER TABLE threads ADD COLUMN pr_state TEXT;",
 ];

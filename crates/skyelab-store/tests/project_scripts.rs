@@ -128,7 +128,7 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
         .expect("raw")
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 13);
+    assert_eq!(version, 14);
     let t = store.thread(pinned).expect("read").expect("kept");
     assert!(t.pinned_at.is_some() && t.unread);
     let a = store.thread(archived).expect("read").expect("kept");
