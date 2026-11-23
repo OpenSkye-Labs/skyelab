@@ -16,6 +16,10 @@ macro_rules! cost_rule {
 /// An imported turn (`skyelab_agent::import`: no cost, duration or usage) ends the search as an unknown baseline.
 macro_rules! turn_cost {
     ($e:literal) => {
+        turn_cost!($e, "")
+    };
+    // `$skip`: more conditions on `p`, the earlier results searched for the baseline.
+    ($e:literal, $skip:expr) => {
         cost_rule!(
             [concat!("COALESCE(json_extract(", $e, ".payload_json, '$.Result.total_cost_usd'), 0)")],
             [concat!(
@@ -27,10 +31,22 @@ macro_rules! turn_cost {
                         OR (COALESCE(json_extract(p.payload_json, '$.Result.total_cost_usd'), 0) = 0
                             AND json_extract(p.payload_json, '$.Result.duration_ms') = 0
                             AND json_extract(p.payload_json, '$.Result.is_error') = 0
-                            AND COALESCE(json_type(p.payload_json, '$.Result.usage'), 'null') = 'null'))
+                            AND COALESCE(json_type(p.payload_json, '$.Result.usage'), 'null') = 'null'))",
+                $skip,
+                "
                  ORDER BY p.seq DESC LIMIT 1"
             )]
         )
+    };
+}
+
+/// [`turn_cost`]'s extra condition from version 20: a result copied into a fork (dated before the fork was made) is no
+/// baseline for the fork's turns.
+macro_rules! fork_copy {
+    () => {
+        "
+                   AND NOT EXISTS (SELECT 1 FROM threads f WHERE f.id = p.thread_id AND f.forked_from IS NOT NULL
+                                   AND p.created_at <= f.created_at)"
     };
 }
 
@@ -317,4 +333,31 @@ CREATE TRIGGER side_chats_delete AFTER DELETE ON threads BEGIN
     DELETE FROM threads WHERE side_of = OLD.id;
 END;
 ",
+    // Version 20: a fork's turns never take its copied history (dated before the fork) as their baseline. Its first
+    // session is fresh, so the running total in its first result is all that turn's own. Forks' stored turns are
+    // counted again.
+    concat!(
+        "
+DROP TRIGGER turn_usage_insert;
+CREATE TRIGGER turn_usage_insert AFTER INSERT ON events
+WHEN NEW.kind = 'agent' AND instr(NEW.payload_json, '\"Result\"') > 0 AND json_valid(NEW.payload_json)
+     AND json_type(NEW.payload_json, '$.Result') = 'object'
+BEGIN
+    INSERT OR REPLACE INTO turn_usage
+        SELECT NEW.thread_id, NEW.seq, t.account_id, t.project_id, ",
+        turn_cost!("NEW", fork_copy!()),
+        ",
+               COALESCE(json_extract(NEW.payload_json, '$.Result.usage.input'), 0),
+               COALESCE(json_extract(NEW.payload_json, '$.Result.usage.output'), 0),
+               NEW.created_at
+        FROM threads t WHERE t.id = NEW.thread_id
+          AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR NEW.created_at > t.created_at);
+END;
+UPDATE turn_usage SET cost_usd = (SELECT ",
+        turn_cost!("e", fork_copy!()),
+        " FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq)
+WHERE thread_id IN (SELECT id FROM threads WHERE forked_from IS NOT NULL)
+  AND EXISTS (SELECT 1 FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq);
+"
+    ),
 ];

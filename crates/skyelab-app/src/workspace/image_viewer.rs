@@ -15,26 +15,10 @@ use gpui_component::{
 };
 use gpui_kit_assets::IconName as Lucide;
 use skyelab_agent::{Attachment, AttachmentKind};
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 /// Zoom steps over the fitted size; step 0 is Fit.
 pub(in crate::workspace) const ZOOMS: [f32; 6] = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0];
-
-/// An image the viewer can show.
-#[derive(Clone)]
-pub(in crate::workspace) enum Shown {
-    Path(PathBuf),
-    Bytes(Arc<Image>),
-}
-
-impl Shown {
-    fn source(&self) -> ImageSource {
-        match self {
-            Shown::Path(p) => p.clone().into(),
-            Shown::Bytes(b) => b.clone().into(),
-        }
-    }
-}
 
 /// A sent message's images, named, for its thumbnails.
 pub(in crate::workspace) type Sent = Vec<(SharedString, Arc<Image>)>;
@@ -60,7 +44,8 @@ pub(in crate::workspace) fn zoom_step(ix: usize, dir: i32) -> usize {
 }
 
 pub(in crate::workspace) struct ImageViewer {
-    shown: Shown,
+    /// Bytes, never a path: GPUI caches a path's image for the session, so an edited file would show stale.
+    shown: Arc<Image>,
     name: SharedString,
     zoom: usize,
 }
@@ -78,7 +63,7 @@ impl ImageViewer {
 
 /// Opens `shown` in the dialog over the window.
 pub(in crate::workspace) fn open(
-    shown: Shown,
+    shown: Arc<Image>,
     name: SharedString,
     window: &mut Window,
     cx: &mut App,
@@ -170,7 +155,7 @@ impl Render for ImageViewer {
                     })
                     // img() takes its height from its width and aspect ratio: max_h keeps it to the box.
                     .child(
-                        img(self.shown.source())
+                        img(self.shown.clone())
                             .flex_none()
                             .w(w * z)
                             .h(h * z)
@@ -200,9 +185,7 @@ pub(in crate::workspace) fn thumbnails(id: usize, images: &Sent) -> AnyElement {
                         .size_full()
                         .object_fit(ObjectFit::Cover),
                 )
-                .on_click(move |_, window, cx| {
-                    open(Shown::Bytes(image.clone()), name.clone(), window, cx)
-                })
+                .on_click(move |_, window, cx| open(image.clone(), name.clone(), window, cx))
         }))
         .into_any_element()
 }

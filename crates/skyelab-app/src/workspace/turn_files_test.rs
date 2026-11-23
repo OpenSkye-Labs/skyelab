@@ -17,6 +17,7 @@ fn done() -> Item {
         usage: None,
         at_ms: None,
         error: None,
+        copied: false,
     }
 }
 

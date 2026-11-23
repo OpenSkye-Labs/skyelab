@@ -3,13 +3,17 @@
 //! rasterizes it to a PNG. No web view, no network, and every image href is refused: the renderer writes `<image>`
 //! for some shapes, and GPUI's own SVG path would load an href from any file.
 
-use std::sync::{Arc, Condvar, LazyLock, Mutex, PoisonError};
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use futures::future::{Either, select};
 use gpui::{App, Hsla, SharedString};
 use gpui_component::text::{MarkdownNode, MarkdownParseContext, markdown_ast::Node};
 use resvg::{tiny_skia, usvg};
+
+#[cfg(test)]
+#[path = "mermaid_pool_test.rs"]
+mod pool_test;
 
 /// The custom markdown node's name.
 pub(super) const NODE: &str = "mermaid";
@@ -22,48 +26,37 @@ const SCALE: f32 = 2.0;
 /// How long a render may take before the block falls back to code.
 pub(super) const RENDER_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// At most this many diagrams draw at once: a reply full of them waits its turn, not every core and a 64 MB pixmap
-/// each. A render past its timeout keeps its slot to its end, so runaways can't pile up either.
+/// At most this many diagrams draw at once, each on one of this many worker threads: a reply full of them queues,
+/// not a thread and a 64 MB pixmap each. A render past its timeout keeps its worker to its end, so runaways can't
+/// pile up either.
 const MAX_RENDERS: usize = 2;
-static RENDERS: Gate = Gate::new(MAX_RENDERS);
+static RENDERS: LazyLock<Pool> = LazyLock::new(|| Pool::new(MAX_RENDERS));
 
-/// A counting semaphore for render threads.
-pub(super) struct Gate {
-    max: usize,
-    live: Mutex<usize>,
-    freed: Condvar,
-}
+type Job = Box<dyn FnOnce() + Send>;
 
-/// One held place in a [`Gate`], given back on drop (a panicking render included).
-pub(super) struct Slot<'a>(&'a Gate);
+/// A fixed set of worker threads that run queued jobs in order. A panicking job is caught, so its worker stays.
+pub(super) struct Pool(flume::Sender<Job>);
 
-impl Gate {
-    pub(super) const fn new(max: usize) -> Self {
-        Self {
-            max,
-            live: Mutex::new(0),
-            freed: Condvar::new(),
+impl Pool {
+    pub(super) fn new(threads: usize) -> Self {
+        let (tx, rx) = flume::unbounded::<Job>();
+        for _ in 0..threads {
+            let rx = rx.clone();
+            // A worker that can't start leaves the rest; with none, a render fails at once ("the renderer stopped").
+            let _ = std::thread::Builder::new()
+                .name("mermaid".into())
+                .spawn(move || {
+                    while let Ok(job) = rx.recv() {
+                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(job));
+                    }
+                });
         }
+        Self(tx)
     }
 
-    /// Waits for a place.
-    pub(super) fn take(&self) -> Slot<'_> {
-        let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
-        while *live >= self.max {
-            live = self
-                .freed
-                .wait(live)
-                .unwrap_or_else(PoisonError::into_inner);
-        }
-        *live += 1;
-        Slot(self)
-    }
-}
-
-impl Drop for Slot<'_> {
-    fn drop(&mut self) {
-        *self.0.live.lock().unwrap_or_else(PoisonError::into_inner) -= 1;
-        self.0.freed.notify_one();
+    /// Queues `job`. The workers hold the receiver for the app's life, so the send can't fail while they run.
+    pub(super) fn run(&self, job: impl FnOnce() + Send + 'static) {
+        let _ = self.0.send(Box::new(job));
     }
 }
 
@@ -270,19 +263,15 @@ impl gpui::Asset for Render {
     ) -> impl Future<Output = Self::Output> + Send + 'static {
         let timeout = cx.background_executor().timer(RENDER_TIMEOUT);
         let (tx, rx) = futures::channel::oneshot::channel();
-        // Its own thread, not the pool: a render past the timeout runs on to its end, and must not hold a pool
-        // thread while it does.
-        let started = std::thread::Builder::new()
-            .name("mermaid".into())
-            .spawn(move || {
-                let _slot = RENDERS.take();
-                // Timed out while waiting: the block already shows code.
-                if !tx.is_canceled() {
-                    _ = tx.send(render_png(&source, palette));
-                }
-            });
+        // Its own workers, not the executor's: a render past the timeout runs on to its end, and must not hold an
+        // executor thread while it does.
+        RENDERS.run(move || {
+            // Timed out while queued: the block already shows code.
+            if !tx.is_canceled() {
+                _ = tx.send(render_png(&source, palette));
+            }
+        });
         async move {
-            started.map_err(|e| SharedString::from(e.to_string()))?;
             let png = match select(rx, timeout).await {
                 Either::Left((Ok(png), _)) => png?,
                 Either::Left((Err(_), _)) => return Err("the renderer stopped".into()),

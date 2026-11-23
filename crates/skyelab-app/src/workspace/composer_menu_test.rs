@@ -107,7 +107,7 @@ fn commands_and_skills_come_from_the_given_account_dir() {
     )
     .expect("write");
 
-    let labels: Vec<String> = command_items(Provider::Claude, &account, &project)
+    let labels: Vec<String> = command_items(Provider::Claude, &account, &project, false)
         .into_iter()
         .map(|i| i.label)
         .collect();
@@ -122,7 +122,7 @@ fn commands_and_skills_come_from_the_given_account_dir() {
         !labels.iter().any(|l| l == "/leak"),
         "another account's command: {labels:?}"
     );
-    let ship = command_items(Provider::Claude, &account, &project)
+    let ship = command_items(Provider::Claude, &account, &project, false)
         .into_iter()
         .find(|i| i.label == "/ship")
         .expect("ship");
@@ -135,7 +135,7 @@ fn commands_and_skills_come_from_the_given_account_dir() {
         ("$review", "/review ")
     );
     assert_eq!(skill_items(Provider::Codex, &account)[0].insert, "$review ");
-    assert!(command_items(Provider::Codex, &account, &project).is_empty());
+    assert!(command_items(Provider::Codex, &account, &project, false).is_empty());
 }
 
 #[gpui::test]

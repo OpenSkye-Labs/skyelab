@@ -8,9 +8,21 @@ pub(crate) mod prefs;
 #[path = "thread_title.rs"]
 pub(super) mod title;
 
+#[cfg(test)]
+#[path = "context_fence_test.rs"]
+mod context_fence_test;
+#[cfg(test)]
+#[path = "context_fence_title_test.rs"]
+mod context_fence_title_test;
 #[cfg(all(test, unix))]
 #[path = "draft_test.rs"]
 mod draft_test;
+#[cfg(test)]
+#[path = "fork_cost_reload_test.rs"]
+mod fork_cost_reload_test;
+#[cfg(test)]
+#[path = "fork_cost_test.rs"]
+mod fork_cost_test;
 #[cfg(test)]
 #[path = "fork_cut_gone_test.rs"]
 mod fork_cut_gone_test;

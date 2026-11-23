@@ -22,7 +22,8 @@ pub(super) fn files(home: &Path, folder: &Path) -> Vec<PathBuf> {
 }
 
 fn walk(dir: &Path, depth: u8, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
+    // The top dir too: `sessions/` itself may be a link.
+    let Some(entries) = super::real_dir(dir) else {
         return;
     };
     for e in entries.flatten() {

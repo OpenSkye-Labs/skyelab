@@ -250,8 +250,12 @@ fn a_link_in_the_repos_commands_folder_is_skipped() {
     std::fs::write(tmp.path().join("secret.txt"), "TOP SECRET").expect("write");
     std::os::unix::fs::symlink(tmp.path().join("secret.txt"), cmds.join("leak.md")).expect("link");
     std::fs::write(cmds.join("real.md"), "Real one").expect("write");
-    let items =
-        super::composer_menu::command_items(Provider::Claude, &tmp.path().join("acct"), &project);
+    let items = super::composer_menu::command_items(
+        Provider::Claude,
+        &tmp.path().join("acct"),
+        &project,
+        false,
+    );
     assert!(items.iter().any(|i| i.label == "/real"));
     assert!(
         !items

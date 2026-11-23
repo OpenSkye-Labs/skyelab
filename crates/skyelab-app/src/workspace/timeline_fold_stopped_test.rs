@@ -31,6 +31,7 @@ fn a_stopped_turn_does_not_fold_into_the_next_one() {
             usage: None,
             at_ms: Some(1),
             error: None,
+            copied: false,
         },
     ];
     assert_eq!(

@@ -4,7 +4,7 @@
 //! reaps the child while holding the session lock.
 
 use super::thread_find::FindHost as _;
-use super::thread_model::{Item, Record, apply, limit_after, stamp_done};
+use super::thread_model::{Item, Record, apply, limit_after, replay, stamp_done};
 use super::{Backend, SharedStore, lock};
 use anyhow::Result;
 use gpui::{
@@ -32,6 +32,8 @@ pub(super) mod composer;
 mod follow_up;
 #[path = "thread_launch.rs"]
 mod launch;
+#[path = "thread_mode.rs"]
+mod mode;
 #[path = "thread_saves.rs"]
 mod saves;
 #[path = "thread_session.rs"]
@@ -217,16 +219,17 @@ impl ThreadView {
             let _ = this.update(cx, |this, cx| match loaded {
                 Ok((row, (parent, children, sides), skipped, records)) => {
                     if let Some(row) = row {
-                        this.mode = Mode::parse(&row.permission_mode);
+                        this.mode = super::side_chat::row_mode(&row);
                         this.thread = Some(row);
                     }
                     this.parent = parent;
                     this.children = children;
                     this.details.side_chats = sides;
                     this.finish(cx);
+                    let fork_made = this.thread.as_ref().filter(|t| t.forked_from.is_some());
+                    let fork_made = fork_made.map(|t| t.created_at);
                     for (r, at) in &records {
-                        apply(&mut this.items, r);
-                        stamp_done(&mut this.items, *at);
+                        replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
                     }
                     this.lists.reset(this.items.len());
@@ -376,56 +379,6 @@ impl ThreadView {
             self.lists.splice(rows, n);
         }
         cx.notify();
-    }
-
-    /// Picks the thread's permission mode. Full access waits for [`Self::confirm_mode`].
-    pub fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
-        if mode == Mode::Bypass && self.mode != Mode::Bypass {
-            self.confirm_bypass = true;
-            return cx.notify();
-        }
-        self.apply_mode(mode, cx);
-    }
-
-    /// The user confirmed Full access (or turned it down).
-    pub fn confirm_mode(&mut self, yes: bool, cx: &mut Context<Self>) {
-        let asked = std::mem::take(&mut self.confirm_bypass);
-        if yes && asked {
-            self.apply_mode(Mode::Bypass, cx);
-        }
-        cx.notify();
-    }
-
-    fn apply_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
-        self.confirm_bypass = false;
-        if self.mode == mode {
-            return cx.notify();
-        }
-        self.mode = mode;
-        self.write_mode(cx);
-        cx.notify();
-    }
-
-    /// Sends the newest mode to the running agent, then to the store row.
-    pub(super) fn write_mode(&mut self, cx: &mut Context<Self>) {
-        let ix = Mode::ALL.iter().position(|m| *m == self.mode).unwrap_or(0);
-        self.mode_now.store(ix, std::sync::atomic::Ordering::SeqCst);
-        let row = self.thread.as_mut().map(|t| {
-            t.permission_mode = self.mode.as_str().to_owned();
-            t.id
-        });
-        let (store, session) = (self.backend.store.clone(), self.session.clone());
-        let (writes, now) = (self.mode_writes.clone(), self.mode_now.clone());
-        self.in_background(cx, move || {
-            let _one_at_a_time = lock(&writes)?;
-            let mode = Mode::ALL[now.load(std::sync::atomic::Ordering::SeqCst)];
-            // Each step runs even if the other fails, so a store error never leaves the agent on the old mode.
-            let live = session.map_or(Ok(()), |s| lock(&s)?.set_mode(mode));
-            let stored = row.map_or(Ok(()), |id| {
-                lock(&store)?.set_thread_permission_mode(id, mode.as_str())
-            });
-            live.and(stored)
-        });
     }
 
     fn show_error(&mut self, e: anyhow::Error, cx: &mut Context<Self>) {

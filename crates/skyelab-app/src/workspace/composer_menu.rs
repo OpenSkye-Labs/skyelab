@@ -144,15 +144,35 @@ const CLAUDE_BUILTINS: &[(&str, &str)] = &[
     ),
 ];
 
-/// The `/` rows: the CLI's built-ins, then the account's own `commands/` (from its config dir, never the
-/// parent's), then the project's `.claude/commands/`. Codex has no slash commands.
+/// SkyeLab's own commands, which any thread but a side chat takes (`side_chat::side_question`).
+const SKYELAB_COMMANDS: &[(&str, &str)] = &[
+    (
+        "side",
+        "Ask in a side chat, without interrupting this thread",
+    ),
+    ("btw", "Same as /side"),
+];
+
+/// The `/` rows: SkyeLab's own (with `side_commands`, so not in a side chat), the CLI's built-ins, then the account's
+/// own `commands/` (from its config dir, never the parent's), then the project's `.claude/commands/`. Codex has no
+/// slash commands of its own.
 pub(crate) fn command_items(
     provider: Provider,
     account_dir: &Path,
     project: &Path,
+    side_commands: bool,
 ) -> Vec<MenuItem> {
+    let ours = SKYELAB_COMMANDS
+        .iter()
+        .filter(|_| side_commands)
+        .map(|(name, about)| MenuItem {
+            label: format!("/{name}"),
+            detail: (*about).to_owned(),
+            insert: format!("/{name} "),
+            ..Default::default()
+        });
     if provider == Provider::Codex {
-        return Vec::new();
+        return ours.collect();
     }
     let builtins = CLAUDE_BUILTINS.iter().map(|(name, about)| MenuItem {
         label: format!("/{name}"),
@@ -167,7 +187,7 @@ pub(crate) fn command_items(
         "project",
         Links::Skip,
     );
-    builtins.chain(account).chain(project).collect()
+    ours.chain(builtins).chain(account).chain(project).collect()
 }
 
 /// `name.md` files in `dir`, and `ns/name.md` one folder down (Claude names those `ns:name`).
