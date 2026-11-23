@@ -161,16 +161,17 @@ fn a_background_start_marks_its_row_unread_and_keeps_the_page(cx: &mut TestAppCo
     let child_id = child.read_with(cx, |t, _| t.thread.as_ref().expect("row").id);
     let unread = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
         ws.read_with(cx, |ws, cx| {
-            ws.sidebar.read(cx).sections[1]
-                .items
-                .iter()
-                .find(|i| i.id == format!("thread-{child_id}").as_str())
-                .map(|i| i.unread)
+            ws.sidebar
+                .read(cx)
+                .marks
+                .get(format!("thread-{child_id}").as_str())
+                .map(|m| m.unread)
         })
     };
     wait_until(cx, "the child's row", |cx| unread(&ws, cx).is_some());
     assert_eq!(unread(&ws, cx), Some(true), "the child's row is unread");
 
+    cx.update(|window, _| window.activate_window()); // the user is looking at the window
     cx.dispatch_action(OpenThread { id: child_id });
     cx.run_until_parked();
     assert_eq!(current(&ws, cx).as_ref(), Some(&child));

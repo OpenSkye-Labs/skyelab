@@ -122,7 +122,6 @@ impl Workspace {
         self.env.remote.is_some()
     }
 
-    #[cfg(test)]
     pub(crate) fn remote_env(&self) -> Option<Entity<RemoteEnv>> {
         self.env.remote.clone()
     }
@@ -301,7 +300,6 @@ impl Workspace {
                 updated_ms: None,
                 // A project row; its binding lives on the other machine, so no badge.
                 account: Some(super::panels::RowAccount::Hidden),
-                unread: false,
             })
             .collect();
         let threads = env
@@ -315,7 +313,6 @@ impl Workspace {
                 status: Some(crate::ui::Status::parse(&t.status)),
                 updated_ms: Some(t.updated_at),
                 account: None,
-                unread: false,
             })
             .collect();
         let connected = env.state == ConnState::Connected;
@@ -331,7 +328,12 @@ impl Workspace {
         };
         let has_project = env.project.is_some();
         // Threads that opened on this machine meanwhile (delegated, or started from another device).
-        let waiting = self.unseen.len();
+        // Unread local threads: a background start (delegated, or from another device) is marked so.
+        let waiting = self
+            .open_threads
+            .iter()
+            .filter(|v| v.read(cx).thread.as_ref().is_some_and(|t| t.unread))
+            .count();
         let here = (waiting > 0).then(|| SidebarSection {
             title: super::env_picker::THIS_MAC.into(),
             items: vec![SidebarItem {
@@ -345,7 +347,6 @@ impl Workspace {
                 status: None,
                 updated_ms: None,
                 account: None,
-                unread: false,
             }],
             empty_title: SharedString::default(),
             empty_hint: SharedString::default(),

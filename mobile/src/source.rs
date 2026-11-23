@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use skyelab_protocol::{Project, Thread, ThreadEvent};
+use skyelab_protocol::{PermissionAnswer, Project, Thread, ThreadEvent};
 
 /// The connection to the environment, as the screens show it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,6 +62,14 @@ pub trait ThreadSource {
     fn watch(&mut self, thread_id: i64);
     fn send_message(&mut self, thread_id: i64, text: &str);
     fn interrupt(&mut self, thread_id: i64);
+    /// Answers a permission request the thread's agent is waiting on.
+    fn answer_permission(
+        &mut self,
+        _thread_id: i64,
+        _request_id: &str,
+        _decision: PermissionAnswer,
+    ) {
+    }
     /// Pins the name to `node_id` and connects, if that is still the node the `NodeChanged` warning shows.
     fn trust(&mut self, _node_id: &str) {}
     /// Where background results arrive. Keep receiving from it and pass each to `apply`. `None`: the source
@@ -199,5 +207,12 @@ impl ThreadSource for FakeSource {
     fn interrupt(&mut self, thread_id: i64) {
         self.agent_text(thread_id, "Stopped from the phone.");
         self.set_status(thread_id, "interrupted");
+    }
+
+    fn answer_permission(&mut self, thread_id: i64, request_id: &str, decision: PermissionAnswer) {
+        let decision = serde_json::to_value(decision).unwrap_or_default();
+        let payload =
+            serde_json::json!({ "PermissionResolved": { "id": request_id, "decision": decision } });
+        self.push(thread_id, "agent", payload);
     }
 }

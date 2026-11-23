@@ -151,7 +151,6 @@ impl Workspace {
             }
             Page::Thread(view) => {
                 let view = view.upgrade().expect("alive() checked it");
-                self.unseen.remove(&view.entity_id());
                 view.update(cx, |v, cx| v.focus_prompt(window, cx));
                 view.into()
             }
@@ -165,16 +164,14 @@ impl Workspace {
             c.content = view;
             cx.notify();
         });
+        self.mark_seen(window, cx); // a thread shown is a thread read
         self.refresh_sidebar(cx);
         self.schedule_layout_save(window, cx);
         cx.notify();
     }
 
     /// Drops a thread's view: its agent stops at once (the last drawn frames may hold the view a moment longer) and
-    /// its row ends `stopped`. The page falls back to Welcome if it showed the thread.
-    // shortcut: nothing in the app closes a thread yet; the sidebar's archive/delete (package D) will call this, then
-    // drop the cfg. Its tests run the fake agent, a shell script, so they are unix-only.
-    #[cfg(all(test, unix))]
+    /// its row ends `stopped`. The page falls back to Welcome if it showed the thread. Archive and delete call it.
     pub(crate) fn close_thread(
         &mut self,
         view: &Entity<ThreadView>,
@@ -182,7 +179,6 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.open_threads.retain(|v| v != view);
-        self.unseen.remove(&view.entity_id());
         view.update(cx, |v, _| v.close());
         if self.page == Page::Thread(view.downgrade()) {
             self.page = Page::Welcome;

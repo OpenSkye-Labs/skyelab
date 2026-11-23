@@ -13,8 +13,9 @@ use std::time::Duration;
 
 /// An eval, or a wait for a page to commit, ends after this.
 pub(super) const BROWSER_TIMEOUT: Duration = Duration::from_secs(10);
-/// Largest eval result, in bytes of JSON text, handed back to the agent. Errors are cut to this too.
-pub(super) const MAX_EVAL_OUTPUT: usize = 64 << 10;
+/// Largest eval result, in bytes of JSON text, handed back to the agent (the page refuses longer ones first).
+/// Errors are cut to this too.
+pub(super) const MAX_EVAL_OUTPUT: usize = skyelab_browser::MAX_EVAL_OUTPUT;
 const TICK: Duration = Duration::from_millis(50);
 
 impl Workspace {

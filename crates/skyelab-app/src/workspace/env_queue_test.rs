@@ -11,21 +11,37 @@ fn shown(ws: &Entity<Workspace>, view: &Entity<ThreadView>, cx: &mut VisualTestC
     ws.read_with(cx, |ws, _| ws.current_thread().as_ref() == Some(view))
 }
 
-fn unread(ws: &Entity<Workspace>, view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> bool {
-    ws.read_with(cx, |ws, _| ws.unseen.contains(&view.entity_id()))
+/// D's stored unread flag, as the view's row carries it.
+fn unread(_: &Entity<Workspace>, view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> bool {
+    view.read_with(cx, |v, _| v.thread.as_ref().is_some_and(|t| t.unread))
 }
 
+/// A view that starts in the background: it gets its row (no agent runs here, the folder is unbound), and says so
+/// the way a launch does.
 fn background_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<ThreadView> {
     ws.update_in(cx, |ws, window, cx| {
-        let project = skyelab_store::Project {
-            id: 1,
-            name: "local".into(),
-            path: std::env::temp_dir(),
-            created_at: 0,
+        let dir = std::env::temp_dir();
+        let (project, row) = {
+            let store = lock(&ws.backend.store).expect("store");
+            let project = store.create_project("local", &dir).expect("project");
+            let row = store
+                .create_thread(&skyelab_store::NewThread {
+                    project_id: project.id,
+                    title: "delegated",
+                    cwd: &dir,
+                    account_id: "work",
+                    status: "running",
+                })
+                .expect("row");
+            (project, row)
         };
         let (config, backend) = (ws.config.clone(), ws.backend.clone());
         let view = cx.new(|cx| ThreadView::new(&project, config, backend, window, cx));
         ws.add_thread_tab(view.clone(), false, window, cx);
+        view.update(cx, |v, cx| {
+            v.thread = Some(row.clone());
+            cx.emit(super::thread::ThreadViewEvent::Started(Box::new(row)));
+        });
         view
     })
 }

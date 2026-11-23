@@ -53,7 +53,9 @@ macro_rules! panel {
 panel!(super::center::Center, "Center", closable: false, title_bar: false, |_this| "Center");
 
 mod sidebar;
-pub use sidebar::{RowAccount, Sidebar, SidebarItem, SidebarSection};
+pub use sidebar::{
+    ArchivedRows, RowAccount, RowMarks, Sidebar, SidebarItem, SidebarSearch, SidebarSection,
+};
 
 /// The page with no thread open: what SkyeLab is and its main keys.
 pub struct Welcome {

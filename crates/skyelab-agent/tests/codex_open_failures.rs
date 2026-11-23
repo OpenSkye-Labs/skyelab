@@ -61,6 +61,7 @@ fn start(f: &Fixture, bin: &Path, resume: Option<&str>, prompt: &str) -> Session
         resume,
         prompt,
         mcp_config: None,
+        mode: Default::default(),
     };
     start_with_bin(bin, &f.config, &launch).expect("start")
 }

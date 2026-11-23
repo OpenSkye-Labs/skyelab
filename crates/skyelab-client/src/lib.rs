@@ -34,7 +34,8 @@ pub use device_key::{keychain_device_key, keychain_device_key_in};
 pub use guard::is_tailnet_ip;
 use skyelab_protocol::{Call, Reply};
 pub use skyelab_protocol::{
-    ErrorCode, Hello, Project, RpcError, Thread, ThreadEvent, Version, is_magicdns_name,
+    ErrorCode, Hello, PermissionAnswer, Project, RpcError, Thread, ThreadEvent, Version,
+    is_magicdns_name,
 };
 
 #[derive(Debug, Clone)]
@@ -383,6 +384,24 @@ impl Client {
 
     pub fn interrupt(&self, thread_id: i64) -> Pending<()> {
         self.call(Call::Interrupt { thread_id }, ok)
+    }
+
+    /// Answers a permission request the thread's agent waits on (protocol 1.3).
+    pub fn answer_permission(
+        &self,
+        thread_id: i64,
+        request_id: impl Into<String>,
+        decision: PermissionAnswer,
+    ) -> Pending<()> {
+        let request_id = request_id.into();
+        self.call(
+            Call::AnswerPermission {
+                thread_id,
+                request_id,
+                decision,
+            },
+            ok,
+        )
     }
 
     /// Delivers the thread's events after `after_seq` on [`Client::updates`], then every new one, each once, in

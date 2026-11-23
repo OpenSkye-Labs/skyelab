@@ -218,6 +218,7 @@ impl Render for RemotePanel {
                                 .child(
                                     Switch::new("share-on-tailnet")
                                         .checked(remote.enabled)
+                                        .label(if remote.enabled { "On" } else { "Off" })
                                         .accessibility_label("Share this machine on my tailnet")
                                         .on_click(|_, window, cx| {
                                             window.dispatch_action(Box::new(ToggleSharing), cx)

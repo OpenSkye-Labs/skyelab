@@ -42,7 +42,7 @@ fn round_trip_hello() {
             capabilities: vec!["events".into()],
             device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 2}, "capabilities": ["events"], "device_key": "k"}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 3}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 
@@ -108,6 +108,19 @@ fn round_trip_interrupt() {
     round_trip_request(
         Call::Interrupt { thread_id: 3 },
         json!({"id": 7, "method": "interrupt", "params": {"thread_id": 3}}),
+    );
+}
+
+#[test]
+fn round_trip_answer_permission() {
+    round_trip_request(
+        Call::AnswerPermission {
+            thread_id: 3,
+            request_id: "perm-1".into(),
+            decision: skyelab_protocol::PermissionAnswer::AllowThread,
+        },
+        json!({"id": 7, "method": "answer_permission",
+               "params": {"thread_id": 3, "request_id": "perm-1", "decision": "allow_thread"}}),
     );
 }
 

@@ -115,7 +115,7 @@ fn dock_toggles(cx: &App) -> Vec<Button> {
 /// Where the layout is saved, and the pending debounced save.
 #[derive(Default)]
 pub(super) struct LayoutStore {
-    path: Option<PathBuf>,
+    pub(super) path: Option<PathBuf>,
     save: Option<Task<()>>,
     /// The layout the pending save will write; quitting writes it at once instead.
     pending: Option<WindowLayout>,

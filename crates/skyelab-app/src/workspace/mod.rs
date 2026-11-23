@@ -1,5 +1,6 @@
 //! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
 
+mod attention;
 #[cfg(unix)]
 mod browser_agent;
 mod browser_tabs;
@@ -11,7 +12,10 @@ mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
+mod keys;
 pub(crate) mod layout;
+mod manage;
+mod manage_projects;
 mod settings_tab;
 mod terminal_launch;
 mod terminals;
@@ -28,11 +32,13 @@ mod palette_items;
 mod panels;
 mod projects;
 mod remote;
+mod remote_queue;
 mod remote_thread;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
 mod thread_items;
+mod thread_list;
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
@@ -43,8 +49,8 @@ use center::{Center, Page};
 pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
-    Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString,
-    Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
+    Action, App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task,
+    WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _,
@@ -110,50 +116,8 @@ pub struct Backend {
 
 const CONTEXT: &str = "Workspace";
 
-// `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
-const MAC: bool = cfg!(target_os = "macos");
-pub(crate) const TOGGLE_SIDEBAR_KEY: &str = if MAC { "cmd-b" } else { "ctrl-b" };
-pub(crate) const TOGGLE_BOTTOM_KEY: &str = if MAC { "cmd-j" } else { "ctrl-j" };
-pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-alt-t" };
-pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
-pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
-pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
-pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
-pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
-
-/// Binds the workspace keys. Call once at startup.
-pub fn init(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new(TOGGLE_SIDEBAR_KEY, ToggleSidebar, Some(CONTEXT)),
-        KeyBinding::new(TOGGLE_BOTTOM_KEY, ToggleBottomPanel, Some(CONTEXT)),
-        KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
-        KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
-        KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
-        KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
-        KeyBinding::new(GO_BACK_KEY, GoBack, Some(CONTEXT)),
-        KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
-    ]);
-    // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
-    if !MAC {
-        cx.bind_keys([
-            KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
-            // alt-left/right move by word in a shell; in a text field they would surprise more than help.
-            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Input")),
-            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Input")),
-        ]);
-    } else {
-        // A text field binds cmd-[ to Outdent; the prompt is focused on most pages, so history wins there.
-        cx.bind_keys([
-            KeyBinding::new(GO_BACK_KEY, GoBack, Some("Input")),
-            KeyBinding::new(GO_FORWARD_KEY, GoForward, Some("Input")),
-        ]);
-    }
-    layout::bind_keys(cx);
-    crate::palette::init(cx);
-}
+pub use keys::init;
+pub(crate) use keys::*;
 
 /// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
 fn account_label(config: &AccountsConfig, folder: &Path) -> Option<SharedString> {
@@ -199,8 +163,6 @@ pub struct Workspace {
     // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
     // thread it opened in memory; evict idle hidden ones if that ever matters.
     open_threads: Vec<Entity<ThreadView>>,
-    /// Views that started in the background (delegated, or from another device) and weren't shown yet.
-    unseen: std::collections::HashSet<gpui::EntityId>,
     center: Entity<Center>,
     welcome: Entity<Welcome>,
     page: Page,
@@ -227,6 +189,22 @@ pub struct Workspace {
     /// Which machine the sidebar and remote tabs show (this one unless the picker chose another).
     env: env_mode::EnvMode,
     starts: remote::StartQueue,
+    /// Archived threads are listed under their toggle row.
+    show_archived: bool,
+    /// A project whose removal waits for the user's OK (it has running agents).
+    pending_removal: Option<i64>,
+    _dialog_input: Option<Subscription>,
+    /// The sidebar's thread filter and, once the store answered, the threads whose title or messages match.
+    thread_search: Option<(String, Option<std::collections::HashSet<i64>>)>,
+    _search: Option<Task<()>>,
+    _attention: Vec<Subscription>,
+    /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
+    purges: std::collections::HashMap<i64, Task<()>>,
+    /// The last unread-mark write; each new one waits for it.
+    _unread_write: Option<Task<()>>,
+    /// Every notice shown (warnings, undo notices, thread notifications), for tests: the toast list is private.
+    #[cfg(test)]
+    notices: Vec<SharedString>,
 }
 
 impl Workspace {
@@ -244,7 +222,7 @@ impl Workspace {
             crate::ui::sync_appearance(window, cx);
         });
 
-        let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
+        let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), window, cx));
         let welcome = cx.new(Welcome::new);
         let center = cx.new(|cx| Center::new(welcome.clone().into(), cx));
         let terminals_empty = cx.new(TerminalsEmpty::new);
@@ -318,7 +296,6 @@ impl Workspace {
             project: None,
             threads: Vec::new(),
             open_threads: Vec::new(),
-            unseen: Default::default(),
             center,
             welcome,
             page: Page::Welcome,
@@ -340,7 +317,18 @@ impl Workspace {
             remote: None,
             env: Default::default(),
             starts: remote::StartQueue::new(),
+            show_archived: false,
+            pending_removal: None,
+            _dialog_input: None,
+            thread_search: None,
+            _search: None,
+            _attention: Vec::new(),
+            purges: Default::default(),
+            _unread_write: None,
+            #[cfg(test)]
+            notices: Vec::new(),
         };
+        this.watch_attention(window, cx);
         this.refresh_sidebar(cx);
         this.sync_toggles(cx);
         this.load_projects(None, cx);
@@ -401,6 +389,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::go_forward))
             .on_action(cx.listener(Self::open_settings_section))
             .map(|el| self.env_actions(el, cx))
+            .map(|el| self.manage_actions(el, cx))
+            .map(|el| self.attention_actions(el, cx))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -418,6 +408,23 @@ mod tests;
 
 #[cfg(all(test, unix))]
 mod single_view_test;
+
+#[cfg(test)]
+mod manage_harness;
+#[cfg(test)]
+mod manage_projects_test;
+#[cfg(test)]
+mod manage_sidebar_test;
+#[cfg(test)]
+mod manage_threads_test;
+#[cfg(test)]
+mod palette_search_test;
+#[cfg(test)]
+mod review_fixes_d_test;
+#[cfg(test)]
+mod thread_keys_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod unread_test;
 
 #[cfg(test)]
 mod stale_status_test;
@@ -517,6 +524,10 @@ mod remote_start_test;
 
 #[cfg(test)]
 mod changes_follow_folder_test;
+#[cfg(test)]
+mod terminal_link_subdir_test;
+#[cfg(test)]
+mod terminal_link_test;
 
 #[cfg(test)]
 mod delegation_test;
@@ -548,6 +559,10 @@ mod delegation_turns_test;
 mod env_approval_test;
 #[cfg(test)]
 mod env_queue_test;
+#[cfg(test)]
+mod palette_remote_test;
+#[cfg(test)]
+mod remote_resume_reply_test;
 
 #[cfg(test)]
 mod long_thread_test;
@@ -604,3 +619,12 @@ mod exit_holding_stdout_test;
 mod saved_view_draft_test;
 #[cfg(all(test, unix))]
 mod settings_reopen_stale_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_thread_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_mode_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod single_view_merge_test;

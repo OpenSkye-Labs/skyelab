@@ -5,13 +5,10 @@ use super::changes::ChangesView;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree;
 use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
-use gpui::{AppContext as _, Context, Entity, PathPromptOptions, SharedString, Window};
+use gpui::{AppContext as _, Context, Entity, PathPromptOptions, Window};
 
 use skyelab_store::Thread;
 use std::path::PathBuf;
-
-use super::panels::{RowAccount, SidebarItem, SidebarSection};
-use crate::ui::Status;
 
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
@@ -48,12 +45,8 @@ impl Workspace {
         let store = self.backend.store.clone();
         let task = cx.background_spawn(async move {
             let store = lock(&store)?;
-            let normalized: PathBuf = dir.components().collect();
-            if let Some(p) = store
-                .list_projects()?
-                .into_iter()
-                .find(|p| p.path == normalized)
-            {
+            // A removed project comes back with its threads.
+            if let Some(p) = store.readd_project(&dir)? {
                 return anyhow::Ok(p.id);
             }
             let name = dir.file_name().map_or_else(
@@ -130,7 +123,8 @@ impl Workspace {
                 match loaded {
                     // A slow load for a project that is no longer selected changes nothing.
                     Ok(threads) if this.project.as_ref().map(|p| p.id) == Some(project_id) => {
-                        this.threads = threads
+                        this.threads = threads;
+                        this.rerun_search(cx);
                     }
                     Ok(_) => {}
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
@@ -163,105 +157,6 @@ impl Workspace {
                 this.refresh_sidebar(cx);
             });
         }));
-    }
-
-    pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
-        if let Some(sections) = self.remote_sections(cx) {
-            return self.sidebar.update(cx, |sidebar, cx| {
-                sidebar.sections = sections;
-                cx.notify();
-            });
-        }
-        let current = self.project.as_ref().map(|p| p.id);
-        // A background start in a project that isn't selected still shows, on its project's row.
-        let unread_projects: std::collections::HashSet<i64> = self
-            .open_threads
-            .iter()
-            .filter(|v| self.unseen.contains(&v.entity_id()))
-            .filter_map(|v| v.read(cx).thread.as_ref().map(|t| t.project_id))
-            .collect();
-        let projects = self
-            .projects
-            .iter()
-            .map(|p| SidebarItem {
-                id: format!("project-{}", p.id).into(),
-                label: p.name.clone().into(),
-                selected: Some(p.id) == current,
-                action: Box::new(SelectProject { id: p.id }),
-                status: None,
-                updated_ms: None,
-                account: Some(match self.project_accounts.get(&p.id) {
-                    Some(Some(a)) => RowAccount::Bound(a.clone()),
-                    Some(None) => RowAccount::Unbound,
-                    None => RowAccount::Hidden,
-                }),
-                unread: unread_projects.contains(&p.id),
-            })
-            .collect();
-        // An open view knows its thread's state now; the row is only as fresh as the last project load.
-        let live: std::collections::HashMap<i64, (Status, bool)> = self
-            .open_threads
-            .iter()
-            .filter_map(|v| {
-                let unread = self.unseen.contains(&v.entity_id());
-                let v = v.read(cx);
-                Some((v.thread.as_ref()?.id, (v.live_status(), unread)))
-            })
-            .collect();
-        let shown = self
-            .current_thread()
-            .and_then(|v| v.read(cx).thread.as_ref().map(|t| t.id));
-        let threads = self
-            .threads
-            .iter()
-            .map(|t| SidebarItem {
-                id: format!("thread-{}", t.id).into(),
-                label: t.title.clone().into(),
-                selected: shown == Some(t.id),
-                action: Box::new(OpenThread { id: t.id }),
-                status: Some(
-                    live.get(&t.id)
-                        .map(|l| l.0)
-                        .unwrap_or_else(|| Status::parse(&t.status)),
-                ),
-                updated_ms: Some(t.updated_at),
-                account: None,
-                unread: live.get(&t.id).is_some_and(|l| l.1),
-            })
-            .collect();
-        let has_project = self.project.is_some();
-        self.sidebar.update(cx, |sidebar, cx| {
-            sidebar.sections = vec![
-                SidebarSection {
-                    title: "Projects".into(),
-                    items: projects,
-                    empty_title: "No projects yet".into(),
-                    empty_hint: "Add a folder to start. It runs on the account it is bound to."
-                        .into(),
-                    button: Some(("Add".into(), Box::new(AddProject))),
-                    nested: false,
-                },
-                SidebarSection {
-                    title: "Threads".into(),
-                    items: threads,
-                    empty_title: "No threads yet".into(),
-                    empty_hint: if has_project {
-                        "Start one with New thread."
-                    } else {
-                        "Select a project to see its threads."
-                    }
-                    .into(),
-                    button: has_project.then(|| {
-                        (
-                            SharedString::from("New thread"),
-                            Box::new(NewThread) as Box<_>,
-                        )
-                    }),
-                    nested: true,
-                },
-            ];
-            cx.notify();
-        });
     }
 
     pub(super) fn new_thread(
@@ -340,6 +235,9 @@ impl Workspace {
                     // A draft just got its row, so the saved page can name it now.
                     if this.current_thread().as_ref() == Some(view) {
                         this.schedule_layout_save(window, cx);
+                    } else {
+                        // Started in the background (delegated, or from another device): unread until opened.
+                        this.mark_unread(view, cx);
                     }
                 }
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
@@ -368,14 +266,17 @@ impl Workspace {
                         },
                     );
                 }
-                ThreadViewEvent::TurnDone => this.refresh_changes(view, cx),
+                ThreadViewEvent::TurnDone => {
+                    this.refresh_changes(view, cx);
+                    this.turn_done(view, window, cx);
+                }
             },
         ));
         self.open_threads.push(view.clone());
         if focus {
             return self.show(Page::Thread(view.downgrade()), window, cx);
         }
-        self.unseen.insert(view.entity_id());
+        // A background start never takes the page; its row is marked unread once it has one (see `Started`).
         self.refresh_sidebar(cx);
         cx.notify();
     }
@@ -431,7 +332,12 @@ impl Workspace {
         #[cfg(unix)]
         self.child_started(thread, cx);
         if self.project.as_ref().map(|p| p.id) == Some(thread.project_id) {
-            self.threads.insert(0, thread.clone());
+            // A reopened thread reports its start too: keep its one row where it is.
+            match self.threads.iter_mut().find(|t| t.id == thread.id) {
+                Some(row) => *row = thread.clone(),
+                None => self.threads.insert(0, thread.clone()),
+            }
+            self.rerun_search(cx);
             self.refresh_sidebar(cx);
         }
     }
