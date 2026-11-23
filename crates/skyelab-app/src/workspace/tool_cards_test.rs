@@ -24,7 +24,7 @@ fn view(cx: &mut TestAppContext) -> (One, &mut VisualTestContext) {
 fn show(one: &One, cx: &mut VisualTestContext, items: Vec<Item>, open: &[&str]) {
     one.view.update(cx, |v, cx| {
         v.items = items;
-        v.list.reset(v.items.len());
+        v.lists.reset(v.items.len());
         for id in open {
             v.toggle_tool(id, cx);
         }

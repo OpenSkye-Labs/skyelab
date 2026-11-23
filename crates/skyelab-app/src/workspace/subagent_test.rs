@@ -220,7 +220,7 @@ fn fake_subagent_prompt_streams_a_card(cx: &mut TestAppContext) {
     // Opened, a card draws its calls.
     one.view.update(cx, |v, cx| {
         v.items.retain(|i| matches!(i, Item::Subagent(_)));
-        v.list.reset(v.items.len());
+        v.lists.reset(v.items.len());
         v.toggle_tool("toolu_sa", cx);
     });
     cx.run_until_parked();

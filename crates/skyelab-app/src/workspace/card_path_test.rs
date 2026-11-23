@@ -20,7 +20,7 @@ fn a_card_path_click_reveals_the_file_in_changes(cx: &mut gpui::TestAppContext) 
             result: Some("ok".into()),
             is_error: false,
         })];
-        v.list.reset(1);
+        v.lists.reset(1);
         cx.notify();
     });
     cx.run_until_parked();

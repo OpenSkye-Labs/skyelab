@@ -79,7 +79,9 @@ mod tool_cards;
 mod turn_files;
 mod update_notice;
 mod windows;
-pub use windows::{NewWindow, WindowKit, open as open_window, set_hub, window_handles};
+pub use windows::{
+    NewWindow, WindowKit, open as open_window, restore_windows, set_hub, window_handles,
+};
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
@@ -200,8 +202,6 @@ pub struct Workspace {
     setup: setup_flow::SetupFlow,
     back: Vec<Page>,
     forward: Vec<Page>,
-    /// Delegated starts by request id: a retry gets the thread the first call started.
-    delegated: std::collections::HashMap<orchestrate_ui::StartKey, orchestrate_ui::DelegatedStart>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     /// Each open thread view's subscriptions and the row state the sidebar last drew; dropped in `close_thread`.
     thread_subs: std::collections::HashMap<gpui::EntityId, thread_rows::ThreadSubs>,
@@ -350,7 +350,6 @@ impl Workspace {
             setup: Default::default(),
             back: Vec::new(),
             forward: Vec::new(),
-            delegated: Default::default(),
             changes_views: Vec::new(),
             thread_subs: Default::default(),
             waiters: Default::default(),
@@ -490,6 +489,8 @@ mod delegation_stopped_parent_test;
 mod delegation_test;
 #[cfg(test)]
 mod delegation_turns_test;
+#[cfg(all(test, unix))]
+mod delegation_window_close_test;
 #[cfg(test)]
 mod devices_review_tests;
 #[cfg(test)]
@@ -565,7 +566,11 @@ mod permission_mode_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_thread_test;
 #[cfg(all(test, unix))]
+mod pr_reopen_test;
+#[cfg(all(test, unix))]
 mod project_unread_restart_test;
+#[cfg(test)]
+mod prompt_handoff_test;
 #[cfg(all(test, unix))] // the fake gh is a shell script
 mod publish_test;
 #[cfg(test)]
@@ -634,6 +639,10 @@ mod threads_test;
 mod timeline_tests;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod unread_test;
+#[cfg(test)]
+mod window_restore_test;
+#[cfg(test)]
+mod window_scroll_test;
 #[cfg(all(test, unix))]
 mod worktree_base_test;
 #[cfg(test)]

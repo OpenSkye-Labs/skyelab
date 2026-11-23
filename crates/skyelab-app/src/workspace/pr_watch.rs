@@ -1,6 +1,7 @@
 //! Linked pull requests' state, and the shown thread's background fetch. A PR is read by its URL with its thread's
 //! own account's `gh`, only while its folder is still bound to that account, and only while it can still change:
-//! merged and closed PRs are never read again.
+//! merged PRs are never read again, and a closed one only when its thread is opened or focused, hourly (it may be
+//! reopened).
 
 use super::Workspace;
 use super::worktree::resolves_to;
@@ -18,6 +19,8 @@ use std::time::Duration;
 pub(super) const POLL_EVERY_MS: i64 = 5 * 60_000;
 /// The shown thread's PR is read again on window focus or when it is opened, after this long.
 pub(super) const SHOWN_FRESH_MS: i64 = 60_000;
+/// A closed (not merged) PR is read again when its thread is opened or focused, at most this often.
+pub(super) const CLOSED_RECHECK_MS: i64 = 60 * 60_000;
 const TICK: Duration = Duration::from_secs(30);
 const HUNG_MS: i64 = 10 * 60_000;
 
@@ -61,23 +64,28 @@ pub(super) struct Watch {
     _tick: Option<Task<()>>,
 }
 
-/// Whether to read the PR at `url` now: never once it is merged or closed (as last read, or as the store kept it
-/// across a restart), else when its last read for this link is `max_age` old.
+/// Whether to read the PR at `url` now, by its state as last read (or as the store kept it across a restart): never
+/// once merged; once closed, only for the `shown` thread (opened or focused) and only [`CLOSED_RECHECK_MS`] after
+/// its last read, since it may have been reopened; else when its last read for this link is `max_age` old.
 pub(super) fn due(
     stored: Option<&str>,
     entry: Option<&PrEntry>,
     url: &str,
     now: i64,
     max_age: i64,
+    shown: bool,
 ) -> bool {
     let entry = entry.filter(|e| e.url == url);
     let last = match entry.map(|e| &e.view) {
         Some(PrView::Status(s)) => Some(s.state),
         _ => stored.and_then(PrState::parse),
     };
-    if last.is_some_and(PrState::is_done) {
-        return false;
-    }
+    let max_age = match last {
+        Some(PrState::Merged) => return false,
+        Some(PrState::Closed) if !shown => return false,
+        Some(PrState::Closed) => CLOSED_RECHECK_MS,
+        _ => max_age,
+    };
     entry.is_none_or(|e| now - e.checked_ms >= max_age)
 }
 
@@ -167,13 +175,10 @@ impl Workspace {
             .iter()
             .filter_map(|t| {
                 let url = t.pr_url.clone()?;
-                let max_age = if shown_fresh && Some(t.id) == shown {
-                    SHOWN_FRESH_MS
-                } else {
-                    POLL_EVERY_MS
-                };
+                let fresh = shown_fresh && Some(t.id) == shown;
+                let max_age = if fresh { SHOWN_FRESH_MS } else { POLL_EVERY_MS };
                 let entry = statuses.and_then(|s| s.0.get(&t.id));
-                due(t.pr_state.as_deref(), entry, &url, now, max_age).then(|| Job {
+                due(t.pr_state.as_deref(), entry, &url, now, max_age, fresh).then(|| Job {
                     thread: t.id,
                     url,
                     dir: t.cwd.clone(),

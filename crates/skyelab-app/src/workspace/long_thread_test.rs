@@ -114,7 +114,7 @@ fn local_thread_with_10k_events_draws_through_the_shared_renderer(cx: &mut TestA
     cx.run_until_parked();
     let open = frame(&view, cx);
     let open_time = t.elapsed();
-    let count = view.read_with(cx, |v, _| (v.items.len(), v.list.item_count()));
+    let count = view.read_with(cx, |v, _| (v.items.len(), v.own_list().item_count()));
     assert_eq!(count, (N as usize, N as usize));
     assert!(open > 0 && open < 100, "first frame built {open} rows");
     eprintln!("local 10k: load+frame {open_time:?} ({open} rows)");

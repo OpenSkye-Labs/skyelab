@@ -302,6 +302,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        view.update(cx, |v, _| v.lists.add(window.window_handle()));
         // Its state shows in the sidebar: rebuild that when what the row shows changed, not on every notify.
         let observe = cx.observe(view, |this, view, cx| {
             // Cheap, and a parent's Lineage may have loaded after the child's last change.

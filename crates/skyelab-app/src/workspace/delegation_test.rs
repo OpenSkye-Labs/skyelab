@@ -131,9 +131,11 @@ pub(super) fn open<'a>(
             .join("tests/fixtures/fake-claude-delegate.sh"),
     };
     let folder = rig._home.path().to_path_buf();
+    // The app's path: the queue goes to the hub, which hands it to the next window when this one closes.
+    cx.update(|cx| set_hub(None, Some(calls), cx));
     let (ws, cx) = cx.add_window_view(|window, cx| {
         let mut ws = Workspace::new(folder, Some(accounts), config, None, backend, window, cx);
-        ws.set_orchestrator(calls, window, cx);
+        ws.claim_hub(window, cx);
         window.focus(&ws.focus, cx);
         ws
     });

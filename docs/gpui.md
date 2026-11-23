@@ -104,7 +104,23 @@ and how Zed uses it, not blog posts or memory.
   with `subscribe_in`/`on_focus`/`on_blur` (gpui-component's `InputState` makes them in `new`) run in the window that
   made them and die with it. A shared view re-creates its window-bound parts when another window takes it over
   (`ThreadView::attach`), and only one window (its owner) acts on its events, or two windows open two tabs.
-- Its `ListState` (scroll and row heights) is shared too: both windows scroll together.
+- A shared view's `ListState` (scroll and row heights) would make both windows scroll together, so it keeps one per
+  window (`thread_window::Lists`): splices and resets reach every list, `render` draws `window`'s, and a scroll the
+  view starts (send, find, a failure) moves only its owner's. Add a window's list where the window starts showing
+  it and drop it in `on_window_closed`.
+- Never draw one entity's geometry-reporting element in two windows: gpui-component's input notifies whenever its
+  drawn size changes, and a canvas that notifies on a width change does the same, so two windows of different sizes
+  redraw each other forever (a test hangs in `flush_effects`; the app burns a core). The owner window draws the live
+  input; another draws the draft as text and takes the prompt over on click (`render_borrowed_prompt`).
+- Work that answers an outside caller (a delegated start's reply) never lives in one window's view: a
+  `Global` holds the state and App-level `cx.observe` waits, so closing the window that took the call loses
+  neither the answer nor the request id → thread map.
+- gpui-component 0.10's input keeps its undo stack private (`InputBaseState::undo_manager` is `pub(super)`, no
+  getter or setter), and its focus and blink hooks are bound to the window that made it. A prompt moving windows is
+  a new `TextareaState` with the same text: the undo history starts over (Undo then does nothing, never empties it).
+  Keep anything else the draft has (files, chips) on the view, not in the input.
+- Code that runs inside `ws.update(..)` must not read every workspace entity (that one is mid-update and panics):
+  keep cross-window data (each window's saved layout) in the registry global instead.
 - Find a closing window with `cx.on_window_closed`, not the root view's `on_release`: a test or a task holding the
   entity keeps it alive after its window is gone. Inside that callback `cx.windows()` no longer lists it.
 - A window whose focused element moved to another window has no focus, so its key bindings stop: give the page the

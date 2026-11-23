@@ -28,33 +28,47 @@ fn entry(state: Option<PrState>, checked_ms: i64) -> PrEntry {
 }
 
 #[test]
-fn pr_watch_never_reads_merged_or_closed_prs() {
+fn pr_watch_never_reads_merged_prs_and_closed_ones_only_when_shown_hourly() {
     let min = 60_000;
-    for done in [PrState::Merged, PrState::Closed] {
-        assert!(
-            !due(None, Some(&entry(Some(done), 0)), URL, 99 * min, min),
-            "{done:?}"
-        );
-        // The store's state counts too: an ended PR isn't read after a restart.
-        assert!(!due(Some(done.as_str()), None, URL, 0, min), "{done:?}");
+    let hour = super::CLOSED_RECHECK_MS;
+    for shown in [false, true] {
+        let merged = entry(Some(PrState::Merged), 0);
+        assert!(!due(None, Some(&merged), URL, 99 * hour, min, shown));
+        // The store's state counts too: a merged PR isn't read after a restart.
+        assert!(!due(Some("merged"), None, URL, 0, min, shown));
     }
+    let closed = entry(Some(PrState::Closed), 0);
+    // Background polls skip a closed PR, however old its last read.
+    assert!(!due(None, Some(&closed), URL, 99 * hour, min, false));
+    assert!(!due(Some("closed"), None, URL, 0, min, false));
+    // Opened or focused: read once its last read is an hour old, or when this session never read it.
+    assert!(!due(None, Some(&closed), URL, hour - 1, min, true));
+    assert!(due(None, Some(&closed), URL, hour, min, true));
+    assert!(due(Some("closed"), None, URL, 0, min, true));
 }
 
 #[test]
 fn pr_watch_reads_open_prs_when_their_last_read_is_old() {
     let min = 60_000;
-    assert!(due(None, None, URL, 0, min), "never read");
+    assert!(due(None, None, URL, 0, min, false), "never read");
     assert!(
-        due(Some("open"), None, URL, 0, min),
+        due(Some("open"), None, URL, 0, min, false),
         "read before the restart"
     );
     for open in [PrState::Open, PrState::Draft] {
-        assert!(!due(None, Some(&entry(Some(open), 0)), URL, min - 1, min));
-        assert!(due(None, Some(&entry(Some(open), 0)), URL, min, min));
+        assert!(!due(
+            None,
+            Some(&entry(Some(open), 0)),
+            URL,
+            min - 1,
+            min,
+            false
+        ));
+        assert!(due(None, Some(&entry(Some(open), 0)), URL, min, min, false));
     }
     // "Sign in" and errors are asked again on the same schedule (a login may have happened).
-    assert!(!due(None, Some(&entry(None, 0)), URL, 1, min));
-    assert!(due(None, Some(&entry(None, 0)), URL, min, min));
+    assert!(!due(None, Some(&entry(None, 0)), URL, 1, min, false));
+    assert!(due(None, Some(&entry(None, 0)), URL, min, min, false));
     // A relinked thread starts over, even when the old PR was merged.
     let merged = entry(Some(PrState::Merged), 0);
     assert!(due(
@@ -62,7 +76,8 @@ fn pr_watch_reads_open_prs_when_their_last_read_is_old() {
         Some(&merged),
         "https://github.com/acme/demo/pull/8",
         1,
-        min
+        min,
+        false
     ));
 }
 

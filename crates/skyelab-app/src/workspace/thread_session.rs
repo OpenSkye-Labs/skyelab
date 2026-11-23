@@ -39,7 +39,7 @@ impl ThreadView {
             }
         }
         for ix in stale {
-            self.list.splice(ix..ix + 1, 1);
+            self.lists.splice(ix..ix + 1, 1);
         }
         let watched = Arc::downgrade(&session);
         self.session = Some(session);
@@ -255,7 +255,7 @@ impl ThreadView {
         self.keep_partial(cx);
         if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
             let n = self.items.len();
-            self.list.splice(first..n, n - first);
+            self.lists.splice(first..n, n - first);
         }
         // A fork has no session until its first send starts one (with its context prompt).
         self.read_only = self

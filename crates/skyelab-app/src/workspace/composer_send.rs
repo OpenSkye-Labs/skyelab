@@ -206,7 +206,7 @@ impl ThreadView {
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         self.restore_draft(window, cx); // set_value emits no Change
         // The queue takes room under the messages: keep the end of the thread in view above it.
-        self.list.scroll_to_end();
+        self.own_list().scroll_to_end();
         cx.notify();
     }
 

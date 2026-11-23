@@ -137,7 +137,7 @@ fn the_header_opens_and_folds_the_turn(cx: &mut gpui::TestAppContext) {
             Item::Text("done".into()),
             done(false),
         ];
-        v.list.reset(v.items.len());
+        v.lists.reset(v.items.len());
         cx.notify();
     });
     cx.run_until_parked();

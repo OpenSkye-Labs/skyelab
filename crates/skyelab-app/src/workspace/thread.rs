@@ -8,8 +8,8 @@ use super::thread_model::{Item, Record, apply, limit_after, stamp_done};
 use super::{Backend, SharedStore, lock};
 use anyhow::Result;
 use gpui::{
-    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, ListAlignment,
-    ListState, SharedString, Subscription, Task, Window, actions, px,
+    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, SharedString,
+    Subscription, Task, Window, actions,
 };
 use gpui_component::input::TextareaState;
 use skyelab_agent::{Mode, Session};
@@ -65,7 +65,8 @@ pub struct ThreadView {
     pub(super) items: Vec<Item>,
     /// `Some(resets_at)` while the account's usage limit holds the agent back.
     pub(super) limited: Option<Option<i64>>,
-    pub(super) list: ListState,
+    /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
+    pub(super) lists: window_owner::Lists,
     expanded: HashSet<String>,
     /// Turn files, the find bar, a closed failure banner.
     pub(super) timeline: super::turn_files::Timeline,
@@ -224,7 +225,7 @@ impl ThreadView {
                         stamp_done(&mut this.items, *at);
                         this.limited = limit_after(this.limited, r);
                     }
-                    this.list.reset(this.items.len());
+                    this.lists.reset(this.items.len());
                     this.load_turn_files(cx);
                     if skipped > 0 {
                         this.error =
@@ -251,7 +252,7 @@ impl ThreadView {
             window_owner::prompt_subscription(&prompt, window, cx),
             cx.on_app_quit(|this, _| this.quitting()),
         ];
-        let list = ListState::new(0, ListAlignment::Top, px(600.));
+        let lists = window_owner::Lists::new(window.window_handle());
         let owner = cx.weak_entity();
         let branch_picker = cx.new(|cx| {
             super::branch_picker::BranchPicker::new(owner.clone(), cwd.clone(), window, cx)
@@ -280,7 +281,7 @@ impl ThreadView {
             needs_binding: false,
             items: Vec::new(),
             limited: None,
-            list,
+            lists,
             expanded: HashSet::new(),
             timeline: Default::default(),
             drafts: Default::default(),
@@ -368,7 +369,7 @@ impl ThreadView {
         }
         if let Some(rows) = super::timeline_fold::rows_of(&self.items, tool_id) {
             let n = rows.len();
-            self.list.splice(rows, n);
+            self.lists.splice(rows, n);
         }
         cx.notify();
     }
@@ -428,7 +429,7 @@ impl ThreadView {
         cx.notify();
     }
 
-    fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
+    pub(super) fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
         // A prompt with no turn running starts one (a steer or queued send joins it).
         if matches!(record, Record::Prompt(_)) && !self.turn_running() {
             self.turn_started_ms = Some(crate::ui::now_ms());
@@ -446,7 +447,7 @@ impl ThreadView {
         if let Some(first) = apply(&mut self.items, record) {
             stamp_done(&mut self.items, crate::ui::now_ms());
             self.find_rows_changed();
-            self.list.splice(first..old, self.items.len() - first);
+            self.lists.splice(first..old, self.items.len() - first);
             cx.notify();
         }
     }

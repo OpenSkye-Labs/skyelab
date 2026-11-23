@@ -9,7 +9,7 @@ use gpui::{AnyWindowHandle, TestAppContext, VisualTestContext};
 use gpui_component::dock::DockPlacement;
 
 /// Runs `f` on `ws` inside its own window (`cx` may belong to another window).
-fn in_window<R>(
+pub(super) fn in_window<R>(
     handle: AnyWindowHandle,
     ws: &Entity<Workspace>,
     cx: &mut VisualTestContext,
@@ -28,7 +28,7 @@ fn in_window<R>(
 }
 
 /// A stored thread with a session to resume (so it isn't read-only), in a stored project.
-fn seed(store: &SharedStore, dir: &std::path::Path) -> i64 {
+pub(super) fn seed(store: &SharedStore, dir: &std::path::Path) -> i64 {
     let s = lock(store).expect("store");
     let project = s.create_project("demo", dir).expect("project");
     let thread = s

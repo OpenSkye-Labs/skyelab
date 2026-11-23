@@ -17,8 +17,10 @@ pub struct AppSettings {
     pub environment_nodes: BTreeMap<String, String>,
     /// Devices allowed to use this machine while it is shared: a client install's key on one tailnet node.
     pub approved_devices: Vec<ApprovedDevice>,
-    /// The main window's last frame and right panel, restored at the next launch.
+    /// Older files' single window slot; read when `windows` is empty, cleared on the next save.
     pub window: Option<WindowLayout>,
+    /// Every window open at the last save (frame, right panel, page), in the order they opened; all reopen at launch.
+    pub windows: Vec<WindowLayout>,
     /// "Open in editor": the command to run, split on whitespace (no shell), the folder appended. Unset: `$VISUAL`,
     /// `$EDITOR`, then `code` or `zed` from PATH.
     pub editor: Option<String>,
@@ -121,6 +123,15 @@ pub const MAX_RECENT_ENVIRONMENTS: usize = 8;
 impl AppSettings {
     pub fn default_path() -> Option<PathBuf> {
         dirs::config_dir().map(|d| d.join("skyelab").join("settings.toml"))
+    }
+
+    /// The windows to open at launch: the list, else an older file's single slot.
+    pub fn saved_windows(&self) -> Vec<WindowLayout> {
+        if self.windows.is_empty() {
+            self.window.iter().cloned().collect()
+        } else {
+            self.windows.clone()
+        }
     }
 
     /// Puts `host` first in the recents, once (names compare case-insensitively, as DNS does).

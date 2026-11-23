@@ -337,7 +337,7 @@ impl FindHost for ThreadView {
         &mut self.timeline.find
     }
     fn list_state(&self) -> &ListState {
-        &self.list
+        self.own_list()
     }
     fn focus_after_find(&self, window: &mut Window, cx: &mut App) {
         self.focus_prompt(window, cx);

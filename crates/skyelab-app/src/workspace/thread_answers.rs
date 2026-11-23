@@ -176,7 +176,7 @@ impl ThreadView {
             .iter()
             .position(|i| matches!(i, super::Item::Approval(a) if a.id == id))
         {
-            self.list.splice(ix..ix + 1, 1);
+            self.lists.splice(ix..ix + 1, 1);
         }
         cx.notify();
     }

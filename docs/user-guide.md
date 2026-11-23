@@ -83,9 +83,10 @@ no longer connected is ignored.
 **New Window** (<kbd>⇧⌘N</kbd>, <kbd>Ctrl+Shift+N</kbd> on Linux and Windows, the palette, or the SkyeLab menu on
 macOS) opens another window on the same projects, threads and accounts. Each window has its own page, project filter,
 docks and terminals. A thread open in two windows is the same thread with one agent: both windows show it as it runs,
-and its message input follows the window that opened it last. A notification for it comes once. Saving accounts in
+and its message input follows the window that opened it last, with its text and files (undo starts over there); the other window shows the draft, and clicking it brings the input there. A notification for it comes once. Saving accounts in
 Settings applies to every window, and a window catches up with projects and threads changed elsewhere when you switch
-to it. Every window saves its frame and page; the next launch opens one window, where the last changed one was.
+to it. Each window scrolls a thread on its own. Every open window saves its frame and page, and the next launch opens all
+of them again; a window you close leaves that list (quitting keeps every window).
 Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps running, agents included, until you quit
 (<kbd>⌘Q</kbd>); click its Dock icon to open a window again.
 

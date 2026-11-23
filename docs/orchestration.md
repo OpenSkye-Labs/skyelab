@@ -31,8 +31,9 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   (`thread_status` then says `starting`, `running` or `failed`), so a slow start (a big worktree) can't outlast the
   agent's 30 s wait and leave a child it never heard of. It takes an optional `request_id` (at most 128 chars): a
   retry with the same one from the same thread returns the same child, whether the first call is still starting or
-  done, and even after the child was closed; the first call's project and prompt win. The ids live in memory while the
-  calling thread is open. A start without one can still outlast the wait while a big worktree is checked out (the
+  done, and even after the child was closed; the first call's project and prompt win. The ids live in memory, app-wide,
+  while the calling thread is open: a start whose window closes mid-start still answers, and a retry served by
+  another window gets the same child. A start without one can still outlast the wait while a big worktree is checked out (the
   row is saved after the checkout).
 - **Live parent.** Starts and sends run only while the calling thread's agent is live in this window: a parent the
   user stopped, or that was closed, is refused, even for a call it queued before.
