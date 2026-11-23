@@ -29,6 +29,8 @@ pub enum ThreadViewEvent {
     PrUnlinked(String),
     /// The project's scripts were edited.
     ScriptsChanged,
+    /// Open a side chat of this thread: a new one (with its first question), or a stored one by id.
+    Side(crate::workspace::side_chat::SideAsk),
     /// The thread got a new worktree: the project's setup scripts run there.
     WorktreeCreated {
         cwd: PathBuf,

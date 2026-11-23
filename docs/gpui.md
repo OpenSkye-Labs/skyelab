@@ -40,6 +40,8 @@ and how Zed uses it, not blog posts or memory.
 - **Never hold a `read`/`update` borrow across an `.await`.** Copy out what you need, await, then update.
 - A `Task` is cancelled when dropped. Store it in a field (`_task: Task<()>`) to tie its life to the view, or `.detach()`
   only for true fire-and-forget. Agent processes, PTYs and network streams belong to a stored task, never a detached one.
+- A callback that has no `Window` (an observer) but must call something that needs one (`submit_remote`): leave the
+  callback with `cx.defer`, then `window_handle.update(cx, |_, window, cx| ..)` (`side_chat::ask_when_ready`).
 - Don't use tokio inside GPUI views. GPUI has its own executor. If a crate needs tokio (e.g. a server), run it on its
   own runtime thread and talk to the UI through channels.
 
@@ -64,6 +66,12 @@ and how Zed uses it, not blog posts or memory.
   screenshot, not only by reading the layout.
 - `Textarea::on_paste` sees the `ClipboardItem` before the text goes in; returning `true` keeps it out (long pastes
   become attachments that way).
+- `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
+  diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
+  row) whenever that set changes (`ChangesView::comments_changed`).
+- A hit target over part of a row (the diff gutter) is an `absolute` child with its own id and mouse handlers. A plain
+  `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
+  row's own colors still show under it.
 
 ## Redraw discipline
 
@@ -154,6 +162,8 @@ and how Zed uses it, not blog posts or memory.
 - Logic goes in `skyelab-core` and gets plain `#[test]`s. Views stay thin.
 - View behavior: `#[gpui::test] fn t(cx: &mut TestAppContext)` with the `test-support` feature in dev-deps.
   Use `cx.add_window_view`, `simulate_keystrokes`, `run_until_parked`. The executor is deterministic, so no sleeps.
+- Pointer tests: give the target `.debug_selector(..)`, get it drawn (`cx.notify()` after changing state directly,
+  then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
 - Visual or behavior check of the real app: `/loop-verify-ui`.
 
 ## Platform notes

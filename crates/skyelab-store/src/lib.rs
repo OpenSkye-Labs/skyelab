@@ -69,6 +69,8 @@ pub struct Thread {
     pub forked_from: Option<i64>,
     /// The linked pull request's state when it was last read (`open`, `draft`, `merged`, `closed`).
     pub pr_state: Option<String>,
+    /// The thread this one is a side chat of: hidden from the thread lists, listed under it.
+    pub side_of: Option<i64>,
 }
 
 /// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
@@ -115,7 +117,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from, pr_state";
+pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from, pr_state, side_of";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -333,6 +335,7 @@ impl Store {
             unread: false,
             forked_from: None,
             pr_state: None,
+            side_of: None,
         })
     }
 
@@ -344,10 +347,11 @@ impl Store {
             .optional()?)
     }
 
-    /// Most recently updated first, archived ones included. Deleted ones (still in their undo window) are left out.
+    /// Most recently updated first, archived ones included. Deleted ones (still in their undo window) and side chats
+    /// are left out.
     pub fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>> {
         let sql = format!(
-            "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 AND deleted_at IS NULL
+            "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 AND deleted_at IS NULL AND side_of IS NULL
              ORDER BY updated_at DESC, id DESC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
@@ -355,8 +359,8 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Every listed project's threads, most recently updated first, archived ones included. Deleted threads and
-    /// removed projects are left out.
+    /// Every listed project's threads, most recently updated first, archived ones included. Deleted threads, side
+    /// chats and removed projects are left out.
     pub fn list_all_threads(&self) -> Result<Vec<Thread>> {
         let cols = THREAD_COLS
             .split(", ")
@@ -365,7 +369,7 @@ impl Store {
             .join(", ");
         let sql = format!(
             "SELECT {cols} FROM threads t JOIN projects p ON p.id = t.project_id
-             WHERE t.deleted_at IS NULL AND p.removed_at IS NULL
+             WHERE t.deleted_at IS NULL AND t.side_of IS NULL AND p.removed_at IS NULL
              ORDER BY t.updated_at DESC, t.id DESC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
@@ -500,6 +504,7 @@ pub(crate) fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         unread: r.get(17)?,
         forked_from: r.get(18)?,
         pr_state: r.get(19)?,
+        side_of: r.get(20)?,
     })
 }
 

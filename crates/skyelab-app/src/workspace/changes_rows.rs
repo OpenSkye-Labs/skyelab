@@ -11,6 +11,9 @@ use skyelab_git::ChangeKind;
 use std::ops::Range;
 
 const ROW_HEIGHT: f32 = 20.;
+/// A line number's column and the sign's: the gutter a click comments from spans them.
+const NUM_W: f32 = 44.;
+const SIGN_W: f32 = 14.;
 /// The file tree's rows, T3's 28.
 const FILE_ROW_HEIGHT: f32 = 28.;
 /// Indent per tree level.
@@ -27,10 +30,42 @@ impl ChangesView {
         let Some(changes) = &self.changes else {
             return div().into_any_element();
         };
+        // The unified rows this item shows (annotations ending there go under it), and its old and new side's rows.
+        let over = match self.split.get(ix) {
+            Some(SplitRow::Pair(l, r)) if self.prefs.split => Some((*l, *r)),
+            Some(SplitRow::Full(i)) if self.prefs.split => Some((Some(*i), Some(*i))),
+            _ if self.prefs.split => None,
+            _ => Some((Some(ix), Some(ix))),
+        };
+        let (shown, halves): (Vec<usize>, Vec<(usize, bool)>) = match self.split.get(ix) {
+            Some(SplitRow::Pair(l, r)) if self.prefs.split => {
+                let sides = [(*l, true), (*r, false)];
+                let sides: Vec<(usize, bool)> = sides
+                    .into_iter()
+                    .filter_map(|(i, left)| Some((i?, left)))
+                    .collect();
+                (sides.iter().map(|s| s.0).collect(), sides)
+            }
+            Some(SplitRow::Full(i)) if self.prefs.split => (vec![*i], Vec::new()),
+            _ if self.prefs.split => (Vec::new(), Vec::new()),
+            _ => (vec![ix], Vec::new()),
+        };
+        let is_line = |i: usize| matches!(changes.rows.get(i), Some(Row::Line { .. }));
+        let unified_gutter = (halves.is_empty())
+            .then(|| shown.first().copied().filter(|&i| is_line(i)))
+            .flatten()
+            .map(|i| self.gutter(i, 2. * NUM_W + SIGN_W, false, cx));
+        let mut gutters: Vec<(bool, Option<AnyElement>)> = halves
+            .iter()
+            .map(|&(i, left)| (left, Some(self.gutter(i, NUM_W + SIGN_W, left, cx))))
+            .collect();
+        let picked = shown.iter().any(|&i| self.picked(i));
+        let notes = self.annotations(|i| shown.contains(&i), cx);
         let theme = cx.theme();
         let wrap = self.prefs.wrap;
         let base = h_flex()
             .id(("diff-row", ix))
+            .relative()
             .w_full()
             .items_start()
             .font_family(theme.mono_font_family.clone())
@@ -50,7 +85,7 @@ impl ChangesView {
                         .flatten()
                         .filter_map(|i| self.find.mark(i))
                         .max();
-                    let half = |i: Option<usize>, left: bool| {
+                    let mut half = |i: Option<usize>, left: bool| {
                         let line = i.and_then(|i| match changes.rows.get(i) {
                             Some(Row::Line {
                                 old,
@@ -60,7 +95,19 @@ impl ChangesView {
                             }) => Some((*old, *new, *kind, text.clone())),
                             _ => None,
                         });
-                        let el = div().flex_1().min_w_0().h_full().flex().overflow_hidden();
+                        let el = div()
+                            .relative()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .flex()
+                            .overflow_hidden();
+                        let el = el.children(
+                            gutters
+                                .iter_mut()
+                                .find(|(l, _)| *l == left)
+                                .and_then(|(_, g)| g.take()),
+                        );
                         match line {
                             Some((old, new, kind, text)) => {
                                 let n = if left { old } else { new };
@@ -90,10 +137,32 @@ impl ChangesView {
             (self.full_row(base, ix, cx), self.find.mark(ix))
         };
         let theme = cx.theme();
-        row.when_some(mark, |d, current| {
-            d.bg(theme.warning.opacity(if current { 0.22 } else { 0.08 }))
-        })
-        .into_any_element()
+        let (picked_bg, mark_bg) = (
+            theme.primary.opacity(0.08),
+            mark.map(|current| theme.warning.opacity(if current { 0.22 } else { 0.08 })),
+        );
+        let row = row
+            .when_some(mark_bg, |d, bg| d.bg(bg))
+            // Over the row, so the added and removed tints still show under it.
+            .when(picked, |d| {
+                d.child(div().absolute().inset_0().bg(picked_bg))
+            })
+            .children(unified_gutter)
+            .when_some(over, |d, rows| {
+                d.on_mouse_move(
+                    cx.listener(move |this, e, window, cx| this.drag_over(rows, e, window, cx)),
+                )
+            });
+        if notes.is_empty() {
+            return row.into_any_element();
+        }
+        gpui::div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .child(row)
+            .children(notes)
+            .into_any_element()
     }
 
     /// Row `ix` across the whole width: a file or hunk header, a placeholder, or a unified line.
@@ -305,7 +374,7 @@ fn line_parts<E: ParentElement + Styled>(
 ) -> E {
     let num = |n: Option<u32>| {
         div()
-            .w(px(44.))
+            .w(px(NUM_W))
             .flex_none()
             .text_right()
             .pr_2()
@@ -328,6 +397,6 @@ fn line_parts<E: ParentElement + Styled>(
     };
     base.child(num(first))
         .children(second.map(num))
-        .child(div().w(px(14.)).flex_none().child(sign))
+        .child(div().w(px(SIGN_W)).flex_none().child(sign))
         .child(text)
 }

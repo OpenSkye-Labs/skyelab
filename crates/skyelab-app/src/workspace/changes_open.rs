@@ -30,6 +30,10 @@ impl Workspace {
             // Same folder, same bound account, and publishing re-checks the account anyway.
             let thread = view.downgrade();
             changes.update(cx, |c, cx| {
+                // A comment being written for another thread doesn't move to this one.
+                if c.thread.as_ref() != Some(&thread) {
+                    (c.draft, c.drag) = (None, None);
+                }
                 c.thread = Some(thread);
                 c.refresh(cx)
             });
@@ -71,6 +75,16 @@ impl Workspace {
                 c.reveal_after_load = Some(path.clone());
                 c.reveal(&path, cx);
             });
+        }
+    }
+
+    /// A thread's turn ended: every Changes tab on its folder may be out of date.
+    pub(super) fn refresh_changes(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
+        let dir = view.read(cx).cwd.clone();
+        for changes in self.changes_views.iter().filter_map(|c| c.upgrade()) {
+            if changes.read(cx).dir == dir {
+                changes.update(cx, |c, cx| c.refresh(cx));
+            }
         }
     }
 }

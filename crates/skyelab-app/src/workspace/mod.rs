@@ -15,6 +15,7 @@ mod changes_turns;
 mod child_slots;
 mod details_panel;
 mod devices;
+mod diff_comments;
 mod env_mode;
 mod env_picker;
 mod env_sidebar;
@@ -32,6 +33,7 @@ mod mermaid_block;
 mod onboarding;
 mod settings_tab;
 mod setup_flow;
+mod side_chat;
 mod terminal_launch;
 mod terminal_panel;
 mod terminals;
@@ -203,6 +205,8 @@ pub struct Workspace {
     back: Vec<Page>,
     forward: Vec<Page>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
+    /// Side chat panes, kept when closed (their agents keep running).
+    side_chats: Vec<Entity<side_chat::SideChatPanel>>,
     /// Each open thread view's subscriptions and the row state the sidebar last drew; dropped in `close_thread`.
     thread_subs: std::collections::HashMap<gpui::EntityId, thread_rows::ThreadSubs>,
     /// One-shot waits on a thread view, by key; each removes itself once it fires, or goes when its view closes.
@@ -351,6 +355,7 @@ impl Workspace {
             back: Vec::new(),
             forward: Vec::new(),
             changes_views: Vec::new(),
+            side_chats: Vec::new(),
             thread_subs: Default::default(),
             waiters: Default::default(),
             next_waiter: 0,

@@ -37,6 +37,22 @@ remembers all three in `settings.toml` under `[diff]`.
 Click in the diff and press <kbd>⌘F</kbd> (<kbd>Ctrl+F</kbd>) to find in it: the bar counts every match in the file
 names and lines, <kbd>↩</kbd> and <kbd>⇧↩</kbd> step through them, and <kbd>Esc</kbd> closes it.
 
+## Commenting on lines
+
+Click a line's number (its gutter), or drag down the gutter across several lines, to comment on them: a field opens
+under the lines. <kbd>⌘↩</kbd> (<kbd>Ctrl+↩</kbd>) or **Comment** keeps it, **Cancel** or <kbd>Esc</kbd> drops it. In
+the split view, the left gutter comments on the old lines and the right one on the new lines. A comment stays in one
+file; a drag past its end stops there.
+
+Comments show under their lines. The strip above the diff counts them; **Send N comments** puts them all in the
+thread's composer as one chip (each comment's file and lines, the lines themselves and your note), sent with your
+next message as a fenced block, and removes them from the diff. **Clear** drops them.
+
+Each thread keeps its own comments, per diff (the working tree, or one turn). When the diff reloads (a turn ended, a
+commit), each comment finds its lines again, even if they moved; a comment whose lines are gone is dropped, and the
+strip says how many. A comment's message shows at most 30 of its lines. Comments are kept in memory only: closing the
+thread's tab or quitting SkyeLab loses unsent ones.
+
 ## Turns and rewind
 
 SkyeLab records a checkpoint of the thread's folder right before each agent turn and when it ends: every file git

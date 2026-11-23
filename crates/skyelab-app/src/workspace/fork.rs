@@ -15,6 +15,8 @@ use skyelab_store::NewThread;
 
 /// The most of the copied history the context prompt carries; the newest part is kept.
 const MAX_CONTEXT: usize = 60_000;
+/// A side chat's summary of its parent is shorter: it is context for a question, not a history to continue.
+const MAX_SIDE_CONTEXT: usize = 12_000;
 
 /// Forks thread `id` after its `turns`-th finished turn.
 #[derive(Clone, Debug, PartialEq, Action)]
@@ -65,9 +67,8 @@ pub(in crate::workspace) fn cut(
     events
 }
 
-/// The prompt the fork's first session starts with, ahead of the user's message: the copied conversation's messages
-/// (tool calls left out), at most [`MAX_CONTEXT`] characters of its newest part.
-pub(in crate::workspace) fn context_prompt(title: &str, events: &[skyelab_store::Event]) -> String {
+/// The copied conversation's messages (tool calls left out), at most `cap` characters of its newest part.
+fn conversation(events: &[skyelab_store::Event], cap: usize) -> String {
     let mut log = String::new();
     for e in events {
         match Record::from_row(&e.kind, &e.payload_json) {
@@ -83,17 +84,34 @@ pub(in crate::workspace) fn context_prompt(title: &str, events: &[skyelab_store:
         }
     }
     let n = log.chars().count();
-    if n > MAX_CONTEXT {
+    if n > cap {
         log = format!(
             "[earlier messages left out]\n\n{}",
-            log.chars().skip(n - MAX_CONTEXT).collect::<String>()
+            log.chars().skip(n - cap).collect::<String>()
         );
     }
+    log
+}
+
+/// The prompt the fork's first session starts with, ahead of the user's message: the copied conversation, at most
+/// [`MAX_CONTEXT`] characters of its newest part.
+pub(in crate::workspace) fn context_prompt(title: &str, events: &[skyelab_store::Event]) -> String {
     format!(
         "This thread is a fork of the thread \"{title}\". Its earlier session isn't available, so here is that \
          conversation up to the fork (tool calls left out). Take it as context, then answer the new message after \
          it.\n\n<conversation>\n{}</conversation>\n\nNew message:\n",
-        log
+        conversation(events, MAX_CONTEXT)
+    )
+}
+
+/// The prompt a side chat's first session starts with: the main thread's conversation (its newest
+/// [`MAX_SIDE_CONTEXT`] characters), and that it answers on the side without changing files.
+pub(in crate::workspace) fn side_prompt(title: &str, events: &[skyelab_store::Event]) -> String {
+    format!(
+        "This is a side chat next to the thread \"{title}\", in the same folder. Another agent is working in that \
+         thread, so answer questions here and don't change any files. Here is the newest part of that thread's \
+         conversation (tool calls left out), as context.\n\n<conversation>\n{}</conversation>\n\nQuestion:\n",
+        conversation(events, MAX_SIDE_CONTEXT)
     )
 }
 

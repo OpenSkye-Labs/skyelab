@@ -66,10 +66,13 @@ What's built today:
   Threads, which also holds the defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
   recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
   ([guide](docs/user-guide-threads.md)).
+- **Side chats.** `/side <question>` (or `/btw`) asks it in a small chat beside the thread, in the same folder under
+  the same account, without interrupting the thread's agent; **Bring back** adds its answer to the thread's composer.
 - **Import sessions.** Existing Claude Code and Codex sessions of a project, read from the folder's own account
   only, become threads with their history; sending continues the same session.
 - **Worktrees and diff review.** Switch "Local checkout" to "New worktree" under the composer and the thread gets its own git worktree on a
   `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
+  Click or drag down a line's gutter to comment on lines; **Send N comments** puts them in the composer as one chip.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
   switches project, opens a thread (also found by its messages, in any project) or goes to a terminal, Changes or
   browser tab.
