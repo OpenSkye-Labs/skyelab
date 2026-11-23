@@ -237,6 +237,15 @@ use skyelab_core::delegation::is_busy as busy;
 
 impl Host for AppHost {
     fn call(&self, caller: &Caller, tool: Tool) -> Result<Value, String> {
+        self.call_granted(caller, tool, &|| true)
+    }
+
+    fn call_granted(
+        &self,
+        caller: &Caller,
+        tool: Tool,
+        granted: &dyn Fn() -> bool,
+    ) -> Result<Value, String> {
         // The grant names the caller's thread and account; both must still agree with the store.
         let me = self
             .store(|s| s.thread(caller.thread_id))?
@@ -320,6 +329,9 @@ impl Host for AppHost {
                 let deadline = Instant::now() + Duration::from_secs(timeout_s);
                 loop {
                     // A stopped caller's agent is gone: nobody is waiting for the answer any more.
+                    if !granted() {
+                        return Err(CALLER_GONE.into());
+                    }
                     let me = lock(&self.store)
                         .and_then(|s| s.thread(caller.thread_id))
                         .map_err(|e| format!("{e:#}"))?;

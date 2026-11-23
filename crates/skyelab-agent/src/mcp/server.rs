@@ -343,7 +343,8 @@ fn serve_until_closed(
         if line.trim().is_empty() {
             continue;
         }
-        let Some(answer) = respond(host, &caller, &line) else {
+        let granted = || inner.grants().contains_key(&id);
+        let Some(answer) = respond(host, &caller, &line, &granted) else {
             continue;
         };
         if !inner.grants().contains_key(&id) {
@@ -363,7 +364,12 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Value {
 }
 
 /// The answer to one JSON-RPC message, or `None` for a notification.
-fn respond(host: &dyn Host, caller: &Caller, line: &str) -> Option<Value> {
+fn respond(
+    host: &dyn Host,
+    caller: &Caller,
+    line: &str,
+    granted: &dyn Fn() -> bool,
+) -> Option<Value> {
     let Ok(msg) = serde_json::from_str::<Value>(line) else {
         return Some(rpc_error(Value::Null, -32700, "parse error"));
     };
@@ -392,7 +398,7 @@ fn respond(host: &dyn Host, caller: &Caller, line: &str) -> Option<Value> {
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or_default();
             let answer = tools::parse(name, &params["arguments"])
-                .and_then(|tool| host.call(caller, tool))
+                .and_then(|tool| host.call_granted(caller, tool, granted))
                 .map(|v| v.to_string());
             let (text, is_error) = match answer {
                 Ok(text) => (text, false),

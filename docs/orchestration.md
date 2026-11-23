@@ -47,8 +47,8 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
   connection. Never TCP. The run dir is created 0700 (and chmod'ed again, past the umask), the token line must
   arrive whole within 5 s of connecting, and an accept error backs off 100 ms instead of spinning.
-  A `wait_thread` stops polling, with an error, as soon as the calling thread's row is no longer live (stopped,
-  exited, its tab closed). Browser calls from a thread that isn't running here any more are refused like start and
+  A `wait_thread` stops polling, with an error, as soon as the caller's grant is revoked or its row is no longer
+  live (stopped, exited, its tab closed). Browser calls from a thread that isn't running here any more are refused like start and
   send.
 - **Browser tools.** A thread reaches only the tab it opened (`BrowserPanel::agent` names its thread); the user's
   tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI

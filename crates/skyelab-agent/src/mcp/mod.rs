@@ -35,6 +35,18 @@ pub struct Caller {
 /// Answers tool calls. `Err` is shown to the agent as a tool error.
 pub trait Host: Send + Sync {
     fn call(&self, caller: &Caller, tool: Tool) -> Result<Value, String>;
+
+    /// [`Host::call`], with `granted` saying whether the caller's grant still stands, so a long call (a wait) can
+    /// stop once the agent is gone.
+    fn call_granted(
+        &self,
+        caller: &Caller,
+        tool: Tool,
+        granted: &dyn Fn() -> bool,
+    ) -> Result<Value, String> {
+        let _ = granted;
+        self.call(caller, tool)
+    }
 }
 
 /// The command `claude` runs as the MCP server.
