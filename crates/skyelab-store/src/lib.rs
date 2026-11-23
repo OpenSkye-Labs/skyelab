@@ -55,6 +55,18 @@ ALTER TABLE threads ADD COLUMN worktree_base TEXT;
 ALTER TABLE threads ADD COLUMN parent_thread_id INTEGER REFERENCES threads(id) ON DELETE SET NULL;
 CREATE INDEX threads_by_parent ON threads(parent_thread_id);
 ",
+    // parity-e, planned as version 8: one self-contained step that needs only `projects`, so it can move slots.
+    "
+CREATE TABLE project_scripts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    command    TEXT NOT NULL,
+    setup      INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX project_scripts_by_project ON project_scripts(project_id, id);
+",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +100,18 @@ pub struct Thread {
     pub pr_url: Option<String>,
     /// The thread whose agent delegated this one, if any.
     pub parent_thread_id: Option<i64>,
+}
+
+/// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
+/// Kept here, never in the repo, so an agent can't plant one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectScript {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub command: String,
+    /// Run in every new worktree of the project (installing dependencies, say).
+    pub setup: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,6 +246,52 @@ impl Store {
             .execute("DELETE FROM projects WHERE id = ?1", [id])
             .with_context(|| format!("delete project {id} (refused while it has threads)"))?;
         expect_one(n, "project", id)
+    }
+
+    /// Oldest first.
+    pub fn project_scripts(&self, project_id: i64) -> Result<Vec<ProjectScript>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, name, command, setup FROM project_scripts WHERE project_id = ?1 ORDER BY id",
+        )?;
+        let rows = stmt.query_map([project_id], |r| {
+            Ok(ProjectScript {
+                id: r.get(0)?,
+                project_id: r.get(1)?,
+                name: r.get(2)?,
+                command: r.get(3)?,
+                setup: r.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn add_project_script(
+        &self,
+        project_id: i64,
+        name: &str,
+        command: &str,
+        setup: bool,
+    ) -> Result<ProjectScript> {
+        self.conn
+            .execute(
+                "INSERT INTO project_scripts (project_id, name, command, setup, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![project_id, name, command, setup, now_ms()],
+            )
+            .with_context(|| format!("add a script to project {project_id}"))?;
+        Ok(ProjectScript {
+            id: self.conn.last_insert_rowid(),
+            project_id,
+            name: name.to_owned(),
+            command: command.to_owned(),
+            setup,
+        })
+    }
+
+    pub fn delete_project_script(&self, id: i64) -> Result<()> {
+        let n = self
+            .conn
+            .execute("DELETE FROM project_scripts WHERE id = ?1", [id])?;
+        expect_one(n, "project script", id)
     }
 
     pub fn create_thread(&self, new: &NewThread) -> Result<Thread> {

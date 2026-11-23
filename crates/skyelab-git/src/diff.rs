@@ -52,7 +52,16 @@ pub fn diff_merge_base(path: &Path, base: &str) -> Result<Vec<FileDiff>> {
     run(path, Some("--merge-base"), base)
 }
 
+/// Tree (or commit) `from` against `to`, per file: a checkpoint turn, or a thread since its start.
+pub fn diff_trees(path: &Path, from: &str, to: &str) -> Result<Vec<FileDiff>> {
+    run_revs(path, None, &[from, to])
+}
+
 fn run(path: &Path, mode: Option<&str>, rev: &str) -> Result<Vec<FileDiff>> {
+    run_revs(path, mode, &[rev])
+}
+
+fn run_revs(path: &Path, mode: Option<&str>, revs: &[&str]) -> Result<Vec<FileDiff>> {
     let args = [
         "-c",
         "core.quotePath=false",
@@ -71,8 +80,17 @@ fn run(path: &Path, mode: Option<&str>, rev: &str) -> Result<Vec<FileDiff>> {
         "--src-prefix=a/",
         "--dst-prefix=b/",
     ];
-    let rev = ["--end-of-options", rev, "--"];
-    let out = git(path, &[&args[..], mode.as_slice(), &rev[..]].concat())?;
+    let out = git(
+        path,
+        &[
+            &args[..],
+            mode.as_slice(),
+            &["--end-of-options"],
+            revs,
+            &["--"],
+        ]
+        .concat(),
+    )?;
     Ok(parse(&out))
 }
 
