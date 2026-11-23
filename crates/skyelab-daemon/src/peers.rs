@@ -22,7 +22,7 @@ pub struct Peer {
 pub(crate) struct Entry {
     pub(crate) peer: Peer,
     pub(crate) kick: Arc<Notify>,
-    /// Cancelled with every kick, so calls already read from this connection don't act.
+    /// Cancelled with every kick and when the connection ends, so calls already read from it don't act.
     pub(crate) gate: crate::CallGate,
     /// Set once hello passed with an approved key; a revoke of it closes the connection.
     pub(crate) approval: Option<crate::Approval>,
@@ -37,7 +37,8 @@ pub(crate) fn lock_peers(peers: &Peers) -> std::sync::MutexGuard<'_, BTreeMap<u6
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Removes its peer from the registry when the connection ends, however it ends.
+/// Removes its peer from the registry when the connection ends, however it ends, and cancels the calls it made:
+/// nobody is waiting for them, and once the entry is gone a revoke could no longer reach them.
 pub(crate) struct Registered<'a> {
     pub(crate) peers: &'a Peers,
     pub(crate) id: u64,
@@ -45,6 +46,8 @@ pub(crate) struct Registered<'a> {
 
 impl Drop for Registered<'_> {
     fn drop(&mut self) {
-        lock_peers(self.peers).remove(&self.id);
+        if let Some(entry) = lock_peers(self.peers).remove(&self.id) {
+            entry.gate.cancel();
+        }
     }
 }

@@ -1,11 +1,11 @@
-//! A call keeps running on its blocking thread after its connection is revoked or disconnected. [`CallGate`] lets
-//! the backend see that mid-call, so a call that has not acted yet is refused instead of run.
+//! A call keeps running on its blocking thread after its connection ends or is revoked. [`CallGate`] lets the
+//! backend see that mid-call, so a call that has not acted yet is refused instead of run.
 
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// Cancelled once the connection that made the call is revoked or disconnected.
+/// Cancelled once the connection that made the call is revoked, disconnected or closed.
 #[derive(Clone, Default, Debug)]
 pub struct CallGate(Arc<AtomicBool>);
 

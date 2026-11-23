@@ -136,4 +136,5 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   because CSP without `unsafe-eval` blocks it. (2026-11-23)
 - **Remote errors carry no local paths:** the daemon replaces every word with a `/` or `\` in an error message
   with `<local path>` just before it sends it, so no backend refusal can tell a client this machine's folders.
-  Project listings still send project paths by design. (2026-11-23)
+  Errors the app knows may quote a folder (a refused resume) are written without it, since a path with spaces
+  keeps its slash-free words. Project listings still send project paths by design. (2026-11-23)

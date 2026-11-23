@@ -164,7 +164,7 @@ fn on_text(
             let replies = replies.clone();
             let gate = who.gate.clone();
             running.spawn(async move {
-                // Checked again here: the call can wait for a blocking thread while its device is revoked.
+                // The call can wait for a blocking thread while its device is revoked.
                 let run = move || match gate.cancelled() {
                     true => Err(RpcError::new(
                         ErrorCode::NotApproved,
@@ -235,7 +235,8 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
     }
 }
 
-/// Error text can name this machine's folders (a refusal that quotes one); a client never sees them.
+/// Error text can name this machine's folders (a refusal that quotes one). The app's refusals are written
+/// without paths; this catches the rest.
 fn without_paths(mut msg: ServerMessage) -> ServerMessage {
     if let ServerMessage::Error { error, .. } = &mut msg {
         error.message = redact_paths(&error.message);
@@ -244,7 +245,8 @@ fn without_paths(mut msg: ServerMessage) -> ServerMessage {
 }
 
 /// Every space-separated word with a `/` or `\` in it becomes `<local path>`.
-// shortcut: a path with spaces keeps its slash-free middle words ("b" in "/a/b c/d"); fine while errors quote paths whole.
+// shortcut: a path with spaces keeps its slash-free words ("North" in "/work/Project North"); errors that may
+// quote a path must be written without it at the source (workspace/remote.rs), as the known ones are.
 fn redact_paths(message: &str) -> String {
     message
         .split(' ')

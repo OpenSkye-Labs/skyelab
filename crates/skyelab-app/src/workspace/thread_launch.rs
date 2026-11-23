@@ -47,11 +47,11 @@ impl ThreadView {
                 cx.notify();
             }
             None => {
+                // No path: this text also goes to remote clients (submit_remote).
                 self.resume_refused = Some(
                     format!(
-                        "{} isn't bound to {} any more (unbound, or its binding needs \
+                        "This folder isn't bound to {} any more (unbound, or its binding needs \
                          re-confirming in Settings), so this thread can't continue.",
-                        self.cwd.display(),
                         thread.account_id
                     )
                     .into(),
