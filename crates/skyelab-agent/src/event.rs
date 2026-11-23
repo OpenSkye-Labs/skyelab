@@ -62,8 +62,8 @@ pub enum Event {
         used: Option<f32>,
     },
     /// A subagent's progress (Claude's `task_started`, `task_progress` and `task_notification` lines), keyed by the
-    /// Agent tool call that started it. `status` is `running` once started and the final one (`completed`, `failed`,
-    /// `stopped`) when it ends; a progress line has none and says what it is doing in `activity`.
+    /// Agent tool call that started it. `status` is `running` once started and the notification's own status when it
+    /// ends (`completed` in the recorded transcripts); a progress line has none and says what it is doing in `activity`.
     Task {
         tool_use_id: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -204,6 +204,36 @@ struct Outcome {
     #[serde(default)]
     total_cost_usd: f64,
     result: Option<String>,
+    #[serde(default)]
+    errors: Vec<String>,
+    #[serde(default)]
+    terminal_reason: Option<String>,
+}
+
+impl Outcome {
+    /// A failed turn's text: `interrupted` when the user cut it off (Claude says `aborted_*`, the way Codex says
+    /// `interrupted`), else `result`, else Claude's `errors` without its internal diagnostics.
+    fn text(self) -> Option<String> {
+        if !self.is_error {
+            return self.result;
+        }
+        if self
+            .terminal_reason
+            .as_deref()
+            .is_some_and(|r| r.starts_with("aborted"))
+        {
+            return Some("interrupted".to_owned());
+        }
+        let errors: Vec<&str> = self
+            .errors
+            .iter()
+            .map(|e| e.trim())
+            .filter(|e| !e.is_empty() && !e.starts_with("[ede_diagnostic]"))
+            .collect();
+        self.result
+            .filter(|r| !r.trim().is_empty())
+            .or_else(|| (!errors.is_empty()).then(|| errors.join("\n")))
+    }
 }
 
 impl Event {
@@ -252,7 +282,7 @@ impl Event {
                 is_error: o.is_error,
                 duration_ms: o.duration_ms,
                 total_cost_usd: o.total_cost_usd,
-                result: o.result,
+                result: o.text(),
                 prompts: 1,
                 usage: v.get("usage").filter(|u| u.is_object()).map(claude_usage),
             }),

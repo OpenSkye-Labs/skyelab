@@ -103,3 +103,34 @@ fn rate_limit_events_name_their_window() {
     assert_eq!(line("overage", r#","utilization":0.1"#).rate_limit(), None);
     assert_eq!(Event::parse(r#"{"type":"result"}"#).rate_limit(), None);
 }
+
+/// A failed result's text: an aborted turn (the user's interrupt) reads `interrupted`, like Codex's; otherwise
+/// Claude's `errors` stand in for a missing `result`, without its internal diagnostics.
+#[test]
+fn failed_results_carry_their_reason() {
+    let text = |v: serde_json::Value| match Event::parse(&v.to_string()) {
+        Event::Result { result, .. } => result,
+        other => panic!("a result: {other:?}"),
+    };
+    let base = json!({"type":"result","subtype":"error_during_execution","is_error":true,"duration_ms":1,
+        "errors":["[ede_diagnostic] stop_reason=null","Error: Request was aborted."]});
+    let mut aborted = base.clone();
+    aborted["terminal_reason"] = json!("aborted_streaming");
+    assert_eq!(text(aborted).as_deref(), Some("interrupted"));
+    let mut key = base.clone();
+    key["errors"] = json!(["[ede_diagnostic] x", "Invalid API key · Please run /login"]);
+    assert_eq!(
+        text(key).as_deref(),
+        Some("Invalid API key · Please run /login")
+    );
+    let mut said = base;
+    said["result"] = json!("API Error: 500");
+    assert_eq!(text(said).as_deref(), Some("API Error: 500"), "result wins");
+    let ok = json!({"type":"result","subtype":"success","is_error":false,"duration_ms":1,"result":"done",
+        "terminal_reason":"aborted_streaming"});
+    assert_eq!(
+        text(ok).as_deref(),
+        Some("done"),
+        "a success keeps its text"
+    );
+}

@@ -65,3 +65,6 @@ mod failure_banner_test;
 
 #[path = "thread_find_test.rs"]
 mod thread_find_test;
+
+#[path = "claude_interrupt_banner_test.rs"]
+mod claude_interrupt_banner_test;
