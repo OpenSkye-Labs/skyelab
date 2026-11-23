@@ -298,7 +298,7 @@ impl ThreadView {
     }
 
     /// "Label · id" of the account the thread was started with, from its store row.
-    #[cfg(test)]
+    #[cfg(all(test, unix))] // only the unix-only thread tests read it
     pub fn badge(&self) -> Option<SharedString> {
         let id = &self.thread.as_ref()?.account_id;
         let label = self
@@ -312,7 +312,7 @@ impl ThreadView {
 
     /// The provider of the account the thread was started with (`None` before the thread has a row,
     /// or when that account is gone).
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub fn provider(&self) -> Option<skyelab_core::Provider> {
         let id = &self.thread.as_ref()?.account_id;
         let account = self.config.accounts.iter().find(|a| &a.id == id)?;

@@ -197,20 +197,30 @@ impl Render for Sidebar {
             .size_full()
             .overflow_y_scroll()
             .px_2()
-            .pt_3()
             .pb_3()
             .gap_4()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
-            .child(match &self.picker {
-                Some(picker) => picker.clone().into_any_element(),
-                None => div()
-                    .px_2p5()
-                    .text_size(ui::BODY)
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child("SkyeLab")
-                    .into_any_element(),
-            })
+            // The window's top row: on macOS the traffic lights sit at its start, so the picker starts after them.
+            .child(
+                div()
+                    .min_h(ui::TOP_ROW_H)
+                    .flex()
+                    .flex_col()
+                    .justify_center()
+                    .when(cfg!(target_os = "macos"), |d| {
+                        d.pl(ui::TRAFFIC_LIGHTS_W - gpui::px(8.))
+                    })
+                    .child(match &self.picker {
+                        Some(picker) => picker.clone().into_any_element(),
+                        None => div()
+                            .px_2p5()
+                            .text_size(ui::BODY)
+                            .font_weight(gpui::FontWeight::MEDIUM)
+                            .child("SkyeLab")
+                            .into_any_element(),
+                    }),
+            )
             .children(blocks)
     }
 }

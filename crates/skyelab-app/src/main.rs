@@ -26,6 +26,7 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
         } else {
             WindowKind::Normal
         },
+        titlebar: Some(ui::titlebar_options()),
         ..Default::default()
     }
 }

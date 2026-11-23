@@ -406,6 +406,10 @@ impl Render for Workspace {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
+            // Windows: the titlebar is transparent, so draw the window controls in theme colors.
+            .when(cfg!(target_os = "windows"), |el| {
+                el.child(gpui_component::TitleBar::new().child("SkyeLab"))
+            })
             .child(div().flex_1().min_h_0().child(self.dock.clone()))
             .child(self.render_status(cx))
     }

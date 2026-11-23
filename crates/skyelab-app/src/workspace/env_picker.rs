@@ -5,13 +5,14 @@ use super::env_mode::SwitchEnvironment;
 use crate::ui;
 use gpui::{
     Action as _, AppContext as _, Context, Entity, FontWeight, IntoElement, SharedString, Task,
-    Window, actions, div, prelude::*,
+    Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState},
+    tooltip::Tooltip,
     v_flex,
 };
 use skyelab_daemon::SharedTailnet;
@@ -124,36 +125,32 @@ impl Render for EnvPicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let current: SharedString = self.current.clone().unwrap_or(THIS_MAC.into()).into();
+        // One line, so it fits the window's top row beside the traffic lights.
         let header = h_flex()
             .id("env-picker")
+            .h(px(26.))
             .justify_between()
-            .gap_2()
-            .px_2p5()
-            .py_1p5()
+            .gap_1p5()
+            .px_2()
             .rounded(ui::RADIUS)
             .cursor_pointer()
+            .tooltip(|window, cx| {
+                Tooltip::new("SkyeLab on this machine or another; click to switch")
+                    .build(window, cx)
+            })
             .hover(|s| s.bg(theme.sidebar_accent.opacity(0.7)))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleEnvironments), cx))
             .child(
-                v_flex()
+                div()
                     .min_w_0()
-                    .child(
-                        div()
-                            .text_size(ui::META)
-                            .text_color(theme.muted_foreground)
-                            .child("SkyeLab on"),
-                    )
-                    .child(
-                        div()
-                            .text_size(ui::BODY)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .truncate()
-                            .child(current),
-                    ),
+                    .truncate()
+                    .text_size(ui::BODY)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(current),
             )
             .child(
                 Icon::new(IconName::ChevronsUpDown)
-                    .size_4()
+                    .size_3p5()
                     .text_color(theme.muted_foreground),
             );
         let row = |host: Option<String>, label: String, selected: bool| {

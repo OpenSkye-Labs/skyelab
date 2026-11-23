@@ -56,6 +56,25 @@ pub fn sync_appearance(window: &mut gpui::Window, cx: &mut gpui::App) {
     }
 }
 
+/// The window's top row: the dock's tab bar, and the sidebar's first row beside it. There is no separate title strip:
+/// on macOS the traffic lights sit in this row over the sidebar, on Windows gpui-component's `TitleBar` draws the
+/// window controls in theme colors. Linux keeps its server-side decorations.
+pub const TOP_ROW_H: Pixels = px(32.);
+/// Room the macOS traffic lights take at the start of the top row.
+pub const TRAFFIC_LIGHTS_W: Pixels = px(76.);
+
+/// The titlebar every SkyeLab window opens with: transparent on macOS and Windows so the app's own surfaces reach the
+/// top, traffic lights centred in [`TOP_ROW_H`]. AppKit keeps dragging the window from that band (and zooming on a
+/// double click) natively.
+pub fn titlebar_options() -> gpui::TitlebarOptions {
+    gpui::TitlebarOptions {
+        title: Some("SkyeLab".into()),
+        appears_transparent: true,
+        // Centred on the top row's text line (the buttons are about 12 px tall).
+        traffic_light_position: Some(gpui::point(px(16.), px(9.))),
+    }
+}
+
 /// Corner radii (docs/design/t3-reference.md §3): badges and keys `SM`, sidebar rows `MD`, controls and cards `BASE`,
 /// grouped settings `LG`, the composer and message bubbles `XL`.
 pub const RADIUS_SM: Pixels = px(4.);
