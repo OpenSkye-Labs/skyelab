@@ -53,10 +53,17 @@ What's built today:
   state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
   per account and per project, with a daily chart, from what the agents reported (no account is asked).
+- **Scheduled tasks.** Settings → Scheduled tasks saves a prompt that starts a new thread in a project every N
+  minutes or hours, daily or on weekdays at a time, or on a cron expression, while SkyeLab runs. Each run uses the
+  folder's bound account as resolved then; a rebound or unbound folder pauses the task instead. **Schedule this
+  prompt…** in the palette starts one from a composer ([guide](docs/user-guide-scheduled.md)).
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user (a sparkle writes the commit
   message or PR text, from the PR template too, with that account's agent); inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
+- **Pull requests and issues.** **Open Pull Requests** / **Open Issues** (palette) list the open PRs and issues of
+  every bound project, each read with its own account's GitHub login (mine, review requested, assigned, all). A PR
+  starts a review thread with the PR linked; an issue starts a thread with the issue as a context chip.
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
   `/` and skills with `$`, add another thread's gist or its pull request with `#` (same account only), and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed

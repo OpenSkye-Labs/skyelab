@@ -35,8 +35,6 @@ actions!(
         SettleThread,
         /// Snoozes the shown thread until a typed time.
         SnoozeThread,
-        OpenPullRequests,
-        OpenIssues,
         /// Reloads the thread list and its rows' previews.
         RefreshThreads
     ]
@@ -72,13 +70,6 @@ impl Workspace {
                     let to = Shelf::SnoozeCustom;
                     ws.shelve_thread(&ShelveThread { id, to }, window, cx);
                 }
-            }))
-            // shortcut: placeholders until the Pull requests and Issues pages exist (another change builds them).
-            .on_action(cx.listener(|ws, _: &OpenPullRequests, window, cx| {
-                ws.say("Pull requests are coming soon.", window, cx)
-            }))
-            .on_action(cx.listener(|ws, _: &OpenIssues, window, cx| {
-                ws.say("Issues are coming soon.", window, cx)
             }))
             .on_action(cx.listener(|ws, _: &RefreshThreads, _, cx| ws.load_threads(cx)))
             .on_action(cx.listener(Self::stop_children))

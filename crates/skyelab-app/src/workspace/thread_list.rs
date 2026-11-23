@@ -116,6 +116,7 @@ impl Workspace {
                         settled: t.settled_at.is_some(),
                         snoozed_until: t.snoozed_until,
                     }),
+                    scheduled: t.scheduled_task_id.is_some(),
                     unread: t.unread,
                     approval: state.approval,
                     started_ms: state.started_ms.filter(|_| state.running()),

@@ -15,6 +15,10 @@ ignore.workspace = true
 chrono.workspace = true
 grep-searcher.workspace = true
 grep-regex.workspace = true
+croner.workspace = true
+
+[dev-dependencies]
+chrono-tz.workspace = true
 
 [lints]
 workspace = true

@@ -25,10 +25,13 @@ ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN fo
 ALTER TABLE threads DROP COLUMN fork_context;
 ";
 
-/// Undoes migrations 21 and 19: settled and snoozed threads; side chats.
+/// Undoes migration 22: settled and snoozed threads.
+pub const UNDO_V22: &str =
+    "ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until;";
+/// Undoes migration 21: scheduled tasks.
+pub const UNDO_V21: &str = "DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id;";
 pub const UNDO_V19: &str =
-    "ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until;
-    DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of;";
+    "DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of;";
 /// Undoes migration 16: the turn usage table.
 pub const UNDO_V16: &str = "DROP TRIGGER turn_usage_insert; DROP TABLE turn_usage;";
 pub const UNDO_V15: &str = "ALTER TABLE threads DROP COLUMN pr_state;";

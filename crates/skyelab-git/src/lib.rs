@@ -7,6 +7,7 @@ mod branch;
 mod checkpoint;
 mod commit;
 mod diff;
+mod gh_lists;
 mod publish;
 mod remote;
 mod status;
@@ -27,6 +28,10 @@ pub use commit::{commit, snapshot_tree};
 pub use diff::{
     Against, FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base,
     diff_stat, diff_trees, diff_with,
+};
+pub use gh_lists::{
+    IssueFilter, IssueRow, MAX_BODY, MAX_ROWS, PrFilter, PrRow, issue_list_args, list_issues,
+    list_prs, parse_issue_list, parse_pr_list, parse_repo_url, pr_list_args, repo_slug,
 };
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use remote::{

@@ -109,7 +109,8 @@ impl Sidebar {
 
 /// The footer's icon row (T3's `SidebarChrome`): 32 px ghost icon buttons with tooltips.
 pub(super) fn footer() -> impl IntoElement {
-    use crate::workspace::thread_list::{OpenIssues, OpenPullRequests, RefreshThreads};
+    use crate::workspace::gh_pages::{OpenIssues, OpenPullRequests};
+    use crate::workspace::thread_list::RefreshThreads;
     use gpui_kit_assets::IconName as Lucide;
     let button = |id: &'static str, icon: Icon, tip: &'static str, action: Box<dyn Action>| {
         Button::new(id)

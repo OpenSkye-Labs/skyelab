@@ -65,10 +65,13 @@ impl Workspace {
         );
         let remote = self.remote_panel(cx);
         let usage = cx.new(usage_page::UsagePage::new);
+        let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());
+        let scheduled = cx.new(|cx| scheduled::ScheduledPage::new(store, accounts, cx));
         let settings = cx.new(|cx| {
             let mut s = Settings::new(path, config, error, window, cx);
             s.remote = remote;
             s.usage = Some(usage);
+            s.scheduled = Some(scheduled);
             s
         });
         // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.

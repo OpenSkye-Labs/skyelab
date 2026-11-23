@@ -20,11 +20,12 @@ mod images;
 mod import;
 mod manage;
 mod model;
+pub mod scheduled;
+mod thread_row;
 pub use model::ModelChoice;
+pub(crate) use thread_row::{THREAD_COLS, thread_from_row};
 mod migrations;
 mod settle;
-mod thread_row;
-pub(crate) use thread_row::{THREAD_COLS, thread_from_row};
 pub mod usage;
 use migrations::MIGRATIONS;
 pub use usage::UsageReading;
@@ -74,6 +75,8 @@ pub struct Thread {
     pub pr_state: Option<String>,
     /// The thread this one is a side chat of: hidden from the thread lists, listed under it.
     pub side_of: Option<i64>,
+    /// The scheduled task that started it: the sidebar's "Scheduled" badge.
+    pub scheduled_task_id: Option<i64>,
     /// When the user settled it (done: listed in the Settled shelf).
     pub settled_at: Option<i64>,
     /// Hidden until then; once passed it lists again as woke, until opened.
@@ -342,6 +345,7 @@ impl Store {
             forked_from: None,
             pr_state: None,
             side_of: None,
+            scheduled_task_id: None,
             settled_at: None,
             snoozed_until: None,
         })
