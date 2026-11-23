@@ -3,6 +3,7 @@
 //! shortcut: shells out to the `git` CLI, so every call pays a process spawn and we parse text output;
 //! move to `gix` once it covers worktree add/remove and status with renames.
 
+mod commit;
 mod diff;
 mod publish;
 mod status;
@@ -13,8 +14,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+pub use commit::{commit, snapshot_tree};
 pub use diff::{FileDiff, Hunk, Line, diff, diff_merge_base};
-pub use publish::{GitHub, commit, create_pr, credential_args, gh_login, push, snapshot_tree};
+pub use publish::{GitHub, create_pr, credential_args, gh_login, push};
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
 
