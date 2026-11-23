@@ -33,6 +33,8 @@ earlier prompt aren't brought back.
 Defaults for new threads. A thread's own choice always wins.
 
 - **Generate thread titles**: on by default.
+- **Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
+  ([how they work](user-guide-accounts.md)).
 - **Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
 - **New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
 - **Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
