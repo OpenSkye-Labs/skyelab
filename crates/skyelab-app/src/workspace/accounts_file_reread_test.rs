@@ -87,3 +87,27 @@ fn commit_is_refused_once_the_file_rebinds_the_folder(cx: &mut TestAppContext) {
         "nothing was committed"
     );
 }
+
+#[gpui::test]
+fn push_uses_a_github_login_added_to_the_file_meanwhile(cx: &mut TestAppContext) {
+    let f = fixture(); // the window's config has no gh dir for "acme"
+    let (_thread, changes, cx) = thread_and_changes(&f, cx);
+    let root = f.project.parent().expect("parent").to_path_buf();
+    let gh_dir = root.join("gh-acme");
+    std::fs::create_dir_all(&gh_dir).expect("mkdir");
+    let mut saved = f.config.clone();
+    saved.accounts[0].gh_config_dir = Some(gh_dir);
+    let accounts = root.join("accounts.toml");
+    saved.save(&accounts).expect("save");
+    cx.update(|_, cx| cx.set_global(AccountsFile(accounts)));
+
+    changes.update_in(cx, |c, window, cx| c.push(window, cx));
+    wait_until(cx, "push answered", |cx| {
+        changes.read_with(cx, |c, _| {
+            c.publish_error.is_some() || c.publish_note.is_some()
+        })
+    });
+    // The repo has no remote, so the push itself fails, but past the login check.
+    let e = error(&changes, cx).unwrap_or_default();
+    assert!(!e.contains("no GitHub login"), "{e}");
+}

@@ -30,7 +30,7 @@ struct Target {
 }
 
 impl ChangesView {
-    fn target(&self, github: bool, cx: &App) -> Result<Target> {
+    fn target(&self, cx: &App) -> Result<Target> {
         let view = self
             .thread
             .as_ref()
@@ -48,17 +48,14 @@ impl ChangesView {
                 row.cwd.display()
             );
         }
-        resolves_to(&view.config, &self.dir, &row.account_id)?;
-        let gh_dir = github
-            .then(|| view.config.github_config_dir(&self.dir))
-            .transpose()?;
+        // The account checks run when the action does, against accounts.toml as saved then (`run`).
         Ok(Target {
             dir: self.dir.clone(),
             config: view.config.clone(),
             account_id: row.account_id.clone(),
             thread_id: row.id,
             store: view.backend.store.clone(),
-            gh_dir,
+            gh_dir: None,
         })
     }
 
@@ -75,7 +72,7 @@ impl ChangesView {
             return;
         }
         self.publish_note = None;
-        let target = match self.target(github, cx) {
+        let target = match self.target(cx) {
             Ok(t) => t,
             Err(e) => {
                 self.publish_error = Some(format!("{e:#}").into());
