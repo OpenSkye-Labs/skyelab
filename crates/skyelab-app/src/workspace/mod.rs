@@ -19,6 +19,7 @@ mod env_mode;
 mod env_picker;
 mod env_sidebar;
 mod files;
+mod import_sessions;
 mod keys;
 pub(crate) mod layout;
 mod manage;
@@ -223,6 +224,9 @@ pub struct Workspace {
     /// Every notice shown (warnings, undo, thread notifications), for tests: the toast list is private.
     #[cfg(test)]
     notices: Vec<SharedString>,
+    /// The last import picker opened, for tests.
+    #[cfg(test)]
+    import_picker: Option<gpui::WeakEntity<import_sessions::ImportPicker>>,
 }
 
 impl Workspace {
@@ -352,6 +356,8 @@ impl Workspace {
             files: Default::default(),
             #[cfg(test)]
             notices: Vec::new(),
+            #[cfg(test)]
+            import_picker: None,
         };
         this.watch_attention(window, cx);
         this.watch_setup(cx);
@@ -491,6 +497,8 @@ mod env_whois_test;
 mod exit_holding_stdout_test;
 #[cfg(all(test, unix))] // uses publish_test's fake-gh helpers
 mod generate_text_test;
+#[cfg(all(test, unix))]
+mod import_sessions_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;
 #[cfg(test)]

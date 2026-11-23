@@ -97,6 +97,7 @@ fn migration_backfills_readings_from_stored_events() {
     }
     // Back to version 9: the table and trigger as they were before.
     let conn = Connection::open(&path).expect("raw");
+    conn.execute_batch(common::UNDO_V14).expect("drop v14");
     conn.execute_batch(common::UNDO_V13).expect("drop v13");
     conn.execute_batch(common::UNDO_V11).expect("drop v11");
     conn.execute_batch("DROP TRIGGER usage_reading_insert; DROP TABLE usage_readings;")

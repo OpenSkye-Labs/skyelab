@@ -24,3 +24,6 @@ DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
 ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
 ALTER TABLE threads DROP COLUMN fork_context;
 ";
+
+/// Undoes migration 14: the imported session column.
+pub const UNDO_V14: &str = "ALTER TABLE threads DROP COLUMN imported_session;";

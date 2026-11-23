@@ -17,6 +17,7 @@ mod events;
 mod extras;
 pub use extras::Draft;
 mod images;
+mod import;
 mod manage;
 mod model;
 pub use model::ModelChoice;
