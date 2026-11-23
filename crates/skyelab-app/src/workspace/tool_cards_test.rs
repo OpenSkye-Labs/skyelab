@@ -23,7 +23,7 @@ fn view(cx: &mut TestAppContext) -> (One, &mut VisualTestContext) {
 /// Shows `items` (with `open` rows expanded) and draws a frame.
 fn show(one: &One, cx: &mut VisualTestContext, items: Vec<Item>, open: &[&str]) {
     one.view.update(cx, |v, cx| {
-        v.items = items;
+        v.items = items.into();
         v.lists.reset(v.items.len());
         for id in open {
             v.toggle_tool(id, cx);

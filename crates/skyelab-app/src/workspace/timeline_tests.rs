@@ -71,3 +71,6 @@ mod claude_interrupt_banner_test;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "turn_cost_test.rs"]
 mod turn_cost_test;
+
+#[path = "timeline_keys_test.rs"]
+mod timeline_keys_test;

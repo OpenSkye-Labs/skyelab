@@ -19,7 +19,7 @@ fn result(is_error: bool) -> Record {
 
 #[test]
 fn a_follow_up_mid_stream_leaves_no_duplicate_text() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for r in [
         Record::Prompt("first".into()),
         Record::Agent(Event::Delta {
@@ -56,7 +56,7 @@ fn a_follow_up_mid_stream_leaves_no_duplicate_text() {
 
 #[test]
 fn a_failed_rerun_after_a_gone_session_still_shows_its_failure() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for r in [
         Record::Prompt("hi".into()),
         Record::Agent(Event::SessionGone),
@@ -79,14 +79,14 @@ fn a_plan_link_with_an_app_scheme_does_not_open(cx: &mut gpui::TestAppContext) {
     let plan = format!("[{}](skyelab-evil://pwn)", "click ".repeat(1500));
     let raw = json!({ "plan": plan });
     thread.update(cx, |v, cx| {
-        v.items = vec![Item::Approval(ApprovalItem {
+        v.items = crate::workspace::thread_model::Items::from(vec![Item::Approval(ApprovalItem {
             id: "p1".into(),
             tool: "ExitPlanMode".into(),
             summary: String::new(),
             input: raw.to_string(),
             raw,
             decision: None,
-        })];
+        })]);
         v.lists.reset(1);
         cx.notify();
     });

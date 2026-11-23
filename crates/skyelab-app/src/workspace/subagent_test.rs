@@ -64,7 +64,7 @@ fn cards(items: &[Item]) -> Vec<&SubagentItem> {
 
 #[test]
 fn subagent_card_collects_nested_calls_and_status() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for r in [
         Record::Prompt("audit".into()),
         agent(vec![call(
@@ -143,7 +143,7 @@ fn subagent_card_collects_nested_calls_and_status() {
 
 #[test]
 fn a_task_call_without_task_lines_ends_with_its_result() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     apply(
         &mut items,
         &agent(vec![call(
@@ -219,7 +219,12 @@ fn fake_subagent_prompt_streams_a_card(cx: &mut TestAppContext) {
     assert_eq!(tools, [1, 1]);
     // Opened, a card draws its calls.
     one.view.update(cx, |v, cx| {
-        v.items.retain(|i| matches!(i, Item::Subagent(_)));
+        v.items = v
+            .items
+            .iter()
+            .filter(|i| matches!(i, Item::Subagent(_)))
+            .cloned()
+            .collect();
         v.lists.reset(v.items.len());
         v.toggle_tool("toolu_sa", cx);
     });

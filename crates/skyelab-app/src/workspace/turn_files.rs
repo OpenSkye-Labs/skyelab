@@ -183,7 +183,8 @@ pub(super) fn render<V: ItemsView>(
     if files.is_empty() {
         return None;
     }
-    let key = format!("files:{done}");
+    let row = this.items().key(done);
+    let key = super::timeline_fold::files_key(this.items(), done);
     let open = this.is_expanded(&key);
     let (added, removed) = files
         .iter()
@@ -231,7 +232,7 @@ pub(super) fn render<V: ItemsView>(
     let rows = files.iter().enumerate().map(|(i, f)| {
         let path = f.path.clone();
         h_flex()
-            .id(SharedString::from(format!("turn-file-{done}-{i}")))
+            .id(SharedString::from(format!("turn-file-{row}-{i}")))
             .debug_selector(|| "turn-file".into())
             .h(px(28.))
             .gap_2()

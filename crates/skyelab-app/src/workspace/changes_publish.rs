@@ -117,7 +117,7 @@ impl ChangesView {
         }));
     }
 
-    /// An action from the Details tab's Commit & push menu: the same buttons, with their refusals. Commit and Open
+    /// An action from the details card's Commit & push menu: the same buttons, with their refusals. Commit and Open
     /// PR need the text this tab holds, so with it empty they point at the field instead.
     pub(super) fn run_git(
         &mut self,

@@ -63,7 +63,7 @@ without stopping it (a crash, say) shows as **interrupted**; send a follow-up to
 
 ### Thread details
 
-The right panel's **Details** tab (the right-panel toggle opens it) holds the thread's folder, branch, git actions,
+The thread details card (<kbd>⇧⌘B</kbd>, floating over the chat) holds the thread's folder, branch, git actions,
 scripts, delegated agents, pull request and editor, and every account's usage. Details and the dialog backdrop:
 [user-guide-thread-details.md](user-guide-thread-details.md).
 
@@ -168,7 +168,7 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
 `wait_thread`, and others). The new thread appears in the sidebar marked unread; the page you're on stays. Its header's breadcrumb links back to the
-parent, and the parent's Details tab lists it under **Lineage**. An agent can only start threads in projects bound to its own
+parent, and the parent's thread details card lists it under **Lineage**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
 when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its

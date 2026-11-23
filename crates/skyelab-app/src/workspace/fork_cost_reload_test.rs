@@ -17,7 +17,7 @@ fn result(total: f64) -> Record {
 
 #[test]
 fn a_reloaded_forks_first_turn_counts_its_whole_total() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for (r, at) in [(result(0.5), 100), (result(0.75), 300)] {
         replay(&mut items, &r, at, Some(200));
     }

@@ -12,14 +12,14 @@ fn a_card_path_click_reveals_the_file_in_changes(cx: &mut gpui::TestAppContext) 
     std::fs::write(f.project.join("notes.txt"), "changed\n").expect("write");
     let raw = json!({ "file_path": f.project.join("notes.txt"), "old_string": "", "new_string": "changed" });
     thread.update(cx, |v, cx| {
-        v.items = vec![Item::Tool(ToolItem {
+        v.items = crate::workspace::thread_model::Items::from(vec![Item::Tool(ToolItem {
             id: "e1".into(),
             name: "Edit".into(),
             input: raw.to_string(),
             raw,
             result: Some("ok".into()),
             is_error: false,
-        })];
+        })]);
         v.lists.reset(1);
         cx.notify();
     });

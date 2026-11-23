@@ -7,7 +7,7 @@ use skyelab_agent::Event;
 
 #[test]
 fn claude_interrupt_shows_no_failure_banner() {
-    let mut items = vec![Item::Prompt("go".into())];
+    let mut items: crate::workspace::thread_model::Items = vec![Item::Prompt("go".into())].into();
     let line = r#"{"type":"result","subtype":"error_during_execution","duration_ms":747,"is_error":true,"num_turns":1,"stop_reason":null,"terminal_reason":"aborted_streaming","session_id":"s","total_cost_usd":0,"errors":["[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=null","Error: Request was aborted."]}"#;
     let event = Event::parse(line);
     assert!(

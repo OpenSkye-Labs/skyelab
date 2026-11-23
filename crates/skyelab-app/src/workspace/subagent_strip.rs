@@ -1,8 +1,8 @@
 //! T3's "Waiting on N subagents" strip over the composer: the running delegated children and in-turn subagents by
-//! name, with Details (toggles the right panel, where the details card is) and Stop (stops them).
+//! name, with Details (the thread details card) and Stop (stops them).
 
 use super::super::Workspace;
-use super::super::layout::ToggleRightPanel;
+use super::super::layout::ToggleThreadDetails;
 use super::super::subagent::SubagentStatus;
 use super::super::thread::{ChildLink, Interrupt, Stop, ThreadView};
 use super::super::thread_model::Item;
@@ -98,7 +98,7 @@ impl ThreadView {
                 )
                 .child(div().min_w_0().truncate().child(names.join(", ")))
                 .child(link("Details").on_click(|_, window, cx| {
-                    window.dispatch_action(Box::new(ToggleRightPanel), cx)
+                    window.dispatch_action(Box::new(ToggleThreadDetails), cx)
                 }))
                 .child(link("Stop").on_click(move |_, window, cx| {
                     window.dispatch_action(Box::new(StopChildren { id }), cx)

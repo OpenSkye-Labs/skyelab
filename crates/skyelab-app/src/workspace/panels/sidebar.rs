@@ -387,6 +387,7 @@ impl Sidebar {
 
 impl Render for Sidebar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Sidebar");
         let theme = cx.theme();
         let focus = self.focus.clone();
         v_flex()

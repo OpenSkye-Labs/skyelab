@@ -49,7 +49,7 @@ impl ThreadView {
         let project = self.project_name.clone();
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
         // The window's top row: breadcrumb and account, then the dock toggles. The thread's folder, branch, git and
-        // lineage controls are in the right dock's Details tab.
+        // lineage controls are in the thread details card.
         super::layout::page_header(window, cx)
             .child(
                 h_flex()
@@ -314,6 +314,7 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 
 impl Render for ThreadView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("ThreadView");
         let header = self.render_header(window, cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);

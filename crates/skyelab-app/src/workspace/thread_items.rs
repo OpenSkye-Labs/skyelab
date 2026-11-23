@@ -1,7 +1,7 @@
 //! How a thread's items look, shared by local (`ThreadView`) and remote (`RemoteThreadView`) thread tabs.
 
 use super::ask_cards::{self, QuestionDraft};
-use super::thread_model::{Item, ToolItem};
+use super::thread_model::{Item, Items, ToolItem};
 use super::timeline_fold;
 use super::timeline_text::{divider_text, limited_text, markdown};
 use super::tool_cards;
@@ -36,7 +36,7 @@ pub(super) fn rows_built() -> usize {
 
 /// What the item renderer needs from a thread view, local or remote, so both draw items the same way.
 pub(super) trait ItemsView: Sized + 'static {
-    fn items(&self) -> &[Item];
+    fn items(&self) -> &Items;
     fn is_expanded(&self, tool_id: &str) -> bool;
     fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>);
     /// Whether an agent is there to answer a pending permission request.
@@ -124,6 +124,7 @@ pub(super) fn render_item<V: ItemsView>(
 ) -> AnyElement {
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
+    crate::debug_renders::count("timeline row");
     let mark = this.find_mark(ix);
     let row = timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx);
     match mark {
@@ -150,6 +151,8 @@ fn render_row<V: ItemsView>(
         _ => None,
     });
     let divider_folded = timeline_fold::fold_head(this.items(), ix).is_some();
+    // Element ids by row key, not index: rows go in above others, and element state must stay with its row.
+    let key = this.items().key(ix);
     let root = this.files_root().map(std::path::Path::to_path_buf);
     let files = super::turn_files::render(this, ix, cx);
     let theme = cx.theme();
@@ -191,7 +194,7 @@ fn render_row<V: ItemsView>(
                 .gap_1p5()
                 .children(
                     this.sent_images(text)
-                        .map(|images| super::image_viewer::thumbnails(ix, images)),
+                        .map(|images| super::image_viewer::thumbnails(key, images)),
                 )
                 .child(
                     div()
@@ -210,7 +213,7 @@ fn render_row<V: ItemsView>(
                 .gap_1()
                 .text_size(ui::BODY)
                 .child(markdown(
-                    ("md", ix),
+                    ("md", key),
                     text,
                     false,
                     root.as_deref(),
@@ -226,7 +229,7 @@ fn render_row<V: ItemsView>(
                         .child(
                             div()
                                 .opacity(0.6)
-                                .child(tool_cards::copy(("copy-msg", ix), text.clone())),
+                                .child(tool_cards::copy(("copy-msg", key), text.clone())),
                         )
                         .children(reply_at.map(ui::clock))
                         .children(this.fork(ix).map(super::thread_extras::fork::button)),
@@ -242,7 +245,7 @@ fn render_row<V: ItemsView>(
                 .px_1()
                 .text_size(ui::BODY)
                 .child(markdown(
-                    ("md", ix),
+                    ("md", key),
                     text,
                     true,
                     root.as_deref(),

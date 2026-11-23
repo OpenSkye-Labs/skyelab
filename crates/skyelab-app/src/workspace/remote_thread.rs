@@ -5,7 +5,7 @@
 use super::question_drafts::Drafts;
 use super::thread_find::{Find, FindHost as _};
 use super::thread_items::render_item;
-use super::thread_model::{Item, Record, apply, stamp_done};
+use super::thread_model::{Record, apply, stamp_done};
 use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
@@ -45,7 +45,7 @@ pub struct RemoteThreadView {
     watch: Option<WatchId>,
     title: SharedString,
     account: Option<String>,
-    pub(super) items: Vec<Item>,
+    pub(super) items: super::thread_model::Items,
     pub(super) list: ListState,
     expanded: HashSet<String>,
     /// The last seq shown. The client delivers each event once, but watching again replays from the start.
@@ -118,7 +118,7 @@ impl RemoteThreadView {
             watch,
             title,
             account,
-            items: Vec::new(),
+            items: Default::default(),
             list: ListState::new(0, ListAlignment::Top, px(600.)),
             expanded: HashSet::new(),
             last_seq: 0,
@@ -334,6 +334,7 @@ impl Drop for RemoteThreadView {
 
 impl Render for RemoteThreadView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("RemoteThreadView");
         let header = self.render_header(window, cx);
         let find = self.render_find(cx);
         let theme = cx.theme();
