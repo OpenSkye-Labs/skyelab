@@ -105,7 +105,7 @@ fn remote_interrupt_replies_after_delivery(cx: &mut TestAppContext) {
         .expect("kill runs");
     assert!(stopped.success());
     let _resume = Resume(pid);
-    send_message(&client, 4, thread_id, "x".repeat(256 << 10));
+    send_message(&client, 4, thread_id, "x".repeat(100 << 10)); // fills the pipe, under the prompt limit
     assert!(matches!(
         client.reply(4, &mut Vec::new(), cx),
         ServerMessage::Response { .. }

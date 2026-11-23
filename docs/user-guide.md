@@ -66,11 +66,23 @@ login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 2. Select the project and click **New** under Threads.
 3. Type a prompt and press <kbd>⌘↩</kbd> (or click **Send**).
 
+**Scratch threads** are for quick questions outside any project. Run **New Scratch Thread** from the palette and pick
+an account. SkyeLab makes that account's scratch folder (`scratch/<account>` in its data folder) on first use, binds
+it to the account you picked and lists it as the project **Scratch · <account>**. Like any folder, it never falls back
+to a default account: no pick, no thread. Remove the project or its binding like any other.
+
 ### The composer
 
 - **Attach** (the paperclip), drag files onto the composer, or paste an image or copied files. Images (PNG, JPEG,
   GIF, WebP), PDFs and text files work, up to 5 MB each and 10 per message; each shows as a chip you can remove.
   Claude gets them as image and document blocks. Codex gets images and text files, not PDFs.
+- **Long pastes become files.** Pasting text of 8 KB or more, or 200 lines or more, attaches it as `pasted-text.txt`
+  (`pasted-text-2.txt`, … after that) instead of filling the prompt. **Paste as text** under the composer puts the
+  last one back into the prompt. A prompt over 120,000 characters isn't sent: the composer says by how much and keeps
+  your text.
+- **Images you sent** show as thumbnails on your message while the thread stays open in this window (SkyeLab doesn't
+  store image files). Click one to view it large: **+** and **−** zoom, **Fit** fits it to the window again, and
+  <kbd>Esc</kbd> or a click outside closes it.
 - **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
   then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it.
 - **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
