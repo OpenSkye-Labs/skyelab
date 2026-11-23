@@ -1,4 +1,4 @@
-//! A session becomes one thread per project, however often it is imported.
+//! A session becomes one thread, however often it is imported.
 
 use skyelab_store::{NewThread, Store};
 use std::path::Path;
@@ -20,8 +20,12 @@ fn a_session_is_imported_once_per_project() {
         status: "stopped",
     };
     let events = [
-        ("prompt", "\"hi\"".to_owned()),
-        ("agent", "{\"SessionGone\":null}".to_owned()),
+        ("prompt", "\"hi\"".to_owned(), 1_700_000_000_000),
+        (
+            "agent",
+            "{\"SessionGone\":null}".to_owned(),
+            1_700_000_000_000,
+        ),
     ];
 
     let t = s
@@ -48,7 +52,7 @@ fn a_session_is_imported_once_per_project() {
             .is_none()
     );
     assert_eq!(s.list_threads(p.id).expect("threads").len(), 1);
-    assert!(s.session_ids(p.id).expect("ids").contains("sess-1"));
+    assert!(s.session_ids().expect("ids").contains("sess-1"));
     // Resuming can give the thread a new session id; the imported one still counts.
     s.set_agent_session_id(t.id, Some("sess-1-resumed"))
         .expect("stored");
@@ -57,15 +61,15 @@ fn a_session_is_imported_once_per_project() {
             .expect("stored")
             .is_none()
     );
-    let ids = s.session_ids(p.id).expect("ids");
+    let ids = s.session_ids().expect("ids");
     assert!(
         ids.contains("sess-1") && ids.contains("sess-1-resumed"),
         "{ids:?}"
     );
-    // Another project is its own scope.
+    // Nor in another project.
     assert!(
         s.import_thread(&new(other.id), "sess-1", 1, &events)
             .expect("stored")
-            .is_some()
+            .is_none()
     );
 }
