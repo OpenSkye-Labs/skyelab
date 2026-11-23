@@ -40,6 +40,8 @@ impl Workspace {
                     },
                 );
             }
+            ProjectOp::OpenFolder => self.open_dir_in_editor(project.path, window, cx),
+            ProjectOp::Accounts => window.dispatch_action(Box::new(super::OpenSettings), cx),
             ProjectOp::Remove => {
                 let live = self
                     .project_views(id, cx)
@@ -89,12 +91,12 @@ impl Workspace {
         }
     }
 
-    /// Open tabs of the project's threads.
+    /// Open views of the project's threads.
     fn project_views(&self, project_id: i64, cx: &Context<Self>) -> Vec<Entity<ThreadView>> {
         self.open_threads
             .iter()
-            .filter_map(|v| v.upgrade())
             .filter(|v| v.read(cx).project_id == project_id)
+            .cloned()
             .collect()
     }
 
@@ -112,12 +114,15 @@ impl Workspace {
             // Stored first: if that fails, the project stays and so do its agents.
             move |ws, window, cx| {
                 for view in ws.project_views(id, cx) {
-                    ws.close_thread_tab(view, window, cx);
+                    ws.close_thread(&view, window, cx);
                 }
                 if ws.project.as_ref().is_some_and(|p| p.id == id) {
                     ws.project = None;
-                    ws.threads.clear();
                 }
+                ws.threads.retain(|t| t.project_id != id);
+                // Gone now, not at the reload: New thread must not pick it meanwhile.
+                ws.projects.retain(|p| p.id != id);
+                ws.scope.retain(|&s| s != id);
                 ws.load_projects(None, cx);
             },
             window,

@@ -65,7 +65,7 @@ fn discard_asks_before_deleting_ignored_files() {
 #[test]
 fn failed_row_save_removes_the_new_worktree() {
     let f = super::worktree_thread_test::fixture();
-    let created = worktree::create(&f.config, &f.project, "acme", "doomed").expect("create");
+    let created = worktree::create(&f.config, &f.project, "acme", "doomed", None).expect("create");
     let path = created.path.clone();
     assert!(path.exists());
     // No project 999 in the store, so the row insert fails on its foreign key.
@@ -160,9 +160,7 @@ fn changes_tab_refreshes_for_every_thread_of_its_folder(cx: &mut gpui::TestAppCo
     cx.dispatch_action(super::NewThread);
     cx.run_until_parked();
     let second = ws
-        .read_with(&*cx, |ws, _| {
-            ws.open_threads.last().and_then(|t| t.upgrade())
-        })
+        .read_with(&*cx, |ws, _| ws.open_threads.last().cloned())
         .expect("second thread tab");
     assert_ne!(first, second);
     // Both threads run in the project folder, so they share one Changes tab.

@@ -1,12 +1,16 @@
-//! The eval result cap holds inside the page, so a huge value never crosses wry's bridge into the app.
+//! The eval result cap holds inside the page, so a huge value never crosses wry's bridge into the app, and
+//! the read-back only ever hands over well-formed text.
 
 use super::*;
 
 #[test]
-fn wrap_caps_results_in_page() {
-    let js = wrap("1");
+fn read_back_caps_results_in_page() {
+    let js = read_back();
     // `.length` of a string primitive is its own property: the page can't replace it.
-    assert!(js.contains(&format!(".length > {MAX_EVAL_OUTPUT}")), "{js}");
+    assert!(
+        js.contains(&format!("s.length > {MAX_EVAL_OUTPUT}")),
+        "{js}"
+    );
     assert!(js.contains("too_big"), "{js}");
 }
 
@@ -18,14 +22,20 @@ fn decode_maps_too_big_to_the_limit_error() {
     assert!(err.contains(&MAX_EVAL_OUTPUT.to_string()), "{err}");
 }
 
-/// Runs `wrap(expression)` in JavaScriptCore with an https `location`, and returns what the page hands back.
+/// Runs `wrap(expression)` then the read-back in JavaScriptCore with an https `location`, and returns what the
+/// read-back hands over.
 #[cfg(target_os = "macos")]
 fn run_in_jsc(expression: &str) -> String {
+    run_scripts_in_jsc(&wrap(expression))
+}
+
+#[cfg(target_os = "macos")]
+fn run_scripts_in_jsc(script: &str) -> String {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("page.js");
     let page = format!(
-        "var location = {{ protocol: \"https:\" }};\n{}",
-        wrap(expression)
+        "var location = {{ protocol: \"https:\" }}; var window = this;\n{script}\n;{}",
+        read_back()
     );
     std::fs::write(&path, page).expect("write script");
     let out = std::process::Command::new("/usr/bin/osascript")
@@ -78,8 +88,49 @@ fn wrapper_cuts_a_huge_thrown_message_in_page() {
         MAX_EVAL_OUTPUT * 4
     ));
     let envelope: Value = serde_json::from_str(&thrown).expect("json");
-    assert_eq!(
-        envelope["error"].as_str().map(str::len),
-        Some(MAX_EVAL_OUTPUT)
+    assert_eq!(envelope["error"].as_str().map(str::len), Some(MAX_THROWN));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn read_back_refuses_what_wry_cannot_carry() {
+    // A broken-out script can plant anything at the slot; only well-formed strings come back.
+    let lone = run_scripts_in_jsc("window.__skyelab_eval = \"a\\ud800b\";");
+    assert_eq!(lone, r#"{"error":"the result is not valid text"}"#);
+    let trailing = run_scripts_in_jsc("window.__skyelab_eval = \"a\\udc00\";");
+    assert_eq!(trailing, r#"{"error":"the result is not valid text"}"#);
+    let pair = run_scripts_in_jsc("window.__skyelab_eval = \"\\ud83d\\ude00\";");
+    assert_eq!(pair, "\u{1F600}");
+    for planted in ["NaN", "{}", "undefined", "({ toString() { return 'x'; } })"] {
+        let got = run_scripts_in_jsc(&format!("window.__skyelab_eval = {planted};"));
+        assert_eq!(got, "", "{planted}");
+    }
+    // An index past the end reads String.prototype, which the page owns: a getter there can't pair a lone surrogate.
+    let prototype = run_scripts_in_jsc(
+        "Object.defineProperty(String.prototype, \"1\", { get() { return \"\\udc00\"; } }); \
+         window.__skyelab_eval = \"\\ud800\";",
     );
+    assert_eq!(prototype, r#"{"error":"the result is not valid text"}"#);
+    // The read clears the slot: a second read-back on the same page finds nothing.
+    let twice = run_scripts_in_jsc(&format!("{}\n;{}", wrap("1"), read_back()));
+    assert_eq!(twice, "");
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn read_back_gives_a_local_page_nothing() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("page.js");
+    let page = format!(
+        "var location = {{ protocol: \"file:\" }}; var window = this;\n\
+         window.__skyelab_eval = '{{\"ok\":\"secret\"}}';\n{}",
+        read_back()
+    );
+    std::fs::write(&path, page).expect("write script");
+    let out = std::process::Command::new("/usr/bin/osascript")
+        .args(["-l", "JavaScript"])
+        .arg(&path)
+        .output()
+        .expect("osascript runs");
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim_end(), "");
 }

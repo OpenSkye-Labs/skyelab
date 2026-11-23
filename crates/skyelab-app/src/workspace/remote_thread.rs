@@ -37,10 +37,8 @@ pub struct RemoteThreadView {
     host: SharedString,
     project_id: i64,
     thread_id: Option<i64>,
-    /// This view's own watch, so closing it never ends a reopened tab's watch on the same thread.
+    /// This view's own watch, so closing it never ends another view's watch on the same thread.
     watch: Option<WatchId>,
-    /// Out of the dock. The entity can outlive its tab for a moment, and must not be picked again as the tab.
-    pub(super) closed: bool,
     title: SharedString,
     account: Option<String>,
     pub(super) items: Vec<Item>,
@@ -111,7 +109,6 @@ impl RemoteThreadView {
             project_id,
             thread_id,
             watch,
-            closed: false,
             title,
             account,
             items: Vec::new(),
@@ -128,10 +125,6 @@ impl RemoteThreadView {
 
     pub fn thread_id(&self) -> Option<i64> {
         self.thread_id
-    }
-
-    pub fn title(&self) -> SharedString {
-        self.title.clone()
     }
 
     pub fn env_badge(&self) -> String {
@@ -279,12 +272,7 @@ impl RemoteThreadView {
                 .child(div().size(px(6.)).rounded_full().bg(dot))
                 .child(child)
         };
-        h_flex()
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(theme.border)
+        super::layout::page_header(cx)
             .child(
                 div()
                     .flex_1()
@@ -296,18 +284,7 @@ impl RemoteThreadView {
             )
             .child(pill(self.env_badge().into(), state.color(theme)))
             .children(account.map(|a| pill(a.into(), theme.success)))
-            .when(self.thread_id.is_some(), |this| {
-                this.child(
-                    Button::new("remote-stop")
-                        .danger()
-                        .xsmall()
-                        .label("Stop")
-                        .tooltip("Interrupt the agent on the other machine")
-                        .on_click(
-                            cx.listener(|this, _, window, cx| this.stop(&RemoteStop, window, cx)),
-                        ),
-                )
-            })
+            .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
 }
@@ -339,6 +316,9 @@ impl ItemsView for RemoteThreadView {
             self.list.splice(ix..ix + 1, 1);
         }
         cx.notify();
+    }
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop(&RemoteStop, window, cx)
     }
     fn can_answer(&self, cx: &App) -> bool {
         self.thread_id.is_some() && self.env.read(cx).state == ConnState::Connected
@@ -378,9 +358,8 @@ impl Focusable for RemoteThreadView {
 }
 
 impl RemoteThreadView {
-    /// The tab left the dock: stop following the thread, so the client stops fetching its events.
+    /// The machine changed: stop following the thread, so the client stops fetching its events.
     pub(super) fn closed(&mut self, _: &mut Context<Self>) {
-        self.closed = true;
         if let Some(watch) = self.watch.take() {
             self.client.unwatch(watch);
         }
@@ -388,7 +367,7 @@ impl RemoteThreadView {
 }
 
 impl Drop for RemoteThreadView {
-    /// Backstop for a view dropped without leaving the dock (the window closing).
+    /// Backstop for a view dropped without `closed` (the window closing).
     fn drop(&mut self) {
         if let Some(watch) = self.watch.take() {
             self.client.unwatch(watch);
@@ -401,6 +380,7 @@ impl Render for RemoteThreadView {
         let header = self.render_header(cx);
         let theme = cx.theme();
         let connected = self.env.read(cx).state == ConnState::Connected;
+        let host = self.env.read(cx).host.clone();
         let body = if self.items.is_empty() {
             div()
                 .flex_1()
@@ -446,6 +426,19 @@ impl Render for RemoteThreadView {
                     .gap_2()
                     .items_end()
                     .child(div().flex_1().child(Textarea::new(&self.prompt)))
+                    // Interrupt sits with the composer, as on a local thread; the header has no stop.
+                    .when(self.thread_id.is_some(), |this| {
+                        this.child(
+                            Button::new("remote-stop")
+                                .ghost()
+                                .small()
+                                .label("Interrupt")
+                                .tooltip("Interrupt the agent on the other machine")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.stop(&RemoteStop, window, cx)
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("remote-send")
                             .primary()
@@ -456,6 +449,19 @@ impl Render for RemoteThreadView {
                                 this.send(&SendRemotePrompt, window, cx)
                             })),
                     ),
+            )
+            // The composer footer's machine, here the one the thread runs on.
+            .child(
+                h_flex()
+                    .id("remote-composer-footer")
+                    .px_5()
+                    .pb_2()
+                    .gap_1p5()
+                    .text_size(crate::ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(gpui_component::Icon::new(gpui_kit_assets::IconName::Laptop).xsmall())
+                    .child(host)
+                    .children(self.account.clone().map(|a| format!("· {a}"))),
             )
     }
 }

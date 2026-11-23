@@ -14,8 +14,8 @@ pub trait Engine {
     fn load(&self, url: &str, cx: &App) -> anyhow::Result<()>;
     /// The URL as the engine reports it, which may name a pending load.
     fn url(&self, cx: &App) -> anyhow::Result<String>;
-    /// Runs `js` and calls `done` with its result. An engine may drop `done` (wry does for a script
-    /// it queued for the next load).
+    /// Runs `js` (from `js::wrap`) and calls `done` with its answer, JSON-encoded. An engine may drop `done`
+    /// (wry does for a script it queued for the next load).
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()>;
     /// Loads the current page again.
     fn reload(&self, cx: &App) -> anyhow::Result<()> {
@@ -39,15 +39,16 @@ impl Engine for Wry {
     }
 
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()> {
+        let page = self.0.read(cx);
+        // No callback, so wry never serializes what the agent's script evaluates to.
+        page.evaluate_script(js).context("evaluate script")?;
         // wry wants `Fn`; the result comes once.
         let done = Mutex::new(Some(done));
-        self.0
-            .read(cx)
-            .evaluate_script_with_callback(js, move |raw| {
-                if let Some(done) = done.lock().ok().and_then(|mut d| d.take()) {
-                    done(raw);
-                }
-            })
-            .context("evaluate script")
+        page.evaluate_script_with_callback(&crate::js::read_back(), move |raw| {
+            if let Some(done) = done.lock().ok().and_then(|mut d| d.take()) {
+                done(raw);
+            }
+        })
+        .context("evaluate script")
     }
 }

@@ -140,7 +140,7 @@ pub(super) fn project_thread(
     cx.run_until_parked();
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
-    ws.read_with(cx, |ws, _| ws.open_threads.last().and_then(|t| t.upgrade()))
+    ws.read_with(cx, |ws, _| ws.open_threads.last().cloned())
         .expect("new thread tab opened")
 }
 
@@ -253,10 +253,7 @@ fn unbound_project_shows_cta_and_starts_nothing(cx: &mut TestAppContext) {
     cx.simulate_click(cta.center(), Modifiers::none());
     cx.run_until_parked();
     ws.read_with(cx, |ws, _| {
-        assert!(
-            ws.settings.as_ref().and_then(|s| s.upgrade()).is_some(),
-            "the CTA opens Settings"
-        )
+        assert!(ws.settings.clone().is_some(), "the CTA opens Settings")
     });
 }
 

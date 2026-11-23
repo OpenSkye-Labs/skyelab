@@ -74,15 +74,14 @@ impl Rig {
         self.f.store.lock().expect("lock").thread(id).expect("read")
     }
 
-    /// The sidebar's thread rows (titles) under the project, in order.
+    /// The sidebar's thread rows (titles) in drawn order: pinned, working, the rest.
     pub fn listed(&self, cx: &mut VisualTestContext) -> Vec<String> {
         let sidebar = self.ws.read_with(cx, |ws, _| ws.sidebar.clone());
         sidebar.read_with(cx, |s, _| {
             s.sections
                 .iter()
-                .find(|s| s.title.as_ref() == "Threads")
-                .map(|s| s.items.iter().map(|i| i.label.to_string()).collect())
-                .unwrap_or_default()
+                .flat_map(|s| s.items.iter().map(|i| i.label.to_string()))
+                .collect()
         })
     }
 

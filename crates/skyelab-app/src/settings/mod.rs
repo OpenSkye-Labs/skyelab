@@ -1,4 +1,5 @@
-//! Accounts and folder-bindings settings. Thin: every rule lives in `skyelab_core::AccountsConfig`.
+//! The Settings page: a section nav (accounts and bindings, GitHub, sharing, appearance) and the chosen section.
+//! Thin: every account rule lives in `skyelab_core::AccountsConfig`.
 
 use anyhow::{Context as _, Result};
 use gpui::{
@@ -107,6 +108,9 @@ pub struct Settings {
     /// Stale bindings' paths and where each resolves now (`None`: can't be resolved).
     stale: Vec<(PathBuf, Option<PathBuf>)>,
     account_select: Entity<AccountSelect>,
+    pub section: Section,
+    /// The Sharing section's content; `None` without a tailnet hook.
+    pub remote: Option<Entity<crate::remote::RemotePanel>>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -173,6 +177,8 @@ impl Settings {
             _gh_check: None,
             test_result: None,
             account_select,
+            section: Section::default(),
+            remote: None,
             focus: cx.focus_handle(),
             _pick: None,
             _subs: subs,
@@ -254,6 +260,27 @@ impl Settings {
         }
     }
 
+    /// Shows `config` (just saved here, or re-read from the file when the page is shown again).
+    pub fn set_config(
+        &mut self,
+        config: AccountsConfig,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.config = config;
+        let ids = account_ids(&self.config);
+        self.account_select.update(cx, |s, cx| {
+            let keep = s.selected_value().cloned();
+            s.set_items(ids.clone(), window, cx);
+            if let Some(id) = keep.filter(|id| ids.contains(id)).or(ids.first().cloned()) {
+                s.set_selected_value(&id, window, cx);
+            }
+        });
+        self.refresh_fs(cx);
+        self.check_gh_logins(cx);
+        cx.notify();
+    }
+
     /// Run one core edit on a copy, save it, and only then adopt it. A failed edit or save
     /// leaves memory and disk unchanged, and shows the core's error inline.
     fn apply(
@@ -267,28 +294,22 @@ impl Settings {
             cx.notify();
             return false;
         }
-        let mut next = self.config.clone();
-        let result = edit(&mut next).and_then(|()| {
-            let path = self
-                .path
-                .as_deref()
-                .context("no config directory on this OS")?;
-            next.save(path)
-        });
+        // From the file as it is now, not this page's copy: the page lives all session, and the file may have been
+        // edited elsewhere since it loaded.
+        let mut next = AccountsConfig::default();
+        let result = self
+            .path
+            .as_deref()
+            .context("no config directory on this OS")
+            .and_then(|path| {
+                next = AccountsConfig::load(path)?;
+                edit(&mut next)?;
+                next.save(path)
+            });
         let ok = match result {
             Ok(()) => {
-                self.config = next;
                 self.error = None;
-                let ids = account_ids(&self.config);
-                self.account_select.update(cx, |s, cx| {
-                    let keep = s.selected_value().cloned();
-                    s.set_items(ids.clone(), window, cx);
-                    if let Some(id) = keep.filter(|id| ids.contains(id)).or(ids.first().cloned()) {
-                        s.set_selected_value(&id, window, cx);
-                    }
-                });
-                self.refresh_fs(cx);
-                self.check_gh_logins(cx);
+                self.set_config(next, window, cx);
                 true
             }
             Err(e) => {
@@ -323,12 +344,7 @@ impl Settings {
             gh_config_dir: Some(value(&self.gh_input))
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
-            // Not in the form (accounts.toml only), so an edit keeps it.
-            ssh_agent: self
-                .editing
-                .as_ref()
-                .and_then(|id| self.config.accounts.iter().find(|a| &a.id == id))
-                .is_some_and(|a| a.ssh_agent),
+            ssh_agent: false,
         };
         let adding = self.editing.is_none();
         let saved = self.apply(
@@ -336,7 +352,16 @@ impl Settings {
                 if adding {
                     c.add_account(account)
                 } else {
-                    c.update_account(account)
+                    // Not in the form (accounts.toml only): an edit keeps what the file says now.
+                    let ssh_agent = c
+                        .accounts
+                        .iter()
+                        .find(|a| a.id == account.id)
+                        .is_some_and(|a| a.ssh_agent);
+                    c.update_account(Account {
+                        ssh_agent,
+                        ..account
+                    })
                 }
             },
             window,
@@ -469,70 +494,8 @@ impl Focusable for Settings {
     }
 }
 
-impl Render for Settings {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        div()
-            .id("settings")
-            .key_context(CONTEXT)
-            .track_focus(&self.focus)
-            .on_action(cx.listener(Self::save_account))
-            .on_action(cx.listener(Self::cancel_edit))
-            .on_action(cx.listener(Self::bind_folder))
-            .on_action(cx.listener(Self::edit_account))
-            .on_action(cx.listener(Self::remove_account))
-            .on_action(cx.listener(Self::gh_log_in))
-            .on_action(cx.listener(Self::remove_binding))
-            .on_action(cx.listener(Self::reconfirm_binding))
-            .size_full()
-            .overflow_y_scroll()
-            .bg(theme.background)
-            .text_color(theme.foreground)
-            .child(
-                // T3's settings page: 896 wide, 24 padding, 32 between sections.
-                div()
-                    .w_full()
-                    .max_w(crate::ui::PAGE_MAX_W)
-                    .mx_auto()
-                    .px_6()
-                    .pt_6()
-                    .pb_12()
-                    .flex()
-                    .flex_col()
-                    .gap_8()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(crate::ui::page_title("Settings", theme))
-                            .child(
-                                div()
-                                    .text_size(crate::ui::BODY)
-                                    .text_color(theme.muted_foreground)
-                                    .child("Every folder runs on the account it is bound to. SkyeLab never picks one for you."),
-                            ),
-                    )
-                    .children(self.error.clone().map(|e| {
-                        div()
-                            .id("settings-error")
-                            .px_4()
-                            .py_3()
-                            .rounded(crate::ui::RADIUS_LG)
-                            .bg(theme.danger.opacity(0.1))
-                            .border_1()
-                            .border_color(theme.danger.opacity(0.35))
-                            .text_size(crate::ui::BODY)
-                            .text_color(crate::ui::ink(theme, theme.danger))
-                            .child(e)
-                    }))
-                    .child(self.render_accounts(cx))
-                    .child(self.render_bindings(cx))
-                    .child(self.render_test(cx)),
-            )
-    }
-}
-
+mod page;
+pub use page::Section;
 mod render;
 mod widgets;
 

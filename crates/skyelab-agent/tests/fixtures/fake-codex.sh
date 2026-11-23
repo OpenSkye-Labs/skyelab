@@ -5,6 +5,7 @@
 # `fake/request` notification, and thread/start/resume also report the env and args as `fake/env`.
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
 # A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval.
+# model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 here=$(dirname "$0")
 v() { eval "printf '%s' \"\${$1-<unset>}\""; }
 while IFS= read -r line; do
@@ -12,6 +13,9 @@ while IFS= read -r line; do
   id=$(printf '%s' "$line" | sed -n 's/^{"id":\([0-9]*\),.*/\1/p')
   case "$line" in
     *'"method":"initialize"'*) printf '{"id":%s,"result":{"userAgent":"fake-codex/0"}}\n' "$id" ;;
+    *'"method":"model/list"'*)
+      printf '{"id":%s,"result":{"data":[{"model":"gpt-fake","displayName":"GPT Fake","defaultReasoningEffort":"medium","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"},{"reasoningEffort":"high"}]}],"nextCursor":null}}\n' "$id" ;;
+    *'"method":"turn/steer"'*) printf '{"id":%s,"result":{"turnId":"turn_hang"}}\n' "$id" ;;
     *'"method":"thread/start"'*|*'"method":"thread/resume"'*)
       if [ -f .fake-codex-refuse-open ]; then
         sleep 1

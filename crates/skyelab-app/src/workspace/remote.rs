@@ -1,22 +1,21 @@
-//! The Workspace side of sharing: the Remote tab, the status-bar item, and running remote agent calls through
+//! The Workspace side of sharing: the Sharing section of Settings, the status-bar item, and running remote agent calls through
 //! the same `ThreadView` path a local prompt takes.
 
 use super::Workspace;
+use super::center::Page;
 pub(super) use super::remote_queue::StartQueue;
-use super::remote_queue::{FIRST_LOAD_WAIT, MAX_WAITING_STARTS};
-use super::thread::{SendPrompt, ThreadView};
+use super::remote_queue::{FIRST_LOAD_WAIT, HeldStart, MAX_WAITING_STARTS};
+use super::thread::ThreadView;
 use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
     RevokeDevice, ToggleSharing,
 };
 use gpui::{
-    AppContext as _, Context, Entity, Focusable as _, IntoElement, Subscription, Task, WeakEntity,
-    Window, div, prelude::*, px,
+    AppContext as _, Context, Entity, IntoElement, Subscription, Task, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
-    dock::{DockPlacement, panel_handle},
     h_flex,
 };
 use skyelab_protocol::{ErrorCode, RpcError};
@@ -24,7 +23,7 @@ use std::time::Duration;
 
 pub(super) struct RemoteHook {
     remote: Entity<Remote>,
-    panel: Option<WeakEntity<RemotePanel>>,
+    panel: Option<Entity<RemotePanel>>,
     _calls: Task<()>,
     _observe: Subscription,
 }
@@ -67,7 +66,7 @@ pub(super) fn decision_of(a: skyelab_protocol::PermissionAnswer) -> skyelab_agen
 fn not_open(thread_id: i64) -> RpcError {
     RpcError::new(
         ErrorCode::NotFound,
-        format!("thread {thread_id} isn't running here (it ended, or its tab was closed)"),
+        format!("thread {thread_id} isn't running here (it ended, or it was closed)"),
     )
 }
 
@@ -96,6 +95,10 @@ impl Workspace {
             panel: None,
             _calls,
         });
+        if let Some(settings) = self.settings.clone() {
+            let panel = self.remote_panel(cx);
+            settings.update(cx, |s, _| s.remote = panel);
+        }
         cx.notify();
     }
 
@@ -105,28 +108,22 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(hook) = &mut self.remote else {
-            return;
-        };
-        if let Some(panel) = hook.panel.as_ref().and_then(|p| p.upgrade()) {
-            let id = panel.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            return;
-        }
+        self.show(
+            Page::Settings(crate::settings::Section::Sharing),
+            window,
+            cx,
+        );
+    }
+
+    /// What the Sharing section shows; `None` without a tailnet hook.
+    pub(super) fn remote_panel(&mut self, cx: &mut Context<Self>) -> Option<Entity<RemotePanel>> {
+        let hook = self.remote.as_mut()?;
         let remote = hook.remote.clone();
-        let panel = cx.new(|cx| RemotePanel::new(remote, cx));
-        hook.panel = Some(panel.downgrade());
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-        panel.read(cx).focus_handle(cx).focus(window, cx);
+        Some(
+            hook.panel
+                .get_or_insert_with(|| cx.new(|cx| RemotePanel::new(remote, cx)))
+                .clone(),
+        )
     }
 
     pub(super) fn toggle_sharing(
@@ -189,8 +186,8 @@ impl Workspace {
     pub(super) fn open_view(&self, thread_id: i64, cx: &gpui::App) -> Option<Entity<ThreadView>> {
         self.open_threads
             .iter()
-            .filter_map(|t| t.upgrade())
             .find(|t| t.read(cx).thread.as_ref().map(|t| t.id) == Some(thread_id))
+            .cloned()
     }
 
     fn remote_call(&mut self, call: RemoteCall, window: &mut Window, cx: &mut Context<Self>) {
@@ -206,20 +203,23 @@ impl Workspace {
                 project_id,
                 prompt,
                 reply,
-            } => self.remote_start(project_id, &prompt, reply, window, cx),
+                gate,
+            } => self.remote_start(project_id, &prompt, reply, gate, window, cx),
             RemoteCall::Send {
                 thread_id,
                 text,
                 reply,
+                ..
             } => self.remote_send(thread_id, &text, reply, window, cx),
-            RemoteCall::Interrupt { thread_id, reply } => {
-                self.remote_interrupt(thread_id, reply, cx)
-            }
+            RemoteCall::Interrupt {
+                thread_id, reply, ..
+            } => self.remote_interrupt(thread_id, reply, cx),
             RemoteCall::Answer {
                 thread_id,
                 request_id,
                 decision,
                 reply,
+                ..
             } => {
                 let Some(view) = self.open_view(thread_id, cx) else {
                     let _ = reply.send(Err(not_open(thread_id)));
@@ -326,11 +326,12 @@ impl Workspace {
         project_id: i64,
         prompt: &str,
         reply: crate::remote::Reply<i64>,
+        gate: skyelab_daemon::CallGate,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self.starts.loading.is_some() {
-            return self.queue_start(project_id, prompt, reply, window, cx);
+            return self.queue_start(project_id, prompt, reply, gate, window, cx);
         }
         let Some(project) = self.projects.iter().find(|p| p.id == project_id).cloned() else {
             let _ = reply.send(Err(RpcError::new(ErrorCode::NotFound, "no such project")));
@@ -386,16 +387,23 @@ impl Workspace {
         project_id: i64,
         prompt: &str,
         reply: crate::remote::Reply<i64>,
+        gate: skyelab_daemon::CallGate,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.starts.calls.retain(|c| !c.2.is_disconnected());
+        self.starts.calls.retain(|c| !c.abandoned());
         if self.starts.calls.len() >= MAX_WAITING_STARTS {
             let _ = reply.send(Err(refused("this machine is still starting; try again")));
             return;
         }
         let session = self.sharing_session(cx);
-        let call = (project_id, prompt.to_owned(), reply, session);
+        let call = HeldStart {
+            project_id,
+            prompt: prompt.to_owned(),
+            reply,
+            session,
+            gate,
+        };
         self.starts.calls.push(call);
         if self.starts._drain.is_some() {
             return;
@@ -409,16 +417,23 @@ impl Workspace {
         self.starts._drain = Some(cx.spawn_in(window, async move |this, cx| {
             let _ = wait.recv_async().await; // Err once the load ended: the sender is gone
             let _ = this.update_in(cx, |this, window, cx| {
-                for (id, prompt, reply, session) in std::mem::take(&mut this.starts.calls) {
-                    if reply.is_disconnected() {
+                for held in std::mem::take(&mut this.starts.calls) {
+                    if held.abandoned() {
                         continue;
                     }
+                    let HeldStart {
+                        project_id: id,
+                        prompt,
+                        reply,
+                        session,
+                        gate,
+                    } = held;
                     // Sharing turned off (or off and on again) while it waited: that access was revoked.
                     if this.sharing_session(cx) != session {
                         let _ = reply.send(Err(refused("sharing was turned off on this machine")));
                         continue;
                     }
-                    this.remote_start(id, &prompt, reply, window, cx);
+                    this.remote_start(id, &prompt, reply, gate, window, cx);
                 }
             });
         }));
@@ -465,8 +480,8 @@ impl ThreadView {
         let refused = self.resume_refused.take();
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
-        self.send_prompt(&SendPrompt, window, cx);
-        // send_prompt clears the prompt exactly when it took the text.
+        self.submit_external(window, cx);
+        // It clears the prompt exactly when it took the text.
         let taken = self.prompt.read(cx).value().is_empty();
         self.prompt
             .update(cx, |p, cx| p.set_value(draft, window, cx));
@@ -505,7 +520,6 @@ impl Workspace {
     pub(crate) fn open_thread_ids(&self, cx: &gpui::App) -> Vec<i64> {
         self.open_threads
             .iter()
-            .filter_map(|t| t.upgrade())
             .filter_map(|t| t.read(cx).thread.as_ref().map(|t| t.id))
             .collect()
     }

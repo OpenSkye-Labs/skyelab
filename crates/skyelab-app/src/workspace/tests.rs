@@ -54,13 +54,13 @@ fn keys_toggle_docks_open_settings_and_terminals(cx: &mut TestAppContext) {
 
     cx.simulate_keystrokes(OPEN_SETTINGS_KEY);
     cx.run_until_parked();
-    let first = ws.read_with(cx, |ws, _| ws.settings.as_ref().and_then(|s| s.upgrade()));
-    let first = first.expect("settings tab opened").entity_id();
-    // A second press selects the existing tab instead of opening another.
+    let first = ws.read_with(cx, |ws, _| ws.settings.clone());
+    let first = first.expect("settings page opened").entity_id();
+    // A second press shows the same Settings instead of making another.
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
     cx.simulate_keystrokes(OPEN_SETTINGS_KEY);
     cx.run_until_parked();
-    let second = ws.read_with(cx, |ws, _| ws.settings.as_ref().and_then(|s| s.upgrade()));
+    let second = ws.read_with(cx, |ws, _| ws.settings.clone());
     assert_eq!(second.map(|s| s.entity_id()), Some(first));
 
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
@@ -155,7 +155,7 @@ fn cmd_b_toggles_sidebar_inside_settings(cx: &mut TestAppContext) {
     cx.simulate_keystrokes(OPEN_SETTINGS_KEY);
     cx.run_until_parked();
     let settings = ws
-        .read_with(cx, |ws, _| ws.settings.as_ref().and_then(|s| s.upgrade()))
+        .read_with(cx, |ws, _| ws.settings.clone())
         .expect("settings open and focused");
     let sidebar = |cx: &mut gpui::VisualTestContext| {
         ws.read_with(cx, |ws, cx| {

@@ -17,5 +17,13 @@ url.workspace = true
 wry.workspace = true
 tempfile.workspace = true
 
+[dev-dependencies]
+gpui_platform.workspace = true
+
+# A real window and WKWebView: it needs the main thread, so no libtest harness.
+[[test]]
+name = "wkwebview_eval"
+harness = false
+
 [lints]
 workspace = true

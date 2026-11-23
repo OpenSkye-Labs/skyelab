@@ -1,4 +1,4 @@
-//! What the command palette lists for this workspace: actions, projects, threads and open tabs.
+//! What the command palette lists for this workspace: actions, projects, threads and the docks' tabs.
 
 use super::env_mode::{OpenRemoteThread, SelectRemoteProject};
 use super::{OpenThread, SelectProject, Workspace};
@@ -116,8 +116,26 @@ impl Workspace {
                 let label = format!("Switch to project: {}", p.name);
                 dispatch(label, Kind::Project, Box::new(SelectProject { id: p.id }))
             }));
+            out.extend(self.scripts.iter().map(|s| {
+                let label = format!("Run script: {}", s.name);
+                let action = super::scripts::RunProjectScript { id: s.id };
+                dispatch(
+                    label,
+                    Kind::Action("skyelab::RunProjectScript"),
+                    Box::new(action),
+                )
+            }));
+            // Every project's threads; another project's name their project, as search results do.
+            let current = self.project.as_ref().map(|p| p.id);
             out.extend(self.threads.iter().map(|t| {
-                let label = format!("Open thread: {}", t.title);
+                let other = self
+                    .projects
+                    .iter()
+                    .find(|p| p.id == t.project_id && Some(p.id) != current);
+                let label = match other {
+                    Some(p) => format!("Open thread: {} · {}", t.title, p.name),
+                    None => format!("Open thread: {}", t.title),
+                };
                 dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
             }));
         }
@@ -125,22 +143,10 @@ impl Workspace {
         out
     }
 
+    /// The docks' tabs (terminals, Changes, browsers, Devices). The center has pages, not tabs: threads and
+    /// Settings are reached through their own entries.
     fn tabs(&self, cx: &mut Context<Self>) -> Vec<Entry> {
         let mut tabs = Vec::new();
-        // A queued tab isn't in the dock yet, so there is nothing to go to.
-        for view in self
-            .open_threads
-            .iter()
-            .filter_map(|t| t.upgrade())
-            .filter(|v| !self.queued_tabs.contains(v))
-        {
-            let title = view.read(cx).title();
-            tabs.push(self.tab(title, &view, cx));
-        }
-        for view in self.remote_tabs() {
-            let title = view.read(cx).title();
-            tabs.push(self.tab(title, &view, cx));
-        }
         for view in self.changes_views.iter().filter_map(|v| v.upgrade()) {
             let title = view.read(cx).title();
             tabs.push(self.tab_in(DockPlacement::Right, title, &view, cx));
@@ -152,22 +158,10 @@ impl Workspace {
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {
             tabs.push(self.tab_in(DockPlacement::Right, "Browser".into(), &panel, cx));
         }
-        if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
-            tabs.push(self.tab("Settings".into(), &settings, cx));
-        }
         if let Some(devices) = self.devices.as_ref().and_then(|d| d.upgrade()) {
             tabs.push(self.tab_in(DockPlacement::Right, "Devices".into(), &devices, cx));
         }
         tabs
-    }
-
-    fn tab<T: Focusable>(
-        &self,
-        title: SharedString,
-        view: &Entity<T>,
-        cx: &mut Context<Self>,
-    ) -> Entry {
-        self.tab_in(DockPlacement::Center, title, view, cx)
     }
 
     fn tab_in<T: Focusable>(
@@ -190,7 +184,7 @@ impl Workspace {
             run: Rc::new(move |window: &mut Window, cx: &mut App| {
                 _ = ws.update(cx, |ws, cx| {
                     ws.dock.update(cx, |dock, cx| {
-                        if at != DockPlacement::Center && !dock.is_dock_open(at) {
+                        if !dock.is_dock_open(at) {
                             dock.toggle_dock(at, window, cx);
                         }
                         dock.select_panel(id.into(), window, cx)

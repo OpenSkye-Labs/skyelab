@@ -10,7 +10,7 @@ mod tests;
 
 pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
-    header, mono, page_title, row, section_title,
+    header, mono, page_title, row, row_surface, section_title,
 };
 
 use gpui::{Hsla, Pixels, px};
@@ -55,11 +55,11 @@ pub fn sync_appearance(window: &mut gpui::Window, cx: &mut gpui::App) {
     }
 }
 
-/// The window's top row: the sidebar's first row, as tall as gpui-component's dock tab bar beside it (32 px at the
-/// default size; the two are not linked, so change both together). There is no separate title strip:
-/// on macOS the traffic lights sit in this row over the sidebar, on Windows gpui-component's `TitleBar` draws the
-/// window controls in theme colors. Linux keeps its server-side decorations.
-pub const TOP_ROW_H: Pixels = px(32.);
+/// The window's top row (T3's 52 px topbar): the sidebar's first row beside the page header ([`HEADER_H`]). There is
+/// no separate title strip: on macOS the traffic lights sit in this row over the sidebar (or over the page header's
+/// start while the sidebar is hidden), on Windows gpui-component's `TitleBar` draws the window controls in theme
+/// colors. Linux keeps its server-side decorations.
+pub const TOP_ROW_H: Pixels = HEADER_H;
 /// Room the macOS traffic lights take at the start of the top row.
 pub const TRAFFIC_LIGHTS_W: Pixels = px(76.);
 
@@ -70,8 +70,8 @@ pub fn titlebar_options() -> gpui::TitlebarOptions {
     gpui::TitlebarOptions {
         title: Some("SkyeLab".into()),
         appears_transparent: true,
-        // Centred on the top row's text line (the buttons are about 12 px tall).
-        traffic_light_position: Some(gpui::point(px(16.), px(9.))),
+        // Centred in the 52 px top row (the buttons are about 14 px tall).
+        traffic_light_position: Some(gpui::point(px(16.), px(19.))),
     }
 }
 
@@ -271,5 +271,33 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
         Some(rest) if rest.as_os_str().is_empty() => "~".into(),
         Some(rest) => format!("~/{}", rest.display()),
         None => path.display().to_string(),
+    }
+}
+
+// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer and queue icons).
+gpui_kit_assets::icon_assets!(
+    ExtraIcons,
+    [
+        Paperclip, GitBranch, Laptop, Folder, FolderGit2, FileDiff, X, Clock, Square
+    ]
+);
+
+/// gpui-component's icons plus [`ExtraIcons`].
+pub struct AppAssets;
+
+impl gpui::AssetSource for AppAssets {
+    fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        match ExtraIcons.load(path)? {
+            Some(bytes) => Ok(Some(bytes)),
+            None => gpui_kit_assets::Assets.load(path),
+        }
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
+        let mut paths = gpui_kit_assets::Assets.list(path)?;
+        paths.extend(ExtraIcons.list(path)?);
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 }

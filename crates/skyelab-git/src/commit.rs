@@ -191,7 +191,7 @@ fn in_progress(root: &Path) -> Result<Option<&'static str>> {
 }
 
 /// git on `root` with hooks off and `index` as its index.
-fn indexed<S: AsRef<OsStr>>(
+pub(crate) fn indexed<S: AsRef<OsStr>>(
     root: &Path,
     index: &Path,
     args: &[S],
@@ -217,10 +217,10 @@ fn copy_index(root: &Path, to: &Path) -> Result<()> {
 }
 
 /// A fresh private dir in the temp dir (never in `.git`, which an agent can write) for a scratch index, removed on drop.
-struct Scratch(PathBuf);
+pub(crate) struct Scratch(PathBuf);
 
 impl Scratch {
-    fn new() -> Result<Self> {
+    pub(crate) fn new() -> Result<Self> {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -239,7 +239,7 @@ impl Scratch {
         Ok(Self(dir))
     }
 
-    fn index(&self) -> PathBuf {
+    pub(crate) fn index(&self) -> PathBuf {
         self.0.join("index")
     }
 }

@@ -7,11 +7,8 @@ use gpui::{
     Action, App, AppContext as _, Context, Entity, KeyBinding, KeyBindingContextPredicate,
     NoAction, SharedString, Window, actions,
 };
-use gpui_component::{
-    dock::{DockPlacement, PaneRef, PanelId},
-    notification::Notification,
-};
-use std::path::Path;
+use gpui_component::notification::Notification;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 actions!(
@@ -92,26 +89,12 @@ pub fn init(cx: &mut App) {
 struct ThreadNote;
 
 impl Workspace {
-    /// The thread tab on screen in the center, if any (the active tab of a center tab group).
-    pub(super) fn shown_view(&self, cx: &App) -> Option<Entity<ThreadView>> {
-        let dock = self.dock.read(cx);
-        let tree = dock.layout(DockPlacement::Center)?;
-        self.open_threads
-            .iter()
-            .filter_map(|v| v.upgrade())
-            .find(|v| {
-                let id = PanelId::from(v.entity_id());
-                tree.find_panel_node(id)
-                    .and_then(|n| tree.find_node(n))
-                    .is_some_and(|node| match node.kind() {
-                        PaneRef::Tabs { panels, active_ix } => panels.get(active_ix) == Some(&id),
-                        PaneRef::Split { .. } => false,
-                    })
-            })
-    }
-
     pub(super) fn shown_thread(&self, cx: &App) -> Option<i64> {
-        self.shown_view(cx)?.read(cx).thread.as_ref().map(|t| t.id)
+        self.current_thread()?
+            .read(cx)
+            .thread
+            .as_ref()
+            .map(|t| t.id)
     }
 
     /// A thread's turn finished: unless the user is looking at it, mark it unread and tell them.
@@ -127,23 +110,30 @@ impl Workspace {
         if window.is_window_active() && self.shown_thread(cx) == Some(thread.id) {
             return;
         }
-        let id = thread.id;
+        self.mark_unread(view, cx);
+        self.rerun_search(cx); // the turn added message text the filter may match
+        if thread.archived_at.is_none() {
+            let note = Notification::success(thread.title).title("Thread completed");
+            self.notify_attention(thread.id, note, window, cx);
+        }
+    }
+
+    /// Marks the thread unread (stored, in the list and on its view's row) until the user looks at it.
+    pub(super) fn mark_unread(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
+        let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
+            return;
+        };
         self.write_unread(id, true, cx);
         if let Some(t) = self.threads.iter_mut().find(|t| t.id == id) {
             t.unread = true;
         }
-        // The tab's row too: the thread may be in a project the sidebar isn't showing.
+        // The view's row too: the thread may be in a project the sidebar isn't showing.
         view.update(cx, |v, _| {
             if let Some(t) = v.thread.as_mut() {
                 t.unread = true;
             }
         });
-        self.rerun_search(cx); // the turn added message text the filter may match
         self.refresh_sidebar(cx);
-        if thread.archived_at.is_none() {
-            let note = Notification::success(thread.title).title("Thread completed");
-            self.notify_attention(id, note, window, cx);
-        }
     }
 
     /// T3's rule: the window is focused on another thread → an in-app toast; the window is in the background → an
@@ -189,7 +179,7 @@ impl Workspace {
         if !window.is_window_active() {
             return;
         }
-        let Some(view) = self.shown_view(cx) else {
+        let Some(view) = self.current_thread() else {
             return;
         };
         let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
@@ -225,7 +215,10 @@ impl Workspace {
     }
 
     fn step_thread(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
-        let order = self.thread_order();
+        if self.is_remote() {
+            return; // the order is this machine's threads; another machine's sidebar is shown
+        }
+        let order = self.thread_order(cx);
         if order.is_empty() {
             return;
         }
@@ -241,7 +234,10 @@ impl Workspace {
     }
 
     fn jump(&mut self, n: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(&id) = self.thread_order().get(n - 1) {
+        if self.is_remote() {
+            return; // the order is this machine's threads; another machine's sidebar is shown
+        }
+        if let Some(&id) = self.thread_order(cx).get(n - 1) {
             self.open_thread(&OpenThread { id }, window, cx);
         }
     }
@@ -251,13 +247,23 @@ impl Workspace {
         if self.is_remote() {
             return; // the folder is on another machine
         }
-        let dir = match self.shown_view(cx) {
+        let dir = match self.current_thread() {
             Some(v) => v.read(cx).cwd.clone(),
             None => match &self.project {
                 Some(p) => p.path.clone(),
                 None => return,
             },
         };
+        self.open_dir_in_editor(dir, window, cx);
+    }
+
+    /// Opens `dir` in the user's editor; a missing editor shows as a notice.
+    pub(super) fn open_dir_in_editor(
+        &mut self,
+        dir: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let settings = self.layout.path.clone();
         let task = cx.background_spawn(async move {
             let setting = settings

@@ -21,6 +21,9 @@ What's built today:
   `CODEX_HOME` each) and bind folders to them in Settings. The folder decides both the account and the agent.
   The deepest binding wins. Each binding remembers the real folder you confirmed, so if the path later points
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
+- **One thread list.** The sidebar lists every project's threads together (pinned, working, then newest), each row
+  with its project, state and the account its folder is bound to. A project filter narrows it, and New thread asks
+  which project when it can't tell.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
   commands with their output, a live todo list, answerable questions and plans), and saves the conversation to a
@@ -32,10 +35,18 @@ What's built today:
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
-- **Worktrees and diff review.** Tick "Run in a new worktree" and the thread gets its own git worktree on a
+- **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
+  `/` and skills with `$`, and pick the model and effort per thread. A message sent while the agent works queues
+  until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
+  files and branch.
+- **Worktrees and diff review.** Switch "Local checkout" to "New worktree" under the composer and the thread gets its own git worktree on a
   `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
-  switches project, opens a thread (also found by its messages, in any project) or goes to an open tab.
+  switches project, opens a thread (also found by its messages, in any project) or goes to a terminal, Changes or
+  browser tab.
+- **Branches, checkpoints and scripts.** A branch picker in the thread header (switch, create, and stash or carry
+  changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
+  turn N", and per-project scripts with a Run menu, palette entries and setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
@@ -113,7 +124,7 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 | `skyelab-app` | The GPUI desktop app (binary `skyelab`). |
 | `skyelab-agent` | Launches `claude` (stream-json) or `codex app-server` with the bound account and maps both onto one event stream. |
 | `skyelab-store` | SQLite storage for projects, threads and thread events. |
-| `skyelab-git` | Git status, diffs and worktrees. |
+| `skyelab-git` | Git status, diffs, worktrees, branches and per-turn checkpoints. |
 | `skyelab-terminal` | PTY terminal and its GPUI view. |
 | `skyelab-browser` | The webview browser tab. |
 | `skyelab-devices` | iOS Simulator and Android emulator control (`simctl`, `adb`, `emulator`). |

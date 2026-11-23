@@ -30,6 +30,9 @@ fn start(prompt: &str, mode: Mode) -> (Session, tempfile::TempDir) {
         resume: None,
         prompt,
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode,
     };
     (start_with_bin(&bin, &config, &launch).expect("start"), tmp)

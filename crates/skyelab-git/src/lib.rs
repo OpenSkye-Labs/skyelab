@@ -3,6 +3,8 @@
 //! shortcut: shells out to the `git` CLI, so every call pays a process spawn and we parse text output;
 //! move to `gix` once it covers worktree add/remove and status with renames.
 
+mod branch;
+mod checkpoint;
 mod commit;
 mod diff;
 mod publish;
@@ -14,8 +16,15 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+pub use branch::{Branches, OnDirty, branches, create_branch, switch_branch};
+pub use checkpoint::{
+    Checkpoint, RewindPlan, capture_checkpoint, checkpoints, delete_checkpoints, plan_rewind,
+    rewind,
+};
 pub use commit::{commit, snapshot_tree};
-pub use diff::{FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base};
+pub use diff::{
+    FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base, diff_trees,
+};
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
@@ -64,6 +73,33 @@ pub enum ChangeKind {
 pub fn repo_root(path: &Path) -> Result<PathBuf> {
     let out = git(path, &["rev-parse", "--show-toplevel"])?;
     Ok(PathBuf::from(lossy(&out).trim_end_matches('\n')))
+}
+
+/// The files git tracks under `dir`, relative to it: what the composer's `@` menu offers. Ignored and untracked
+/// files never show.
+pub fn tracked_files(dir: &Path) -> Result<Vec<String>> {
+    let out = git(
+        dir,
+        &["-c", "core.quotePath=false", "ls-files", "-z", "--cached"],
+    )?;
+    Ok(out
+        .split(|b| *b == 0)
+        .filter(|f| !f.is_empty())
+        .map(lossy)
+        .collect())
+}
+
+/// The branch checked out in `dir`, or `None` on a detached HEAD. Not `--short`: with a tag of the same name it
+/// answers `heads/<branch>`.
+pub fn current_branch(dir: &Path) -> Result<Option<String>> {
+    let args = ["symbolic-ref", "--quiet", "HEAD"];
+    let out = output(Path::new("git"), dir, &args)?;
+    if out.status.code() == Some(1) && out.stderr.is_empty() {
+        return Ok(None);
+    }
+    let out = finish(dir, &args, out)?;
+    let full = lossy(&out);
+    Ok(full.trim().strip_prefix("refs/heads/").map(str::to_owned))
 }
 
 /// The full SHA of commit-ish `rev` in the repo at `dir`.

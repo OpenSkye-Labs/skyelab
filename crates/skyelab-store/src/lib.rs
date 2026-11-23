@@ -14,6 +14,8 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod manage;
+mod model;
+pub use model::ModelChoice;
 mod migrations;
 use migrations::MIGRATIONS;
 
@@ -58,6 +60,18 @@ pub struct Thread {
     pub unread: bool,
 }
 
+/// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
+/// Kept here, never in the repo, so an agent can't plant one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectScript {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub command: String,
+    /// Run in every new worktree of the project (installing dependencies, say).
+    pub setup: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
     pub thread_id: i64,
@@ -85,6 +99,8 @@ type AppendHook = Box<dyn Fn(&Event) + Send>;
 pub struct Store {
     conn: Connection,
     on_append: Option<AppendHook>,
+    /// The threads [`Store::open`] purged, until [`Store::take_purged`] hands them over (their git checkpoints go too).
+    purged: Vec<Thread>,
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
@@ -113,11 +129,24 @@ impl Store {
             )
             .context("marking the last run's threads interrupted")?;
         // A delete whose undo window the last run didn't see out is final now.
+        let mut store = store;
+        let sql = format!("SELECT {THREAD_COLS} FROM threads WHERE deleted_at IS NOT NULL");
+        store.purged = store
+            .conn
+            .prepare(&sql)?
+            .query_map([], thread_from_row)?
+            .collect::<rusqlite::Result<_>>()
+            .context("listing deleted threads")?;
         store
             .conn
             .execute("DELETE FROM threads WHERE deleted_at IS NOT NULL", [])
             .context("purging deleted threads")?;
         Ok(store)
+    }
+
+    /// The threads the last [`Store::open`] purged (once: later calls get none).
+    pub fn take_purged(&mut self) -> Vec<Thread> {
+        std::mem::take(&mut self.purged)
     }
 
     pub fn open_in_memory() -> Result<Self> {
@@ -143,6 +172,7 @@ impl Store {
         Ok(Self {
             conn,
             on_append: None,
+            purged: Vec::new(),
         })
     }
 
@@ -199,6 +229,52 @@ impl Store {
         expect_one(n, "project", id)
     }
 
+    /// Oldest first.
+    pub fn project_scripts(&self, project_id: i64) -> Result<Vec<ProjectScript>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, name, command, setup FROM project_scripts WHERE project_id = ?1 ORDER BY id",
+        )?;
+        let rows = stmt.query_map([project_id], |r| {
+            Ok(ProjectScript {
+                id: r.get(0)?,
+                project_id: r.get(1)?,
+                name: r.get(2)?,
+                command: r.get(3)?,
+                setup: r.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn add_project_script(
+        &self,
+        project_id: i64,
+        name: &str,
+        command: &str,
+        setup: bool,
+    ) -> Result<ProjectScript> {
+        self.conn
+            .execute(
+                "INSERT INTO project_scripts (project_id, name, command, setup, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![project_id, name, command, setup, now_ms()],
+            )
+            .with_context(|| format!("add a script to project {project_id}"))?;
+        Ok(ProjectScript {
+            id: self.conn.last_insert_rowid(),
+            project_id,
+            name: name.to_owned(),
+            command: command.to_owned(),
+            setup,
+        })
+    }
+
+    pub fn delete_project_script(&self, id: i64) -> Result<()> {
+        let n = self
+            .conn
+            .execute("DELETE FROM project_scripts WHERE id = ?1", [id])?;
+        expect_one(n, "project script", id)
+    }
+
     pub fn create_thread(&self, new: &NewThread) -> Result<Thread> {
         let now = now_ms();
         self.conn
@@ -253,6 +329,24 @@ impl Store {
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([project_id], thread_from_row)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Every listed project's threads, most recently updated first, archived ones included. Deleted threads and
+    /// removed projects are left out.
+    pub fn list_all_threads(&self) -> Result<Vec<Thread>> {
+        let cols = THREAD_COLS
+            .split(", ")
+            .map(|c| format!("t.{c}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT {cols} FROM threads t JOIN projects p ON p.id = t.project_id
+             WHERE t.deleted_at IS NULL AND p.removed_at IS NULL
+             ORDER BY t.updated_at DESC, t.id DESC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], thread_from_row)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 

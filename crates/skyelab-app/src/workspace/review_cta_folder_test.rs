@@ -101,7 +101,7 @@ fn start_a_new_thread_opens_in_the_refused_threads_folder(cx: &mut TestAppContex
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
     let thread = ws
-        .read_with(cx, |ws, _| ws.open_threads.last().and_then(|t| t.upgrade()))
+        .read_with(cx, |ws, _| ws.open_threads.last().cloned())
         .expect("thread tab");
     send(&thread, "hi", cx);
     wait_until(cx, "the fake's result", |cx| {
@@ -146,10 +146,7 @@ fn start_a_new_thread_opens_in_the_refused_threads_folder(cx: &mut TestAppContex
             before + 1,
             "precondition: the button opened a tab"
         );
-        ws.open_threads
-            .last()
-            .and_then(|t| t.upgrade())
-            .expect("new tab")
+        ws.open_threads.last().cloned().expect("new tab")
     });
     let cwd = opened.read_with(cx, |t, _| t.cwd.clone());
     assert_eq!(

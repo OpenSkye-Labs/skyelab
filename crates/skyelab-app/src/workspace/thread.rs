@@ -40,6 +40,11 @@ pub(super) fn accounts_now(
 
 #[path = "thread_answers.rs"]
 mod answers;
+/// The composer under the thread (`composer.rs` and its parts).
+#[path = "composer.rs"]
+pub(super) mod composer;
+#[path = "thread_follow_up.rs"]
+mod follow_up;
 #[path = "thread_launch.rs"]
 mod launch;
 #[path = "thread_saves.rs"]
@@ -47,20 +52,9 @@ mod saves;
 #[path = "thread_session.rs"]
 mod session;
 
-pub enum ThreadViewEvent {
-    /// The thread got its store row (the first prompt was sent).
-    Started(Box<Thread>),
-    /// The agent's Result event arrived: its changes may be on disk now.
-    TurnDone,
-    OpenChanges,
-    /// A file the agent's work names (a card's path, a link): show it in the Changes tab.
-    OpenPath(PathBuf),
-    /// A terminal in the thread's worktree, under the thread's account.
-    OpenTerminal {
-        cwd: PathBuf,
-        account_id: String,
-    },
-}
+#[path = "thread_event.rs"]
+mod event;
+pub use event::ThreadViewEvent;
 
 /// A thread this one delegated, listed under its header.
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +92,8 @@ pub struct ThreadView {
     pub(super) resumed_prompt: Option<String>,
     /// Set when the resumed session was gone: rerun when this agent has ended.
     pub(super) rerun: Option<String>,
+    /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
+    pub(super) background: bool,
     stop_requested: bool,
     /// Bumped by every launch; a pump from an earlier launch never ends a later one.
     pub(super) launches: u64,
@@ -105,6 +101,10 @@ pub struct ThreadView {
     /// thread's row is still loading.
     pub(super) read_only: bool,
     pub(super) wt: super::thread_worktree::WorktreeState,
+    /// The header's branch picker, on the folder this view opened on.
+    pub(super) branch_picker: Entity<super::branch_picker::BranchPicker>,
+    /// The header's Run menu: the project's scripts.
+    pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
@@ -126,9 +126,11 @@ pub struct ThreadView {
     mode_now: Arc<std::sync::atomic::AtomicUsize>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
-    send_chain: Option<Task<()>>,
+    pub(super) send_chain: Option<Task<()>>,
     /// Answered with the next follow-up's result, once its store write (and slot claim) is done.
     pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
+    /// Attachments, menus, the model pick, the queue and the footer (`composer_state.rs`).
+    pub(super) composer: composer::Composer,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -149,14 +151,16 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Self::build(
+        let mut this = Self::build(
             project.id,
             project.path.clone(),
             config,
             backend,
             window,
             cx,
-        )
+        );
+        this.load_composer(cx);
+        this
     }
 
     /// Reopens a stored thread and replays its events.
@@ -177,6 +181,7 @@ impl ThreadView {
         );
         let (store, id) = (this.backend.store.clone(), thread.id);
         this.thread = Some(thread);
+        this.load_composer(cx);
         // Read-only until the fresh row below says whether there's a session to resume.
         this.read_only = true;
         this.prompt.update(cx, |p, cx| p.set_disabled(true, cx));
@@ -243,21 +248,33 @@ impl ThreadView {
         let prompt = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(2, 10)
-                .placeholder("Ask the agent… (⌘↩ to send)")
+                .placeholder("Ask anything. @ files, $ skills, / commands")
         });
         let subs = vec![
-            cx.subscribe_in(&prompt, window, |this, _, e: &InputEvent, window, cx| {
-                if let InputEvent::PressEnter {
-                    secondary: true, ..
-                } = e
-                {
-                    this.send_prompt(&SendPrompt, window, cx);
-                }
-            }),
+            cx.subscribe_in(
+                &prompt,
+                window,
+                |this, _, e: &InputEvent, window, cx| match e {
+                    InputEvent::PressEnter {
+                        secondary: true, ..
+                    } => this.send_prompt(&SendPrompt, window, cx),
+                    InputEvent::Change => this.prompt_changed(cx),
+                    _ => {}
+                },
+            ),
             cx.on_app_quit(|this, _| this.quitting()),
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
+        let owner = cx.weak_entity();
+        let branch_picker = cx.new(|cx| {
+            super::branch_picker::BranchPicker::new(owner.clone(), cwd.clone(), window, cx)
+        });
+        let scripts = cx.new(|cx| {
+            super::scripts::ScriptMenu::new(owner, backend.store.clone(), project_id, window, cx)
+        });
         Self {
+            branch_picker,
+            scripts,
             folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,
@@ -277,6 +294,7 @@ impl ThreadView {
             starting: false,
             resumed_prompt: None,
             rerun: None,
+            background: false,
             stop_requested: false,
             launches: 0,
             read_only: false,
@@ -296,6 +314,7 @@ impl ThreadView {
             grant: None,
             send_chain: None,
             on_sent: None,
+            composer: Default::default(),
             _pump: None,
             _task: None,
             _subs: subs,
@@ -467,43 +486,27 @@ impl ThreadView {
         }
     }
 
+    /// An agent is running or starting in this thread: its folder's files and checkout must not change under it.
+    pub(super) fn agent_running(&self) -> bool {
+        self.session.is_some() || self.starting
+    }
+
     pub(super) fn send_prompt(
         &mut self,
         _: &SendPrompt,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let text = self.prompt.read(cx).value().trim().to_string();
-        if text.is_empty() || self.read_only || self.starting {
-            return;
-        }
-        // The folder decides the account. Unbound means ask the user, never pick one.
-        let resolved = self.config.resolve(&self.cwd).cloned();
-        if let (Some(want), Some(got)) = (&self.required_account, &resolved)
-            && got.id != *want
-        {
-            self.error =
-                Some(format!("This folder is now bound to {}, not {want}.", got.id).into());
-            cx.notify();
-            return;
-        }
-        if self.session.is_none()
-            && let Some(thread) = self.thread.clone()
-        {
-            return self.resume(text, thread, resolved, window, cx);
-        }
-        let Some(account) = resolved else {
-            self.needs_binding = true;
-            cx.notify();
-            return;
-        };
-        self.needs_binding = false;
-        self.error = None;
-        if self.session.is_some() {
-            self.follow_up(text, &account, window, cx);
-            return;
-        }
-        self.launch(text, account, None, window, cx);
+        self.submit(composer::Submit::Send, window, cx);
+    }
+
+    pub(super) fn steer_prompt(
+        &mut self,
+        _: &composer::SteerPrompt,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.submit(composer::Submit::Steer, window, cx);
     }
 }
 

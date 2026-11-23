@@ -5,7 +5,7 @@ use super::*;
 use crate::Block;
 
 fn open() -> Codex {
-    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default);
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default, Pick::default());
     c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" }, "model": "m" } }));
     c
 }

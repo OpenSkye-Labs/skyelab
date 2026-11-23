@@ -32,6 +32,9 @@ fn start(prompt: &str) -> (Session, tempfile::TempDir) {
         resume: None,
         prompt,
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Mode::Default,
     };
     let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");

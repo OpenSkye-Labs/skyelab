@@ -1,11 +1,13 @@
-//! Projects and thread tabs: the sidebar's two sections and what selecting a row does.
+//! Projects and threads: the sidebar's two sections and what selecting a row does.
 
+use super::center::Page;
 use super::changes::ChangesView;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree;
-use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
+use super::{
+    AddProject, NewThread, NewThreadIn, OpenThread, SelectProject, Workspace, account_label, lock,
+};
 use gpui::{AppContext as _, Context, Entity, PathPromptOptions, Window};
-use gpui_component::dock::{DockPlacement, panel_handle};
 
 use skyelab_store::Thread;
 use std::path::PathBuf;
@@ -23,7 +25,10 @@ impl Workspace {
                 match loaded {
                     Ok(projects) => {
                         this.projects = projects;
+                        let listed = &this.projects;
+                        this.scope.retain(|id| listed.iter().any(|p| p.id == *id));
                         this.resolve_project_accounts(cx);
+                        this.load_threads(cx);
                         let current = this.project.as_ref().map(|p| p.id);
                         if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id))
                         {
@@ -58,7 +63,11 @@ impl Workspace {
         self._add = Some(cx.spawn(async move |this, cx| {
             let added = task.await;
             let _ = this.update(cx, |this, cx| match added {
-                Ok(id) => this.load_projects(Some(id), cx),
+                Ok(id) => {
+                    // The new project's threads must show, and New thread must not start in an older scope.
+                    this.scope.clear();
+                    this.load_projects(Some(id), cx)
+                }
                 Err(e) => {
                     this.store_error = Some(format!("{e:#}").into());
                     cx.notify();
@@ -93,10 +102,12 @@ impl Workspace {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // "Switch to project" narrows the list to it, as the scope filter would.
+        self.scope = vec![a.id];
         self.select(a.id, cx);
     }
 
-    fn select(&mut self, id: i64, cx: &mut Context<Self>) {
+    pub(super) fn select(&mut self, id: i64, cx: &mut Context<Self>) {
         let Some(project) = self.projects.iter().find(|p| p.id == id).cloned() else {
             return;
         };
@@ -105,28 +116,24 @@ impl Workspace {
         self.account = account_label(&self.config, &self.folder);
         self.account_id = self.config.resolve(&self.folder).map(|a| a.id.clone());
         self.project = Some(project);
-        self.threads.clear(); // never list another project's threads while this one's load
         self.refresh_sidebar(cx);
-        self.load_threads(cx);
+        self.scripts.clear();
+        self.load_scripts(cx);
         cx.notify();
     }
 
+    /// Every listed project's threads, for the sidebar's one list. A newer load replaces (cancels) an older one.
     pub(super) fn load_threads(&mut self, cx: &mut Context<Self>) {
-        let Some(project_id) = self.project.as_ref().map(|p| p.id) else {
-            return;
-        };
         let store = self.backend.store.clone();
-        let task = cx.background_spawn(async move { lock(&store)?.list_threads(project_id) });
+        let task = cx.background_spawn(async move { lock(&store)?.list_all_threads() });
         self._threads = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
-                    // A slow load for a project that is no longer selected changes nothing.
-                    Ok(threads) if this.project.as_ref().map(|p| p.id) == Some(project_id) => {
+                    Ok(threads) => {
                         this.threads = threads;
                         this.rerun_search(cx);
                     }
-                    Ok(_) => {}
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
                 }
                 this.refresh_sidebar(cx);
@@ -168,7 +175,57 @@ impl Workspace {
         if self.is_remote() {
             return; // `project` is still the last local one: an agent would start here, not on the shown machine
         }
-        let Some(project) = self.project.clone() else {
+        // T3's rule: the one project the list is narrowed to, else the only project, else ask which.
+        let target = match (self.scope.as_slice(), self.projects.as_slice()) {
+            ([id], _) => Some(*id),
+            (_, [only]) => Some(only.id),
+            _ => None,
+        };
+        match target {
+            Some(id) => self.new_thread_in(&NewThreadIn { id }, window, cx),
+            None if self.projects.is_empty() => self.pick_project(&AddProject, window, cx),
+            None => self.pick_new_thread_project(window, cx),
+        }
+    }
+
+    /// The palette as a project picker: "New thread in: <project>" for each one.
+    fn pick_new_thread_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(prev) = window.focused(cx) else {
+            return;
+        };
+        let entries = self
+            .projects
+            .iter()
+            .map(|p| {
+                let id = p.id;
+                crate::palette::Entry {
+                    label: format!("New thread in: {}", p.name).into(),
+                    kind: crate::palette::Kind::Project,
+                    binding: None,
+                    checked: None,
+                    run: std::rc::Rc::new(move |window, cx| {
+                        window.dispatch_action(Box::new(NewThreadIn { id }), cx)
+                    }),
+                }
+            })
+            .collect();
+        crate::palette::open(entries, None, prev, window, cx);
+    }
+
+    /// A new thread in project `id`. Its folder's bound account is resolved when the thread starts, never defaulted.
+    pub(super) fn new_thread_in(
+        &mut self,
+        a: &NewThreadIn,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.is_remote() {
+            return;
+        }
+        if self.project.as_ref().map(|p| p.id) != Some(a.id) {
+            self.select(a.id, cx);
+        }
+        let Some(project) = self.project.clone().filter(|p| p.id == a.id) else {
             return;
         };
         let (config, backend) = (self.config.clone(), self.backend.clone());
@@ -182,19 +239,18 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // The workspace follows the opened thread's project (folder, account, terminals), as a selected one did.
+        let project = self
+            .threads
+            .iter()
+            .find(|t| t.id == a.id)
+            .map(|t| t.project_id)
+            .or_else(|| self.open_view(a.id, cx).map(|v| v.read(cx).project_id));
+        if let Some(id) = project.filter(|&id| self.project.as_ref().map(|p| p.id) != Some(id)) {
+            self.select(id, cx);
+        }
         if let Some(view) = self.open_view(a.id, cx) {
-            if let Some(at) = self.queued_tabs.iter().position(|q| q == &view) {
-                self.queued_tabs.remove(at);
-                self.dock_thread(&view, window, cx);
-                self.refresh_sidebar(cx);
-            }
-            let id = view.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            // Keys keep working from the shown tab: focus left in a hidden one reaches no handler.
-            view.update(cx, |v, cx| v.focus_prompt(window, cx));
-            self.mark_seen(window, cx);
-            return;
+            return self.show(Page::Thread(view.downgrade()), window, cx);
         }
         if let Some(thread) = self.threads.iter().find(|t| t.id == a.id).cloned() {
             return self.open_stored(thread, window, cx);
@@ -203,10 +259,13 @@ impl Workspace {
         let (store, id) = (self.backend.store.clone(), a.id);
         cx.spawn_in(window, async move |this, cx| {
             let row = cx
-                .background_spawn(async move { lock(&store)?.thread(id) })
+                .background_spawn(async move { lock(&store)?.listed_thread(id) })
                 .await;
             let _ = this.update_in(cx, |this, window, cx| match row {
                 Ok(Some(thread)) if this.open_view(id, cx).is_none() => {
+                    if this.project.as_ref().map(|p| p.id) != Some(thread.project_id) {
+                        this.select(thread.project_id, cx);
+                    }
                     this.open_stored(thread, window, cx)
                 }
                 Ok(_) => {}
@@ -225,31 +284,8 @@ impl Workspace {
         self.add_thread_tab(view, true, window, cx);
     }
 
-    fn dock_thread(
-        &mut self,
-        view: &Entity<ThreadView>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(view.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-    }
-
-    /// Back on this machine: the tabs that opened meanwhile join the dock.
-    pub(super) fn show_queued_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        for view in std::mem::take(&mut self.queued_tabs) {
-            self.dock_thread(&view, window, cx);
-        }
-    }
-
-    /// `focus: false` for a tab a remote client opened, so it never takes the local user's keyboard.
+    /// Keeps `view` alive and shows it. `focus: false` for a thread that started in the background (delegated, or
+    /// from another device): the page stays, and the thread's row is marked unread until the user opens it.
     pub(super) fn add_thread_tab(
         &mut self,
         view: Entity<ThreadView>,
@@ -264,7 +300,15 @@ impl Workspace {
             &view,
             window,
             |this, view, e: &ThreadViewEvent, window, cx| match e {
-                ThreadViewEvent::Started(thread) => this.thread_started(thread, cx),
+                ThreadViewEvent::Started(thread) => {
+                    this.thread_started(thread, cx);
+                    // A draft just got its row, so the saved page can name it now.
+                    if this.current_thread().as_ref() == Some(view) {
+                        this.schedule_layout_save(window, cx);
+                    } else if view.read(cx).background {
+                        this.mark_unread(view, cx);
+                    }
+                }
                 ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
                 ThreadViewEvent::OpenPath(path) => this.open_path(view, path, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
@@ -296,22 +340,26 @@ impl Workspace {
                     this.refresh_changes(view, cx);
                     this.turn_done(view, window, cx);
                 }
+                ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
+                ThreadViewEvent::RunScript(script) => {
+                    let v = view.read(cx);
+                    let account = v.thread.as_ref().map(|t| t.account_id.clone());
+                    let cwd = v.cwd.clone();
+                    this.run_script(script, cwd, account, window, cx);
+                }
+                ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
+                ThreadViewEvent::WorktreeCreated { cwd, account_id } => {
+                    let project = view.read(cx).project_id;
+                    this.run_setup_scripts(project, cwd.clone(), account_id.clone(), window, cx);
+                }
             },
         ));
-        self.open_threads.retain(|t| t.upgrade().is_some());
-        self.open_threads.push(view.downgrade());
-        // Another machine is shown: a tab of this one would sit among its tabs. It waits until the user is back.
-        if !focus && self.is_remote() {
-            self.queued_tabs.push(view);
-            self.refresh_sidebar(cx);
-            cx.notify();
-            return;
-        }
-        self.dock_thread(&view, window, cx);
+        self.open_threads.push(view.clone());
         if focus {
-            view.update(cx, |v, cx| v.focus_prompt(window, cx));
-            self.mark_seen(window, cx);
+            return self.show(Page::Thread(view.downgrade()), window, cx);
         }
+        view.update(cx, |v, _| v.background = true);
+        self.refresh_sidebar(cx);
         cx.notify();
     }
 
@@ -395,7 +443,7 @@ impl Workspace {
     fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
         #[cfg(unix)]
         self.child_started(thread, cx);
-        if self.project.as_ref().map(|p| p.id) == Some(thread.project_id) {
+        if self.projects.iter().any(|p| p.id == thread.project_id) {
             // A reopened thread reports its start too: keep its one row where it is.
             match self.threads.iter_mut().find(|t| t.id == thread.id) {
                 Some(row) => *row = thread.clone(),
@@ -414,7 +462,7 @@ impl Workspace {
         self.resolve_project_accounts(cx);
         super::orchestrate::set_config(cx, &self.config);
         let config = self.config.clone();
-        for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {
+        for view in &self.open_threads {
             view.update(cx, |t, cx| t.set_config(config.clone(), cx));
         }
     }

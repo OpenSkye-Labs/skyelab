@@ -89,23 +89,23 @@ fn remote_threads_show_the_account_label(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn closing_and_reopening_a_tab_at_once_keeps_its_events(cx: &mut TestAppContext) {
+fn reopening_a_remote_thread_keeps_its_view_and_events(cx: &mut TestAppContext) {
     let remote = remote_side(FakeTailnet::default());
     remote.store_texts(remote.thread_id, &["first"], false);
     let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     let old = open_thread(&ws, &remote, cx);
     wait_until(cx, "stored events", |cx| texts(&old, cx) == ["first"]);
 
-    // Close and reopen in one go: the old view is dropped (and unwatches) after the new one has watched.
+    // Away and back: the view stays (and keeps watching) while hidden, so reopening shows the same one.
     let id = remote.thread_id;
     ws.update_in(cx, move |ws, window, cx| {
-        ws.dock
-            .update(cx, |dock, cx| dock.remove_panel(old, window, cx));
+        ws.show(super::center::Page::Welcome, window, cx);
         ws.open_remote_thread(&OpenRemoteThread { id }, window, cx);
     });
     let tabs = ws.read_with(cx, |ws, _| ws.remote_tabs());
-    assert_eq!(tabs.len(), 1, "one tab after reopening");
+    assert_eq!(tabs.len(), 1, "one view after reopening");
     let new = tabs[0].clone();
+    assert_eq!(new, old, "the same view");
     wait_until(cx, "the reopened tab's events", |cx| {
         texts(&new, cx) == ["first"]
     });

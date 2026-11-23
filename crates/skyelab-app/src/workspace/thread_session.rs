@@ -120,7 +120,9 @@ impl ThreadView {
                     }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
+                        this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
+                        this.after_turn(cx);
                     }
                 });
                 if shown.is_err() {
@@ -149,10 +151,31 @@ impl ThreadView {
         }));
     }
 
+    /// A turn ended: its checkpoint is queued behind earlier sends, and before the next turn's starting one. Changes
+    /// tabs refresh once it is taken.
+    fn checkpoint_turn_end(&mut self, cx: &mut Context<Self>) {
+        let Some(t) = &self.thread else { return };
+        let (cwd, key) = (t.cwd.clone(), crate::workspace::thread_checkpoints::key(t));
+        let prev = self.send_chain.take();
+        let work = cx.background_executor().clone();
+        self.send_chain = Some(cx.spawn(async move |this, cx| {
+            if let Some(prev) = prev {
+                prev.await;
+            }
+            work.spawn(async move { crate::workspace::thread_checkpoints::after_turn(&cwd, &key) })
+                .await;
+            let _ = this.update(cx, |_, cx| cx.emit(ThreadViewEvent::FilesChanged));
+        }));
+    }
+
     /// claude's stdout closed and every event is stored: record how the thread ended.
     fn ended(&mut self, launch: u64, cx: &mut Context<Self>) {
         if launch != self.launches {
             return; // a stopped session's stream; Stop already recorded it
+        }
+        // Gone mid-turn: that turn's end is still a checkpoint, so it can be reviewed and rewound.
+        if self.turns.swap(0, Ordering::SeqCst) > 0 {
+            self.checkpoint_turn_end(cx);
         }
         let Some(thread) = &self.thread else {
             return;
@@ -212,6 +235,9 @@ impl ThreadView {
     ) {
         if let Some(session) = self.session.clone() {
             self.in_background(cx, move || lock(&session)?.interrupt());
+            if self.turn_running() {
+                self.interrupt_pending(cx);
+            }
         }
     }
 
@@ -242,13 +268,17 @@ impl ThreadView {
                     return this.show_error(e, cx);
                 }
                 this.session = None; // killed and reaped, so dropping it doesn't wait
+                // Stopped mid-turn: its end checkpoint is queued now, before a resume can start the next turn.
+                if this.turns.swap(0, Ordering::SeqCst) > 0 {
+                    this.checkpoint_turn_end(cx);
+                }
                 this.finish(cx);
             });
         }));
     }
 
     /// Runs blocking work on the background executor and shows its error, if any, inline.
-    pub(super) fn in_background(
+    pub(in crate::workspace) fn in_background(
         &mut self,
         cx: &mut Context<Self>,
         work: impl FnOnce() -> Result<()> + Send + 'static,
@@ -363,9 +393,12 @@ impl Drop for NewSession {
     }
 }
 
-impl Drop for ThreadView {
-    /// Closing the tab ends its agent. A launch still in progress ends its own (`NewSession`).
-    fn drop(&mut self) {
+impl ThreadView {
+    /// Ends the agent and makes a last try for held events, off the UI thread. `Workspace::close_thread` calls it, as
+    /// the view may outlive the close by a frame; dropping the view runs it too, and a second run does nothing. A
+    /// launch still in progress sees `stop_requested` and ends its own agent.
+    pub(in crate::workspace) fn close(&mut self) {
+        self.stop_requested = true;
         let session = self.session.take();
         let Some(thread) = &self.thread else {
             return;
@@ -373,6 +406,7 @@ impl Drop for ThreadView {
         if session.is_none() && self.unsaved_events == 0 {
             return;
         }
+        self.unsaved_events = 0;
         let (store, id, unsaved) = (self.backend.store.clone(), thread.id, self.unsaved.clone());
         let _ = std::thread::Builder::new()
             .name("skyelab-agent-reaper".into())
@@ -385,5 +419,12 @@ impl Drop for ThreadView {
                     let _ = store.set_thread_status(id, "stopped");
                 }
             });
+    }
+}
+
+impl Drop for ThreadView {
+    /// Closing the thread ends its agent. A launch still in progress ends its own (`NewSession`).
+    fn drop(&mut self) {
+        self.close();
     }
 }

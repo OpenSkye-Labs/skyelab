@@ -258,7 +258,6 @@ pub(super) fn render_questions<V: ItemsView>(
                 .children(other.map(|input| div().pl_7().child(Input::new(&input).small()))),
         );
     }
-    let theme = cx.theme();
     let actions = if answerable {
         let (submit, skip) = (a.id.clone(), a.id.clone());
         h_flex()
@@ -281,14 +280,16 @@ pub(super) fn render_questions<V: ItemsView>(
                         this.answer(&skip, Decision::Deny, window, cx)
                     })),
             )
+            .child(interrupt(&a.id, cx))
             .into_any_element()
     } else {
         div()
             .text_size(ui::META)
-            .text_color(theme.muted_foreground)
+            .text_color(cx.theme().muted_foreground)
             .child("Answer this in the thread on the machine that runs it.")
             .into_any_element()
     };
+    let theme = cx.theme();
     card(theme)
         .debug_selector(|| "question-card".into())
         .gap_3()
@@ -338,6 +339,7 @@ pub(super) fn render_plan<V: ItemsView>(
                         this.answer_plan(&no, false, window, cx)
                     })),
             )
+            .child(interrupt(&a.id, cx))
     });
     let theme = cx.theme();
     card(theme)
@@ -369,4 +371,14 @@ pub(super) fn render_plan<V: ItemsView>(
         )
         .children(actions)
         .into_any_element()
+}
+
+/// The approval card's Interrupt: stop the turn instead of answering.
+fn interrupt<V: ItemsView>(id: &str, cx: &mut Context<V>) -> Button {
+    Button::new(SharedString::from(format!("interrupt-{id}")))
+        .xsmall()
+        .ghost()
+        .label("Interrupt")
+        .tooltip("Stop this turn instead (⌘.)")
+        .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx)))
 }

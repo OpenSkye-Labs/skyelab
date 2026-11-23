@@ -220,6 +220,9 @@ impl ItemsView for ThreadView {
     fn answer(&mut self, id: &str, decision: Decision, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::answer(self, id, decision, cx)
     }
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.interrupt(&super::Interrupt, window, cx)
+    }
     fn open_path(&mut self, path: &str, cx: &mut Context<Self>) {
         ThreadView::open_path(self, path, cx)
     }

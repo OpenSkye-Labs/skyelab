@@ -3,7 +3,7 @@ use crate::Block;
 
 /// Queues a prompt on a thread that opened.
 fn p(c: &mut Codex, text: &str) -> Vec<String> {
-    c.prompt(text).expect("thread is open")
+    c.prompt(text, &[], false).expect("thread is open")
 }
 
 fn parse(line: &str) -> Value {
@@ -19,7 +19,7 @@ fn method(line: &str) -> String {
 
 /// A started thread with no turn yet.
 fn open() -> Codex {
-    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default);
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default, Pick::default());
     let (events, writes) = c.on_line(
         json!({ "id": c.start_id, "result": { "thread": { "id": "thr" }, "model": "m" } }),
     );
@@ -41,6 +41,7 @@ fn start_sends_initialize_then_thread_start_with_hardening() {
         None,
         Some(json!({ "skyelab": {} })),
         Mode::Default,
+        Pick::default(),
     );
     let names: Vec<_> = lines.iter().map(|l| method(l)).collect();
     assert_eq!(names, ["initialize", "initialized", "thread/start"]);
@@ -53,7 +54,13 @@ fn start_sends_initialize_then_thread_start_with_hardening() {
 
 #[test]
 fn prompts_wait_for_the_thread_and_for_the_running_turn() {
-    let (mut c, _) = Codex::new(Path::new("/w"), Some("thr"), None, Mode::Default);
+    let (mut c, _) = Codex::new(
+        Path::new("/w"),
+        Some("thr"),
+        None,
+        Mode::Default,
+        Pick::default(),
+    );
     assert!(p(&mut c, "one").is_empty(), "no thread id yet");
     let (_, writes) =
         c.on_line(json!({ "id": c.start_id, "result": { "thread": { "id": "thr" } } }));
@@ -151,7 +158,7 @@ fn mode_sets_the_policy_and_a_change_rides_the_next_turn() {
         (Mode::Plan, "on-request", "read-only"),
         (Mode::Bypass, "never", "danger-full-access"),
     ] {
-        let (_, lines) = Codex::new(Path::new("/w"), None, None, mode);
+        let (_, lines) = Codex::new(Path::new("/w"), None, None, mode, Pick::default());
         let p = &parse(&lines[2])["params"];
         assert_eq!(
             (p["approvalPolicy"].as_str(), p["sandbox"].as_str()),
@@ -189,7 +196,13 @@ fn failed_turn_start_reports_and_frees_the_queue() {
 
 #[test]
 fn thread_start_error_is_a_failed_result() {
-    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None, Mode::Default);
+    let (mut c, _) = Codex::new(
+        Path::new("/w"),
+        Some("gone"),
+        None,
+        Mode::Default,
+        Pick::default(),
+    );
     let (events, _) =
         c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "no such thread" } }));
     assert_eq!(events, vec![failed("no such thread".into())]);
@@ -310,17 +323,23 @@ fn a_worktrees_main_repo_is_untrusted_too() {
 
 #[test]
 fn a_thread_that_never_opened_refuses_prompts() {
-    let (mut c, _) = Codex::new(Path::new("/w"), Some("gone"), None, Mode::Default);
+    let (mut c, _) = Codex::new(
+        Path::new("/w"),
+        Some("gone"),
+        None,
+        Mode::Default,
+        Pick::default(),
+    );
     assert!(p(&mut c, "first").is_empty(), "waits for the thread");
     let (events, writes) =
         c.on_line(json!({ "id": c.start_id, "error": { "code": 1, "message": "gone" } }));
     assert_eq!((events, writes), (vec![failed("gone".into())], vec![]));
-    assert!(c.prompt("again").is_err());
+    assert!(c.prompt("again", &[], false).is_err());
 }
 
 #[test]
 fn interrupt_while_the_thread_opens_stops_the_first_turn() {
-    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default);
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default, Pick::default());
     p(&mut c, "go");
     assert!(c.interrupt().is_empty());
     let (_, writes) =
@@ -328,4 +347,61 @@ fn interrupt_while_the_thread_opens_stops_the_first_turn() {
     let turn_req = parse(&writes[0])["id"].clone();
     let (_, writes) = c.on_line(json!({ "id": turn_req, "result": { "turn": { "id": "t1" } } }));
     assert_eq!(parse(&writes[0])["method"], "turn/interrupt");
+}
+
+/// A thread with turn `t` running for prompt "one".
+fn running() -> Codex {
+    let mut c = open();
+    let writes = p(&mut c, "one");
+    let req = parse(&writes[0])["id"].as_u64().expect("id");
+    c.on_line(json!({ "id": req, "result": { "turn": { "id": "t" } } }));
+    c
+}
+
+fn completed(c: &mut Codex) -> u32 {
+    let (events, _) = c.on_line(json!({ "method": "turn/completed", "params": { "turn": { "id": "t", "status": "completed" } } }));
+    match events.as_slice() {
+        [Event::Result { prompts, .. }] => *prompts,
+        other => panic!("expected one result, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_steer_goes_into_the_running_turn_and_its_result_answers_both() {
+    let mut c = running();
+    let writes = c.prompt("two", &[], true).expect("steer");
+    assert_eq!(method(&writes[0]), "turn/steer");
+    let params = &parse(&writes[0])["params"];
+    assert_eq!(params["expectedTurnId"], "t");
+    assert_eq!(params["input"][0]["text"], "two");
+    let req = parse(&writes[0])["id"].as_u64().expect("id");
+    c.on_line(json!({ "id": req, "result": { "turnId": "t" } }));
+    assert_eq!(completed(&mut c), 2);
+}
+
+#[test]
+fn a_refused_steer_runs_as_its_own_turn_and_is_counted_once() {
+    // Refused while its turn still runs: that turn answers one, the new turn the steer.
+    let mut c = running();
+    let writes = c.prompt("two", &[], true).expect("steer");
+    let req = parse(&writes[0])["id"].as_u64().expect("id");
+    c.on_line(json!({ "id": req, "error": { "message": "no active turn" } }));
+    assert_eq!(completed(&mut c), 1);
+    // Refused after its turn finished (and counted it): the turn it runs as answers none.
+    let mut c = running();
+    let writes = c.prompt("two", &[], true).expect("steer");
+    let req = parse(&writes[0])["id"].as_u64().expect("id");
+    assert_eq!(completed(&mut c), 2);
+    let (_, writes) = c.on_line(json!({ "id": req, "error": { "message": "turn ended" } }));
+    assert_eq!(method(&writes[0]), "turn/start");
+    let start = parse(&writes[0])["id"].as_u64().expect("id");
+    c.on_line(json!({ "id": start, "result": { "turn": { "id": "t" } } }));
+    assert_eq!(completed(&mut c), 0);
+}
+
+#[test]
+fn a_steer_with_no_running_turn_queues_like_a_prompt() {
+    let mut c = open();
+    let writes = c.prompt("one", &[], true).expect("steer");
+    assert_eq!(method(&writes[0]), "turn/start");
 }

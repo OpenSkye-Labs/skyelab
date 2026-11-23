@@ -5,11 +5,6 @@ use crate::Session;
 use crate::launch;
 use anyhow::{Context as _, Result};
 use std::process::ExitStatus;
-#[cfg(unix)]
-use std::{
-    path::Path,
-    process::{Command, Stdio},
-};
 
 impl Session {
     /// The exit status once the agent has exited (reaping it), or `None` while it runs. Reaping it also ends what
@@ -71,17 +66,7 @@ impl Session {
     fn kill_group(&mut self) {
         #[cfg(windows)]
         drop(self.job.take());
-        // `unsafe` is denied, so no libc::killpg: the kill binary signals the group instead.
         #[cfg(unix)]
-        {
-            let kill =
-                launch::resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
-            let _ = Command::new(kill)
-                .args(["-KILL", "--", &format!("-{}", self.child.id())])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
+        launch::kill_group(self.child.id());
     }
 }

@@ -127,6 +127,21 @@ impl Workspace {
         cx: &mut Context<Self>,
         failed: impl FnOnce(&mut Self, anyhow::Error, &mut Context<Self>) + 'static,
     ) {
+        self.open_terminal_tab(job, wanted, None, window, cx, failed);
+    }
+
+    /// [`Self::open_terminal`] with a tab title and typed input (see [`Workspace::add_terminal_tab`]).
+    pub(super) fn open_terminal_tab(
+        &mut self,
+        job: impl FnOnce() -> anyhow::Result<(SpawnOptions, Option<skyelab_core::Account>)>
+        + Send
+        + 'static,
+        wanted: impl FnOnce(&Self, &SpawnOptions) -> bool + 'static,
+        tab: super::terminals::TerminalTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        failed: impl FnOnce(&mut Self, anyhow::Error, &mut Context<Self>) + 'static,
+    ) {
         let options = cx.background_spawn(async move { job() });
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
@@ -135,7 +150,7 @@ impl Workspace {
                     if this.is_remote() || !wanted(this, &o) {
                         return Ok(());
                     }
-                    this.add_terminal_with(o, account, window, cx)
+                    this.add_terminal_tab(o, account, tab, window, cx)
                 });
                 if let Err(e) = opened {
                     failed(this, e, cx);

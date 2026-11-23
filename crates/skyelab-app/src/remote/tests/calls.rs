@@ -9,6 +9,8 @@ pub(super) struct Fixture {
     pub store: workspace::SharedStore,
     pub ws: Entity<Workspace>,
     pub remote: Entity<Remote>,
+    /// The calls the daemon queued for the Workspace and it hasn't taken yet.
+    pub queue: flume::Receiver<RemoteCall>,
 }
 
 /// A workspace with one project (bound to "acme" or not), sharing on, its remote calls wired.
@@ -66,6 +68,7 @@ pub(super) fn sharing_workspace(
     push_events(&mut store, slot.clone());
     let store = Arc::new(Mutex::new(store));
     let (h, calls) = host(&root, Arc::default(), store.clone(), slot);
+    let queue = calls.clone();
     let remote = cx.new(|cx| Remote::new(h, cx));
     let backend = workspace::Backend {
         store: store.clone(),
@@ -103,6 +106,7 @@ pub(super) fn sharing_workspace(
             store,
             ws,
             remote,
+            queue,
         },
         cx,
     )

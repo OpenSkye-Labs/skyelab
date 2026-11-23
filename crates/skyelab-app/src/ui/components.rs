@@ -309,13 +309,22 @@ impl RenderOnce for Monogram {
 
 /// T3's sidebar menu row: 32 px, radius 6, hover and selected fills, medium when selected, content truncates.
 pub fn row(id: impl Into<ElementId>, selected: bool, theme: &Theme) -> Stateful<Div> {
-    let hover = theme.sidebar_accent.opacity(0.7);
-    h_flex()
-        .id(id)
-        .w_full()
-        .min_w_0()
+    row_surface(h_flex(), id, selected, theme)
         .h(ROW_H)
         .gap_2p5()
+}
+
+/// A sidebar row's box (hover and selected fills, radius 6) around any layout, e.g. a two-line thread row.
+pub fn row_surface(
+    base: Div,
+    id: impl Into<ElementId>,
+    selected: bool,
+    theme: &Theme,
+) -> Stateful<Div> {
+    let hover = theme.sidebar_accent.opacity(0.7);
+    base.id(id)
+        .w_full()
+        .min_w_0()
         .px_2p5()
         .rounded(RADIUS_MD)
         .border_1()

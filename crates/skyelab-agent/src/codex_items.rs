@@ -184,4 +184,20 @@ impl Codex {
         };
         (vec![event], Vec::new())
     }
+
+    /// The reply to user-input request `id`: `{answers: {<question id>: {answers: [labels]}}}`, or `None` when it
+    /// isn't a waiting question or the count doesn't match.
+    pub(crate) fn answer_questions(&mut self, id: &str, answers: &[Vec<String>]) -> Option<String> {
+        let rpc = self.asks.get(id)?;
+        let ids = self
+            .questions
+            .get(id)
+            .filter(|q| q.len() == answers.len())?;
+        let map: serde_json::Map<String, Value> = ids
+            .iter()
+            .zip(answers)
+            .map(|(q, a)| (q.clone(), json!({ "answers": a })))
+            .collect();
+        Some(json!({ "id": rpc, "result": { "answers": map } }).to_string())
+    }
 }

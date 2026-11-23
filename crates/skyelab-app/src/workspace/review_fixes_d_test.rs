@@ -40,7 +40,7 @@ fn deleting_again_after_an_undo_gets_a_full_undo_window(cx: &mut TestAppContext)
         op: ThreadOp::Delete,
     });
     cx.run_until_parked();
-    r.ws.update_in(cx, |ws, window, cx| ws.undelete_thread(id, window, cx));
+    r.ws.update_in(cx, |ws, window, cx| ws.undo_delete(id, false, window, cx));
     cx.run_until_parked();
     cx.executor().advance_clock(half);
     cx.dispatch_action(ManageThread {

@@ -2,9 +2,9 @@
 
 Part of [architecture.md](architecture.md).
 
-The app can serve this machine to your other devices. It is **off by default**: the Remote tab's "Share this machine
+The app can serve this machine to your other devices. It is **off by default**: Settings → Sharing's "Share this machine
 on my tailnet" switch (`skyelab::ToggleSharing`) turns it on, and the choice is saved as `share_on_tailnet` in
-`settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens the Remote tab) says
+`settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens Settings → Sharing) says
 `Sharing on <MagicDNS name>:7287 · certificate valid until <date>`, `Not sharing`, or the exact reason it couldn't
 start (Tailscale not installed, not running, logged out, no certificate). Turning it off stops the listener and closes every connection, even when the choice can't be
 saved (the error shows). Closing the window stops it too. A remote call still queued when sharing went off, or one
@@ -46,7 +46,7 @@ the app only edits the list.
 
 - An unknown pair is refused `not_approved` and listed as a request: at most 16, two per node (the newest
   replaces the oldest, so one machine making keys can't push other devices off the list), each dropped 10 minutes
-  after its last try. The Remote tab and the status bar show "<device> (<user>) wants to connect" with a code: the
+  after its last try. Settings → Sharing and the status bar show "<device> (<user>) wants to connect" with a code: the
   first 16 hex chars (64 bits) of the key's hash, too many to grind a look-alike key for a code seen on screen.
   The client works the code out from its own key and shows it too, so the user can tell their app's request from
   another program's. Allow saves the pair, then admits it. Deny drops the request and answers `denied` until
@@ -54,8 +54,10 @@ the app only edits the list.
   hello was approved.
 - Revoke applies first, then saves (an off switch works even when saving fails): `set_approved` closes every open
   connection whose pair is gone. The hello check and the record of which pair a connection used happen under one
-  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A call that was
-  already running when the revoke came still finishes; a connection blocked writing to a client that stopped
+  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A revoke, a Disconnect
+  or the connection closing also cancels its `CallGate`: a call already read but not yet dispatched is refused, and an agent
+  call still waiting for the UI (`UiAgents`) is abandoned, so it never runs. A read the store is already serving
+  still finishes. A connection blocked writing to a client that stopped
   reading closes when that write times out.
 - The client maps the codes to `DisconnectKind::NotApproved` / `Denied` (additive kinds; match with `_`) and, while
   not approved, retries at least every 3 s, so an Allow takes effect within seconds. Desktop shows "Waiting for
@@ -104,18 +106,18 @@ project, send follow-ups, interrupt, and answer a permission request the thread'
 reply waits until the agent took it). It can't change a thread's permission mode, add projects, change accounts or bindings, open terminals or run
 anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
-the account is recorded on the thread row. A remote-started thread opens as a tab in the local window (without
-taking focus), and closing that tab stops its agent, as for any thread. Every stored event, local or remote, is
+the account is recorded on the thread row. A remote-started thread appears in the local window's sidebar with an
+unread dot (it never takes the page or focus), and closing it stops its agent, as for any thread. Every stored event, local or remote, is
 pushed to connected clients. A reply to `thread_events_since` holds at most 500 events and 8 MiB (half the
 client's 16 MiB message limit), and the client asks again from the last seq until it has caught up. A single event
-over 8 MiB keeps its seq but arrives as a short notice to open the thread on its own machine. The Remote tab lists connected devices (MagicDNS name, login, address) with a
+over 8 MiB keeps its seq but arrives as a short notice to open the thread on its own machine. Settings → Sharing lists connected devices (MagicDNS name, login, address) with a
 Disconnect button.
 
 **Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window
 shows: "This Mac", your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this
 node), recent ones, or a MagicDNS name typed by hand. Recents are saved as `recent_environments` in `settings.toml`.
 On a remote machine the sidebar's projects and threads come from its daemon through `skyelab-client`, and opening a
-thread watches its events (the client fills gaps and replays after reconnects) into a remote thread tab that draws
+thread watches its events (the client fills gaps and replays after reconnects) into a remote thread page that draws
 items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
 The status bar and the thread header say which machine you are on and its connection state (connecting, connected,
 reconnecting, version mismatch, "that machine didn't accept this device" when its whois refuses you, or
@@ -136,7 +138,7 @@ the server's node StableID (1.1); with a verifier it must equal the whois id (`D
 otherwise, checked before the version so another node can't stop the client for good), and the client reports the
 whois id as `node_id`. On a mismatch the TLS and hello handshake already happened, but no request follows. The first connect to
 a name saves that id as `environment_nodes` in `settings.toml`; a later connect or reconnect that presents another node
-closes that machine's tabs, lists nothing, sends nothing, and shows a warning with a "Trust it" button, which saves
+closes that machine's threads, lists nothing, sends nothing, and shows a warning with a "Trust it" button, which saves
 exactly the node shown (refused if a different one answers by then). A `settings.toml` that can't be read refuses the
 connection rather than trust an unchecked node. A client without a verifier gets the hello's id unchecked, which is
 only what the server says about itself (a node that took over the name and replays the old id passes it). Known
@@ -149,8 +151,8 @@ an embedded libtailscale/tsnet node, or the app's LocalAPI if exposed. See [mobi
 **Nothing before the check, nothing after a refusal.** Both apps set `Options::approve_each_connection`: after
 hello the client sends nothing (watch refills and requests wait or fail `NotConnected`, pushes are dropped and
 refetched) until `Client::approve(hello)` for that exact hello, on every reconnect. A refusal or identity failure (a certificate failure included)
-clears the remote projects, threads and tabs (mobile: the empty projects screen). Local-only actions don't apply: no local terminal for a remote project, no
-worktree controls. Switching machines closes every remote tab and drops the client, so local and remote data never mix.
+clears the remote projects and threads (mobile: the empty projects screen). Local-only actions don't apply: no local terminal for a remote project, no
+worktree controls. Switching machines closes every remote thread view and drops the client, so local and remote data never mix.
 
 **Restrict the port in your tailnet policy.** The gate already refuses other users and tagged nodes, but an ACL keeps
 them from reaching the port at all. A grant that lets only your own devices reach SkyeLab on each other:
@@ -167,4 +169,3 @@ them from reaching the port at all. A grant that lets only your own devices reac
 
 With the default "allow all" policy any tailnet member can open a TCP connection to the port; they are refused at
 whois, but replacing the default with grants like the one above is better.
-

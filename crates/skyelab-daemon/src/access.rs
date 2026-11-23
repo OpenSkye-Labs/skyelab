@@ -58,6 +58,8 @@ pub(crate) struct Who {
     pub(crate) node_id: String,
     pub(crate) device: String,
     pub(crate) user: String,
+    /// Cancelled when this connection is revoked or disconnected.
+    pub(crate) gate: crate::CallGate,
 }
 
 pub(crate) enum Verdict {
@@ -157,6 +159,7 @@ pub(crate) fn set_approved(access: &SharedAccess, peers: &Peers, approved: Vec<A
             .as_ref()
             .is_some_and(|a| !approved.contains(a))
         {
+            entry.gate.cancel();
             // notify_one keeps the wakeup if the serve loop isn't waiting right now.
             entry.kick.notify_one();
         }

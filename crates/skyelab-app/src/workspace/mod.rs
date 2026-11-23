@@ -1,16 +1,20 @@
-//! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
+//! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
 
 mod attention;
+mod branch_picker;
 #[cfg(unix)]
 mod browser_agent;
 mod browser_tabs;
+mod center;
 mod changes;
 mod changes_model;
 mod changes_publish;
+mod changes_turns;
 mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
+mod keys;
 pub(crate) mod layout;
 mod manage;
 mod manage_projects;
@@ -32,13 +36,16 @@ mod projects;
 mod remote;
 mod remote_queue;
 mod remote_thread;
+mod scripts;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
 mod ask_cards;
 mod shell_card;
+pub(crate) mod thread_checkpoints;
 mod thread_items;
 mod thread_list;
+use thread_list::{NewThreadIn, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
@@ -47,11 +54,12 @@ mod tool_cards;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
+use center::{Center, Page};
 pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
-    Action, App, Context, Entity, FocusHandle, Focusable, KeyBinding, NoAction, SharedString,
-    Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
+    Action, App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task,
+    WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _,
@@ -75,9 +83,18 @@ actions!(
         OpenBrowser,
         AddProject,
         NewThread,
-        OpenDevices
+        OpenDevices,
+        ShowAllProjects,
+        GoBack,
+        GoForward
     ]
 );
+
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenSettingsSection {
+    pub section: crate::settings::Section,
+}
 
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
@@ -109,36 +126,8 @@ pub struct Backend {
 
 const CONTEXT: &str = "Workspace";
 
-// `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
-const MAC: bool = cfg!(target_os = "macos");
-pub(crate) const TOGGLE_SIDEBAR_KEY: &str = if MAC { "cmd-b" } else { "ctrl-b" };
-pub(crate) const TOGGLE_BOTTOM_KEY: &str = if MAC { "cmd-j" } else { "ctrl-j" };
-pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-alt-t" };
-pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
-pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
-pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
-
-/// Binds the workspace keys. Call once at startup.
-pub fn init(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new(TOGGLE_SIDEBAR_KEY, ToggleSidebar, Some(CONTEXT)),
-        KeyBinding::new(TOGGLE_BOTTOM_KEY, ToggleBottomPanel, Some(CONTEXT)),
-        KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
-        KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
-        KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
-        KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
-    ]);
-    // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
-    if !MAC {
-        cx.bind_keys([
-            KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
-        ]);
-    }
-    layout::bind_keys(cx);
-    attention::init(cx);
-    crate::palette::init(cx);
-}
+pub use keys::init;
+pub(crate) use keys::*;
 
 /// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
 fn account_label(config: &AccountsConfig, folder: &Path) -> Option<SharedString> {
@@ -171,17 +160,29 @@ pub struct Workspace {
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
     #[cfg(all(test, unix))]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
-    settings: Option<WeakEntity<Settings>>,
+    /// Created on first open, then kept, so its form and section survive switching pages.
+    settings: Option<Entity<Settings>>,
     backend: Backend,
     pub(crate) store_error: Option<SharedString>,
     sidebar: Entity<Sidebar>,
     projects: Vec<Project>,
     project: Option<Project>,
-    /// The selected project's threads, most recently updated first.
+    /// Every listed project's threads, most recently updated first.
     threads: Vec<Thread>,
-    open_threads: Vec<WeakEntity<ThreadView>>,
-    /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
-    queued_tabs: Vec<Entity<ThreadView>>,
+    /// The project's scripts, for the palette.
+    scripts: Vec<skyelab_store::ProjectScript>,
+    _scripts: Option<Task<()>>,
+    /// The projects the sidebar's list is narrowed to; empty means all.
+    scope: Vec<i64>,
+    /// Every thread view of this window, shown or not: a hidden one keeps its agent running.
+    // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
+    // thread it opened in memory; evict idle hidden ones if that ever matters.
+    open_threads: Vec<Entity<ThreadView>>,
+    center: Entity<Center>,
+    welcome: Entity<Welcome>,
+    page: Page,
+    back: Vec<Page>,
+    forward: Vec<Page>,
     /// Delegated starts by request id: a retry gets the thread the first call started.
     #[cfg(unix)]
     delegated: std::collections::HashMap<orchestrate_ui::StartKey, orchestrate_ui::DelegatedStart>,
@@ -238,6 +239,7 @@ impl Workspace {
 
         let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), window, cx));
         let welcome = cx.new(Welcome::new);
+        let center = cx.new(|cx| Center::new(welcome.clone().into(), cx));
         let terminals_empty = cx.new(TerminalsEmpty::new);
         let right_empty = cx.new(RightEmpty::new);
 
@@ -245,7 +247,7 @@ impl Workspace {
         skin.set_toggle_button_visible(false, cx);
         dock.update(cx, |dock, cx| {
             let tabs = |panel, cx: &App| DockLayout::tabs().panel_view(panel, cx);
-            dock.set_center(tabs(panel_handle(welcome), cx), window, cx);
+            dock.set_center(tabs(panel_handle(center.clone()), cx), window, cx);
             dock.set_dock(
                 DockPlacement::Left,
                 tabs(panel_handle(sidebar.clone()), cx),
@@ -269,6 +271,8 @@ impl Workspace {
             );
             dock.set_dock_size(DockPlacement::Right, layout::RIGHT_DEFAULT_W, window, cx);
             dock.toggle_dock(DockPlacement::Right, window, cx);
+            // A tab dropped on the center would bring back a tab strip there; nothing is rearranged by dragging.
+            dock.set_locked(true, window, cx);
         });
         let _dock_events = cx.subscribe_in(&dock, window, |this, _, e, window, cx| {
             this.dock_changed(e, window, cx)
@@ -306,8 +310,15 @@ impl Workspace {
             projects: Vec::new(),
             project: None,
             threads: Vec::new(),
+            scripts: Vec::new(),
+            _scripts: None,
+            scope: Vec::new(),
             open_threads: Vec::new(),
-            queued_tabs: Vec::new(),
+            center,
+            welcome,
+            page: Page::Welcome,
+            back: Vec::new(),
+            forward: Vec::new(),
             #[cfg(unix)]
             delegated: Default::default(),
             changes_views: Vec::new(),
@@ -369,9 +380,6 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // macOS: with the sidebar hidden, nothing holds room for the traffic lights, so give them a row of their own.
-        let lights_row =
-            cfg!(target_os = "macos") && !self.dock.read(cx).is_dock_open(DockPlacement::Left);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
@@ -381,11 +389,15 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::new_terminal))
+            .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::pick_project))
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
+            .on_action(cx.listener(Self::new_thread_in))
+            .on_action(cx.listener(Self::toggle_project_scope))
+            .on_action(cx.listener(Self::show_all_projects))
             .on_action(cx.listener(Self::open_thread))
             .on_action(cx.listener(Self::open_devices))
             .on_action(cx.listener(Self::open_remote))
@@ -395,6 +407,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::deny_device))
             .on_action(cx.listener(Self::revoke_device))
             .on_action(cx.listener(Self::open_palette))
+            .on_action(cx.listener(Self::go_back))
+            .on_action(cx.listener(Self::go_forward))
+            .on_action(cx.listener(Self::open_settings_section))
             .map(|el| self.env_actions(el, cx))
             .map(|el| self.manage_actions(el, cx))
             .map(|el| self.attention_actions(el, cx))
@@ -402,14 +417,6 @@ impl Render for Workspace {
             .bg(theme.background)
             .text_color(theme.foreground)
             // Windows: the titlebar is transparent, so draw the window controls in theme colors.
-            .when(lights_row, |el| {
-                el.child(
-                    div()
-                        .flex_shrink_0()
-                        .h(crate::ui::TOP_ROW_H)
-                        .bg(theme.tab_bar),
-                )
-            })
             .when(cfg!(target_os = "windows"), |el| {
                 el.child(gpui_component::TitleBar::new().child("SkyeLab"))
             })
@@ -420,6 +427,9 @@ impl Render for Workspace {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, unix))]
+mod single_view_test;
 
 #[cfg(test)]
 mod manage_harness;
@@ -448,31 +458,15 @@ mod browser_tests;
 mod thread_model_test;
 
 #[cfg(test)]
-mod timeline_model_test;
-
-#[cfg(all(test, unix))] // builds its thread on the fake agent, a shell script
-mod tool_cards_test;
-
-#[cfg(test)]
-mod card_path_test;
-
-#[cfg(test)]
-mod review_proofs_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod ask_question_e2e_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod delta_store_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod rate_limit_state_test;
+mod timeline_tests;
 
 #[cfg(test)]
 mod threads_test;
 
 #[cfg(test)]
 mod sidebar_account_test;
+#[cfg(test)]
+mod sidebar_flat_test;
 
 #[cfg(test)]
 mod layout_test;
@@ -503,6 +497,27 @@ mod changes_model_test;
 
 #[cfg(test)]
 mod worktree_thread_test;
+
+#[cfg(all(test, unix))]
+mod checkpoint_turns_test;
+
+#[cfg(all(test, unix))]
+mod checkpoint_midturn_test;
+
+#[cfg(test)]
+mod checkpoint_purge_test;
+
+#[cfg(all(test, unix))]
+mod changes_selection_test;
+
+#[cfg(all(test, unix))]
+mod worktree_base_test;
+
+#[cfg(all(test, unix))]
+mod scripts_env_test;
+
+#[cfg(test)]
+mod scripts_palette_test;
 
 #[cfg(test)]
 mod worktree_guard_test;
@@ -648,8 +663,18 @@ mod delegation_after_stop_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
 
+#[cfg(all(test, unix))]
+mod saved_view_draft_test;
+#[cfg(all(test, unix))]
+mod settings_reopen_stale_test;
+
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_thread_test;
 
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_mode_test;
+
+#[cfg(all(test, unix))]
+mod project_unread_restart_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod single_view_merge_test;
