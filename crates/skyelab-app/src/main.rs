@@ -3,6 +3,7 @@ mod palette;
 mod remote;
 mod settings;
 mod ui;
+mod window_layout;
 mod workspace;
 
 #[cfg(unix)]
@@ -284,7 +285,16 @@ fn main() {
             };
             #[cfg(unix)]
             let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
-            let bounds = Bounds::centered(None, size(px(1200.), px(800.)), cx);
+            // The last frame when it still shows on a connected display, else most of the primary display.
+            let saved = AppSettings::default_path()
+                .and_then(|p| AppSettings::load(&p).ok())
+                .and_then(|s| s.window);
+            let displays: Vec<_> = cx.displays().iter().map(|d| d.bounds()).collect();
+            let visible = cx.primary_display().map_or_else(
+                || Bounds::centered(None, size(px(1200.), px(800.)), cx),
+                |d| d.visible_bounds(),
+            );
+            let bounds = window_layout::initial_bounds(saved.as_ref(), &displays, visible);
             let opened = cx.open_window(window_options(bounds), |window, cx| {
                 let view = cx.new(|cx| {
                     let mut ws =
@@ -294,6 +304,7 @@ fn main() {
                     let mut options = environment::client_options(tailnet.clone());
                     options.device_key = device_key.clone();
                     ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
+                    ws.restore_layout(AppSettings::default_path(), saved.as_ref(), window, cx);
                     #[cfg(unix)]
                     if let Some(o) = orchestrate {
                         ws.set_orchestrator(o, window, cx);

@@ -6,6 +6,7 @@ use super::worktree;
 use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
 use gpui::{AppContext as _, Context, Entity, PathPromptOptions, SharedString, Window};
 use gpui_component::dock::{DockPlacement, panel_handle};
+
 use skyelab_store::Thread;
 use std::path::PathBuf;
 
@@ -367,7 +368,7 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The Changes tab for the thread's folder: refreshed and selected if one is open, else added.
+    /// The Changes tab for the thread's folder, in the right dock: refreshed and selected if one is open, else added.
     pub(super) fn open_changes(
         &mut self,
         view: &Entity<ThreadView>,
@@ -394,22 +395,12 @@ impl Workspace {
                 c.thread = Some(thread);
                 c.refresh(cx)
             });
-            let id = changes.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
+            self.show_right_panel(changes.entity_id().into(), window, cx);
             return;
         }
         let title = view.read(cx).title();
         let changes = cx.new(|cx| ChangesView::new(dir, base, title, Some(view), window, cx));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(changes.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
+        self.add_right_panel(changes.clone(), window, cx);
         self.changes_views.push(changes.downgrade());
         cx.notify();
     }

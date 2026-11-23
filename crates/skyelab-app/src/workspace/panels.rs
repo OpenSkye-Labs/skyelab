@@ -17,12 +17,16 @@ use gpui_component::{
 use skyelab_browser::BrowserView;
 use skyelab_terminal::TerminalView;
 
-/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
+/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar. `center` panels
+/// carry the dock toggles at the end of their tab bar.
 macro_rules! panel {
     ($ty:ty, $name:literal, closable: $closable:literal, |$this:ident| $title:expr) => {
-        panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
+        panel!($ty, $name, closable: $closable, title_bar: true, toggles: false, |$this| $title);
     };
-    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, $(removed: $removed:ident,)? |$this:ident| $title:expr) => {
+    ($ty:ty, $name:literal, closable: $closable:literal, center, |$this:ident| $title:expr) => {
+        panel!($ty, $name, closable: $closable, title_bar: true, toggles: true, |$this| $title);
+    };
+    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, toggles: $toggles:literal, $(removed: $removed:ident,)? |$this:ident| $title:expr) => {
         impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
@@ -51,6 +55,13 @@ macro_rules! panel {
             fn title_bar(&self, _: &App) -> bool {
                 $title_bar
             }
+            fn toolbar_buttons(
+                &mut self,
+                _: &mut Window,
+                cx: &mut Context<Self>,
+            ) -> Option<Vec<gpui_component::button::Button>> {
+                $toggles.then(|| crate::workspace::layout::dock_toggles(cx))
+            }
         }
     };
 }
@@ -71,7 +82,7 @@ impl Welcome {
     }
 }
 
-panel!(Welcome, "Welcome", closable: false, |_this| "Welcome");
+panel!(Welcome, "Welcome", closable: false, center, |_this| "Welcome");
 
 impl Render for Welcome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -217,10 +228,44 @@ impl Render for TerminalPanel {
     }
 }
 
-panel!(Settings, "Settings", closable: true, |_this| "Settings");
-panel!(super::thread::ThreadView, "Thread", closable: true, |this| this.title());
-panel!(crate::remote::RemotePanel, "Remote", closable: true, |_this| "Remote");
-panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, title_bar: true, removed: closed, |this| this.title());
+panel!(Settings, "Settings", closable: true, center, |_this| "Settings");
+panel!(super::thread::ThreadView, "Thread", closable: true, center, |this| this.title());
+panel!(crate::remote::RemotePanel, "Remote", closable: true, center, |_this| "Remote");
+panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, title_bar: true, toggles: true, removed: closed, |this| this.title());
+
+/// The right dock's content while no tool is open in it.
+pub struct RightEmpty {
+    focus: FocusHandle,
+}
+
+impl RightEmpty {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            focus: cx.focus_handle(),
+        }
+    }
+}
+
+panel!(RightEmpty, "RightEmpty", closable: false, |_this| "Tools");
+
+impl Render for RightEmpty {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .id("right-empty")
+            .track_focus(&self.focus)
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .p_6()
+            .bg(cx.theme().background)
+            .child(
+                ui::EmptyState::new("Nothing open here").hint(
+                    "Changes, the browser and devices open on this side, next to the thread.",
+                ),
+            )
+    }
+}
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
@@ -352,4 +397,4 @@ macro_rules! focusable {
         }
     )*};
 }
-focusable!(Sidebar, Welcome, TerminalsEmpty);
+focusable!(Sidebar, Welcome, TerminalsEmpty, RightEmpty);

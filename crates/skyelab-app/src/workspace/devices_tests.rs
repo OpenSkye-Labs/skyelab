@@ -216,9 +216,9 @@ fn polling_stops_when_hidden(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(lists() > before, "a tick refreshed the list");
 
-    // Settings takes the center, so the Devices tab stops rendering.
+    // Closing the right dock hides the Devices tab, so it stops rendering.
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
-    cx.simulate_keystrokes(OPEN_SETTINGS_KEY);
+    cx.simulate_keystrokes(super::layout::TOGGLE_RIGHT_KEY);
     cx.run_until_parked();
     cx.executor().advance_clock(POLL);
     cx.run_until_parked();

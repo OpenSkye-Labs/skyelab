@@ -10,6 +10,7 @@ mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
+pub(crate) mod layout;
 mod terminal_launch;
 mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
@@ -47,7 +48,7 @@ use gpui_component::{
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
     v_flex,
 };
-use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
+use panels::{BrowserPanel, RightEmpty, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
 use std::path::{Path, PathBuf};
@@ -124,6 +125,7 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
         ]);
     }
+    layout::bind_keys(cx);
     crate::palette::init(cx);
 }
 
@@ -148,6 +150,11 @@ pub struct Workspace {
     project_accounts: std::collections::HashMap<i64, Option<skyelab_core::Account>>,
     _project_accounts: Option<Task<()>>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
+    /// The right dock's placeholder until a tool opens there.
+    right_empty: Option<Entity<RightEmpty>>,
+    layout: layout::LayoutStore,
+    _window_bounds: Option<Subscription>,
+    _dock_events: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
@@ -205,6 +212,7 @@ impl Workspace {
         let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
         let welcome = cx.new(Welcome::new);
         let terminals_empty = cx.new(TerminalsEmpty::new);
+        let right_empty = cx.new(RightEmpty::new);
 
         let (dock, skin) = DockSkin::dock_area("workspace", None, window, cx);
         skin.set_toggle_button_visible(false, cx);
@@ -226,6 +234,17 @@ impl Workspace {
             );
             dock.set_dock_size(DockPlacement::Bottom, px(280.), window, cx);
             dock.toggle_dock(DockPlacement::Bottom, window, cx);
+            dock.set_dock(
+                DockPlacement::Right,
+                tabs(panel_handle(right_empty.clone()), cx),
+                window,
+                cx,
+            );
+            dock.set_dock_size(DockPlacement::Right, layout::RIGHT_DEFAULT_W, window, cx);
+            dock.toggle_dock(DockPlacement::Right, window, cx);
+        });
+        let _dock_events = cx.subscribe_in(&dock, window, |this, _, e, window, cx| {
+            this.dock_changed(e, window, cx)
         });
 
         crate::ui::set_accounts(cx, &config);
@@ -245,6 +264,10 @@ impl Workspace {
             config,
             load_error,
             terminals_empty: Some(terminals_empty),
+            right_empty: Some(right_empty),
+            layout: Default::default(),
+            _window_bounds: None,
+            _dock_events,
             terminals: Vec::new(),
             browsers: Vec::new(),
             #[cfg(all(test, unix))]
@@ -276,6 +299,7 @@ impl Workspace {
             starts: remote::StartQueue::new(),
         };
         this.refresh_sidebar(cx);
+        this.sync_toggles(cx);
         this.load_projects(None, cx);
         this
     }
@@ -387,6 +411,7 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_bottom))
+            .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::open_browser))
@@ -432,6 +457,9 @@ mod threads_test;
 
 #[cfg(test)]
 mod sidebar_account_test;
+
+#[cfg(test)]
+mod layout_test;
 
 #[cfg(test)]
 mod agent_bin_test;

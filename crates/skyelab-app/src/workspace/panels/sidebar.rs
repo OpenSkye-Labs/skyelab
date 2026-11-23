@@ -57,7 +57,7 @@ impl Sidebar {
 }
 
 // The sidebar draws its own header.
-panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
+panel!(Sidebar, "Sidebar", closable: false, title_bar: false, toggles: false, |_this| "Sidebar");
 
 fn section_button(s: &SidebarSection) -> Option<Button> {
     s.button.as_ref().map(|(label, action)| {
@@ -118,8 +118,8 @@ fn sidebar_row(
                         .gap_1()
                         .text_size(ui::META)
                         .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(color)
-                        .child(Icon::new(icon).size_3())
+                        .text_color(ui::ink(theme, color))
+                        .child(Icon::new(icon).size_3().text_color(color))
                         .child(word)
                         .into_any_element(),
                 )

@@ -17,6 +17,20 @@ pub struct AppSettings {
     pub environment_nodes: BTreeMap<String, String>,
     /// Devices allowed to use this machine while it is shared: a client install's key on one tailnet node.
     pub approved_devices: Vec<ApprovedDevice>,
+    /// The main window's last frame and right panel, restored at the next launch.
+    pub window: Option<WindowLayout>,
+}
+
+/// Where the main window was and how its right panel was set, in logical points.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WindowLayout {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub right_panel_open: bool,
+    pub right_panel_width: i32,
 }
 
 /// One device the user allowed in the Remote tab.

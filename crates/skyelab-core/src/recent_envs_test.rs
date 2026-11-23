@@ -76,3 +76,26 @@ fn concurrent_updates_keep_every_write() {
         "no write lost to a racing one"
     );
 }
+
+#[test]
+fn window_layout_round_trips_and_older_files_still_load() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("settings.toml");
+    std::fs::write(&path, "share_on_tailnet = true\n").expect("write");
+    assert_eq!(
+        AppSettings::load(&path).expect("old file loads").window,
+        None
+    );
+    let layout = crate::WindowLayout {
+        x: -1200,
+        y: 40,
+        width: 1600,
+        height: 1000,
+        right_panel_open: true,
+        right_panel_width: 480,
+    };
+    AppSettings::update(&path, |s| s.window = Some(layout.clone())).expect("save");
+    let loaded = AppSettings::load(&path).expect("load");
+    assert_eq!(loaded.window, Some(layout));
+    assert!(loaded.share_on_tailnet, "other settings kept");
+}

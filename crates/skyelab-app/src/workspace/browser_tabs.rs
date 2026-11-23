@@ -3,7 +3,7 @@
 use super::Workspace;
 use super::panels::{AgentOwner, BrowserPanel, CloseBrowser};
 use gpui::{AppContext as _, Context, Entity, Focusable as _, Window};
-use gpui_component::dock::{DockPlacement, panel_handle};
+
 use skyelab_browser::BrowserView;
 
 /// Makes a fake page engine and its load reports, for a test's agent tabs.
@@ -43,7 +43,7 @@ impl Workspace {
         cx.new(|cx| BrowserView::new_agent(window, cx))
     }
 
-    /// Adds `browser` as a center tab, owned by `agent`'s thread or (`None`) the user's.
+    /// Adds `browser` as a tab in the right dock, owned by `agent`'s thread or (`None`) the user's.
     pub(super) fn add_browser(
         &mut self,
         browser: Entity<BrowserView>,
@@ -52,15 +52,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Entity<BrowserPanel> {
         let panel = cx.new(|_| BrowserPanel { browser, agent });
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
+        self.add_right_panel(panel.clone(), window, cx);
         cx.subscribe_in(
             &panel,
             window,
