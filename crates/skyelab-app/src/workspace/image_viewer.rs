@@ -167,7 +167,7 @@ impl Render for ImageViewer {
 }
 
 /// A message's image thumbnails; a click opens the image in the viewer.
-pub(in crate::workspace) fn thumbnails(id: usize, images: &Sent) -> AnyElement {
+pub(in crate::workspace) fn thumbnails(id: u64, images: &Sent) -> AnyElement {
     h_flex()
         .flex_wrap()
         .justify_end()

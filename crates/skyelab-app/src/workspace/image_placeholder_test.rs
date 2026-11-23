@@ -29,7 +29,7 @@ fn result_of(record: &Record) -> String {
             input: json!({}),
         }],
     });
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     apply(&mut items, &call);
     apply(&mut items, record);
     match &items[0] {

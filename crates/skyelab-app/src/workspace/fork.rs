@@ -53,7 +53,7 @@ pub(in crate::workspace) fn cut(
             .filter(|i| matches!(i, Item::Done { .. }))
             .count()
     };
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for (i, e) in events.iter().enumerate() {
         let Ok(record) = Record::from_row(&e.kind, &e.payload_json) else {
             continue;

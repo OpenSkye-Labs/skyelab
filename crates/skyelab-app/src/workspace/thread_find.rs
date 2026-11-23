@@ -227,7 +227,7 @@ pub(super) trait FindHost: ItemsView {
             return cx.notify();
         };
         if let Some(done) = folded_by(self.items(), ix) {
-            let key = fold_key(done);
+            let key = fold_key(self.items(), done);
             if !self.is_expanded(&key) {
                 self.toggle_tool(&key, cx);
             }
