@@ -42,8 +42,9 @@ pub(crate) fn bind(run_dir: &Path, random: &str) -> Result<(Listener, PathBuf, O
             (short.join("mcp.sock"), Some(short))
         }
     };
-    let listener =
-        Listener::bind(&socket).with_context(|| format!("listening on {}", socket.display()))?;
+    // Under the spawn lock: an agent forked mid-bind would keep the listener for its whole life.
+    let listener = skyelab_core::process::exclusive(|| Listener::bind(&socket))
+        .with_context(|| format!("listening on {}", socket.display()))?;
     Ok((listener, socket, socket_dir))
 }
 
@@ -89,9 +90,11 @@ fn short_socket_dir(run_dir: &Path, random: &str) -> Result<PathBuf> {
 
 /// `unsafe` is denied, so no `libc::kill(pid, 0)`: the kill binary asks instead. A reused pid only keeps a dead dir.
 pub(crate) fn alive(pid: u32) -> bool {
-    std::process::Command::new("/bin/kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map_or(true, |s| s.success()) // can't ask: keep the dir rather than break a live run
+    skyelab_core::process::spawn(
+        std::process::Command::new("/bin/kill")
+            .args(["-0", &pid.to_string()])
+            .stderr(std::process::Stdio::null()),
+    )
+    .and_then(|mut c| c.wait())
+    .map_or(true, |s| s.success()) // can't ask: keep the dir rather than break a live run
 }

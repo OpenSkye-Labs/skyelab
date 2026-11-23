@@ -9,22 +9,8 @@ use gpui::{TestAppContext, VisualTestContext};
 use skyelab_agent::mcp::Proxy;
 use skyelab_agent::{Block, Event};
 use skyelab_core::{Account, Binding};
-use std::time::Duration;
 
-fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1500 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_until;
 
 /// `is_error` of each SkyeLab MCP tool result the thread stored, in order.
 fn mcp_results(store: &SharedStore, thread: i64) -> Vec<bool> {

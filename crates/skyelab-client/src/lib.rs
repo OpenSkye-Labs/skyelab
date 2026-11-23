@@ -18,6 +18,7 @@
 mod conn;
 mod device_key;
 mod guard;
+mod options;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 #[cfg(test)]
@@ -32,132 +33,12 @@ pub use device_key::load_or_create_device_key;
 #[cfg(target_os = "macos")]
 pub use device_key::{keychain_device_key, keychain_device_key_in};
 pub use guard::is_tailnet_ip;
+pub use options::{Options, PeerVerifier};
 use skyelab_protocol::{Call, Reply};
 pub use skyelab_protocol::{
     ErrorCode, Hello, PermissionAnswer, Project, RpcError, Thread, ThreadEvent, Version,
     is_magicdns_name,
 };
-
-#[derive(Debug, Clone)]
-pub struct Options {
-    pub port: u16,
-    /// Largest message or frame the server may send; a bigger one closes the connection.
-    pub max_message_bytes: usize,
-    /// A ping goes out this often. A server silent for two intervals is treated as gone.
-    pub ping_interval: Duration,
-    /// Bound on resolve, TCP connect, TLS and WebSocket handshakes and hello together.
-    pub connect_timeout: Duration,
-    /// A request without a reply after this long fails with [`Error::Timeout`] (checked on each ping, so up to one
-    /// `ping_interval` later).
-    pub request_timeout: Duration,
-    /// Reconnect delay: starts at `backoff_min`, doubles per failed attempt, capped at `backoff_max`.
-    pub backoff_min: Duration,
-    pub backoff_max: Duration,
-    /// This install's device key, sent in hello; the machine dialled admits only keys approved there. `None`
-    /// can never be approved. Load it with [`load_or_create_device_key`] (or the keychain on macOS).
-    pub device_key: Option<String>,
-    /// Checks each dialled address with this machine's own Tailscale before TLS starts. `None` (mobile, where no
-    /// local Tailscale CLI exists) trusts the node id the server sends in hello, which a machine that took over the
-    /// name can fake.
-    pub verify_peer: Option<PeerVerifier>,
-    /// Hold every connection after hello until [`Client::approve`] approves its hello: until then no request or
-    /// watch refill is sent (requests fail with [`Error::NotConnected`]; only keepalive pings go out) and no pushed
-    /// event is delivered.
-    /// For a caller that checks the server's identity (a pin) before trusting a connection, reconnects included.
-    pub approve_each_connection: bool,
-    /// Tests only: also dial loopback addresses. The field doesn't exist outside tests (`test-support`).
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) allow_loopback: bool,
-    /// Tests only: the protocol version sent in hello.
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) protocol: Version,
-    /// Tests only: trust these roots instead of the Mozilla ones.
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) roots: Option<Arc<rustls::RootCertStore>>,
-    /// Tests only: speak `ws://` (for fake servers that don't do TLS).
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) plaintext: bool,
-    /// Tests only: dial this address instead of resolving the host (the name is still checked by TLS).
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) resolve_to: Option<std::net::IpAddr>,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            port: skyelab_protocol::DEFAULT_PORT,
-            max_message_bytes: 16 << 20,
-            // The daemon drops a connection idle for 5 minutes; any frame, a ping included, resets that.
-            ping_interval: Duration::from_secs(30),
-            connect_timeout: Duration::from_secs(10),
-            request_timeout: Duration::from_secs(30),
-            backoff_min: Duration::from_millis(250),
-            backoff_max: Duration::from_secs(30),
-            device_key: None,
-            verify_peer: None,
-            approve_each_connection: false,
-            #[cfg(any(test, feature = "test-support"))]
-            allow_loopback: false,
-            #[cfg(any(test, feature = "test-support"))]
-            protocol: skyelab_protocol::VERSION,
-            #[cfg(any(test, feature = "test-support"))]
-            roots: None,
-            #[cfg(any(test, feature = "test-support"))]
-            plaintext: false,
-            #[cfg(any(test, feature = "test-support"))]
-            resolve_to: None,
-        }
-    }
-}
-
-/// Says who a dialled address is: `Ok` with the node StableID of one of the user's own devices, `Err` with why not.
-/// Runs on a blocking thread, so it may shell out; it must return within its own timeout (an error fails closed).
-///
-/// With a verifier the hello's node id must equal the verified one, and [`Update::Connected`] carries the verified
-/// id in `node_id`, so whatever the caller pins came from its own Tailscale.
-#[derive(Clone)]
-pub struct PeerVerifier(Arc<dyn Fn(std::net::SocketAddr) -> Result<String, String> + Send + Sync>);
-
-impl PeerVerifier {
-    pub fn new(
-        verify: impl Fn(std::net::SocketAddr) -> Result<String, String> + Send + Sync + 'static,
-    ) -> Self {
-        Self(Arc::new(verify))
-    }
-}
-
-impl std::fmt::Debug for PeerVerifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("PeerVerifier")
-    }
-}
-
-#[cfg(feature = "test-support")]
-impl Options {
-    /// Other crates' tests: also dial loopback, where their in-process daemon listens. Never in a real build.
-    pub fn allow_loopback(mut self) -> Self {
-        self.allow_loopback = true;
-        self
-    }
-
-    /// Other crates' tests: trust `roots` (a test CA) instead of the Mozilla roots.
-    pub fn trust_roots(mut self, roots: rustls::RootCertStore) -> Self {
-        self.roots = Some(Arc::new(roots));
-        self
-    }
-
-    /// Other crates' tests: dial `ip` instead of resolving the name. TLS still checks the name.
-    pub fn resolve_to(mut self, ip: std::net::IpAddr) -> Self {
-        self.resolve_to = Some(ip);
-        self
-    }
-
-    /// Other crates' tests: speak `ws://` to a fake server that doesn't do TLS.
-    pub fn plaintext(mut self) -> Self {
-        self.plaintext = true;
-        self
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -263,6 +144,8 @@ impl<T> Pending<T> {
 /// may go out on it instead).
 pub struct Client {
     commands: flume::Sender<conn::Command>,
+    /// Set (under its lock) once the connection task has ended and failed what was left in `commands`.
+    stopped: Arc<Mutex<bool>>,
     updates: flume::Receiver<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
     next_watch: AtomicU64,
@@ -305,6 +188,8 @@ impl Client {
             .enable_all()
             .build()?;
         let shared_hello = hello.clone();
+        let stopped = Arc::new(Mutex::new(false));
+        let task_stopped = stopped.clone();
         std::thread::Builder::new()
             .name("skyelab-client".into())
             .spawn(move || {
@@ -312,15 +197,22 @@ impl Client {
                     host,
                     options,
                     tls,
-                    commands_rx,
+                    commands_rx.clone(),
                     updates_tx,
                     shared_hello,
                 ));
+                // A request queued as the task ended would wait forever: nobody reads it, and the client's sender
+                // keeps it alive. Fail those, and every later one (`command` checks the flag under this lock).
+                let mut stopped = task_stopped.lock().unwrap_or_else(PoisonError::into_inner);
+                *stopped = true;
+                commands_rx.drain().for_each(fail_stopped);
+                drop(stopped);
                 // A DNS lookup in flight can't be cancelled; don't wait for it.
                 runtime.shutdown_background();
             })?;
         Ok(Self {
             commands,
+            stopped,
             updates,
             hello,
             next_watch: AtomicU64::new(1),
@@ -468,11 +360,18 @@ impl Client {
 
     fn command(&self, command: conn::Command) {
         // The connection task has stopped (a fatal error): fail the request right away.
-        if let Err(flume::SendError(conn::Command::Call { reply, .. })) =
-            self.commands.send(command)
-        {
-            reply(Err(Error::Stopped));
+        let stopped = self.stopped.lock().unwrap_or_else(PoisonError::into_inner);
+        if *stopped {
+            fail_stopped(command);
+        } else if let Err(flume::SendError(command)) = self.commands.send(command) {
+            fail_stopped(command);
         }
+    }
+}
+
+fn fail_stopped(command: conn::Command) {
+    if let conn::Command::Call { reply, .. } = command {
+        reply(Err(Error::Stopped));
     }
 }
 

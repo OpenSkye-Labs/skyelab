@@ -2,6 +2,8 @@ mod environment;
 mod palette;
 mod remote;
 mod settings;
+#[cfg(test)]
+mod test_wait;
 mod ui;
 mod window_layout;
 mod workspace;

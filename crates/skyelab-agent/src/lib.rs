@@ -164,8 +164,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd
-        .spawn()
+    let mut child = skyelab_core::process::spawn(&mut cmd)
         .with_context(|| format!("starting {} in {}", bin.display(), dir.display()))?;
     let stdout = child.stdout.take().context("child stdout was piped")?;
     let stdin = child.stdin.take().context("child stdin was piped")?;

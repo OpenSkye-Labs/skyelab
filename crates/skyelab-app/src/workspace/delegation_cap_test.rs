@@ -110,20 +110,7 @@ fn prompts(r: &Rig, id: i64) -> usize {
         .count()
 }
 
-fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_until;
 
 /// Waits for whatever the send started to settle, then gives a wrongly started agent time to show up.
 fn settle(view: &Entity<ThreadView>, cx: &mut VisualTestContext) {

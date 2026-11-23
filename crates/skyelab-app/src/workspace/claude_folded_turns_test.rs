@@ -15,7 +15,8 @@ pub(super) fn wait_until(
     what: &str,
     mut done: impl FnMut(&mut VisualTestContext) -> bool,
 ) {
-    for _ in 0..1500 {
+    let until = std::time::Instant::now() + crate::test_wait::DEADLINE;
+    while std::time::Instant::now() < until {
         cx.run_until_parked();
         if done(cx) {
             return;

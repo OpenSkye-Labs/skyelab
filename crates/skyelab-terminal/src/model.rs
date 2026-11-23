@@ -84,7 +84,9 @@ impl Terminal {
             escape_args: true,
         };
         let window_size = window_size(opts.cols, opts.lines, 0.0, 0.0);
-        let (pty, slave) = open_pty(&options, window_size).context("spawning the terminal pty")?;
+        // The shell is a child like any other: started under the process-wide spawn lock.
+        let (pty, slave) = skyelab_core::process::exclusive(|| open_pty(&options, window_size))
+            .context("spawning the terminal pty")?;
         let config = Config {
             scrolling_history: HISTORY,
             ..Config::default()

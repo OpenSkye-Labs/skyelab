@@ -90,9 +90,10 @@ impl Store {
         expect_one(n, "thread", id)
     }
 
-    /// Each listed thread's latest assistant text (its first 400 characters), for the sidebar's preview line. One
-    /// query: per thread it walks `events` backwards on the (thread_id, seq) key and stops at the first text block.
-    pub fn last_replies(&self) -> Result<HashMap<i64, String>> {
+    /// Each listed thread's latest assistant text (its first 400 characters), for the sidebar's preview line, in
+    /// `project` or in every project. One query: per thread it walks `events` backwards on the (thread_id, seq) key
+    /// and stops at the first text block.
+    pub fn last_replies(&self, project: Option<i64>) -> Result<HashMap<i64, String>> {
         let mut stmt = self.conn.prepare(
             "SELECT t.id, (
                 SELECT (SELECT substr(json_extract(b.value, '$.text'), 1, 400)
@@ -105,9 +106,11 @@ impl Store {
                 FROM events e
                 WHERE e.thread_id = t.id AND e.kind = 'agent' AND reply IS NOT NULL
                 ORDER BY e.seq DESC LIMIT 1)
-             FROM threads t WHERE t.deleted_at IS NULL",
+             FROM threads t WHERE t.deleted_at IS NULL AND (?1 IS NULL OR t.project_id = ?1)",
         )?;
-        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, Option<String>>(1)?)))?;
+        let rows = stmt.query_map([project], |r| {
+            Ok((r.get(0)?, r.get::<_, Option<String>>(1)?))
+        })?;
         let mut out = HashMap::new();
         for row in rows {
             if let (id, Some(text)) = row? {

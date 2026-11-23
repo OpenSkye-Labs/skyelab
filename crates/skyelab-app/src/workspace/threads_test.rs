@@ -10,7 +10,6 @@ use skyelab_store::Store;
 #[cfg(unix)]
 use skyelab_store::Thread;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 pub(super) fn fake_bin() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh")
@@ -97,21 +96,7 @@ pub(super) fn open_workspace<'a>(
     (ws, cx)
 }
 
-/// Runs the app until `done` holds, giving the fake agent's threads real time to write.
-pub(super) fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+pub(super) use crate::test_wait::wait_until;
 
 /// Waits for the fake's result, failing with the view's own error if the start or a write failed.
 #[cfg(unix)]

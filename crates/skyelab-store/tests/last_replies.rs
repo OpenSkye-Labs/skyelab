@@ -61,7 +61,7 @@ fn latest_assistant_text_per_thread() {
         .expect("append");
     store.set_thread_deleted(deleted, true).expect("delete");
 
-    let replies = store.last_replies().expect("replies");
+    let replies = store.last_replies(None).expect("replies");
     assert_eq!(
         replies.get(&answered).map(String::as_str),
         Some("second answer")
@@ -78,6 +78,24 @@ fn long_replies_are_cut_in_the_query() {
     store
         .append_event(t, "agent", &reply(&"é".repeat(5000)))
         .expect("append");
-    let replies = store.last_replies().expect("replies");
+    let replies = store.last_replies(None).expect("replies");
     assert_eq!(replies[&t].chars().count(), 400);
+}
+
+#[test]
+fn replies_can_be_scoped_to_one_project() {
+    let mut store = Store::open_in_memory().expect("store");
+    let a = store.create_project("a", Path::new("/a")).expect("a").id;
+    let b = store.create_project("b", Path::new("/b")).expect("b").id;
+    let in_a = thread(&store, a, "in a");
+    let in_b = thread(&store, b, "in b");
+    for (t, text) in [(in_a, "from a"), (in_b, "from b")] {
+        store
+            .append_event(t, "agent", &reply(text))
+            .expect("append");
+    }
+    let replies = store.last_replies(Some(a)).expect("replies");
+    assert_eq!(replies.len(), 1, "{replies:?}");
+    assert_eq!(replies.get(&in_a).map(String::as_str), Some("from a"));
+    assert_eq!(store.last_replies(None).expect("all").len(), 2);
 }

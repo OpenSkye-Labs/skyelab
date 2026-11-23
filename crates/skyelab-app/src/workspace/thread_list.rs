@@ -213,7 +213,7 @@ impl Workspace {
             .map(|p| (p.id, p.path.clone()))
             .collect();
         let task = cx.background_spawn(async move {
-            let replies = lock(&store)?.last_replies()?;
+            let replies = lock(&store)?.last_replies(None)?;
             let branches = folders
                 .into_iter()
                 .filter_map(|(id, path)| Some((id, skyelab_git::current_branch(&path).ok()??)))

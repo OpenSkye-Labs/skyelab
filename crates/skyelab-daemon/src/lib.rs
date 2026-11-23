@@ -164,7 +164,9 @@ impl Daemon {
                 bail!("tailnet reported an unspecified address ({ip}); refusing to listen on it");
             }
             let addr = SocketAddr::new(*ip, config.port);
-            let l = StdListener::bind(addr).with_context(|| format!("listen on {addr}"))?;
+            // A child started mid-bind would inherit the listener and hold the port after we close it.
+            let l = skyelab_core::process::exclusive(|| StdListener::bind(addr))
+                .with_context(|| format!("listen on {addr}"))?;
             l.set_nonblocking(true)
                 .context("make listener non-blocking")?;
             listeners.push(l);

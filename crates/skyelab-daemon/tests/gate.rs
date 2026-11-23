@@ -48,6 +48,11 @@ fn assert_rejected(peer: Peer) {
         "rejection took {:?}",
         started.elapsed()
     );
+    // A gate timeout can reject before a loaded machine has started the blocking whois; it still runs.
+    let until = Instant::now() + Duration::from_secs(10);
+    while tailnet.whois_calls.load(Ordering::SeqCst) == 0 && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(10));
+    }
     assert_eq!(
         tailnet.whois_calls.load(Ordering::SeqCst),
         1,
