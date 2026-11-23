@@ -48,6 +48,7 @@ fn threads_carry_the_label_from_accounts_toml() {
             config_dir: dir.path().join("claude-work"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         }],
         ..AccountsConfig::default()
     }

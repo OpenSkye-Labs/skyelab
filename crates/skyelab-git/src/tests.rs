@@ -35,20 +35,16 @@ worktree /r/wt with space\0HEAD 2222222222222222222222222222222222222222\0detach
     assert_eq!(list[1].branch, None);
 }
 
+/// The env starts empty (`env_clear`, see scrubbed_env_hooks.rs for a real hostile parent), so every var the
+/// command carries is one it set: the allowlist, the locale and the lock opt-out. Nothing that points git elsewhere.
 #[test]
-fn command_strips_inherited_repo_env() {
+fn command_env_is_only_the_allowlist() {
     let cmd = command(Path::new("git"), Path::new("."));
-    let envs: Vec<_> = cmd.get_envs().collect();
-    for var in [
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_CONFIG_PARAMETERS",
-    ] {
-        assert!(
-            envs.contains(&(std::ffi::OsStr::new(var), None)),
-            "{var} not removed"
-        );
+    for (k, _) in cmd.get_envs() {
+        let ok = skyelab_core::env::agent_allowed(k, cfg!(windows), false)
+            || k == "LC_ALL"
+            || k == "GIT_OPTIONAL_LOCKS";
+        assert!(ok, "{k:?} reaches git");
     }
 }
 

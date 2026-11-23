@@ -133,6 +133,7 @@ fn load_error_locks_editing_so_the_file_is_not_overwritten(cx: &mut TestAppConte
                     config_dir: "/home/me/.claude-x".into(),
                     provider: Default::default(),
                     gh_config_dir: None,
+                    ssh_agent: false,
                 })
             },
             window,
@@ -172,6 +173,7 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
             config_dir: "/home/me/.claude-acme".into(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     config

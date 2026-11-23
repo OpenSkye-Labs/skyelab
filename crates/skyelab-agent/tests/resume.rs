@@ -28,6 +28,7 @@ fn account(id: &str, dir: &Path) -> Account {
         config_dir: dir.join(id),
         provider: Default::default(),
         gh_config_dir: None,
+        ssh_agent: false,
     }
 }
 

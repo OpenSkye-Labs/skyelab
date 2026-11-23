@@ -89,6 +89,15 @@ fn commit_then_open_pr_stores_the_link_on_the_thread(cx: &mut TestAppContext) {
     }
 
     std::fs::write(f.project.join("new.txt"), "hi\n").expect("write");
+    // Commit commits only what the tab shows, so it must list new.txt first.
+    changes.update(cx, |c, cx| c.refresh(cx));
+    wait_until(cx, "new.txt listed", |cx| {
+        changes.read_with(cx, |c, _| {
+            c.changes
+                .as_ref()
+                .is_some_and(|ch| ch.files.iter().any(|f| f.path.ends_with("new.txt")))
+        })
+    });
     set_input(
         &changes.read_with(cx, |c, _| c.commit_message.clone()),
         "Add new.txt",

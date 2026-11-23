@@ -25,6 +25,7 @@ fn bound(dir: &Path, config_dir: &Path) -> AccountsConfig {
             config_dir: config_dir.into(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         }],
         bindings: vec![Binding::new(dir.into(), "acme".into())],
     }
@@ -114,8 +115,17 @@ fn env_allowlist_in_child() {
         .expect("env_keys")
         .split_whitespace()
         .filter(|k| !["PWD", "OLDPWD", "SHLVL", "_"].contains(k)) // /bin/sh sets these itself
+        .filter(|k| !k.starts_with("GIT_CONFIG_")) // the account's git credentials (agent_git_credentials.rs)
         .collect();
-    let want: BTreeSet<&str> = ["PATH", "HOME", "LANG", "LC_ALL", "CLAUDE_CONFIG_DIR"].into();
+    let want: BTreeSet<&str> = [
+        "PATH",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "CLAUDE_CONFIG_DIR",
+        "GIT_TERMINAL_PROMPT",
+    ]
+    .into();
     assert_eq!(keys, want);
     assert_eq!(env["config_dir"], acct.to_str().expect("utf-8"));
 }

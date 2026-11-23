@@ -15,6 +15,7 @@ fn args_for(mcp_config: Option<&Path>) -> String {
         config_dir: dir.join("account"),
         provider: Default::default(),
         gh_config_dir: None,
+        ssh_agent: false,
     };
     let config = AccountsConfig {
         accounts: vec![account.clone()],

@@ -5,9 +5,14 @@ use super::*;
 const CODEX: [&str; 3] = ["CODEX_HOME", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"];
 
 #[test]
-fn every_codex_var_is_an_account_var() {
+fn no_codex_var_is_terminal_allowed() {
     for v in CODEX {
-        assert!(ACCOUNT_VARS.contains(&v), "{v}");
+        for windows in [false, true] {
+            assert!(
+                !skyelab_core::env::terminal_allowed(v.as_ref(), windows),
+                "{v}"
+            );
+        }
     }
 }
 
@@ -19,7 +24,8 @@ fn codex_home_passes_only_when_the_account_sets_it() {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-        let (_, args, env) = launch(Some(("prog".into(), vec![])), env);
+        let parent = CODEX.map(String::from);
+        let (_, args, env) = launch(Some(("prog".into(), vec![])), env, &parent, false);
         (args, env)
     };
     let (args, _) = removed(&[]);

@@ -13,6 +13,7 @@ fn reconfirm_refuses_a_folder_another_binding_already_owns() {
             config_dir: format!("/abs/{id}").into(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     }

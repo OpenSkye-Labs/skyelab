@@ -61,6 +61,7 @@ fn a_resumed_session_still_gets_the_orchestration_tools(cx: &mut TestAppContext)
             config_dir: root.join(".claude-work"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     let dir = root.join("work-a");

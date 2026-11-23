@@ -20,6 +20,7 @@ fn binding_the_old_target_of_a_stale_link_is_not_silently_dead() {
             config_dir: format!("/home/me/.claude-{id}").into(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     }

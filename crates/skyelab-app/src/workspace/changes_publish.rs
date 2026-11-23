@@ -112,15 +112,16 @@ impl ChangesView {
 
     pub(super) fn commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let message = self.commit_message.read(cx).value().to_string();
-        let files = self
+        let (files, tree) = self
             .changes
             .as_ref()
-            .map(|c| c.files.as_slice())
+            .map(|c| (c.files.as_slice(), c.tree.clone()))
             .unwrap_or_default();
+        // Nothing ticked means every listed file, by name: never `git add -A` of whatever is on disk by then.
         // A ticked rename takes its old path along, so the deletion lands in the same commit.
         let paths: Vec<PathBuf> = files
             .iter()
-            .filter(|f| self.selected.contains(&f.path))
+            .filter(|f| self.selected.is_empty() || self.selected.contains(&f.path))
             .flat_map(|f| std::iter::once(f.path.clone()).chain(f.old_path.clone()))
             .collect();
         self.run(
@@ -128,7 +129,12 @@ impl ChangesView {
             window,
             cx,
             move |t, _| {
-                let sha = skyelab_git::commit(&t.dir, &message, &paths)?;
+                let tree = tree.context("the Changes tab hasn't loaded yet")?;
+                if paths.is_empty() {
+                    bail!("nothing to commit");
+                }
+                let env = t.config.launch_env(&t.dir)?;
+                let sha = skyelab_git::commit(&t.dir, &message, &paths, &env, Some(&tree))?;
                 Ok(format!("Committed {}", sha.get(..8).unwrap_or(&sha)))
             },
             |this, note, window, cx| {
@@ -182,12 +188,8 @@ impl ChangesView {
 
     pub(super) fn render_publish(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let n = self.selected.len();
-        let commit_label = match n {
-            0 => "Commit all".to_string(),
-            1 => "Commit 1 file".to_string(),
-            n => format!("Commit {n} files"),
-        };
+        let total = self.changes.as_ref().map_or(0, |c| c.files.len());
+        let commit_label = commit_label(self.selected.len(), total);
         let button = |id: &'static str, label: String| {
             Button::new(id)
                 .xsmall()
@@ -246,5 +248,20 @@ impl ChangesView {
                     .child(n)
             }))
             .into_any_element()
+    }
+}
+
+/// What the Commit button will commit: the ticked files, or every listed one.
+pub(super) fn commit_label(selected: usize, total: usize) -> String {
+    let files = |n: usize| {
+        if n == 1 {
+            "1 file".to_string()
+        } else {
+            format!("{n} files")
+        }
+    };
+    match selected {
+        0 => format!("Commit all {}", files(total)),
+        n => format!("Commit {}", files(n)),
     }
 }

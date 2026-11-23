@@ -24,6 +24,7 @@ fn status_follows_an_unbind_made_in_settings(cx: &mut TestAppContext) {
             config_dir: home.path().join(".claude-acme"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("add account");
     config

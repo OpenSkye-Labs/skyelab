@@ -46,6 +46,7 @@ fn sending_after_stop_keeps_one_thread_row(cx: &mut TestAppContext) {
             config_dir: root.join(".claude-acme"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     config
@@ -109,6 +110,7 @@ fn bound_view(
                 config_dir: root.join(format!(".claude-{id}")),
                 provider: Default::default(),
                 gh_config_dir: None,
+                ssh_agent: false,
             })
             .expect("account");
     }

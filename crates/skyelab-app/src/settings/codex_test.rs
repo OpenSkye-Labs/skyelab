@@ -124,6 +124,7 @@ fn a_claude_account_has_no_codex_login(cx: &mut TestAppContext) {
             provider: Provider::Claude,
             config_dir: "/home/me/.claude-acme".into(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("add");
     let (view, cx) = cx.add_window_view(|window, cx| Settings::new(None, config, None, window, cx));

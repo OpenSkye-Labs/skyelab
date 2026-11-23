@@ -53,6 +53,7 @@ fn a_codex_bound_project_runs_codex_and_says_so(cx: &mut TestAppContext) {
             provider: Provider::Codex,
             config_dir: codex_home.clone(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("add account");
     config

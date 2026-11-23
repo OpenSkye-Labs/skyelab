@@ -37,6 +37,7 @@ fn relative_config_dir_rejected_on_load_add_and_update() {
             config_dir: PathBuf::from(dir),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         };
         assert!(c.add_account(acc(bad)).is_err(), "add accepted {bad:?}");
         c.add_account(acc("/abs/.claude"))

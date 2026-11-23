@@ -10,6 +10,7 @@ fn account(provider: Provider) -> Account {
         provider,
         config_dir: "/home/me/.acct".into(),
         gh_config_dir: None,
+        ssh_agent: false,
     }
 }
 

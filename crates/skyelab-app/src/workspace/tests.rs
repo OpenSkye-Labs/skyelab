@@ -85,6 +85,7 @@ fn status_shows_the_bound_account_and_never_a_fallback() {
             config_dir: home.path().join(".claude-acme"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("add account");
     assert_eq!(account_label(&config, home.path()), None, "unbound folder");
