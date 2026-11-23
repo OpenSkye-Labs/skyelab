@@ -118,6 +118,7 @@ fn thread_row(
         .debug_selector(move || selector.clone())
         .py_1p5()
         .gap_0p5()
+        .when(marks.nested, |this| this.ml(gpui::px(16.)))
         .font_weight(gpui::FontWeight::NORMAL)
         .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
         .child(
@@ -133,6 +134,11 @@ fn thread_row(
                             d.font_weight(gpui::FontWeight::MEDIUM)
                         })
                         .child(item.label.clone()),
+                )
+                .children(
+                    marks
+                        .group
+                        .map(|(count, open, group)| group_badge(count, open, group, theme)),
                 )
                 .when(pinned, |this| {
                     this.child(Icon::new(IconName::Star).size_3().text_color(muted))
@@ -193,6 +199,44 @@ fn thread_row(
                         .child(div().min_w_0().truncate().child(b))
                 })),
         )
+}
+
+/// A comparison group's "×3": shows or hides its threads under the row, without opening the Compare page.
+fn group_badge(
+    count: usize,
+    open: bool,
+    group: i64,
+    theme: &gpui_component::Theme,
+) -> impl IntoElement {
+    h_flex()
+        .id(SharedString::from(format!("compare-badge-{group}")))
+        .debug_selector(move || format!("compare-badge-{group}"))
+        .flex_shrink_0()
+        .h(gpui::px(18.))
+        .px_1()
+        .gap_0p5()
+        .rounded(ui::RADIUS_SM)
+        .bg(theme.foreground.opacity(0.07))
+        .hover(|this| this.bg(theme.foreground.opacity(0.12)))
+        .text_size(ui::META)
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .text_color(theme.muted_foreground)
+        .child(format!("×{count}"))
+        .child(
+            Icon::new(if open {
+                IconName::ChevronUp
+            } else {
+                IconName::ChevronDown
+            })
+            .size_3(),
+        )
+        .on_click(move |_, window, cx| {
+            cx.stop_propagation();
+            window.dispatch_action(
+                Box::new(crate::workspace::compare::ToggleCompareGroup { group }),
+                cx,
+            )
+        })
 }
 
 fn plain_row(

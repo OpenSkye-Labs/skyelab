@@ -360,4 +360,9 @@ WHERE thread_id IN (SELECT id FROM threads WHERE forked_from IS NOT NULL)
   AND EXISTS (SELECT 1 FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq);
 "
     ),
+    // Version 21: multi-model send. The threads of one send share a comparison group (the send's time in ms).
+    "
+ALTER TABLE threads ADD COLUMN compare_group INTEGER;
+CREATE INDEX threads_by_compare_group ON threads(compare_group) WHERE compare_group IS NOT NULL;
+",
 ];

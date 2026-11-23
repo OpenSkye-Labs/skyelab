@@ -195,3 +195,15 @@ fn is_usage(e: &Event) -> bool {
         && serde_json::from_str::<serde_json::Value>(&e.payload_json)
             .is_ok_and(|v| v.get("RateLimit").is_some_and(|r| r.is_object()))
 }
+
+/// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
+/// Kept here, never in the repo, so an agent can't plant one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectScript {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub command: String,
+    /// Run in every new worktree of the project (installing dependencies, say).
+    pub setup: bool,
+}

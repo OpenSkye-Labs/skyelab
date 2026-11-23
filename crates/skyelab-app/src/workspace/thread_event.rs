@@ -31,6 +31,8 @@ pub enum ThreadViewEvent {
     ScriptsChanged,
     /// Open a side chat of this thread: a new one (with its first question), or a stored one by id.
     Side(crate::workspace::side_chat::SideAsk),
+    /// Send the draft to each of its ticked models, under this account (`compare.rs`).
+    Compare(Box<skyelab_core::Account>),
     /// The thread got a new worktree: the project's setup scripts run there.
     WorktreeCreated {
         cwd: PathBuf,

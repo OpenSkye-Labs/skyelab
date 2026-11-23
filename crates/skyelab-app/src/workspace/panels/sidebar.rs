@@ -61,6 +61,10 @@ pub struct RowMarks {
     pub started_ms: Option<i64>,
     /// What the row's hover card shows.
     pub card: Option<std::rc::Rc<RowCard>>,
+    /// A comparison group's row: (its thread count, expanded, group), drawn as a "×3" toggle.
+    pub group: Option<(usize, bool, i64)>,
+    /// A comparison group's thread, listed under the group's row.
+    pub nested: bool,
 }
 
 /// A thread row's hover card (T3's thread tooltip): where it runs and on which account.

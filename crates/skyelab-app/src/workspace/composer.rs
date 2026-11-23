@@ -83,7 +83,15 @@ fn compact(width: gpui::Pixels) -> bool {
 
 impl ThreadView {
     /// The model chip's label: "Opus · High", or "Default model". `compact` leaves the effort out.
-    fn pick_label(&self, compact: bool) -> String {
+    pub(in crate::workspace) fn pick_label(&self, compact: bool) -> String {
+        if let Some(c) = self
+            .composer
+            .compare
+            .as_ref()
+            .filter(|c| c.models.len() > 1)
+        {
+            return format!("{} models", c.models.len());
+        }
         let pick = &self.composer.pick;
         let model = match pick.model.as_deref() {
             None => "Default model".to_owned(),

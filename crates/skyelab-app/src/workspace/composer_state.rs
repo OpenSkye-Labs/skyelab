@@ -113,6 +113,8 @@ pub(crate) struct Composer {
     pub menu: Option<Menu>,
     pub picker_open: bool,
     pub pick: ModelChoice,
+    /// "Send to several models": the ticked models (`compare.rs`).
+    pub compare: Option<crate::workspace::compare::Compare>,
     /// The user picked in this tab, so a late store read doesn't overwrite it.
     pub picked: bool,
     /// Codex's models, once listed (or why they couldn't be).

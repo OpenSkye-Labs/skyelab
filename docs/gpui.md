@@ -111,6 +111,10 @@ and how Zed uses it, not blog posts or memory.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 
+- `cx.emit` delivers in `flush_effects`, after the emitting `update` returns, so a view that asks its parent to
+  decide (the composer's multi-model send) must leave its draft untouched when it emits: the parent takes the text
+  and files only once it accepts, and a refusal leaves the composer as it was (`compare::compare_send`).
+
 ## Several windows
 
 - One entity can be drawn in two windows (a shared thread view), and a notify redraws both. But subscriptions made

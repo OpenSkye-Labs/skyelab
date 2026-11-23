@@ -347,6 +347,7 @@ impl Workspace {
                 ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
                 _ if !view.read(cx).owned_by(window) => {}
                 ThreadViewEvent::Side(ask) => this.side_chat(view, ask.clone(), window, cx),
+                ThreadViewEvent::Compare(account) => this.compare_send(view, account, window, cx),
                 ThreadViewEvent::OpenChanges => _ = this.open_changes(view, window, cx),
                 ThreadViewEvent::Git(action) => {
                     let tab = this.open_changes(view, window, cx);

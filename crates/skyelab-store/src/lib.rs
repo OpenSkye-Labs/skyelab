@@ -15,7 +15,7 @@ use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod events;
 mod extras;
-pub use extras::Draft;
+pub use extras::{Draft, ProjectScript};
 mod images;
 mod import;
 mod manage;
@@ -71,18 +71,8 @@ pub struct Thread {
     pub pr_state: Option<String>,
     /// The thread this one is a side chat of: hidden from the thread lists, listed under it.
     pub side_of: Option<i64>,
-}
-
-/// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
-/// Kept here, never in the repo, so an agent can't plant one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectScript {
-    pub id: i64,
-    pub project_id: i64,
-    pub name: String,
-    pub command: String,
-    /// Run in every new worktree of the project (installing dependencies, say).
-    pub setup: bool,
+    /// The multi-model send this thread is one model of: its siblings share the number.
+    pub compare_group: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,7 +107,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from, pr_state, side_of";
+pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from, pr_state, side_of, compare_group";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -336,6 +326,7 @@ impl Store {
             forked_from: None,
             pr_state: None,
             side_of: None,
+            compare_group: None,
         })
     }
 
@@ -505,6 +496,7 @@ pub(crate) fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         forked_from: r.get(18)?,
         pr_state: r.get(19)?,
         side_of: r.get(20)?,
+        compare_group: r.get(21)?,
     })
 }
 

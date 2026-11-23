@@ -91,7 +91,7 @@ impl Workspace {
     }
 
     /// The thread's agent is mid-turn (or starting): archiving or deleting it would cut the work off.
-    fn working(&self, id: i64, cx: &Context<Self>) -> bool {
+    pub(super) fn working(&self, id: i64, cx: &Context<Self>) -> bool {
         self.open_view(id, cx)
             .is_some_and(|v| matches!(v.read(cx).live_status(), Status::Starting | Status::Running))
     }

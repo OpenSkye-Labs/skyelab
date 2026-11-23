@@ -292,3 +292,33 @@ impl Workspace {
         }));
     }
 }
+
+impl Workspace {
+    pub(super) fn toggle(
+        &mut self,
+        at: DockPlacement,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.dock
+            .update(cx, |dock, cx| dock.toggle_dock(at, window, cx));
+    }
+
+    pub(super) fn toggle_sidebar(
+        &mut self,
+        _: &ToggleSidebar,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle(DockPlacement::Left, window, cx);
+    }
+
+    pub(super) fn toggle_bottom(
+        &mut self,
+        _: &ToggleBottomPanel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle(DockPlacement::Bottom, window, cx);
+    }
+}

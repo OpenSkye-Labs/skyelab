@@ -155,6 +155,7 @@ impl ThreadView {
         let use_worktree = resume.is_none() && self.wt.use_worktree;
         let base_branch = self.branch_picker.read(cx).base.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
+        let compare_group = self.compare_group.filter(|_| resume.is_none());
         // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
         let side = self.is_side_chat() || resume.as_ref().is_some_and(|t| t.side_of.is_some());
         let tools = crate::workspace::orchestrate::Tools::get(cx).filter(|_| !side);
@@ -252,6 +253,11 @@ impl ThreadView {
                         // A new row, or a child's slot: either must not stay busy if this launch fails.
                         if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
+                        }
+                        // Grouped before the row is announced, so the sidebar folds it in at once.
+                        if let Some(group) = compare_group {
+                            lock(&store)?.set_thread_compare_group(thread.id, group)?;
+                            thread.compare_group = Some(group);
                         }
                         if is_new && mode != skyelab_agent::Mode::Default {
                             lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
