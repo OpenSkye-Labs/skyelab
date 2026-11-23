@@ -1,6 +1,7 @@
-//! wry's macOS bridge `unwrap()`s the JSON serialization of a script's raw result, so a script
-//! returning a DOM node or a cycle would abort the app. The wrapper stringifies in the page, and a
-//! template literal forces a string primitive even if the page replaced `JSON.stringify` or `String`.
+//! wry's macOS bridge `unwrap()`s the JSON serialization of a script's raw result, so a result like `NaN`
+//! aborts the app. An agent's expression can break out of any wrapper made of text, so its script ([`wrap`]) runs
+//! with no result callback and leaves its answer at [`SLOT`]. Then [`read_back`], which has no agent text in it,
+//! hands that answer over: a well-formed string primitive, capped, whatever the page or the expression did.
 
 use anyhow::{Context as _, anyhow};
 use serde_json::Value;
@@ -11,29 +12,57 @@ use serde_json::Value;
 const PAGE_GUARD: &str =
     "if (location.protocol !== \"http:\" && location.protocol !== \"https:\") throw 0;\n";
 
+/// Where [`wrap`] leaves its answer for [`read_back`]. WebKit runs one webview's scripts in order, and the
+/// expression runs to completion (a Promise is not awaited), so the read-back always follows its own script.
+const SLOT: &str = "__skyelab_eval";
+
 /// Largest eval result handed back, in bytes of JSON text. The page checks it in UTF-16 units (never more than
-/// the bytes), so a huge value stays in the page; the app checks the bytes again. A thrown message is cut to it too.
+/// the bytes), so a huge value stays in the page; the app checks the bytes again.
 pub const MAX_EVAL_OUTPUT: usize = 64 << 10;
 
+/// A thrown message is cut to this many UTF-16 units, so its envelope fits under the cap even if JSON escapes
+/// every unit (6 bytes for a control character).
+const MAX_THROWN: usize = MAX_EVAL_OUTPUT / 8;
+
+/// The agent's script: run it without a result callback, then run [`read_back`] for its answer.
 pub(crate) fn wrap(expression: &str) -> String {
     format!(
-        "{PAGE_GUARD}(() => {{ try {{ const v = (\n{expression}\n); \
-         const s = `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; \
-         if (s.length > {MAX_EVAL_OUTPUT}) return `${{JSON.stringify({{ too_big: s.length }})}}`; \
-         return s; }} \
-         catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}`.slice(0, {MAX_EVAL_OUTPUT}) }})}}`; }} }})()"
+        "{PAGE_GUARD}window.{SLOT} = (() => {{ try {{ const v = (\n{expression}\n); \
+         return `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; }} \
+         catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}`.slice(0, {MAX_THROWN}) }})}}`; }} }})();"
     )
 }
 
-/// wry hands back the page's string JSON-encoded, so the envelope is encoded twice.
+/// Takes the answer [`wrap`] left and returns it as a string primitive, or "" (a refusal) when there is none.
+/// Only syntax the page can't replace: `typeof`, `.length` and indexing of a string primitive, comparisons. A lone
+/// surrogate is refused: wry turns the result into UTF-8 and unwraps that.
+pub(crate) fn read_back() -> String {
+    r#"(() => { let s; try { s = window.SLOT; delete window.SLOT; } catch (e) { return ""; }
+  if (typeof s !== "string") return "";
+  if (s.length > MAX) return `{"too_big":${s.length}}`;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c >= "\ud800" && c <= "\udbff" && s[i + 1] >= "\udc00" && s[i + 1] <= "\udfff") { i++; continue; }
+    if (c >= "\ud800" && c <= "\udfff") return `{"error":"the result is not valid text"}`;
+  }
+  return s; })()"#
+        .replace("SLOT", SLOT)
+        .replace("MAX", &MAX_EVAL_OUTPUT.to_string())
+}
+
+/// wry hands back the page's string JSON-encoded, so the envelope is encoded twice. "" (no read-back result) and
+/// an empty string (nothing left at the slot) are both a script that never reached the end of its wrapper.
 pub(crate) fn decode(raw: &str) -> anyhow::Result<Value> {
-    if raw.is_empty() {
+    let envelope_json: String = match raw {
+        "" => String::new(),
+        raw => serde_json::from_str(raw)
+            .with_context(|| format!("unexpected eval result from the webview: {raw:?}"))?,
+    };
+    if envelope_json.is_empty() {
         return Err(anyhow!(
-            "script refused: the page is not http or https, or the script did not compile"
+            "script refused: the page is not http or https, or the script did not compile or did not run to its end"
         ));
     }
-    let envelope_json: String = serde_json::from_str(raw)
-        .with_context(|| format!("unexpected eval result from the webview: {raw:?}"))?;
     let mut envelope: Value =
         serde_json::from_str(&envelope_json).context("eval result is not JSON")?;
     if let Some(n) = envelope.get("too_big") {
@@ -102,12 +131,35 @@ mod tests {
     fn empty_result_is_a_refusal() {
         let err = decode("").expect_err("guard threw").to_string();
         assert!(err.contains("http or https"), "{err}");
+        // The read-back found nothing at the slot.
+        let err = decode("\"\"").expect_err("nothing left").to_string();
+        assert!(err.contains("http or https"), "{err}");
     }
 
     #[test]
     fn wrap_returns_template_literals() {
         let js = wrap("1");
-        assert_eq!(js.matches("`${JSON.stringify(").count(), 3, "{js}");
+        assert_eq!(js.matches("`${JSON.stringify(").count(), 2, "{js}");
+    }
+
+    #[test]
+    fn read_back_has_no_calls_the_page_could_replace() {
+        let js = read_back();
+        // The only parentheses: the IIFE, its call, `catch (e)`, and control flow.
+        for name in [
+            "JSON",
+            "String",
+            "Object",
+            "charCodeAt",
+            "isWellFormed",
+            "test(",
+        ] {
+            assert!(!js.contains(name), "{name} in {js}");
+        }
+        assert!(
+            js.contains(&format!("s.length > {MAX_EVAL_OUTPUT}")),
+            "{js}"
+        );
     }
 }
 
