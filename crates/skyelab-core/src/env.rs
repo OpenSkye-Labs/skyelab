@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 const UNIX_ENV: &[&str] = &[
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TERM",
 ];
-/// Network plumbing from the user's own env, on every OS. None of these choose the account or provider; without
+/// Network plumbing (and TZ) from the user's own env, on every OS. None of these choose the account or provider; without
 /// them agents fail behind proxies.
 const SHARED_ENV: &[&str] = &[
     "HTTP_PROXY",
@@ -154,8 +154,10 @@ pub fn agent_vars(
             if !k.eq_ignore_ascii_case("PATH") {
                 return Some((k, v));
             }
+            // An empty PATH would still let a shell look in the cwd: no PATH at all instead.
             std::env::join_paths(absolute_entries(&v))
                 .ok()
+                .filter(|p| !p.is_empty())
                 .map(|p| (k, p))
         })
         .collect()
@@ -199,6 +201,8 @@ pub fn git_credential_env(
         pairs.push(("credential.helper".into(), "!gh auth git-credential".into()));
     }
     pairs.push(("http.extraHeader".into(), String::new()));
+    // The user's askpass would answer when no helper does.
+    pairs.push(("core.askPass".into(), String::new()));
     pairs.extend(
         scoped_headers
             .iter()

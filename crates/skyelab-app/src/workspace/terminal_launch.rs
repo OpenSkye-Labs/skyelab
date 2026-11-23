@@ -5,10 +5,10 @@ use skyelab_core::AccountsConfig;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Env for a terminal in `dir`, on top of the inherited allowlist skyelab-terminal keeps: the bound account's dirs
-/// (and its gh as git's https credential helper, when it has one). Every provider home and, unbound, the GitHub dir
-/// the account doesn't set points at an empty private dir under `unbound`, so `claude`, `codex` or `gh` typed there
-/// asks to log in instead of silently using the default `~/.claude`, `~/.codex` or gh login.
+/// Env for a terminal in `dir`, on top of the inherited allowlist skyelab-terminal keeps: the bound account's dirs,
+/// and git's https credentials from its gh only (none at all without one). A provider home the account doesn't
+/// set, and every home plus `GH_CONFIG_DIR` in an unbound folder, is an empty private dir under `unbound`, one set
+/// per account, so `claude`, `codex` or `gh` there asks to log in instead of using the default account.
 pub(super) fn terminal_env(
     config: &AccountsConfig,
     dir: &Path,
@@ -29,9 +29,14 @@ pub(super) fn terminal_env(
     if account.is_none() {
         homes.push(("GH_CONFIG_DIR", "gh"));
     }
+    // Per account, so a login made in one account's folder never answers in another's.
+    let base = match account {
+        Some(a) => unbound.join(format!("account-{}", hex(&a.id))),
+        None => unbound.to_owned(),
+    };
     for (var, sub) in homes {
         if !bound.iter().any(|(k, _)| *k == var) {
-            let empty = unbound.join(sub);
+            let empty = base.join(sub);
             private_dir(&empty)?;
             env.insert(var.to_string(), text(&empty)?);
         }
@@ -39,12 +44,16 @@ pub(super) fn terminal_env(
     for (k, v) in &bound {
         env.insert(k.to_string(), text(v)?);
     }
-    if account.is_some_and(|a| a.gh_config_dir.is_some()) {
-        let scoped = skyelab_core::env::scoped_extra_headers(dir);
-        // ssh stays on: a terminal is the user's own shell, and SSH_AUTH_SOCK passes to it.
-        env.extend(skyelab_core::env::git_credential_env(true, &scoped, true));
-    }
+    let has_gh = account.is_some_and(|a| a.gh_config_dir.is_some());
+    let scoped = skyelab_core::env::scoped_extra_headers(dir);
+    // ssh stays on: a terminal is the user's own shell, and SSH_AUTH_SOCK passes to it.
+    env.extend(skyelab_core::env::git_credential_env(has_gh, &scoped, true));
     Ok(env)
+}
+
+/// An account id as a file name: ids are free text.
+fn hex(id: &str) -> String {
+    id.bytes().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Where unbound terminals' empty provider homes live: `<data dir>/skyelab/unbound`.
@@ -57,6 +66,10 @@ pub(super) fn unbound_root() -> anyhow::Result<PathBuf> {
 
 fn private_dir(dir: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    // A link here could point a terminal at another account's real config dir.
+    if std::fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink()) {
+        anyhow::bail!("{} is a symlink, not a private dir", dir.display());
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;

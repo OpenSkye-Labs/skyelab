@@ -35,8 +35,8 @@ worktree /r/wt with space\0HEAD 2222222222222222222222222222222222222222\0detach
     assert_eq!(list[1].branch, None);
 }
 
-/// The env starts empty (`env_clear`, see scrubbed_env_hooks.rs for a real hostile parent), so every var the
-/// command carries is one it set: the allowlist, the locale and the lock opt-out. Nothing that points git elsewhere.
+/// Every var the command sets on top of `env_clear` is allowlisted (or the locale and the lock opt-out).
+/// `get_envs` can't show `env_clear` itself; scrubbed_env_hooks.rs checks the real child env.
 #[test]
 fn command_env_is_only_the_allowlist() {
     let cmd = command(Path::new("git"), Path::new("."));

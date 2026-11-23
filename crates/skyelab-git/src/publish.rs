@@ -23,9 +23,12 @@ pub struct GitHub<'a> {
 }
 
 /// Commits `paths` (every change, untracked files included, when empty) with `message`, and returns the new commit.
-/// The repo's hooks run, with the scrubbed env plus `account_env` (the bound account's `launch_env`). With
-/// `reviewed`, the [`snapshot_tree`] the user looked at: if the working tree no longer matches it, nothing is
-/// committed.
+/// The repo's hooks run, with the scrubbed env plus `account_env` (the bound account's `launch_env`).
+///
+/// With `reviewed`, the [`snapshot_tree`] the user looked at: nothing is committed unless the working tree still
+/// matches it (for an empty `paths`, the staged tree must equal it exactly). Either way, a commit that touches a path
+/// outside `paths` (or, committing everything, outside what changed between `HEAD` and `reviewed`) is undone: a
+/// pre-commit hook, which an agent can write, may `git add` anything.
 pub fn commit(
     dir: &Path,
     message: &str,
@@ -39,61 +42,174 @@ pub fn commit(
         ));
     }
     let root = repo_root(dir)?;
+    let changed = || {
+        invalid(
+            "the files changed since you looked; nothing was committed. Check the Changes tab again, then commit",
+        )
+    };
     if let Some(reviewed) = reviewed
         && snapshot_tree(&root)? != reviewed
     {
-        return Err(invalid(
-            "the files changed since you looked; nothing was committed. Check the Changes tab again, then commit",
-        ));
+        return Err(changed());
     }
+    let before = head(&root)?;
     // Literal, so a ticked file named `*` is that file, not a glob.
     let literal: &OsStr = "--literal-pathspecs".as_ref();
-    let mut add: Vec<&OsStr> = vec![literal, "add".as_ref(), "-A".as_ref()];
     let mut commit: Vec<&OsStr> = vec![literal, "commit".as_ref(), "-F".as_ref(), "-".as_ref()];
-    if !paths.is_empty() {
-        let tail = std::iter::once("--".as_ref()).chain(paths.iter().map(|p| p.as_os_str()));
-        add.extend(tail.clone());
-        commit.extend(tail);
-    }
-    git(&root, &add)?;
+    let allowed: Option<Vec<String>> = if paths.is_empty() {
+        git(&root, &["add", "-A"])?;
+        match reviewed {
+            Some(reviewed) => {
+                if lossy(&git(&root, &["write-tree"])?).trim() != reviewed {
+                    return Err(changed());
+                }
+                Some(changed_paths(&root, before.as_deref(), reviewed)?)
+            }
+            None => None,
+        }
+    } else {
+        // A staged deletion or a rename's old path is in neither the index nor the tree, so `add` would refuse
+        // it; `commit -- <path>` still records it.
+        let add: Vec<&OsStr> = [literal, "add".as_ref(), "-A".as_ref(), "--".as_ref()]
+            .into_iter()
+            .chain(present(&root, paths)?.into_iter().map(|p| p.as_os_str()))
+            .collect();
+        if add.len() > 4 {
+            git(&root, &add)?;
+        }
+        commit.push("--".as_ref());
+        commit.extend(paths.iter().map(|p| p.as_os_str()));
+        Some(
+            paths
+                .iter()
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect(),
+        )
+    };
     let mut cmd = hooked_command(Path::new("git"), &root);
     cmd.args(&commit)
         .envs(account_env.iter().map(|(k, v)| (k, v)));
     checked(cmd, "git commit", Some(message.as_bytes()))?;
-    Ok(lossy(&git(&root, &["rev-parse", "HEAD"])?)
+    let sha = lossy(&git(&root, &["rev-parse", "HEAD"])?)
         .trim()
-        .to_owned())
+        .to_owned();
+    if let Some(allowed) = allowed {
+        let extra: Vec<String> = changed_paths(&root, before.as_deref(), &sha)?
+            .into_iter()
+            .filter(|p| !allowed.contains(p))
+            .collect();
+        if !extra.is_empty() {
+            match &before {
+                Some(b) => git(&root, &["reset", "-q", "--soft", b])?,
+                None => git(&root, &["update-ref", "-d", "HEAD"])?,
+            };
+            return Err(invalid(format!(
+                "a commit hook added files you didn't review ({}); the commit was undone and they are staged",
+                extra.join(", ")
+            )));
+        }
+    }
+    Ok(sha)
+}
+
+/// `HEAD`'s commit, `None` in a repo with no commits yet.
+fn head(root: &Path) -> Result<Option<String>> {
+    let out = crate::output(
+        Path::new("git"),
+        root,
+        &["rev-parse", "--verify", "-q", "HEAD"],
+    )?;
+    Ok(out
+        .status
+        .success()
+        .then(|| lossy(&out.stdout).trim().to_owned()))
+}
+
+/// The paths that differ between commit (or tree) `from` (`None`: nothing) and `to`.
+fn changed_paths(root: &Path, from: Option<&str>, to: &str) -> Result<Vec<String>> {
+    let out = match from {
+        Some(from) => git(
+            root,
+            &[
+                "diff-tree",
+                "-r",
+                "-z",
+                "--name-only",
+                "--no-renames",
+                from,
+                to,
+            ],
+        )?,
+        None => git(
+            root,
+            &["ls-tree", "-r", "-z", "--name-only", "--full-tree", to],
+        )?,
+    };
+    Ok(lossy(&out)
+        .split('\0')
+        .filter(|p| !p.is_empty())
+        .map(str::to_owned)
+        .collect())
+}
+
+/// The `paths` that are on disk or in the index, so `git add` accepts them.
+fn present<'p>(root: &Path, paths: &'p [PathBuf]) -> Result<Vec<&'p PathBuf>> {
+    let literal: &OsStr = "--literal-pathspecs".as_ref();
+    let args: Vec<&OsStr> = [literal, "ls-files".as_ref(), "-z".as_ref(), "--".as_ref()]
+        .into_iter()
+        .chain(paths.iter().map(|p| p.as_os_str()))
+        .collect();
+    let indexed = lossy(&git(root, &args)?);
+    let indexed: Vec<&str> = indexed.split('\0').collect();
+    Ok(paths
+        .iter()
+        .filter(|p| {
+            std::fs::symlink_metadata(root.join(p)).is_ok()
+                || indexed.contains(&p.to_string_lossy().as_ref())
+        })
+        .collect())
 }
 
 /// The tree id of everything the working tree of `dir`'s repo holds now (untracked files included, ignored ones
-/// not), as a commit of all of it would record. Built in a scratch index, so the real one is untouched.
+/// not), as a commit of all of it would record. Built in a scratch index in a fresh private dir (never in `.git`,
+/// which an agent can write), so the real index is untouched.
 pub fn snapshot_tree(dir: &Path) -> Result<String> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let root = repo_root(dir)?;
-    let path = |p: &str| -> Result<PathBuf> {
-        let out = git(
+    let index = PathBuf::from(
+        lossy(&git(
             &root,
-            &["rev-parse", "--path-format=absolute", "--git-path", p],
-        )?;
-        Ok(PathBuf::from(lossy(&out).trim_end_matches('\n')))
-    };
+            &["rev-parse", "--path-format=absolute", "--git-path", "index"],
+        )?)
+        .trim_end_matches('\n'),
+    );
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    let scratch = path(&format!(
-        "skyelab-snapshot-{}-{n}.index",
+    let scratch_dir = std::env::temp_dir().join(format!(
+        "skyelab-snapshot-{}-{n}-{nanos}",
         std::process::id()
-    ))?;
-    // Starting from the real index keeps its stat cache, so unchanged files aren't hashed again.
-    match std::fs::copy(path("index")?, &scratch) {
-        Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),
-        _ => {}
-    }
-    let run = |args: &[&str]| -> Result<Vec<u8>> {
-        let mut cmd = command(Path::new("git"), &root);
-        cmd.args(args).env("GIT_INDEX_FILE", &scratch);
-        crate::finish(&root, args, cmd.output()?)
-    };
-    let tree = run(&["add", "-A"]).and_then(|_| run(&["write-tree"]));
-    let _ = std::fs::remove_file(&scratch);
+    ));
+    let mut builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(&scratch_dir)?; // exclusive: fails rather than reuse a dir someone else made
+    let scratch = scratch_dir.join("index");
+    let tree = (|| {
+        // Starting from the real index keeps its stat cache, so unchanged files aren't hashed again.
+        match std::fs::copy(&index, &scratch) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        }
+        let run = |args: &[&str]| -> Result<Vec<u8>> {
+            let mut cmd = command(Path::new("git"), &root);
+            cmd.args(args).env("GIT_INDEX_FILE", &scratch);
+            crate::finish(&root, args, cmd.output()?)
+        };
+        run(&["add", "-A"]).and_then(|_| run(&["write-tree"]))
+    })();
+    let _ = std::fs::remove_dir_all(&scratch_dir);
     Ok(lossy(&tree?).trim().to_owned())
 }
 
@@ -132,6 +248,8 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
     let mut cmd = hooked_command(Path::new("git"), &root);
     cmd.args(credential_args(gh, &urls)?)
         .arg("push")
+        // A submodule's own remote is never checked, so never pushed to.
+        .arg("--recurse-submodules=no")
         .args(set_upstream.then_some("--set-upstream"))
         .args([&remote, &refspec])
         .env("GH_CONFIG_DIR", gh.config_dir)
@@ -190,6 +308,9 @@ pub fn credential_args(gh: &GitHub, push_urls: &[&str]) -> Result<Vec<String>> {
         "credential.helper=".into(),
         "-c".into(),
         "http.extraHeader=".into(),
+        // No askpass from the user's config: if gh can't answer, nobody does.
+        "-c".into(),
+        "core.askPass=".into(),
         "-c".into(),
         format!("credential.helper=!'{bin}' auth git-credential"),
     ];

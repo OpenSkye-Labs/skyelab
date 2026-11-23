@@ -1,6 +1,6 @@
-//! Acceptance: a project terminal always names every provider home and the GitHub dir. The bound account's
-//! own dirs, empty private "unbound" dirs for the rest, so `claude`, `codex` or `gh` typed there never fall back to
-//! the default `~/.claude`, `~/.codex` or gh login.
+//! Acceptance: a project terminal always names both provider homes (and, unbound, the GitHub dir): the bound
+//! account's own, empty private "unbound" dirs for the rest, so `claude`, `codex` or `gh` typed there never fall
+//! back to the default `~/.claude`, `~/.codex` or gh login. git's https credentials come only from the account's gh.
 
 use super::terminal_env;
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};
@@ -18,7 +18,7 @@ fn account(id: &str, provider: Provider, base: &Path, gh: bool) -> Account {
     }
 }
 
-/// The `GIT_CONFIG_KEY_n`/`VALUE_n` pairs, in order, after checking the count matches.
+/// The `GIT_CONFIG_KEY_n`/`VALUE_n` pairs, in order, up to `GIT_CONFIG_COUNT`.
 fn git_config(env: &HashMap<String, String>) -> Vec<(String, String)> {
     let n: usize = env
         .get("GIT_CONFIG_COUNT")
@@ -91,7 +91,7 @@ fn bound_claude_terminal_names_its_account_and_no_default_codex() {
     let p = |p: PathBuf| p.to_str().expect("utf-8").to_string();
     assert_eq!(env["CLAUDE_CONFIG_DIR"], p(base.join("acme-home")));
     assert_eq!(env["GH_CONFIG_DIR"], p(base.join("acme-gh")));
-    assert_eq!(env["CODEX_HOME"], p(unbound.join("codex")));
+    assert_eq!(env["CODEX_HOME"], p(unbound.join("account-61636d65/codex")));
     assert_private_empty(&env["CODEX_HOME"]);
     let git = git_config(&env);
     let has = |k: &str, v: &str| git.iter().any(|(a, b)| a == k && b == v);
@@ -119,11 +119,19 @@ fn bound_codex_terminal_mirrors_it() {
     only_known_keys(&env);
     let p = |p: PathBuf| p.to_str().expect("utf-8").to_string();
     assert_eq!(env["CODEX_HOME"], p(base.join("cx-home")));
-    assert_eq!(env["CLAUDE_CONFIG_DIR"], p(unbound.join("claude")));
+    assert_eq!(
+        env["CLAUDE_CONFIG_DIR"],
+        p(unbound.join("account-6378/claude"))
+    );
     assert_private_empty(&env["CLAUDE_CONFIG_DIR"]);
-    // No GitHub dir on the account: gh keeps its default, as for agents, and git is the user's own.
+    // No GitHub dir on the account: gh keeps its default, as for agents, and git gets no helper at all.
     assert!(!env.contains_key("GH_CONFIG_DIR"), "{env:?}");
-    assert!(git_config(&env).is_empty(), "{env:?}");
+    let git = git_config(&env);
+    assert!(
+        git.contains(&("credential.helper".into(), String::new())),
+        "{git:?}"
+    );
+    assert!(!git.iter().any(|(_, v)| v.contains("gh auth")), "{git:?}");
 }
 
 #[test]

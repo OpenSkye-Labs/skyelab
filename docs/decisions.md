@@ -51,8 +51,10 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   `CLAUDE_CODE_*`, `OPENAI_*`, `CODEX_*`, `GH_*`/`GITHUB_TOKEN`, `AWS_*`, `GOOGLE_*`, `CLOUD_ML_*`, `GIT_*`) is ever in
   it. A terminal always names both provider homes: the bound account's, and an empty private dir under
   `<data dir>/skyelab/unbound` for the other one (and for `GH_CONFIG_DIR` when the folder is unbound), so the CLI
-  asks to log in rather than using the default account. A login made there stays in that dir; agents never use it,
-  since they never start unbound. Limit: a login shell's rc files may export credentials again. (2026-11-23)
+  asks to log in rather than using the default account. Those dirs are per account (`unbound/account-<hex id>/`),
+  and one more set for unbound folders, so a login made in one account's terminal never answers in another's;
+  agents never use them. git's https credentials come only from the account's gh (no helper without one), as for
+  agents. Limit: a login shell's rc files may export credentials again. (2026-11-23)
 - **Agent git credentials and ssh:** agents get `GIT_CONFIG_COUNT`/`KEY_n`/`VALUE_n` that reset `credential.helper`
   and add `gh auth git-credential` (under the account's `GH_CONFIG_DIR`; no helper at all without one, so nothing
   answers), and clear `http.extraHeader`, generically and for every URL-scoped `http.<url>.extraHeader` git config
@@ -72,11 +74,19 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   custom `GNUPGHOME` isn't passed. (2026-11-23)
 - **Push URLs:** every URL of `git remote get-url --push --all` must be plain https or local (git pushes to all of
   them), and `-c http.<url>.extraHeader=` is passed for each https one, the most specific scope, so a URL-scoped
-  header can't win over the reset. (2026-11-23)
-- **Commit snapshot:** the Changes tab records the working tree's tree id (a scratch index, `add -A`, `write-tree`)
-  before reading the diff. Commit stages the listed files by name (`--literal-pathspecs`, after `--`) and refuses if
-  the tree id changed, so files that appeared or changed after the user looked are never committed. Limit: a change in
-  the milliseconds between that check and `git add`. (2026-11-23)
+  header can't win over the reset. `--recurse-submodules=no`, since a submodule's remote is never checked.
+  `core.askPass` is cleared (for agents too), so only gh answers. An https URL with `=` in it is refused (it would
+  end the `-c` key). Limit: libcurl still reads `~/.netrc` (HOME passes), so a netrc entry for the host answers
+  before gh. (2026-11-23)
+- **Commit snapshot:** the Changes tab records the working tree's tree id (a scratch index in a fresh private temp
+  dir, `add -A`, `write-tree`) before and after reading the diff, and keeps it only if both match. Commit refuses if
+  the tree id changed. Commit all then runs `add -A` and commits only if the staged tree equals the reviewed one
+  (so staged deletions and merges work); ticked files are staged by name (`--literal-pathspecs`, after `--`, skipping
+  paths already gone). After the commit, any path it changed outside the ticked files (or outside what changed
+  between `HEAD` and the reviewed tree) means a hook added it: the commit is undone (`reset --soft`). Hooks that
+  reformat a reviewed file still work. Limits: a ticked-files commit can race a write in the milliseconds between
+  check and `git add`; each snapshot writes blobs for changed and untracked files into the object store, which
+  `git gc` prunes. (2026-11-23)
 - **MCP socket path:** `<data dir>/skyelab/run/<pid>/mcp.sock` can exceed sun_path (104 bytes on macOS) with a long
   HOME. Then the socket goes in a fresh dir under the temp dir (else `/tmp`), created exclusively with mode 0700 and
   checked to be a real dir owned like the run dir; grant files stay in the run dir. Removed when the server drops; a

@@ -77,9 +77,10 @@ An agent's own `git push` (in its shell) also asks only the account's `gh` for h
 keychain or a helper from `~/.gitconfig`. Agents don't get your ssh-agent, and git's ssh transport fails for them.
 To let one account's agents push over ssh anyway, add `ssh_agent = true` to that `[[account]]` in `accounts.toml`.
 
-**Commit** commits the ticked files, or with none ticked every file the Changes tab lists (the button says how
-many). If anything in the working tree changed since the tab loaded, Commit refuses; refresh, look again, and
-commit. Repo hooks run on Commit and Push, with the same clean environment.
+**Commit** commits the ticked files, or with none ticked exactly the working tree the Changes tab shows (the
+button says how many files). If anything changed since the tab loaded, Commit refuses; refresh, look again, and
+commit. Repo hooks run on Commit and Push, with the same clean environment; if a commit hook adds files you
+didn't review, the commit is undone and they stay staged. Push never pushes submodules.
 
 ## Threads
 
@@ -95,9 +96,10 @@ The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a n
 tab for your dev server.
 
 A terminal runs as the folder's account: `claude` or `codex` typed there uses that account's config dir, and
-`gh` and `git push` over https use its GitHub login. The other provider's home, and in an unbound folder every
-home and the GitHub dir, point at an empty private folder (`<data dir>/skyelab/unbound`), so the CLI asks you to
-log in instead of using your default account. API keys and tokens from the environment SkyeLab was started with
+`gh` and `git push` over https use its GitHub login when it has one (without one, `gh` keeps your default login
+and git over https gets no credentials). The other provider's home, and in an unbound folder every home and the
+GitHub dir, point at an empty private folder under `<data dir>/skyelab/unbound` (one per account), so the CLI asks
+you to log in instead of using your default account. ssh keys work there as usual. API keys and tokens from the environment SkyeLab was started with
 (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `GH_TOKEN`, `AWS_*`, ...) don't reach it; your shell's own rc
 files still run, so a key they export is set again.
 

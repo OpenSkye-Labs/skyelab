@@ -225,10 +225,12 @@ fn launch(
     });
     let unset: Vec<String> = parent
         .iter()
-        .filter(|v| env.get(*v).is_none_or(|v| v.is_empty()))
+        // Windows names are case-insensitive, so `Gh_Config_Dir` in the parent is the caller's `GH_CONFIG_DIR`.
         .filter(|v| {
-            env.contains_key(*v) || !skyelab_core::env::terminal_allowed(v.as_ref(), windows)
+            !env.keys()
+                .any(|k| k == *v || (windows && k.eq_ignore_ascii_case(v)))
         })
+        .filter(|v| !skyelab_core::env::terminal_allowed(v.as_ref(), windows))
         .cloned()
         .collect();
     if windows {

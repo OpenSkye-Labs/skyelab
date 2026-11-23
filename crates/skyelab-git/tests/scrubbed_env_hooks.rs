@@ -71,7 +71,7 @@ fn setup(base: &Path) -> PathBuf {
         &[
             "config",
             "filter.dump.clean",
-            &format!("sh -c 'env > {}; cat'", filter_env.display()),
+            &format!("sh -c 'env > \"{}\"; cat'", filter_env.display()),
         ],
     );
     fs::write(repo.join(".git/info/attributes"), "*.txt filter=dump\n").expect("attributes");
@@ -83,13 +83,13 @@ fn setup(base: &Path) -> PathBuf {
         hook(
             &repo,
             name,
-            &format!("touch {}", base.join(format!("{name}.ran")).display()),
+            &format!("touch \"{}\"", base.join(format!("{name}.ran")).display()),
         );
     }
     hook(
         &repo,
         "pre-commit",
-        &format!("env > {}", base.join("pre-commit.env").display()),
+        &format!("env > \"{}\"", base.join("pre-commit.env").display()),
     );
     repo
 }
@@ -139,6 +139,13 @@ fn scrubbed_in_child() {
         config_dir: &gh_dir,
     })
     .expect("gh login check");
+    assert_clean_env(&gh_dir.join("fake-gh.fullenv"));
+    fs::remove_file(gh_dir.join("fake-gh.fullenv")).expect("reset");
+    let gh = GitHub {
+        gh: &gh,
+        config_dir: &gh_dir,
+    };
+    skyelab_git::create_pr(&repo, &gh, "t", "b").expect("pr create");
     assert_clean_env(&gh_dir.join("fake-gh.fullenv"));
 }
 

@@ -49,8 +49,8 @@ pub enum Row {
 pub struct Changes {
     pub files: Vec<ChangedFile>,
     pub rows: Vec<Row>,
-    /// [`skyelab_git::snapshot_tree`] of the working tree, read before the diff: Commit refuses unless the tree
-    /// still matches, so it never commits anything newer than what is shown.
+    /// [`skyelab_git::snapshot_tree`] of the working tree, the same before and after the diff was read (else
+    /// `None`): Commit refuses unless the tree still matches, so it never commits anything but what is shown.
     pub tree: Option<String>,
 }
 
@@ -58,8 +58,9 @@ pub struct Changes {
 /// With a `base` commit, tracked changes are since that commit, commits included.
 pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
-    // First: a change after this point makes the commit refuse, even if the diff below already shows it.
-    let tree = skyelab_git::snapshot_tree(&root)?;
+    // Before and after the diff: if they differ, what's shown may be neither, so Commit refuses (`tree: None`).
+    // A failed snapshot (say an unreadable file) still shows the tab, and Commit refuses the same way.
+    let tree = skyelab_git::snapshot_tree(&root).ok();
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
     let diffs = match base {
         Some(base) => skyelab_git::diff_merge_base(dir, base)?,
@@ -109,8 +110,9 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     }
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
 
+    let after = skyelab_git::snapshot_tree(&root).ok();
     let mut changes = Changes {
-        tree: Some(tree),
+        tree: tree.filter(|t| after.as_ref() == Some(t)),
         ..Changes::default()
     };
     for (mut f, rows) in entries {

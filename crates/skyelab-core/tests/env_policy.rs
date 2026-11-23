@@ -70,8 +70,17 @@ fn parent() -> Vec<(OsString, OsString)> {
         .chain(SHELL_ONLY)
         .chain(WINDOWS)
         .chain(&["SSH_AUTH_SOCK"])
-        .map(|k| (OsString::from(k), OsString::from(format!("v-{k}"))))
+        .map(|k| (OsString::from(k), OsString::from(value(k))))
         .collect()
+}
+
+/// Each planted var's value; PATH's is absolute, so an agent keeps it.
+fn value(k: &str) -> String {
+    match k {
+        "Path" if cfg!(windows) => r"C:\bin".into(),
+        "Path" => "/bin".into(),
+        _ => format!("v-{k}"),
+    }
 }
 
 fn names(vars: &[(OsString, OsString)]) -> BTreeSet<String> {
@@ -146,6 +155,6 @@ fn path_keeps_relative_entries_only_for_terminals() {
 #[test]
 fn values_pass_unchanged() {
     for (k, v) in terminal_vars(parent(), false) {
-        assert_eq!(v, OsString::from(format!("v-{}", k.to_string_lossy())));
+        assert_eq!(v, OsString::from(value(&k.to_string_lossy())));
     }
 }

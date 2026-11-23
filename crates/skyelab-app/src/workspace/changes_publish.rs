@@ -117,11 +117,12 @@ impl ChangesView {
             .as_ref()
             .map(|c| (c.files.as_slice(), c.tree.clone()))
             .unwrap_or_default();
-        // Nothing ticked means every listed file, by name: never `git add -A` of whatever is on disk by then.
-        // A ticked rename takes its old path along, so the deletion lands in the same commit.
+        let nothing = files.is_empty();
+        // A ticked rename takes its old path along, so the deletion lands in the same commit. Nothing ticked is
+        // everything, which `commit` only does while the tree is exactly the one shown (`tree`).
         let paths: Vec<PathBuf> = files
             .iter()
-            .filter(|f| self.selected.is_empty() || self.selected.contains(&f.path))
+            .filter(|f| self.selected.contains(&f.path))
             .flat_map(|f| std::iter::once(f.path.clone()).chain(f.old_path.clone()))
             .collect();
         self.run(
@@ -129,10 +130,12 @@ impl ChangesView {
             window,
             cx,
             move |t, _| {
-                let tree = tree.context("the Changes tab hasn't loaded yet")?;
-                if paths.is_empty() {
+                if nothing {
                     bail!("nothing to commit");
                 }
+                let tree = tree.context(
+                    "the files were changing while the Changes tab loaded; refresh it, then commit",
+                )?;
                 let mut env = t.config.launch_env(&t.dir)?;
                 // ssh commit signing needs the agent; only for accounts that let their agents use it too, since
                 // the repo's hooks (agent-writable) see the same env.
