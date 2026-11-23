@@ -28,7 +28,7 @@ fn migrates_empty_db() {
     let version: i64 = raw
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("test setup");
-    assert_eq!(version, 20);
+    assert_eq!(version, 21);
     let tables: Vec<String> = raw
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'event_text%' ORDER BY name")
         .expect("test setup")
@@ -44,6 +44,7 @@ fn migrates_empty_db() {
             "events",
             "project_scripts",
             "projects",
+            "scheduled_tasks",
             "threads",
             "turn_usage",
             "usage_readings"

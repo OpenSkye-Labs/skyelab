@@ -51,6 +51,10 @@ What's built today:
   state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
   per account and per project, with a daily chart, from what the agents reported (no account is asked).
+- **Scheduled tasks.** Settings → Scheduled tasks saves a prompt that starts a new thread in a project every N
+  minutes or hours, daily or on weekdays at a time, or on a cron expression, while SkyeLab runs. Each run uses the
+  folder's bound account as resolved then; a rebound or unbound folder pauses the task instead. **Schedule this
+  prompt…** in the palette starts one from a composer ([guide](docs/user-guide-scheduled.md)).
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user (a sparkle writes the commit
   message or PR text, from the PR template too, with that account's agent); inherited `GH_TOKEN` /

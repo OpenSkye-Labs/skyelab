@@ -102,6 +102,7 @@ impl Workspace {
                 id.clone(),
                 RowMarks {
                     pinned: t.pinned_at.is_some(),
+                    scheduled: t.scheduled_task_id.is_some(),
                     unread: t.unread,
                     approval: state.approval,
                     started_ms: state.started_ms.filter(|_| state.running()),

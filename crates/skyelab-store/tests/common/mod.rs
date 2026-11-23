@@ -25,6 +25,8 @@ ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN fo
 ALTER TABLE threads DROP COLUMN fork_context;
 ";
 
+/// Undoes migration 21: scheduled tasks.
+pub const UNDO_V21: &str = "DROP TABLE scheduled_tasks; DROP INDEX threads_scheduled_task; ALTER TABLE threads DROP COLUMN scheduled_task_id;";
 pub const UNDO_V19: &str =
     "DROP TRIGGER side_chats_delete; ALTER TABLE threads DROP COLUMN side_of;";
 /// Undoes migration 16: the turn usage table.

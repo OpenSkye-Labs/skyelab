@@ -110,6 +110,8 @@ pub struct ThreadView {
     pub(super) parent: Option<(i64, SharedString)>,
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
+    /// The scheduled task this new thread runs for: written on its row (the sidebar's badge).
+    pub(super) scheduled_task: Option<i64>,
     pub(super) children: Vec<ChildLink>,
     /// The details card's state for this thread.
     pub(super) details: super::thread_details::Details,
@@ -311,6 +313,7 @@ impl ThreadView {
             turns: Arc::default(),
             parent: None,
             required_account: None,
+            scheduled_task: None,
             children: Vec::new(),
             details: Default::default(),
             mode: Mode::Default,

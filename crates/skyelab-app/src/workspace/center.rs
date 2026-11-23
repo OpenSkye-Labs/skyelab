@@ -150,6 +150,11 @@ impl Workspace {
                 if section == crate::settings::Section::Usage {
                     self.reload_usage(cx);
                 }
+                if section == crate::settings::Section::Scheduled
+                    && let Some(page) = settings.read(cx).scheduled.clone()
+                {
+                    page.update(cx, |p, cx| p.reload(cx));
+                }
                 settings.read(cx).focus_handle(cx).focus(window, cx);
                 settings.into()
             }
