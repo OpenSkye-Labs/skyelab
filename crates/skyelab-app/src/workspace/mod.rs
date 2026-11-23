@@ -209,6 +209,8 @@ pub struct Workspace {
     _attention: Vec<Subscription>,
     /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
     purges: std::collections::HashMap<i64, Task<()>>,
+    /// The last unread-mark write; each new one waits for it.
+    _unread_write: Option<Task<()>>,
     /// Every notice shown (warnings, undo notices, thread notifications), for tests: the toast list is private.
     #[cfg(test)]
     notices: Vec<SharedString>,
@@ -324,6 +326,7 @@ impl Workspace {
             _search: None,
             _attention: Vec::new(),
             purges: Default::default(),
+            _unread_write: None,
             #[cfg(test)]
             notices: Vec::new(),
         };

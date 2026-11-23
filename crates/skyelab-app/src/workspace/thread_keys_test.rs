@@ -38,6 +38,13 @@ fn thread_keys_walk_the_sidebar_order(cx: &mut TestAppContext) {
     cx.simulate_keystrokes(&format!("{M}-shift-["));
     cx.run_until_parked();
     assert_eq!(shown(&r, cx), Some(a));
+    // How a real macOS keyboard reports ⌘⇧] and ⌘⇧[.
+    cx.simulate_keystrokes(&format!("{M}-}}"));
+    cx.run_until_parked();
+    assert_eq!(shown(&r, cx), Some(c));
+    cx.simulate_keystrokes(&format!("{M}-{{"));
+    cx.run_until_parked();
+    assert_eq!(shown(&r, cx), Some(a));
     cx.simulate_keystrokes(&format!("{M}-9"));
     cx.run_until_parked();
     assert_eq!(shown(&r, cx), Some(a), "no ninth thread: nothing happens");

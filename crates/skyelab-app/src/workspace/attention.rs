@@ -60,19 +60,29 @@ fn key_actions() -> [Box<dyn Action>; 13] {
 pub fn init(cx: &mut App) {
     let context = |c: &str| KeyBindingContextPredicate::parse(c).ok().map(Rc::new);
     let (workspace, terminal) = (context(super::CONTEXT), context("Terminal"));
+    let load = |keys: &str, action, context| {
+        KeyBinding::load(keys, action, context, false, None, cx)
+            .expect("static keystrokes are valid")
+    };
+    // A real keyboard reports ⌘⇧[ as `cmd-{` (macOS folds shift into the character); simulated keys say
+    // `cmd-shift-[`. Both spellings are bound, the shift one first so the palette shows it.
+    let spelled_both = [("shift-[", "{"), ("shift-]", "}")];
     let mut keys = Vec::new();
     for (key, action) in THREAD_KEYS.iter().zip(key_actions()) {
-        let load = |keys: &str, action, context| {
-            KeyBinding::load(keys, action, context, false, None, cx)
-                .expect("static keystrokes are valid")
-        };
-        keys.push(load(&format!("secondary-{key}"), action, workspace.clone()));
-        if !cfg!(target_os = "macos") {
+        let alias = spelled_both.iter().find(|(k, _)| k == key).map(|(_, a)| *a);
+        for key in std::iter::once(*key).chain(alias) {
             keys.push(load(
-                &format!("ctrl-{key}"),
-                Box::new(NoAction),
-                terminal.clone(),
+                &format!("secondary-{key}"),
+                action.boxed_clone(),
+                workspace.clone(),
             ));
+            if !cfg!(target_os = "macos") {
+                keys.push(load(
+                    &format!("ctrl-{key}"),
+                    Box::new(NoAction),
+                    terminal.clone(),
+                ));
+            }
         }
     }
     cx.bind_keys(keys);
@@ -118,16 +128,16 @@ impl Workspace {
             return;
         }
         let id = thread.id;
-        let store = self.backend.store.clone();
-        cx.background_spawn(async move {
-            if let Ok(s) = lock(&store) {
-                let _ = s.set_thread_unread(id, true); // best effort: the dot is a hint, the thread is intact
-            }
-        })
-        .detach();
+        self.write_unread(id, true, cx);
         if let Some(t) = self.threads.iter_mut().find(|t| t.id == id) {
             t.unread = true;
         }
+        // The tab's row too: the thread may be in a project the sidebar isn't showing.
+        view.update(cx, |v, _| {
+            if let Some(t) = v.thread.as_mut() {
+                t.unread = true;
+            }
+        });
         self.rerun_search(cx); // the turn added message text the filter may match
         self.refresh_sidebar(cx);
         if thread.archived_at.is_none() {
@@ -179,21 +189,39 @@ impl Workspace {
         if !window.is_window_active() {
             return;
         }
-        let Some(id) = self.shown_thread(cx) else {
+        let Some(view) = self.shown_view(cx) else {
             return;
         };
-        let Some(t) = self.threads.iter_mut().find(|t| t.id == id && t.unread) else {
+        let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
             return;
         };
-        t.unread = false;
-        let store = self.backend.store.clone();
-        cx.background_spawn(async move {
-            if let Ok(s) = lock(&store) {
-                let _ = s.set_thread_unread(id, false);
+        let in_tab = view.update(cx, |v, _| {
+            v.thread
+                .as_mut()
+                .is_some_and(|t| std::mem::replace(&mut t.unread, false))
+        });
+        let in_list = self
+            .threads
+            .iter_mut()
+            .find(|t| t.id == id)
+            .is_some_and(|t| std::mem::replace(&mut t.unread, false));
+        if in_tab || in_list {
+            self.write_unread(id, false, cx);
+            self.refresh_sidebar(cx);
+        }
+    }
+
+    /// Stores a thread's unread mark after any earlier write, so a quick mark-then-clear can't land reversed.
+    fn write_unread(&mut self, id: i64, unread: bool, cx: &mut Context<Self>) {
+        let (prev, store) = (self._unread_write.take(), self.backend.store.clone());
+        self._unread_write = Some(cx.background_spawn(async move {
+            if let Some(prev) = prev {
+                prev.await;
             }
-        })
-        .detach();
-        self.refresh_sidebar(cx);
+            if let Ok(s) = lock(&store) {
+                let _ = s.set_thread_unread(id, unread); // best effort: the dot is a hint, the thread is intact
+            }
+        }));
     }
 
     fn step_thread(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {

@@ -106,13 +106,14 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.pending_removal = None;
-        for view in self.project_views(id, cx) {
-            self.close_thread_tab(view, window, cx);
-        }
         let job: Job = Box::new(move |s| s.set_project_removed(id, true));
         self.store_then(
             job,
-            move |ws, _, cx| {
+            // Stored first: if that fails, the project stays and so do its agents.
+            move |ws, window, cx| {
+                for view in ws.project_views(id, cx) {
+                    ws.close_thread_tab(view, window, cx);
+                }
                 if ws.project.as_ref().is_some_and(|p| p.id == id) {
                     ws.project = None;
                     ws.threads.clear();
