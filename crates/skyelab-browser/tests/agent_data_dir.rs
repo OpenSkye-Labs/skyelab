@@ -1,4 +1,4 @@
-//! S3: on Windows every agent tab gets its own WebView2 user-data folder, so InPrivate sessions (cookies,
+//! On Windows every agent tab gets its own WebView2 user-data folder, so InPrivate sessions (cookies,
 //! storage) are never shared between agent tabs or accounts. The folder chooser runs on every OS.
 
 #[test]

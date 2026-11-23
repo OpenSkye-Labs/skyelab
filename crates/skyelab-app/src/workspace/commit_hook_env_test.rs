@@ -1,4 +1,4 @@
-//! S4: the repo's commit hooks run with the bound account's git credential binding, the one its agents get: every
+//! The repo's commit hooks run with the bound account's git credential binding, the one its agents get: every
 //! configured helper (a keychain among them) is reset and only the account's gh answers, ssh is refused unless the
 //! account allows it, and git never prompts.
 

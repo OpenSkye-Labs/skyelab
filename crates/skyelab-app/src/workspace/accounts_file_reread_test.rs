@@ -1,4 +1,4 @@
-//! N3: terminals and the Changes tab act on accounts.toml as saved right now, like agent launches, not on the
+//! Terminals and the Changes tab act on accounts.toml as saved right now, like agent launches, not on the
 //! window's copy of it: an outside edit that rebinds or unbinds a folder applies to them at once.
 
 use super::changes_model_test::git;

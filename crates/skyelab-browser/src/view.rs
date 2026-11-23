@@ -34,7 +34,6 @@ pub struct BrowserView {
     /// Pages committed so far, so a caller can wait for the next one.
     loads: u64,
     focus: FocusHandle,
-    /// Windows: the agent tab's own WebView2 user-data folder, removed with the tab.
     _data_dir: Option<tempfile::TempDir>,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,

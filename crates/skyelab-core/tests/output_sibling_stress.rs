@@ -1,4 +1,4 @@
-//! S0: launches run `git config` while other threads spawn long-lived agents. However the spawns interleave,
+//! Launches run `git config` while other threads spawn long-lived agents. However the spawns interleave,
 //! every call returns within a bound (a sibling that inherits the output pipe must not hold the call open).
 #![cfg(unix)]
 

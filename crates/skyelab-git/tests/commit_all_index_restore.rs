@@ -1,4 +1,4 @@
-//! N6: a commit-all that fails (here a pre-commit hook refuses it) leaves the user's index exactly as it was:
+//! A commit-all that fails (here a pre-commit hook refuses it) leaves the user's index exactly as it was:
 //! a partial staging is not turned into "everything staged".
 #![cfg(unix)]
 

@@ -328,7 +328,6 @@ impl Host for AppHost {
             } => {
                 let deadline = Instant::now() + Duration::from_secs(timeout_s);
                 loop {
-                    // A stopped caller's agent is gone: nobody is waiting for the answer any more.
                     if !granted() {
                         return Err(CALLER_GONE.into());
                     }

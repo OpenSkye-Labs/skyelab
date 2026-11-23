@@ -1,4 +1,4 @@
-//! N4: the spawn re-check compares the login an account is (id, provider, config dir, gh dir, ssh), not its
+//! The spawn re-check compares the login an account is (id, provider, config dir, gh dir, ssh), not its
 //! display label: a label edited in accounts.toml must not refuse a launch, a changed login still must.
 #![cfg(unix)]
 

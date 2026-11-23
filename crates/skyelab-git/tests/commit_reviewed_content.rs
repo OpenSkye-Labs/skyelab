@@ -1,4 +1,4 @@
-//! N7: what gets committed is what the user reviewed. A file whose content git sees change after the review
+//! What gets committed is what the user reviewed. A file whose content git sees change after the review
 //! check (an agent still writing it; modelled here by a clean filter that answers differently on later runs) must
 //! not have its later content committed, for ticked files and for commit-all.
 #![cfg(unix)]

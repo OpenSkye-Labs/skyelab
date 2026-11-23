@@ -1,4 +1,4 @@
-//! S1: codex refusing to open the thread while a follow-up waits answers every queued prompt, so the row leaves
+//! Codex refusing to open the thread while a follow-up waits answers every queued prompt, so the row leaves
 //! `running` though `codex app-server` is still alive.
 
 use super::claude_folded_turns_test::{one_view, row, wait_until};

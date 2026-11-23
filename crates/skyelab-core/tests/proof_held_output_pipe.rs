@@ -1,4 +1,4 @@
-//! S0: `scoped_extra_headers` runs on every agent launch. A git whose stdout another process still holds (a
+//! `scoped_extra_headers` runs on every agent launch. A git whose stdout another process still holds (a
 //! sibling that inherited the pipe while it was being created, or anything git left running) must not keep it
 //! waiting: the call returns once git exits.
 #![cfg(unix)]

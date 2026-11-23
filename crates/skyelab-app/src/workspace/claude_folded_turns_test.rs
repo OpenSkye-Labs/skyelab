@@ -1,4 +1,4 @@
-//! S2: claude can fold a message sent mid-turn into the running turn and end both with one `result`. Its
+//! Claude can fold a message sent mid-turn into the running turn and end both with one `result`. Its
 //! `user_message_uuids` names the prompts it answered, so the row goes idle then; a background "wake" result that
 //! answers none of our prompts ends no turn.
 

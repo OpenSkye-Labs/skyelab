@@ -1,4 +1,4 @@
-//! N1, N2: once a parent is stopped, a browser call it had on its way is refused like start and send, and its
+//! Once a parent is stopped, a browser call it had on its way is refused like start and send, and its
 //! `wait_thread` stops polling instead of holding the connection for the rest of its timeout.
 
 use super::browser_agent_test::fake_pages;

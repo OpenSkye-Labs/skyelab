@@ -1,4 +1,4 @@
-//! S2 (session end): an agent that exits while a tool it started still holds its stdout is seen as ended once it
+//! An agent that exits while a tool it started still holds its stdout is seen as ended once it
 //! exits, not when that tool lets go of the pipe; and the tool, in the agent's process group, is ended with it.
 
 use super::claude_folded_turns_test::{one_view, row, wait_until};

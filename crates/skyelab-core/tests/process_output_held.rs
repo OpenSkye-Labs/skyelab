@@ -1,4 +1,4 @@
-//! S0: `process::output` returns when the child exits, even while a process it left behind still holds its
+//! `process::output` returns when the child exits, even while a process it left behind still holds its
 //! stdout or stderr, and it hands `input` to the child's stdin.
 #![cfg(unix)]
 

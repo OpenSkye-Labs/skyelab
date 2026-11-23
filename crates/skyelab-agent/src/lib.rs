@@ -36,7 +36,6 @@ pub struct Session {
     next_request: u64,
     /// Set for Codex: the protocol state the reader thread shares.
     codex: Option<Arc<Mutex<codex::Codex>>>,
-    /// Claude's prompts not answered yet (`claude::parse`).
     sent: claude::Sent,
     /// Windows: the Job Object the agent runs in. Closing it ends the agent and every process it started (on
     /// Windows `Child::kill` ends only the `claude.cmd` shim's cmd.exe).
@@ -373,7 +372,7 @@ impl Session {
         self.kill_group();
         // An already-exited child makes kill() error; wait() still reaps it.
         let _ = self.child.kill();
-        self.status = Some(self.child.wait().context("waiting for claude to exit")?);
+        self.status = Some(self.child.wait().context("waiting for the agent to exit")?);
         Ok(())
     }
 

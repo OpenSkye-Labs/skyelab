@@ -48,7 +48,7 @@ impl ThreadView {
             loop {
                 let event = match futures::future::select(events.recv_async(), &mut tick).await {
                     Either::Left((Ok(event), _)) => event,
-                    Either::Left((Err(_), _)) => break,
+                    Either::Left((Err(_), _)) => break, // stdout closed
                     Either::Right(_) if exited => break, // DRAIN passed since the exit
                     Either::Right(_) => {
                         let s = watched.clone();
