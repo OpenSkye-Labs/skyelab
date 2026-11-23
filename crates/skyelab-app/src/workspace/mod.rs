@@ -522,6 +522,8 @@ mod generate_text_test;
 #[cfg(test)]
 mod image_viewer_test;
 #[cfg(all(test, unix))]
+mod import_refused_test;
+#[cfg(all(test, unix))]
 mod import_sessions_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;

@@ -102,7 +102,9 @@ pub(super) struct Imported {
     pub skipped: usize,
     /// Sessions read only up to the size cap.
     pub truncated: usize,
-    /// Sessions not imported: already a thread, unreadable, or no longer this account's.
+    /// Sessions a project got a thread for after the picker listed them: one session, one thread.
+    pub already: usize,
+    /// Sessions not imported: unreadable, or no longer this account's.
     pub left: usize,
 }
 
@@ -168,13 +170,14 @@ pub(super) fn import_picks(
         // One failed write leaves that session out; the ones already stored still reach the sidebar.
         let stored =
             lock(store).and_then(|mut s| s.import_thread(&new, &t.id, t.modified_ms, &rows));
-        match stored.ok().flatten() {
-            Some(thread) => {
+        match stored {
+            Ok(Some(thread)) => {
                 done.skipped += t.skipped;
                 done.truncated += usize::from(t.truncated);
                 done.threads.push(thread);
             }
-            None => done.left += 1,
+            Ok(None) => done.already += 1,
+            Err(_) => done.left += 1,
         }
     }
     Ok(done)
@@ -458,16 +461,19 @@ impl Workspace {
     }
 }
 
-fn summary(done: &Imported) -> String {
+pub(super) fn summary(done: &Imported) -> String {
     let mut text = match done.threads.len() {
         1 => "Imported 1 session.".to_owned(),
         n => format!("Imported {n} sessions."),
     };
-    if done.left > 0 {
+    if done.already > 0 {
         text += &format!(
-            " {} left out (already imported, unreadable, or bound elsewhere).",
-            done.left
+            " {} already imported in a project, so left alone: a session continues in one thread only.",
+            done.already
         );
+    }
+    if done.left > 0 {
+        text += &format!(" {} left out (unreadable, or bound elsewhere).", done.left);
     }
     if done.skipped > 0 {
         text += &format!(" {} unreadable lines skipped.", done.skipped);
