@@ -5,6 +5,7 @@ mod claude;
 mod codex;
 mod event;
 mod launch;
+pub use launch::resolve_bin;
 #[cfg(unix)]
 pub mod mcp;
 

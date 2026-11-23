@@ -99,7 +99,7 @@ pub(crate) fn dock_toggles(cx: &App) -> Vec<Button> {
 /// Where the layout is saved, and the pending debounced save.
 #[derive(Default)]
 pub(super) struct LayoutStore {
-    path: Option<PathBuf>,
+    pub(super) path: Option<PathBuf>,
     save: Option<Task<()>>,
     /// The layout the pending save will write; quitting writes it at once instead.
     pending: Option<WindowLayout>,
@@ -158,6 +158,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Another tab may be on screen now: its row is the selected one, and it has been seen.
+        self.mark_seen(window, cx);
+        self.refresh_sidebar(cx);
         if matches!(e, DockEvent::LayoutChanged) {
             self.refill_right(window, cx);
             self.sync_toggles(cx);
