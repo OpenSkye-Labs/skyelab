@@ -67,8 +67,9 @@ pub fn create_branch(dir: &Path, name: &str) -> Result<()> {
     git(dir, &["switch", "--no-guess", "-c", name]).map(drop)
 }
 
-/// Switches the checkout at `dir` to the existing local branch `name`. Ignored files are never touched. With
-/// changes, `on_dirty` decides; a failed switch after a stash puts the stash back, so no work is lost.
+/// Switches the checkout at `dir` to the existing local branch `name`. Ignored files are never overwritten (git
+/// refuses instead). With changes, `on_dirty` decides; a failed switch after a stash applies that stash back, so no
+/// work is lost.
 pub fn switch_branch(dir: &Path, name: &str, on_dirty: OnDirty) -> Result<()> {
     let full = valid(dir, name)?;
     if !git_succeeds(dir, &["show-ref", "--verify", "--quiet", &full])? {
@@ -76,22 +77,45 @@ pub fn switch_branch(dir: &Path, name: &str, on_dirty: OnDirty) -> Result<()> {
     }
     let dirty = !status(dir)?.is_clean();
     let stashed = match (dirty, on_dirty) {
-        (false, _) | (true, OnDirty::Carry) => false,
+        (false, _) | (true, OnDirty::Carry) => None,
         (true, OnDirty::Refuse) => return Err(Error::Dirty(dir.to_owned())),
         (true, OnDirty::Stash) => {
+            let before = stash_top(dir)?;
             let msg = format!("skyelab: changes left on the way to {name}");
             git(dir, &["stash", "push", "--include-untracked", "-m", &msg])?;
-            true
+            // The entry this push made, by id: the stash stack is shared with other worktrees. `None` when git had
+            // nothing it could stash.
+            stash_top(dir)?.filter(|top| Some(top) != before.as_ref())
         }
     };
-    match git(dir, &["switch", "--no-guess", name]) {
+    match git(
+        dir,
+        &["switch", "--no-guess", "--no-overwrite-ignore", name],
+    ) {
         Ok(_) => Ok(()),
-        Err(e) if stashed => match git(dir, &["stash", "pop", "--index"]) {
-            Ok(_) => Err(e),
-            Err(p) => Err(Error::Invalid(format!(
-                "{e}; your changes are in the stash (`git stash list`), restoring them failed: {p}"
-            ))),
+        Err(e) => match stashed {
+            None => Err(e),
+            Some(id) => match git(dir, &["stash", "apply", "--index", &id]) {
+                Ok(_) => Err(Error::Invalid(format!(
+                    "{e}; your changes are back, and still saved in the stash"
+                ))),
+                Err(p) => Err(Error::Invalid(format!(
+                    "{e}; your changes are in the stash ({id}), restoring them failed: {p}"
+                ))),
+            },
         },
-        Err(e) => Err(e),
     }
+}
+
+/// The newest stash entry's commit, if any.
+fn stash_top(dir: &Path) -> Result<Option<String>> {
+    let out = crate::output(
+        Path::new("git"),
+        dir,
+        &["rev-parse", "-q", "--verify", "refs/stash"],
+    )?;
+    Ok(out
+        .status
+        .success()
+        .then(|| lossy(&out.stdout).trim().to_owned()))
 }

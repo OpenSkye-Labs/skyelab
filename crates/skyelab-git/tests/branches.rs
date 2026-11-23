@@ -171,3 +171,22 @@ fn carry_takes_changes_along_and_a_conflict_keeps_them() {
         "edited\n"
     );
 }
+
+#[test]
+fn a_switch_never_overwrites_an_ignored_file() {
+    let (_tmp, repo) = repo();
+    // `feature` tracks notes.txt; on main it is ignored and holds the user's own text.
+    git(&repo, &["switch", "-q", "feature"]);
+    std::fs::write(repo.join("notes.txt"), "tracked\n").expect("w");
+    git(&repo, &["add", "notes.txt"]);
+    git(&repo, &["commit", "-q", "-m", "notes"]);
+    git(&repo, &["switch", "-q", "main"]);
+    std::fs::write(repo.join(".git/info/exclude"), "notes.txt\n").expect("w");
+    std::fs::write(repo.join("notes.txt"), "mine\n").expect("w");
+    assert!(switch_branch(&repo, "feature", OnDirty::Refuse).is_err());
+    assert_eq!(current(&repo), "main");
+    assert_eq!(
+        std::fs::read_to_string(repo.join("notes.txt")).expect("r"),
+        "mine\n"
+    );
+}
