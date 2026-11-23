@@ -52,6 +52,13 @@ block2 = "0.6.2"
 # Decodes the snapshot, scales it and writes the PNG; already in the tree through gpui.
 image = { version = "0.25.10", default-features = false, features = ["png", "tiff"] }
 url = "2.5.9"
+# Mermaid diagrams in replies: pure-Rust parse + layout + SVG (no CLI, no PNG feature), rasterized by resvg with
+# image hrefs refused. resvg's raster-images stay off: diagrams draw no embedded images.
+mermaid-rs-renderer = { version = "0.3.1", default-features = false }
+resvg = { version = "0.50.0", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+# Linux browser screenshots: the exact webkit2gtk (and its cairo-rs) lb-wry pins, so the snapshot's types match.
+webkit2gtk = "=2.0.1"
+cairo-rs = { version = "0.18.5", features = ["png"] }
 # Project file walk and content search (ripgrep's crates, no external binary).
 ignore = "0.4.35"
 grep-searcher = "0.1.18"

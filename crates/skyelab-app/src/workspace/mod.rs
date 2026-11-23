@@ -27,6 +27,8 @@ mod keys;
 pub(crate) mod layout;
 mod manage;
 mod manage_projects;
+mod mermaid;
+mod mermaid_block;
 mod onboarding;
 mod settings_tab;
 mod setup_flow;
@@ -535,6 +537,12 @@ mod manage_harness;
 mod manage_projects_test;
 #[cfg(test)]
 mod manage_threads_test;
+#[cfg(test)]
+mod mermaid_cap_test;
+#[cfg(test)]
+mod mermaid_href_test;
+#[cfg(test)]
+mod mermaid_test;
 #[cfg(all(test, unix))]
 mod onboarding_test;
 #[cfg(test)]

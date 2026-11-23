@@ -15,6 +15,10 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
 - Shell commands show as `$ command` with how they ended (`exit 1`, `failed`); click one for its output.
 - Messages and code blocks have copy buttons; under a turn's final reply the copy button sits next to the time the
   turn ended.
+- A ```` ```mermaid ```` block in a reply draws as a diagram once the block is complete (while it streams you see its
+  source). The code icon in its corner shows the source, the diagram icon brings the drawing back, and copy copies the
+  source. A diagram SkyeLab can't draw (bad syntax, over 16 KB, or too big to read) shows its source with the reason.
+  Diagrams never load images or links.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
   **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›**. Click it to open or fold the work. A running turn shows
   everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.
