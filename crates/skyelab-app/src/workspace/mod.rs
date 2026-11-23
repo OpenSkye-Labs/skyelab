@@ -554,6 +554,8 @@ mod mermaid_cap_test;
 #[cfg(test)]
 mod mermaid_href_test;
 #[cfg(test)]
+mod mermaid_pool_test;
+#[cfg(test)]
 mod mermaid_test;
 #[cfg(test)]
 mod multi_window_test;
