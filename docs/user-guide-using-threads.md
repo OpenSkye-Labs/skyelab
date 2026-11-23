@@ -95,8 +95,11 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   sessions run in the folder or a folder under it with their title, age and message count, and imports the ones you
   tick as threads. Sessions in a subfolder bound to another account are left out. A Claude session's timeline shows
   your prompts, the agent's replies, thinking and tool calls; a Codex session shows prompts and replies only (the
-  agent still has its full history). Sending in an imported thread continues the same session. Sessions already in
-  a thread are marked **Imported** and can't be picked again. The account's files are only read, never changed; each
+  agent still has its full history). Each message keeps the time it had in the session. Sending in an imported thread
+  continues the same session; if the agent no longer has it, the thread says so and runs your message in a new
+  session (Claude and Codex alike). Sessions already in a thread, in any project (nested projects can both list
+  one), are marked **Imported** and can't be picked again, and a thread won't resume a session another thread is
+  running right now. The account's files are only read, never changed; each
   session is read up to 32 MB, and lines that don't parse are skipped (the notice says how many).
 - **Unread.** When a turn finishes in a thread you aren't looking at, or a thread starts in the background
   (delegated, or from another device), the thread's title turns bold and its row says **Done** until you open it. You

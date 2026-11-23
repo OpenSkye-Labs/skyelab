@@ -52,7 +52,8 @@ and how Zed uses it, not blog posts or memory.
   `Markdown`, the code editor. Only drop to raw `div()` for layout.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
 - gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
-  stretches across the footer. Use a plain `Button` whose `on_click` calls `window.close_dialog(cx)`.
+  stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
+  `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.
 - A click on a gpui-component `Checkbox` also reaches a clickable row around it, so handlers on both toggle twice
   (no change). Put the handler on the row only and leave the checkbox as its picture.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.

@@ -389,3 +389,14 @@ impl gpui::AssetSource for AppAssets {
         Ok(paths)
     }
 }
+
+/// A dialog footer's Cancel. Not gpui-component's `DialogClose`: it wraps its button in a `size_full` div, which
+/// stretches Cancel across the footer (docs/gpui.md).
+pub fn dialog_cancel(id: &'static str) -> gpui_component::button::Button {
+    use gpui_component::{Sizable as _, WindowExt as _};
+    gpui_component::button::Button::new(id)
+        .outline()
+        .small()
+        .label("Cancel")
+        .on_click(|_, window, cx| window.close_dialog(cx))
+}

@@ -3,11 +3,12 @@
 use super::Workspace;
 use super::manage::{Job, ManageProject, ProjectOp};
 use super::thread::ThreadView;
+use crate::ui;
 use gpui::{AppContext as _, Context, Entity, ParentElement as _, Window};
 use gpui_component::{
     Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
-    dialog::{DialogClose, DialogFooter},
+    dialog::DialogFooter,
     input::{Input, InputEvent, InputState},
     v_flex,
 };
@@ -70,10 +71,7 @@ impl Workspace {
                         .child(text.clone())
                         .footer(
                             DialogFooter::new()
-                                .child(
-                                    DialogClose::new()
-                                        .trigger(|b| b.outline().small().label("Cancel")),
-                                )
+                                .child(ui::dialog_cancel("remove-project-cancel"))
                                 .child(
                                     Button::new("remove-project")
                                         .danger()
@@ -175,7 +173,7 @@ impl Workspace {
                 .child(v_flex().child(Input::new(&field)))
                 .footer(
                     DialogFooter::new()
-                        .child(DialogClose::new().trigger(|b| b.outline().small().label("Cancel")))
+                        .child(ui::dialog_cancel("rename-cancel"))
                         .child(
                             Button::new("rename-save")
                                 .primary()
