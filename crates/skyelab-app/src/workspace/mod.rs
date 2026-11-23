@@ -187,8 +187,8 @@ pub struct Workspace {
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     /// Each open thread view's subscriptions and the row state the sidebar last drew; dropped in `close_thread`.
     thread_subs: std::collections::HashMap<gpui::EntityId, thread_rows::ThreadSubs>,
-    /// One-shot waits on a thread view, by key; each removes itself once it fires.
-    waiters: std::collections::HashMap<usize, Subscription>,
+    /// One-shot waits on a thread view, by key; each removes itself once it fires, or goes when its view closes.
+    waiters: std::collections::HashMap<usize, (gpui::EntityId, Subscription)>,
     next_waiter: usize,
     _load: Option<Task<()>>,
     _add: Option<Task<()>>,

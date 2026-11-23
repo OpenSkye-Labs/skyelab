@@ -74,6 +74,8 @@ pub(crate) struct Menu {
     pub items: Option<Arc<Vec<MenuItem>>>,
     pub rows: Vec<usize>,
     pub selected: usize,
+    /// The query `rows` were ranked for; behind `query` while a ranking runs.
+    pub ranked: Option<String>,
     /// Ranks `items` for `query` off the UI thread; a newer query (or closing the menu) drops it.
     pub _rank: Option<gpui::Task<()>>,
 }
@@ -103,6 +105,8 @@ pub(crate) struct Composer {
     pub attachments: Vec<Attachment>,
     /// Terminal output added with "Add to prompt", sent after the text.
     pub terminal_contexts: Vec<super::composer_context::TerminalContext>,
+    /// The next excerpt chip's id: never reused, so no chip inherits another's element state.
+    pub next_context: u64,
     pub queue: Queue,
     pub menu: Option<Menu>,
     pub picker_open: bool,
@@ -371,6 +375,7 @@ impl ThreadView {
             rows: Vec::new(),
             selected: 0,
             items: None,
+            ranked: None,
             _rank: None,
         });
         // Read each time a menu opens: the agent adds and removes files between turns.
@@ -436,6 +441,7 @@ impl ThreadView {
                     shown.filter(|m| m.kind == kind && m.start == start && m.query == query)
                 {
                     menu.rows = rows;
+                    menu.ranked = Some(query);
                     menu.selected = 0;
                     cx.notify();
                 }
@@ -498,9 +504,15 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(menu) = self.composer.menu.take() else {
+        let Some(mut menu) = self.composer.menu.take() else {
             return;
         };
+        // Accepted before the latest ranking landed: rank now, so the pick matches what was typed.
+        if let Some(items) = &menu.items
+            && menu.ranked.as_ref() != Some(&menu.query)
+        {
+            menu.rows = composer_menu::rank(items, &menu.query);
+        }
         let Some(item) = menu
             .rows
             .get(ix)

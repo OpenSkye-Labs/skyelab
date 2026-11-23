@@ -53,3 +53,24 @@ fn excerpt_chips_keep_their_ids_when_an_earlier_one_goes(cx: &mut TestAppContext
     let expected: Vec<(u64, String)> = (1..9).map(|n| (n, format!("Terminal {n}"))).collect();
     assert_eq!(chips, expected, "CHIP_IDS_SHIFTED");
 }
+
+#[gpui::test]
+fn a_refused_message_comes_back_when_a_send_empties_the_prompt(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    thread.update_in(cx, |t, window, cx| {
+        t.prompt
+            .update(cx, |p, cx| p.set_value("typed", window, cx));
+        t.composer.restore = Some(("refused".into(), Vec::new()));
+        // What a send does: it clears the prompt with set_value, which emits no Change.
+        t.queue_prompt("typed".into(), window, cx);
+    });
+    cx.run_until_parked();
+    let shown = thread.read_with(cx, |t, cx| t.prompt.read(cx).value().to_string());
+    assert_eq!(
+        shown, "refused",
+        "RESTORE_MISSED after a programmatic clear"
+    );
+}

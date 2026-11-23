@@ -216,7 +216,7 @@ impl Workspace {
                 this.waiters.remove(&key);
             }
         });
-        self.waiters.insert(key, watch);
+        self.waiters.insert(key, (view.entity_id(), watch));
     }
 
     fn delegated_send(

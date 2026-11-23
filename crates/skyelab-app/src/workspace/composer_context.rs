@@ -49,11 +49,12 @@ impl ThreadView {
         if text.trim().is_empty() || self.read_only {
             return;
         }
+        let id = self.composer.next_context;
+        self.composer.next_context += 1;
         let contexts = &mut self.composer.terminal_contexts;
         if contexts.len() >= MAX_CONTEXTS {
             contexts.remove(0);
         }
-        let id = contexts.last().map_or(0, |c| c.id + 1);
         contexts.push(TerminalContext {
             id,
             label,
