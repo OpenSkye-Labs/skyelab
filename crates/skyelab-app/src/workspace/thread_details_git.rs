@@ -5,11 +5,11 @@ use super::super::thread::{ChildLink, ThreadView};
 use super::super::thread::{GitAction, ThreadViewEvent};
 use super::super::thread_worktree::{DiscardWorktree, OpenChanges, OpenWorktreeTerminal};
 use super::card::{chevron, row};
-use super::{Page, is_running};
+use super::{On, Page, is_running};
 use crate::ui::{self, Status};
 use gpui::Focusable as _;
 use gpui::{
-    AnyElement, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
+    AnyElement, App, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
@@ -21,8 +21,8 @@ use gpui_component::{
 use gpui_kit_assets::IconName;
 
 impl ThreadView {
-    pub(super) fn render_git_rows(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let theme = cx.theme().clone();
+    pub(super) fn render_git_rows(&self, on: &On, cx: &App) -> Option<AnyElement> {
+        let theme = cx.theme();
         let thread = self.thread.as_ref();
         let worktree_branch =
             thread.and_then(|t| t.worktree_path.as_ref().and(t.worktree_branch.clone()));
@@ -47,7 +47,7 @@ impl ThreadView {
                     &theme,
                 )
                 .child(chevron(IconName::ChevronDown, &theme))
-                .on_click(cx.listener(move |_, _, _, cx| {
+                .on_click(on.click(move |_, _, cx| {
                     picker.update(cx, |p, cx| p.set_open(true, cx));
                     cx.notify();
                 }))
@@ -85,7 +85,7 @@ impl ThreadView {
                         &theme,
                     )
                     .child(chevron(IconName::ChevronRight, &theme))
-                    .on_click(cx.listener(|this, _, _, cx| this.open_git_menu(cx))),
+                    .on_click(on.click(|this, _, cx| this.open_git_menu(cx))),
                 )
                 .child(
                     row(
@@ -95,7 +95,7 @@ impl ThreadView {
                         &theme,
                     )
                     .children(stat)
-                    .on_click(cx.listener(|this, _, window, cx| {
+                    .on_click(on.click(|this, window, cx| {
                         this.details_home(cx);
                         this.open_changes(&OpenChanges, window, cx);
                     })),
@@ -108,7 +108,7 @@ impl ThreadView {
                             "Open terminal here",
                             &theme,
                         )
-                        .on_click(cx.listener(|this, _, window, cx| {
+                        .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
                             this.open_worktree_terminal(&OpenWorktreeTerminal, window, cx);
                         })),
@@ -120,7 +120,7 @@ impl ThreadView {
                             "Discard worktree",
                             &theme,
                         )
-                        .on_click(cx.listener(|this, _, window, cx| {
+                        .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
                             this.discard_worktree(&DiscardWorktree, window, cx);
                         })),
@@ -131,14 +131,11 @@ impl ThreadView {
     }
 
     /// The running children, then a row to the finished ones; titled with how many run.
-    pub(super) fn render_lineage(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> Option<(SharedString, AnyElement)> {
+    pub(super) fn render_lineage(&self, on: &On, cx: &App) -> Option<(SharedString, AnyElement)> {
         if self.children.is_empty() {
             return None;
         }
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         let running: Vec<&ChildLink> = self
             .children
             .iter()
@@ -150,7 +147,7 @@ impl ThreadView {
             n => format!("Lineage · {n} running").into(),
         };
         let body = v_flex()
-            .children(running.into_iter().map(|c| self.agent_row(c, cx)))
+            .children(running.into_iter().map(|c| self.agent_row(c, on, cx)))
             .when(previous > 0, |v| {
                 v.child(
                     row("details-previous", IconName::Bot, "Previous agents", &theme)
@@ -161,9 +158,7 @@ impl ThreadView {
                                 .child(previous.to_string()),
                         )
                         .child(chevron(IconName::ChevronRight, &theme))
-                        .on_click(
-                            cx.listener(|this, _, _, cx| this.details_page(Page::Previous, cx)),
-                        ),
+                        .on_click(on.click(|this, _, cx| this.details_page(Page::Previous, cx))),
                 )
             });
         Some((title, body.into_any_element()))
@@ -171,8 +166,8 @@ impl ThreadView {
 
     /// The thread's pull request (opened here or linked), else "Link pull request…". `None` before the thread has
     /// a row to keep the link on.
-    pub(super) fn render_pr(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let theme = cx.theme().clone();
+    pub(super) fn render_pr(&self, on: &On, cx: &App) -> Option<AnyElement> {
+        let theme = cx.theme();
         let thread = self.thread.as_ref()?;
         let Some(url) = thread.pr_url.clone() else {
             return Some(
@@ -182,7 +177,7 @@ impl ThreadView {
                     "Link pull request…",
                     &theme,
                 )
-                .on_click(cx.listener(|this, _, window, cx| this.open_link_pr(window, cx)))
+                .on_click(on.click(|this, window, cx| this.open_link_pr(window, cx)))
                 .into_any_element(),
             );
         };
@@ -200,7 +195,7 @@ impl ThreadView {
                         .xsmall()
                         .icon(IconName::Unlink)
                         .tooltip("Unlink pull request")
-                        .on_click(cx.listener(|this, _, _, cx| {
+                        .on_click(on.click(|this, _, cx| {
                             cx.stop_propagation(); // not the row's open-in-browser
                             this.unlink_pr(cx);
                         })),
@@ -264,8 +259,8 @@ impl ThreadView {
 
     /// T3's GitActionsControl as a page: Commit, Commit & push, Push, then Open PR (View PR once there is one). Each
     /// runs in the Changes tab, where its message and result show.
-    pub(super) fn render_git_menu(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let theme = cx.theme().clone();
+    pub(super) fn render_git_menu(&self, on: &On, cx: &App) -> Vec<AnyElement> {
+        let theme = cx.theme();
         let login = self
             .details
             .gh_login
@@ -273,7 +268,7 @@ impl ThreadView {
             .unwrap_or_else(|| "Checking the GitHub login…".into());
         let action = |id: &'static str, icon: IconName, label: &'static str, a: GitAction| {
             row(id, icon, label, &theme)
-                .on_click(cx.listener(move |this, _, _, cx| {
+                .on_click(on.click(move |this, _, cx| {
                     this.details_home(cx);
                     cx.emit(ThreadViewEvent::Git(a));
                 }))
@@ -380,8 +375,8 @@ impl ThreadView {
         self.details_home(cx);
     }
 
-    pub(super) fn render_link_pr(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let theme = cx.theme().clone();
+    pub(super) fn render_link_pr(&self, on: &On, cx: &App) -> Vec<AnyElement> {
+        let theme = cx.theme();
         let Some(input) = &self.details.pr_input else {
             return Vec::new();
         };
@@ -396,7 +391,7 @@ impl ThreadView {
                         .small()
                         .primary()
                         .label("Link")
-                        .on_click(cx.listener(|this, _, window, cx| this.link_pr(window, cx))),
+                        .on_click(on.click(|this, window, cx| this.link_pr(window, cx))),
                 )
                 .into_any_element(),
         ]
@@ -415,7 +410,7 @@ impl ThreadView {
     }
 
     /// A delegated thread: its status dot, title, and how long it has run (or how it ended); opens it.
-    pub(super) fn agent_row(&self, c: &ChildLink, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn agent_row(&self, c: &ChildLink, on: &On, cx: &App) -> AnyElement {
         let theme = cx.theme();
         let trailing = if is_running(c.status) {
             ui::ago(ui::now_ms(), c.started_ms)
@@ -454,7 +449,7 @@ impl ThreadView {
                     .text_color(theme.muted_foreground)
                     .child(trailing),
             )
-            .on_click(cx.listener(move |this, _, window, cx| {
+            .on_click(on.click(move |this, window, cx| {
                 this.details_home(cx);
                 window.dispatch_action(Box::new(OpenThread { id }), cx);
             }))

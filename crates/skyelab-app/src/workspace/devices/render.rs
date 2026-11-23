@@ -142,7 +142,8 @@ impl DevicesPanel {
     }
 
     fn render_section(&self, platform: Platform, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
+        // Copied out: the device rows below need `cx` mutably.
+        let (muted, danger) = (cx.theme().muted_foreground, cx.theme().danger);
         let note = |text: SharedString, color| {
             div()
                 .px_4()
@@ -152,16 +153,10 @@ impl DevicesPanel {
                 .child(text)
         };
         let body = match self.section(platform) {
-            SectionView::Loading => {
-                note("Looking for devices…".into(), theme.muted_foreground).into_any_element()
-            }
-            SectionView::Missing(text) => {
-                note(text.into(), theme.muted_foreground).into_any_element()
-            }
-            SectionView::Failed(e) => note(e.into(), theme.danger).into_any_element(),
-            SectionView::Devices([]) => {
-                note("No devices".into(), theme.muted_foreground).into_any_element()
-            }
+            SectionView::Loading => note("Looking for devices…".into(), muted).into_any_element(),
+            SectionView::Missing(text) => note(text.into(), muted).into_any_element(),
+            SectionView::Failed(e) => note(e.into(), danger).into_any_element(),
+            SectionView::Devices([]) => note("No devices".into(), muted).into_any_element(),
             SectionView::Devices(devices) => v_flex()
                 .children(
                     devices
@@ -172,10 +167,11 @@ impl DevicesPanel {
                 )
                 .into_any_element(),
         };
+        let theme = cx.theme();
         v_flex()
             .gap_2p5()
-            .child(ui::section_title(platform.to_string(), &theme))
-            .child(ui::group(&theme).child(body))
+            .child(ui::section_title(platform.to_string(), theme))
+            .child(ui::group(theme).child(body))
     }
 }
 
@@ -183,7 +179,7 @@ impl Render for DevicesPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.rendered = true;
         self.ensure_polling(cx);
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         let refresh = Button::new("devices-refresh")
             .small()
             .ghost()

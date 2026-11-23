@@ -182,7 +182,7 @@ impl SearchPanel {
         range: std::ops::Range<usize>,
         cx: &mut Context<Self>,
     ) -> Vec<gpui::AnyElement> {
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         range
             .filter_map(|ix| self.rows.get(ix).map(|r| (ix, r)))
             .map(|(ix, row)| match row {

@@ -211,7 +211,7 @@ impl Onboarding {
     }
 
     fn projects_band(&self, cx: &mut Context<Self>) -> Div {
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         let home = self.home.clone();
         let muted = |t: SharedString| {
             div()
@@ -346,7 +346,12 @@ impl Onboarding {
 
 impl gpui::Render for Onboarding {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
+        let bands = [
+            self.agents_band(cx),
+            self.accounts_band(cx),
+            self.projects_band(cx),
+        ];
+        let theme = cx.theme();
         let complete = self.complete();
         let error = self.error.clone().or_else(|| {
             self.load_error
@@ -373,9 +378,7 @@ impl gpui::Render for Onboarding {
                     .mt_10()
                     .border_t_1()
                     .border_color(theme.border.opacity(0.6))
-                    .child(self.agents_band(cx))
-                    .child(self.accounts_band(cx))
-                    .child(self.projects_band(cx)),
+                    .children(bands),
             )
             .children(error.map(|e| div().pt_3().text_size(ui::META).text_color(ui::ink(&theme, theme.danger)).child(e)))
             .child(

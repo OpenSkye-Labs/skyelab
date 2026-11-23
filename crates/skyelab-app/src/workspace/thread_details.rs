@@ -11,6 +11,20 @@ use crate::ui::Status;
 use gpui::{Action, AppContext as _, Context, Entity, SharedString, Task};
 use std::path::Path;
 
+/// Click handlers that update the thread view, like `cx.listener`, for a card drawn from a read borrow: the Details
+/// tab draws the card without updating the thread view inside its render.
+pub(in crate::workspace) struct On(pub gpui::WeakEntity<ThreadView>);
+
+impl On {
+    pub fn click(
+        &self,
+        f: impl Fn(&mut ThreadView, &mut gpui::Window, &mut Context<ThreadView>) + 'static,
+    ) -> impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static {
+        let view = self.0.clone();
+        move |_, window, cx| _ = view.update(cx, |v, cx| f(v, window, cx))
+    }
+}
+
 #[path = "thread_details_card.rs"]
 mod card;
 #[path = "thread_details_git.rs"]

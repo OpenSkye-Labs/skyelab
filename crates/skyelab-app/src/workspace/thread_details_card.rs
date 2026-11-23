@@ -1,10 +1,10 @@
 //! The details card's look: its sections and pages, and the Environment, Actions and Editor rows.
 
 use super::super::thread::ThreadView;
-use super::{OpenInEditorWith, Page, editor_name, is_running};
+use super::{On, OpenInEditorWith, Page, editor_name, is_running};
 use crate::ui;
 use gpui::{
-    AnyElement, ClickEvent, Context, FontWeight, SharedString, Window, div, prelude::*, px,
+    AnyElement, App, ClickEvent, Context, FontWeight, SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Icon, Sizable as _, Theme,
@@ -17,15 +17,16 @@ impl ThreadView {
     /// The card's content: a picker page when one is open, else its titled sections with `usage` (every account's,
     /// drawn by the Details tab) among them.
     pub(in crate::workspace) fn render_details(
-        &mut self,
+        &self,
         usage: AnyElement,
-        cx: &mut Context<Self>,
+        on: &On,
+        cx: &App,
     ) -> AnyElement {
         let page = v_flex().w_full();
         if self.branch_picker.read(cx).open {
             let picker = self.branch_picker.clone();
             return page
-                .child(self.back_row("Branch", cx, move |_, cx| {
+                .child(self.back_row("Branch", on, cx, move |_, cx| {
                     picker.update(cx, |p, cx| p.set_open(false, cx))
                 }))
                 .child(self.branch_picker.clone())
@@ -34,7 +35,7 @@ impl ThreadView {
         if self.scripts.read(cx).open {
             let scripts = self.scripts.clone();
             return page
-                .child(self.back_row("Project scripts", cx, move |_, cx| {
+                .child(self.back_row("Project scripts", on, cx, move |_, cx| {
                     scripts.update(cx, |m, cx| m.set_open(false, cx))
                 }))
                 .child(self.scripts.clone())
@@ -42,41 +43,43 @@ impl ThreadView {
         }
         match self.details.page {
             Page::Editors => page
-                .child(self.back_row("Open in", cx, |v, cx| v.details_page(Page::Main, cx)))
-                .children(self.render_editor_choices(cx))
+                .child(self.back_row("Open in", on, cx, |v, cx| v.details_page(Page::Main, cx)))
+                .children(self.render_editor_choices(on, cx))
                 .into_any_element(),
             Page::Git => page
-                .child(self.back_row("Commit & push", cx, |v, cx| v.details_page(Page::Main, cx)))
-                .children(self.render_git_menu(cx))
-                .into_any_element(),
-            Page::LinkPr => page
-                .child(self.back_row("Link pull request", cx, |v, cx| {
+                .child(self.back_row("Commit & push", on, cx, |v, cx| {
                     v.details_page(Page::Main, cx)
                 }))
-                .children(self.render_link_pr(cx))
+                .children(self.render_git_menu(on, cx))
+                .into_any_element(),
+            Page::LinkPr => page
+                .child(self.back_row("Link pull request", on, cx, |v, cx| {
+                    v.details_page(Page::Main, cx)
+                }))
+                .children(self.render_link_pr(on, cx))
                 .into_any_element(),
             Page::Previous => page
-                .child(self.back_row("Previous agents", cx, |v, cx| {
+                .child(self.back_row("Previous agents", on, cx, |v, cx| {
                     v.details_page(Page::Main, cx)
                 }))
                 .children(
                     self.children
                         .iter()
                         .filter(|c| !is_running(c.status))
-                        .map(|c| self.agent_row(c, cx)),
+                        .map(|c| self.agent_row(c, on, cx)),
                 )
                 .into_any_element(),
             Page::Main => {
-                let lineage = self.render_lineage(cx);
+                let lineage = self.render_lineage(on, cx);
                 let sections = [
-                    Some(("Environment".into(), self.render_environment(cx))),
-                    Some(("Actions".into(), self.render_actions(cx))),
+                    Some(("Environment".into(), self.render_environment(on, cx))),
+                    Some(("Actions".into(), self.render_actions(on, cx))),
                     lineage,
                     Some(("Usage".into(), usage)),
-                    self.render_pr(cx).map(|pr| ("Pull request".into(), pr)),
-                    Some(("Editor".into(), self.render_editor(cx))),
+                    self.render_pr(on, cx).map(|pr| ("Pull request".into(), pr)),
+                    Some(("Editor".into(), self.render_editor(on, cx))),
                 ];
-                let theme = cx.theme().clone();
+                let theme = cx.theme();
                 page.children(
                     sections
                         .into_iter()
@@ -90,8 +93,8 @@ impl ThreadView {
     }
 
     /// This machine (with the folder button), then the branch and git rows on a repo.
-    fn render_environment(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
+    fn render_environment(&self, on: &On, cx: &App) -> AnyElement {
+        let theme = cx.theme();
         let machine = self
             .details
             .machine
@@ -111,12 +114,12 @@ impl ThreadView {
                             .on_click(move |_, _, cx| cx.open_with_system(&cwd)),
                     ),
             )
-            .children(self.render_git_rows(cx))
+            .children(self.render_git_rows(on, cx))
             .into_any_element()
     }
 
-    fn render_actions(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
+    fn render_actions(&self, on: &On, cx: &App) -> AnyElement {
+        let theme = cx.theme();
         let no_scripts = self.scripts.read(cx).scripts.is_empty();
         let (icon, label) = if no_scripts {
             (IconName::Plus, "Add project script")
@@ -124,15 +127,15 @@ impl ThreadView {
             (IconName::Play, "Run project script")
         };
         row("details-scripts", icon, label, &theme)
-            .on_click(cx.listener(|this, _, _, cx| {
+            .on_click(on.click(|this, _, cx| {
                 this.scripts.update(cx, |m, cx| m.set_open(true, cx));
                 cx.notify();
             }))
             .into_any_element()
     }
 
-    fn render_editor(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
+    fn render_editor(&self, on: &On, cx: &App) -> AnyElement {
+        let theme = cx.theme();
         let editors = self.details.editors.as_ref();
         let open_in = match editors.and_then(|e| e.current.as_deref()) {
             Some(bin) => format!("Open in {}", editor_name(bin)),
@@ -141,7 +144,7 @@ impl ThreadView {
         };
         let can_choose = editors.is_some_and(|e| !e.choices.is_empty());
         row("details-open-in", IconName::SquareCode, open_in, &theme)
-            .on_click(cx.listener(|this, _, window, cx| {
+            .on_click(on.click(|this, window, cx| {
                 this.details_home(cx);
                 window.dispatch_action(Box::new(super::super::attention::OpenInEditor), cx);
             }))
@@ -149,14 +152,14 @@ impl ThreadView {
                 r.child(chevron_button(
                     "details-editor-choices",
                     IconName::ChevronDown,
-                    cx.listener(|this, _, _, cx| this.details_page(Page::Editors, cx)),
+                    on.click(|this, _, cx| this.details_page(Page::Editors, cx)),
                 ))
             })
             .into_any_element()
     }
 
-    fn render_editor_choices(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
-        let theme = cx.theme().clone();
+    fn render_editor_choices(&self, on: &On, cx: &App) -> Vec<AnyElement> {
+        let theme = cx.theme();
         let Some(editors) = &self.details.editors else {
             return Vec::new();
         };
@@ -179,7 +182,7 @@ impl ThreadView {
                             .text_color(theme.muted_foreground),
                     )
                 })
-                .on_click(cx.listener(move |this, _, window, cx| {
+                .on_click(on.click(move |this, window, cx| {
                     this.details_home(cx);
                     window.dispatch_action(
                         Box::new(OpenInEditorWith {
@@ -196,12 +199,13 @@ impl ThreadView {
     fn back_row(
         &self,
         title: &'static str,
-        cx: &mut Context<Self>,
+        on: &On,
+        cx: &App,
         back: impl Fn(&mut ThreadView, &mut Context<ThreadView>) + 'static,
     ) -> AnyElement {
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         row("details-back", IconName::ChevronLeft, title, &theme)
-            .on_click(cx.listener(move |this, _, _, cx| back(this, cx)))
+            .on_click(on.click(move |this, _, cx| back(this, cx)))
             .into_any_element()
     }
 }
