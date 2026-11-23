@@ -62,15 +62,10 @@ impl BrowserView {
     ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
         let mut no_folder = None;
-        // WebView2 shares one InPrivate session between all webviews of a user-data folder (wry sets no profile
-        // name), so on Windows each agent tab gets a folder of its own. macOS and Linux give each private webview
-        // its own in-memory store already.
-        let data_dir = (cfg!(windows) && private)
-            .then(crate::agent_data_dir)
-            .transpose()
+        let override_env = std::env::var_os("WEBVIEW2_USER_DATA_FOLDER");
+        let data_dir = crate::webview_data_dir(cfg!(windows), private, override_env.as_deref())
             .unwrap_or_else(|e| {
-                no_folder =
-                    Some(anyhow::Error::new(e).context("create the tab's private web data folder"));
+                no_folder = Some(e.context("give the agent tab its own web data folder"));
                 None
             });
         let mut context = data_dir

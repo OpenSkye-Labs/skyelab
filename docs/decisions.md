@@ -119,7 +119,10 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   compares the login (`Account::same_login`: id, provider, config dir, gh dir, ssh), not the label. (2026-11-23)
 - **Windows agent tabs and processes.** wry turns InPrivate on with no profile name, and WebView2 shares one
   InPrivate session between the webviews of a user-data folder, so each agent tab gets its own private temp folder
-  (a `WebContext`), removed with the tab. Each such folder is its own browser process group, which costs memory per
-  agent tab. An agent runs in a kill-on-close Job Object (`win32job`), so Stop ends node and its tools, not only the
+  (a `WebContext`), removed with the tab; with `WEBVIEW2_USER_DATA_FOLDER` set (which WebView2 may prefer) an agent
+  tab is refused instead. Each such folder is its own browser process group, which costs memory per agent tab. Agent
+  tabs only exist where orchestration runs (unix today), so this is in place for when Windows gets them. An agent runs in a kill-on-close Job Object (`win32job`), so Stop ends node and its tools, not only the
   `claude.cmd` shim. Limits: compile-checked only (`scripts/check-windows.sh`), not run on Windows; a process the
-  shim starts before the job assignment (microseconds after spawn) is outside the job. (2026-11-23)
+  shim starts before the job assignment (microseconds after spawn) is outside the job; a tab folder WebView2 still
+  holds when the tab closes stays in the temp dir (a registry policy that pins the folder isn't checked either).
+  (2026-11-23)
