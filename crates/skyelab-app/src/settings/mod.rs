@@ -149,18 +149,10 @@ impl Settings {
             let placeholder = placeholder.to_string();
             cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
         };
-        let id_input = input("id, e.g. acme", window, cx);
-        let label_input = input("label, e.g. Acme (Team)", window, cx);
-        let dir_input = input(
-            "absolute config dir, e.g. /Users/me/.claude-acme or /Users/me/.codex-acme",
-            window,
-            cx,
-        );
-        let gh_input = input(
-            "GitHub config dir (optional), e.g. /Users/me/.config/gh-acme",
-            window,
-            cx,
-        );
+        let id_input = input("work", window, cx);
+        let label_input = input("Work", window, cx);
+        let dir_input = input("/Users/you/.claude-work", window, cx);
+        let gh_input = input("/Users/you/.config/gh-work", window, cx);
         let test_input = input("/path/to/a/folder", window, cx);
         let keys_search = input("Search shortcuts", window, cx);
         let search_input = input("Search", window, cx);
@@ -384,6 +376,7 @@ impl Focusable for Settings {
 
 mod about;
 mod accounts;
+pub(crate) use accounts::provider_mark;
 mod appearance;
 mod bindings;
 mod general;

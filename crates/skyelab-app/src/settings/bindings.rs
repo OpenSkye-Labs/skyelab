@@ -75,8 +75,19 @@ impl Settings {
                     .file_name()
                     .map_or_else(|| id.clone(), |n| n.to_string_lossy().into_owned());
                 let warn = ui::ink(theme, theme.warning);
+                let reconfirm = reconfirm.map(|reconfirm| {
+                    Button::new(SharedString::from(format!("reconfirm-{id}")))
+                        .label("Re-confirm")
+                        .xsmall()
+                        .warning()
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.reconfirm_binding(&reconfirm, window, cx)
+                        }))
+                });
+                let theme = cx.theme();
                 let details = stale.map(|_| {
                     v_flex()
+                        .items_start()
                         .gap_1()
                         .pt_1()
                         .child(
@@ -93,6 +104,7 @@ impl Settings {
                                 .child(div().flex_shrink_0().child("Now leads to"))
                                 .child(path_text(format!("now-{id}"), n))
                         }))
+                        .children(reconfirm)
                 });
                 super::widgets::row(i == 0, cx)
                     .items_start()
@@ -130,8 +142,10 @@ impl Settings {
                             .children(details),
                     )
                     .child(
+                        // A fixed column, so every row's arrow and account line up.
                         h_flex()
                             .flex_shrink_0()
+                            .w(gpui::px(200.))
                             .gap_2()
                             .child(
                                 Icon::new(IconName::ArrowRight)
@@ -140,17 +154,6 @@ impl Settings {
                             )
                             .child(div().max_w_48().child(badge_of(&b.account))),
                     )
-                    .when_some(reconfirm, |d, reconfirm| {
-                        d.child(
-                            Button::new(SharedString::from(format!("reconfirm-{id}")))
-                                .label("Re-confirm")
-                                .small()
-                                .warning()
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.reconfirm_binding(&reconfirm, window, cx)
-                                })),
-                        )
-                    })
                     .child(
                         Button::new(SharedString::from(format!("unbind-{id}")))
                             .icon(gpui_kit_assets::IconName::Unlink)

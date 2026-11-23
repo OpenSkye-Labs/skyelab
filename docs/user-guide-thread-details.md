@@ -8,7 +8,7 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
   manager). On a git repo, then:
   - **The branch** opens the branch picker (a worktree thread shows its own branch, which doesn't switch). When the
     branch tracks an upstream, the row ends with how far apart they are (**2 behind / 1 ahead**), counted after the
-    background fetch (Settings → Threads → **Fetch remote**). If that fetch failed, a line under the row says why.
+    background fetch (Settings → Diffs & pull requests → **Fetch remote**). If that fetch failed, a line under the row says why.
   - **Pull N commits** shows while the upstream is ahead. It runs **Pull** (below).
   - **Commit & push** opens a menu that says which GitHub login pushes (the thread's account's own `gh` login, read
     against `accounts.toml` as saved now; if the folder has been bound to another account since, it shows the refusal
@@ -43,7 +43,7 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
   account's own `gh`, only while the thread's folder is still bound to that account, one PR at a time: an open PR
   every 5 minutes, and the shown thread's again on window focus or when you open it if its last read is a minute old. A merged PR is never read again, across restarts too. A closed one is read again only when you open its thread or focus its window, at most once an hour, so a reopened PR turns Open
   (linking another PR starts over). An account with no GitHub login shows **Sign in to GitHub** (it opens
-  Settings → GitHub) and `gh` is never run for it. The sidebar badge takes the state's icon and color, with a small
+  Settings → Source control) and `gh` is never run for it. The sidebar badge takes the state's icon and color, with a small
   check mark, dot or cross for the checks while the PR is open.
 - **Editor:** **Open in <editor>** runs the editor described under **Open in editor**. The arrow lists the editors on
   your PATH (VS Code, Cursor, Zed, Windsurf, Sublime Text); picking one opens the folder in it and saves it as

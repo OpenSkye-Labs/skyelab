@@ -22,7 +22,7 @@ pub(super) fn slug(name: &str) -> String {
 }
 
 /// The provider's mark: a 32 px tile tinted with the account's color.
-pub(super) fn provider_mark(provider: Provider, color: gpui::Hsla) -> gpui::Div {
+pub(crate) fn provider_mark(provider: Provider, color: gpui::Hsla) -> gpui::Div {
     let icon = match provider {
         Provider::Claude => Icon::new(Lucide::Sparkles),
         Provider::Codex => Icon::new(Lucide::SquareCode),

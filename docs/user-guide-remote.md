@@ -33,7 +33,7 @@ you why it couldn't start (Tailscale not installed, not running, logged out, or 
 Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Each one must also be
 allowed here once:
 
-- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and Settings → Sharing
+- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and Settings → Sharing & access
   lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
   **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
   the app you just opened. **Deny** turns it down until sharing restarts here.
@@ -41,7 +41,7 @@ allowed here once:
   at once and forgets it; it has to ask again.
 - An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
 
-Connected devices are listed in Settings → Sharing, each with a **Disconnect** button, which closes the connection at once.
+Connected devices are listed in Settings → Sharing & access, each with a **Disconnect** button, which closes the connection at once.
 A connected device can list projects and threads, start a thread in an existing project, send follow-ups,
 interrupt, answer a permission request, answer an agent's questions and approve or reject its plan (approving moves the
 thread out of Plan mode here, as a click does). Each is answered once the agent took it, or with why it couldn't

@@ -128,7 +128,7 @@ impl Settings {
                         "Each theme has a light and a dark side; Mode picks which shows.",
                         cx,
                     ))
-                    .child(h_flex().flex_wrap().gap_3().children(cards)),
+                    .child(h_flex().items_start().gap_2().children(cards)),
             )
             .child(section("Display", "", display, cx))
             .child(section("Text", "", text, cx))
@@ -163,7 +163,8 @@ impl Settings {
         v_flex()
             .id(SharedString::from(format!("theme-{key}")))
             .debug_selector(move || format!("theme-{key}"))
-            .w(gpui::px(164.))
+            .flex_1()
+            .min_w_0()
             .gap_2()
             .p_1p5()
             .rounded(ui::RADIUS_LG)
@@ -198,12 +199,14 @@ impl Settings {
                     .child(
                         v_flex()
                             .flex_1()
+                            .min_w_0()
+                            .overflow_hidden()
                             .h_full()
                             .p_2p5()
                             .gap_1p5()
-                            .child(bar(64., fg))
-                            .child(bar(84., muted))
-                            .child(bar(52., muted))
+                            .child(bar(48., fg))
+                            .child(bar(64., muted))
+                            .child(bar(40., muted))
                             .child(div().flex_1())
                             .child(
                                 h_flex().justify_end().child(

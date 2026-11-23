@@ -1,10 +1,10 @@
 //! Acceptance: every way into Settings opens it as a modal over the window; the page under it never changes.
 #![cfg(unix)]
 
-#[path = "settings_modal_windows_test.rs"]
-mod windows;
 #[path = "settings_reopen_stale_test.rs"]
 mod reopen_stale;
+#[path = "settings_modal_windows_test.rs"]
+mod windows;
 
 use super::center::Page;
 use super::threads_test::{fixture, open_workspace, setup};

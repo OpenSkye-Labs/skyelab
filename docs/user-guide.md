@@ -21,7 +21,7 @@ input, the right panel and the terminal (with no thread open, the page takes the
 are skipped and it wraps around. The area you land on gets a ring until your next click. **Esc** outside a text field
 goes back to the message input; in a terminal, Esc stays the shell's. F6 doesn't reach into a browser tab's page.
 
-**Settings → Keyboard shortcuts** lists every action with the keys that run it now (search by name or key), and
+**Settings → Keybindings** lists every action with the keys that run it now (search by name or key), and
 **Open keybindings file** opens `keybindings.toml` in SkyeLab's config folder (`~/Library/Application Support/skyelab`
 on macOS, `~/.config/skyelab` on Linux), creating it with a commented example. Each rule names a key, an action and,
 optionally, where it applies:
@@ -90,6 +90,18 @@ of them again; a window you close leaves that list, except the last one, so a la
 Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps running, agents included, until you quit
 (<kbd>⌘Q</kbd>); click its Dock icon to open a window again.
 
+## Settings and themes
+
+<kbd>⌘,</kbd> (or **Settings** in the sidebar footer, the status bar or the palette) opens Settings as a window-sized
+dialog over the app; **Esc**, a click outside it or the **×** closes it, and it reopens on the section you left.
+Each window has its own. Type in **Search** at the top of its list (or press <kbd>/</kbd>) to find a setting by name.
+Sections with preferences have **Restore defaults** in the header.
+
+**Settings → Appearance** picks a theme (**SkyeLab**, **Skye**, **Graphite**, **Dawn** or **Grove**; each has a light
+and a dark side), the **Mode** (System, Light or Dark), an **Accent color**, **Density** (Compact tightens rows) and
+the **Text size** and **Code text size**. Changes apply at once in every window and are saved under `[appearance]` in
+`settings.toml`. The palette has the same choices as **Theme: …** entries.
+
 ## Updates
 
 Once a day at most, when SkyeLab starts (and every hour after that it checks whether a day has passed), it asks
@@ -97,7 +109,7 @@ GitHub for the latest release of SkyeLab. When that release is newer than yours,
 sidebar offers **Download**, which opens the release page in your browser, and **Skip this version**, which hides it
 until a newer one comes out. **Check for Updates** (the palette, or the SkyeLab menu on macOS) and **Check now** in
 **Settings → About** check right away, skipped version included. SkyeLab never installs anything itself, and the
-request carries nothing about you. **Settings → About → Check for updates** turns the daily check off.
+request carries nothing about you. **Settings → General → Check for updates** turns the daily check off.
 
 ## Accounts and bindings
 

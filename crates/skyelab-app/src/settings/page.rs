@@ -50,6 +50,7 @@ pub(super) const GROUPS: [(Option<&str>, &[Section]); 5] = [
 ];
 
 impl Section {
+    #[cfg(test)]
     pub const ALL: [Section; 12] = [
         Section::General,
         Section::Appearance,

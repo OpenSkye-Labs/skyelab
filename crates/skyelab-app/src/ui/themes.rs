@@ -26,13 +26,13 @@ pub const FAMILIES: [Family; 5] = [
     Family {
         key: "skye",
         label: "Skye",
-        about: "Midnight navy from the launcher tile, with a sky accent.",
+        about: "Midnight navy from the app icon.",
         json: include_str!("../../themes/skye.json"),
     },
     Family {
         key: "graphite",
         label: "Graphite",
-        about: "Soft warm grays, with a teal accent.",
+        about: "Soft warm grays and teal.",
         json: include_str!("../../themes/graphite.json"),
     },
     Family {

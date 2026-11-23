@@ -1,7 +1,6 @@
 //! Settings is a view kept for the whole session: reopening it must not save a stale copy of accounts.toml over an
 //! edit made to the file meanwhile.
 
-
 use crate::workspace::threads_test::{fixture, open_workspace, setup};
 use crate::workspace::*;
 use gpui::TestAppContext;

@@ -1,11 +1,10 @@
 //! Acceptance: Esc and a backdrop click close the Settings modal, it reopens on its last section, and each window has
 //! its own modal.
 
-
+use crate::settings::Section;
 use crate::workspace::multi_window_test::in_window;
 use crate::workspace::threads_test::{fixture, open_workspace, setup};
 use crate::workspace::*;
-use crate::settings::Section;
 use gpui::{Modifiers, TestAppContext, VisualTestContext, point, px};
 
 fn open(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> (bool, bool) {
