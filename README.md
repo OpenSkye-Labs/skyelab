@@ -28,6 +28,11 @@ What's built today:
   Previous 7 days and Older), each row with the agent's last reply, its project, state (with a running timer while it works), branch, pull
   request and the account its folder is bound to; hovering a row shows where it runs, on which account and binding. A project filter narrows it, and New thread asks
   which project when it can't tell.
+- **Several windows.** **New Window** (<kbd>⇧⌘N</kbd>) opens another window on the same projects, threads and
+  accounts, with its own page, sidebar filter and panels. A thread open in two windows runs one agent; both show it.
+- **Update check.** Once a day at most, and from **Check for Updates**, SkyeLab asks GitHub for its latest release
+  and shows a small notice with **Download** (opens the release page) and **Skip this version**. It sends nothing but
+  the request, installs nothing, and Settings → About turns it off.
 - **Keyboard.** Every command is an action you can rebind in `keybindings.toml` (reloaded as you save; bad lines
   are reported with their line number and skipped), listed with its current keys in Settings → Keyboard shortcuts.
   F6 / Shift+F6 move between the sidebar, conversation, message input and the open panels.

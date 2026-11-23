@@ -532,6 +532,7 @@ impl Focusable for Settings {
 mod keys;
 mod page;
 pub use page::Section;
+mod about;
 mod render;
 mod threads;
 mod widgets;

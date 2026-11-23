@@ -107,7 +107,8 @@ impl Workspace {
         let Some(thread) = view.read(cx).thread.clone() else {
             return;
         };
-        if window.is_window_active() && self.shown_thread(cx) == Some(thread.id) {
+        let here = window.is_window_active() && self.shown_thread(cx) == Some(thread.id);
+        if here || self.seen_elsewhere(thread.id, cx) {
             return;
         }
         self.mark_unread(view, cx);
@@ -168,7 +169,15 @@ impl Workspace {
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             this.mark_seen(window, cx);
             if window.is_window_active() {
+                // A thread shown here and there last took its prompt (and the focus) to the other window.
+                if window.focused(cx).is_none() {
+                    this.apply_page(window, cx);
+                }
                 this.poll_prs(true, cx);
+                // Another window may have added, renamed or removed projects and threads meanwhile.
+                if this.has_other_windows(cx) {
+                    this.load_projects(None, cx);
+                }
             }
         });
         let search = cx.subscribe(

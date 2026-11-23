@@ -11,7 +11,7 @@ use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, ListAlignment,
     ListState, SharedString, Subscription, Task, Window, actions, px,
 };
-use gpui_component::input::{InputEvent, TextareaState};
+use gpui_component::input::TextareaState;
 use skyelab_agent::{Mode, Session};
 use skyelab_core::AccountsConfig;
 use skyelab_store::Thread;
@@ -36,6 +36,8 @@ mod launch;
 mod saves;
 #[path = "thread_session.rs"]
 mod session;
+#[path = "thread_window.rs"]
+mod window_owner;
 
 #[path = "thread_event.rs"]
 mod event;
@@ -82,7 +84,7 @@ pub struct ThreadView {
     pub(super) rerun: Option<String>,
     /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
     pub(super) background: bool,
-    /// The window it shows in: an async refusal puts the message back into the prompt there.
+    /// The window that owns it (last showed it): its prompt lives there, and only it acts on the view's events.
     pub(super) window: gpui::AnyWindowHandle,
     stop_requested: bool,
     /// Bumped by every launch; a pump from an earlier launch never ends a later one.
@@ -244,26 +246,9 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let prompt = cx.new(|cx| {
-            TextareaState::new(window, cx)
-                .auto_grow(2, 10)
-                .placeholder("Ask anything. @ files, $ skills, / commands, # threads")
-        });
+        let prompt = window_owner::new_prompt(window, cx);
         let subs = vec![
-            cx.subscribe_in(
-                &prompt,
-                window,
-                |this, _, e: &InputEvent, window, cx| match e {
-                    InputEvent::PressEnter {
-                        secondary: true, ..
-                    } => this.send_prompt(&SendPrompt, window, cx),
-                    InputEvent::Change => {
-                        this.prompt_changed(cx);
-                        this.restore_draft(window, cx);
-                    }
-                    _ => {}
-                },
-            ),
+            window_owner::prompt_subscription(&prompt, window, cx),
             cx.on_app_quit(|this, _| this.quitting()),
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));

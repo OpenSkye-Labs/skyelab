@@ -53,26 +53,41 @@ pub struct DockToggles {
     pub bottom: bool,
 }
 
-impl Global for DockToggles {}
+/// Each window's [`DockToggles`]: windows have their own docks, and a thread view drawn in two windows shows each
+/// one's toggles.
+#[derive(Default)]
+pub struct WindowDocks(pub std::collections::HashMap<gpui::WindowId, DockToggles>);
+
+impl Global for WindowDocks {}
+
+/// `window`'s dock toggles.
+pub fn docks(window: &Window, cx: &App) -> DockToggles {
+    docks_of(window.window_handle(), cx)
+}
+
+pub(crate) fn docks_of(window: gpui::AnyWindowHandle, cx: &App) -> DockToggles {
+    cx.try_global::<WindowDocks>()
+        .and_then(|d| d.0.get(&window.window_id()).copied())
+        .unwrap_or_default()
+}
 
 /// The page's top row (T3's WorkspacePageHeader): 52 px, beside the sidebar's first row. With the sidebar hidden on
 /// macOS the traffic lights sit over its start, so it leaves them room.
-pub(crate) fn page_header(cx: &App) -> Div {
-    let open = cx.try_global::<DockToggles>().copied().unwrap_or_default();
+pub(crate) fn page_header(window: &Window, cx: &App) -> Div {
+    let open = docks(window, cx);
     crate::ui::header(cx.theme()).when(super::MAC && !open.left, |h| {
         h.pl(crate::ui::TRAFFIC_LIGHTS_W)
     })
 }
 
-pub(crate) fn panel_toggles(cx: &App) -> impl IntoElement {
+pub(crate) fn panel_toggles(window: &Window, cx: &App) -> impl IntoElement {
     h_flex()
         .flex_shrink_0()
         .gap_0p5()
-        .children(dock_toggles(cx))
+        .children(dock_toggles(docks(window, cx)))
 }
 
-fn dock_toggles(cx: &App) -> Vec<Button> {
-    let open = cx.try_global::<DockToggles>().copied().unwrap_or_default();
+fn dock_toggles(open: DockToggles) -> Vec<Button> {
     // The tooltip shows the action's key binding for this OS.
     let toggle = |id: &'static str,
                   icon: IconName,
@@ -183,7 +198,8 @@ impl Workspace {
             right: dock.is_dock_open(DockPlacement::Right),
             bottom: dock.is_dock_open(DockPlacement::Bottom),
         };
-        cx.set_global(open);
+        let id = self.window_handle.window_id();
+        cx.default_global::<WindowDocks>().0.insert(id, open);
         cx.notify();
     }
 

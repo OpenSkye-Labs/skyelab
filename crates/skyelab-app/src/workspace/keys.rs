@@ -41,6 +41,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(TOGGLE_BOTTOM_KEY, ToggleBottomPanel, Some(CONTEXT)),
         KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
         KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
+        KeyBinding::new(windows::NEW_WINDOW_KEY, NewWindow, Some(CONTEXT)),
         KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
         KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
         KeyBinding::new(GO_BACK_KEY, GoBack, Some(CONTEXT)),

@@ -281,8 +281,26 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.track_thread(&view, window, cx);
+        self.share_thread(&view, cx);
+        if focus {
+            return self.show(Page::Thread(view.downgrade()), window, cx);
+        }
+        view.update(cx, |v, _| v.background = true);
+        self.refresh_sidebar(cx);
+        cx.notify();
+    }
+
+    /// Follows `view` in this window: its row in the sidebar and its events. Only the window that owns the view
+    /// (last showed it) acts on what the user did in it or on what needs one answer (a notification, a script).
+    pub(super) fn track_thread(
+        &mut self,
+        view: &Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         // Its state shows in the sidebar: rebuild that when what the row shows changed, not on every notify.
-        let observe = cx.observe(&view, |this, view, cx| {
+        let observe = cx.observe(view, |this, view, cx| {
             // Cheap, and a parent's Lineage may have loaded after the child's last change.
             this.sync_lineage(&view, cx);
             let sig = super::thread_rows::row_sig(view.read(cx));
@@ -294,7 +312,7 @@ impl Workspace {
             this.refresh_sidebar(cx)
         });
         let events = cx.subscribe_in(
-            &view,
+            view,
             window,
             |this, view, e: &ThreadViewEvent, window, cx| match e {
                 ThreadViewEvent::Started(thread) => {
@@ -302,10 +320,27 @@ impl Workspace {
                     // A draft just got its row, so the saved page can name it now.
                     if this.current_thread().as_ref() == Some(view) {
                         this.schedule_layout_save(window, cx);
-                    } else if view.read(cx).background {
+                    } else if view.read(cx).background && view.read(cx).owned_by(window) {
                         this.mark_unread(view, cx);
                     }
                 }
+                ThreadViewEvent::TurnDone => {
+                    this.refresh_changes(view, cx);
+                    this.refresh_details(cx);
+                    this.load_previews(cx);
+                    if view.read(cx).owned_by(window) {
+                        this.turn_done(view, window, cx);
+                    }
+                }
+                ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
+                ThreadViewEvent::Retitled(title) => {
+                    if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
+                        this.update_row(id, |t| t.title = title.clone(), cx);
+                    }
+                }
+                ThreadViewEvent::UsageReported => this.refresh_usage(cx),
+                ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
+                _ if !view.read(cx).owned_by(window) => {}
                 ThreadViewEvent::OpenChanges => _ = this.open_changes(view, window, cx),
                 ThreadViewEvent::Git(action) => {
                     let tab = this.open_changes(view, window, cx);
@@ -348,26 +383,12 @@ impl Workspace {
                         },
                     );
                 }
-                ThreadViewEvent::TurnDone => {
-                    this.refresh_changes(view, cx);
-                    this.refresh_details(cx);
-                    this.load_previews(cx);
-                    this.turn_done(view, window, cx);
-                }
-                ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
-                ThreadViewEvent::Retitled(title) => {
-                    if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
-                        this.update_row(id, |t| t.title = title.clone(), cx);
-                    }
-                }
-                ThreadViewEvent::UsageReported => this.refresh_usage(cx),
                 ThreadViewEvent::RunScript(script) => {
                     let v = view.read(cx);
                     let account = v.thread.as_ref().map(|t| t.account_id.clone());
                     let cwd = v.cwd.clone();
                     this.run_script(script, cwd, account, window, cx);
                 }
-                ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
                 ThreadViewEvent::PrUnlinked(url) => {
                     if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
                         this.pr_unlinked(id, url.clone(), window, cx);
@@ -386,12 +407,6 @@ impl Workspace {
         };
         self.thread_subs.insert(view.entity_id(), subs);
         self.open_threads.push(view.clone());
-        if focus {
-            return self.show(Page::Thread(view.downgrade()), window, cx);
-        }
-        view.update(cx, |v, _| v.background = true);
-        self.refresh_sidebar(cx);
-        cx.notify();
     }
 
     /// A thread's turn ended: every Changes tab on its folder may be out of date.

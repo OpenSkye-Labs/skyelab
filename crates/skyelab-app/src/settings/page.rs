@@ -14,10 +14,11 @@ pub enum Section {
     Usage,
     Keys,
     Appearance,
+    About,
 }
 
 impl Section {
-    pub const ALL: [Section; 7] = [
+    pub const ALL: [Section; 8] = [
         Section::Accounts,
         Section::GitHub,
         Section::Sharing,
@@ -25,6 +26,7 @@ impl Section {
         Section::Usage,
         Section::Keys,
         Section::Appearance,
+        Section::About,
     ];
 
     pub fn label(self) -> &'static str {
@@ -36,6 +38,7 @@ impl Section {
             Section::Usage => "Usage",
             Section::Keys => "Keyboard shortcuts",
             Section::Appearance => "Appearance",
+            Section::About => "About",
         }
     }
 
@@ -49,6 +52,7 @@ impl Section {
             Section::Usage => "usage",
             Section::Keys => "keys",
             Section::Appearance => "appearance",
+            Section::About => "about",
         }
     }
 
@@ -65,13 +69,14 @@ impl Section {
             Section::Usage => IconName::ChartPie,
             Section::Keys => return Icon::new(gpui_kit_assets::IconName::Keyboard),
             Section::Appearance => IconName::Palette,
+            Section::About => IconName::Info,
         })
     }
 }
 
 impl Settings {
     /// The page's left column (T3's settings nav): 240 wide on the sidebar surface, one row per section.
-    fn render_nav(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn render_nav(&self, window: &Window, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = cx.theme();
         let rows = Section::ALL.map(|section| {
             crate::ui::row(
@@ -98,7 +103,7 @@ impl Settings {
             .border_r_1()
             .border_color(theme.border)
             .child(
-                crate::workspace::layout::page_header(cx)
+                crate::workspace::layout::page_header(window, cx)
                     .border_b_0()
                     .text_size(crate::ui::BODY)
                     .font_weight(gpui::FontWeight::MEDIUM)
@@ -162,6 +167,7 @@ impl Settings {
             Section::Usage => div().children(self.usage.clone()),
             Section::Keys => div().child(self.render_keys(cx)),
             Section::Sharing => unreachable!("returned above"),
+            Section::About => div().child(self.render_about(cx)),
             Section::Appearance => div().child(widgets::section(
                 "Appearance",
                 [widgets::row(true, cx)
@@ -193,7 +199,7 @@ impl Settings {
 }
 
 impl Render for Settings {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let header = crate::ui::header(theme)
             .child(
@@ -212,8 +218,8 @@ impl Render for Settings {
                     )
                     .child(div().truncate().child(self.section.label())),
             )
-            .child(crate::workspace::layout::panel_toggles(cx));
-        let nav = self.render_nav(cx);
+            .child(crate::workspace::layout::panel_toggles(window, cx));
+        let nav = self.render_nav(window, cx);
         let section = self.render_section(cx);
         let theme = cx.theme();
         div()

@@ -75,6 +75,9 @@ mod timeline_fold;
 mod timeline_text;
 mod tool_cards;
 mod turn_files;
+mod update_notice;
+mod windows;
+pub use windows::{NewWindow, WindowKit, open as open_window, set_hub, window_handles};
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
@@ -142,6 +145,8 @@ pub(crate) use keys::*;
 
 pub struct Workspace {
     focus: FocusHandle,
+    /// This window, as the window registry (`windows`) knows it.
+    window_handle: gpui::AnyWindowHandle,
     dock: Entity<DockArea>,
     /// The folder the workspace is "in": the selected project, or home before one is picked.
     folder: PathBuf,
@@ -301,6 +306,7 @@ impl Workspace {
         crate::ui::set_accounts(cx, &config);
         let mut this = Self {
             focus: cx.focus_handle(),
+            window_handle: window.window_handle(),
             dock,
             account: account_label(&config, &folder),
             account_id: config.resolve(&folder).map(|a| a.id.clone()),
@@ -383,6 +389,7 @@ impl Workspace {
         this.refresh_sidebar(cx);
         this.sync_toggles(cx);
         this.load_projects(None, cx);
+        this.register_window(window, cx);
         this
     }
 
@@ -535,6 +542,8 @@ mod manage_harness;
 mod manage_projects_test;
 #[cfg(test)]
 mod manage_threads_test;
+#[cfg(test)]
+mod multi_window_test;
 #[cfg(all(test, unix))]
 mod onboarding_test;
 #[cfg(test)]

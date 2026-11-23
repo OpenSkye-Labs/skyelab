@@ -80,6 +80,24 @@ SkyeLab remembers the window's size and position, the right panel's width and wh
 showed, in `settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
 no longer connected is ignored.
 
+**New Window** (<kbd>⇧⌘N</kbd>, <kbd>Ctrl+Shift+N</kbd> on Linux and Windows, the palette, or the SkyeLab menu on
+macOS) opens another window on the same projects, threads and accounts. Each window has its own page, project filter,
+docks and terminals. A thread open in two windows is the same thread with one agent: both windows show it as it runs,
+and its message input follows the window that opened it last. A notification for it comes once. Saving accounts in
+Settings applies to every window, and a window catches up with projects and threads changed elsewhere when you switch
+to it. Every window saves its frame and page; the next launch opens one window, where the last changed one was.
+Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps running, agents included, until you quit
+(<kbd>⌘Q</kbd>); click its Dock icon to open a window again.
+
+## Updates
+
+Once a day at most, when SkyeLab starts (and every hour after that it checks whether a day has passed), it asks
+GitHub for the latest release of SkyeLab. When that release is newer than yours, a small notice at the bottom of the
+sidebar offers **Download**, which opens the release page in your browser, and **Skip this version**, which hides it
+until a newer one comes out. **Check for Updates** (the palette, or the SkyeLab menu on macOS) and **Check now** in
+**Settings → About** check right away, skipped version included. SkyeLab never installs anything itself, and the
+request carries nothing about you. **Settings → About → Check for updates** turns the daily check off.
+
 ## Accounts and bindings
 
 First-run setup on the Welcome page (or **Set Up Accounts** in the palette), binding folders to accounts, and a GitHub

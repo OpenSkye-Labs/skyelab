@@ -154,7 +154,10 @@ impl Workspace {
             }
             Page::Thread(view) => {
                 let view = view.upgrade().expect("alive() checked it");
-                view.update(cx, |v, cx| v.focus_prompt(window, cx));
+                view.update(cx, |v, cx| {
+                    v.attach(window, cx);
+                    v.focus_prompt(window, cx)
+                });
                 view.into()
             }
             Page::RemoteThread(view) => {
@@ -183,10 +186,21 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        view.update(cx, |v, _| v.close());
+        self.unshare_thread(view, cx);
+        self.forget_thread(view, window, cx);
+    }
+
+    /// Stops following a closed thread's view in this window.
+    pub(super) fn forget_thread(
+        &mut self,
+        view: &Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.open_threads.retain(|v| v != view);
         self.thread_subs.remove(&view.entity_id());
         self.waiters.retain(|_, (id, _)| *id != view.entity_id());
-        view.update(cx, |v, _| v.close());
         self.orphan_terminals(view.entity_id(), window, cx);
         if self.page == Page::Thread(view.downgrade()) {
             self.page = Page::Welcome;

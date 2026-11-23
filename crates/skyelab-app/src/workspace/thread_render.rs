@@ -41,13 +41,13 @@ impl ThreadView {
         }
     }
 
-    fn render_header(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn render_header(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let project = self.project_name.clone();
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
         // The window's top row: breadcrumb and account, then the dock toggles. The thread's folder, branch, git and
         // lineage controls are in the right dock's Details tab.
-        super::layout::page_header(cx)
+        super::layout::page_header(window, cx)
             .child(
                 h_flex()
                     .id("thread-breadcrumb")
@@ -93,7 +93,7 @@ impl ThreadView {
                     .id("provider-badge")
                     .child(self.account_badge().chip()),
             )
-            .child(super::layout::panel_toggles(cx))
+            .child(super::layout::panel_toggles(window, cx))
             .into_any_element()
     }
 
@@ -301,7 +301,7 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 
 impl Render for ThreadView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let header = self.render_header(cx);
+        let header = self.render_header(window, cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);
         let bypass_confirm = self.render_bypass_confirm(cx);

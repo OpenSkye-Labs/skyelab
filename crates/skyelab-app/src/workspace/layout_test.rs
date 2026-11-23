@@ -1,6 +1,6 @@
 //! Tools open in the right dock, beside the thread, and the dock toggles follow the docks.
 
-use super::layout::{DockToggles, ToggleRightPanel};
+use super::layout::ToggleRightPanel;
 use super::threads_test::{fixture, open_workspace, project_thread, setup};
 use super::*;
 use gpui::TestAppContext;
@@ -10,7 +10,7 @@ fn right_open(ws: &Entity<Workspace>, cx: &mut gpui::VisualTestContext) -> (bool
     ws.read_with(cx, |ws, cx| {
         (
             ws.dock.read(cx).is_dock_open(DockPlacement::Right),
-            cx.global::<DockToggles>().right,
+            super::layout::docks_of(ws.window_handle, cx).right,
         )
     })
 }
