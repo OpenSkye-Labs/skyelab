@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 1 };
+pub const VERSION: Version = Version { major: 1, minor: 2 };
 
 /// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7287;
@@ -27,6 +27,43 @@ pub fn is_magicdns_name(name: &str) -> bool {
     let labels: Vec<&str> = name.split('.').collect();
     matches!(labels.as_slice(), [machine, tailnet, ts, net]
         if label(machine) && label(tailnet) && ts.eq_ignore_ascii_case("ts") && net.eq_ignore_ascii_case("net"))
+}
+
+/// A new random device key: 32 bytes as 64 lowercase hex chars. A client makes one per install and keeps it; the
+/// machine it connects to approves the key, not just the device.
+pub fn new_device_key() -> std::io::Result<String> {
+    use ring::rand::SecureRandom as _;
+    let mut bytes = [0u8; 32];
+    ring::rand::SystemRandom::new()
+        .fill(&mut bytes)
+        .map_err(|_| std::io::Error::other("the system random number generator failed"))?;
+    Ok(hex(&bytes))
+}
+
+/// 64 lowercase hex chars, the only form [`new_device_key`] makes.
+pub fn is_device_key(key: &str) -> bool {
+    key.len() == 64 && key.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// What the serving machine stores and compares: SHA-256 of the key, hex. The key itself never leaves the client
+/// except in hello, over TLS.
+pub fn device_key_hash(key: &str) -> String {
+    hex(ring::digest::digest(&ring::digest::SHA256, key.as_bytes()).as_ref())
+}
+
+/// The code both screens show for a key, four groups of four hex digits, so the person approving can tell their
+/// device's request from another one. 64 bits of the hash: too many to grind a look-alike key for a code seen on screen.
+pub fn device_code(key_hash: &str) -> String {
+    let head = key_hash.get(..16).unwrap_or(key_hash).to_ascii_uppercase();
+    head.as_bytes()
+        .chunks(4)
+        .map(|c| String::from_utf8_lossy(c).into_owned())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +117,10 @@ pub enum Call {
         protocol: Version,
         #[serde(default)]
         capabilities: Vec<String>,
+        /// This client install's key (1.2). The serving machine admits only keys the user approved there, for the
+        /// device they were approved on.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        device_key: Option<String>,
     },
     ListProjects,
     ListThreads {
@@ -178,6 +219,11 @@ pub enum ErrorCode {
     /// The method exists but this environment can't run it yet.
     NotWired,
     Internal,
+    /// Hello from a device key the user hasn't approved on that machine (1.2). The connection closes; the user
+    /// is asked there.
+    NotApproved,
+    /// Hello from a device key the user turned down on that machine (1.2). The connection closes.
+    Denied,
     /// A code from a newer minor version.
     #[serde(other)]
     Unknown,

@@ -139,6 +139,7 @@ fn remote_waiting_on_a_reply_never_blocks_the_ui(cx: &mut TestAppContext) {
     let daemon = Daemon::start(
         Config {
             port: 0,
+            approved: skyelab_daemon::testing::approvals(),
             ..Config::default()
         },
         remote.tailnet.clone(),

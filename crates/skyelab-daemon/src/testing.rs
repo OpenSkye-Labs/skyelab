@@ -123,11 +123,25 @@ pub fn tls_connect(
 /// The tailnet user every fake node belongs to unless a test says otherwise.
 pub const ME: u64 = 1001;
 
+/// The test client's device key. [`config`] approves it for the phone ("nPhone"), the node whois names by default.
+/// `skyelab_client::testing::DEVICE_KEY` is the same key (a client test checks they agree).
+pub const DEVICE_KEY: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
+/// [`DEVICE_KEY`] approved on "nPhone".
+pub fn approvals() -> Vec<crate::Approval> {
+    vec![crate::Approval {
+        node_id: "nPhone".into(),
+        key_hash: skyelab_protocol::device_key_hash(DEVICE_KEY),
+    }]
+}
+
 /// Who `FakeTailnet::whois` says is calling.
 #[derive(Clone, Copy, Debug)]
 pub enum Peer {
     /// One of the user's own untagged devices: the gate admits it.
     Own,
+    /// Another of the user's own untagged devices, with this StableID.
+    OwnNode(&'static str),
     OtherUser,
     /// The user's node, but tagged: refused.
     Tagged,
@@ -206,9 +220,13 @@ impl FakeTailnet {
 }
 
 fn whois(user: u64, tags: Vec<String>) -> WhoIs {
+    whois_node("nPhone", user, tags)
+}
+
+fn whois_node(stable_id: &str, user: u64, tags: Vec<String>) -> WhoIs {
     WhoIs {
         node: WhoIsNode {
-            stable_id: "nPhone".into(),
+            stable_id: stable_id.into(),
             name: "phone.example.ts.net.".into(),
             user: Some(user),
             tags,
@@ -244,6 +262,7 @@ impl Tailnet for FakeTailnet {
         let peer = *self.peer.lock().expect("peer lock");
         match peer {
             Peer::Own => Ok(whois(ME, vec![])),
+            Peer::OwnNode(id) => Ok(whois_node(id, ME, vec![])),
             Peer::OtherUser => Ok(whois(2002, vec![])),
             Peer::Tagged => Ok(whois(ME, vec!["tag:server".into()])),
             Peer::WhoisError => Err(TailnetError::Command {
@@ -272,11 +291,13 @@ impl Tailnet for FakeTailnet {
     }
 }
 
-/// Daemon settings for tests: `port` (0 picks one) and a short gate timeout.
+/// Daemon settings for tests: `port` (0 picks one), a short gate timeout, and the test key approved
+/// ([`approvals`]).
 pub fn config(port: u16) -> Config {
     Config {
         port,
         gate_timeout: Duration::from_millis(500),
+        approved: approvals(),
         ..Config::default()
     }
 }

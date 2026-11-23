@@ -13,7 +13,16 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   target is refused; there is never a default account. This keeps a work agent from spending the personal plan, and
   the reverse, and keeps an agent out of the user's other threads.
 - **Limits.** Depth 2 at most (a user's thread is depth 0), and 4 children starting or running per thread (a child
-  that finished its turn frees its slot).
+  that finished its turn frees its slot). The children limit is claimed in the launch itself, under the store lock
+  together with the status write (`child_slots::claim`): on every new child row, every resume of a stopped child,
+  and every follow-up that gives an idle child a new turn, whatever sent the prompt (the parent, another device,
+  the user). A child counts as busy until the result of its last queued prompt (follow-ups sent mid-turn are
+  counted), not the first result after them. A refused resume leaves the child as it was and its tab says why (the
+  refused prompt still shows in the tab, though it was never stored or sent); a Send from another device has
+  already been answered Ok by then. Rows left `running` by a crash still count until they are opened and end.
+- **Remote mode.** A delegated child (or a thread another device starts here) that opens while the window shows
+  another machine is kept out of the dock: the sidebar gets a "This Mac · N new threads here" row, and switching
+  back adds the tabs. Its agent runs meanwhile, and delegated sends and Stop still reach it.
 - **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<data dir>/skyelab/run/<pid>/` (0700). Each agent
   session gets a grant: a one-use random token and a 0600 `--mcp-config` file that runs `skyelab --mcp-proxy`. The
   proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the

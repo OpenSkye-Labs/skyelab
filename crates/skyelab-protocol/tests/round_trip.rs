@@ -40,8 +40,9 @@ fn round_trip_hello() {
         Call::Hello {
             protocol: VERSION,
             capabilities: vec!["events".into()],
+            device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 1}, "capabilities": ["events"]}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 2}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 
@@ -200,4 +201,29 @@ fn unknown_error_code_from_newer_minor_parses() {
     )
     .expect("test setup");
     assert!(matches!(msg, ServerMessage::Error { error, .. } if error.code == ErrorCode::Unknown));
+}
+
+#[test]
+fn device_keys_hash_and_code() {
+    let key = skyelab_protocol::new_device_key().expect("rng");
+    assert!(skyelab_protocol::is_device_key(&key));
+    assert_ne!(skyelab_protocol::new_device_key().expect("rng"), key);
+    let hash = skyelab_protocol::device_key_hash(&key);
+    assert_eq!(hash.len(), 64);
+    assert_eq!(hash, skyelab_protocol::device_key_hash(&key));
+    let code = skyelab_protocol::device_code(&hash);
+    assert_eq!(
+        code,
+        format!(
+            "{}-{}-{}-{}",
+            &hash[..4],
+            &hash[4..8],
+            &hash[8..12],
+            &hash[12..16]
+        )
+        .to_uppercase()
+    );
+    // SHA-256("abc"), so the hash is the standard one, not something only this code agrees with.
+    assert!(skyelab_protocol::device_key_hash("abc").starts_with("ba7816bf"));
+    assert!(!skyelab_protocol::is_device_key(&key.to_uppercase()));
 }

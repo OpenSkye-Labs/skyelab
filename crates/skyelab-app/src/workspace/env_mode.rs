@@ -222,6 +222,9 @@ impl Workspace {
                 Err(e) => error = Some(format!("can't start the connection: {e}").into()),
             }
         }
+        if self.env.remote.is_none() {
+            self.show_queued_tabs(window, cx);
+        }
         let current = self.env.remote.as_ref().map(|e| e.read(cx).host.clone());
         if let Some(picker) = &self.env.picker {
             picker.update(cx, |p, cx| {
@@ -322,7 +325,24 @@ impl Workspace {
             _ => None,
         };
         let has_project = env.project.is_some();
-        Some(vec![
+        // Threads that opened on this machine meanwhile (delegated, or started from another device).
+        let waiting = self.queued_tabs.len();
+        let here = (waiting > 0).then(|| SidebarSection {
+            title: super::env_picker::THIS_MAC.into(),
+            items: vec![SidebarItem {
+                id: "queued-local-tabs".into(),
+                label: match waiting {
+                    1 => "1 new thread here".into(),
+                    n => format!("{n} new threads here").into(),
+                },
+                selected: false,
+                action: Box::new(SwitchEnvironment { host: None }),
+            }],
+            empty_title: SharedString::default(),
+            empty_hint: SharedString::default(),
+            button: None,
+        });
+        let sections = vec![
             SidebarSection {
                 title: "Projects".into(),
                 items: projects,
@@ -357,7 +377,8 @@ impl Workspace {
                     )
                 }),
             },
-        ])
+        ];
+        Some(sections.into_iter().chain(here).collect())
     }
 
     fn select_remote_project(

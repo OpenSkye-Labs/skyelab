@@ -1,6 +1,7 @@
 //! Tests against a real in-process `skyelab-daemon` (fake tailnet, loopback sockets) and hostile fake servers.
 //! They live in the crate because the loopback exception only exists under `cfg(test)`.
 
+mod approval;
 mod approve_gate;
 mod backoff;
 mod disconnect_kind;
@@ -10,6 +11,7 @@ mod guard;
 mod hello;
 mod hostile;
 mod keepalive;
+mod keychain;
 mod reconnect;
 mod rpc;
 mod tls;
@@ -35,6 +37,9 @@ pub fn append(env: &Env, n: usize) -> skyelab_protocol::ThreadEvent {
     }
     last.expect("n > 0")
 }
+
+/// The device key [`options`] sends, which the harness's daemon config approves.
+pub const TEST_KEY: &str = crate::testing::DEVICE_KEY;
 
 pub fn daemon_config(port: u16) -> skyelab_daemon::Config {
     config(port)

@@ -24,6 +24,9 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   enough). Agents get `--mcp-config <grant file> --allowedTools mcp__skyelab`, and `--strict-mcp-config` keeps
   every other server out. Starts and sends run on the UI thread through `ThreadView`, which re-checks the account rule
   with the config the launch uses. (2026-11-23)
+- **Remote devices are approved one by one.** Whois can't tell the SkyeLab app from another process of the same
+  user, so the daemon also requires an approved per-install device key (keychain on macOS release builds). A key
+  over a TLS client cert: the same storage question, and one less TLS mode to get right. (2026-11-23)
 - **Remote calls reuse the thread view.** The daemon's agent calls are forwarded to the UI thread and run through
   `ThreadView::send_prompt`, so there is one launch path and one place the account is resolved. Sharing is off by
   default and only an explicit toggle turns it on. (2026-11-23)

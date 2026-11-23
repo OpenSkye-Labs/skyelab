@@ -8,6 +8,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 pub use skyelab_daemon::testing::FakeTailnet;
+
+/// The test client's device key, which [`test_config`] approves for the phone ("nPhone").
+pub const KEY: &str = skyelab_daemon::testing::DEVICE_KEY;
 use skyelab_daemon::testing::{NODE_NAME, TlsStream, ca, config, tls_connect};
 use skyelab_daemon::{Backend, Config, Daemon, NotWired, StoreBackend};
 use skyelab_protocol::{
@@ -138,12 +141,22 @@ pub fn recv(ws: &mut Client) -> Option<ServerMessage> {
 }
 
 pub fn hello_with(ws: &mut Client, protocol: Version) -> Option<ServerMessage> {
+    hello_as(ws, protocol, Some(KEY))
+}
+
+/// Hello with this device key, or none.
+pub fn hello_key(ws: &mut Client, key: Option<&str>) -> Option<ServerMessage> {
+    hello_as(ws, VERSION, key)
+}
+
+fn hello_as(ws: &mut Client, protocol: Version, key: Option<&str>) -> Option<ServerMessage> {
     send(
         ws,
         1,
         Call::Hello {
             protocol,
             capabilities: vec![],
+            device_key: key.map(str::to_owned),
         },
     );
     recv(ws)
