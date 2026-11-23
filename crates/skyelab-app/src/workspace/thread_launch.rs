@@ -99,7 +99,12 @@ impl ThreadView {
         let (saved_tx, saved_rx) = flume::bounded::<Thread>(1);
         cx.spawn(async move |this, cx| {
             if let Ok(thread) = saved_rx.recv_async().await {
-                let _ = this.update(cx, |this, cx| this.row_saved(&thread, cx));
+                // Once the launch has ended, its own result decides what the view keeps.
+                let _ = this.update(cx, |this, cx| {
+                    if this.starting {
+                        this.row_saved(&thread, cx)
+                    }
+                });
             }
         })
         .detach();
@@ -217,7 +222,13 @@ impl ThreadView {
                             }
                         }
                     }
-                    Err(e) => this.show_error(e, cx),
+                    Err(e) => {
+                        // The row came early but nothing runs on it: a resume or a remote reply must not wait.
+                        if this.thread.is_some() {
+                            this.finish(cx);
+                        }
+                        this.show_error(e, cx)
+                    }
                 }
                 cx.notify();
             });
