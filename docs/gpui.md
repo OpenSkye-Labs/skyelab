@@ -53,6 +53,18 @@ and how Zed uses it, not blog posts or memory.
 - Use `gpui-component` before building a widget: `Input`, `Button`, `List`, `Table`, `Dock`, `Tabs`, `Dialog`, `Notification`,
   `Markdown`, the code editor. Only drop to raw `div()` for layout.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
+- Text sizes are rems (`ui::BODY`, `ui::META`…): gpui-component's `Root` sets the window's rem to `theme.font_size`, so
+  Settings → Appearance's text size scales every view with no call site changed. A px size never scales.
+- A theme choice (family, accent, sizes) is baked into the `ThemeConfig`s set as `light_theme`/`dark_theme`, then
+  `Theme::change` (it refreshes every window). Writing `Theme` fields directly is undone by the next system
+  appearance flip, which reloads from the configs (`ui::themes::apply`).
+- `window.open_dialog` panics without gpui-component's `Root` around the window's view: test windows that open one
+  wrap it (`threads_test::add_rooted`), and code that may run in a bare window checks `window.root::<Root>()` first.
+- A view shown inside a `Dialog` sits in `Root`'s dialog layer, not under the workspace view: the workspace's key
+  bindings and actions don't reach it, so a click inside dispatching a workspace action does nothing. Call the view's
+  own method (the Settings nav does), or emit an event the workspace handles.
+- A `Dialog`'s `on_close` runs for Esc and a backdrop click, not for `window.close_dialog`: a flag cleared there goes
+  stale after a programmatic close. Trust `window.has_active_dialog` (the Settings modal does both).
 - gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.

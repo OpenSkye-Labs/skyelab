@@ -23,6 +23,24 @@ Set **SkyeLab** in a medium or semibold system sans, with normal spacing and cap
 
 The native glyph inherits the T3-grounded [UI theme](t3-reference.md). Account and status colors retain their existing meanings.
 
+## Themes
+
+Settings → Appearance switches between five theme families, each with a light and a dark side
+(`crates/skyelab-app/themes/*.json`, gpui-component's theme format):
+
+| Theme | Light | Dark | Accent |
+| --- | --- | --- | --- |
+| SkyeLab (default) | zinc `#fcfcfc` | true black `#000000` | blue `#1b4ed8` / `#346bf1` |
+| Skye | cool white `#f7f9fc` | Midnight `#101420`, the launcher tile | sky `#1d5fd6` / `#5b9bff` |
+| Graphite | stone `#f5f5f4` | `#1c1c1e` | teal `#0f766e` / `#2dd4bf` |
+| Dawn | paper `#fbf7f1` | ember `#1a1411` | coral `#c2410c` / `#fb8a4a` |
+| Grove | `#f6f8f5` | `#0f1512` | leaf `#15803d` / `#4ade80` |
+
+Skye carries the brand: the dark side is the launcher tile's Midnight, so the app and its icon match. An accent preset
+(blue, violet, teal, green, amber, rose) overrides any theme's own. Every theme, mode and accent keeps body text and
+button text at 4.5:1 or better against its surfaces; `ui/contrast_test.rs` fails the build otherwise. Status colors
+(success, warning, danger) and account colors stay the same hues in every theme so their meaning never changes.
+
 ## Usage
 
 - Use the launcher tile for package icons and the one-color glyphs in native chrome.
