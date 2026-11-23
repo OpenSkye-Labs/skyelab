@@ -16,6 +16,7 @@ use gpui_component::{
     v_flex,
 };
 use skyelab_agent::Decision;
+pub(super) use skyelab_agent::timeline::cards::questions;
 use std::collections::BTreeSet;
 
 /// The option index that means "Other" (typed text) in a question draft.
@@ -26,39 +27,6 @@ pub(super) const OTHER: usize = usize::MAX;
 pub(super) struct QuestionDraft {
     pub(super) picked: Vec<BTreeSet<usize>>,
     pub(super) other: Vec<Option<gpui::Entity<gpui_component::input::InputState>>>,
-}
-
-/// One question of an AskUserQuestion input.
-pub(super) struct Question {
-    pub(super) header: String,
-    pub(super) question: String,
-    pub(super) options: Vec<(String, String)>,
-    pub(super) multi: bool,
-}
-
-pub(super) fn questions(input: &serde_json::Value) -> Vec<Question> {
-    input["questions"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|q| Question {
-            header: q["header"].as_str().unwrap_or_default().to_owned(),
-            question: q["question"].as_str().unwrap_or_default().to_owned(),
-            options: q["options"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|o| {
-                    let label = o["label"].as_str()?.to_owned();
-                    Some((
-                        label,
-                        o["description"].as_str().unwrap_or_default().to_owned(),
-                    ))
-                })
-                .collect(),
-            multi: q["multiSelect"] == true,
-        })
-        .collect()
 }
 
 /// The label an answered question or plan keeps.

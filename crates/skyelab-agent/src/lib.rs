@@ -11,6 +11,8 @@ mod launch;
 mod pipes;
 mod prompts;
 mod reap;
+pub mod thread_list;
+pub mod timeline;
 mod title;
 mod version;
 pub use git_text::{

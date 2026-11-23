@@ -7683,6 +7683,7 @@ dependencies = [
  "serde_json",
  "skyelab-core",
  "skyelab-pipe-sys",
+ "skyelab-protocol",
  "tempfile",
  "tokio",
  "uuid",
