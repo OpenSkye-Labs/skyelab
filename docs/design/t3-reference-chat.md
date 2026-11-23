@@ -47,7 +47,8 @@ there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main,
   (`workspace/subagent_card.rs`), its nested calls as 24 px rows inside.
 - Error banner (`chat/ThreadErrorBanner.tsx`): an `Alert` of variant error (warning for usage limits), centered, max
   width 48rem, a circle-alert icon, the message, actions, a ghost × to dismiss. SkyeLab: `workspace/thread_failure.rs`,
-  danger at 8% with a 35% border over the composer.
+  danger at 8% with a 35% border over the composer. A usage limit is told once, by the timeline's warning card
+  (`thread_items.rs` `Item::Limit`), with no second line over the composer.
 - Find bar (`chat/ThreadFindBar.tsx`): absolute `top-3 right-3`, popover input group, "i/n" count in `text-xs
   tabular-nums` (destructive when nothing matches), up/down/× xs ghost icon buttons; Enter / Shift-Enter step. SkyeLab:
   `workspace/thread_find.rs`, 360 wide; matching rows are tinted (warning 8%, current 22%) since gpui-component's
@@ -62,6 +63,8 @@ there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main,
 - Footer inside the card: `px-2 pb-2`, controls right-aligned `gap-0.5`, actions `gap-2` (`ChatComposer.tsx:4042,4065`).
 - Chips (`c/chat/ComposerControl.tsx:10-17`): 28 tall, radius 8, transparent border, hover `accent`; `sm` = `px-2
   gap-1.5 font-medium text-sm` at 80% foreground; `xs` = 24 tall, `text-xs` at 70%.
+- Model chip (`c/chat/ComposerModelEffort.tsx`): the model's name, then the effort word after a space ("Opus 5.5 High").
+  SkyeLab never shows a bare "default": with no pick it names the account's default (`workspace/composer_model.rs`).
 - Send: 32 px circle in primary, up-arrow icon 14 px; disabled = foreground 12% fill, muted icon. Stop: 32 px circle in
   destructive 90% with a 12 px rounded square (`c/chat/ComposerPrimaryActions.tsx:164-180,443-483`).
 - Context strip under the card (`ComposerSurface.tsx:72-81`, `c/BranchToolbar.tsx:784-897`): `px-2 pt-2 gap-1 text-xs`,

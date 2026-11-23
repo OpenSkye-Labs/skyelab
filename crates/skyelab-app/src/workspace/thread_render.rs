@@ -438,13 +438,6 @@ impl Render for ThreadView {
                         )
                         .debug_selector(|| "unsaved-events".into())
                     }))
-                    .children(self.limited.map(|resets_at| {
-                        line(
-                            super::timeline_text::limited_text(resets_at, ui::now_ms() / 1000).into(),
-                            ui::ink(theme, theme.warning),
-                        )
-                        .debug_selector(|| "limited-banner".into())
-                    }))
                     .children(failure)
                     .children(self.error.clone().map(|e| line(e, ui::ink(theme, theme.danger))))
                     .children(note.map(|n| line(n.into(), theme.muted_foreground)))

@@ -20,6 +20,8 @@ mod composer_menu;
 #[cfg(test)]
 #[path = "composer_menu_test.rs"]
 mod composer_menu_test;
+#[path = "composer_model.rs"]
+mod composer_model;
 #[cfg(all(test, unix))]
 #[path = "composer_paste_test.rs"]
 mod composer_paste_test;
@@ -50,14 +52,13 @@ pub(in crate::workspace) use composer_machine::machine_name;
 
 #[cfg(test)]
 use crate::workspace::*;
-use crate::workspace::{github, lock, thread, thread_worktree};
+use crate::workspace::{lock, thread, thread_worktree};
 pub(in crate::workspace) use composer_state::{
     Composer, SteerPrompt, Submit, bind_keys, shown_prompt,
 };
 
 use crate::ui;
 use composer_menu::MenuKind;
-use composer_picker::title_case;
 use composer_state::{AttachFiles, MENU_CONTEXT, Menu};
 use gpui::{
     AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
@@ -70,7 +71,7 @@ use gpui_component::{
     v_flex,
 };
 use gpui_kit_assets::IconName as Lucide;
-use skyelab_agent::{AttachmentKind, CLAUDE_MODELS};
+use skyelab_agent::AttachmentKind;
 use thread::{SendPrompt, ThreadView};
 
 /// Under this card width the control row goes compact (T3 collapses its chips the same way).
@@ -82,27 +83,6 @@ fn compact(width: gpui::Pixels) -> bool {
 }
 
 impl ThreadView {
-    /// The model chip's label: "Opus · High", or "Default model". `compact` leaves the effort out.
-    fn pick_label(&self, compact: bool) -> String {
-        let pick = &self.composer.pick;
-        let model = match pick.model.as_deref() {
-            None => "Default model".to_owned(),
-            Some(id) => CLAUDE_MODELS
-                .iter()
-                .find(|(alias, _)| *alias == id)
-                .map(|(_, label)| (*label).to_owned())
-                .or_else(|| {
-                    let listed = self.composer.codex_models.as_ref()?.as_ref().ok()?;
-                    listed.iter().find(|m| m.id == id).map(|m| m.label.clone())
-                })
-                .unwrap_or_else(|| id.to_owned()),
-        };
-        match &pick.effort {
-            Some(e) if !compact => format!("{model} · {}", title_case(e)),
-            _ => model,
-        }
-    }
-
     pub(in crate::workspace) fn render_composer(
         &self,
         window: &gpui::Window,
@@ -219,6 +199,7 @@ impl ThreadView {
     fn render_controls(&self, cx: &mut Context<Self>) -> AnyElement {
         let width = self.composer.width.get();
         let compact = compact(width);
+        let (chip, account_default) = self.chip_label(compact);
         h_flex()
             .px_2()
             .pb_2()
@@ -240,9 +221,13 @@ impl ThreadView {
                 Button::new("model-picker")
                     .ghost()
                     .small()
-                    .label(self.pick_label(compact))
+                    .label(chip)
                     .dropdown_caret(true)
-                    .tooltip("Model and effort")
+                    .tooltip(if account_default {
+                        "Account default"
+                    } else {
+                        "Model and effort"
+                    })
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_picker(cx))),
             )
             .child(h_flex().pl_1().gap_1().children(self.render_primary(cx)))

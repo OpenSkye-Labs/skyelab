@@ -31,7 +31,9 @@ pub use claude::{PLAN_TOOL, QUESTION_TOOL};
 pub use event::{
     Block, DeltaKind, Event, TODO_TOOL, Todo, TodoStatus, Usage, session_gone, todos, turn_cost,
 };
-pub use models::{CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, list_codex_models};
+pub use models::{
+    CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, account_default_model, list_codex_models, model_label,
+};
 pub use permission::{Decision, Mode, summary};
 
 use anyhow::{Context as _, Result, bail};

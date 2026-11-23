@@ -1,4 +1,4 @@
-//! A usage limit shows as "Limited until …" over the composer and as Limited in the sidebar; a turn that succeeds
+//! A usage limit shows as Limited in the sidebar (and once, as the timeline banner); a turn that succeeds
 //! afterwards clears it.
 
 use super::claude_folded_turns_test::{one_view, wait_until};
@@ -24,8 +24,10 @@ fn a_limit_shows_until_a_turn_succeeds(cx: &mut TestAppContext) {
         Status::Limited
     );
     cx.run_until_parked();
-    let banner = cx.debug_bounds("limited-banner");
-    assert!(banner.is_some(), "the banner shows over the composer");
+    assert!(
+        cx.debug_bounds("limited-banner").is_none(),
+        "told once, by the timeline banner"
+    );
     // A turn that succeeds: ask, answer, result.
     one.view
         .update_in(cx, |v, window, cx| {

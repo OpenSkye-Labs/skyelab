@@ -7685,6 +7685,7 @@ dependencies = [
  "skyelab-pipe-sys",
  "tempfile",
  "tokio",
+ "toml 1.2.2+spec-1.1.0",
  "uuid",
  "win32job",
 ]

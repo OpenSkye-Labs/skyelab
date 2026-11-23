@@ -76,7 +76,8 @@ impl ThreadView {
                 .when(on, |this| this.child(Icon::new(IconName::Check).xsmall()))
                 .on_click(cx.listener(move |this, _, _, cx| this.pick_model(choice.clone(), cx)))
         };
-        let model_rows = std::iter::once((None, "Default model".to_owned()))
+        let default_row = format!("Account default ({})", self.default_model_name());
+        let model_rows = std::iter::once((None, default_row))
             .chain(
                 models
                     .iter()

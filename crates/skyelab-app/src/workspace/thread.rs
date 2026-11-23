@@ -231,6 +231,7 @@ impl ThreadView {
                     for (r, at) in &records {
                         replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
+                        this.note_model(r);
                     }
                     this.lists.reset(this.items.len());
                     this.load_turn_files(cx);
@@ -395,6 +396,7 @@ impl ThreadView {
         if let Record::Agent(skyelab_agent::Event::RateLimit { .. }) = record {
             cx.emit(ThreadViewEvent::UsageReported);
         }
+        self.note_model(record);
         let limited = limit_after(self.limited, record);
         if limited != self.limited {
             self.limited = limited;
