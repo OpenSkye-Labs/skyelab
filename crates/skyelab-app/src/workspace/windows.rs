@@ -11,6 +11,7 @@ use gpui::{
     AnyWindowHandle, App, AppContext as _, Bounds, Context, Entity, Focusable as _, Global, Pixels,
     WeakEntity, Window, WindowOptions, actions, point, px,
 };
+use skyelab_core::WindowLayout;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -38,6 +39,8 @@ struct Registered {
     window: AnyWindowHandle,
     workspace: WeakEntity<Workspace>,
     store: SharedStore,
+    /// Its frame, panel and page as last laid out: every layout save writes each open window's.
+    layout: Option<WindowLayout>,
 }
 
 /// Every workspace window and every thread view; the call queues and which window consumes them.
@@ -50,6 +53,8 @@ pub(crate) struct Windows {
     hub: Option<AnyWindowHandle>,
     /// The window-closed hook is installed (once).
     watching: bool,
+    /// The app is quitting: windows closing now stay in the saved list.
+    quitting: bool,
 }
 
 impl Global for Windows {}
@@ -72,13 +77,84 @@ pub fn window_handles(cx: &App) -> Vec<AnyWindowHandle> {
         .unwrap_or_default()
 }
 
+/// Every open window's layout, in the order the windows opened.
+pub(super) fn open_layouts(cx: &App) -> Vec<WindowLayout> {
+    cx.try_global::<Windows>()
+        .map(|reg| {
+            reg.workspaces
+                .iter()
+                .filter_map(|r| r.layout.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Keeps `window`'s current layout for the next save.
+pub(super) fn set_layout(window: AnyWindowHandle, layout: WindowLayout, cx: &mut App) {
+    let reg = cx.default_global::<Windows>();
+    if let Some(r) = reg.workspaces.iter_mut().find(|r| r.window == window) {
+        r.layout = Some(layout);
+    }
+}
+
+/// The app is quitting (see `Windows::quitting`).
+pub(super) fn quitting(cx: &mut App) {
+    cx.default_global::<Windows>().quitting = true;
+}
+
 #[cfg(test)]
 pub(super) fn workspaces(cx: &App) -> Vec<Entity<Workspace>> {
-    cx.global::<Windows>()
-        .workspaces
+    let Some(reg) = cx.try_global::<Windows>() else {
+        return Vec::new();
+    };
+    reg.workspaces
         .iter()
         .filter_map(|r| r.workspace.upgrade())
         .collect()
+}
+
+/// Opens every window in `saved` (frame and page) as the last session left them, or one window when there are none.
+/// `make` builds window `n`'s workspace; each saves its layout to `settings` from then on.
+pub fn restore_windows(
+    saved: Vec<WindowLayout>,
+    settings: Option<std::path::PathBuf>,
+    displays: &[Bounds<Pixels>],
+    visible: Bounds<Pixels>,
+    make: impl Fn(usize, &mut Window, &mut Context<Workspace>) -> Workspace + 'static,
+    cx: &mut App,
+) -> anyhow::Result<Vec<Entity<Workspace>>> {
+    let make = Rc::new(make);
+    let saved: Vec<Option<WindowLayout>> = if saved.is_empty() {
+        vec![None]
+    } else {
+        saved.into_iter().map(Some).collect()
+    };
+    let (mut opened, mut failed) = (Vec::new(), None);
+    for (n, layout) in saved.into_iter().enumerate() {
+        let bounds = crate::window_layout::initial_bounds(layout.as_ref(), displays, visible);
+        let (make, settings) = (make.clone(), settings.clone());
+        let made = open(
+            bounds,
+            move |window, cx| {
+                let mut ws = make(n, window, cx);
+                ws.restore_layout(settings, layout.as_ref(), window, cx);
+                ws
+            },
+            cx,
+        );
+        // One window that can't open doesn't take the others down; only none opening is an error.
+        match made {
+            Ok(ws) => opened.push(ws),
+            Err(e) => {
+                eprintln!("couldn't reopen a window: {e:#}");
+                failed = Some(e);
+            }
+        }
+    }
+    match failed {
+        Some(e) if opened.is_empty() => Err(e),
+        _ => Ok(opened),
+    }
 }
 
 /// Opens a workspace window at `bounds`: the kit's options and setup, then the call queues if no window has them.
@@ -125,6 +201,7 @@ fn window_closed(id: gpui::WindowId, cx: &mut App) {
         return;
     };
     let gone = reg.workspaces.remove(at);
+    let quitting = reg.quitting;
     let held = reg.hub == Some(gone.window);
     if held {
         reg.hub = None;
@@ -135,6 +212,13 @@ fn window_closed(id: gpui::WindowId, cx: &mut App) {
         .find(|r| Arc::ptr_eq(&r.store, &gone.store))
         .map(|r| (r.window, r.workspace.clone()));
     let all = reg.threads.clone();
+    // Its queue loops stop now: a workspace kept alive past its window would still take (and drop) calls.
+    if let Some(ws) = gone.workspace.upgrade().filter(|_| held) {
+        ws.update(cx, |ws, _| ws.release_hub());
+    }
+    for view in &all {
+        view.update(cx, |v, _| v.lists.remove(gone.window));
+    }
     let orphans: Vec<_> = all
         .into_iter()
         .filter(|v| v.read(cx).window == gone.window)
@@ -142,6 +226,9 @@ fn window_closed(id: gpui::WindowId, cx: &mut App) {
     let Some((window, workspace)) = next else {
         return;
     };
+    if !quitting {
+        save_open_layouts(&workspace, cx);
+    }
     let _ = window.update(cx, |_, window, cx| {
         for view in orphans {
             view.update(cx, |v, cx| v.attach(window, cx));
@@ -152,6 +239,26 @@ fn window_closed(id: gpui::WindowId, cx: &mut App) {
     });
 }
 
+/// A window the user closed leaves the saved list: the windows still open are written now.
+fn save_open_layouts(survivor: &WeakEntity<Workspace>, cx: &mut App) {
+    let Some(path) = survivor
+        .upgrade()
+        .and_then(|ws| ws.read(cx).layout.path.clone())
+    else {
+        return;
+    };
+    let windows = open_layouts(cx);
+    if windows.is_empty() {
+        return;
+    }
+    cx.background_spawn(async move {
+        if let Err(e) = super::layout::write_layouts(&path, windows) {
+            eprintln!("couldn't save the window layout: {e:#}");
+        }
+    })
+    .detach();
+}
+
 impl Workspace {
     /// Joins the registry: adopts every thread view already open on this store, and leaves it when the window closes.
     pub(super) fn register_window(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -159,6 +266,7 @@ impl Workspace {
             window: window.window_handle(),
             workspace: cx.weak_entity(),
             store: self.backend.store.clone(),
+            layout: None,
         };
         let reg = cx.default_global::<Windows>();
         reg.workspaces.push(me);
@@ -196,6 +304,14 @@ impl Workspace {
         }
     }
 
+    /// Stops serving the call queues (its window closed); the next window claims them.
+    fn release_hub(&mut self) {
+        self._orchestrate = None;
+        if let Some(hook) = self.remote.as_mut() {
+            hook._calls = None;
+        }
+    }
+
     /// Whether this window serves the call queues (and runs the background polls one window is enough for).
     pub(super) fn is_hub(&self, cx: &App) -> bool {
         cx.try_global::<Windows>()
@@ -229,6 +345,7 @@ impl Workspace {
     /// A thread closed here (archived, deleted): it leaves the registry and every other window.
     pub(super) fn unshare_thread(&self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
         cx.default_global::<Windows>().threads.retain(|v| v != view);
+        super::orchestrate_ui::DelegatedStarts::forget(view.entity_id(), cx);
         let others = self.other_windows(cx);
         let view = view.clone();
         cx.defer(move |cx| {

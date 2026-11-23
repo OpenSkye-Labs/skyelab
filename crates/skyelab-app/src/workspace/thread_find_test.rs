@@ -62,7 +62,7 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     let (one, cx) = one_view(cx, Provider::Claude, bin, None);
     one.view.update_in(cx, |v, window, cx| {
         v.items = turn();
-        v.list.reset(v.items.len());
+        v.lists.reset(v.items.len());
         v.focus_prompt(window, cx);
         cx.notify();
     });
@@ -111,7 +111,7 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     // A reply streams in with another match: counted, and the place (row 2) is kept.
     one.view.update(cx, |v, cx| {
         v.items.push(Item::Text("one more needle".into()));
-        v.list.reset(v.items.len());
+        v.lists.reset(v.items.len());
         super::thread_find::FindHost::find_rows_changed(v);
         cx.notify();
     });

@@ -115,9 +115,14 @@ impl ThreadView {
         let footer = self.render_footer(cx);
         let view = cx.entity().downgrade();
         let (width, view_id) = (self.composer.width.clone(), cx.entity_id());
-        // The card's width, read by the next frame's control row: crossing the compact line redraws once.
+        let owned = self.owned_by(window);
+        // The card's width, read by the next frame's control row: crossing the compact line redraws once. Only the
+        // owner window measures, or two windows of different widths would redraw each other forever.
         let measure = gpui::canvas(
             move |bounds, _, cx| {
+                if !owned {
+                    return;
+                }
                 let old = width.replace(bounds.size.width);
                 if compact(old) != compact(bounds.size.width) {
                     cx.notify(view_id);
@@ -127,6 +132,17 @@ impl ThreadView {
         )
         .absolute()
         .size_full();
+        let input = if owned {
+            Textarea::new(&self.prompt)
+                .appearance(false)
+                .on_paste(move |item, _, cx| {
+                    view.update(cx, |this, cx| this.attach_clipboard(item, cx))
+                        .unwrap_or(false)
+                })
+                .into_any_element()
+        } else {
+            self.render_borrowed_prompt(cx)
+        };
         let ringed = crate::workspace::focus_areas::composer_ringed(
             &gpui::Focusable::focus_handle(self.prompt.read(cx), cx),
             window,
@@ -157,12 +173,7 @@ impl ThreadView {
                     .pt_3()
                     .text_size(ui::BODY)
                     .when(menu.is_some(), |this| this.key_context(MENU_CONTEXT))
-                    .child(Textarea::new(&self.prompt).appearance(false).on_paste(
-                        move |item, _, cx| {
-                            view.update(cx, |this, cx| this.attach_clipboard(item, cx))
-                                .unwrap_or(false)
-                        },
-                    )),
+                    .child(input),
             )
             .child(controls);
         v_flex()

@@ -65,7 +65,7 @@ fn answers_picked_in_the_card_reach_the_agent(cx: &mut TestAppContext) {
     // The card is the last row: scroll it to the top so every option is on screen.
     one.view.update(cx, |v, _| {
         let item_ix = v.items.len() - 1;
-        v.list.scroll_to(gpui::ListOffset {
+        v.own_list().scroll_to(gpui::ListOffset {
             item_ix,
             offset_in_item: gpui::px(0.),
         })

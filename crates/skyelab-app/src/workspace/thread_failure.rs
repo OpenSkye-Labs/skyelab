@@ -135,7 +135,7 @@ impl ThreadView {
             .iter()
             .position(|i| i.expand_id() == Some(id.as_str()))
         {
-            self.list.scroll_to_reveal_item(ix);
+            self.own_list().scroll_to_reveal_item(ix);
         }
         cx.notify();
     }

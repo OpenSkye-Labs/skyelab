@@ -200,6 +200,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.open_threads.retain(|v| v != view);
+        view.update(cx, |v, _| v.lists.remove(window.window_handle()));
         self.thread_subs.remove(&view.entity_id());
         self.waiters.retain(|_, (id, _)| *id != view.entity_id());
         self.orphan_terminals(view.entity_id(), window, cx);

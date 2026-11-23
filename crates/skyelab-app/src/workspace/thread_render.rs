@@ -354,9 +354,12 @@ impl Render for ThreadView {
                 .flex()
                 .flex_col()
                 .child(
-                    list(self.list.clone(), cx.processor(render_item))
-                        .flex_1()
-                        .py_3(),
+                    list(
+                        self.list_in(window.window_handle()).clone(),
+                        cx.processor(render_item),
+                    )
+                    .flex_1()
+                    .py_3(),
                 )
                 .children(find)
                 .into_any_element()

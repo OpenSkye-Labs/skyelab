@@ -128,14 +128,26 @@ fn dock_toggles(open: DockToggles) -> Vec<Button> {
     ]
 }
 
-/// Where the layout is saved, and the pending debounced save.
+/// Where the layout is saved, this window's current layout, and the pending debounced save.
 #[derive(Default)]
 pub(super) struct LayoutStore {
     pub(super) path: Option<PathBuf>,
     save: Option<Task<()>>,
-    /// The layout the pending save will write; quitting writes it at once instead.
-    pending: Option<WindowLayout>,
+    /// A save is waiting; quitting writes at once instead.
+    pending: bool,
     _quit: Option<gpui::Subscription>,
+}
+
+/// Writes `windows` as the list to reopen at launch (replacing an older file's single slot).
+pub(super) fn write_layouts(
+    path: &std::path::Path,
+    windows: Vec<WindowLayout>,
+) -> anyhow::Result<()> {
+    AppSettings::update(path, |s| {
+        s.windows = windows;
+        s.window = None;
+    })
+    .map(|_| ())
 }
 
 impl Workspace {
@@ -226,11 +238,15 @@ impl Workspace {
         }
         self.layout.path = path;
         // A change in the last moments before quitting would otherwise never be written.
-        self.layout._quit = Some(cx.on_app_quit(|this, _| {
-            let write = this.layout.path.clone().zip(this.layout.pending.take());
+        self.layout._quit = Some(cx.on_app_quit(|this, cx| {
+            // Windows closing as the app quits stay in the list: they all reopen.
+            super::windows::quitting(cx);
+            let pending = std::mem::take(&mut this.layout.pending);
+            let write = this.layout.path.clone().filter(|_| pending);
+            let windows = super::windows::open_layouts(cx);
             async move {
-                if let Some((path, layout)) = write {
-                    let _ = AppSettings::update(&path, |s| s.window = Some(layout));
+                if let Some(path) = write {
+                    let _ = write_layouts(&path, windows);
                 }
             }
         }));
@@ -238,6 +254,8 @@ impl Workspace {
             this.schedule_layout_save(window, cx)
         }));
         self.sync_toggles(cx);
+        // A new window joins the saved list without waiting for its first move.
+        self.schedule_layout_save(window, cx);
     }
 
     pub(super) fn schedule_layout_save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -254,15 +272,19 @@ impl Workspace {
                     .unwrap_or(RIGHT_DEFAULT_W),
             )
         };
-        self.layout.pending = Some(layout.clone());
+        super::windows::set_layout(self.window_handle, layout, cx);
+        self.layout.pending = true;
         // A newer change replaces (cancels) the pending save: only the settled layout is written.
         self.layout.save = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(SAVE_AFTER).await;
-            let _ = this.update(cx, |this, _| this.layout.pending = None);
+            let Ok(windows) = this.update(cx, |this, cx| {
+                this.layout.pending = false;
+                super::windows::open_layouts(cx)
+            }) else {
+                return;
+            };
             let saved = cx
-                .background_spawn(async move {
-                    AppSettings::update(&path, |s| s.window = Some(layout)).map(|_| ())
-                })
+                .background_spawn(async move { write_layouts(&path, windows) })
                 .await;
             if let Err(e) = saved {
                 eprintln!("couldn't save the window layout: {e:#}");

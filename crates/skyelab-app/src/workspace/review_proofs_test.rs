@@ -87,7 +87,7 @@ fn a_plan_link_with_an_app_scheme_does_not_open(cx: &mut gpui::TestAppContext) {
             raw,
             decision: None,
         })];
-        v.list.reset(1);
+        v.lists.reset(1);
         cx.notify();
     });
     cx.run_until_parked();

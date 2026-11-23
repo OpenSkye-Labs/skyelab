@@ -22,12 +22,14 @@ fn a_new_threads_saved_view_names_the_thread_once_it_starts(cx: &mut gpui::TestA
     wait_until(cx, "a saved layout", |_| {
         skyelab_core::AppSettings::load(&path)
             .ok()
-            .and_then(|s| s.window)
+            .and_then(|s| s.saved_windows().into_iter().next())
             .is_some()
     });
     let view = skyelab_core::AppSettings::load(&path)
         .expect("load")
-        .window
+        .saved_windows()
+        .into_iter()
+        .next()
         .expect("window")
         .view;
     assert_eq!(view, format!("thread:{id}"), "SAVED_VIEW_STALE");

@@ -4,17 +4,40 @@
 use super::orchestrate::{OrchCall, Reply, StartRequest};
 use super::thread::{ChildLink, ThreadView};
 use super::{Workspace, lock};
-use gpui::{App, AppContext as _, Context, Entity, SharedString, WeakEntity, Window};
+use gpui::{
+    App, AppContext as _, Context, Entity, EntityId, Global, SharedString, Subscription,
+    WeakEntity, Window,
+};
 use skyelab_agent::mcp::Caller;
 use skyelab_core::delegation::check_limits;
+use std::collections::HashMap;
 
 /// A delegated start, by (caller thread, its request id).
-pub(super) type StartKey = (i64, String);
+type StartKey = (i64, String);
 
 /// What a retry of a start gets: the thread's id once known, else its tab while it starts.
-pub(super) struct DelegatedStart {
+struct DelegatedStart {
     view: WeakEntity<ThreadView>,
     id: Option<i64>,
+}
+
+/// Delegated starts by request id, and the waits that answer them. App-wide, not per window: a start outlives the
+/// window that took it, and a retry served by another window still gets the thread the first call started.
+#[derive(Default)]
+pub(super) struct DelegatedStarts {
+    starts: HashMap<StartKey, DelegatedStart>,
+    waits: HashMap<EntityId, Vec<Subscription>>,
+}
+
+impl Global for DelegatedStarts {}
+
+impl DelegatedStarts {
+    /// A thread closed: its pending answers go (the caller hears it ended), like any wait on a closed tab.
+    pub(super) fn forget(view: EntityId, cx: &mut App) {
+        if cx.has_global::<Self>() {
+            cx.global_mut::<Self>().waits.remove(&view);
+        }
+    }
 }
 
 impl Workspace {
@@ -37,7 +60,12 @@ impl Workspace {
         }));
     }
 
-    fn orchestrate(&mut self, call: OrchCall, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn orchestrate(
+        &mut self,
+        call: OrchCall,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         match call {
             OrchCall::Start { request, reply } => {
                 if reply.is_disconnected() {
@@ -107,18 +135,18 @@ impl Workspace {
             request_id,
         } = request;
         let key = request_id.clone().map(|r| (caller.thread_id, r));
-        if let Some(start) = key.as_ref().and_then(|k| self.delegated.get(k)) {
-            if let Some(id) = start.id {
+        let known = key.as_ref().and_then(|k| {
+            let start = cx.try_global::<DelegatedStarts>()?.starts.get(k)?;
+            Some((start.id, start.view.upgrade()))
+        });
+        if let Some((id, view)) = known {
+            if let Some(id) = id {
                 let _ = reply.send(Ok(id));
                 return Ok(());
             }
             // Still on its way: the same thread once it has its row. One that failed before its row starts afresh.
-            if let Some(view) = start
-                .view
-                .upgrade()
-                .filter(|v| row_result(v.read(cx)).is_none_or(|r| r.is_ok()))
-            {
-                self.reply_when_row(&view, key, reply, cx);
+            if let Some(view) = view.filter(|v| row_result(v.read(cx)).is_none_or(|r| r.is_ok())) {
+                reply_when_row(&view, key, reply, cx);
                 return Ok(());
             }
         }
@@ -155,51 +183,24 @@ impl Workspace {
         self.add_thread_tab(view.clone(), false, window, cx);
         if let Some(key) = &key {
             // Only a live caller can retry, so its entries are the only ones worth keeping.
-            let live: std::collections::HashSet<i64> = (self.delegated.keys().map(|k| k.0))
+            let callers: Vec<i64> = cx
+                .try_global::<DelegatedStarts>()
+                .map(|d| d.starts.keys().map(|k| k.0).collect())
+                .unwrap_or_default();
+            let live: std::collections::HashSet<i64> = callers
+                .into_iter()
                 .filter(|c| self.open_view(*c, cx).is_some())
                 .collect();
-            self.delegated.retain(|k, _| live.contains(&k.0));
+            let starts = &mut cx.default_global::<DelegatedStarts>().starts;
+            starts.retain(|k, _| live.contains(&k.0));
             let start = DelegatedStart {
                 view: view.downgrade(),
                 id: None,
             };
-            self.delegated.insert(key.clone(), start);
+            starts.insert(key.clone(), start);
         }
-        self.reply_when_row(&view, key, reply, cx);
+        reply_when_row(&view, key, reply, cx);
         Ok(())
-    }
-
-    /// Answers with the thread's id once its row exists, before its agent is up, so a slow start can't outlast
-    /// the agent's wait and leave a child it never heard of. Or with why the row was never made.
-    fn reply_when_row(
-        &mut self,
-        view: &Entity<ThreadView>,
-        key: Option<StartKey>,
-        reply: Reply<i64>,
-        cx: &mut Context<Self>,
-    ) {
-        let answer = move |this: &mut Self, result: Result<i64, String>| {
-            if let (Ok(id), Some(start)) = (
-                &result,
-                key.as_ref().and_then(|k| this.delegated.get_mut(k)),
-            ) {
-                start.id = Some(*id); // a retry after the tab closed still names this thread
-            }
-            let _ = reply.send(result);
-        };
-        if let Some(result) = row_result(view.read(cx)) {
-            return answer(self, result);
-        }
-        let mut answer = Some(answer);
-        self.wait_on(view, cx, move |this, view, cx| {
-            let Some(result) = row_result(view.read(cx)) else {
-                return false;
-            };
-            if let Some(answer) = answer.take() {
-                answer(this, result);
-            }
-            true
-        });
     }
 
     /// Watches `view` until `done` returns true, then drops the watch.
@@ -296,4 +297,40 @@ fn row_result(view: &ThreadView) -> Option<Result<i64, String>> {
         })),
         (None, true) => None,
     }
+}
+
+/// Answers with the thread's id once its row exists, before its agent is up, so a slow start can't outlast the
+/// agent's wait and leave a child it never heard of. Or with why the row was never made. The wait is app-wide, so the
+/// window that took the call may close meanwhile.
+fn reply_when_row(
+    view: &Entity<ThreadView>,
+    key: Option<StartKey>,
+    reply: Reply<i64>,
+    cx: &mut App,
+) {
+    let answer = move |cx: &mut App, result: Result<i64, String>| {
+        if let (Ok(id), Some(k)) = (&result, &key)
+            && let Some(start) = cx.default_global::<DelegatedStarts>().starts.get_mut(k)
+        {
+            start.id = Some(*id); // a retry after the tab closed still names this thread
+        }
+        let _ = reply.send(result);
+    };
+    if let Some(result) = row_result(view.read(cx)) {
+        return answer(cx, result);
+    }
+    let mut answer = Some(answer);
+    let id = view.entity_id();
+    let watch = cx.observe(view, move |view, cx| {
+        let Some(result) = row_result(view.read(cx)) else {
+            return;
+        };
+        if let Some(answer) = answer.take() {
+            answer(cx, result);
+        }
+        // Every wait on this view has its answer now; drop them once this callback is done.
+        cx.defer(move |cx| DelegatedStarts::forget(id, cx));
+    });
+    let waits = &mut cx.default_global::<DelegatedStarts>().waits;
+    waits.entry(id).or_default().push(watch);
 }

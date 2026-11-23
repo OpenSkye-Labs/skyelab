@@ -25,7 +25,7 @@ pub(super) struct RemoteHook {
     remote: Entity<Remote>,
     panel: Option<Entity<RemotePanel>>,
     /// Answers remote calls; only one window does (`windows`).
-    _calls: Option<Task<()>>,
+    pub(super) _calls: Option<Task<()>>,
     _observe: Subscription,
 }
 

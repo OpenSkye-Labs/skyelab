@@ -145,7 +145,7 @@ impl ThreadView {
                 // The dividers grow a row: measure them again.
                 for ix in 0..this.items.len() {
                     if matches!(this.items[ix], Item::Done { .. }) {
-                        this.list.splice(ix..ix + 1, 1);
+                        this.lists.splice(ix..ix + 1, 1);
                     }
                 }
                 cx.notify();

@@ -261,13 +261,13 @@ fn main() {
         workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
         let saved = AppSettings::default_path()
             .and_then(|p| AppSettings::load(&p).ok())
-            .and_then(|s| s.window);
+            .map(|s| s.saved_windows())
+            .unwrap_or_default();
         let displays: Vec<_> = cx.displays().iter().map(|d| d.bounds()).collect();
         let visible = cx.primary_display().map_or_else(
             || Bounds::centered(None, size(px(1200.), px(800.)), cx),
             |d| d.visible_bounds(),
         );
-        let bounds = window_layout::initial_bounds(saved.as_ref(), &displays, visible);
         workspace::set_hub(Some(calls), orchestrate, cx);
         let setup_tailnet = tailnet.clone();
         cx.set_global(workspace::WindowKit {
@@ -278,7 +278,7 @@ fn main() {
                 options.device_key = device_key.clone();
                 let tailnet = setup_tailnet.clone();
                 ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
-                // Every window saves its frame and page; the last one changed opens at the next launch.
+                // Every window saves its frame and page; all of them open at the next launch.
                 ws.restore_layout(AppSettings::default_path(), None, window, cx);
             }),
         });
@@ -315,13 +315,18 @@ fn main() {
         let on_menu = fresh.clone();
         cx.on_action(move |_: &workspace::NewWindow, cx| on_menu(cx));
         cx.set_global(FreshWindow(fresh));
-        let opened = workspace::open_window(
-            bounds,
-            move |window, cx| {
+        let opened = workspace::restore_windows(
+            saved,
+            AppSettings::default_path(),
+            &displays,
+            visible,
+            move |n, window, cx| {
+                let (folder, path, config) = (folder.clone(), path.clone(), config.clone());
+                let (error, backend) = (error.clone(), backend.clone());
                 let mut ws =
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
-                ws.store_error = store_error.map(Into::into);
-                ws.restore_layout(AppSettings::default_path(), saved.as_ref(), window, cx);
+                // The store's open error shows once, in the first window.
+                ws.store_error = store_error.clone().filter(|_| n == 0).map(Into::into);
                 ws
             },
             cx,
