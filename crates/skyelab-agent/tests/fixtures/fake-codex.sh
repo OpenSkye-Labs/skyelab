@@ -1,4 +1,6 @@
 #!/bin/sh
+# `--version` prints a fixed version (the Welcome page's agent list).
+[ "$1" = --version ] && { echo 'codex-cli 0.99.0'; exit 0; }
 # Stand-in for `codex app-server` (tests and SKYELAB_CODEX_BIN). Speaks just enough of the app-server
 # protocol: answers initialize, thread/start and thread/resume, replays codex-turn.jsonl for each
 # turn/start, and ends a turn as interrupted on turn/interrupt. Every line it reads comes back as a

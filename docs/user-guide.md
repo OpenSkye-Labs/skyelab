@@ -57,7 +57,8 @@ no longer connected is ignored.
 
 ## Accounts and bindings
 
-Binding folders to accounts, and a GitHub login per account: see [user-guide-accounts.md](user-guide-accounts.md).
+First-run setup on the Welcome page (or **Set Up Accounts** in the palette), binding folders to accounts, and a GitHub
+login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 
 ## Threads
 

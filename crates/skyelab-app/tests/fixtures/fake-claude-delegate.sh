@@ -1,4 +1,5 @@
 #!/bin/sh
+[ "$1" = --version ] && { echo '2.1.0 (Claude Code)'; exit 0; } # the Welcome page's agent list
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type

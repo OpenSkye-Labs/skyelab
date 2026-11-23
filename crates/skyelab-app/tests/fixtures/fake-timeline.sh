@@ -6,6 +6,7 @@ d() { printf '{"type":"stream_event","event":{"type":"content_block_delta","inde
 a() { printf '{"type":"assistant","message":{"role":"assistant","content":[%s]},"parent_tool_use_id":null}\n' "$1"; }
 u() { printf '{"type":"user","message":{"role":"user","content":[%s]},"parent_tool_use_id":null}\n' "$1"; }
 for w in "The user wants" " a parser for the" " new stream." " Start with the" " event types."; do d thinking_delta thinking "$w"; done
+sleep 2 # held mid-stream like the text below, for a loaded test machine
 a '{"type":"thinking","thinking":"The user wants a parser for the new stream. Start with the event types.","signature":"s"}'
 for w in "I'll add" " the parser," " then test" " it."; do d text_delta text "$w"; done
 # Hold mid-stream long enough for a loaded test machine to see the partial text.

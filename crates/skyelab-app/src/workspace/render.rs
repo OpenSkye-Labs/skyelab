@@ -16,6 +16,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
+            .on_action(cx.listener(Self::set_up_accounts))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::pick_project))
             .on_action(cx.listener(Self::select_project))

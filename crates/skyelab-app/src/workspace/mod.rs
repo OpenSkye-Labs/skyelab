@@ -21,7 +21,9 @@ mod keys;
 pub(crate) mod layout;
 mod manage;
 mod manage_projects;
+mod onboarding;
 mod settings_tab;
+mod setup_flow;
 mod terminal_launch;
 mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
@@ -102,7 +104,8 @@ actions!(
         OpenDevices,
         ShowAllProjects,
         GoBack,
-        GoForward
+        GoForward,
+        SetUpAccounts
     ]
 );
 
@@ -175,6 +178,7 @@ pub struct Workspace {
     center: Entity<Center>,
     welcome: Entity<Welcome>,
     page: Page,
+    setup: setup_flow::SetupFlow,
     back: Vec<Page>,
     forward: Vec<Page>,
     /// Delegated starts by request id: a retry gets the thread the first call started.
@@ -313,6 +317,7 @@ impl Workspace {
             center,
             welcome,
             page: Page::Welcome,
+            setup: Default::default(),
             back: Vec::new(),
             forward: Vec::new(),
             #[cfg(unix)]
@@ -344,6 +349,7 @@ impl Workspace {
             notices: Vec::new(),
         };
         this.watch_attention(window, cx);
+        this.watch_setup(cx);
         this.refresh_details(cx);
         this.refresh_sidebar(cx);
         this.sync_toggles(cx);
@@ -480,6 +486,8 @@ mod manage_harness;
 mod manage_projects_test;
 #[cfg(test)]
 mod manage_threads_test;
+#[cfg(all(test, unix))]
+mod onboarding_test;
 #[cfg(test)]
 mod palette_remote_test;
 #[cfg(test)]
