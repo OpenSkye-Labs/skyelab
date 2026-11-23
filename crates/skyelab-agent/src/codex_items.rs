@@ -232,6 +232,15 @@ impl Codex {
     }
 }
 
+/// `turn/start`'s `sandboxPolicy` for the sandbox names `thread/start` takes.
+pub(super) fn sandbox_policy(sandbox: &str) -> Value {
+    match sandbox {
+        "read-only" => json!({ "type": "readOnly" }),
+        "danger-full-access" => json!({ "type": "dangerFullAccess" }),
+        _ => json!({ "type": "workspaceWrite" }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::rate_limit;

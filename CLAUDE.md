@@ -45,7 +45,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, and one starting `crash` writes
   to stderr and exits 3), Codex with
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
-  project; a prompt starting `usage` reports 5h and weekly rate limits), and `gh` (Push, Open PR, the
+  project; a prompt starting `usage` reports 5h and weekly rate limits, and a `.fake-session-gone` file in the folder
+  makes its `thread/resume` fail as a missing thread), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file). Never verify against the real `gh`. All of these are debug builds only.
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the

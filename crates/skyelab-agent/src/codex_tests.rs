@@ -209,6 +209,26 @@ fn thread_start_error_is_a_failed_result() {
 }
 
 #[test]
+fn a_resumed_thread_without_a_rollout_is_gone() {
+    let gone = "no rollout found for thread id thr-old";
+    let (mut c, _) = Codex::new(
+        Path::new("/w"),
+        Some("thr-old"),
+        None,
+        Mode::Default,
+        Pick::default(),
+    );
+    let (events, _) =
+        c.on_line(json!({ "id": c.start_id, "error": { "code": -32600, "message": gone } }));
+    assert_eq!(events, vec![Event::SessionGone, failed(gone.into())]);
+    // A new thread refused with the same words isn't a gone session: nothing was resumed.
+    let (mut c, _) = Codex::new(Path::new("/w"), None, None, Mode::Default, Pick::default());
+    let (events, _) =
+        c.on_line(json!({ "id": c.start_id, "error": { "code": -32600, "message": gone } }));
+    assert_eq!(events, vec![failed(gone.into())]);
+}
+
+#[test]
 fn items_map_to_tool_use_results_and_text() {
     let mut c = open();
     let cmd = json!({ "type": "commandExecution", "id": "i1", "command": "ls", "cwd": "/w", "status": "inProgress", "commandActions": [] });

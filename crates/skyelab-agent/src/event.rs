@@ -172,6 +172,12 @@ pub fn todos(input: &Value) -> Vec<Todo> {
 /// What Claude Code says, in a result's errors or on stderr, when `--resume` names a session it doesn't have.
 const SESSION_GONE: &str = "No conversation found with session ID:";
 
+/// Whether Codex's refusal of `thread/resume` says the thread's rollout is gone (codex 0.171: "no rollout found for
+/// thread id <id>"; an unloaded thread answers "thread not found: <id>").
+pub(crate) fn codex_thread_gone(error: &str) -> bool {
+    error.starts_with("no rollout found for") || error.starts_with("thread not found:")
+}
+
 /// Whether `event` says the resumed session is gone: [`Event::SessionGone`], or stderr saying so.
 pub fn session_gone(event: &Event) -> bool {
     match event {
