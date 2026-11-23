@@ -313,7 +313,11 @@ impl Workspace {
                         this.mark_unread(view, cx);
                     }
                 }
-                ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
+                ThreadViewEvent::OpenChanges => _ = this.open_changes(view, window, cx),
+                ThreadViewEvent::Git(action) => {
+                    let tab = this.open_changes(view, window, cx);
+                    tab.update(cx, |c, cx| c.run_git(*action, window, cx));
+                }
                 ThreadViewEvent::OpenPath(path) => this.open_path(view, path, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =
@@ -375,7 +379,7 @@ impl Workspace {
         view: &Entity<ThreadView>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> Entity<ChangesView> {
         let dir = view.read(cx).cwd.clone();
         let base = view
             .read(cx)
@@ -397,13 +401,14 @@ impl Workspace {
                 c.refresh(cx)
             });
             self.show_right_panel(changes.entity_id().into(), window, cx);
-            return;
+            return changes;
         }
         let title = view.read(cx).title();
         let changes = cx.new(|cx| ChangesView::new(dir, base, title, Some(view), window, cx));
         self.add_right_panel(changes.clone(), window, cx);
         self.changes_views.push(changes.downgrade());
         cx.notify();
+        changes
     }
 
     /// A file the thread's timeline names: its folder's Changes tab, scrolled to the file once the diff lists it.

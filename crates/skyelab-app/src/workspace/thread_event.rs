@@ -9,6 +9,8 @@ pub enum ThreadViewEvent {
     /// The agent's Result event arrived: its changes may be on disk now.
     TurnDone,
     OpenChanges,
+    /// The Details tab's Commit & push menu: run it in this thread's Changes tab.
+    Git(GitAction),
     /// A file the agent's work names (a card's path, a link): show it in the Changes tab.
     OpenPath(PathBuf),
     /// The folder's files or checkpoints changed (a turn's checkpoint, a branch switch): Changes tabs reload.
@@ -27,4 +29,13 @@ pub enum ThreadViewEvent {
         cwd: PathBuf,
         account_id: String,
     },
+}
+
+/// What the Details tab's Commit & push menu runs (T3's GitActionsControl).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitAction {
+    Commit,
+    CommitPush,
+    Push,
+    OpenPr,
 }

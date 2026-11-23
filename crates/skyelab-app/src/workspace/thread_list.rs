@@ -426,7 +426,11 @@ pub(super) fn preview_text(markdown: &str) -> String {
         if !out.is_empty() {
             out.push(' ');
         }
-        out.extend(link_text(line).chars().filter(|c| !matches!(c, '*' | '`' | '|')));
+        out.extend(
+            link_text(line)
+                .chars()
+                .filter(|c| !matches!(c, '*' | '`' | '|')),
+        );
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }

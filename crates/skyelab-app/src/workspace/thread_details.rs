@@ -46,7 +46,13 @@ pub struct Details {
     /// Lines added and removed in the thread's folder since its base (`None` until loaded, or not a repo).
     stat: Option<(u64, u64)>,
     editors: Option<Editors>,
+    /// Who the Commit & push menu pushes as: the account's GitHub login, or why there is none.
+    gh_login: Option<SharedString>,
+    /// The "Link pull request…" field and what was wrong with the last link.
+    pr_input: Option<Entity<gpui_component::input::InputState>>,
+    pr_error: Option<SharedString>,
     _load: Option<Task<()>>,
+    _gh: Option<Task<()>>,
 }
 
 #[derive(Default, Clone, Copy, PartialEq)]
@@ -55,6 +61,10 @@ enum Page {
     Main,
     Editors,
     Previous,
+    /// The Commit & push menu.
+    Git,
+    /// "Link pull request…": paste a URL.
+    LinkPr,
 }
 
 struct Editors {

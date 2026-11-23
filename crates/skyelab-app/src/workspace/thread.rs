@@ -55,7 +55,7 @@ mod session;
 #[path = "thread_event.rs"]
 mod event;
 pub use super::thread_details::ChildLink;
-pub use event::ThreadViewEvent;
+pub use event::{GitAction, ThreadViewEvent};
 
 pub struct ThreadView {
     pub(super) focus: FocusHandle,

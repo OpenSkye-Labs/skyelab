@@ -7,7 +7,11 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
 - **Environment:** this machine's name, with a button that opens the thread's folder in Finder (or your file
   manager). On a git repo, then:
   - **The branch** opens the branch picker (a worktree thread shows its own branch, which doesn't switch).
-  - **Commit & push** opens Changes, where Commit, Push and Open PR are.
+  - **Commit & push** opens a menu that says which GitHub login pushes (the thread's account's own `gh` login), then
+    **Commit**, **Commit & push**, **Push** and **Open PR** (**View PR** once the thread has one). Each runs in the
+    Changes tab with the same checks as its buttons there: the folder must still be bound to the thread's account,
+    and Push and Open PR need that account's GitHub login. Commit and Open PR use the message and title typed in
+    Changes; with none typed, the field is focused and nothing runs.
   - **Changes vs <base>** shows the lines added and removed since the worktree's base commit, or since `HEAD`
     (untracked files aren't counted), and opens Changes.
   - A worktree thread also has **Open terminal here** and **Discard worktree** (see **Worktrees**).
@@ -15,11 +19,15 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
   scripts.
 - **Lineage · N running:** the threads this thread's agent delegated that are working now, with how long they have
   run. **Previous agents** lists the rest with how they ended. Click one to open it.
-- **Usage:** every account in `accounts.toml`, with the newest reading SkyeLab has of its limits (Session, Weekly)
-  and how old it is ("as of 12m ago"). The readings come from the `rate_limit_event` lines Claude writes in that
-  account's threads; SkyeLab never asks an account for them. Claude doesn't always include the numbers, and Codex
-  readings aren't read yet, so an account with nothing reported shows **—**.
-- **Pull request:** the pull request opened from the thread, when there is one.
+- **Usage:** every account in `accounts.toml`: its name and provider, how old its newest reading is ("as of 12m ago"),
+  and a small bar with the percentage used for each window it reported (**5h**, **Weekly**). When the newest reading
+  says the account is refused, the line reads **Limited · resets in 2h 14m** in the warning color until the reset.
+  The readings come from what the agents already report in that account's threads (Claude's `rate_limit_event`
+  lines, Codex's rate-limit updates); SkyeLab never asks an account for them. An account with nothing reported yet
+  shows **—**.
+- **Pull request:** the pull request opened from the thread. Without one, **Link pull request…** takes a pasted
+  `https://github.com/<owner>/<repo>/pull/<number>` link (anything else is refused) and keeps it on the thread; it
+  then shows here and as the `#<number>` badge on the thread's sidebar row.
 - **Editor:** **Open in <editor>** runs the editor described under **Open in editor**. The arrow lists the editors on
   your PATH (VS Code, Cursor, Zed, Windsurf, Sublime Text); picking one opens the folder in it and saves it as
   `editor` in `settings.toml`.

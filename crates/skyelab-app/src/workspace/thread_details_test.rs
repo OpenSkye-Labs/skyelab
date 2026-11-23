@@ -39,7 +39,7 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
     ws.read_with(cx, |ws, cx| {
         let usage = &ws.details.read(cx).usage;
         let work = usage.iter().find(|a| a.id == "work").expect("work listed");
-        assert_eq!(work.windows, vec![("Session", 0.91), ("Weekly", 0.62)]);
+        assert_eq!(work.windows, vec![("5h", 0.91), ("Weekly", 0.62)]);
         assert!(work.as_of_ms.is_some());
         // Every configured account is listed; one whose agents reported nothing has no numbers.
         assert!(

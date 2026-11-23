@@ -34,17 +34,23 @@ fn count(n: u64) -> String {
 pub(super) fn limited_text(resets_at: Option<i64>, now: i64) -> String {
     match resets_at.map(|r| r - now) {
         Some(left) if left > 0 => {
-            let minutes = (left + 59) / 60;
-            let (h, m) = (minutes / 60, minutes % 60);
-            let wait = match (h, m) {
-                (0, m) => format!("{m}m"),
-                (h, 0) => format!("{h}h"),
-                (h, m) => format!("{h}h {m}m"),
-            };
-            format!("Usage limit reached. Limited until it resets in {wait}.")
+            format!(
+                "Usage limit reached. Limited until it resets in {}.",
+                wait(left)
+            )
         }
         Some(_) => "Usage limit reached. It should have reset; send again to retry.".into(),
         None => "Usage limit reached. Limited until it resets.".into(),
+    }
+}
+
+/// `left` seconds as "2h 14m", rounded up to the minute.
+pub(in crate::workspace) fn wait(left: i64) -> String {
+    let minutes = (left + 59) / 60;
+    match (minutes / 60, minutes % 60) {
+        (0, m) => format!("{m}m"),
+        (h, 0) => format!("{h}h"),
+        (h, m) => format!("{h}h {m}m"),
     }
 }
 
