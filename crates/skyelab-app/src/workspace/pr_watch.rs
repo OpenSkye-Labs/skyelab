@@ -1,9 +1,9 @@
-//! Linked pull requests' state (T3's PullRequestWatchService and ThreadStatusIndicators), and the shown thread's
-//! background fetch (T3's VcsAutomaticFetchInterval). A PR is read with its thread's own account's `gh`, after the
-//! same checks as Push, and only while it can still change: merged and closed PRs are never read again.
+//! Linked pull requests' state, and the shown thread's background fetch. A PR is read by its URL with its thread's
+//! own account's `gh`, only while its folder is still bound to that account, and only while it can still change:
+//! merged and closed PRs are never read again.
 
 use super::Workspace;
-use super::worktree::push_account;
+use super::worktree::resolves_to;
 use crate::ui;
 use gpui::{AppContext as _, Context, Global, Hsla, SharedString, Task};
 use gpui_component::Theme;
@@ -16,10 +16,10 @@ use std::time::Duration;
 
 /// An open PR is read again after this long.
 pub(super) const POLL_EVERY_MS: i64 = 5 * 60_000;
-/// The shown thread's PR, on window focus or when the thread is opened, after this long.
+/// The shown thread's PR is read again on window focus or when it is opened, after this long.
 pub(super) const SHOWN_FRESH_MS: i64 = 60_000;
-/// How often the workspace looks for a PR or a fetch that is due.
 const TICK: Duration = Duration::from_secs(30);
+const HUNG_MS: i64 = 10 * 60_000;
 
 /// What the Details tab and the sidebar show for a thread's PR.
 #[derive(Clone, Debug, PartialEq)]
@@ -53,10 +53,11 @@ impl PrStatuses {
     }
 }
 
-/// The workspace's poller: one batch of reads at a time, each read after the last.
+/// One batch of reads at a time, each read after the last.
 #[derive(Default)]
 pub(super) struct Watch {
-    polling: bool,
+    /// When the running batch started (ms). A batch this old is taken as hung (gh has no timeout) and a new one runs.
+    polling_since: Option<i64>,
     _tick: Option<Task<()>>,
 }
 
@@ -89,7 +90,8 @@ pub(super) fn read_pr(
     url: &str,
     gh: &Path,
 ) -> PrView {
-    if let Err(e) = push_account(config, dir, account) {
+    // Not Push's repo check: the PR is read by URL, and a discarded worktree's folder is gone.
+    if let Err(e) = resolves_to(config, dir, account) {
         return PrView::Failed(format!("{e:#}").into());
     }
     if config
@@ -133,7 +135,7 @@ impl Workspace {
                 cx.background_executor().timer(TICK).await;
                 if this
                     .update(cx, |this, cx| {
-                        this.poll_prs(cx);
+                        this.poll_prs(false, cx);
                         this.fetch_shown(cx);
                     })
                     .is_err()
@@ -144,13 +146,17 @@ impl Workspace {
         }));
     }
 
-    /// Reads every due PR of this machine's threads (the shown one sooner), one after another off the UI thread.
-    /// A batch already running is left to finish.
-    pub(super) fn poll_prs(&mut self, cx: &mut Context<Self>) {
-        if self.pr_watch.polling {
+    /// Reads every due PR of the listed threads, one after another off the UI thread. `shown_fresh` (focus, a thread
+    /// opened) reads the shown thread's after [`SHOWN_FRESH_MS`] instead of [`POLL_EVERY_MS`].
+    pub(super) fn poll_prs(&mut self, shown_fresh: bool, cx: &mut Context<Self>) {
+        let now = crate::ui::now_ms();
+        if self
+            .pr_watch
+            .polling_since
+            .is_some_and(|t| now - t < HUNG_MS)
+        {
             return;
         }
-        let now = crate::ui::now_ms();
         let shown = self.shown_thread(cx);
         let statuses = cx.try_global::<PrStatuses>();
         let jobs: Vec<Job> = self
@@ -158,7 +164,7 @@ impl Workspace {
             .iter()
             .filter_map(|t| {
                 let url = t.pr_url.clone()?;
-                let max_age = if Some(t.id) == shown {
+                let max_age = if shown_fresh && Some(t.id) == shown {
                     SHOWN_FRESH_MS
                 } else {
                     POLL_EVERY_MS
@@ -176,7 +182,7 @@ impl Workspace {
         if jobs.is_empty() {
             return;
         }
-        self.pr_watch.polling = true;
+        self.pr_watch.polling_since = Some(now);
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         let (config, store) = (self.config.clone(), self.backend.store.clone());
@@ -185,7 +191,7 @@ impl Workspace {
             jobs.into_iter()
                 .map(|j| {
                     let view = read_pr(&config, &j.dir, &j.account, &j.url, &gh);
-                    // An ended PR is remembered, so it isn't read again after a restart.
+                    // Stored, so an ended PR isn't read again after a restart.
                     if let PrView::Status(s) = &view
                         && j.stored.as_deref() != Some(s.state.as_str())
                         && let Err(e) = super::lock(&store).and_then(|st| {
@@ -201,7 +207,7 @@ impl Workspace {
         cx.spawn(async move |this, cx| {
             let read = read.await;
             let _ = this.update(cx, |this, cx| {
-                this.pr_watch.polling = false;
+                this.pr_watch.polling_since = None;
                 let now = crate::ui::now_ms();
                 let statuses = cx.default_global::<PrStatuses>();
                 for (thread, url, view) in read {
@@ -224,7 +230,7 @@ impl Workspace {
                 this.details.update(cx, |_, cx| cx.notify());
             });
         })
-        .detach(); // the reads are bounded gh calls; `this` is weak
+        .detach(); // `this` is weak; a hung gh only holds its own thread
     }
 
     /// Fetches the shown thread's folder when the setting's interval has passed since its last fetch.
@@ -247,7 +253,7 @@ pub(crate) struct PrBadge {
     pub checks: Checks,
 }
 
-/// The row's PR badge: its number, and what the last read (or the store, before one) said.
+/// The row's PR badge: its number, and what the last read said (else the store's state).
 pub(super) fn badge(t: &skyelab_store::Thread, url: &str, cx: &gpui::App) -> PrBadge {
     let (state, checks) = match PrStatuses::view(cx, t.id, url) {
         Some(PrView::Status(s)) => (Some(s.state), s.checks),

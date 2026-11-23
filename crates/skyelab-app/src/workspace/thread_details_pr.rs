@@ -214,16 +214,19 @@ impl ThreadView {
         let Some(account) = self.thread.as_ref().map(|t| t.account_id.clone()) else {
             return;
         };
-        if now - self.details.fetched_ms < every_ms {
+        if self.details.fetching || now - self.details.fetched_ms < every_ms {
             return;
         }
-        self.details.fetched_ms = now; // also while it runs: one fetch at a time
+        (self.details.fetching, self.details.fetched_ms) = (true, now);
         let (dir, config) = (self.cwd.clone(), self.config.clone());
         let accounts_file = cx
             .try_global::<super::super::AccountsFile>()
             .map(|f| f.0.clone());
         let gh = super::super::gh_bin(cx);
         let task = cx.background_spawn(async move {
+            if skyelab_git::ahead_behind(&dir)?.is_none() {
+                return Ok(None); // no upstream: nothing to fetch, so no login to ask for
+            }
             let config = super::super::accounts_now(accounts_file.as_deref(), &config);
             super::super::worktree::push_account(&config, &dir, &account)?;
             let config_dir = config.github_config_dir(&dir)?;
@@ -237,6 +240,7 @@ impl ThreadView {
         self.details._fetch = Some(cx.spawn(async move |this, cx| {
             let result = task.await;
             let _ = this.update(cx, |this, cx| {
+                this.details.fetching = false;
                 match result {
                     Ok(sync) => {
                         this.details.sync = sync;

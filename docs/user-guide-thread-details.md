@@ -40,8 +40,8 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
   Once read, the row shows the PR's state (**Open**, **Draft**, **Merged**, **Closed**, colored like its sidebar badge),
   then its checks (passing, running, or **N checks failing** with each failing check listed; click one to open its
   page) and its review (**Approved**, **Changes requested**, **Awaiting review**). SkyeLab reads it with the thread's
-  account's own `gh` after Push's checks, one PR at a time: an open PR every 5 minutes, the shown thread's after a
-  minute when you focus the window or open it. A merged or closed PR is never read again, across restarts too
+  account's own `gh`, only while the thread's folder is still bound to that account, one PR at a time: an open PR
+  every 5 minutes, and the shown thread's again on window focus or when you open it if its last read is a minute old. A merged or closed PR is never read again, across restarts too
   (linking another PR starts over). An account with no GitHub login shows **Sign in to GitHub** (it opens
   Settings → GitHub) and `gh` is never run for it. The sidebar badge takes the state's icon and color, with a small
   check mark, dot or cross for the checks while the PR is open.

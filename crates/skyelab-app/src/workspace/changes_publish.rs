@@ -1,5 +1,5 @@
 //! The Changes tab's Commit / Push / Pull / Open PR. Each runs only while the folder still resolves to the
-//! thread's recorded account; Push and Open PR also need that account's GitHub login.
+//! thread's recorded account; Push, Pull and Open PR also need that account's GitHub login.
 
 use super::changes::ChangesView;
 use super::changes_generate::Gen;

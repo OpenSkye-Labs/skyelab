@@ -168,7 +168,7 @@ impl Workspace {
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             this.mark_seen(window, cx);
             if window.is_window_active() {
-                this.poll_prs(cx); // T3 refreshes on focus; only due PRs are read
+                this.poll_prs(true, cx);
             }
         });
         let search = cx.subscribe(

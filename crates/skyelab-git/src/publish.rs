@@ -91,7 +91,9 @@ pub(crate) fn check_urls(root: &Path, remote: &str, push: bool) -> Result<Vec<St
             // `=` would end the key of the `-c http.<url>.extraHeader=` reset.
             !authority.is_empty() && !authority.contains('@') && !url.contains('=')
         });
-        https || url.starts_with("file://") || Path::new(url).is_absolute()
+        // Not a UNC path (`\\host\share`, `file://host/`): Windows would log in to that host with the OS user's hash.
+        let unc = url.starts_with("\\\\") || url.starts_with("//");
+        https || url.starts_with("file:///") || (Path::new(url).is_absolute() && !unc)
     };
     if !urls.is_empty() && urls.iter().all(|u| plain(u)) {
         return Ok(urls);
@@ -130,6 +132,8 @@ pub fn credential_args(gh: &GitHub, push_urls: &[&str]) -> Result<Vec<String>> {
     ];
     for url in push_urls.iter().filter(|u| u.starts_with("https://")) {
         args.extend(["-c".into(), format!("http.{url}.extraHeader=")]);
+        // A repo config turning TLS checks off would hand the token to whoever answers.
+        args.extend(["-c".into(), format!("http.{url}.sslVerify=true")]);
     }
     Ok(args)
 }

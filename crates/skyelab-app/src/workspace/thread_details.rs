@@ -71,8 +71,9 @@ pub struct Details {
     sync: Option<(u32, u32)>,
     /// Why the last background fetch failed.
     fetch_error: Option<SharedString>,
-    /// When the folder was last fetched (ms since the epoch), for Settings → Threads' interval.
+    /// When the last fetch started (ms since the epoch), for Settings → Threads' interval.
     fetched_ms: i64,
+    fetching: bool,
     _fetch: Option<Task<()>>,
     _load: Option<Task<()>>,
     _gh: Option<Task<()>>,
@@ -205,7 +206,7 @@ impl Workspace {
         }
         self.details.update(cx, |d, cx| d.set_thread(view, cx));
         self.refresh_usage(cx);
-        self.poll_prs(cx);
+        self.poll_prs(true, cx);
         self.fetch_shown(cx);
     }
 

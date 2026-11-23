@@ -78,7 +78,7 @@ mod reads {
         config: AccountsConfig,
     }
 
-    /// A repo bound to "acme"; "acme" and "other" each have their own gh dir, both logged in to the fake.
+    /// A repo bound to "acme"; "other" has its own gh dir, and "acme" too when `acme_gh`. Nobody is logged in yet.
     fn setup(acme_gh: bool) -> Setup {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = std::fs::canonicalize(tmp.path()).expect("canonical");
@@ -162,3 +162,7 @@ mod reads {
         assert!(!s.gh_acme.join("fake-gh.fullenv").exists(), "gh never ran");
     }
 }
+
+#[cfg(unix)] // the fake gh is a shell script
+#[path = "pr_watch_discarded_test.rs"]
+mod discarded;

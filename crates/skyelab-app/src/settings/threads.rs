@@ -25,8 +25,7 @@ const MODES: [(Mode, &str); 3] = [
 /// Codex's reasoning efforts (its models list theirs; these are the common ones).
 const CODEX_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 
-/// A model or effort name safe on a command line, as the agent layer checks it at launch.
-/// Settings → Threads' fetch intervals, in minutes; 0 is off.
+/// Settings → Threads' fetch intervals, in minutes.
 const FETCH_CHOICES: [(u32, &str); 5] = [
     (0, "Off"),
     (1, "Every minute"),
@@ -35,6 +34,7 @@ const FETCH_CHOICES: [(u32, &str); 5] = [
     (30, "Every 30 minutes"),
 ];
 
+/// A model or effort name safe on a command line, as the agent layer checks it at launch.
 fn valid_name(v: &str) -> bool {
     !v.starts_with('-')
         && v.len() <= 128

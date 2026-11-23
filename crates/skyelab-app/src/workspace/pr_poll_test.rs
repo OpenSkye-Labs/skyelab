@@ -64,7 +64,7 @@ fn never_opened_thread_gets_its_pr_state_and_merged_stops_reads(cx: &mut gpui::T
     assert_eq!(r.row(id).and_then(|t| t.pr_state).as_deref(), Some("open"));
 
     // Not due again yet: no second call.
-    r.ws.update(cx, |ws, cx| ws.poll_prs(cx));
+    r.ws.update(cx, |ws, cx| ws.poll_prs(true, cx));
     cx.run_until_parked();
     assert_eq!(calls(), 1);
 
@@ -81,7 +81,7 @@ fn never_opened_thread_gets_its_pr_state_and_merged_stops_reads(cx: &mut gpui::T
     )
     .expect("pr");
     age(cx);
-    r.ws.update(cx, |ws, cx| ws.poll_prs(cx));
+    r.ws.update(cx, |ws, cx| ws.poll_prs(true, cx));
     wait_until(cx, "merged read", |cx| {
         badge(cx).is_some_and(|(s, _)| s == Some(PrState::Merged))
     });
@@ -93,7 +93,7 @@ fn never_opened_thread_gets_its_pr_state_and_merged_stops_reads(cx: &mut gpui::T
 
     // Merged: never read again, however old the last read.
     age(cx);
-    r.ws.update(cx, |ws, cx| ws.poll_prs(cx));
+    r.ws.update(cx, |ws, cx| ws.poll_prs(true, cx));
     cx.run_until_parked();
     assert_eq!(calls(), 2);
 }

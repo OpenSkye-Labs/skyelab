@@ -47,6 +47,13 @@ pub fn fetch(dir: &Path, gh: &crate::GitHub) -> Result<bool> {
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let mut cmd = command(Path::new("git"), &root);
     cmd.args(credential_args(gh, &urls)?)
+        // A stalled transfer gives up instead of holding the background fetch for good.
+        .args([
+            "-c",
+            "http.lowSpeedLimit=1000",
+            "-c",
+            "http.lowSpeedTime=60",
+        ])
         .args(["fetch", "--quiet", "--recurse-submodules=no", &remote])
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
@@ -90,14 +97,11 @@ pub fn pull_ff(dir: &Path, gh: &crate::GitHub, env: &[(OsString, OsString)]) -> 
             "the folder has uncommitted changes; commit or stash them, then pull",
         ));
     }
-    if ahead_behind(&root)?.is_none() {
+    fetch(&root, gh)?;
+    let Some((ahead, behind)) = ahead_behind(&root)? else {
         return Err(invalid(format!(
             "{branch} has no upstream branch yet; push it first"
         )));
-    }
-    fetch(&root, gh)?;
-    let Some((ahead, behind)) = ahead_behind(&root)? else {
-        return Err(invalid(format!("{branch} lost its upstream branch")));
     };
     if behind == 0 {
         return Ok(format!("{branch} is up to date"));
@@ -207,9 +211,7 @@ pub fn parse_pr_view(json: &[u8]) -> Result<PrStatus> {
     let v: Value =
         serde_json::from_slice(json).map_err(|e| bad(format!("unreadable output: {e}")))?;
     let text = |v: &Value, key: &str| v[key].as_str().unwrap_or_default().to_owned();
-    let merged = !v["mergedAt"].is_null();
     let state = match (text(&v, "state").as_str(), v["isDraft"] == true) {
-        _ if merged => PrState::Merged,
         ("MERGED", _) => PrState::Merged,
         ("CLOSED", _) => PrState::Closed,
         ("OPEN", true) => PrState::Draft,
