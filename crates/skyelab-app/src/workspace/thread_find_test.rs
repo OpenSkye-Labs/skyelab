@@ -1,14 +1,20 @@
 //! Find in thread: mod+F opens the bar over the timeline, typing counts every match (case-insensitive), Enter and
 //! Shift-Enter step through them, a match in a folded turn opens the fold and its row, and Esc closes the bar.
 
+#[cfg(unix)]
 use super::claude_folded_turns_test::one_view;
 use super::thread_find::matches;
 use super::thread_model::{Item, ToolItem};
+#[cfg(unix)]
 use super::timeline_fold::fold_key;
+#[cfg(unix)]
 use gpui::TestAppContext;
+#[cfg(unix)]
 use skyelab_core::Provider;
+#[cfg(unix)]
 use std::path::Path;
 
+#[cfg(unix)]
 const M: &str = if cfg!(target_os = "macos") {
     "cmd"
 } else {
@@ -48,6 +54,7 @@ fn matches_count_each_occurrence() {
     assert!(matches(&items, "absent").is_empty());
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");

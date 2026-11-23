@@ -67,7 +67,7 @@ impl Find {
     }
 }
 
-/// The text a row is searched in: what it shows, folded or not.
+/// The text a row is searched in, folded or not: a tool's whole input and result, not only its one-line summary.
 pub fn text_of(item: &Item) -> String {
     let tool = |t: &super::thread_model::ToolItem| {
         format!(

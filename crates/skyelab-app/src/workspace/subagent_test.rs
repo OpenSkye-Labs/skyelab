@@ -2,13 +2,17 @@
 //! parent_tool_use_id, a nested subagent's rolled up), takes its status, time and report from the task lines, folds
 //! with its turn, and draws. The fake agent's `subagent` prompt runs the recorded frame shapes end to end.
 
+#[cfg(unix)] // the fake agent is a shell script
 use super::claude_folded_turns_test::{one_view, wait_until};
 use super::subagent::{SubagentItem, SubagentStatus};
 use super::thread_model::{Item, Record, apply};
+#[cfg(unix)]
 use gpui::TestAppContext;
 use serde_json::json;
 use skyelab_agent::{Block, Event};
+#[cfg(unix)]
 use skyelab_core::Provider;
+#[cfg(unix)]
 use std::path::Path;
 
 fn agent(blocks: Vec<Block>) -> Record {
@@ -165,6 +169,17 @@ fn a_task_call_without_task_lines_ends_with_its_result() {
     );
     assert_eq!(s.status, SubagentStatus::Failed);
     assert_eq!(s.summary.as_deref(), Some("no bug"));
+    apply(
+        &mut items,
+        &agent(vec![call("S", "Agent", json!({"description":"stop me"}))]),
+    );
+    apply(&mut items, &task("S", Some("running"), None, None));
+    apply(&mut items, &task("S", Some("stopped"), None, Some(1000)));
+    assert_eq!(
+        cards(&items)[1].status,
+        SubagentStatus::Stopped,
+        "a stop isn't a failure"
+    );
     // A line for a call nobody made changes nothing.
     assert_eq!(
         apply(&mut items, &task("nope", Some("completed"), None, None)),

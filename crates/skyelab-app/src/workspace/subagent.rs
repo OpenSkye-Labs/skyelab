@@ -19,6 +19,8 @@ pub enum SubagentStatus {
     Running,
     Done,
     Failed,
+    /// Stopped on request (TaskStop, the user): not a failure.
+    Stopped,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -95,6 +97,7 @@ pub fn task(
             s.status = SubagentStatus::Running;
         }
         Some("completed") => s.status = SubagentStatus::Done,
+        Some("stopped" | "killed") => s.status = SubagentStatus::Stopped,
         Some(_) => s.status = SubagentStatus::Failed,
         None => {}
     }

@@ -53,6 +53,17 @@ fn which_turns_count_as_failed() {
     assert_eq!(f.prompt, "go");
     let f = failure(&[p(), output("Error: 401 Unauthorized")]).expect("signed out");
     assert!(f.signed_out);
+    for other in [
+        "connect ECONNREFUSED 127.0.0.1:4010",
+        "process 14012 exited unexpectedly",
+        "syntax error at line 401",
+    ] {
+        let f = failure(&[p(), output(other)]).expect("a crash");
+        assert!(!f.signed_out, "{other} is not a signed-out account");
+    }
+    let f =
+        failure(&[p(), done(true, Some("API Error: 401 {\"type\":\"error\"}"))]).expect("failed");
+    assert!(f.signed_out, "an API 401");
     // A newer prompt starts over.
     assert_eq!(failure(&[p(), done(true, Some("x")), p()]), None);
 }

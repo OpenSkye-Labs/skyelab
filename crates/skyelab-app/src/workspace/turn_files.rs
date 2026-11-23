@@ -173,7 +173,7 @@ fn stat_label(added: usize, removed: usize, cx: &gpui::App) -> impl IntoElement 
         )
 }
 
-/// The card under turn divider `done`: "N changed files +a −r" and Open diff; opened, one row per file.
+/// The card under turn divider `done`: "N changed files +a −r" and Open turn N diff; opened, one row per file.
 pub(super) fn render<V: ItemsView>(
     this: &V,
     done: usize,

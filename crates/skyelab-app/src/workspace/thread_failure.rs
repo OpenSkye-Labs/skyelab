@@ -36,10 +36,23 @@ fn says_signed_out(text: &str) -> bool {
         "invalid api key",
         "authentication_error",
         "oauth token has expired",
-        "401",
     ]
     .iter()
     .any(|s| t.contains(s))
+        || status_401(&t)
+}
+
+/// An HTTP 401 the agent reports (`API Error: 401`, `status 401`, `401 Unauthorized`), not any number with 401 in it
+/// (a port, a line number, a token count).
+fn status_401(t: &str) -> bool {
+    let b = t.as_bytes();
+    let alone = t.match_indices("401").any(|(i, _)| {
+        !(i > 0 && b[i - 1].is_ascii_digit()) && !b.get(i + 3).is_some_and(u8::is_ascii_digit)
+    });
+    alone
+        && ["unauthorized", "api error", "status"]
+            .iter()
+            .any(|w| t.contains(w))
 }
 
 /// The first line worth showing of the agent's stderr.
@@ -151,13 +164,16 @@ impl ThreadView {
         let row = f.row;
         let actions = h_flex()
             .gap_2()
-            .child(
-                Button::new("failure-retry")
-                    .primary()
-                    .small()
-                    .label("Retry")
-                    .on_click(cx.listener(|this, _, window, cx| this.retry_failed(window, cx))),
-            )
+            // A thread with no session to continue can't take a retry; the banner still says why it ended.
+            .when(!self.read_only, |el| {
+                el.child(
+                    Button::new("failure-retry")
+                        .primary()
+                        .small()
+                        .label("Retry")
+                        .on_click(cx.listener(|this, _, window, cx| this.retry_failed(window, cx))),
+                )
+            })
             .when(f.signed_out, |el| {
                 el.child(
                     Button::new("failure-settings")

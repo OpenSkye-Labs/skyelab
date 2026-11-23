@@ -13,6 +13,7 @@ pub fn status_text(s: &SubagentItem) -> String {
         SubagentStatus::Running => "Running",
         SubagentStatus::Done => "Done",
         SubagentStatus::Failed => "Failed",
+        SubagentStatus::Stopped => "Stopped",
     };
     match s.duration_ms {
         Some(ms) => format!("{label} · {}", ui::elapsed(ms as i64)),
@@ -27,6 +28,7 @@ pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> 
         SubagentStatus::Running => (IconName::LoaderCircle, theme.info),
         SubagentStatus::Done => (IconName::Check, theme.muted_foreground),
         SubagentStatus::Failed => (IconName::CircleAlert, theme.danger),
+        SubagentStatus::Stopped => (IconName::CircleAlert, theme.muted_foreground),
     };
     let slot = |icon: IconName, color| {
         div()
@@ -70,7 +72,7 @@ pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> 
                 .text_color(match s.status {
                     SubagentStatus::Running => ui::ink(theme, theme.info),
                     SubagentStatus::Failed => ui::ink(theme, theme.danger),
-                    SubagentStatus::Done => theme.muted_foreground,
+                    SubagentStatus::Done | SubagentStatus::Stopped => theme.muted_foreground,
                 })
                 .child(status_text(s)),
         )
