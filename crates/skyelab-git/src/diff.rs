@@ -52,6 +52,25 @@ pub fn diff_merge_base(path: &Path, base: &str) -> Result<Vec<FileDiff>> {
     run(path, Some("--merge-base"), base)
 }
 
+/// Lines added and removed in the working tree since `base` (its merge-base with `HEAD`), or since `HEAD`
+/// without one, as `git diff --numstat` counts them. Binary and untracked files count nothing.
+pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
+    let mut args = vec!["diff", "--numstat", "--no-ext-diff", "--no-textconv", "-M"];
+    if base.is_some() {
+        args.push("--merge-base");
+    }
+    args.extend(["--end-of-options", base.unwrap_or("HEAD"), "--"]);
+    let out = git(path, &args)?;
+    Ok(String::from_utf8_lossy(&out)
+        .lines()
+        .filter_map(|l| {
+            let mut cols = l.split('\t');
+            // Binary files show "-" for both counts.
+            Some((cols.next()?.parse::<u64>().ok()?, cols.next()?.parse::<u64>().ok()?))
+        })
+        .fold((0, 0), |(a, r), (x, y)| (a + x, r + y)))
+}
+
 /// Tree (or commit) `from` against `to`, per file: a checkpoint turn, or a thread since its start.
 pub fn diff_trees(path: &Path, from: &str, to: &str) -> Result<Vec<FileDiff>> {
     run_revs(path, None, &[from, to])

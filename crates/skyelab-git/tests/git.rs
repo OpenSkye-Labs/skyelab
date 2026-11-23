@@ -223,3 +223,21 @@ fn diff_kinds() {
 
     assert_eq!(diffs.len(), 5, "{diffs:#?}");
 }
+
+#[test]
+fn diff_stat_counts_lines_since_head_or_base() {
+    let (_tmp, root) = repo();
+    fs::write(root.join("a.txt"), "one\nTWO\nthree\nfour\n").expect("write");
+    fs::write(root.join("bin.dat"), [0u8, 1, 2]).expect("write");
+    git(&root, &["add", "bin.dat"]);
+    assert_eq!(skyelab_git::diff_stat(&root, None).expect("stat"), (2, 1));
+    // Since a base: commits after it count too.
+    git(&root, &["commit", "-qam", "edit"]);
+    fs::write(root.join("b.txt"), "x\n").expect("write");
+    git(&root, &["add", "b.txt"]);
+    assert_eq!(skyelab_git::diff_stat(&root, None).expect("stat"), (1, 0));
+    assert_eq!(
+        skyelab_git::diff_stat(&root, Some("HEAD~1")).expect("stat"),
+        (3, 1)
+    );
+}

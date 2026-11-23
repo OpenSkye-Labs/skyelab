@@ -126,4 +126,23 @@ impl Event {
         };
         typed.unwrap_or(Event::Unknown(v))
     }
+
+    /// A usage window Claude reported on its `rate_limit_event` line: its label and how much is used (0 to 1).
+    /// `None` for anything else, and for the many events that carry only a status and no utilization.
+    pub fn rate_limit(&self) -> Option<(&'static str, f32)> {
+        let Event::Unknown(v) = self else { return None };
+        if v["type"] != "rate_limit_event" {
+            return None;
+        }
+        let info = &v["rate_limit_info"];
+        let label = match info["rateLimitType"].as_str()? {
+            "five_hour" => "Session",
+            "seven_day" => "Weekly",
+            "seven_day_opus" => "Weekly · Opus",
+            "seven_day_sonnet" => "Weekly · Sonnet",
+            _ => return None,
+        };
+        let used = info["utilization"].as_f64()?;
+        used.is_finite().then(|| (label, used.clamp(0.0, 1.0) as f32))
+    }
 }
