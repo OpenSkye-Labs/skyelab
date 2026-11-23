@@ -118,7 +118,7 @@ fn thread_row(
         .debug_selector(move || selector.clone())
         .py_1p5()
         .gap_0p5()
-        .when(marks.nested, |this| this.ml(gpui::px(16.)))
+        .when(marks.nested, |this| this.pl(gpui::px(26.))) // under its group's row, inside the list
         .font_weight(gpui::FontWeight::NORMAL)
         .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
         .child(

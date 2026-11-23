@@ -34,7 +34,8 @@ struct Column {
     id: Option<i64>,
     model: SharedString,
     working: bool,
-    failed: bool,
+    /// Why its start or turn failed.
+    error: Option<SharedString>,
     turns: usize,
     ms: u64,
     files: usize,
@@ -61,7 +62,7 @@ fn column(v: &ThreadView) -> Column {
         id: v.thread.as_ref().map(|t| t.id),
         model: v.pick_label(false).into(),
         working: v.starting || v.turn_running(),
-        failed: v.error.is_some(),
+        error: v.error.clone(),
         turns,
         ms,
         files: files.len(),
@@ -169,7 +170,7 @@ impl Render for CompareView {
         let cards = cols.into_iter().enumerate().map(|(ix, c)| {
             let (dot, status) = if c.working {
                 (theme.info, "Working")
-            } else if c.failed {
+            } else if c.error.is_some() {
                 (theme.danger, "Failed")
             } else if c.turns > 0 {
                 (theme.success, "Done")
@@ -238,7 +239,11 @@ impl Render for CompareView {
                         .px_3()
                         .py_2()
                         .text_size(ui::BODY)
-                        .child(c.reply.unwrap_or_else(|| "No reply yet.".into())),
+                        .child(
+                            c.reply
+                                .or(c.error)
+                                .unwrap_or_else(|| "No reply yet.".into()),
+                        ),
                 )
                 .child(
                     h_flex()

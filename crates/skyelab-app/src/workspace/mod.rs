@@ -14,6 +14,7 @@ mod changes_tree;
 mod changes_turns;
 mod child_slots;
 mod compare;
+mod compare_sidebar;
 mod compare_view;
 mod details_panel;
 mod devices;

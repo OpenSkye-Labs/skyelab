@@ -13,17 +13,15 @@ use super::threads_test::{
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
 
-fn tick(view: &Entity<ThreadView>, worktrees: bool, cx: &mut VisualTestContext) {
+fn tick(view: &Entity<ThreadView>, models: &[&str], worktrees: bool, cx: &mut VisualTestContext) {
+    let models = models.iter().map(|m| (*m).to_owned()).collect();
     view.update(cx, |v, _| {
-        v.composer.compare = Some(Compare {
-            models: vec!["opus".into(), "sonnet".into()],
-            worktrees,
-        })
+        v.composer.compare = Some(Compare { models, worktrees })
     });
 }
 
 /// The comparison's stored rows, oldest first, once both have one.
-fn group_rows(store: &SharedStore, cx: &mut VisualTestContext) -> Vec<Thread> {
+fn group_rows(store: &SharedStore, n: usize, cx: &mut VisualTestContext) -> Vec<Thread> {
     let rows = || {
         let s = store.lock().expect("lock");
         let projects = s.list_projects().expect("projects");
@@ -33,7 +31,7 @@ fn group_rows(store: &SharedStore, cx: &mut VisualTestContext) -> Vec<Thread> {
             .filter(|t| t.compare_group.is_some())
             .collect::<Vec<_>>()
     };
-    wait_until(cx, "both models' rows", |_| rows().len() == 2);
+    wait_until(cx, "every model's row", |_| rows().len() == n);
     let mut rows = rows();
     rows.sort_by_key(|t| t.id);
     rows
@@ -60,9 +58,9 @@ fn siblings_share_folder_account_and_group_fold_in_the_sidebar_and_keep_archives
     let f = fixture(true);
     let (ws, cx) = open_workspace(&f, cx);
     let draft = project_thread(&f, &ws, cx);
-    tick(&draft, false, cx);
+    tick(&draft, &["opus", "sonnet"], false, cx);
     type_and_send(&draft, cx);
-    let rows = group_rows(&f.store, cx);
+    let rows = group_rows(&f.store, 2, cx);
     let group = rows[0].compare_group;
     for t in &rows {
         assert_eq!(t.cwd, f.project_dir, "the draft's folder");
@@ -152,7 +150,7 @@ fn a_send_for_another_account_starts_nothing(cx: &mut TestAppContext) {
     let f = fixture(true);
     let (ws, cx) = open_workspace(&f, cx);
     let draft = project_thread(&f, &ws, cx);
-    tick(&draft, false, cx);
+    tick(&draft, &["opus", "sonnet"], false, cx);
     draft.update_in(cx, |t, window, cx| {
         t.prompt
             .update(cx, |p, cx| p.set_value("hello", window, cx))
@@ -194,14 +192,16 @@ fn in_worktrees_gives_each_model_its_own(cx: &mut TestAppContext) {
     git(&f.project_dir, &["commit", "-q", "-m", "init"]);
     let (ws, cx) = open_workspace(&f, cx);
     let draft = project_thread(&f, &ws, cx);
-    tick(&draft, true, cx);
+    // Three at once: their worktrees are made in the same moment, from the same title.
+    tick(&draft, &["opus", "sonnet", "haiku"], true, cx);
     type_and_send(&draft, cx);
-    let rows = group_rows(&f.store, cx);
+    let rows = group_rows(&f.store, 3, cx);
     let paths: Vec<_> = rows
         .iter()
         .map(|t| t.worktree_path.clone().expect("a worktree each"))
         .collect();
-    assert_ne!(paths[0], paths[1], "separate worktrees");
+    let unique: std::collections::HashSet<_> = paths.iter().collect();
+    assert_eq!(unique.len(), 3, "separate worktrees: {paths:?}");
     for (t, p) in rows.iter().zip(&paths) {
         assert_eq!(&t.cwd, p, "runs in its worktree");
         assert!(p.starts_with(&f.project_dir), "{}", p.display());

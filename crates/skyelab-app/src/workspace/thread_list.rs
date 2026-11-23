@@ -145,7 +145,7 @@ impl Workspace {
         };
         let [pinned, working, rest] = self.thread_groups(cx);
         let mut group_rows = Vec::new(); // a comparison group folds into one row (`compare.rs`)
-        let mut fold = |ts| self.fold_section(ts, &mut item, &mut group_rows);
+        let mut fold = |ts| self.fold_section(ts, &mut item, &mut group_rows, cx);
         let (pinned, working, rest) = (fold(pinned), fold(working), fold(rest));
         let empty = rest.is_empty();
         let archived = ArchivedRows {
@@ -164,7 +164,7 @@ impl Workspace {
                 })
                 .collect(),
         };
-        super::compare::mark_groups(&mut marks, group_rows);
+        super::compare_sidebar::mark_groups(&mut marks, group_rows);
         let searching = self.thread_search.is_some();
         let no_projects = self.projects.is_empty();
         let section = plain_section;
@@ -253,7 +253,7 @@ impl Workspace {
             };
             groups[at].push(t);
         }
-        super::compare::keep_groups_together(&mut groups);
+        super::compare_sidebar::keep_groups_together(&mut groups);
         groups
     }
 
