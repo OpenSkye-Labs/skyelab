@@ -15,6 +15,7 @@ mod changes_turns;
 mod child_slots;
 mod details_panel;
 mod devices;
+mod diff_comments;
 mod env_mode;
 mod env_picker;
 mod env_sidebar;

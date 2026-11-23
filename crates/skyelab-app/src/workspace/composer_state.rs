@@ -107,6 +107,8 @@ pub(crate) struct Composer {
     pub contexts: Vec<super::composer_context::ContextChip>,
     /// The next excerpt chip's id: never reused, so no chip inherits another's element state.
     pub next_context: u64,
+    /// Comments on the Changes tab's diff, until they are sent here as a chip.
+    pub review: crate::workspace::diff_comments::DiffComments,
     pub queue: Queue,
     pub menu: Option<Menu>,
     pub picker_open: bool,

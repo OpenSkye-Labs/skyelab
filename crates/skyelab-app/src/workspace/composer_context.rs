@@ -1,6 +1,7 @@
 //! Context added to the prompt (T3's context chips): terminal output ("Add to prompt"), another thread's gist or a
-//! linked pull request (the `#` menu, `composer_context_pick.rs`). Each is a chip above the prompt that opens to
-//! show its text, and is sent after the typed text as a fenced block.
+//! linked pull request (the `#` menu, `composer_context_pick.rs`), diff comments (`changes_comments.rs`) or a side
+//! chat's answer (`side_chat.rs`). Each is a chip above the prompt that opens to show its text, and is sent after the
+//! typed text as a fenced block.
 
 use super::thread::ThreadView;
 use crate::ui;
@@ -22,6 +23,10 @@ pub(crate) enum ChipKind {
     Terminal,
     Thread,
     PullRequest,
+    /// Comments on the Changes tab's diff lines.
+    Review,
+    /// A side chat's last answer ("Bring back").
+    SideChat,
 }
 
 /// One chip waiting in the composer.
@@ -55,6 +60,10 @@ impl ContextChip {
             ChipKind::Terminal => format!("{} output", self.label),
             ChipKind::Thread => format!("Context from the thread \"{}\"", self.label),
             ChipKind::PullRequest => format!("Pull request {}", self.label),
+            ChipKind::Review => {
+                "Review comments on the diff (file:lines, the lines, the comment)".into()
+            }
+            ChipKind::SideChat => format!("From the side chat \"{}\"", self.label),
         }
     }
 }
@@ -183,6 +192,12 @@ impl ThreadView {
                     ChipKind::PullRequest => Icon::new(Lucide::GitPullRequest)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.primary)),
+                    ChipKind::Review => Icon::new(Lucide::MessageCircle)
+                        .xsmall()
+                        .text_color(ui::ink(theme, theme.primary)),
+                    ChipKind::SideChat => Icon::new(Lucide::MessagesSquare)
+                        .xsmall()
+                        .text_color(ui::ink(theme, theme.info)),
                 })
                 .child(div().min_w_0().truncate().child(c.chip_label()))
                 .child(
