@@ -212,10 +212,12 @@ pub fn snapshot_tree(dir: &Path) -> Result<String> {
         "skyelab-snapshot-{}-{n}-{nanos}",
         std::process::id()
     ));
-    let mut builder = std::fs::DirBuilder::new();
+    // Exclusive: fails rather than reuse a dir someone else made.
     #[cfg(unix)]
-    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
-    builder.create(&scratch_dir)?; // exclusive: fails rather than reuse a dir someone else made
+    std::os::unix::fs::DirBuilderExt::mode(&mut std::fs::DirBuilder::new(), 0o700)
+        .create(&scratch_dir)?;
+    #[cfg(not(unix))]
+    std::fs::create_dir(&scratch_dir)?;
     let scratch = scratch_dir.join("index");
     let tree = (|| {
         // Starting from the real index keeps its stat cache, so unchanged files aren't hashed again.

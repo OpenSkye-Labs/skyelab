@@ -30,7 +30,6 @@ fn no_codex_var_is_terminal_allowed() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn codex_home_passes_only_when_the_account_sets_it() {
     let removed = |env: &[(&str, &str)]| {
