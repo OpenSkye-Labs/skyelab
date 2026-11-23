@@ -213,7 +213,11 @@ impl ThreadView {
                     .ghost()
                     .small()
                     .label("Force stop")
-                    .tooltip("The agent isn't answering Interrupt: end it (⌥⌘.)")
+                    .tooltip_with_action(
+                        "The agent isn't answering Interrupt: end it",
+                        &thread::Stop,
+                        Some(thread::CONTEXT),
+                    )
                     .on_click(
                         cx.listener(|this, _, window, cx| this.stop(&thread::Stop, window, cx)),
                     )
@@ -243,9 +247,16 @@ impl ThreadView {
                 .hover(move |this| this.bg(danger))
                 .cursor_pointer()
                 .tooltip(|window, cx| {
-                    gpui_component::tooltip::Tooltip::new("Interrupt (⌘.)").build(window, cx)
+                    gpui_component::tooltip::Tooltip::new("Interrupt")
+                        .action(&thread::Interrupt, Some(thread::CONTEXT))
+                        .build(window, cx)
                 })
-                .child(div().size(px(12.)).rounded(px(3.)).bg(gpui::white()))
+                .child(
+                    div()
+                        .size(px(12.))
+                        .rounded(px(3.))
+                        .bg(cx.theme().danger_foreground),
+                )
                 .on_click(
                     cx.listener(|this, _, window, cx| {
                         this.interrupt(&thread::Interrupt, window, cx)
