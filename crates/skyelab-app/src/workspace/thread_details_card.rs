@@ -79,6 +79,7 @@ impl ThreadView {
                     Some((None, self.render_actions(on, cx))),
                     titled(lineage),
                     titled(self.render_side_chats(on, cx)),
+                    self.render_context_row(cx).map(|row| (None, row)),
                     Some((None, usage)),
                     self.render_pr(on, cx)
                         .map(|pr| (Some("Pull request".into()), pr)),

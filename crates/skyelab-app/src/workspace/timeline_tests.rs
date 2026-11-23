@@ -46,6 +46,8 @@ mod one_limit_notice_test;
 mod effective_model_test;
 
 #[cfg(unix)] // the fake agent is a shell script
+#[path = "context_meter_test.rs"]
+mod context_meter_test;
 #[path = "default_after_pick_reopen_test.rs"]
 mod default_after_pick_reopen_test;
 
