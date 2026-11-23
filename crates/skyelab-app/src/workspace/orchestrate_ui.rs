@@ -75,6 +75,7 @@ impl Workspace {
             project_id,
             prompt,
             worktree,
+            ..
         } = request;
         let project = self
             .projects

@@ -180,7 +180,7 @@ fn each_tool_reaches_the_host_with_the_caller() {
     assert!(!c.tool("list_projects", json!({})).0);
     let (err, text) = c.tool(
         "start_thread",
-        json!({"project_id": 3, "prompt": "fix it", "worktree": true}),
+        json!({"project_id": 3, "prompt": "fix it", "worktree": true, "request_id": "r-1"}),
     );
     assert!(!err, "{text}");
     assert_eq!(
@@ -202,12 +202,14 @@ fn each_tool_reaches_the_host_with_the_caller() {
             &Tool::StartThread {
                 project_id: 3,
                 prompt: "fix it".into(),
-                worktree: true
+                worktree: true,
+                request_id: Some("r-1".into())
             },
             &Tool::StartThread {
                 project_id: 4,
                 prompt: "plain".into(),
-                worktree: false
+                worktree: false,
+                request_id: None
             },
             &Tool::ThreadStatus { thread_id: 5 },
             &Tool::ReadThread {
@@ -283,6 +285,16 @@ fn bad_inputs_are_refused_before_the_host() {
             "start_thread",
             json!({"project_id": 3, "prompt": "x", "worktree": "yes"}),
             "worktree",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 3, "prompt": "x", "request_id": 7}),
+            "request_id",
+        ),
+        (
+            "start_thread",
+            json!({"project_id": 3, "prompt": "x", "request_id": "r".repeat(129)}),
+            "request_id",
         ),
         ("thread_status", json!({"thread_id": 1.5}), "thread_id"),
         (

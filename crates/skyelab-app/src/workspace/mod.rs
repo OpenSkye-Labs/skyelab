@@ -94,6 +94,12 @@ pub struct Backend {
     pub claude_bin: PathBuf,
 }
 
+/// The accounts.toml this app reads. A launch re-reads it right before it spawns, so a rebind saved a moment
+/// earlier is seen even when the view's copy of the config isn't updated yet.
+pub struct AccountsFile(pub PathBuf);
+
+impl gpui::Global for AccountsFile {}
+
 const CONTEXT: &str = "Workspace";
 
 // `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
@@ -561,6 +567,25 @@ mod changes_follow_folder_test;
 
 #[cfg(test)]
 mod delegation_test;
+
+#[cfg(all(test, unix))]
+mod delegation_idempotent_test;
+#[cfg(all(test, unix))]
+mod delegation_reply_on_row_test;
+#[cfg(all(test, unix))]
+mod delegation_send_cap_test;
+#[cfg(all(test, unix))]
+mod delegation_starting_cap_test;
+#[cfg(all(test, unix))]
+mod delegation_stopped_parent_test;
+#[cfg(test)]
+mod launch_rebind_test;
+#[cfg(test)]
+mod thread_close_running_test;
+#[cfg(test)]
+mod thread_close_starting_test;
+#[cfg(test)]
+mod thread_quit_test;
 
 #[cfg(test)]
 mod delegation_cap_test;

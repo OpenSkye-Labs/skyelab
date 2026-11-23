@@ -34,6 +34,8 @@ pub struct StartRequest {
     pub project_id: i64,
     pub prompt: String,
     pub worktree: bool,
+    /// The agent's name for this start; a retry with the same one gets the same thread.
+    pub request_id: Option<String>,
 }
 
 /// What only the UI thread can do.
@@ -258,6 +260,7 @@ impl Host for AppHost {
                 project_id,
                 prompt,
                 worktree,
+                request_id,
             } => {
                 let depth = self.depth(&me)?;
                 let live_children = self
@@ -273,6 +276,7 @@ impl Host for AppHost {
                     project_id,
                     prompt,
                     worktree,
+                    request_id,
                 };
                 let id = ask(&self.calls, |reply| OrchCall::Start { request, reply })?;
                 Ok(json!({"thread_id": id}))

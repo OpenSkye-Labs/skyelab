@@ -32,7 +32,7 @@ pub(super) struct Rig {
     _home: tempfile::TempDir,
     pub(super) store: SharedStore,
     pub(super) work_a: i64,
-    work_b: i64,
+    pub(super) work_b: i64,
     personal: i64,
     unbound: i64,
     /// A thread recorded under the other account.
@@ -367,7 +367,7 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
 }
 
 /// Runs a host call off the UI thread (it waits for the UI's answer) while the test keeps the UI running.
-fn host_call(
+pub(super) fn host_call(
     cx: &mut VisualTestContext,
     caller: Caller,
     tool: Tool,
@@ -393,6 +393,7 @@ fn depth_and_children_limits_hold_through_the_app(cx: &mut TestAppContext) {
         project_id: rig.work_b,
         prompt: p.into(),
         worktree: false,
+        request_id: None,
     };
 
     // Four live children are allowed, the fifth is refused. `hold` keeps each one mid-turn.
@@ -456,7 +457,7 @@ fn depth_and_children_limits_hold_through_the_app(cx: &mut TestAppContext) {
     assert!(host_call(cx, liar, Tool::ListProjects).is_err());
 }
 
-fn statuses(store: &SharedStore, parent: i64) -> Vec<String> {
+pub(super) fn statuses(store: &SharedStore, parent: i64) -> Vec<String> {
     let s = store.lock().expect("lock");
     s.child_threads(parent)
         .expect("children")
@@ -482,6 +483,7 @@ fn finished_children_free_their_slot_and_only_descendants_can_be_driven(cx: &mut
         project_id: rig.work_b,
         prompt: p.into(),
         worktree: false,
+        request_id: None,
     };
 
     // Children that finished their turn don't count against the limit.

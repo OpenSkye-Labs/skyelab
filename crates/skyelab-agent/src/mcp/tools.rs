@@ -7,6 +7,8 @@ use serde_json::{Map, Value, json};
 const MAX_TEXT: usize = 100_000;
 /// `wait_thread` waits at most this long.
 const MAX_WAIT_S: u64 = 300;
+/// Longest `request_id`.
+const MAX_REQUEST_ID: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tool {
@@ -15,6 +17,8 @@ pub enum Tool {
         project_id: i64,
         prompt: String,
         worktree: bool,
+        /// The agent's own name for this start: a retry with the same one gets the same thread.
+        request_id: Option<String>,
     },
     ThreadStatus {
         thread_id: i64,
@@ -46,13 +50,17 @@ pub(super) fn list() -> Value {
         {
             "name": "start_thread",
             "description": "Start a new agent thread in a project with a prompt. It runs under the project's \
-                bound account, which must be yours. Returns its thread_id.",
+                bound account, which must be yours. Returns its thread_id as soon as the thread exists; its \
+                agent may still be starting (see thread_status). Pass a request_id of your own and use the same \
+                one if you retry, so a retry after a timeout returns the same thread instead of starting another.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "project_id": id("A project id from list_projects."),
                     "prompt": {"type": "string", "minLength": 1, "maxLength": MAX_TEXT},
                     "worktree": {"type": "boolean", "description": "Run in its own git worktree."},
+                    "request_id": {"type": "string", "minLength": 1, "maxLength": MAX_REQUEST_ID,
+                        "description": "Any string unique to this start; repeat it on a retry."},
                 },
                 "required": ["project_id", "prompt"],
             },
@@ -117,6 +125,10 @@ pub(super) fn parse(name: &str, args: &Value) -> Result<Tool, String> {
                 None => false,
                 Some(Value::Bool(b)) => *b,
                 Some(_) => return Err("worktree must be true or false".into()),
+            },
+            request_id: match args.get("request_id") {
+                None => None,
+                Some(_) => Some(bounded(args, "request_id", MAX_REQUEST_ID)?),
             },
         },
         "thread_status" => Tool::ThreadStatus {
