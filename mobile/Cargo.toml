@@ -52,6 +52,8 @@ gpui.workspace = true
 gpui-component.workspace = true
 skyelab-protocol = { path = "../crates/skyelab-protocol" }
 skyelab-client = { path = "../crates/skyelab-client" }
+# The desktop's timeline model (`timeline`) and thread-list text, so both apps read stored rows the same way.
+skyelab-agent = { path = "../crates/skyelab-agent" }
 anyhow = "1"
 flume = "0.12"
 serde_json = "1"
@@ -69,8 +71,6 @@ skyelab-client = { path = "../crates/skyelab-client", features = ["test-support"
 skyelab-daemon = { path = "../crates/skyelab-daemon", features = ["test-support"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 skyelab-store = { path = "../crates/skyelab-store" }
-# Fixtures from the real agent event serializer, never hand-written shapes.
-skyelab-agent = { path = "../crates/skyelab-agent" }
 skyelab-tailnet = { path = "../crates/skyelab-tailnet" }
 
 [lints]
@@ -80,6 +80,11 @@ workspace = true
 # wgpu turns on Vulkan debug labels under debug assertions, and the Android emulator's llvmpipe driver segfaults in
 # vkSetDebugUtilsObjectNameEXT. See docs/mobile.md, "Problems found".
 debug-assertions = false
+
+# Tests run on the host, never on the emulator: keep debug assertions there, which GPUI's `debug_selector` (tap-target
+# checks in tests/touch_targets.rs) needs.
+[profile.test]
+debug-assertions = true
 
 [profile.dev.package."*"]
 opt-level = 2 # GPUI is unusably slow unoptimized.

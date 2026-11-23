@@ -1,32 +1,41 @@
 use crate::text::connection_text;
-pub use crate::text::{event_text, pending_permissions};
 
+#[path = "ask_rows.rs"]
+pub mod ask_rows;
 #[path = "thread_screen.rs"]
 mod thread_screen;
 use crate::{
     env_store,
     source::{Connection, ThreadSource},
+    thread_rows::{Usage, row_detail, sections},
 };
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, ListAlignment, ListState, SharedString,
-    Subscription, Task, Window, WindowOptions, div, list, prelude::*, px,
+    Subscription, Task, Window, WindowOptions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Root,
+    ActiveTheme as _, Root, Theme,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState},
     v_flex,
 };
+use skyelab_agent::timeline::Item;
 use skyelab_protocol::{PermissionAnswer, Project, Thread, ThreadEvent};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+
+/// The smallest thing a thumb taps, in points (Apple's and Material's 44/48).
+pub const TAP: f32 = 44.;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     Picker,
-    Projects,
-    Threads { project_id: i64 },
-    Thread { project_id: i64, thread_id: i64 },
+    /// Every project's threads, the desktop's flat list.
+    Threads,
+    Thread {
+        thread_id: i64,
+    },
 }
 
 /// Opens a source for a validated MagicDNS name. The app uses [`source_for`]; tests pass their own.
@@ -65,14 +74,22 @@ pub struct MobileApp {
     pub env_input: Entity<InputState>,
     pub composer: Entity<InputState>,
     pub error: Option<SharedString>,
-    /// The open thread's rows. Only the visible ones are built each frame.
+    /// The open thread's timeline rows, one per item. Only the visible ones are built each frame.
     pub events_list: ListState,
-    /// What `events_list` was last synced to: (thread, event count, last seq). `None` after a source change,
+    /// The open thread's timeline: the desktop's model, built from its events.
+    items: Vec<Item>,
+    /// What `items` was built from: (thread, events applied, last seq applied). `None` after a source change,
     /// since thread ids are per machine.
     shown: Option<(i64, usize, Option<i64>)>,
+    /// The open thread's usage limit and window readings, from its events.
+    usage: Usage,
+    /// Rows and turn folds the user opened (tool ids, `fold:<row>`).
+    expanded: HashSet<String>,
+    /// AskUserQuestion picks not sent yet: request id → per question, the option indexes.
+    drafts: HashMap<String, Vec<BTreeSet<usize>>>,
     /// Event rows built so far, so tests can check a frame builds only the visible ones.
     pub rows_built: usize,
-    _enter: [Subscription; 2],
+    _subscriptions: [Subscription; 3],
 }
 
 impl MobileApp {
@@ -99,9 +116,13 @@ impl MobileApp {
                 }
             })
         };
-        let _enter = [
+        // Dark or light, as the phone is set.
+        let appearance =
+            cx.observe_window_appearance(window, |_, window, cx| follow_appearance(window, cx));
+        let _subscriptions = [
             enter(cx, window, &env_input, Self::connect),
             enter(cx, window, &composer, Self::send),
+            appearance,
         ];
         Self {
             data_dir,
@@ -113,9 +134,13 @@ impl MobileApp {
             composer,
             error: None,
             events_list: ListState::new(0, ListAlignment::Top, px(600.)),
+            items: Vec::new(),
             shown: None,
+            usage: Usage::default(),
+            expanded: HashSet::new(),
+            drafts: HashMap::new(),
             rows_built: 0,
-            _enter,
+            _subscriptions,
         }
     }
 
@@ -129,7 +154,7 @@ impl MobileApp {
                     Err(e) => Some(format!("Couldn't start connecting: {e}").into()),
                     Ok(source) => {
                         self.use_source(source, cx);
-                        self.screen = Screen::Projects;
+                        self.screen = Screen::Threads;
                         None
                     }
                 },
@@ -145,14 +170,11 @@ impl MobileApp {
                     let applied = this.update(cx, |app, cx| {
                         if let Some(source) = app.source.as_mut() {
                             source.apply(msg);
-                            // Nothing of a refused machine stays open: back to its (now empty) projects.
+                            // Nothing of a refused machine stays open: back to its (now empty) list.
                             if source.connection().is_untrusted()
-                                && matches!(
-                                    app.screen,
-                                    Screen::Threads { .. } | Screen::Thread { .. }
-                                )
+                                && matches!(app.screen, Screen::Thread { .. })
                             {
-                                app.screen = Screen::Projects;
+                                app.screen = Screen::Threads;
                             }
                         }
                         cx.notify();
@@ -167,46 +189,40 @@ impl MobileApp {
         self.shown = None;
     }
 
-    pub fn open_project(&mut self, project_id: i64, cx: &mut Context<Self>) {
-        if let Some(source) = self.source.as_mut() {
-            source.load_threads(project_id);
-        }
-        self.screen = Screen::Threads { project_id };
-        cx.notify();
-    }
-
     pub fn open_thread(&mut self, thread_id: i64, window: &mut Window, cx: &mut Context<Self>) {
-        if let Screen::Threads { project_id } = self.screen {
+        if self.screen == Screen::Threads {
             // A draft belongs to the thread it was typed in.
             self.composer
                 .update(cx, |s, cx| s.set_value("", window, cx));
+            self.error = None;
             if let Some(source) = self.source.as_mut() {
                 source.watch(thread_id);
             }
-            self.screen = Screen::Thread {
-                project_id,
-                thread_id,
-            };
+            self.screen = Screen::Thread { thread_id };
             cx.notify();
         }
     }
 
     pub fn back(&mut self, cx: &mut Context<Self>) {
         self.screen = match self.screen {
-            Screen::Picker | Screen::Projects => {
+            Screen::Picker | Screen::Threads => {
                 // Leaving the environment closes its connection.
                 self._pump = None;
                 self.source = None;
                 Screen::Picker
             }
-            Screen::Threads { .. } => Screen::Projects,
-            Screen::Thread { project_id, .. } => Screen::Threads { project_id },
+            Screen::Thread { .. } => {
+                if let Some(source) = self.source.as_mut() {
+                    source.load_threads();
+                }
+                Screen::Threads
+            }
         };
         cx.notify();
     }
 
     pub fn send(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Screen::Thread { thread_id, .. } = self.screen else {
+        let Screen::Thread { thread_id } = self.screen else {
             return;
         };
         let text = self.composer.read(cx).value().trim().to_string();
@@ -229,20 +245,17 @@ impl MobileApp {
         }
     }
 
-    /// Answers the open thread's permission request `request_id`.
+    /// Answers the open thread's permission request `request_id`. On an ExitPlanMode request, AllowOnce approves
+    /// the plan and Deny keeps planning, as on the desktop.
     pub fn answer(&mut self, request_id: &str, decision: PermissionAnswer, cx: &mut Context<Self>) {
-        if let (Screen::Thread { thread_id, .. }, Some(source)) =
-            (self.screen, self.source.as_mut())
-        {
+        if let (Screen::Thread { thread_id }, Some(source)) = (self.screen, self.source.as_mut()) {
             source.answer_permission(thread_id, request_id, decision);
             cx.notify();
         }
     }
 
     pub fn stop(&mut self, cx: &mut Context<Self>) {
-        if let (Screen::Thread { thread_id, .. }, Some(source)) =
-            (self.screen, self.source.as_mut())
-        {
+        if let (Screen::Thread { thread_id }, Some(source)) = (self.screen, self.source.as_mut()) {
             source.interrupt(thread_id);
             cx.notify();
         }
@@ -260,18 +273,16 @@ impl MobileApp {
             .unwrap_or_default()
     }
 
-    /// Threads of the open project.
+    /// Every project's threads.
     pub fn threads(&self) -> Vec<Thread> {
-        match (self.screen, &self.source) {
-            (Screen::Threads { project_id } | Screen::Thread { project_id, .. }, Some(source)) => {
-                source.threads(project_id)
-            }
-            _ => Vec::new(),
-        }
+        self.source
+            .as_ref()
+            .map(|s| s.threads())
+            .unwrap_or_default()
     }
 
     pub fn thread(&self) -> Option<Thread> {
-        let Screen::Thread { thread_id, .. } = self.screen else {
+        let Screen::Thread { thread_id } = self.screen else {
             return None;
         };
         self.threads().into_iter().find(|t| t.id == thread_id)
@@ -279,58 +290,26 @@ impl MobileApp {
 
     pub fn events(&self) -> &[ThreadEvent] {
         match (self.screen, &self.source) {
-            (Screen::Thread { thread_id, .. }, Some(source)) => source.events(thread_id),
+            (Screen::Thread { thread_id }, Some(source)) => source.events(thread_id),
             _ => &[],
         }
     }
 
-    /// Brings `events_list` up to date with the open thread's events. Events only ever get inserted in seq order
-    /// or cleared (a re-watch), so if the last row shown is still at its index, every new event came after it and
-    /// is spliced on the end; anything else re-lays out the list.
-    fn sync_events_list(&mut self) {
-        let Screen::Thread { thread_id, .. } = self.screen else {
-            return;
-        };
-        let events = self.events();
-        let (n, last) = (events.len(), events.last().map(|e| e.seq));
-        let shown_len = match self.shown {
-            Some((shown_thread, shown_len, shown_last))
-                if shown_thread == thread_id
-                    && shown_len <= n
-                    && (shown_len == 0 || Some(events[shown_len - 1].seq) == shown_last) =>
-            {
-                Some(shown_len)
-            }
-            _ => None,
-        };
-        match shown_len {
-            None => self.events_list.reset(n),
-            Some(len) if n > len => self.events_list.splice(len..len, n - len),
-            Some(_) => {}
-        }
-        self.shown = Some((thread_id, n, last));
+    /// The open thread's timeline, as of the last [`MobileApp::sync_items`] (every frame does one).
+    pub fn items(&self) -> &[Item] {
+        &self.items
     }
 }
 
-fn row(
-    id: (&'static str, i64),
-    title: String,
-    detail: String,
-    cx: &App,
-) -> gpui::Stateful<gpui::Div> {
-    let theme = cx.theme();
+/// A section title in the thread list.
+fn section_title(title: &'static str, cx: &App) -> impl IntoElement {
     div()
-        .id((id.0, id.1 as u64))
-        .py_3()
-        .border_b_1()
-        .border_color(theme.border)
-        .child(div().text_lg().child(title))
-        .child(
-            div()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .child(detail),
-        )
+        .pt_3()
+        .pb_1()
+        .text_xs()
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(cx.theme().muted_foreground)
+        .child(title.to_uppercase())
 }
 
 impl MobileApp {
@@ -343,7 +322,7 @@ impl MobileApp {
                     .text_color(theme.muted_foreground)
                     .child("The MagicDNS name of the machine running SkyeLab, on your tailnet."),
             )
-            .child(Input::new(&self.env_input))
+            .child(Input::new(&self.env_input).h(px(TAP)))
             .when(cfg!(feature = "demo"), |v| {
                 v.child(
                     div()
@@ -360,44 +339,69 @@ impl MobileApp {
             .child(
                 Button::new("connect")
                     .primary()
+                    .h(px(TAP))
                     .label("Connect")
                     .on_click(cx.listener(|this, _, window, cx| this.connect(window, cx))),
             )
             .into_any_element()
     }
 
-    fn project_list(&self, cx: &mut Context<Self>) -> AnyElement {
-        let rows = self.projects().into_iter().map(|p| {
-            let id = p.id;
-            row(("project", id), p.name, p.path, cx)
-                .on_click(cx.listener(move |this, _, _, cx| this.open_project(id, cx)))
-        });
-        v_flex().children(rows).into_any_element()
-    }
-
+    /// The flat list: section titles, then one tappable row per thread (title and status, then project, account
+    /// and preview).
     fn thread_list(&self, cx: &mut Context<Self>) -> AnyElement {
-        let rows = self.threads().into_iter().map(|t| {
-            let id = t.id;
-            row(
-                ("thread", id),
-                t.title,
-                format!("{} · {}", t.account_id, t.status),
-                cx,
-            )
-            .on_click(cx.listener(move |this, _, window, cx| this.open_thread(id, window, cx)))
-        });
-        v_flex().children(rows).into_any_element()
+        let projects = self.projects();
+        let starts = skyelab_agent::thread_list::day_starts();
+        let mut list = v_flex().id("threads").size_full().overflow_y_scroll();
+        for (title, threads) in sections(self.threads(), starts) {
+            list = list.child(section_title(title, cx));
+            for t in threads {
+                let id = t.id;
+                let project = projects.iter().find(|p| p.id == t.project_id);
+                let detail = row_detail(&t, project);
+                let theme = cx.theme();
+                let dot = match t.status.as_str() {
+                    "starting" | "running" => theme.info,
+                    "idle" | "done" => theme.success,
+                    "failed" => theme.danger,
+                    "interrupted" => theme.warning,
+                    _ => theme.muted_foreground,
+                };
+                list =
+                    list.child(
+                        div()
+                            .id(("thread", id as u64))
+                            .debug_selector(|| "thread-row".into())
+                            .min_h(px(TAP))
+                            .py_2()
+                            .border_b_1()
+                            .border_color(theme.border)
+                            .child(
+                                h_flex()
+                                    .gap_2()
+                                    .child(div().size_2().rounded_full().bg(dot))
+                                    .child(div().flex_1().text_base().line_clamp(1).child(t.title)),
+                            )
+                            .child(
+                                div()
+                                    .pl_4()
+                                    .text_sm()
+                                    .line_clamp(3)
+                                    .text_color(theme.muted_foreground)
+                                    .child(detail),
+                            )
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.open_thread(id, window, cx)
+                            })),
+                    );
+            }
+        }
+        list.into_any_element()
     }
 
     fn title(&self) -> SharedString {
         match self.screen {
             Screen::Picker => "Connect".into(),
-            Screen::Projects => "Projects".into(),
-            Screen::Threads { project_id } => self
-                .projects()
-                .into_iter()
-                .find(|p| p.id == project_id)
-                .map_or("Threads".into(), |p| p.name.into()),
+            Screen::Threads => "Threads".into(),
             Screen::Thread { .. } => self.thread().map_or("Thread".into(), |t| t.title.into()),
         }
     }
@@ -407,11 +411,10 @@ impl Render for MobileApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Keep clear of the status bar, notch, home indicator and (on iOS) the keyboard.
         let safe = window.insets().effective();
-        self.sync_events_list();
+        self.sync_items();
         let body = match self.screen {
             Screen::Picker => self.picker(cx),
-            Screen::Projects => self.project_list(cx),
-            Screen::Threads { .. } => self.thread_list(cx),
+            Screen::Threads => self.thread_list(cx),
             Screen::Thread { .. } => self.thread_view(cx),
         };
         let connection = self.connection();
@@ -431,7 +434,7 @@ impl Render for MobileApp {
             .pb(safe.bottom + px(8.))
             .pl(safe.left + px(16.))
             .pr(safe.right + px(16.))
-            .gap_3()
+            .gap_2()
             .child(
                 h_flex()
                     .gap_2()
@@ -439,13 +442,18 @@ impl Render for MobileApp {
                         h.child(
                             Button::new("back")
                                 .ghost()
+                                .debug_selector(|| "back".into())
+                                .h(px(TAP))
+                                .min_w(px(TAP))
                                 .label("‹ Back")
                                 .on_click(cx.listener(|this, _, _, cx| this.back(cx))),
                         )
                     })
                     .child(
                         div()
-                            .text_2xl()
+                            .flex_1()
+                            .text_xl()
+                            .line_clamp(1)
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(self.title()),
                     ),
@@ -463,6 +471,7 @@ impl Render for MobileApp {
             .children(trust.map(|node| {
                 Button::new("trust")
                     .warning()
+                    .h(px(TAP))
                     .label("Trust it")
                     .on_click(cx.listener(move |this, _, _, cx| this.trust(&node, cx)))
             }))
@@ -471,11 +480,26 @@ impl Render for MobileApp {
     }
 }
 
+/// The theme the phone's appearance asks for. Debug builds: `SKYELAB_VERIFY_THEME=dark|light` forces one, so a
+/// screenshot can be taken in each without changing the device setting.
+fn follow_appearance(window: &mut Window, cx: &mut App) {
+    let forced = match std::env::var("SKYELAB_VERIFY_THEME").as_deref() {
+        Ok("dark") if cfg!(debug_assertions) => Some(gpui_component::ThemeMode::Dark),
+        Ok("light") if cfg!(debug_assertions) => Some(gpui_component::ThemeMode::Light),
+        _ => None,
+    };
+    match forced {
+        Some(mode) => Theme::change(mode, Some(window), cx),
+        None => Theme::sync_system_appearance(Some(window), cx),
+    }
+}
+
 /// The app body both platform entry points run. `data_dir` is where the environment name and pinned nodes live.
 /// An error means the window never opened; the entry point logs it where that platform's logs go.
 pub fn run(data_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
     gpui_component::init(cx);
     cx.open_window(WindowOptions::default(), |window, cx| {
+        follow_appearance(window, cx);
         let pins = data_dir.clone();
         let connect: Connect = Box::new(move |name| source_for(&pins, name));
         let view = cx.new(|cx| MobileApp::new(data_dir, connect, window, cx));

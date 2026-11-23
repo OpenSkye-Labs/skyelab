@@ -23,7 +23,7 @@ impl ThreadSource for Src {
             path: "/src/app".into(),
         }]
     }
-    fn threads(&self, _: i64) -> Vec<Thread> {
+    fn threads(&self) -> Vec<Thread> {
         vec![Thread {
             id: 1,
             project_id: 1,
@@ -40,7 +40,7 @@ impl ThreadSource for Src {
     fn events(&self, id: i64) -> &[ThreadEvent] {
         if id == 1 { &self.0 } else { &[] }
     }
-    fn load_threads(&mut self, _: i64) {}
+    fn load_threads(&mut self) {}
     fn watch(&mut self, _: i64) {}
     fn send_message(&mut self, _: i64, _: &str) {}
     fn interrupt(&mut self, _: i64) {}
@@ -85,7 +85,6 @@ fn another_environments_thread_1_opens_at_the_top(cx: &mut TestAppContext) {
     ] {
         input.update_in(cx, |s, w, cx| s.set_value(host, w, cx));
         app.update_in(cx, |a, w, cx| a.connect(w, cx));
-        app.update(cx, |a, cx| a.open_project(1, cx));
         app.update_in(cx, |a, w, cx| a.open_thread(1, w, cx));
         frame(&app, cx);
         if scroll {
@@ -96,8 +95,8 @@ fn another_environments_thread_1_opens_at_the_top(cx: &mut TestAppContext) {
                 })
             });
             frame(&app, cx);
-            // Thread -> Threads -> Projects -> Picker
-            for _ in 0..3 {
+            // Thread -> Threads -> Picker
+            for _ in 0..2 {
                 app.update(cx, |a, cx| a.back(cx));
             }
         }

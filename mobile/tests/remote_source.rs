@@ -43,11 +43,9 @@ fn connects_then_lists_projects_and_threads() {
     assert_eq!(source.connection(), Connection::Connected);
     assert_eq!(source.projects()[0].id, env.project_id);
 
-    source.load_threads(env.project_id);
-    settle(&mut source, "threads", |s| {
-        !s.threads(env.project_id).is_empty()
-    });
-    assert_eq!(source.threads(env.project_id)[0].title, "fix it");
+    // Every project's threads follow the projects on their own.
+    settle(&mut source, "threads", |s| !s.threads().is_empty());
+    assert_eq!(source.threads()[0].title, "fix it");
 }
 
 #[test]

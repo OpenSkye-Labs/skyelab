@@ -33,11 +33,11 @@ fn a_failed_thread_list_is_retried() {
     });
 
     env.fail_lists.store(1, Ordering::SeqCst);
-    source.load_threads(env.project_id);
+    source.load_threads();
     settle(&mut source, "the error", &|s| s.error().is_some());
-    assert!(source.threads(env.project_id).is_empty());
+    assert!(source.threads().is_empty());
     settle(&mut source, "the retried list", &|s| {
-        !s.threads(env.project_id).is_empty()
+        !s.threads().is_empty()
     });
     assert_eq!(source.error(), None);
 }

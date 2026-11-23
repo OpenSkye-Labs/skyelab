@@ -6528,12 +6528,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
+ "chrono",
  "flume",
  "rustix",
  "serde",
  "serde_json",
  "skyelab-core",
+ "skyelab-pipe-sys",
+ "skyelab-protocol",
  "tempfile",
+ "tokio",
  "uuid",
  "win32job",
 ]
@@ -6624,6 +6628,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "skyelab-pipe-sys"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "skyelab-protocol"
 version = "0.1.0"
 dependencies = [
@@ -6641,6 +6653,7 @@ dependencies = [
  "ring",
  "rusqlite",
  "serde_json",
+ "skyelab-core",
 ]
 
 [[package]]

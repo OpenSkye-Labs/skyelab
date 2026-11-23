@@ -47,8 +47,6 @@ fn pushed_events_appear_on_the_thread_screen(cx: &mut TestAppContext) {
         }
     };
 
-    wait(cx, "projects", &|a| !a.projects().is_empty());
-    app.update(cx, |a, cx| a.open_project(env.project_id, cx));
     wait(cx, "threads", &|a| !a.threads().is_empty());
     app.update_in(cx, |a, window, cx| a.open_thread(env.thread_id, window, cx));
     wait(cx, "stored events", &|a| a.events().len() == 2);

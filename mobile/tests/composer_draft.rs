@@ -16,8 +16,6 @@ fn a_draft_does_not_follow_you_to_another_thread(cx: &mut TestAppContext) {
         s.set_value("laptop.tail1234.ts.net", window, cx)
     });
     app.update_in(cx, |a, window, cx| a.connect(window, cx));
-    let project = app.read_with(cx, |a, _| a.projects()[0].id);
-    app.update(cx, |a, cx| a.open_project(project, cx));
     let threads: Vec<i64> = app.read_with(cx, |a, _| a.threads().iter().map(|t| t.id).collect());
 
     app.update_in(cx, |a, window, cx| a.open_thread(threads[0], window, cx));
