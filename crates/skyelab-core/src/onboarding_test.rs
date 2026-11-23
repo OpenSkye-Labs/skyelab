@@ -160,3 +160,36 @@ fn bind_project_binds_once_and_never_overwrites() {
     );
     assert!(bind_project(&mut config, &repo, "nobody").is_err());
 }
+
+#[cfg(unix)]
+#[test]
+fn onboarding_skips_a_link_to_a_dir_already_offered_or_added() {
+    let home = home();
+    let h = home.path();
+    std::os::unix::fs::symlink(h.join(".claude"), h.join(".claude-alt")).expect("link");
+    let ids: Vec<_> = find_accounts(h, &AccountsConfig::default())
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
+    assert_eq!(
+        ids,
+        ["claude", "claude-work", "codex"],
+        "the link is not a second account"
+    );
+    let mut config = AccountsConfig::default();
+    config
+        .add_account(Account {
+            id: "mine".into(),
+            label: "Mine".into(),
+            provider: Provider::Claude,
+            config_dir: h.join(".claude-alt"),
+            gh_config_dir: None,
+            ssh_agent: false,
+        })
+        .expect("add");
+    let ids: Vec<_> = find_accounts(h, &config)
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
+    assert_eq!(ids, ["claude-work", "codex"], "added through its link");
+}

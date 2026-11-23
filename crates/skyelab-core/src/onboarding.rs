@@ -29,6 +29,13 @@ pub fn find_accounts(home: &Path, config: &AccountsConfig) -> Vec<FoundAccount> 
     let Ok(entries) = std::fs::read_dir(home) else {
         return Vec::new();
     };
+    // Compared by the real folder, so a link to an added (or another found) dir is not a second account.
+    let real = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let mut seen: Vec<PathBuf> = config
+        .accounts
+        .iter()
+        .map(|a| real(&a.config_dir))
+        .collect();
     let mut dirs: Vec<(Provider, String, PathBuf)> = entries
         .flatten()
         .filter_map(|e| {
@@ -41,12 +48,20 @@ pub fn find_accounts(home: &Path, config: &AccountsConfig) -> Vec<FoundAccount> 
                         .is_some_and(|s| s.len() > 1 && s.starts_with('-'))
             })?;
             let path = e.path();
-            let known = path.is_dir()
-                && markers(provider).iter().any(|m| path.join(m).exists())
-                && !config.accounts.iter().any(|a| a.config_dir == path);
-            known.then_some((provider, name, path))
+            let marked = path.is_dir() && markers(provider).iter().any(|m| path.join(m).exists());
+            marked.then_some((provider, name, path))
         })
         .collect();
+    // Plain names first, so the link is the one dropped rather than the folder it points at.
+    dirs.sort_by_key(|(_, _, p)| {
+        std::fs::symlink_metadata(p).is_ok_and(|m| m.file_type().is_symlink())
+    });
+    dirs.retain(|(_, _, p)| {
+        let r = real(p);
+        let new = !seen.contains(&r);
+        seen.push(r);
+        new
+    });
     dirs.sort_by(|a, b| (a.0 as u8, &a.1).cmp(&(b.0 as u8, &b.1)));
     let mut taken: Vec<String> = config.accounts.iter().map(|a| a.id.clone()).collect();
     dirs.into_iter()

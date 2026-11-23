@@ -24,6 +24,11 @@ fn mkdirs(home: &Path, dirs: &[&str]) {
 
 /// A fresh install: no accounts.toml, no projects, and a home with `.claude`, `.claude-work` and `.codex` logins.
 fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
+    rig_with(cx, None)
+}
+
+/// `load_error`: accounts.toml failed to load when the app started.
+fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut VisualTestContext) {
     setup(cx);
     let root = tempfile::tempdir().expect("tempdir");
     let home = std::fs::canonicalize(root.path())
@@ -53,7 +58,7 @@ fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
                 h.clone(),
                 Some(path),
                 AccountsConfig::default(),
-                None,
+                load_error,
                 backend,
                 window,
                 cx,
@@ -92,29 +97,28 @@ impl Rig {
         AccountsConfig::load(&self.accounts).expect("load")
     }
 
-    fn ix(&self, id: &str, cx: &mut VisualTestContext) -> usize {
+    fn dir(&self, id: &str, cx: &mut VisualTestContext) -> PathBuf {
         self.setup.read_with(cx, |o, _| {
-            o.found
-                .iter()
-                .position(|f| f.found.id == id)
-                .expect("found dir offered")
+            let f = o.found.iter().find(|f| f.found.id == id);
+            f.expect("found dir offered").found.config_dir.clone()
         })
     }
 
     fn rename(&self, id: &str, label: &str, cx: &mut VisualTestContext) {
-        let (setup, ix) = (self.setup.clone(), self.ix(id, cx));
+        let (setup, dir) = (self.setup.clone(), self.dir(id, cx));
         cx.update(|window, cx| {
             setup.update(cx, |o, cx| {
-                o.rename(ix, window, cx);
-                let input = o.found[ix].label.clone().expect("name field");
+                o.rename(&dir, window, cx);
+                let row = o.found.iter().find(|f| f.found.config_dir == dir);
+                let input = row.and_then(|r| r.label.clone()).expect("name field");
                 input.update(cx, |s, cx| s.set_value(label, window, cx));
             })
         });
     }
 
     fn add(&self, id: &str, cx: &mut VisualTestContext) {
-        let ix = self.ix(id, cx);
-        self.setup.update(cx, |o, cx| o.add_account(ix, cx));
+        let dir = self.dir(id, cx);
+        self.setup.update(cx, |o, cx| o.add_account(&dir, cx));
         cx.run_until_parked();
     }
 }
@@ -229,5 +233,26 @@ fn onboarding_reopens_from_the_palette_action(cx: &mut TestAppContext) {
     assert_eq!(
         crate::palette::humanize("skyelab::SetUpAccounts"),
         "Set Up Accounts"
+    );
+}
+
+#[gpui::test]
+fn onboarding_writes_once_a_broken_file_is_fixed(cx: &mut TestAppContext) {
+    let (rig, cx) = rig_with(cx, Some("broken at startup".into()));
+    std::fs::create_dir_all(rig.accounts.parent().expect("parent")).expect("mkdir");
+    std::fs::write(&rig.accounts, "not = [toml").expect("write");
+    rig.add("claude", cx);
+    assert_eq!(
+        std::fs::read_to_string(&rig.accounts).expect("read"),
+        "not = [toml",
+        "a broken file is kept"
+    );
+    rig.setup.read_with(cx, |o, _| assert!(o.error.is_some()));
+    std::fs::write(&rig.accounts, "").expect("fixed by hand");
+    rig.add("claude", cx);
+    assert_eq!(
+        rig.saved().accounts.len(),
+        1,
+        "the fixed file takes the add"
     );
 }

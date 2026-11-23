@@ -6,7 +6,7 @@ use gpui::{App, AppContext as _, Context, Entity, EventEmitter, PathPromptOption
 use gpui_component::input::InputState;
 use skyelab_core::onboarding::FoundAccount;
 use skyelab_core::{Account, AccountsConfig};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod render;
 
@@ -169,8 +169,9 @@ impl Onboarding {
     }
 
     /// Turns a found dir's name into a field, so it can be renamed before it is added.
-    pub(super) fn rename(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(row) = self.found.get_mut(ix).filter(|r| r.label.is_none()) else {
+    pub(super) fn rename(&mut self, dir: &Path, window: &mut Window, cx: &mut Context<Self>) {
+        let row = self.found.iter_mut().find(|r| r.found.config_dir == dir);
+        let Some(row) = row.filter(|r| r.label.is_none()) else {
             return;
         };
         let label = row.found.label.clone();
@@ -180,9 +181,10 @@ impl Onboarding {
         cx.notify();
     }
 
-    /// Found dir `ix` as an account, with the name typed (the suggestion when left empty).
-    pub(super) fn account(&self, ix: usize, cx: &App) -> Option<Account> {
-        let f = self.found.get(ix)?;
+    /// Found dir `dir` as an account, with the name typed (the suggestion when left empty). Rows are looked up by
+    /// folder, not index: detection can replace the list between a paint and a click.
+    pub(super) fn account(&self, dir: &Path, cx: &App) -> Option<Account> {
+        let f = self.found.iter().find(|f| f.found.config_dir == dir)?;
         let typed = f
             .label
             .as_ref()
@@ -199,9 +201,9 @@ impl Onboarding {
         })
     }
 
-    /// The user clicked Add on found dir `ix`: the only way an account gets written from here.
-    pub(super) fn add_account(&mut self, ix: usize, cx: &mut Context<Self>) {
-        if let Some(account) = self.account(ix, cx) {
+    /// The user clicked Add on found dir `dir`: the only way an account gets written from here.
+    pub(super) fn add_account(&mut self, dir: &Path, cx: &mut Context<Self>) {
+        if let Some(account) = self.account(dir, cx) {
             cx.emit(OnboardingEvent::AddAccounts(vec![account]));
         }
     }

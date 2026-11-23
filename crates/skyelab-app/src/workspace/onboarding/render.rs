@@ -150,6 +150,7 @@ impl Onboarding {
             ));
         }
         for (ix, f) in self.found.iter().enumerate() {
+            let dir = f.found.config_dir.clone();
             let name: AnyElement = match &f.label {
                 Some(input) => div()
                     .max_w(px(280.))
@@ -164,9 +165,10 @@ impl Onboarding {
                             .xsmall()
                             .icon(Icon::new(Lucide::PenLine))
                             .tooltip("Rename before adding")
-                            .on_click(
-                                cx.listener(move |this, _, window, cx| this.rename(ix, window, cx)),
-                            ),
+                            .on_click(cx.listener({
+                                let dir = dir.clone();
+                                move |this, _, window, cx| this.rename(&dir, window, cx)
+                            })),
                     )
                     .into_any_element(),
             };
@@ -180,7 +182,7 @@ impl Onboarding {
                 .small()
                 .icon(Icon::new(IconName::Plus))
                 .label("Add")
-                .on_click(cx.listener(move |this, _, _, cx| this.add_account(ix, cx)));
+                .on_click(cx.listener(move |this, _, _, cx| this.add_account(&dir, cx)));
             let mark = div()
                 .size_2()
                 .rounded_full()

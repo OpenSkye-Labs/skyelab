@@ -61,6 +61,9 @@ impl Workspace {
     }
 
     fn setup_event(&mut self, e: &OnboardingEvent, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            return; // the page is hidden for another machine; never write this one's accounts from it
+        }
         let result = match e {
             OnboardingEvent::Close => {
                 (self.setup.forced, self.setup.dismissed) = (false, true);
@@ -92,6 +95,7 @@ impl Workspace {
         edit: impl FnOnce(&mut AccountsConfig) -> anyhow::Result<()>,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
+        self.reload_accounts(); // the file may have been fixed since it failed to load
         if let Some(why) = &self.load_error {
             anyhow::bail!("accounts.toml could not be read, fix it first: {why}");
         }
