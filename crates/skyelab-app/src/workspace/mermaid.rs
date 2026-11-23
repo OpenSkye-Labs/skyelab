@@ -42,7 +42,7 @@ impl Pool {
         let (tx, rx) = flume::unbounded::<Job>();
         for _ in 0..threads {
             let rx = rx.clone();
-            // A worker that can't start leaves the rest; with none, each render times out to code.
+            // A worker that can't start leaves the rest; with none, a render fails at once ("the renderer stopped").
             let _ = std::thread::Builder::new()
                 .name("mermaid".into())
                 .spawn(move || {
