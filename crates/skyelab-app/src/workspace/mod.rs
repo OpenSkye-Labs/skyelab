@@ -447,6 +447,9 @@ mod checkpoint_turns_test;
 mod checkpoint_midturn_test;
 
 #[cfg(all(test, unix))]
+mod changes_selection_test;
+
+#[cfg(all(test, unix))]
 mod worktree_base_test;
 
 #[cfg(all(test, unix))]
