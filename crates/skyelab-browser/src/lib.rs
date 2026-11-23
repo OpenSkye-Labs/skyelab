@@ -60,5 +60,6 @@ pub fn agent_data_dir() -> std::io::Result<tempfile::TempDir> {
 
 pub use agent::parse_agent_url;
 pub use engine::{Engine, EvalDone};
+pub use js::MAX_EVAL_OUTPUT;
 pub use url::parse_url;
 pub use view::BrowserView;

@@ -11,10 +11,16 @@ use serde_json::Value;
 const PAGE_GUARD: &str =
     "if (location.protocol !== \"http:\" && location.protocol !== \"https:\") throw 0;\n";
 
+/// Largest eval result handed back, in bytes of JSON text. The page checks it in UTF-16 units (never more than
+/// the bytes), so a huge value stays in the page; the app checks the bytes again.
+pub const MAX_EVAL_OUTPUT: usize = 64 << 10;
+
 pub(crate) fn wrap(expression: &str) -> String {
     format!(
         "{PAGE_GUARD}(() => {{ try {{ const v = (\n{expression}\n); \
-         return `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; }} \
+         const s = `${{JSON.stringify({{ ok: v === undefined ? null : v }})}}`; \
+         if (s.length > {MAX_EVAL_OUTPUT}) return `${{JSON.stringify({{ too_big: s.length }})}}`; \
+         return s; }} \
          catch (e) {{ return `${{JSON.stringify({{ error: `${{e}}` }})}}`; }} }})()"
     )
 }
@@ -30,6 +36,11 @@ pub(crate) fn decode(raw: &str) -> anyhow::Result<Value> {
         .with_context(|| format!("unexpected eval result from the webview: {raw:?}"))?;
     let mut envelope: Value =
         serde_json::from_str(&envelope_json).context("eval result is not JSON")?;
+    if let Some(n) = envelope.get("too_big") {
+        return Err(anyhow!(
+            "the result is {n} characters, over the {MAX_EVAL_OUTPUT}-byte limit; return less (a slice or a summary)"
+        ));
+    }
     if let Some(error) = envelope.get("error") {
         return Err(anyhow!(
             "script threw: {}",
@@ -96,6 +107,10 @@ mod tests {
     #[test]
     fn wrap_returns_template_literals() {
         let js = wrap("1");
-        assert_eq!(js.matches("return `${JSON.stringify(").count(), 2, "{js}");
+        assert_eq!(js.matches("`${JSON.stringify(").count(), 3, "{js}");
     }
 }
+
+#[cfg(test)]
+#[path = "js_cap_test.rs"]
+mod cap_tests;
