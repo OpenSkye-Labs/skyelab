@@ -63,7 +63,7 @@ impl ChangesView {
         change: impl FnOnce(&mut DiffSettings),
         cx: &mut Context<Self>,
     ) {
-        let before = self.prefs;
+        let (before, top) = (self.prefs, self.top_row());
         change(&mut self.prefs);
         let prefs = self.prefs;
         crate::workspace::thread_extras::prefs::save_diff(prefs, cx).detach_and_log_err(cx);
@@ -71,6 +71,7 @@ impl ChangesView {
             self.refresh(cx);
         }
         self.relayout();
+        self.scroll_to_row(top); // the same place, in the new layout
         cx.notify();
     }
 

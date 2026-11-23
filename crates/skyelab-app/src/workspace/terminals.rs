@@ -36,24 +36,30 @@ impl Workspace {
         if self.is_remote() {
             return;
         }
-        let Some(panel) = self
-            .terminals
-            .iter()
-            .find(|p| p.read(cx).focused_pane(window, cx).is_some())
-            .cloned()
-        else {
+        let Some((panel, cwd)) = self.terminals.iter().find_map(|p| {
+            let at = p.read(cx).focused_pane(window, cx)?;
+            let cwd = p.read(cx).panes[at]
+                .view
+                .read(cx)
+                .terminal()
+                .cwd()
+                .to_path_buf();
+            Some((p.clone(), cwd))
+        }) else {
             return;
         };
-        let job = self.terminal_job(cx);
+        // The new pane starts where the focused one did (a worktree, a script's folder), under that folder's account.
+        let job = self.terminal_job_in(cwd, cx);
         let options = cx.background_spawn(async move { job() });
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
                 let opened = options.and_then(|(o, account)| {
-                    if this.is_remote() || o.cwd != this.folder {
+                    if this.is_remote() {
                         return Ok(()); // the window moved on meanwhile
                     }
-                    let title = panel.read(cx).title();
+                    let p = panel.read(cx);
+                    let title = format!("{} · {}", p.title(), p.panes.len() + 1).into();
                     let view = this.terminal_view(o, title, window, cx)?;
                     panel.update(cx, |p, cx| p.split(Pane { view, account }, window, cx));
                     Ok(())

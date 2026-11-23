@@ -198,12 +198,29 @@ impl ChangesView {
 
     /// Shows a freshly loaded diff: rebuilds the tree and the layout, and counts an open find again.
     pub(super) fn set_loaded(&mut self, changes: Changes) {
+        // A reload (a turn ended, a commit) keeps the reader's place.
+        let top = self.top_row();
         (self.changes, self.error) = (Some(changes), None);
         self.rebuild_tree();
         if self.find.input.is_some() {
             self.recount(self.find.query.clone());
         }
         self.relayout();
+        let rows = self.changes.as_ref().map_or(0, |c| c.rows.len());
+        if top > 0 && top < rows {
+            self.scroll_to_row(top);
+        }
+    }
+
+    /// The unified row at the top of the diff now, in either layout.
+    pub(super) fn top_row(&self) -> usize {
+        let ix = self.list.logical_scroll_top().item_ix;
+        match self.split.get(ix) {
+            Some(SplitRow::Full(r)) if self.prefs.split => *r,
+            Some(SplitRow::Pair(l, r)) if self.prefs.split => l.or(*r).unwrap_or(0),
+            _ if self.prefs.split => 0,
+            _ => ix,
+        }
     }
 
     fn rebuild_tree(&mut self) {

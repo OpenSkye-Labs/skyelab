@@ -250,8 +250,13 @@ impl ThreadView {
             && let Some(thread) = self.thread.clone()
         {
             let attachments = self.take_attachments(external);
+            let contexts = self.composer.terminal_contexts.clone();
             let text = self.take_contexts(text, external);
-            return self.resume(text, attachments, thread, resolved, window, cx);
+            self.resume(text, attachments, thread, resolved, window, cx);
+            if self.resume_refused.is_some() && !external {
+                self.composer.terminal_contexts = contexts; // kept with the unsent text
+            }
+            return;
         }
         let Some(account) = resolved else {
             self.needs_binding = true;

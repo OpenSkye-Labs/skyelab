@@ -199,8 +199,9 @@ impl ThreadView {
     /// once pressed); and Force stop beside it when an interrupt went unanswered.
     fn render_primary(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let running = self.turn_running();
-        let empty =
-            self.prompt.read(cx).value().trim().is_empty() && self.composer.attachments.is_empty();
+        let empty = self.prompt.read(cx).value().trim().is_empty()
+            && self.composer.attachments.is_empty()
+            && self.composer.terminal_contexts.is_empty();
         let round = ButtonRounded::Size(px(16.));
         let mut out = Vec::new();
         if running && self.composer.stalled {
