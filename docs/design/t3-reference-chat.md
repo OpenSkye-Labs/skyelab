@@ -77,6 +77,11 @@ there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main,
   `px-3 py-2`, counts mono 11 (`c/diffs/StyledDiffCodeView.tsx:97-118`). Hunk separator 24 tall, sans 11 at 50%
   (`StyledDiffCodeView.tsx:123-136`). Modified-file icon: muted blue (css:1292-1300).
 - Git actions: ghost `xs` (24) or `sm` (28) buttons; dialogs outline `sm` (`c/GitActionsControl.tsx:1568-1728`).
+- Header toggles (`c/DiffPanel.tsx:1461-1527`): stacked/split segmented pair, wrap (TextWrap) and hide whitespace
+  (Pilcrow) as `sm` ghost toggles. File tree (`c/diffs/DiffFileTree.tsx`): compact rows, empty folder chains
+  flattened, folders open by default. SkyeLab: `workspace/changes_find.rs` (xsmall buttons, a pressed one on the
+  secondary fill; saved under `[diff]` in settings.toml), `changes_tree.rs` (tree and split rows), the thread's find
+  bar reused for find in diff.
 
 ## 6. Terminal
 
@@ -84,6 +89,13 @@ there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main,
   (`c/ThreadTerminalDrawer.tsx:1220`, css:1183-1229).
 - No tab strip: a floating control group top right; terminals listed in a 144 px side list, items 24 tall `text-xs`,
   radius 6, active `accent` (`ThreadTerminalDrawer.tsx:1428-1459,1861-1937`).
+- Splits: panes side by side with a 1 px border; mod+D splits (`packages/shared/src/keybindings.ts:71`). SkyeLab keeps
+  the dock's tabs and puts panes inside a tab (`workspace/terminal_panel.rs`); a tab belongs to the thread shown when
+  it opened (`terminals.rs` `sync_terminals`).
+- Terminal context (`c/chat/TerminalContextInlineChip.tsx`, `lib/terminalContext.ts`): a chip with a terminal icon
+  in success ink, label "Terminal N lines a-b", its text in a popover. SkyeLab: a 28 px chip above the prompt
+  ("Terminal N · K lines") that opens the text under the chip row (`workspace/composer_context.rs`); sent as a fenced
+  block (`skyelab_core::terminal_context`).
 
 ## 7. Command palette
 
