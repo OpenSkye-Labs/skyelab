@@ -32,7 +32,7 @@ pub(super) struct Scan {
 
 pub(super) struct Row {
     pub t: Transcript,
-    /// A thread of the project already continues this session.
+    /// A thread (of any project) already continues this session.
     pub imported: bool,
     pub checked: bool,
 }
@@ -117,14 +117,19 @@ pub(super) fn import_picks(
             done.left += 1;
             continue;
         };
-        let rows: Vec<(&str, String)> = t
+        // Each entry at the session's own time; one without a time (an old or odd line) at the file's.
+        let rows: Vec<(&str, String, i64)> = t
             .entries
             .into_iter()
-            .map(|e| match e {
-                Entry::Prompt(p) => Record::Prompt(p),
-                Entry::Agent(e) => Record::Agent(e),
+            .zip(t.times.iter().chain(std::iter::repeat(&0)))
+            .map(|(e, &at)| {
+                let (kind, payload) = match e {
+                    Entry::Prompt(p) => Record::Prompt(p),
+                    Entry::Agent(e) => Record::Agent(e),
+                }
+                .to_row();
+                (kind, payload, if at > 0 { at } else { t.modified_ms })
             })
-            .map(|r| r.to_row())
             .collect();
         let new = NewThread {
             project_id: project.id,
@@ -330,7 +335,7 @@ impl Workspace {
         let job = cx.background_spawn({
             let project = project.clone();
             async move {
-                let taken = lock(&store)?.session_ids(project.id)?;
+                let taken = lock(&store)?.session_ids()?;
                 scan(&config(), &project, &taken)
             }
         });
@@ -371,14 +376,7 @@ impl Workspace {
                 .child(picker.clone())
                 .footer(
                     DialogFooter::new()
-                        // Not DialogClose: it wraps its button in a size_full div, which fills the footer.
-                        .child(
-                            Button::new("import-cancel")
-                                .outline()
-                                .small()
-                                .label("Cancel")
-                                .on_click(|_, window, cx| window.close_dialog(cx)),
-                        )
+                        .child(ui::dialog_cancel("import-cancel"))
                         .child(
                             Button::new("import-go")
                                 .primary()

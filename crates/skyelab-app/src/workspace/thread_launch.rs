@@ -8,6 +8,9 @@ use skyelab_agent::Launch;
 use skyelab_core::{Account, Provider};
 use skyelab_store::{NewThread, Thread};
 
+/// Why a resume is refused while another thread runs the same agent session (imported twice, or forked rows).
+pub(super) const BUSY_ELSEWHERE: &str = "Another thread is running this agent session right now. Stop it there first, then send this again.";
+
 /// The first line of the prompt, cut to a tab-sized title.
 fn title(prompt: &str) -> String {
     let line = prompt.lines().next().unwrap_or_default().trim();
@@ -31,6 +34,15 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.error = None;
+        if let Some(session) = thread.agent_session_id.as_deref()
+            && lock(&self.backend.store)
+                .and_then(|s| s.session_busy_elsewhere(thread.id, session))
+                .unwrap_or(false)
+        {
+            self.composer.attachments.extend(attachments); // kept with the unsent text
+            self.resume_refused = Some(BUSY_ELSEWHERE.into());
+            return cx.notify();
+        }
         match resolved {
             Some(account) if account.id == thread.account_id => {
                 self.resume_refused = None;
@@ -193,17 +205,23 @@ impl ThreadView {
                             .map_or(project.clone(), |w| w.path.clone());
                         let mut thread = match resume {
                             Some(thread) => {
+                                // Checked and marked under one lock, so two resumes of one session can't both pass.
+                                let store = lock(&store)?;
+                                if let Some(session) = thread.agent_session_id.as_deref()
+                                    && store.session_busy_elsewhere(thread.id, session)?
+                                {
+                                    anyhow::bail!(BUSY_ELSEWHERE);
+                                }
                                 // A resumed child takes a slot again, under the same lock as its status.
                                 if let Some(parent) = thread.parent_thread_id {
-                                    let store = lock(&store)?;
                                     crate::workspace::child_slots::claim(
                                         &store,
                                         parent,
                                         Some(thread.id),
                                     )?;
-                                    store.set_thread_status(thread.id, "starting")?;
-                                    claimed = Some(thread.id);
                                 }
+                                store.set_thread_status(thread.id, "starting")?;
+                                claimed = Some(thread.id);
                                 thread
                             }
                             None => crate::workspace::worktree::save(
