@@ -72,8 +72,14 @@ fn answer_in_thread(decision: Decision, cx: &mut TestAppContext) -> serde_json::
         answer_seen(&one, cx).is_none(),
         "the agent went on unanswered"
     );
-    one.view
-        .update(cx, |v, cx| v.answer("perm-1", decision, cx));
+    let id = one.view.read_with(cx, |v, _| {
+        v.items.iter().find_map(|i| match i {
+            Item::Approval(a) => Some(a.id.clone()),
+            _ => None,
+        })
+    });
+    let id = id.expect("the request's id");
+    one.view.update(cx, |v, cx| v.answer(&id, decision, cx));
     wait_until(cx, "the agent's report of the answer", |cx| {
         answer_seen(&one, cx).is_some()
     });
@@ -86,7 +92,10 @@ fn answer_in_thread(decision: Decision, cx: &mut TestAppContext) -> serde_json::
 #[gpui::test]
 fn allow_once_in_the_thread_reaches_the_agent(cx: &mut TestAppContext) {
     let reply = answer_in_thread(Decision::AllowOnce, cx);
-    assert_eq!(reply["response"]["request_id"], "perm-1");
+    assert_eq!(
+        reply["response"]["request_id"], "perm-1",
+        "the CLI's own id goes back"
+    );
     assert_eq!(reply["response"]["response"]["behavior"], "allow");
     assert_eq!(
         reply["response"]["response"]["updatedInput"]["command"],

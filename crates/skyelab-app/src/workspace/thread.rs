@@ -108,6 +108,10 @@ pub struct ThreadView {
     pub(super) mode: Mode,
     /// Full access was picked and waits for the user to confirm it.
     pub(super) confirm_bypass: bool,
+    /// Mode writes (store row, running agent) run one at a time, each writing the newest pick, so two quick picks
+    /// can't land in the wrong order.
+    mode_writes: Arc<Mutex<()>>,
+    mode_now: Arc<std::sync::atomic::AtomicUsize>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
     send_chain: Option<Task<()>>,
@@ -270,6 +274,8 @@ impl ThreadView {
             children: Vec::new(),
             mode: Mode::Default,
             confirm_bypass: false,
+            mode_writes: Arc::default(),
+            mode_now: Arc::default(),
             grant: None,
             send_chain: None,
             on_sent: None,
@@ -427,21 +433,30 @@ impl ThreadView {
             return cx.notify();
         }
         self.mode = mode;
+        self.write_mode(cx);
+        cx.notify();
+    }
+
+    /// Sends the newest mode to the running agent, then to the store row.
+    pub(super) fn write_mode(&mut self, cx: &mut Context<Self>) {
+        let ix = Mode::ALL.iter().position(|m| *m == self.mode).unwrap_or(0);
+        self.mode_now.store(ix, std::sync::atomic::Ordering::SeqCst);
         let row = self.thread.as_mut().map(|t| {
-            t.permission_mode = mode.as_str().to_owned();
+            t.permission_mode = self.mode.as_str().to_owned();
             t.id
         });
         let (store, session) = (self.backend.store.clone(), self.session.clone());
+        let (writes, now) = (self.mode_writes.clone(), self.mode_now.clone());
         self.in_background(cx, move || {
-            if let Some(id) = row {
-                lock(&store)?.set_thread_permission_mode(id, mode.as_str())?;
-            }
-            if let Some(session) = session {
-                lock(&session)?.set_mode(mode)?;
-            }
-            Ok(())
+            let _one_at_a_time = lock(&writes)?;
+            let mode = Mode::ALL[now.load(std::sync::atomic::Ordering::SeqCst)];
+            // Each step runs even if the other fails, so a store error never leaves the agent on the old mode.
+            let live = session.map_or(Ok(()), |s| lock(&s)?.set_mode(mode));
+            let stored = row.map_or(Ok(()), |id| {
+                lock(&store)?.set_thread_permission_mode(id, mode.as_str())
+            });
+            live.and(stored)
         });
-        cx.notify();
     }
 
     fn show_error(&mut self, e: anyhow::Error, cx: &mut Context<Self>) {

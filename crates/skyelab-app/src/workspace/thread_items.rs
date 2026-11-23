@@ -403,6 +403,12 @@ fn render_approval<V: ItemsView>(this: &V, a: &ApprovalItem, cx: &mut Context<V>
         )
         .child(
             div()
+                .font_family(theme.mono_font_family.clone())
+                .text_size(ui::BODY)
+                .child(a.summary.clone()),
+        )
+        .child(
+            div()
                 .px_3()
                 .py_2()
                 .rounded(ui::RADIUS)

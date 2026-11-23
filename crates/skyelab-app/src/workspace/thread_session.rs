@@ -28,6 +28,19 @@ impl ThreadView {
     ) {
         let events = session.events().clone();
         let session = Arc::new(Mutex::new(session));
+        // Asks an earlier agent left open (it was killed, or SkyeLab quit) can't be answered by this one.
+        let mut stale = Vec::new();
+        for (ix, item) in self.items.iter_mut().enumerate() {
+            if let crate::workspace::thread_model::Item::Approval(a) = item
+                && a.decision.is_none()
+            {
+                a.decision = Some(skyelab_agent::Decision::Withdrawn);
+                stale.push(ix);
+            }
+        }
+        for ix in stale {
+            self.list.splice(ix..ix + 1, 1);
+        }
         let watched = Arc::downgrade(&session);
         self.session = Some(session);
         // The launch sent one prompt.
@@ -76,7 +89,9 @@ impl ThreadView {
                         continue;
                     }
                 };
-                let failed = matches!(event, Event::Result { is_error: true, .. });
+                // An interrupt ends a Codex turn as an error too; the user asked for that one.
+                let failed = matches!(&event, Event::Result { is_error: true, result, .. }
+                    if result.as_deref() != Some("interrupted"));
                 let record = Record::Agent(event);
                 let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let shown = this.update(cx, |this, cx| {
@@ -103,7 +118,7 @@ impl ThreadView {
             }
             // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining.
             let stopped = this
-                .update(cx, |this, _| this.stop_requested)
+                .update(cx, |this, _| this.stop_requested || launch != this.launches)
                 .unwrap_or(true);
             if !stopped && let Some(event) = stderr_of(&watched, true, cx).await {
                 let record = Record::Agent(event);
@@ -254,7 +269,7 @@ async fn stderr_of(
                 match status {
                     Some(status) if status.success() => break None,
                     Some(_) => {
-                        // The reader thread may still be draining the pipe.
+                        // The stderr thread may still be draining the pipe.
                         timer.timer(Duration::from_millis(100)).await;
                         break lock(&session).ok().map(|s| s.take_stderr());
                     }

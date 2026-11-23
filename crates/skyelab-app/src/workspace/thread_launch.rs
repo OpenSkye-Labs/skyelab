@@ -161,13 +161,13 @@ impl ThreadView {
                                 parent,
                             )?,
                         };
-                        if is_new && mode != skyelab_agent::Mode::Default {
-                            lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
-                            thread.permission_mode = mode.as_str().to_owned();
-                        }
                         // A new row, or a child's slot: either must not stay busy if this launch fails.
                         if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
+                        }
+                        if is_new && mode != skyelab_agent::Mode::Default {
+                            lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
+                            thread.permission_mode = mode.as_str().to_owned();
                         }
                         let _ = saved_tx.send(thread.clone());
                         // A resumed thread's held events go first, or its prompt would be stored ahead of them.
@@ -221,12 +221,9 @@ impl ThreadView {
                             Ok(Some(session)) => {
                                 this.grant = grant;
                                 this.run(session, pump_store, thread.id, cx);
-                                // Picked while it started: the agent began with the old mode.
-                                if this.mode != mode
-                                    && let Some(s) = this.session.clone()
-                                {
-                                    let now = this.mode;
-                                    this.in_background(cx, move || lock(&s)?.set_mode(now));
+                                // Picked while it started: the agent (and a new row) began with the old mode.
+                                if this.mode != mode {
+                                    this.write_mode(cx);
                                 }
                                 if this.stop_requested {
                                     this.kill(cx);

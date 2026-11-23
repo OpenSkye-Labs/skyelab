@@ -40,11 +40,17 @@ fn a_remote_client_answers_a_pending_permission(cx: &mut TestAppContext) {
             }
         }
     };
+    let mut asked = String::new();
     wait_until(cx, "the pending request pushed", |_| {
         pump(&mut events);
-        agent_payloads(&events)
+        if let Some(id) = agent_payloads(&events)
             .iter()
-            .any(|v| v["Permission"]["id"] == "perm-1" && v["Permission"]["tool"] == "Bash")
+            .filter(|v| v["Permission"]["tool"] == "Bash")
+            .find_map(|v| v["Permission"]["id"].as_str().map(str::to_owned))
+        {
+            asked = id;
+        }
+        !asked.is_empty()
     });
 
     // A request id the agent isn't waiting on is refused, and nothing reaches it.
@@ -64,7 +70,7 @@ fn a_remote_client_answers_a_pending_permission(cx: &mut TestAppContext) {
         4,
         Call::AnswerPermission {
             thread_id,
-            request_id: "perm-1".into(),
+            request_id: asked.clone(),
             decision: skyelab_protocol::PermissionAnswer::Deny,
         },
     );

@@ -104,3 +104,51 @@ fn full_access_needs_a_confirm(cx: &mut TestAppContext) {
         "{args}"
     );
 }
+
+#[gpui::test]
+fn a_mode_picked_while_starting_reaches_the_agent_and_the_row(cx: &mut TestAppContext) {
+    let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    one.view
+        .update_in(cx, |v, window, cx| {
+            let sent = v.submit_remote("hi", window, cx);
+            // Before the row or the agent exists.
+            v.set_mode(Mode::Plan, cx);
+            sent
+        })
+        .expect("started");
+    wait_until(cx, "the mode change to reach the agent", |cx| {
+        unknowns(&one, cx)
+            .iter()
+            .any(|v| v["type"] == "control_request" && v["request"]["mode"] == "plan")
+    });
+    wait_until(cx, "the row to keep it", |cx| row_mode(&one, cx) == "plan");
+}
+
+#[gpui::test]
+fn full_access_on_a_running_claude_waits_for_a_restart(cx: &mut TestAppContext) {
+    let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    one.view
+        .update_in(cx, |v, window, cx| v.submit_remote("hi", window, cx))
+        .expect("started");
+    let _ = args(&one, cx);
+    one.view.update(cx, |v, cx| {
+        v.set_mode(Mode::Bypass, cx);
+        v.confirm_mode(true, cx);
+    });
+    wait_until(cx, "the error saying when it applies", |cx| {
+        one.view.read_with(cx, |v, _| {
+            v.error
+                .as_ref()
+                .is_some_and(|e| e.contains("applies when this agent starts again"))
+        })
+    });
+    assert!(
+        !unknowns(&one, cx)
+            .iter()
+            .any(|v| v["request"]["mode"] == "bypassPermissions"),
+        "not sent to an agent that would refuse it"
+    );
+    wait_until(cx, "the row to keep the pick for the next start", |cx| {
+        row_mode(&one, cx) == "bypass"
+    });
+}
