@@ -4,10 +4,17 @@
 use super::saves::save;
 use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, lock};
 use anyhow::{Context as _, Result};
+use futures::future::Either;
 use gpui::{AppContext as _, Context, Window};
 use skyelab_agent::{Event, Session};
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+/// How often a running session checks whether its agent exited.
+const WATCH_EXIT: Duration = Duration::from_secs(1);
+/// After the exit, how long the pump keeps storing what the agent printed before the session counts as ended.
+const DRAIN: Duration = Duration::from_secs(2);
 
 impl ThreadView {
     /// Each event is stored before it is shown, so the store keeps stdout's order. An event the store refuses is
@@ -20,7 +27,9 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let events = session.events().clone();
-        self.session = Some(Arc::new(Mutex::new(session)));
+        let session = Arc::new(Mutex::new(session));
+        let watched = session.clone();
+        self.session = Some(session);
         // The launch sent one prompt.
         let turns = Arc::new(AtomicUsize::new(1));
         self.turns = turns.clone();
@@ -32,7 +41,28 @@ impl ThreadView {
         }
         let unsaved = self.unsaved.clone();
         self._pump = Some(cx.spawn(async move |this, cx| {
-            while let Ok(event) = events.recv_async().await {
+            let mut exited = false;
+            loop {
+                // stdout can outlive the agent (a tool it started holds it), so its exit is watched too.
+                let tick = cx
+                    .background_executor()
+                    .timer(if exited { DRAIN } else { WATCH_EXIT });
+                let event = match futures::future::select(events.recv_async(), tick).await {
+                    Either::Left((Ok(event), _)) => event,
+                    Either::Left((Err(_), _)) => break, // stdout closed
+                    Either::Right(_) if exited => break, // nothing more since it exited
+                    Either::Right(_) => {
+                        let s = watched.clone();
+                        exited = cx
+                            .background_spawn(async move {
+                                lock(&s)
+                                    .and_then(|mut s| s.try_wait())
+                                    .is_ok_and(|st| st.is_some())
+                            })
+                            .await;
+                        continue;
+                    }
+                };
                 let record = Record::Agent(event);
                 let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let shown = this.update(cx, |this, cx| {
@@ -73,6 +103,7 @@ impl ThreadView {
             "exited"
         };
         let session = self.session.take();
+        self.turns.store(0, Ordering::SeqCst); // no agent, so no turn is running
         self.finish(cx);
         // Reaping the child waits, so it happens off the UI thread, after the status is written
         // (so a quick resume's "running" can't be overwritten by it).

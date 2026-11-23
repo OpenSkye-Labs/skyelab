@@ -165,7 +165,8 @@ fn items_map_to_tool_use_results_and_text() {
             is_error: false,
             duration_ms: 5,
             total_cost_usd: 0.0,
-            result: Some("done".into())
+            result: Some("done".into()),
+            prompts: 1,
         }]
     );
 }

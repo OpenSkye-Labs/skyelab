@@ -195,9 +195,15 @@ impl Codex {
                 }
                 (error, _) => {
                     let why = error.unwrap_or_else(|| "codex opened no thread".into());
-                    self.queue.clear(); // the Result below answers the prompt that was waiting
+                    // The Result below answers every prompt that was waiting for the thread.
+                    let waiting = self.queue.len().max(1); // the launch's own prompt, at least
+                    self.queue.clear();
                     self.closed = Some(why.clone());
-                    (vec![failed(why)], Vec::new())
+                    let mut result = failed(why);
+                    if let Event::Result { prompts, .. } = &mut result {
+                        *prompts = u32::try_from(waiting).unwrap_or(u32::MAX);
+                    }
+                    (vec![result], Vec::new())
                 }
             };
         }
@@ -233,6 +239,7 @@ impl Codex {
                     is_error: !ok,
                     duration_ms: turn["durationMs"].as_u64().unwrap_or_default(),
                     total_cost_usd: 0.0,
+                    prompts: 1,
                     result: turn["error"]["message"]
                         .as_str()
                         .map(str::to_owned)
@@ -287,6 +294,7 @@ fn failed(message: String) -> Event {
         duration_ms: 0,
         total_cost_usd: 0.0,
         result: Some(message),
+        prompts: 1,
     }
 }
 

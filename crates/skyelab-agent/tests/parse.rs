@@ -46,7 +46,8 @@ fn parses_fixture() {
             is_error: false,
             duration_ms: 1234,
             total_cost_usd: 0.0123,
-            result: Some("Done.".into())
+            result: Some("Done.".into()),
+            prompts: 1,
         }
     );
 }

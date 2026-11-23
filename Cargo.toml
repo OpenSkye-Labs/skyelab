@@ -28,6 +28,8 @@ alacritty_terminal = "0.26"
 rustix-openpty = "0.2"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent"] }
 futures = "0.3"
+# Prompt ids claude echoes back in a result (user_message_uuids).
+uuid = { version = "1.29", features = ["v4"] }
 # Webview: no `gpui-fast` feature (that is a second GPUI). wry must match the version gpui-webview uses.
 gpui-webview = "0.10.0"
 wry = { package = "lb-wry", version = "0.53.3" }

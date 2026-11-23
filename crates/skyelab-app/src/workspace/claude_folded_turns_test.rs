@@ -21,6 +21,8 @@ pub(super) fn wait_until(
             return;
         }
         std::thread::sleep(Duration::from_millis(10));
+        // The session's exit watch runs on the executor's clock, which only moves when a test moves it.
+        cx.executor().advance_clock(Duration::from_millis(100));
     }
     panic!("timed out waiting for {what}");
 }
