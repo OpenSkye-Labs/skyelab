@@ -86,7 +86,7 @@ impl Workspace {
             let member = rows.iter().any(|r| r.members.contains(&i.id));
             let id = i.id.strip_prefix("thread-").and_then(|n| n.parse().ok());
             if let (true, Some(v)) = (member, id.and_then(|id| self.open_view(id, cx))) {
-                i.label = format!("{} · {}", v.read(cx).pick_label(true), i.label).into();
+                i.label = format!("{} · {}", v.read(cx).chip_label(true).0, i.label).into();
             }
         }
         out

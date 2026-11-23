@@ -235,6 +235,7 @@ impl ThreadView {
                     for (r, at) in &records {
                         replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
+                        this.note_model(r, false);
                     }
                     this.lists.reset(this.items.len());
                     this.load_turn_files(cx);
@@ -341,7 +342,13 @@ impl ThreadView {
     /// Accounts changed on disk (Settings saved). Used for the next start and the badge.
     pub fn set_config(&mut self, config: AccountsConfig, cx: &mut Context<Self>) {
         self.config = config;
+        let old = self.composer_account().map(|a| a.id);
         self.folder_account = self.config.resolve(&self.cwd).cloned();
+        if self.composer_account().map(|a| a.id) != old {
+            // Another account now: its own default model and Codex list.
+            (self.composer.account_model, self.composer.codex_models) = (None, None);
+            self.load_account_model(cx);
+        }
         self.resume_refused = None; // the next send checks the new bindings again
         self.drop_unbound_chips();
         if self.needs_binding && self.config.resolve(&self.cwd).is_some() {
@@ -401,6 +408,7 @@ impl ThreadView {
         if let Record::Agent(skyelab_agent::Event::RateLimit { .. }) = record {
             cx.emit(ThreadViewEvent::UsageReported);
         }
+        self.note_model(record, true);
         let limited = limit_after(self.limited, record);
         if limited != self.limited {
             self.limited = limited;

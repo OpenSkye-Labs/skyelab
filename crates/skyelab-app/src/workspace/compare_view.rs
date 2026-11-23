@@ -66,7 +66,7 @@ fn column(v: &ThreadView) -> Column {
     Column {
         id: v.thread.as_ref().map(|t| t.id),
         title: v.title(),
-        model: v.pick_label(false).into(),
+        model: v.chip_label(false).0.into(),
         working: v.working(),
         limited: v.live_status() == crate::ui::Status::Limited,
         error: v.error.clone(),

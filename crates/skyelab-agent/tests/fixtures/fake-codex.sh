@@ -40,7 +40,7 @@ while IFS= read -r line; do
   case "$line" in
     *'"method":"initialize"'*) printf '{"id":%s,"result":{"userAgent":"fake-codex/0"}}\n' "$id" ;;
     *'"method":"model/list"'*)
-      printf '{"id":%s,"result":{"data":[{"model":"gpt-fake","displayName":"GPT Fake","defaultReasoningEffort":"medium","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"},{"reasoningEffort":"high"}]}],"nextCursor":null}}\n' "$id" ;;
+      printf '{"id":%s,"result":{"data":[{"model":"gpt-fake","displayName":"GPT Fake","isDefault":true,"defaultReasoningEffort":"medium","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"},{"reasoningEffort":"high"}]}],"nextCursor":null}}\n' "$id" ;;
     *'"method":"turn/steer"'*) printf '{"id":%s,"result":{"turnId":"turn_hang"}}\n' "$id" ;;
     *'"method":"thread/start"'*|*'"method":"thread/resume"'*)
       if [ -f .fake-codex-refuse-open ]; then
