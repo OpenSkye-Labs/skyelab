@@ -1,7 +1,6 @@
 //! Projects and threads: the sidebar's two sections and what selecting a row does.
 
 use super::center::Page;
-use super::changes::ChangesView;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree;
 use super::{
@@ -313,7 +312,11 @@ impl Workspace {
                         this.mark_unread(view, cx);
                     }
                 }
-                ThreadViewEvent::OpenChanges => this.open_changes(view, window, cx),
+                ThreadViewEvent::OpenChanges => _ = this.open_changes(view, window, cx),
+                ThreadViewEvent::Git(action) => {
+                    let tab = this.open_changes(view, window, cx);
+                    tab.update(cx, |c, cx| c.run_git(*action, window, cx));
+                }
                 ThreadViewEvent::OpenPath(path) => this.open_path(view, path, window, cx),
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =
@@ -347,6 +350,7 @@ impl Workspace {
                     this.turn_done(view, window, cx);
                 }
                 ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
+                ThreadViewEvent::UsageReported => this.refresh_usage(cx),
                 ThreadViewEvent::RunScript(script) => {
                     let v = view.read(cx);
                     let account = v.thread.as_ref().map(|t| t.account_id.clone());
@@ -367,73 +371,6 @@ impl Workspace {
         view.update(cx, |v, _| v.background = true);
         self.refresh_sidebar(cx);
         cx.notify();
-    }
-
-    /// The Changes tab for the thread's folder, in the right dock: refreshed and selected if one is open, else added.
-    pub(super) fn open_changes(
-        &mut self,
-        view: &Entity<ThreadView>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let dir = view.read(cx).cwd.clone();
-        let base = view
-            .read(cx)
-            .thread
-            .as_ref()
-            .and_then(|t| t.worktree_base.clone());
-        self.changes_views.retain(|c| c.upgrade().is_some());
-        let open = self
-            .changes_views
-            .iter()
-            .filter_map(|c| c.upgrade())
-            .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
-        if let Some(changes) = open {
-            // One tab per folder; it publishes for (and saves the PR link on) the thread that opened it last.
-            // Same folder, same bound account, and publishing re-checks the account anyway.
-            let thread = view.downgrade();
-            changes.update(cx, |c, cx| {
-                c.thread = Some(thread);
-                c.refresh(cx)
-            });
-            self.show_right_panel(changes.entity_id().into(), window, cx);
-            return;
-        }
-        let title = view.read(cx).title();
-        let changes = cx.new(|cx| ChangesView::new(dir, base, title, Some(view), window, cx));
-        self.add_right_panel(changes.clone(), window, cx);
-        self.changes_views.push(changes.downgrade());
-        cx.notify();
-    }
-
-    /// A file the thread's timeline names: its folder's Changes tab, scrolled to the file once the diff lists it.
-    fn open_path(
-        &mut self,
-        view: &Entity<ThreadView>,
-        path: &std::path::Path,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.open_changes(view, window, cx);
-        let dir = view.read(cx).cwd.clone();
-        let base = view
-            .read(cx)
-            .thread
-            .as_ref()
-            .and_then(|t| t.worktree_base.clone());
-        let tab = self
-            .changes_views
-            .iter()
-            .filter_map(|c| c.upgrade())
-            .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
-        if let Some(changes) = tab {
-            let path = path.to_owned();
-            changes.update(cx, |c, cx| {
-                // A refresh is on its way (open_changes started it): reveal against what it loads.
-                c.reveal_after_load = Some(path.clone());
-                c.reveal(&path, cx);
-            });
-        }
     }
 
     /// A thread's turn ended: every Changes tab on its folder may be out of date.

@@ -98,4 +98,38 @@ ALTER TABLE threads ADD COLUMN effort TEXT;
 ALTER TABLE projects ADD COLUMN default_model TEXT;
 ALTER TABLE projects ADD COLUMN default_effort TEXT;
 ",
+    // Version 10: each account's newest usage reading, kept as agent events arrive, so reading usage doesn't scan
+    // events. Window '' is the newest `RateLimit` of any kind (whether it says limited); a named window is the newest
+    // one that carries a percentage. `instr` is a cheap prefilter before the JSON is parsed.
+    "
+CREATE TABLE usage_readings (
+    account_id   TEXT NOT NULL,
+    window       TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at   INTEGER NOT NULL,
+    PRIMARY KEY (account_id, window)
+) WITHOUT ROWID;
+CREATE TRIGGER usage_reading_insert AFTER INSERT ON events
+WHEN NEW.kind = 'agent' AND instr(NEW.payload_json, '\"RateLimit\"') > 0 AND json_valid(NEW.payload_json)
+     AND json_type(NEW.payload_json, '$.RateLimit') = 'object'
+BEGIN
+    INSERT OR REPLACE INTO usage_readings (account_id, window, payload_json, created_at)
+        SELECT t.account_id, '', NEW.payload_json, NEW.created_at FROM threads t WHERE t.id = NEW.thread_id;
+    INSERT OR REPLACE INTO usage_readings (account_id, window, payload_json, created_at)
+        SELECT t.account_id, json_extract(NEW.payload_json, '$.RateLimit.window'), NEW.payload_json, NEW.created_at
+        FROM threads t WHERE t.id = NEW.thread_id
+          AND json_type(NEW.payload_json, '$.RateLimit.window') = 'text'
+          AND json_type(NEW.payload_json, '$.RateLimit.used') IN ('integer', 'real');
+END;
+INSERT OR REPLACE INTO usage_readings (account_id, window, payload_json, created_at)
+    SELECT t.account_id, COALESCE(w.window, json_extract(e.payload_json, '$.RateLimit.window')),
+           e.payload_json, e.created_at
+    FROM events e JOIN threads t ON t.id = e.thread_id,
+         (SELECT '' AS window UNION ALL SELECT NULL) w
+    WHERE e.kind = 'agent' AND instr(e.payload_json, '\"RateLimit\"') > 0 AND json_valid(e.payload_json)
+      AND json_type(e.payload_json, '$.RateLimit') = 'object'
+      AND (w.window = '' OR (json_type(e.payload_json, '$.RateLimit.window') = 'text'
+                             AND json_type(e.payload_json, '$.RateLimit.used') IN ('integer', 'real')))
+    ORDER BY e.created_at, e.thread_id, e.seq;
+",
 ];

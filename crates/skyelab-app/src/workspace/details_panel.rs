@@ -13,6 +13,7 @@ use gpui_component::{
     dock::{Panel, PanelEvent},
     h_flex, v_flex,
 };
+use skyelab_agent::Event;
 use skyelab_core::{Account, Provider};
 use skyelab_store::Store;
 
@@ -22,41 +23,60 @@ pub struct AccountUsage {
     pub id: String,
     pub label: String,
     pub provider: Provider,
+    /// 5h, then Weekly: how much of each is used (0 to 1), when a reading said.
     pub windows: Vec<(&'static str, f32)>,
+    /// `Some(resets_at)` (Unix seconds) when the newest reading says the account is refused.
+    pub limited: Option<Option<i64>>,
     /// When the newest reading was stored (`None`: nothing reported yet).
     pub as_of_ms: Option<i64>,
 }
 
-/// Readings older than this many windows' worth of events aren't looked for.
-const RECENT_EVENTS: usize = 50;
-
-/// `account`'s newest stored reading of each usage window, from the `rate_limit_event` lines its threads' agents
-/// wrote. Only what was reported: nothing is asked of the account, and a store error reads as no data.
+/// `account`'s newest stored readings, kept per window by the store as its threads' agents report them
+/// (Claude's `rate_limit_event`, Codex's `account/rateLimits/updated`). Only what was reported: nothing is asked of
+/// the account, and a store error reads as no data.
 pub fn account_usage(store: &Store, account: &Account) -> AccountUsage {
-    let events = store
-        .account_events_matching(&account.id, "agent", "\"used\":", RECENT_EVENTS)
-        .unwrap_or_default();
+    let readings = store.usage_readings(&account.id).unwrap_or_default();
     let mut windows: Vec<(&'static str, f32)> = Vec::new();
-    let mut as_of_ms = None;
-    for e in &events {
-        let Ok(Record::Agent(event)) = Record::from_row(&e.kind, &e.payload_json) else {
+    let (mut limited, mut as_of_ms) = (None, None);
+    for r in &readings {
+        let Ok(Record::Agent(event)) = Record::from_row("agent", &r.payload_json) else {
             continue;
         };
-        if let Some((label, used)) = event.rate_limit()
-            && !windows.iter().any(|(l, _)| *l == label)
-        {
-            windows.push((label, used));
-            as_of_ms = as_of_ms.max(Some(e.created_at));
+        as_of_ms = as_of_ms.max(Some(r.created_at));
+        if r.window.is_empty() {
+            if let Event::RateLimit {
+                limited: true,
+                resets_at,
+                ..
+            } = event
+            {
+                limited = Some(resets_at);
+            }
+        } else if let Some(w @ ("5h" | "Weekly", _)) = event.rate_limit() {
+            windows.push(w);
         }
     }
-    // Session before Weekly, like the CLI's /usage.
-    windows.sort_by_key(|(label, _)| *label != "Session");
+    // 5h before Weekly, like the CLI's /usage.
+    windows.sort_by_key(|(label, _)| *label != "5h");
     AccountUsage {
         id: account.id.clone(),
         label: account.label.clone(),
         provider: account.provider,
         windows,
+        limited,
         as_of_ms,
+    }
+}
+
+/// "Limited · resets in 2h 14m" while the newest reading says limited and its reset is ahead (`now` in Unix seconds).
+pub(super) fn limit_text(limited: Option<Option<i64>>, now: i64) -> Option<String> {
+    match limited? {
+        Some(at) if at <= now => None,
+        Some(at) => Some(format!(
+            "Limited · resets in {}",
+            super::timeline_text::wait(at - now)
+        )),
+        None => Some("Limited".into()),
     }
 }
 
@@ -188,31 +208,26 @@ fn caption(text: &'static str, theme: &Theme) -> impl IntoElement {
         .child(text)
 }
 
-/// One row per account: its color, name and provider, how old the reading is, and each window's use; "—" when its
-/// agents haven't reported any.
+/// One row per account: its color, name and provider, then how old the reading is (or that it is limited, in the
+/// warning color), and on the right a compact bar per window; "—" when its agents haven't reported anything.
 fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
     let now = ui::now_ms();
     v_flex()
         .children(usage.iter().map(|a| {
-            let windows = if a.windows.is_empty() {
+            let limit = limit_text(a.limited, now / 1000);
+            let meta = match (&limit, a.as_of_ms) {
+                (Some(text), _) => Some((text.clone(), ui::ink(theme, theme.warning))),
+                (None, Some(at)) => {
+                    Some((format!("as of {}", as_of(now, at)), theme.muted_foreground))
+                }
+                (None, None) => None,
+            };
+            let windows = if a.windows.is_empty() && limit.is_none() {
                 vec![div().child("—").into_any_element()]
             } else {
                 a.windows
                     .iter()
-                    .map(|&(label, used)| {
-                        h_flex()
-                            .gap_1p5()
-                            .child(div().text_color(theme.muted_foreground).child(label))
-                            .child(
-                                div()
-                                    .w(gpui::px(34.))
-                                    .flex()
-                                    .justify_end()
-                                    .text_color(usage_color(used, theme))
-                                    .child(format!("{}%", (used * 100.).round() as u32)),
-                            )
-                            .into_any_element()
-                    })
+                    .map(|&(label, used)| usage_bar(label, used, theme))
                     .collect()
             };
             h_flex()
@@ -243,20 +258,23 @@ fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
                                 .child(div().truncate().child(a.label.clone()))
                                 .child(
                                     div()
+                                        .flex_shrink_0()
                                         .text_color(theme.muted_foreground)
                                         .child(a.provider.label()),
                                 ),
                         )
-                        .children(a.as_of_ms.map(|at| {
+                        .children(meta.map(|(text, color)| {
                             div()
+                                .truncate()
                                 .text_size(ui::META)
-                                .text_color(theme.muted_foreground)
-                                .child(format!("as of {}", as_of(now, at)))
+                                .text_color(color)
+                                .child(text)
                         })),
                 )
                 .child(
                     v_flex()
                         .flex_shrink_0()
+                        .gap_0p5()
                         .items_end()
                         .text_size(ui::META)
                         .font_weight(FontWeight::MEDIUM)
@@ -264,6 +282,45 @@ fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
                         .children(windows),
                 )
         }))
+        .into_any_element()
+}
+
+/// "5h ▬▬▭ 62%": the window, a 40 px track filled to its use, and the percentage.
+fn usage_bar(label: &'static str, used: f32, theme: &Theme) -> AnyElement {
+    const TRACK: f32 = 40.;
+    let color = usage_color(used, theme);
+    h_flex()
+        .gap_1p5()
+        .child(
+            div()
+                .w(gpui::px(44.))
+                .flex()
+                .justify_end()
+                .text_color(theme.muted_foreground)
+                .child(label),
+        )
+        .child(
+            div()
+                .w(gpui::px(TRACK))
+                .h(gpui::px(4.))
+                .rounded_full()
+                .bg(theme.foreground.opacity(0.12))
+                .child(
+                    div()
+                        .h_full()
+                        .w(gpui::px(TRACK * used.clamp(0., 1.)))
+                        .rounded_full()
+                        .bg(color),
+                ),
+        )
+        .child(
+            div()
+                .w(gpui::px(30.))
+                .flex()
+                .justify_end()
+                .text_color(color)
+                .child(format!("{}%", (used * 100.).round() as u32)),
+        )
         .into_any_element()
 }
 
@@ -283,5 +340,22 @@ fn usage_color(used: f32, theme: &Theme) -> gpui::Hsla {
         ui::ink(theme, theme.warning)
     } else {
         theme.foreground.opacity(0.8)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::limit_text;
+
+    #[test]
+    fn details_usage_limited_says_when_it_resets() {
+        let now = 1_000_000;
+        assert_eq!(
+            limit_text(Some(Some(now + 2 * 3600 + 14 * 60)), now).as_deref(),
+            Some("Limited · resets in 2h 14m")
+        );
+        assert_eq!(limit_text(Some(None), now).as_deref(), Some("Limited"));
+        assert_eq!(limit_text(Some(Some(now)), now), None, "already reset");
+        assert_eq!(limit_text(None, now), None);
     }
 }

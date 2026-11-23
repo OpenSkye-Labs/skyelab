@@ -2,10 +2,12 @@
 //! thread's recorded account; Push and Open PR also need that account's GitHub login.
 
 use super::changes::ChangesView;
+use super::thread::GitAction;
 use super::worktree::resolves_to;
 use super::{SharedStore, lock};
 use crate::ui;
 use anyhow::{Context as _, Result, bail};
+use gpui::Focusable as _;
 use gpui::{AnyElement, App, Context, Window, div, prelude::*};
 use gpui_component::{
     ActiveTheme as _, Disableable as _, Sizable as _,
@@ -117,7 +119,41 @@ impl ChangesView {
         }));
     }
 
+    /// An action from the Details tab's Commit & push menu: the same buttons, with their refusals. Commit and Open
+    /// PR need the text this tab holds, so with it empty they point at the field instead.
+    pub(super) fn run_git(
+        &mut self,
+        action: GitAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (field, empty) = match action {
+            GitAction::Push => return self.push(window, cx),
+            GitAction::Commit | GitAction::CommitPush => (
+                self.commit_message.clone(),
+                "Write a commit message, then commit.",
+            ),
+            GitAction::OpenPr => (self.pr_title.clone(), "Write a PR title, then open it."),
+        };
+        if field.read(cx).value().trim().is_empty() {
+            self.publish_note = None;
+            self.publish_error = Some(empty.into());
+            field.read(cx).focus_handle(cx).focus(window, cx);
+            cx.notify();
+            return;
+        }
+        match action {
+            GitAction::OpenPr => self.open_pr(window, cx),
+            a => self.commit_then(a == GitAction::CommitPush, window, cx),
+        }
+    }
+
     pub(super) fn commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.commit_then(false, window, cx)
+    }
+
+    /// Commits, then pushes when `push` and the commit worked.
+    fn commit_then(&mut self, push: bool, window: &mut Window, cx: &mut Context<Self>) {
         let message = self.commit_message.read(cx).value().to_string();
         let (files, tree) = self
             .changes
@@ -147,11 +183,14 @@ impl ChangesView {
                 let sha = skyelab_git::commit(&t.dir, &message, &paths, &env, Some(&tree))?;
                 Ok(format!("Committed {}", sha.get(..8).unwrap_or(&sha)))
             },
-            |this, note, window, cx| {
+            move |this, note, window, cx| {
                 this.publish_note = Some(note.into());
                 this.selected.clear();
                 this.commit_message
                     .update(cx, |s, cx| s.set_value("", window, cx));
+                if push {
+                    this.push(window, cx);
+                }
             },
         );
     }

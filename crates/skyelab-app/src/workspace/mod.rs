@@ -8,6 +8,7 @@ mod browser_tabs;
 mod center;
 mod changes;
 mod changes_model;
+mod changes_open;
 mod changes_publish;
 mod changes_turns;
 mod child_slots;
