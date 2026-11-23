@@ -157,11 +157,7 @@ pub fn due(next_run_ms: Option<i64>, now_ms: i64, skip_missed: bool) -> Due {
 /// Full access in a run nobody watches needs the task's own confirm; it is never a default.
 pub fn check_mode(mode: &str, bypass_confirmed: bool) -> Result<(), String> {
     if mode == "bypass" && !bypass_confirmed {
-        return Err(
-            "Full access runs every command with no permission checks while nobody watches. \
-                    Confirm it for this task to use it."
-                .into(),
-        );
+        return Err("Full access needs this task's own confirm.".into());
     }
     Ok(())
 }
@@ -176,14 +172,11 @@ pub fn run_account<'a>(
     match config.resolve(folder) {
         Some(a) if a.id == saved => Ok(a),
         Some(a) => Err(format!(
-            "{} is now bound to {}, but the task was saved under {saved}. Edit and save the task to run it under {}.",
-            folder.display(),
-            a.id,
+            "Its folder is now bound to {}, not {saved}. Edit and save it to switch.",
             a.id
         )),
         None => Err(format!(
-            "{} isn't bound to an account (the task was saved under {saved}). Bind the folder, then turn the task back on.",
-            folder.display()
+            "Its folder isn't bound to an account (saved under {saved})."
         )),
     }
 }

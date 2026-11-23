@@ -148,3 +148,18 @@ fn an_unbound_folder_cannot_get_a_task(cx: &mut TestAppContext) {
     assert!(why.expect("refused").contains("isn't bound"));
     assert_eq!(task_count(&rig), 0);
 }
+
+#[gpui::test]
+fn an_open_list_links_a_run_once_its_row_exists(cx: &mut TestAppContext) {
+    let rig = rig(true);
+    let t = task(&rig, "every 1h", NOW - 1);
+    let (ws, cx) = open(&rig, cx);
+    let page = page(&ws, cx);
+    super::test_util::tick(cx);
+    wait_until(cx, "the run's row", |_| runs(&rig, t.id).len() == 1);
+    // The next tick finds the row; the open list reads it with no reload of its own.
+    super::test_util::tick(cx);
+    cx.run_until_parked();
+    let linked = page.read_with(cx, |p, _| p.rows[0].thread.as_ref().map(|t| t.0));
+    assert_eq!(linked, Some(runs(&rig, t.id)[0].id));
+}

@@ -292,6 +292,7 @@ impl Render for ScheduledPage {
             .child(
                 v_flex()
                     .flex_1()
+                    .min_w_0()
                     .gap_1()
                     .child(ui::section_title("Scheduled tasks", theme))
                     .child(div().px_1().text_size(ui::BODY).text_color(muted).child(

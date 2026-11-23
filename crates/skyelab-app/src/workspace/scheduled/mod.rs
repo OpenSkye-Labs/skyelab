@@ -184,10 +184,13 @@ fn launching(cx: &mut App) -> HashSet<i64> {
     let views: Vec<_> = s.launching.drain().collect();
     let mut live = HashSet::new();
     for (task, view) in views {
-        if let Some(v) = view.upgrade()
-            && v.read(cx).starting
-            && v.read(cx).thread.is_none()
-        {
+        let Some(v) = view.upgrade() else {
+            continue;
+        };
+        if v.read(cx).thread.is_some() {
+            // Its row exists now: an open task list can link it.
+            cx.default_global::<Scheduler>().changes += 1;
+        } else if v.read(cx).starting {
             live.insert(task);
             cx.default_global::<Scheduler>()
                 .launching

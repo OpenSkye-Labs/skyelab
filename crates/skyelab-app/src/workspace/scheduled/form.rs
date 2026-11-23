@@ -145,12 +145,9 @@ impl Draft {
         let spec = self.kind.spec(&self.value);
         let schedule: Schedule = spec.parse()?;
         check_mode(self.mode.as_str(), self.bypass_confirmed)?;
-        let account = config.resolve(&project.path).ok_or_else(|| {
-            format!(
-                "{} isn't bound to an account. Bind it in Accounts & bindings first.",
-                project.path.display()
-            )
-        })?;
+        let account = config
+            .resolve(&project.path)
+            .ok_or_else(|| format!("{} isn't bound to an account. Bind it first.", project.name))?;
         let model = self.model.trim();
         let title = match self.title.trim() {
             "" => prompt
