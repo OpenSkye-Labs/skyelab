@@ -1,9 +1,11 @@
 //! The device tools seen through a trait, so tests can swap in a fake.
 
 use anyhow::Context as _;
-use skyelab_devices::{Device, DeviceHub, DeviceState, Listing, Platform};
+use gpui::BackgroundExecutor;
+use skyelab_devices::{Device, DeviceHub, DeviceState, Listing};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// What the panel needs from the device tools. Blocking calls: the panel runs them on the background executor.
 /// The seam lets tests swap in a fake instead of running `xcrun` and `adb`.
@@ -26,18 +28,6 @@ impl DeviceSource for HubSource {
     fn boot(&self, device: &Device) -> anyhow::Result<()> {
         // Dropping the AVD's `Emulator` leaves it running; Shutdown stops it through adb, not this handle.
         drop(self.0.boot(device)?);
-        if device.platform == Platform::Android {
-            // `emulator` returns at once; hold the spinner until adb lists it, or Boot looks clickable again.
-            let deadline = Instant::now() + Duration::from_secs(90);
-            while still_stopped(&self.0.list_devices(), &device.id) {
-                anyhow::ensure!(
-                    Instant::now() < deadline,
-                    "{} did not show up in adb within 90 s",
-                    device.name
-                );
-                std::thread::sleep(Duration::from_secs(1));
-            }
-        }
         Ok(())
     }
     fn shutdown(&self, device: &Device) -> anyhow::Result<()> {
@@ -65,4 +55,30 @@ fn still_stopped(listing: &Listing, avd: &str) -> bool {
         .devices()
         .iter()
         .any(|d| d.id == avd && d.state == DeviceState::Shutdown)
+}
+
+/// How long a booted AVD gets to show up in adb.
+pub(super) const BOOT_WAIT: Duration = Duration::from_secs(90);
+
+/// `emulator` returns at once: waits on the executor's timer (no thread held) until adb lists the AVD, so Boot's
+/// spinner holds until then instead of looking clickable again.
+pub(super) async fn wait_listed(
+    source: Arc<dyn DeviceSource>,
+    device: Device,
+    ex: BackgroundExecutor,
+) -> anyhow::Result<()> {
+    let deadline = ex.now() + BOOT_WAIT;
+    loop {
+        let s = source.clone();
+        let listing = ex.spawn(async move { s.list() }).await;
+        if !still_stopped(&listing, &device.id) {
+            return Ok(());
+        }
+        anyhow::ensure!(
+            ex.now() < deadline,
+            "{} did not show up in adb within 90 s",
+            device.name
+        );
+        ex.timer(Duration::from_secs(1)).await;
+    }
 }

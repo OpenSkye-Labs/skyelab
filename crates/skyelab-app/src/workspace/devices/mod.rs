@@ -7,8 +7,8 @@ pub(super) use source::{DeviceSource, HubSource};
 
 use super::{OpenDevices, Workspace};
 use gpui::{
-    App, Context, Entity, EventEmitter, FocusHandle, Focusable, Image, ImageFormat,
-    PathPromptOptions, Subscription, Task, Window, prelude::*,
+    App, BackgroundExecutor, Context, Entity, EventEmitter, FocusHandle, Focusable, Image,
+    ImageFormat, PathPromptOptions, Subscription, Task, Window, prelude::*,
 };
 use gpui_component::{
     dock::{BasePanel, Panel, PanelEvent},
@@ -228,11 +228,30 @@ impl DevicesPanel {
         done: impl FnOnce(&mut Self, &str, T, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) {
+        let job = move |source: Arc<dyn DeviceSource>, target: Device, ex: BackgroundExecutor| {
+            ex.spawn(async move { op(&*source, &target) })
+        };
+        self.run_async(device, label, job, done, cx);
+    }
+
+    /// `run` for an op that waits between blocking steps: it gets the executor for those steps and its timers.
+    fn run_async<T: 'static, F: Future<Output = anyhow::Result<T>> + 'static>(
+        &mut self,
+        device: &Device,
+        label: &'static str,
+        op: impl FnOnce(Arc<dyn DeviceSource>, Device, BackgroundExecutor) -> F,
+        done: impl FnOnce(&mut Self, &str, T, &mut Context<Self>) + 'static,
+        cx: &mut Context<Self>,
+    ) {
         if self.ops.get(&device.id).is_some_and(|o| o.busy.is_some()) {
             return;
         }
-        let (source, target, id) = (self.source.clone(), device.clone(), device.id.clone());
-        let job = cx.background_spawn(async move { op(&*source, &target) });
+        let id = device.id.clone();
+        let job = op(
+            self.source.clone(),
+            device.clone(),
+            cx.background_executor().clone(),
+        );
         let task = cx.spawn(async move |this, cx| {
             let result = job.await;
             let _ = this.update(cx, |this, cx| {
@@ -255,13 +274,15 @@ impl DevicesPanel {
     }
 
     pub(super) fn boot(&mut self, device: &Device, cx: &mut Context<Self>) {
-        self.run(
-            device,
-            "Booting…",
-            |s, d| s.boot(d),
-            Self::refresh_after,
-            cx,
-        );
+        let boot = |source: Arc<dyn DeviceSource>, device: Device, ex: BackgroundExecutor| async move {
+            let (s, d) = (source.clone(), device.clone());
+            ex.spawn(async move { s.boot(&d) }).await?;
+            if device.platform == Platform::Android {
+                source::wait_listed(source, device, ex).await?;
+            }
+            Ok(())
+        };
+        self.run_async(device, "Booting…", boot, Self::refresh_after, cx);
     }
 
     pub(super) fn shutdown(&mut self, device: &Device, cx: &mut Context<Self>) {
