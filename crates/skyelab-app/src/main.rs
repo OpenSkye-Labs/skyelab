@@ -327,6 +327,8 @@ fn main() {
         let fresh: std::rc::Rc<dyn Fn(&mut App)> = std::rc::Rc::new(fresh);
         let on_menu = fresh.clone();
         cx.on_action(move |_: &workspace::NewWindow, cx| on_menu(cx));
+        // A scheduled run that comes due with no window open opens one the same way.
+        workspace::scheduled::set_opener(fresh.clone(), cx);
         cx.set_global(FreshWindow(fresh));
         let opened = workspace::restore_windows(
             saved,

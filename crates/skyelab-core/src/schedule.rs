@@ -40,6 +40,38 @@ impl Schedule {
         Some(next.with_timezone(&Utc))
     }
 
+    /// The run after one that was due at `slot` and handled (run or skipped) at `now`. An interval keeps its beat: the
+    /// first `slot + k * interval` after `now`, so a late tick never pushes it on. Wall times are read from `now`.
+    pub fn next_after_run<Tz: TimeZone>(
+        &self,
+        slot: DateTime<Utc>,
+        now: DateTime<Utc>,
+        tz: &Tz,
+    ) -> Option<DateTime<Utc>> {
+        let Schedule::Every { minutes } = self else {
+            return self.next_after(now, tz);
+        };
+        let step = Duration::minutes(i64::from(*minutes));
+        let behind = (now - slot).num_milliseconds().max(0);
+        let k = behind / step.num_milliseconds() + 1;
+        Some(slot + step * i32::try_from(k).ok()?)
+    }
+
+    /// A wall-time task's next run as the machine's zone `tz` has it now, when that differs from `next` (the zone
+    /// changed since it was computed). In an unchanged zone no slot lies between the save and `next`, so the first one
+    /// after `now` is `next` itself. Intervals and runs already due give `None`.
+    pub fn rezoned<Tz: TimeZone>(
+        &self,
+        next: DateTime<Utc>,
+        now: DateTime<Utc>,
+        tz: &Tz,
+    ) -> Option<DateTime<Utc>> {
+        if matches!(self, Schedule::Every { .. }) || next <= now {
+            return None;
+        }
+        self.next_after(now, tz).filter(|n| *n != next)
+    }
+
     /// The schedule in words, for the task list.
     pub fn label(&self) -> String {
         match self {

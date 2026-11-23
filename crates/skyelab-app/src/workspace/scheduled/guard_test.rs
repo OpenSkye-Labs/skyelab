@@ -34,7 +34,7 @@ fn a_stored_running_run_blocks_the_next(cx: &mut TestAppContext) {
     assert_eq!(runs(&rig, t.id).len(), 1, "only the stored one");
     assert_eq!(
         read(&rig.f.store, t.id).next_run_at,
-        Some(NOW + HOUR),
+        Some(NOW - 1 + HOUR),
         "this slot is skipped"
     );
 }
