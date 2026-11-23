@@ -120,7 +120,7 @@ pub struct ThreadView {
     pub(super) composer: composer::Composer,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
-    _subs: Vec<Subscription>,
+    pub(super) _subs: Vec<Subscription>,
 }
 
 impl EventEmitter<ThreadViewEvent> for ThreadView {}
@@ -148,6 +148,7 @@ impl ThreadView {
         );
         this.project_name = project.name.clone().into();
         this.load_composer(cx);
+        this.init_extras(window, cx);
         this
     }
 
@@ -170,6 +171,7 @@ impl ThreadView {
         let (store, id) = (this.backend.store.clone(), thread.id);
         this.thread = Some(thread);
         this.load_composer(cx);
+        this.init_extras(window, cx);
         // Read-only until the fresh row below says whether there's a session to resume.
         this.read_only = true;
         this.prompt.update(cx, |p, cx| p.set_disabled(true, cx));

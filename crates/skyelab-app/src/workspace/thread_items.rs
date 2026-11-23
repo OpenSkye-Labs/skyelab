@@ -62,6 +62,10 @@ pub(super) trait ItemsView: Sized + 'static {
     fn find_mark(&self, _ix: usize) -> Option<bool> {
         None
     }
+    /// "Fork from here" on reply row `ix` (local threads with a row only).
+    fn fork(&self, _ix: usize) -> Option<super::thread_extras::fork::ForkThread> {
+        None
+    }
     /// Whether AskUserQuestion answers can be sent from here.
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
@@ -201,7 +205,8 @@ fn render_row<V: ItemsView>(
                                 .opacity(0.6)
                                 .child(tool_cards::copy(("copy-msg", ix), text.clone())),
                         )
-                        .children(reply_at.map(ui::clock)),
+                        .children(reply_at.map(ui::clock))
+                        .children(this.fork(ix).map(super::thread_extras::fork::button)),
                 )
                 .into_any_element(),
         ),

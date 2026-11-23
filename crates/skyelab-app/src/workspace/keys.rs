@@ -16,6 +16,24 @@ pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
 pub(crate) const FILE_PICKER_KEY: &str = if MAC { "cmd-p" } else { "ctrl-p" };
 pub(crate) const SEARCH_FILES_KEY: &str = if MAC { "cmd-shift-f" } else { "ctrl-shift-f" };
 
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenSettingsSection {
+    pub section: crate::settings::Section,
+}
+
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct SelectProject {
+    pub id: i64,
+}
+
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenThread {
+    pub id: i64,
+}
+
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
     cx.bind_keys([

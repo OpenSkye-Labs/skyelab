@@ -22,6 +22,48 @@ pub struct AppSettings {
     /// "Open in editor": the command to run, split on whitespace (no shell), the folder appended. Unset: `$VISUAL`,
     /// `$EDITOR`, then `code` or `zed` from PATH.
     pub editor: Option<String>,
+    /// Settings → Threads: what new threads start with.
+    pub threads: ThreadSettings,
+}
+
+/// The defaults a new thread starts with. A thread's own pick (and a project's remembered model) still wins.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ThreadSettings {
+    /// After a thread's first reply, its account's agent writes a short title for it.
+    pub generate_titles: bool,
+    /// The permission mode (the agent layer's value: `default`, `plan`, `acceptEdits`); unset is Ask.
+    pub permission_mode: Option<String>,
+    pub claude_model: Option<String>,
+    pub claude_effort: Option<String>,
+    pub codex_model: Option<String>,
+    pub codex_effort: Option<String>,
+    /// New threads start with "New worktree" on.
+    pub new_worktree: bool,
+}
+
+impl ThreadSettings {
+    /// The default model and effort for `provider`'s new threads.
+    pub fn model_for(&self, provider: crate::Provider) -> (Option<String>, Option<String>) {
+        match provider {
+            crate::Provider::Claude => (self.claude_model.clone(), self.claude_effort.clone()),
+            crate::Provider::Codex => (self.codex_model.clone(), self.codex_effort.clone()),
+        }
+    }
+}
+
+impl Default for ThreadSettings {
+    fn default() -> Self {
+        Self {
+            generate_titles: true,
+            permission_mode: None,
+            claude_model: None,
+            claude_effort: None,
+            codex_model: None,
+            codex_effort: None,
+            new_worktree: false,
+        }
+    }
 }
 
 /// Where the main window was, how its right panel was set (logical points), and which page it showed.

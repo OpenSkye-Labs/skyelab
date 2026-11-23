@@ -249,12 +249,18 @@ impl ThreadView {
                             &crate::workspace::thread_checkpoints::key(&thread),
                         );
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
+                        // A fork's first session gets the copied history ahead of the message (stored as typed).
+                        let context = match (thread.forked_from, &thread.agent_session_id) {
+                            (Some(_), None) => lock(&store)?.fork_context(thread.id)?,
+                            _ => None,
+                        };
+                        let prompt = context.map_or_else(|| text.clone(), |c| c + &text);
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {
                             account: &account,
                             dir: &cwd,
                             resume: thread.agent_session_id.as_deref(), // a new row has none
-                            prompt: &text,
+                            prompt: &prompt,
                             mcp_config: grant.as_ref().map(|g| g.config_path()),
                             model: pick.model.as_deref(),
                             effort: pick.effort.as_deref(),

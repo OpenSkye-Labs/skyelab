@@ -346,6 +346,11 @@ impl Workspace {
                     this.turn_done(view, window, cx);
                 }
                 ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
+                ThreadViewEvent::Retitled(title) => {
+                    if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
+                        this.update_row(id, |t| t.title = title.clone(), cx);
+                    }
+                }
                 ThreadViewEvent::UsageReported => this.refresh_usage(cx),
                 ThreadViewEvent::RunScript(script) => {
                     let v = view.read(cx);
@@ -384,7 +389,7 @@ impl Workspace {
         }
     }
 
-    fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
+    pub(super) fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
         #[cfg(unix)]
         self.child_started(thread, cx);
         if self.projects.iter().any(|p| p.id == thread.project_id) {

@@ -13,7 +13,9 @@ pub use pr_url::github_pr_url;
 pub mod env;
 pub mod files;
 pub mod process;
-pub use app_settings::{AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS, WindowLayout};
+pub use app_settings::{
+    AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS, ThreadSettings, WindowLayout,
+};
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -8,6 +8,8 @@ pub enum ThreadViewEvent {
     Started(Box<Thread>),
     /// The agent's Result event arrived: its changes may be on disk now.
     TurnDone,
+    /// The thread got a generated title (already stored).
+    Retitled(String),
     /// The agent reported its account's usage limits (stored): the Details tab reads them again.
     UsageReported,
     OpenChanges,

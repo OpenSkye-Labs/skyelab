@@ -10,14 +10,16 @@ pub enum Section {
     Accounts,
     GitHub,
     Sharing,
+    Threads,
     Appearance,
 }
 
 impl Section {
-    pub const ALL: [Section; 4] = [
+    pub const ALL: [Section; 5] = [
         Section::Accounts,
         Section::GitHub,
         Section::Sharing,
+        Section::Threads,
         Section::Appearance,
     ];
 
@@ -26,6 +28,7 @@ impl Section {
             Section::Accounts => "Accounts & bindings",
             Section::GitHub => "GitHub",
             Section::Sharing => "Sharing",
+            Section::Threads => "Threads",
             Section::Appearance => "Appearance",
         }
     }
@@ -36,6 +39,7 @@ impl Section {
             Section::Accounts => "accounts",
             Section::GitHub => "github",
             Section::Sharing => "sharing",
+            Section::Threads => "threads",
             Section::Appearance => "appearance",
         }
     }
@@ -49,6 +53,7 @@ impl Section {
             Section::Accounts => IconName::CircleUser,
             Section::GitHub => IconName::Github,
             Section::Sharing => IconName::Globe,
+            Section::Threads => IconName::Bot,
             Section::Appearance => IconName::Palette,
         }
     }
@@ -147,6 +152,7 @@ impl Settings {
                 .child(self.render_bindings(cx))
                 .child(self.render_test(cx)),
             Section::GitHub => div().child(self.render_github(cx)),
+            Section::Threads => div().child(self.render_threads(cx)),
             Section::Sharing => unreachable!("returned above"),
             Section::Appearance => div().child(widgets::section(
                 "Appearance",

@@ -149,8 +149,13 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
         )
         .expect("seed");
     }
-    conn.execute_batch("PRAGMA user_version = 11;")
-        .expect("downgrade");
+    // Undo v13 too (titles, forks, drafts), so the upgrade runs it again.
+    conn.execute_batch(
+        "DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
+         ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
+         ALTER TABLE threads DROP COLUMN fork_context; PRAGMA user_version = 11;",
+    )
+    .expect("downgrade");
     drop(conn);
     let before = std::fs::metadata(&path).expect("size").len();
     assert!(before > 5_000_000, "seeded {before}");
@@ -168,7 +173,7 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(v, 12);
+    assert_eq!(v, 13);
     drop(conn);
     let after = std::fs::metadata(&path).expect("size").len();
     assert!(after < 1_000_000, "file still {after} bytes");

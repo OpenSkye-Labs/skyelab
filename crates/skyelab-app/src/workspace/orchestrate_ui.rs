@@ -147,6 +147,7 @@ impl Workspace {
             let mut v = ThreadView::new(&project, config, backend, window, cx);
             v.parent = Some((caller.thread_id, parent_title));
             v.wt.use_worktree = *worktree;
+            v.mode = skyelab_agent::Mode::Default; // the user's default for new threads isn't the delegating agent's
             v.required_account = Some(account);
             v
         });

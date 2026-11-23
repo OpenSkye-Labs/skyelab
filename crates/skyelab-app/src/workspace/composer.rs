@@ -5,6 +5,8 @@
 // The composer's parts. Their `super::` paths name the workspace's modules through the imports below.
 #[path = "composer_attach.rs"]
 mod composer_attach;
+#[path = "composer_draft.rs"]
+mod composer_draft;
 #[path = "composer_footer.rs"]
 mod composer_footer;
 #[path = "composer_menu.rs"]

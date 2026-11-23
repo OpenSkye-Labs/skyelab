@@ -29,6 +29,7 @@ pub enum ThreadOp {
     Archive,
     Unarchive,
     Delete,
+    RegenerateTitle,
 }
 
 /// A thread row's menu entry (the unit actions above act on the shown thread instead).
@@ -93,7 +94,12 @@ impl Workspace {
             .is_some_and(|v| matches!(v.read(cx).live_status(), Status::Starting | Status::Running))
     }
 
-    fn say(&mut self, text: impl Into<SharedString>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn say(
+        &mut self,
+        text: impl Into<SharedString>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let text = text.into();
         #[cfg(test)]
         self.notices.push(text.clone());
@@ -170,7 +176,7 @@ impl Workspace {
         self.update_row(id, |t| t.pr_url = Some(url), cx);
     }
 
-    fn update_row(
+    pub(super) fn update_row(
         &mut self,
         id: i64,
         f: impl FnOnce(&mut skyelab_store::Thread),
@@ -220,6 +226,7 @@ impl Workspace {
             ThreadOp::Archive => self.archive_thread(id, true, window, cx),
             ThreadOp::Unarchive => self.archive_thread(id, false, window, cx),
             ThreadOp::Delete => self.delete_thread(id, window, cx),
+            ThreadOp::RegenerateTitle => self.regenerate_title(id, window, cx),
         }
     }
 
@@ -444,6 +451,7 @@ impl Workspace {
     ) -> gpui::Stateful<gpui::Div> {
         use gpui::InteractiveElement as _;
         el.on_action(cx.listener(Self::manage_thread))
+            .on_action(cx.listener(Self::fork_thread))
             .on_action(cx.listener(Self::manage_project))
             .on_action(
                 cx.listener(|ws, _: &RenameThread, w, cx| ws.act_on_shown(ThreadOp::Rename, w, cx)),
@@ -508,6 +516,7 @@ pub(super) fn thread_menu(t: &skyelab_store::Thread) -> Vec<(SharedString, Box<d
     };
     vec![
         entry("Rename", ThreadOp::Rename),
+        entry("Regenerate title", ThreadOp::RegenerateTitle),
         if t.pinned_at.is_some() {
             entry("Unpin", ThreadOp::Unpin)
         } else {

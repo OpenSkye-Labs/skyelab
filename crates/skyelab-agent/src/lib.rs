@@ -9,8 +9,10 @@ mod launch;
 mod pipes;
 mod prompts;
 mod reap;
+mod title;
 pub use launch::resolve_bin;
 use pipes::{read_events, read_stderr, write_lines};
+pub use title::{clean_title, generate_title, title_prompt};
 #[cfg(unix)]
 pub mod mcp;
 mod models;
