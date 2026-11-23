@@ -326,7 +326,7 @@ impl Render for ScriptMenu {
                     Button::new(("run-script", s.id as u64))
                         .ghost()
                         .xsmall()
-                        .icon(gpui_component::Icon::new(gpui_kit_assets::IconName::Play))
+                        .icon(gpui_component::Icon::new(gpui_component::IconName::Play))
                         .label(s.name.clone())
                         .on_click(cx.listener(move |this, _, _, cx| this.run(run.clone(), cx))),
                 )
@@ -352,7 +352,7 @@ impl Render for ScriptMenu {
                     Button::new(("remove-script", s.id as u64))
                         .ghost()
                         .xsmall()
-                        .icon(gpui_component::Icon::new(gpui_kit_assets::IconName::Trash))
+                        .icon(gpui_component::Icon::new(gpui_component::IconName::Delete))
                         .on_click(cx.listener(move |this, _, _, cx| this.remove(id, cx))),
                 )
         });
@@ -419,7 +419,7 @@ impl ThreadView {
                 Button::new("run-trigger")
                     .ghost()
                     .xsmall()
-                    .icon(gpui_component::Icon::new(gpui_kit_assets::IconName::Play))
+                    .icon(gpui_component::Icon::new(gpui_component::IconName::Play))
                     .label("Run"),
             )
             .content(move |_, _, _| content.clone())

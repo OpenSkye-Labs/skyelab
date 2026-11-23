@@ -337,11 +337,6 @@ impl Render for BranchPicker {
 impl ThreadView {
     /// The header's branch control: a worktree thread's own branch, or the picker on a repo folder.
     pub(super) fn render_branch(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
-        let icon = || {
-            gpui_component::Icon::new(gpui_kit_assets::IconName::GitBranch)
-                .size_3p5()
-                .text_color(cx.theme().muted_foreground)
-        };
         if let Some(branch) = self
             .thread
             .as_ref()
@@ -354,7 +349,6 @@ impl ThreadView {
                     .gap_1()
                     .text_size(ui::META)
                     .text_color(cx.theme().muted_foreground)
-                    .child(icon())
                     .child(branch)
                     .into_any_element(),
             );
@@ -374,9 +368,7 @@ impl ThreadView {
                     Button::new("branch-trigger")
                         .ghost()
                         .xsmall()
-                        .icon(gpui_component::Icon::new(
-                            gpui_kit_assets::IconName::GitBranch,
-                        ))
+                        .icon(gpui_component::IconName::ChevronsUpDown)
                         .label(label),
                 )
                 .content(move |_, _, _| content.clone())
