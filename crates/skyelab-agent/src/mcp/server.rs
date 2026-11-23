@@ -359,9 +359,9 @@ fn serve_until_closed(
     }
 }
 
-/// A host answer as MCP content: JSON text, with an `image` field (`{data, mimeType}`, a screenshot) split out
-/// into an image block ahead of the rest.
-fn content(mut answer: Value) -> Value {
+/// A screenshot answer as MCP content: its `image` field (`{data, mimeType}`) as an image block, then the rest
+/// as JSON text. Only `browser_screenshot` comes here: an eval's page value may have an `image` key of its own.
+fn image_content(mut answer: Value) -> Value {
     let image = answer.as_object_mut().and_then(|o| o.remove("image"));
     let text = json!({"type": "text", "text": answer.to_string()});
     match image {
@@ -414,7 +414,12 @@ fn respond(
             let answer = tools::parse(name, &params["arguments"])
                 .and_then(|tool| host.call_granted(caller, tool, granted));
             match answer {
-                Ok(v) => json!({"content": content(v), "isError": false}),
+                Ok(v) if name == "browser_screenshot" => {
+                    json!({"content": image_content(v), "isError": false})
+                }
+                Ok(v) => {
+                    json!({"content": [{"type": "text", "text": v.to_string()}], "isError": false})
+                }
                 Err(e) => json!({"content": [{"type": "text", "text": e}], "isError": true}),
             }
         }

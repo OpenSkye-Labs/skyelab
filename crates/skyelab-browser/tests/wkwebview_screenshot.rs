@@ -82,7 +82,7 @@ mod mac {
         url: &str,
         cx: &mut AsyncApp,
     ) -> anyhow::Result<()> {
-        let early = cx.read_entity(browser, |b, cx| b.screenshot(cx)).await;
+        let early = cx.update(|cx| BrowserView::screenshot(browser, cx)).await;
         anyhow::ensure!(
             early
                 .as_ref()
@@ -96,7 +96,7 @@ mod mac {
             cx.background_executor()
                 .timer(Duration::from_millis(100))
                 .await;
-            let raw = match cx.read_entity(browser, |b, cx| b.screenshot(cx)).await {
+            let raw = match cx.update(|cx| BrowserView::screenshot(browser, cx)).await {
                 Ok(raw) => raw,
                 Err(e) => {
                     last = format!("{e:#}");

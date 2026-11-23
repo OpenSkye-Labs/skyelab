@@ -25,18 +25,9 @@ pub fn encode_png(raw: &[u8]) -> anyhow::Result<Shot> {
     let image = image::load_from_memory(raw).context("decode the snapshot")?;
     let mut width = image.width().min(MAX_SHOT_WIDTH);
     loop {
-        let png = png_at(&image, width)?;
-        if png.len() <= MAX_SHOT_BYTES {
-            let (w, h) = image::ImageReader::new(std::io::Cursor::new(&png))
-                .with_guessed_format()
-                .context("read the PNG back")?
-                .into_dimensions()
-                .context("read the PNG's size")?;
-            return Ok(Shot {
-                png,
-                width: w,
-                height: h,
-            });
+        let shot = png_at(&image, width)?;
+        if shot.png.len() <= MAX_SHOT_BYTES {
+            return Ok(shot);
         }
         if width / 2 < MIN_SHOT_WIDTH {
             bail!(
@@ -47,7 +38,7 @@ pub fn encode_png(raw: &[u8]) -> anyhow::Result<Shot> {
     }
 }
 
-fn png_at(image: &DynamicImage, width: u32) -> anyhow::Result<Vec<u8>> {
+fn png_at(image: &DynamicImage, width: u32) -> anyhow::Result<Shot> {
     let scaled = match width < image.width() {
         true => {
             let height =
@@ -58,11 +49,15 @@ fn png_at(image: &DynamicImage, width: u32) -> anyhow::Result<Vec<u8>> {
         false => image.clone(),
     };
     let mut png = Vec::new();
-    // RGBA8: WebKit's TIFF may be 16-bit or premultiplied, which agents' decoders handle worse.
+    // One plain 8-bit RGBA PNG, whatever pixel format the engine's image used.
     DynamicImage::ImageRgba8(scaled.to_rgba8())
         .write_to(&mut std::io::Cursor::new(&mut png), ImageFormat::Png)
         .context("encode the PNG")?;
-    Ok(png)
+    Ok(Shot {
+        png,
+        width: scaled.width(),
+        height: scaled.height(),
+    })
 }
 
 #[cfg(test)]

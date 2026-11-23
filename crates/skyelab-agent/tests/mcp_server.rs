@@ -20,6 +20,10 @@ impl Host for FakeHost {
             Tool::ListProjects => Ok(json!([{"id": 1, "name": "demo", "path": "/work/demo"}])),
             Tool::StartThread { project_id: 99, .. } => Err("refused: other account".to_owned()),
             Tool::StartThread { .. } => Ok(json!({"thread_id": 42})),
+            // A page value that happens to have an `image` key: still plain JSON text.
+            Tool::Browser(skyelab_agent::mcp::BrowserTool::Eval { .. }) => {
+                Ok(json!({"image": "hero.png", "title": "Home"}))
+            }
             Tool::Browser(skyelab_agent::mcp::BrowserTool::Screenshot) => Ok(json!({
                 "image": {"data": "iVBORw0KGgo=", "mimeType": "image/png"},
                 "width": 1,
@@ -202,6 +206,22 @@ fn screenshot_answers_with_an_image_block() {
         "the image isn't repeated as text"
     );
     assert_eq!(a["result"]["isError"], false);
+}
+
+#[test]
+fn eval_value_with_image_key_stays_text() {
+    let r = rig();
+    let g = grant(&r, 7);
+    let mut c = initialized(&r, &g);
+    let a = c.request(
+        "tools/call",
+        json!({"name": "browser_eval", "arguments": {"expression": "page"}}),
+    );
+    let content = a["result"]["content"].as_array().expect("content");
+    assert_eq!(content.len(), 1, "no image block for an eval: {a}");
+    let value: Value =
+        serde_json::from_str(content[0]["text"].as_str().expect("text")).expect("json");
+    assert_eq!(value, json!({"image": "hero.png", "title": "Home"}));
 }
 
 #[test]

@@ -56,8 +56,11 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page
   guard. Limits: one tab per thread (`browser_open` reuses it), URL 2048 chars, expression 32 000 chars, eval 10 s,
   result 64 KiB (a bigger one is an error, never cut JSON; a thrown message is cut). A screenshot follows eval's
-  page rules and 10 s timeout, captures only the web view (WKWebView's own snapshot, macOS only; elsewhere an error),
-  and comes back as an MCP image block: a PNG at most 1600 px wide, halved until it is under 1 MiB. Each agent tab has its own
+  page rules (it runs the in-page guard first, since the engine URL can name a pending load while a local file page
+  is still painted, and drops an image taken while a new page committed) and its 10 s timeout, which covers the PNG
+  encoding too. It captures only the web view (WKWebView's own snapshot, macOS only; elsewhere an error) and comes
+  back as an MCP image block plus `{width, height, bytes}`: a PNG at most 1600 px wide, halved until it is under
+  1 MiB. Like any screenshot it shows cross-origin iframes, which eval can't read. Each agent tab has its own
   non-persistent WebKit data store (`with_incognito`), so it shares no cookies or storage with the user's tabs (on the
   default persistent store) or other threads' tabs. Open and navigate answer once the new page commits. Take over
   reloads the page, ending the agent's scripts, and an eval still running answers with an error.

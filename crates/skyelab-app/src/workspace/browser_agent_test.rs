@@ -10,7 +10,7 @@ use gpui::{TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::BrowserTool;
 use skyelab_browser::{Engine, EvalDone, SnapshotDone};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::io::{Read as _, Write as _};
 use std::rc::Rc;
 use std::time::Duration;
@@ -24,8 +24,12 @@ pub(super) struct FakePage {
     scripts: RefCell<Vec<String>>,
     /// Scripts that never finish (the `hang` expression).
     hung: RefCell<Vec<EvalDone>>,
-    /// Snapshots taken; a page under `/slow` never finishes one.
-    shots: RefCell<Vec<SnapshotDone>>,
+    /// Snapshots started.
+    shots: Cell<usize>,
+    /// Snapshots a page under `/slow` never finishes.
+    slow_shots: RefCell<Vec<SnapshotDone>>,
+    /// The document actually painted, when it differs from `url` (a load still pending).
+    painted: RefCell<Option<String>>,
 }
 
 impl Engine for FakePage {
@@ -41,8 +45,9 @@ impl Engine for FakePage {
     }
 
     fn snapshot(&self, done: SnapshotDone, _: &gpui::App) -> anyhow::Result<()> {
+        self.shots.set(self.shots.get() + 1);
         if self.url.borrow().contains("/slow") {
-            self.shots.borrow_mut().push(done);
+            self.slow_shots.borrow_mut().push(done);
         } else {
             let mut png = Vec::new();
             image::DynamicImage::new_rgba8(2400, 300)
@@ -55,7 +60,7 @@ impl Engine for FakePage {
 
     fn eval(&self, js: &str, done: EvalDone, _: &gpui::App) -> anyhow::Result<()> {
         self.scripts.borrow_mut().push(js.to_owned());
-        let url = self.url.borrow().clone();
+        let url = (self.painted.borrow().clone()).unwrap_or_else(|| self.url.borrow().clone());
         if !(url.starts_with("http:") || url.starts_with("https:")) {
             done(String::new());
             return Ok(());
@@ -126,7 +131,9 @@ pub(super) fn fake_pages(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> 
                 loads,
                 scripts: RefCell::default(),
                 hung: RefCell::default(),
-                shots: RefCell::default(),
+                shots: Cell::default(),
+                slow_shots: RefCell::default(),
+                painted: RefCell::default(),
             });
             made.borrow_mut().push(page.clone());
             (page as Rc<dyn Engine>, rx)
@@ -412,9 +419,25 @@ fn screenshot_of_own_tab_only(cx: &mut TestAppContext) {
     let err = call(&ws, 1, BrowserTool::Screenshot, cx).expect_err("a file page");
     assert!(err.contains("http"), "{err}");
     assert_eq!(
-        pages.borrow()[0].shots.borrow().len(),
+        pages.borrow()[0].shots.get(),
+        1,
+        "only the http page's snapshot"
+    );
+}
+
+/// Lesson L13: the engine URL names a pending http load while the user's file page is still painted.
+#[gpui::test]
+fn screenshot_refused_while_file_page_painted(cx: &mut TestAppContext) {
+    let (ws, cx) = workspace(cx);
+    let pages = fake_pages(&ws, cx);
+    call(&ws, 1, open_url("http://localhost:3000/"), cx).expect("open");
+    *pages.borrow()[0].painted.borrow_mut() = Some("file:///Users/me/secret.html".into());
+    let err = call(&ws, 1, BrowserTool::Screenshot, cx).expect_err("file page still painted");
+    assert!(err.contains("http"), "{err}");
+    assert_eq!(
+        pages.borrow()[0].shots.get(),
         0,
-        "no snapshot of a file page"
+        "no snapshot of the file page"
     );
 }
 

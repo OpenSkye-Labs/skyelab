@@ -188,36 +188,35 @@ fn eval(
     .detach();
 }
 
-/// A PNG of the tab's page, under skyelab-browser's size caps, as `{image: {data, mimeType}, width, height}`
-/// (the MCP server makes `image` an image block). The same page rules and timeout as an eval.
+/// A PNG of the tab's page, under skyelab-browser's size caps, as `{image: {data, mimeType}, width, height, bytes}`
+/// (the MCP server makes `image` an image block). The timeout covers the capture and the encoding.
 fn screenshot(tab: Entity<BrowserPanel>, thread_id: i64, reply: Reply<Value>, cx: &mut App) {
-    let shot = tab.read(cx).browser.read(cx).screenshot(cx);
-    let timeout = cx.background_executor().timer(BROWSER_TIMEOUT);
+    let shot = skyelab_browser::BrowserView::screenshot(&tab.read(cx).browser.clone(), cx);
+    let background = cx.background_executor().clone();
+    let timeout = background.timer(BROWSER_TIMEOUT);
     let tab = tab.downgrade();
     cx.spawn(async move |cx| {
-        let raw = futures::select! {
-            r = shot.fuse() => r.map_err(|e| format!("{e:#}")),
+        let work = async move {
+            let raw = shot.await?;
+            let shot = background
+                .spawn(async move { skyelab_browser::encode_png(&raw) })
+                .await?;
+            use base64::Engine as _;
+            anyhow::Ok(json!({
+                "image": {
+                    "data": base64::engine::general_purpose::STANDARD.encode(&shot.png),
+                    "mimeType": "image/png",
+                },
+                "width": shot.width,
+                "height": shot.height,
+                "bytes": shot.png.len(),
+            }))
+        };
+        let result = futures::select! {
+            r = work.fuse() => r.map_err(|e| format!("{e:#}")),
             () = timeout.fuse() => Err(format!(
                 "the screenshot did not finish in {}s", BROWSER_TIMEOUT.as_secs()
             )),
-        };
-        let result = match raw {
-            Ok(raw) => cx
-                .background_spawn(async move { skyelab_browser::encode_png(&raw) })
-                .await
-                .map(|shot| {
-                    use base64::Engine as _;
-                    json!({
-                        "image": {
-                            "data": base64::engine::general_purpose::STANDARD.encode(&shot.png),
-                            "mimeType": "image/png",
-                        },
-                        "width": shot.width,
-                        "height": shot.height,
-                    })
-                })
-                .map_err(|e| format!("{e:#}")),
-            Err(e) => Err(e),
         };
         let _ = reply.send(still_owned(&tab, thread_id, cx).and(result));
     })
