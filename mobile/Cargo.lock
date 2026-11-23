@@ -6486,6 +6486,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "skyelab-agent"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "flume",
+ "rustix",
+ "serde",
+ "serde_json",
+ "skyelab-core",
+ "uuid",
+ "win32job",
+]
+
+[[package]]
 name = "skyelab-client"
 version = "0.1.0"
 dependencies = [
@@ -6545,6 +6559,7 @@ dependencies = [
  "gpui-pre-platform",
  "rustls",
  "serde_json",
+ "skyelab-agent",
  "skyelab-client",
  "skyelab-daemon",
  "skyelab-protocol",
@@ -8096,6 +8111,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bae2f2b2b816647a1cab1acc91f5bd20812d53cb344382635ec2181940c8034f"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "win32job"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21b25acac91041257d64f5625690b626133e0ca9e4e17814552b5803b1a82f7c"
+dependencies = [
+ "thiserror 1.0.69",
+ "windows 0.62.2",
 ]
 
 [[package]]

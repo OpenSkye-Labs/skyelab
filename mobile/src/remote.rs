@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use skyelab_client::{
-    Client, DisconnectKind, Error, Hello, Options, Pending, Project, Thread, ThreadEvent, Update,
-    WatchId,
+    Client, DisconnectKind, Error, Hello, Options, Pending, PermissionAnswer, Project, Thread,
+    ThreadEvent, Update, WatchId,
 };
 
 use crate::env_store;
@@ -293,6 +293,14 @@ impl ThreadSource for RemoteSource {
         self.error = None;
         let pending = self.client.interrupt(thread_id);
         self.request(pending, |r| Inbound::Done("stop", r));
+    }
+
+    fn answer_permission(&mut self, thread_id: i64, request_id: &str, decision: PermissionAnswer) {
+        self.error = None;
+        let pending = self
+            .client
+            .answer_permission(thread_id, request_id, decision);
+        self.request(pending, |r| Inbound::Done("answer", r));
     }
 
     fn trust(&mut self, node_id: &str) {

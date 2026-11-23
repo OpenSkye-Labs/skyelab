@@ -69,6 +69,8 @@ skyelab-client = { path = "../crates/skyelab-client", features = ["test-support"
 skyelab-daemon = { path = "../crates/skyelab-daemon", features = ["test-support"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 skyelab-store = { path = "../crates/skyelab-store" }
+# Fixtures from the real agent event serializer, never hand-written shapes.
+skyelab-agent = { path = "../crates/skyelab-agent" }
 skyelab-tailnet = { path = "../crates/skyelab-tailnet" }
 
 [lints]
