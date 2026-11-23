@@ -198,6 +198,7 @@ mod tests {
             pr_state: None,
             side_of: None,
             compare_group: group,
+            scheduled_task_id: None,
         }
     }
 

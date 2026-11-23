@@ -102,6 +102,7 @@ impl Workspace {
                 id.clone(),
                 RowMarks {
                     pinned: t.pinned_at.is_some(),
+                    scheduled: t.scheduled_task_id.is_some(),
                     unread: t.unread,
                     approval: state.approval,
                     started_ms: state.started_ms.filter(|_| state.running()),
@@ -493,12 +494,4 @@ fn link_text(line: &str) -> String {
     }
     out.push_str(rest);
     out
-}
-
-/// "#24" for a pull request URL ending in its number, else "PR".
-pub(super) fn pr_label(url: &str) -> String {
-    match url.trim_end_matches('/').rsplit_once('/') {
-        Some((_, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => format!("#{n}"),
-        _ => "PR".into(),
-    }
 }

@@ -33,7 +33,7 @@ fn changes_open_in_the_right_dock_and_the_toggle_follows(cx: &mut TestAppContext
         assert!(!ws.dock.read(cx).is_empty(DockPlacement::Right, cx));
         assert!(
             ws.changes_views.len() == 1,
-            "Changes joined the Details tab"
+            "Changes joined the surfaces tab"
         );
     });
     cx.dispatch_action(ToggleRightPanel);
@@ -43,14 +43,18 @@ fn changes_open_in_the_right_dock_and_the_toggle_follows(cx: &mut TestAppContext
     ws.update_in(cx, |ws, window, cx| ws.open_changes(&thread, window, cx));
     cx.run_until_parked();
     assert_eq!(right_open(&ws, cx), (true, true));
-    // Closing the last tool leaves the Details tab, which always stays.
+    // Closing the last tool leaves the "Open a surface" tab, which always stays.
     ws.update_in(cx, |ws, window, cx| {
         let changes = ws.changes_views[0].upgrade().expect("changes tab");
         ws.dock
             .update(cx, |dock, cx| dock.remove_panel(changes, window, cx));
     });
     cx.run_until_parked();
-    assert_eq!(right_open(&ws, cx), (true, true), "Details still shows");
+    assert_eq!(
+        right_open(&ws, cx),
+        (true, true),
+        "Open a surface still shows"
+    );
     ws.read_with(cx, |ws, cx| {
         assert!(!ws.dock.read(cx).is_empty(DockPlacement::Right, cx))
     });

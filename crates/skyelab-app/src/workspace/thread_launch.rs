@@ -12,16 +12,6 @@ use skyelab_store::{NewThread, Thread};
 /// Why a resume is refused while another thread runs the same agent session (imported twice, or forked rows).
 pub(super) const BUSY_ELSEWHERE: &str = "Another thread is running this agent session right now. Stop it there first, then send this again.";
 
-/// The first line of the prompt, cut to a tab-sized title.
-fn title(prompt: &str) -> String {
-    let line = prompt.lines().next().unwrap_or_default().trim();
-    let mut t: String = line.chars().take(60).collect();
-    if line.chars().count() > 60 {
-        t.push('…');
-    }
-    t
-}
-
 impl ThreadView {
     /// Continues an ended thread's `claude` session, only under the account on its row: the
     /// session's files live in that account's config dir.
@@ -163,6 +153,13 @@ impl ThreadView {
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
+        let scheduled_task = self.scheduled_task.filter(|_| is_new);
+        // Cleared once the launch succeeds, so a failed first send keeps it for the next.
+        let link_pr = if is_new {
+            self.composer.extras.pending_pr.clone()
+        } else {
+            None
+        };
         let mode = if side {
             skyelab_agent::Mode::Plan
         } else {
@@ -237,11 +234,9 @@ impl ThreadView {
                                 &project,
                                 &NewThread {
                                     project_id,
-                                    title: &title(if text.is_empty() {
-                                        "Attachment"
-                                    } else {
-                                        &text
-                                    }),
+                                    title: &crate::workspace::thread_extras::title::from_prompt(
+                                        if text.is_empty() { "Attachment" } else { &text },
+                                    ),
                                     cwd: &cwd,
                                     account_id: &account.id,
                                     status: "starting",
@@ -259,9 +254,22 @@ impl ThreadView {
                             lock(&store)?.set_thread_compare_group(thread.id, group)?;
                             thread.compare_group = Some(group);
                         }
+                        // Best effort: a link that can't be saved doesn't stop the review.
+                        if let Some(url) = &link_pr {
+                            match lock(&store)
+                                .and_then(|s| s.set_thread_pr_url(thread.id, Some(url)))
+                            {
+                                Ok(()) => thread.pr_url = Some(url.clone()),
+                                Err(e) => eprintln!("skyelab: linking the PR failed: {e:#}"),
+                            }
+                        }
                         if is_new && mode != skyelab_agent::Mode::Default {
                             lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
                             thread.permission_mode = mode.as_str().to_owned();
+                        }
+                        if let Some(task) = scheduled_task {
+                            lock(&store)?.set_thread_scheduled_task(thread.id, task)?;
+                            thread.scheduled_task_id = Some(task);
                         }
                         let _ = saved_tx.send(thread.clone());
                         // A resumed thread's held events go first, or its prompt would be stored ahead of them.
@@ -324,6 +332,7 @@ impl ThreadView {
                 this.starting = false;
                 match started {
                     Ok((thread, session, grant)) => {
+                        this.composer.extras.pending_pr = None;
                         this.row_saved(&thread, cx);
                         this.thread = Some(thread.clone());
                         if !is_new {

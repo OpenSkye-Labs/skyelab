@@ -89,6 +89,13 @@ Each item goes through `/loop` (see CLAUDE.md).
 8. **Orchestration:** delegate tasks between threads and environments.
 9. **Mobile client:** GPUI on iOS and Android, plan in [mobile.md](mobile.md).
 
+## Scheduled tasks
+
+One scheduler per app (`workspace/scheduled`): a `Global` whose 15 s tick runs through the hub window, deciding by
+the wall clock. Rules in `skyelab_core::schedule` (croner for cron and times of day), tasks in the store (schema 21).
+A run resolves the folder's account at run time and pauses the task on any mismatch. See
+[user-guide-scheduled.md](user-guide-scheduled.md).
+
 ## Decisions
 
 Recorded decisions (agent env, browser access, minimum macOS, machine names, ...): [decisions.md](decisions.md).

@@ -30,7 +30,7 @@ fn done(is_error: bool) -> Item {
 }
 
 /// Two turns: the first with work and a reply, the second running.
-fn turns() -> Vec<Item> {
+fn turns() -> crate::workspace::thread_model::Items {
     vec![
         Item::Prompt("go".into()),    // 0
         tool("a"),                    // 1
@@ -41,6 +41,7 @@ fn turns() -> Vec<Item> {
         Item::Prompt("again".into()), // 6
         tool("c"),                    // 7: running, no divider yet
     ]
+    .into()
 }
 
 #[test]
@@ -63,7 +64,7 @@ fn a_finished_turn_folds_its_work_but_not_its_reply() {
         "text the turn went on after is not the reply"
     );
     assert_eq!(
-        rows_of(&items, &fold_key(5)),
+        rows_of(&items, &fold_key(&items, 5)),
         Some(1..6),
         "a toggle re-measures the whole turn"
     );
@@ -89,11 +90,12 @@ fn failed_and_text_only_turns_keep_their_divider() {
 
 #[test]
 fn the_end_of_a_turn_redraws_the_whole_turn_and_is_dated() {
-    let mut items = vec![
+    let mut items: crate::workspace::thread_model::Items = vec![
         Item::Prompt("go".into()),
         tool("a"),
         Item::Text("done".into()),
-    ];
+    ]
+    .into();
     let changed = apply(
         &mut items,
         &Record::Agent(Event::Result {
@@ -137,7 +139,8 @@ fn the_header_opens_and_folds_the_turn(cx: &mut gpui::TestAppContext) {
             },
             Item::Text("done".into()),
             done(false),
-        ];
+        ]
+        .into();
         v.lists.reset(v.items.len());
         cx.notify();
     });
@@ -151,7 +154,8 @@ fn the_header_opens_and_folds_the_turn(cx: &mut gpui::TestAppContext) {
         cx.debug_bounds("thinking-row").is_none(),
         "folded by default"
     );
-    one.view.update(cx, |v, cx| v.toggle_tool(&fold_key(3), cx));
+    one.view
+        .update(cx, |v, cx| v.toggle_tool(&fold_key(&v.items, 3), cx));
     cx.run_until_parked();
     assert!(
         cx.debug_bounds("thinking-row").is_some(),

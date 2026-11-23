@@ -25,7 +25,7 @@ fn a_steer_is_stored_as_its_own_row_kind() {
         "the text as a JSON string, like a prompt"
     );
     assert_eq!(Record::from_row(kind, &payload).expect("parses"), record);
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     apply(&mut items, &record);
     assert_eq!(items, vec![Item::Steer("also add tests".into())]);
 }

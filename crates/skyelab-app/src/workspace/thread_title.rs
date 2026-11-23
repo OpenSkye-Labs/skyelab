@@ -175,3 +175,13 @@ impl Workspace {
         .detach();
     }
 }
+
+/// The first line of the prompt, cut to a tab-sized title.
+pub(in crate::workspace) fn from_prompt(prompt: &str) -> String {
+    let line = prompt.lines().next().unwrap_or_default().trim();
+    let mut t: String = line.chars().take(60).collect();
+    if line.chars().count() > 60 {
+        t.push('…');
+    }
+    t
+}

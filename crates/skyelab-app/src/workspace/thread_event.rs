@@ -10,10 +10,10 @@ pub enum ThreadViewEvent {
     TurnDone,
     /// The thread got a generated title (already stored).
     Retitled(String),
-    /// The agent reported its account's usage limits (stored): the Details tab reads them again.
+    /// The agent reported its account's usage limits (stored): the details card reads them again.
     UsageReported,
     OpenChanges,
-    /// The Details tab's Commit & push menu: run it in this thread's Changes tab.
+    /// The details card's Commit & push menu: run it in this thread's Changes tab.
     Git(GitAction),
     /// A file the agent's work names (a card's path, a link): show it in the Changes tab.
     OpenPath(PathBuf),
@@ -25,7 +25,7 @@ pub enum ThreadViewEvent {
     FilesChanged,
     /// Run a project script in this thread's folder, on its account.
     RunScript(Box<skyelab_store::ProjectScript>),
-    /// The Details tab unlinked this pull request from the thread: the workspace offers to undo it.
+    /// The details card unlinked this pull request from the thread: the workspace offers to undo it.
     PrUnlinked(String),
     /// The project's scripts were edited.
     ScriptsChanged,
@@ -45,7 +45,7 @@ pub enum ThreadViewEvent {
     },
 }
 
-/// What the Details tab's Commit & push menu runs (T3's GitActionsControl).
+/// What the details card's Commit & push menu runs (T3's GitActionsControl).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitAction {
     Commit,

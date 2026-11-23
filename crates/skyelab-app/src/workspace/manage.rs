@@ -133,7 +133,7 @@ impl Workspace {
         super::manage::push_note(window, note, cx);
     }
 
-    /// The Details tab unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
+    /// The details card unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
     pub(super) fn pr_unlinked(
         &mut self,
         id: i64,
@@ -149,10 +149,7 @@ impl Workspace {
             },
             cx,
         );
-        let text = format!(
-            "Unlinked pull request {}",
-            super::thread_list::pr_label(&url)
-        );
+        let text = format!("Unlinked pull request {}", super::pr_watch::pr_label(&url));
         self.undo_notice(
             text,
             move |ws, window, cx| ws.relink_pr(id, url.clone(), window, cx),

@@ -15,7 +15,7 @@ use crate::{Error, Result, command, git, lossy, output, repo_root};
 pub const MAX_FAILED_CHECKS: usize = 20;
 const MAX_CHECK_NAME: usize = 200;
 const MAX_URL: usize = 2048;
-const PR_VIEW_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+pub(crate) const PR_VIEW_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// The branch's upstream remote (`branch.<b>.remote`), `None` without one or for a local upstream (`.`).
 fn upstream_remote(root: &Path) -> Result<Option<String>> {
@@ -283,14 +283,22 @@ pub fn parse_pr_view(json: &[u8]) -> Result<PrStatus> {
         ("OPEN", false) => PrState::Open,
         (other, _) => return Err(bad(format!("unknown pull request state {other:?}"))),
     };
-    let review = match text(&v, "reviewDecision").as_str() {
-        "APPROVED" => Review::Approved,
-        "CHANGES_REQUESTED" => Review::ChangesRequested,
-        "REVIEW_REQUIRED" => Review::Required,
-        _ => Review::None,
-    };
+    let review = review(&text(&v, "reviewDecision"));
+    let (checks, failed) = rollup(&v["statusCheckRollup"]);
+    Ok(PrStatus {
+        state,
+        checks,
+        review,
+        failed,
+    })
+}
+
+/// gh's `statusCheckRollup` as one state, with the failing checks (at most [`MAX_FAILED_CHECKS`]): any failure wins,
+/// then anything still running.
+pub(crate) fn rollup(rollup: &Value) -> (Checks, Vec<FailedCheck>) {
+    let text = |v: &Value, key: &str| v[key].as_str().unwrap_or_default().to_owned();
     let (mut any, mut pending, mut failed) = (false, false, Vec::new());
-    for c in v["statusCheckRollup"].as_array().into_iter().flatten() {
+    for c in rollup.as_array().into_iter().flatten() {
         any = true;
         let run = c["__typename"] == "CheckRun";
         let (name, link, fail, wait) = if run {
@@ -331,10 +339,15 @@ pub fn parse_pr_view(json: &[u8]) -> Result<PrStatus> {
         (_, _, true) => Checks::Pending,
         _ => Checks::Passing,
     };
-    Ok(PrStatus {
-        state,
-        checks,
-        review,
-        failed,
-    })
+    (checks, failed)
+}
+
+/// gh's `reviewDecision`.
+pub(crate) fn review(decision: &str) -> Review {
+    match decision {
+        "APPROVED" => Review::Approved,
+        "CHANGES_REQUESTED" => Review::ChangesRequested,
+        "REVIEW_REQUIRED" => Review::Required,
+        _ => Review::None,
+    }
 }

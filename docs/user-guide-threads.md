@@ -76,7 +76,7 @@ the threads under it.
 ## Side chats
 
 Type `/side <question>` (or `/btw <question>`; both are listed in the composer's `/` menu) in the composer, or run
-**New Side Chat** from the command palette or the Details tab's **Side chats** section, to ask something on the side
+**New Side Chat** from the command palette or the thread details card's **Side chats** section, to ask something on the side
 without interrupting the thread's agent. A tab named after your question opens in the right panel with a small chat.
 It runs in the thread's folder under the thread's account, as its own agent session, and its first message starts with
 the newest part of the thread's conversation (about the newest 12 KB, no tool calls), fenced as quoted data so no text
@@ -89,7 +89,7 @@ it proposes can't be approved there: ask the main thread to make changes. A file
 tab, as in the main thread.
 
 **Bring back** puts the side chat's last answer in the thread's composer as a chip, sent with your next message.
-Side chats are not listed in the sidebar: the thread's Details tab lists them under **Side chats**, and a click opens
+Side chats are not listed in the sidebar: the thread details card lists them under **Side chats**, and a click opens
 one again. Closing its tab keeps it (a running answer keeps going); closing, archiving or deleting the thread stops
 its side chats, and deleting the thread deletes them. A side chat is open in one window at a time. If the folder is
 no longer bound to the thread's account, no side chat starts and your question stays in the composer. A side chat

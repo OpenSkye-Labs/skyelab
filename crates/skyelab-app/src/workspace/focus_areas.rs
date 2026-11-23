@@ -194,6 +194,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.details_open {
+            return self.close_details(window, cx);
+        }
         let areas = self.areas(window, cx);
         match areas.into_iter().find(|(a, ..)| *a == Area::Composer) {
             Some((_, focus, false)) => self.ring(Area::Composer, focus, window, cx),
@@ -216,13 +219,7 @@ impl Workspace {
         if *area == Area::Composer || !focus.contains_focused(window, cx) {
             return None;
         }
-        let dock = self.dock.read(cx);
-        let size = |at| {
-            dock.is_dock_open(at)
-                .then(|| dock.dock_size(at))
-                .flatten()
-                .unwrap_or(px(0.))
-        };
+        let size = |at| self.dock_width(at, cx);
         let (left, right, bottom) = (
             size(DockPlacement::Left),
             size(DockPlacement::Right),

@@ -46,6 +46,22 @@ pub fn pr_summary(url: &str, thread_title: &str) -> String {
     )
 }
 
+/// The most characters of an issue's body an issue chip carries.
+pub const MAX_ISSUE_BODY_CHARS: usize = 4_000;
+
+/// An issue chip's text: title, link, labels, then the body (capped), or a note that it has none.
+pub fn issue_summary(url: &str, title: &str, labels: &[String], body: &str) -> String {
+    let mut out = format!("Title: {}\nURL: {url}", cap(title.trim(), MAX_TITLE_CHARS));
+    if !labels.is_empty() {
+        out.push_str(&format!("\nLabels: {}", labels.join(", ")));
+    }
+    match body.trim() {
+        "" => out.push_str("\n(no description)"),
+        b => out.push_str(&format!("\n\n{}", cap(b, MAX_ISSUE_BODY_CHARS))),
+    }
+    out
+}
+
 /// One block as it is sent: its heading (`Terminal 1 output`), then the text in a code fence longer than any run of
 /// backticks inside it, so the text can't close the fence early.
 pub fn fenced(heading: &str, text: &str) -> String {
@@ -111,6 +127,26 @@ mod tests {
                 &title[..MAX_TITLE_CHARS]
             )
         );
+    }
+
+    #[test]
+    fn issue_summary_is_capped() {
+        let body = "z".repeat(MAX_ISSUE_BODY_CHARS + 10);
+        let s = issue_summary(
+            "https://github.com/o/r/issues/3",
+            " Crash ",
+            &["bug".into()],
+            &body,
+        );
+        assert!(
+            s.starts_with("Title: Crash\nURL: https://github.com/o/r/issues/3\nLabels: bug\n\n"),
+            "{s}"
+        );
+        assert_eq!(
+            s.chars().filter(|c| *c == 'z').count(),
+            MAX_ISSUE_BODY_CHARS
+        );
+        assert!(issue_summary("u", "t", &[], " ").ends_with("(no description)"));
     }
 
     #[test]

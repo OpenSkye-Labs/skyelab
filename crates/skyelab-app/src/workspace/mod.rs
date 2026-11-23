@@ -24,6 +24,8 @@ mod env_picker;
 mod env_sidebar;
 mod files;
 mod focus_areas;
+mod gh_pages;
+mod gh_pages_render;
 mod image_viewer;
 mod import_sessions;
 mod keymap_notice;
@@ -56,6 +58,7 @@ mod remote_answers;
 mod remote_queue;
 mod remote_thread;
 mod render;
+pub(crate) mod scheduled;
 mod scratch;
 mod scripts;
 mod status_bar;
@@ -65,6 +68,7 @@ pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
 mod pr_watch;
 mod shell_card;
+mod surfaces;
 pub(crate) mod thread_checkpoints;
 mod thread_details;
 pub(crate) mod thread_extras;
@@ -75,10 +79,12 @@ mod subagent;
 mod thread_failure;
 mod thread_find;
 mod thread_model;
+mod thread_record;
 mod thread_render;
 mod thread_rows;
 mod thread_worktree;
 mod timeline_fold;
+mod timeline_keys;
 mod timeline_text;
 mod tool_cards;
 mod turn_files;
@@ -170,11 +176,15 @@ pub struct Workspace {
     project_accounts: std::collections::HashMap<i64, Option<skyelab_core::Account>>,
     _project_accounts: Option<Task<()>>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
-    /// The right dock's placeholder until a tool opens there.
+    /// The shown thread's details card, floating over the chat while `details_open` (T3's thread details).
     details: Entity<details_panel::DetailsPanel>,
+    details_open: bool,
+    /// The right dock's first tab, "Open a surface".
+    surfaces: Entity<surfaces::SurfacesPanel>,
     layout: layout::LayoutStore,
     _window_bounds: Option<Subscription>,
     _dock_events: Subscription,
+    _details_events: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
@@ -198,8 +208,7 @@ pub struct Workspace {
     /// The projects the sidebar's list is narrowed to; empty means all.
     scope: Vec<i64>,
     /// Every thread view of this window, shown or not: a hidden one keeps its agent running.
-    // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
-    // thread it opened in memory; evict idle hidden ones if that ever matters.
+    // shortcut: views are only dropped by close_thread, so a long session keeps every thread it opened in memory.
     open_threads: Vec<Entity<ThreadView>>,
     center: Entity<Center>,
     welcome: Entity<Welcome>,
@@ -244,6 +253,7 @@ pub struct Workspace {
     _search: Option<Task<()>>,
     _attention: Vec<Subscription>,
     pr_watch: pr_watch::Watch,
+    gh_pages: gh_pages::Pages,
     /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
     purges: std::collections::HashMap<i64, Task<()>>,
     /// The last unread-mark write; each new one waits for it.
@@ -277,6 +287,7 @@ impl Workspace {
         let center = cx.new(|cx| Center::new(welcome.clone().into(), cx));
         let terminals_empty = cx.new(TerminalsEmpty::new);
         let details = cx.new(details_panel::DetailsPanel::new);
+        let surfaces = cx.new(surfaces::SurfacesPanel::new);
 
         let (dock, skin) = DockSkin::dock_area("workspace", None, window, cx);
         skin.set_toggle_button_visible(false, cx);
@@ -300,7 +311,7 @@ impl Workspace {
             dock.toggle_dock(DockPlacement::Bottom, window, cx);
             dock.set_dock(
                 DockPlacement::Right,
-                tabs(panel_handle(details.clone()), cx),
+                tabs(panel_handle(surfaces.clone()), cx),
                 window,
                 cx,
             );
@@ -312,6 +323,13 @@ impl Workspace {
         let _dock_events = cx.subscribe_in(&dock, window, |this, _, e, window, cx| {
             this.dock_changed(e, window, cx)
         });
+        let _details_events = cx.subscribe_in(
+            &details,
+            window,
+            |this, _, e: &details_panel::OutsidePress, window, cx| {
+                this.details_outside(e.0, window, cx)
+            },
+        );
 
         crate::ui::set_accounts(cx, &config);
         let mut this = Self {
@@ -332,9 +350,12 @@ impl Workspace {
             load_error,
             terminals_empty: Some(terminals_empty),
             details,
+            details_open: false,
+            surfaces,
             layout: Default::default(),
             _window_bounds: None,
             _dock_events,
+            _details_events,
             terminals: Vec::new(),
             browsers: Vec::new(),
             #[cfg(test)]
@@ -384,6 +405,7 @@ impl Workspace {
             _search: None,
             _attention: Vec::new(),
             pr_watch: Default::default(),
+            gh_pages: Default::default(),
             purges: Default::default(),
             _unread_write: None,
             files: Default::default(),
@@ -424,21 +446,9 @@ mod browser_agent_test;
 #[cfg(test)]
 mod browser_tests;
 #[cfg(test)]
-mod changes_cap_test;
-#[cfg(test)]
-mod changes_find_test;
-#[cfg(test)]
-mod changes_follow_folder_test;
-#[cfg(test)]
-mod changes_long_test;
-#[cfg(test)]
 mod changes_model_test;
-#[cfg(all(test, unix))]
-mod changes_selection_test;
 #[cfg(test)]
-mod changes_tree_test;
-#[cfg(test)]
-mod changes_whitespace_test;
+mod changes_tests;
 #[cfg(all(test, unix))]
 mod checkpoint_midturn_test;
 #[cfg(test)]
@@ -465,28 +475,10 @@ mod compare_base_test;
 mod compare_cap_test;
 #[cfg(all(test, unix))]
 mod compare_test;
-#[cfg(all(test, unix))]
-mod delegation_after_stop_test;
-#[cfg(test)]
-mod delegation_cap_test;
-#[cfg(all(test, unix))]
-mod delegation_idempotent_test;
-#[cfg(all(test, unix))]
-mod delegation_reply_on_row_test;
-#[cfg(test)]
-mod delegation_resume_test;
-#[cfg(all(test, unix))]
-mod delegation_review_test;
-#[cfg(all(test, unix))]
-mod delegation_send_cap_test;
-#[cfg(all(test, unix))]
-mod delegation_starting_cap_test;
-#[cfg(all(test, unix))]
-mod delegation_stopped_parent_test;
 #[cfg(test)]
 mod delegation_test;
 #[cfg(test)]
-mod delegation_turns_test;
+mod delegation_tests;
 #[cfg(all(test, unix))]
 mod delegation_window_close_test;
 #[cfg(test)]

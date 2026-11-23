@@ -24,7 +24,7 @@ pub(super) const CLOSED_RECHECK_MS: i64 = 60 * 60_000;
 const TICK: Duration = Duration::from_secs(30);
 const HUNG_MS: i64 = 10 * 60_000;
 
-/// What the Details tab and the sidebar show for a thread's PR.
+/// What the details card and the sidebar show for a thread's PR.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PrView {
     Status(PrStatus),
@@ -291,7 +291,7 @@ pub(super) fn badge(t: &skyelab_store::Thread, url: &str, cx: &gpui::App) -> PrB
         ),
     };
     PrBadge {
-        label: super::thread_list::pr_label(url).into(),
+        label: pr_label(url).into(),
         state,
         checks,
     }
@@ -342,6 +342,36 @@ pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hs
     }
 }
 
+/// The review decision's glyph and tone, `None` when there is none.
+pub(crate) fn review_look(
+    review: skyelab_git::Review,
+    theme: &Theme,
+) -> Option<(IconName, Hsla, &'static str)> {
+    use skyelab_git::Review;
+    match review {
+        Review::None => None,
+        Review::Approved => Some((
+            IconName::UserCheck,
+            ui::ink(theme, theme.success),
+            "Approved",
+        )),
+        Review::ChangesRequested => Some((
+            IconName::UserRoundX,
+            ui::ink(theme, theme.warning),
+            "Changes requested",
+        )),
+        Review::Required => Some((IconName::User, theme.muted_foreground, "Awaiting review")),
+    }
+}
+
 #[cfg(test)]
 #[path = "pr_watch_test.rs"]
 mod tests;
+
+/// "#24" for a pull request URL ending in its number, else "PR".
+pub(super) fn pr_label(url: &str) -> String {
+    match url.trim_end_matches('/').rsplit_once('/') {
+        Some((_, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => format!("#{n}"),
+        _ => "PR".into(),
+    }
+}

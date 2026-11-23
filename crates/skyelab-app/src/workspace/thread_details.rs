@@ -1,7 +1,6 @@
-//! The shown thread's details, as a card stack in the right dock's Details tab (T3's `ThreadDetailsPanel`, laid out
-//! like Synara's right panel): this machine and the thread's folder, branch and git actions, scripts, the agents it
-//! delegated, every account's usage, its pull request and editor. Everything acts on the thread's own folder under
-//! its bound account, so the header stays a breadcrumb.
+//! The shown thread's details, as the floating thread details card (T3's `ThreadDetailsPanel`): this machine and the
+//! thread's folder, branch and git actions, scripts, the agents it delegated, every account's usage, its pull request
+//! and editor. Everything acts on the thread's own folder under its bound account, so the header stays a breadcrumb.
 //!
 //! Pickers (branch, scripts, editors, finished agents) open as pages inside the card.
 
@@ -93,6 +92,7 @@ enum Page {
     LinkPr,
 }
 
+#[derive(Clone, PartialEq)]
 struct Editors {
     /// The editor "Open in" runs now (settings, `$VISUAL`, `$EDITOR`, else one on PATH).
     current: Option<String>,
@@ -134,7 +134,53 @@ fn editors() -> Editors {
     Editors { current, choices }
 }
 
+/// Everything the details card reads from its thread view, so the card redraws when one of them changes and not on
+/// every notify of the view (each streamed delta, keystroke, tick). The branch picker and script menu notify the card
+/// themselves, pull request reads notify it from the workspace, and a timer moves its "3m" labels. A new read in
+/// `render_details` goes here too.
+#[derive(PartialEq)]
+pub(in crate::workspace) struct DetailsSig {
+    page: Page,
+    machine: Option<SharedString>,
+    stat: Option<(u64, u64)>,
+    editors: Option<Editors>,
+    side_chats: Vec<(i64, SharedString)>,
+    gh_login: Option<SharedString>,
+    pr_input: Option<gpui::EntityId>,
+    pr_error: Option<SharedString>,
+    sync: Option<(u32, u32)>,
+    fetch_error: Option<SharedString>,
+    fetching: bool,
+    children: Vec<ChildLink>,
+    thread: Option<skyelab_store::Thread>,
+    cwd: std::path::PathBuf,
+    use_worktree: bool,
+    status: Status,
+}
+
 impl ThreadView {
+    pub(in crate::workspace) fn details_sig(&self) -> DetailsSig {
+        let d = &self.details;
+        DetailsSig {
+            page: d.page,
+            machine: d.machine.clone(),
+            stat: d.stat,
+            editors: d.editors.clone(),
+            side_chats: d.side_chats.clone(),
+            gh_login: d.gh_login.clone(),
+            pr_input: d.pr_input.as_ref().map(|i| i.entity_id()),
+            pr_error: d.pr_error.clone(),
+            sync: d.sync,
+            fetch_error: d.fetch_error.clone(),
+            fetching: d.fetching,
+            children: self.children.clone(),
+            thread: self.thread.clone(),
+            cwd: self.cwd.clone(),
+            use_worktree: self.wt.use_worktree,
+            status: self.live_status(),
+        }
+    }
+
     pub(in crate::workspace) fn live_status(&self) -> crate::ui::Status {
         use crate::ui::Status;
         let running = self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0;
@@ -207,13 +253,15 @@ impl ThreadView {
 }
 
 impl Workspace {
-    /// The Details tab follows the shown thread: its folder's diff size and editors are read again, and every
+    /// The details card follows the shown thread: its folder's diff size and editors are read again, and every
     /// account's usage too.
     pub(super) fn refresh_details(&mut self, cx: &mut Context<Self>) {
         let view = self.current_thread();
         if let Some(view) = &view {
             view.update(cx, |v, cx| v.load_details(cx));
         }
+        self.surfaces
+            .update(cx, |s, cx| s.set_thread(view.clone(), cx));
         self.details.update(cx, |d, cx| d.set_thread(view, cx));
         self.refresh_usage(cx);
         self.poll_prs(true, cx);

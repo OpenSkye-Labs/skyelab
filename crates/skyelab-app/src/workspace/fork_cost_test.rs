@@ -29,7 +29,7 @@ fn last_cost(items: &[Item]) -> f64 {
 
 #[test]
 fn a_forks_first_turn_counts_its_whole_total() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     // The source's turn, copied with its time; the fork was made at 200.
     replay(&mut items, &result(0.5), 100, Some(200));
     apply(&mut items, &result(0.75));
