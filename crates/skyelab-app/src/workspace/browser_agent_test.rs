@@ -9,7 +9,7 @@ use super::*;
 use gpui::{TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::BrowserTool;
-use skyelab_browser::{Engine, EvalDone};
+use skyelab_browser::{Engine, EvalDone, SnapshotDone};
 use std::cell::RefCell;
 use std::io::{Read as _, Write as _};
 use std::rc::Rc;
@@ -24,6 +24,8 @@ pub(super) struct FakePage {
     scripts: RefCell<Vec<String>>,
     /// Scripts that never finish (the `hang` expression).
     hung: RefCell<Vec<EvalDone>>,
+    /// Snapshots taken; a page under `/slow` never finishes one.
+    shots: RefCell<Vec<SnapshotDone>>,
 }
 
 impl Engine for FakePage {
@@ -36,6 +38,19 @@ impl Engine for FakePage {
 
     fn url(&self, _: &gpui::App) -> anyhow::Result<String> {
         Ok(self.url.borrow().clone())
+    }
+
+    fn snapshot(&self, done: SnapshotDone, _: &gpui::App) -> anyhow::Result<()> {
+        if self.url.borrow().contains("/slow") {
+            self.shots.borrow_mut().push(done);
+        } else {
+            let mut png = Vec::new();
+            image::DynamicImage::new_rgba8(2400, 300)
+                .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+                .expect("encode the fake snapshot");
+            done(Ok(png));
+        }
+        Ok(())
     }
 
     fn eval(&self, js: &str, done: EvalDone, _: &gpui::App) -> anyhow::Result<()> {
@@ -111,6 +126,7 @@ pub(super) fn fake_pages(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> 
                 loads,
                 scripts: RefCell::default(),
                 hung: RefCell::default(),
+                shots: RefCell::default(),
             });
             made.borrow_mut().push(page.clone());
             (page as Rc<dyn Engine>, rx)
@@ -356,6 +372,63 @@ fn eval_timeout_and_output_cap(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     assert!(answer.try_recv().is_err(), "still running");
+    cx.executor()
+        .advance_clock(BROWSER_TIMEOUT + Duration::from_secs(1));
+    cx.run_until_parked();
+    let err = answer.try_recv().expect("answered").expect_err("timed out");
+    assert!(err.contains("did not finish"), "{err}");
+}
+
+#[gpui::test]
+fn screenshot_of_own_tab_only(cx: &mut TestAppContext) {
+    let (ws, cx) = workspace(cx);
+    let pages = fake_pages(&ws, cx);
+    let err = call(&ws, 1, BrowserTool::Screenshot, cx).expect_err("no tab yet");
+    assert!(err.contains("browser_open"), "{err}");
+    call(&ws, 1, open_url("http://localhost:3000/"), cx).expect("open");
+
+    let shot = call(&ws, 1, BrowserTool::Screenshot, cx).expect("own tab");
+    assert_eq!(shot["image"]["mimeType"], "image/png", "{shot}");
+    assert_eq!(
+        (shot["width"].clone(), shot["height"].clone()),
+        (json!(skyelab_browser::MAX_SHOT_WIDTH), json!(200)),
+        "scaled to the width cap"
+    );
+    use base64::Engine as _;
+    let png = base64::engine::general_purpose::STANDARD
+        .decode(shot["image"]["data"].as_str().expect("data"))
+        .expect("base64");
+    assert!(png.starts_with(b"\x89PNG"), "a PNG");
+
+    let err = call(&ws, 2, BrowserTool::Screenshot, cx).expect_err("thread 2 has no tab");
+    assert!(err.contains("browser_open"), "{err}");
+    cx.dispatch_action(OpenBrowser);
+    cx.run_until_parked();
+    let err =
+        call(&ws, 2, BrowserTool::Screenshot, cx).expect_err("the user's tab isn't thread 2's");
+    assert!(err.contains("browser_open"), "{err}");
+
+    *pages.borrow()[0].url.borrow_mut() = "file:///Users/me/secret.html".into();
+    let err = call(&ws, 1, BrowserTool::Screenshot, cx).expect_err("a file page");
+    assert!(err.contains("http"), "{err}");
+    assert_eq!(
+        pages.borrow()[0].shots.borrow().len(),
+        0,
+        "no snapshot of a file page"
+    );
+}
+
+#[gpui::test]
+fn screenshot_times_out(cx: &mut TestAppContext) {
+    let (ws, cx) = workspace(cx);
+    fake_pages(&ws, cx);
+    call(&ws, 1, open_url("http://localhost:3000/slow"), cx).expect("open");
+    let (reply, answer) = flume::bounded(1);
+    ws.update_in(cx, |ws, window, cx| {
+        ws.browser_call(1, BrowserTool::Screenshot, reply, window, cx)
+    });
+    cx.run_until_parked();
+    assert!(answer.try_recv().is_err(), "still taking it");
     cx.executor()
         .advance_clock(BROWSER_TIMEOUT + Duration::from_secs(1));
     cx.run_until_parked();

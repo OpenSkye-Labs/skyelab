@@ -25,6 +25,10 @@ fn browser_tools_parse() {
         Ok(Tool::Browser(BrowserTool::Url))
     );
     assert_eq!(
+        parse("browser_screenshot", json!({})),
+        Ok(Tool::Browser(BrowserTool::Screenshot))
+    );
+    assert_eq!(
         parse("browser_eval", json!({"expression": "document.title"})),
         Ok(Tool::Browser(BrowserTool::Eval {
             expression: "document.title".into()
@@ -77,8 +81,8 @@ fn browser_tools_are_listed() {
         "browser_navigate",
         "browser_url",
         "browser_eval",
+        "browser_screenshot",
     ] {
         assert!(names.contains(&n), "{n} missing from {names:?}");
     }
-    assert!(!names.contains(&"browser_screenshot"), "not implemented");
 }

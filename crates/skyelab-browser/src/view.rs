@@ -267,6 +267,24 @@ impl BrowserView {
         }
     }
 
+    /// The page as the user sees it, as the engine's encoded image (see [`crate::encode_png`] for the PNG the agent
+    /// gets). The same rules as [`Self::eval_js`]: refused before the first load and on any page that isn't http or https.
+    pub fn screenshot(
+        &self,
+        cx: &gpui::App,
+    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + use<> {
+        let (tx, rx) = oneshot::channel();
+        let started = self
+            .agent_page(cx)
+            .and_then(|(page, _)| page.snapshot(Box::new(move |r| _ = tx.send(r)), cx));
+        async move {
+            started?;
+            rx.await
+                .context("the webview dropped the snapshot")?
+                .map_err(|e| anyhow::anyhow!("snapshot failed: {e}"))
+        }
+    }
+
     fn back(&mut self, cx: &mut Context<Self>) {
         let result = self
             .page(cx)

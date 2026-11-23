@@ -46,6 +46,10 @@ impl Workspace {
                 Ok(tab) => return eval(tab, thread_id, &expression, reply, cx),
                 Err(e) => Err(e),
             },
+            BrowserTool::Screenshot => match tab {
+                Ok(tab) => return screenshot(tab, thread_id, reply, cx),
+                Err(e) => Err(e),
+            },
         };
         let _ = reply.send(result);
     }
@@ -178,6 +182,42 @@ fn eval(
             () = timeout.fuse() => Err(format!(
                 "the script did not finish in {}s", BROWSER_TIMEOUT.as_secs()
             )),
+        };
+        let _ = reply.send(still_owned(&tab, thread_id, cx).and(result));
+    })
+    .detach();
+}
+
+/// A PNG of the tab's page, under skyelab-browser's size caps, as `{image: {data, mimeType}, width, height}`
+/// (the MCP server makes `image` an image block). The same page rules and timeout as an eval.
+fn screenshot(tab: Entity<BrowserPanel>, thread_id: i64, reply: Reply<Value>, cx: &mut App) {
+    let shot = tab.read(cx).browser.read(cx).screenshot(cx);
+    let timeout = cx.background_executor().timer(BROWSER_TIMEOUT);
+    let tab = tab.downgrade();
+    cx.spawn(async move |cx| {
+        let raw = futures::select! {
+            r = shot.fuse() => r.map_err(|e| format!("{e:#}")),
+            () = timeout.fuse() => Err(format!(
+                "the screenshot did not finish in {}s", BROWSER_TIMEOUT.as_secs()
+            )),
+        };
+        let result = match raw {
+            Ok(raw) => cx
+                .background_spawn(async move { skyelab_browser::encode_png(&raw) })
+                .await
+                .map(|shot| {
+                    use base64::Engine as _;
+                    json!({
+                        "image": {
+                            "data": base64::engine::general_purpose::STANDARD.encode(&shot.png),
+                            "mimeType": "image/png",
+                        },
+                        "width": shot.width,
+                        "height": shot.height,
+                    })
+                })
+                .map_err(|e| format!("{e:#}")),
+            Err(e) => Err(e),
         };
         let _ = reply.send(still_owned(&tab, thread_id, cx).and(result));
     })

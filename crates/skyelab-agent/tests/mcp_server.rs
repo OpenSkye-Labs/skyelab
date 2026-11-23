@@ -20,6 +20,11 @@ impl Host for FakeHost {
             Tool::ListProjects => Ok(json!([{"id": 1, "name": "demo", "path": "/work/demo"}])),
             Tool::StartThread { project_id: 99, .. } => Err("refused: other account".to_owned()),
             Tool::StartThread { .. } => Ok(json!({"thread_id": 42})),
+            Tool::Browser(skyelab_agent::mcp::BrowserTool::Screenshot) => Ok(json!({
+                "image": {"data": "iVBORw0KGgo=", "mimeType": "image/png"},
+                "width": 1,
+                "height": 1,
+            })),
             _ => Ok(json!({"ok": true})),
         };
         self.calls
@@ -153,6 +158,7 @@ fn lists_all_tools_with_schemas() {
             "browser_eval",
             "browser_navigate",
             "browser_open",
+            "browser_screenshot",
             "browser_url",
             "list_projects",
             "read_thread",
@@ -170,6 +176,32 @@ fn lists_all_tools_with_schemas() {
     assert!(ping["result"].is_object(), "{ping}");
     let unknown = c.request("resources/list", json!({}));
     assert_eq!(unknown["error"]["code"], -32601, "{unknown}");
+}
+
+#[test]
+fn screenshot_answers_with_an_image_block() {
+    let r = rig();
+    let g = grant(&r, 7);
+    let mut c = initialized(&r, &g);
+    let a = c.request(
+        "tools/call",
+        json!({"name": "browser_screenshot", "arguments": {}}),
+    );
+    let content = &a["result"]["content"];
+    assert_eq!(
+        content[0],
+        json!({"type": "image", "data": "iVBORw0KGgo=", "mimeType": "image/png"}),
+        "{a}"
+    );
+    assert_eq!(content[1]["type"], "text", "{a}");
+    let meta: Value =
+        serde_json::from_str(content[1]["text"].as_str().expect("text")).expect("json");
+    assert_eq!(
+        meta,
+        json!({"width": 1, "height": 1}),
+        "the image isn't repeated as text"
+    );
+    assert_eq!(a["result"]["isError"], false);
 }
 
 #[test]

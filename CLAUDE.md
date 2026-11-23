@@ -34,8 +34,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   measured from below the title bar, so subtract its 32 pt from a window screenshot's y at 1x; `drag:x;y;x2;y2` drags,
   `scroll:x;y;lines` turns the wheel, positive up). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
-  delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`
-  and `title` evaluates `document.title` in that tab; `delegate <project id> hold` starts a child that keeps working,
+  delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
+  `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the Details tab and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, a

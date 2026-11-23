@@ -10,6 +10,9 @@ use gpui_webview::WebView;
 /// The script's raw result, as wry hands it back (a JSON-encoded string).
 pub type EvalDone = Box<dyn FnOnce(String) + Send>;
 
+/// A snapshot's encoded image (TIFF from WebKit, any format `image` reads), or the engine's error.
+pub type SnapshotDone = Box<dyn FnOnce(Result<Vec<u8>, String>)>;
+
 pub trait Engine {
     fn load(&self, url: &str, cx: &App) -> anyhow::Result<()>;
     /// The URL as the engine reports it, which may name a pending load.
@@ -17,6 +20,11 @@ pub trait Engine {
     /// Runs `js` (from `js::wrap`) and calls `done` with its answer, JSON-encoded. An engine may drop `done`
     /// (wry does for a script it queued for the next load).
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()>;
+    /// Captures what the page shows now (only the web view's own area) and calls `done` once with it.
+    fn snapshot(&self, done: SnapshotDone, cx: &App) -> anyhow::Result<()> {
+        let _ = (done, cx);
+        anyhow::bail!("screenshots are not supported on this platform yet")
+    }
     /// Loads the current page again.
     fn reload(&self, cx: &App) -> anyhow::Result<()> {
         self.load(&self.url(cx)?, cx)
@@ -36,6 +44,13 @@ impl Engine for Wry {
 
     fn reload(&self, cx: &App) -> anyhow::Result<()> {
         Ok(self.0.read(cx).reload()?)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn snapshot(&self, done: SnapshotDone, cx: &App) -> anyhow::Result<()> {
+        use wry::WebViewExtMacOS as _;
+        skyelab_webkit_sys::snapshot(&self.0.read(cx).raw().webview(), done);
+        Ok(())
     }
 
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()> {
