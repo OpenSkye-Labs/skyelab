@@ -105,11 +105,7 @@ impl Render for ImageViewer {
         let viewport = window.viewport_size();
         let (w, h) = (viewport.width * 0.92 - px(16.), viewport.height * 0.8);
         let z = ZOOMS[self.zoom];
-        let label = if self.zoom == 0 {
-            "Fit".to_owned()
-        } else {
-            format!("{}%", (z * 100.) as u32)
-        };
+        let label = format!("{}%", (z * 100.) as u32);
         let button = |id: &'static str, icon: Icon, tip: &'static str| {
             Button::new(id).ghost().xsmall().icon(icon).tooltip(tip)
         };
@@ -164,13 +160,20 @@ impl Render for ImageViewer {
                     .id("image-viewer-body")
                     .w(w)
                     .h(h)
-                    .overflow_scroll()
                     .rounded(ui::RADIUS)
                     .bg(theme.muted)
+                    // Centered while it fits; zoomed, it starts at the top left so every edge scrolls into view.
+                    .map(|el| match self.zoom {
+                        0 => el.flex().items_center().justify_center(),
+                        _ => el.overflow_scroll(),
+                    })
+                    // img() takes its height from its width and aspect ratio: max_h keeps it to the box.
                     .child(
                         img(self.shown.source())
+                            .flex_none()
                             .w(w * z)
                             .h(h * z)
+                            .max_h(h * z)
                             .object_fit(ObjectFit::Contain),
                     ),
             )

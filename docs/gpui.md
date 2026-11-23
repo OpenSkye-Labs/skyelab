@@ -52,6 +52,11 @@ and how Zed uses it, not blog posts or memory.
   `Markdown`, the code editor. Only drop to raw `div()` for layout.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
+- `img()` takes its height from its width and the image's aspect ratio, even with `.h(..)` set: a wide box draws a
+  square image as tall as the box is wide. Cap it with `.max_h(..)` (the image viewer does), and check a fit in a live
+  screenshot, not only by reading the layout.
+- `Textarea::on_paste` sees the `ClipboardItem` before the text goes in; returning `true` keeps it out (long pastes
+  become attachments that way).
 
 ## Redraw discipline
 
