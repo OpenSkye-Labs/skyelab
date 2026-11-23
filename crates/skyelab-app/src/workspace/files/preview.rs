@@ -2,6 +2,7 @@
 //! numbers, syntect highlighting) at the asked line; images draw as images; binary and huge files get a note.
 
 use crate::ui;
+use anyhow::Context as _;
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, ObjectFit,
     SharedString, Task, Window, div, img, prelude::*,
@@ -16,6 +17,11 @@ use gpui_component::{
 };
 use skyelab_core::files::Preview;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+#[cfg(test)]
+#[path = "../preview_image_test.rs"]
+mod image_test;
 
 /// The preview's header asked to open its file in the user's editor.
 pub(in crate::workspace) struct OpenInEditor {
@@ -26,7 +32,8 @@ pub(in crate::workspace) struct OpenInEditor {
 enum Body {
     Loading,
     Text,
-    Image(PathBuf),
+    /// Its bytes as read: GPUI keys an image by its content, so an edited file draws anew (a path is cached for good).
+    Image(Arc<gpui::Image>),
     Note(SharedString),
 }
 
@@ -64,8 +71,14 @@ impl PreviewPanel {
         self.body = Body::Loading;
         self.root = root.clone();
         self.path = path.clone();
-        let read =
-            cx.background_spawn(async move { skyelab_core::files::read_preview(&root, &path) });
+        let read = cx.background_spawn(async move {
+            let preview = skyelab_core::files::read_preview(&root, &path)?;
+            let image = match &preview {
+                Preview::Image(full) => Some(image(full)?),
+                _ => None,
+            };
+            anyhow::Ok((preview, image))
+        });
         self._load = Some(cx.spawn_in(window, async move |this, cx| {
             let read = read.await;
             let _ = this.update_in(cx, |this, window, cx| this.loaded(read, line, window, cx));
@@ -75,13 +88,14 @@ impl PreviewPanel {
 
     fn loaded(
         &mut self,
-        read: anyhow::Result<Preview>,
+        read: anyhow::Result<(Preview, Option<Arc<gpui::Image>>)>,
         line: Option<u32>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.body = match read {
-            Ok(Preview::Text(text)) => {
+            Ok((_, Some(image))) => Body::Image(image),
+            Ok((Preview::Text(text), _)) => {
                 let lang = language(&self.path);
                 let row = line.map_or(0, |l| l.saturating_sub(1));
                 self.editor.update(cx, |e, cx| {
@@ -92,11 +106,10 @@ impl PreviewPanel {
                 });
                 Body::Text
             }
-            Ok(Preview::Image(path)) => Body::Image(path),
-            Ok(Preview::Binary) => {
+            Ok((Preview::Binary | Preview::Image(_), _)) => {
                 Body::Note("This is a binary file, so it has no text preview.".into())
             }
-            Ok(Preview::TooLarge(n)) => Body::Note(
+            Ok((Preview::TooLarge(n), _)) => Body::Note(
                 format!(
                     "This file is too large to preview ({:.1} MB).",
                     n as f64 / 1e6
@@ -117,6 +130,42 @@ impl PreviewPanel {
 }
 
 /// The highlighter's language for a file: its extension, or its name for `Makefile`, `Dockerfile` and the like.
+/// The image file `full` (already checked by `read_preview`: inside the folder, at most its size cap), read once.
+pub(in crate::workspace) fn image(full: &Path) -> anyhow::Result<Arc<gpui::Image>> {
+    let ext = full
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase());
+    let format = ext
+        .as_deref()
+        .and_then(|e| {
+            use gpui::ImageFormat as F;
+            // `read_preview`'s raster list; never SVG (it can load files from its hrefs).
+            Some(match e {
+                "png" => F::Png,
+                "jpg" | "jpeg" => F::Jpeg,
+                "gif" => F::Gif,
+                "webp" => F::Webp,
+                "bmp" => F::Bmp,
+                _ => return None,
+            })
+        })
+        .ok_or_else(|| anyhow::anyhow!("Not an image this preview draws."))?;
+    // The cap again: the file may have grown since it was checked.
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(
+            std::fs::File::open(full).context("Can't read this file.")?,
+            skyelab_core::files::MAX_IMAGE_BYTES + 1,
+        ),
+        &mut bytes,
+    )
+    .context("Can't read this file.")?;
+    if bytes.len() as u64 > skyelab_core::files::MAX_IMAGE_BYTES {
+        anyhow::bail!("This file is too large to preview.");
+    }
+    Ok(Arc::new(gpui::Image::from_bytes(format, bytes)))
+}
+
 fn language(path: &Path) -> String {
     path.extension()
         .or_else(|| path.file_name())
@@ -203,17 +252,25 @@ impl Render for PreviewPanel {
         let body = match &self.body {
             Body::Loading => note("Loading…".into()).into_any_element(),
             Body::Note(text) => note(text.clone()).into_any_element(),
-            Body::Image(path) => {
-                let (shown, name) = (path.clone(), self.name());
+            Body::Image(image) => {
+                let (shown, name) = (image.clone(), self.name());
                 div()
                     .id("preview-image")
                     .size_full()
                     .p_4()
                     .cursor_pointer()
-                    .child(img(path.clone()).size_full().object_fit(ObjectFit::Contain))
+                    .child(
+                        img(image.clone())
+                            .size_full()
+                            .object_fit(ObjectFit::Contain),
+                    )
                     .on_click(move |_, window, cx| {
-                        let shown = crate::workspace::image_viewer::Shown::Path(shown.clone());
-                        crate::workspace::image_viewer::open(shown, name.clone(), window, cx)
+                        crate::workspace::image_viewer::open(
+                            shown.clone(),
+                            name.clone(),
+                            window,
+                            cx,
+                        )
                     })
                     .into_any_element()
             }

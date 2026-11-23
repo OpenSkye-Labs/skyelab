@@ -1,6 +1,6 @@
 //! The image dialog opens over the window, zooms in steps over the fit, and closes on Escape.
 
-use super::image_viewer::{self, Shown, ZOOMS, zoom_step};
+use super::image_viewer::{self, ZOOMS, zoom_step};
 use super::palette_test::{open, setup};
 use super::threads_test::test_backend;
 use gpui::{Image, ImageFormat, TestAppContext};
@@ -33,7 +33,7 @@ fn image_dialog_opens_and_escape_closes_it(cx: &mut TestAppContext) {
     setup(cx);
     let (_ws, cx) = open(test_backend(), cx);
     let image = Arc::new(Image::from_bytes(ImageFormat::Png, Vec::new()));
-    cx.update(|window, cx| image_viewer::open(Shown::Bytes(image), "a.png".into(), window, cx));
+    cx.update(|window, cx| image_viewer::open(image, "a.png".into(), window, cx));
     cx.run_until_parked();
     assert!(
         cx.update(|window, cx| window.has_active_dialog(cx)),
