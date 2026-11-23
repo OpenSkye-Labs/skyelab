@@ -29,8 +29,6 @@ pub struct StartRequest {
     pub caller: Caller,
     /// The caller's delegation depth, from the store's parent chain.
     pub depth: u32,
-    /// The caller's children still starting or running.
-    pub live_children: usize,
     pub project_id: i64,
     pub prompt: String,
     pub worktree: bool,
@@ -262,17 +260,12 @@ impl Host for AppHost {
                 worktree,
                 request_id,
             } => {
+                // The children count is taken on the UI thread, after a retry is matched to its first call.
                 let depth = self.depth(&me)?;
-                let live_children = self
-                    .store(|s| s.child_threads(me.id))?
-                    .iter()
-                    .filter(|t| busy(&t.status))
-                    .count();
-                skyelab_core::delegation::check_limits(depth, live_children)?;
+                skyelab_core::delegation::check_limits(depth, 0)?; // depth only
                 let request = StartRequest {
                     caller: caller.clone(),
                     depth,
-                    live_children,
                     project_id,
                     prompt,
                     worktree,

@@ -179,6 +179,8 @@ pub struct Workspace {
     open_threads: Vec<WeakEntity<ThreadView>>,
     /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
     queued_tabs: Vec<Entity<ThreadView>>,
+    /// Delegated starts by (caller thread, its request id): a retry gets the thread the first call started.
+    delegated: std::collections::HashMap<(i64, String), gpui::WeakEntity<ThreadView>>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     _thread_events: Vec<Subscription>,
     _load: Option<Task<()>>,
@@ -266,6 +268,7 @@ impl Workspace {
             threads: Vec::new(),
             open_threads: Vec::new(),
             queued_tabs: Vec::new(),
+            delegated: Default::default(),
             changes_views: Vec::new(),
             _thread_events: Vec::new(),
             _load: None,
