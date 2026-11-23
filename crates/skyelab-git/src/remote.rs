@@ -6,13 +6,16 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::publish::{check_urls, checked, credential_args, current_branch, gh_command, invalid};
+use crate::publish::{
+    check_urls, checked, checked_within, credential_args, current_branch, gh_command, invalid,
+};
 use crate::{Error, Result, command, git, lossy, output, repo_root};
 
 /// At most this many failing checks are kept from one read; gh's JSON is untrusted.
 pub const MAX_FAILED_CHECKS: usize = 20;
 const MAX_CHECK_NAME: usize = 200;
 const MAX_URL: usize = 2048;
+const PR_VIEW_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// The branch's upstream remote (`branch.<b>.remote`), `None` without one or for a local upstream (`.`).
 fn upstream_remote(root: &Path) -> Result<Option<String>> {
@@ -44,8 +47,20 @@ pub fn fetch(dir: &Path, gh: &crate::GitHub) -> Result<bool> {
         return Ok(false);
     };
     let urls = check_urls(&root, &remote, false)?;
+    check_repo_config(&root)?;
+    checked(fetch_command(&root, &remote, &urls, gh)?, "git fetch", None)?;
+    Ok(true)
+}
+
+/// The fetch itself: hooks off, credentials only from the bound gh, no prompt.
+pub(crate) fn fetch_command(
+    root: &Path,
+    remote: &str,
+    urls: &[String],
+    gh: &crate::GitHub,
+) -> Result<std::process::Command> {
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
-    let mut cmd = command(Path::new("git"), &root);
+    let mut cmd = command(Path::new("git"), root);
     cmd.args(credential_args(gh, &urls)?)
         // A stalled transfer gives up instead of holding the background fetch for good.
         .args([
@@ -54,11 +69,46 @@ pub fn fetch(dir: &Path, gh: &crate::GitHub) -> Result<bool> {
             "-c",
             "http.lowSpeedTime=60",
         ])
-        .args(["fetch", "--quiet", "--recurse-submodules=no", &remote])
+        .args(["fetch", "--quiet", "--recurse-submodules=no", remote])
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
-    checked(cmd, "git fetch", None)?;
-    Ok(true)
+    Ok(cmd)
+}
+
+/// Keys that name a program for a fetch to run, or reroute or re-trust its https (where the bound gh hands over its
+/// token). An agent can write the repo's own config, and one `.git/config` can serve folders bound to other accounts.
+const UNSAFE_REPO_KEYS: &str = r"^(remote\..*\.(uploadpack|proxy)|http\..*(proxy|sslcainfo|sslcapath|sslcert|sslkey|curloptresolve|cookiefile|pinnedpubkey))$";
+
+/// Refuses a fetch (it runs on a timer, unasked) while the repo's own config sets any [`UNSAFE_REPO_KEYS`].
+fn check_repo_config(root: &Path) -> Result<()> {
+    let out = output(
+        Path::new("git"),
+        root,
+        &["config", "--show-scope", "--get-regexp", UNSAFE_REPO_KEYS],
+    )?;
+    // Exit 1 is "no key matched"; anything else unexpected fails closed.
+    match out.status.code() {
+        Some(0) => {}
+        Some(1) => return Ok(()),
+        _ => {
+            return Err(Error::Git {
+                args: "config --show-scope --get-regexp".into(),
+                stderr: lossy(&out.stderr),
+            });
+        }
+    }
+    let text = lossy(&out.stdout);
+    let repo_key = text.lines().find_map(|line| {
+        let (scope, entry) = line.split_once('\t')?;
+        matches!(scope, "local" | "worktree").then(|| entry.split(' ').next().unwrap_or_default())
+    });
+    match repo_key {
+        Some(key) => Err(invalid(format!(
+            "the repo's own config sets {key}, so SkyeLab won't fetch with the account's GitHub login; remove it \
+             (git config --unset {key}) or set it in your global config"
+        ))),
+        None => Ok(()),
+    }
 }
 
 /// Commits HEAD has that its upstream doesn't, and the other way round. `None` without an upstream (or detached).
@@ -113,9 +163,16 @@ pub fn pull_ff(dir: &Path, gh: &crate::GitHub, env: &[(OsString, OsString)]) -> 
         )));
     }
     let mut cmd = crate::hooked_command(Path::new("git"), &root);
-    cmd.args(["merge", "--ff-only", "--no-edit", "@{upstream}"])
-        .envs(env.iter().map(|(k, v)| (k, v)))
-        .env("GIT_TERMINAL_PROMPT", "0");
+    // Git counts ignored files as expendable; a local `.env` the upstream starts tracking may be the only copy.
+    cmd.args([
+        "merge",
+        "--ff-only",
+        "--no-edit",
+        "--no-overwrite-ignore",
+        "@{upstream}",
+    ])
+    .envs(env.iter().map(|(k, v)| (k, v)))
+    .env("GIT_TERMINAL_PROMPT", "0");
     checked(cmd, "git merge --ff-only", None)?;
     Ok(format!("Pulled {behind} commit(s) into {branch}"))
 }
@@ -198,7 +255,13 @@ pub fn pr_status(gh: &crate::GitHub, url: &str) -> Result<PrStatus> {
     }
     let fields = "state,isDraft,mergedAt,reviewDecision,statusCheckRollup";
     let args = ["pr", "view", url, "--json", fields];
-    let out = checked(gh_command(gh, gh.config_dir, &args)?, "gh pr view", None)?;
+    // A gh that never answers (a keychain prompt, a dead network) is killed, so polls can't pile up behind it.
+    let out = checked_within(
+        gh_command(gh, gh.config_dir, &args)?,
+        "gh pr view",
+        None,
+        Some(PR_VIEW_LIMIT),
+    )?;
     parse_pr_view(&out.stdout)
 }
 

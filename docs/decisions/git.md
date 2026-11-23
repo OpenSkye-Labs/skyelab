@@ -20,6 +20,10 @@ dated; newest at the bottom.
   everything except Commit, Push and Pull (status, diff, add, worktree add, the snapshot index, the background fetch).
   Commit, Push and Pull run the repo's hooks, since users rely on pre-commit, pre-push and post-merge, with the scrubbed env plus the bound account's
   `launch_env` (Push: its `GH_CONFIG_DIR`), so a hook an agent planted sees nothing the agent couldn't already.
+  The background fetch runs unasked, so it also refuses while the repo's own config (local or worktree scope) names
+  an upload-pack or a remote proxy, or sets an http proxy, CA, client cert, cookie file or resolve override: an agent
+  can write `.git/config`, one `.git/config` can serve folders bound to other accounts, and the bound gh's token goes
+  to whatever answers. Pull refuses to overwrite ignored files (`--no-overwrite-ignore`). (2026-11-24)
   Filters (`filter.<x>.clean`/`process`, from repo config and `.gitattributes`) can't be turned off generically
   without breaking LFS-style repos, so they still run during status, diff and add, with the scrubbed env only: the
   residual risk is code the agent wrote running with no more than the agent has. Commit gets `SSH_AUTH_SOCK` (ssh
