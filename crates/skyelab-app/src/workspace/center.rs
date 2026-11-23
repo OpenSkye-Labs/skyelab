@@ -177,8 +177,8 @@ impl Workspace {
     /// Drops a thread's view: its agent stops and its row ends `stopped`, as closing its tab used to. The page falls
     /// back to Welcome if it showed the thread.
     // shortcut: nothing in the app closes a thread yet; the sidebar's archive/delete (package D) will call this, then
-    // drop the cfg.
-    #[cfg(test)]
+    // drop the cfg. Its tests run the fake agent, a shell script, so they are unix-only.
+    #[cfg(all(test, unix))]
     pub(crate) fn close_thread(
         &mut self,
         view: &Entity<ThreadView>,
