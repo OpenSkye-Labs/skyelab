@@ -5,7 +5,7 @@ use gpui::{Bounds, Pixels, point, px, size};
 use skyelab_core::WindowLayout;
 
 /// Share of the primary display's visible area a first launch takes.
-const FIRST_LAUNCH_SHARE: f32 = 0.88;
+const FIRST_LAUNCH_SHARE: f32 = 0.6;
 /// Smallest frame the window opens at (it is clamped to the display if that is smaller).
 const MIN_W: f32 = 1100.;
 const MIN_H: f32 = 720.;
@@ -97,11 +97,19 @@ mod tests {
     }
 
     #[test]
-    fn first_launch_takes_most_of_the_display_centered() {
+    fn first_launch_takes_its_share_of_a_big_display_centered() {
+        let visible = rect(0., 25., 2560., 1415.);
+        let b = initial_bounds(None, &[rect(0., 0., 2560., 1440.)], visible);
+        assert_eq!(b.size.width, px(2560. * FIRST_LAUNCH_SHARE));
+        assert_eq!(b.size.height, px(1415. * FIRST_LAUNCH_SHARE));
+        assert_eq!(b.center(), visible.center());
+    }
+
+    #[test]
+    fn on_a_laptop_display_the_minimum_wins_over_the_share() {
         let visible = rect(0., 25., 1728., 1092.);
         let b = initial_bounds(None, &[rect(0., 0., 1728., 1117.)], visible);
-        assert_eq!(b.size.width, px(1728. * 0.88));
-        assert_eq!(b.size.height, px(1092. * 0.88));
+        assert_eq!((b.size.width, b.size.height), (px(MIN_W), px(MIN_H)));
         assert_eq!(b.center(), visible.center());
     }
 
@@ -145,7 +153,7 @@ mod tests {
         let sliver = to_layout(rect(1700., 100., 1400., 900.), false, px(0.));
         assert_eq!(
             initial_bounds(Some(&sliver), &[main], main).size.width,
-            px(1728. * 0.88)
+            px((1728. * FIRST_LAUNCH_SHARE).max(MIN_W))
         );
     }
 }
