@@ -45,7 +45,16 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `crate::debug_renders::count("Name")`, and stderr gets `renders/s Workspace=17 ThreadView=16 timeline row=144 …`
   once a second. `Workspace` is the frame count per window. A new view adds the call as its render's first line.
   Measured: the focused composer's caret blink re-renders `ThreadView` (and rebuilds its visible timeline rows)
-  twice a second while idle; only moving the timeline into its own cached view would stop that.
+  twice a second while idle.
+- A cached view nested under another cached view is **not** reused when that ancestor renders again: on a cache miss
+  GPUI sets `window.refreshing` for the whole subtree (`prepaint_view` in `view.rs`). gpui-component's `TabPanel`
+  draws every dock panel cached, so anything inside the center (or any panel) renders again whenever anything else
+  in that panel notifies. Splitting the thread page into a cached timeline view and a composer view was tried and
+  measured (idle 10 s / typing 20 chars / streamed `timeline` turn, 3 threads, right panel open): 264 / 880 / 651
+  timeline rows built before, 264 / 880 / 659 after, with the timeline view rendering on every frame (branch
+  `t3/split-thread-timeline-view-attempt`). Caching inside a panel only helps a subtree whose panel nothing else
+  notifies; to spare rows from a sibling's ticks, stop the ticks (gpui-component's `Theme::cursor_blink` takes
+  `CursorBlink::with_idle_timeout`) or put the sibling in another dock panel.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 
