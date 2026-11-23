@@ -1,7 +1,8 @@
 //! The workspace's bottom status bar.
 
 use super::{OpenDevices, OpenSettings, Workspace};
-use gpui::{Context, IntoElement, div, prelude::*, px};
+use crate::ui;
+use gpui::{Context, IntoElement, div, prelude::*};
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -12,38 +13,36 @@ use gpui_component::{
 impl Workspace {
     pub(super) fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let (dot, label) = match &self.account {
-            Some(label) => (theme.success, label.clone()),
-            None => (theme.warning, "No account bound".into()),
+        let badge = match (&self.account_id, &self.account) {
+            (Some(id), Some(label)) => ui::AccountBadge::new(id.clone(), label.clone()),
+            _ => ui::AccountBadge::unbound(),
         };
         let account = Button::new("status-account")
             .ghost()
             .xsmall()
             .tooltip("Accounts and folder bindings")
-            .child(
-                h_flex()
-                    .gap_1p5()
-                    .child(div().size(px(6.)).rounded_full().bg(dot))
-                    .child(label),
-            )
+            .child(badge.chip())
             .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
         let remote = self.is_remote();
         StatusBar::new()
             .left(
                 h_flex()
+                    .min_w_0()
                     .gap_3()
-                    .text_xs()
+                    .text_size(ui::META)
                     .children(self.render_env_badge(cx))
                     .when(!remote, |el| {
                         el.child(
                             div()
+                                .min_w_0()
+                                .truncate()
                                 .text_color(theme.muted_foreground)
-                                .child(self.folder_label.clone()),
+                                .child(ui::short_path(&self.folder, dirs::home_dir().as_deref())),
                         )
                     })
                     .children(self.store_error.clone().map(|e| {
                         div()
-                            .text_color(theme.danger)
+                            .text_color(crate::ui::ink(theme, theme.danger))
                             .child(format!("Store error: {e}"))
                     })),
             )

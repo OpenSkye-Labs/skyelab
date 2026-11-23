@@ -19,7 +19,11 @@ fn a_terminal_follows_the_saved_file(cx: &mut TestAppContext) {
     cx.update(|_, cx| cx.set_global(AccountsFile(accounts)));
 
     let job = ws.read_with(cx, |ws, cx| ws.terminal_job(cx));
-    let opts = job().expect("options");
+    let (opts, account) = job().expect("options");
+    assert!(
+        account.is_none(),
+        "an unbound folder's tab shows no account"
+    );
     assert_ne!(
         opts.env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
         f.account_dir.to_str(),

@@ -180,8 +180,13 @@ fn add_project_lists_it_and_selecting_sets_folder_and_account(cx: &mut TestAppCo
         assert_eq!(ws.account.as_deref(), Some("Acme Team"));
     });
     let job = ws.read_with(cx, |ws, cx| ws.terminal_job(cx));
-    let opts = job().expect("options");
+    let (opts, account) = job().expect("options");
     assert_eq!(opts.cwd, f.project_dir, "terminals open in the project");
+    assert_eq!(
+        account.map(|a| a.label).as_deref(),
+        Some("Acme Team"),
+        "the tab shows the account the env was built for"
+    );
     assert_eq!(
         opts.env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
         f.account_dir.to_str(),

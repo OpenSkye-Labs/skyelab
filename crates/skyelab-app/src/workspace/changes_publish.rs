@@ -4,6 +4,7 @@
 use super::changes::ChangesView;
 use super::worktree::resolves_to;
 use super::{SharedStore, lock};
+use crate::ui;
 use anyhow::{Context as _, Result, bail};
 use gpui::{AnyElement, App, Context, Window, div, prelude::*};
 use gpui_component::{
@@ -197,22 +198,36 @@ impl ChangesView {
     }
 
     pub(super) fn render_publish(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
         let total = self.changes.as_ref().map_or(0, |c| c.files.len());
         let commit_label = commit_label(self.selected.len(), total);
         let button = |id: &'static str, label: String| {
             Button::new(id)
-                .xsmall()
+                .small()
                 .label(label)
                 .flex_shrink_0()
                 .disabled(self.busy)
         };
+        // Push and Open PR run under the thread's account (re-checked when they run); say which, up front.
+        let account = self
+            .thread
+            .as_ref()
+            .and_then(|t| t.upgrade())
+            .map(|t| t.read(cx).account_badge().chip());
+        let theme = cx.theme();
         v_flex()
             .px_4()
-            .py_2()
+            .py_3()
             .gap_2()
             .border_b_1()
             .border_color(theme.border)
+            .children(account.map(|badge| {
+                h_flex()
+                    .gap_2()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child("Pushes and opens PRs as")
+                    .child(badge)
+            }))
             .child(
                 h_flex()
                     .gap_2()
@@ -247,7 +262,7 @@ impl ChangesView {
                 div()
                     .id("publish-error")
                     .text_xs()
-                    .text_color(theme.danger)
+                    .text_color(crate::ui::ink(theme, theme.danger))
                     .child(e)
             }))
             .children(self.publish_note.clone().map(|n| {

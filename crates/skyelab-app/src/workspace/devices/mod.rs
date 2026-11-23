@@ -11,7 +11,7 @@ use gpui::{
     PathPromptOptions, Subscription, Task, Window, prelude::*,
 };
 use gpui_component::{
-    dock::{BasePanel, DockPlacement, Panel, PanelEvent, panel_handle},
+    dock::{BasePanel, Panel, PanelEvent},
     input::{InputEvent, InputState},
 };
 use skyelab_devices::{Device, DeviceHub, DeviceState, Error, Listing, Platform};
@@ -410,9 +410,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Some(panel) = self.devices.as_ref().and_then(|p| p.upgrade()) {
-            let id = panel.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
+            self.show_right_panel(panel.entity_id().into(), window, cx);
             panel.read(cx).focus_handle(cx).focus(window, cx);
             return;
         }
@@ -421,15 +419,7 @@ impl Workspace {
             .get_or_insert_with(|| Arc::new(HubSource(DeviceHub::discover())))
             .clone();
         let panel = cx.new(|cx| DevicesPanel::new(source, window, cx));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
+        self.add_right_panel(panel.clone(), window, cx);
         panel.read(cx).focus_handle(cx).focus(window, cx);
         self.devices = Some(panel.downgrade());
         cx.notify();

@@ -6,10 +6,12 @@ use super::worktree;
 use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, account_label, lock};
 use gpui::{AppContext as _, Context, Entity, PathPromptOptions, SharedString, Window};
 use gpui_component::dock::{DockPlacement, panel_handle};
+
 use skyelab_store::Thread;
 use std::path::PathBuf;
 
-use super::panels::{SidebarItem, SidebarSection};
+use super::panels::{RowAccount, SidebarItem, SidebarSection};
+use crate::ui::Status;
 
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
@@ -24,6 +26,7 @@ impl Workspace {
                 match loaded {
                     Ok(projects) => {
                         this.projects = projects;
+                        this.resolve_project_accounts(cx);
                         let current = this.project.as_ref().map(|p| p.id);
                         if let Some(id) = select.or(current).or(this.projects.first().map(|p| p.id))
                         {
@@ -107,6 +110,7 @@ impl Workspace {
         self.folder = project.path.clone();
         self.folder_label = project.path.display().to_string().into();
         self.account = account_label(&self.config, &self.folder);
+        self.account_id = self.config.resolve(&self.folder).map(|a| a.id.clone());
         self.project = Some(project);
         self.threads.clear(); // never list another project's threads while this one's load
         self.refresh_sidebar(cx);
@@ -137,6 +141,30 @@ impl Workspace {
         }));
     }
 
+    /// Resolves each project's account in the background (it touches the disk), then redraws the sidebar. A newer
+    /// call replaces (cancels) an older one, so the latest config wins.
+    fn resolve_project_accounts(&mut self, cx: &mut Context<Self>) {
+        let config = self.config.clone();
+        let projects: Vec<(i64, PathBuf)> = self
+            .projects
+            .iter()
+            .map(|p| (p.id, p.path.clone()))
+            .collect();
+        let task = cx.background_spawn(async move {
+            projects
+                .into_iter()
+                .map(|(id, path)| (id, config.resolve(&path).cloned()))
+                .collect()
+        });
+        self._project_accounts = Some(cx.spawn(async move |this, cx| {
+            let resolved = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.project_accounts = resolved;
+                this.refresh_sidebar(cx);
+            });
+        }));
+    }
+
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
         if let Some(sections) = self.remote_sections(cx) {
             return self.sidebar.update(cx, |sidebar, cx| {
@@ -153,6 +181,23 @@ impl Workspace {
                 label: p.name.clone().into(),
                 selected: Some(p.id) == current,
                 action: Box::new(SelectProject { id: p.id }),
+                status: None,
+                updated_ms: None,
+                account: Some(match self.project_accounts.get(&p.id) {
+                    Some(Some(a)) => RowAccount::Bound(a.clone()),
+                    Some(None) => RowAccount::Unbound,
+                    None => RowAccount::Hidden,
+                }),
+            })
+            .collect();
+        // An open tab knows its thread's state now; the row is only as fresh as the last project load.
+        let live: std::collections::HashMap<i64, Status> = self
+            .open_threads
+            .iter()
+            .filter_map(|v| v.upgrade())
+            .filter_map(|v| {
+                let v = v.read(cx);
+                Some((v.thread.as_ref()?.id, v.live_status()))
             })
             .collect();
         let threads = self
@@ -163,6 +208,13 @@ impl Workspace {
                 label: t.title.clone().into(),
                 selected: false,
                 action: Box::new(OpenThread { id: t.id }),
+                status: Some(
+                    live.get(&t.id)
+                        .copied()
+                        .unwrap_or_else(|| Status::parse(&t.status)),
+                ),
+                updated_ms: Some(t.updated_at),
+                account: None,
             })
             .collect();
         let has_project = self.project.is_some();
@@ -175,19 +227,25 @@ impl Workspace {
                     empty_hint: "Add a folder to start. It runs on the account it is bound to."
                         .into(),
                     button: Some(("Add".into(), Box::new(AddProject))),
+                    nested: false,
                 },
                 SidebarSection {
                     title: "Threads".into(),
                     items: threads,
-                    empty_title: "No threads".into(),
+                    empty_title: "No threads yet".into(),
                     empty_hint: if has_project {
-                        "Start one with New."
+                        "Start one with New thread."
                     } else {
                         "Select a project to see its threads."
                     }
                     .into(),
-                    button: has_project
-                        .then(|| (SharedString::from("New"), Box::new(NewThread) as Box<_>)),
+                    button: has_project.then(|| {
+                        (
+                            SharedString::from("New thread"),
+                            Box::new(NewThread) as Box<_>,
+                        )
+                    }),
+                    nested: true,
                 },
             ];
             cx.notify();
@@ -289,6 +347,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Its state shows in the sidebar, so redraw that when the tab changes.
+        self._thread_events
+            .push(cx.observe(&view, |this, _, cx| this.refresh_sidebar(cx)));
         self._thread_events.push(cx.subscribe_in(
             &view,
             window,
@@ -299,7 +360,14 @@ impl Workspace {
                     let (config, cwd, account_id) =
                         (this.accounts_job(cx), cwd.clone(), account_id.clone());
                     let view = view.downgrade();
-                    let job = move || worktree::terminal_options(&config(), &cwd, &account_id);
+                    let job = move || {
+                        let config = config();
+                        let account = config.accounts.iter().find(|a| a.id == account_id).cloned();
+                        Ok((
+                            worktree::terminal_options(&config, &cwd, &account_id)?,
+                            account,
+                        ))
+                    };
                     this.open_terminal(
                         job,
                         |_, _| true,
@@ -332,7 +400,7 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The Changes tab for the thread's folder: refreshed and selected if one is open, else added.
+    /// The Changes tab for the thread's folder, in the right dock: refreshed and selected if one is open, else added.
     pub(super) fn open_changes(
         &mut self,
         view: &Entity<ThreadView>,
@@ -359,22 +427,12 @@ impl Workspace {
                 c.thread = Some(thread);
                 c.refresh(cx)
             });
-            let id = changes.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
+            self.show_right_panel(changes.entity_id().into(), window, cx);
             return;
         }
         let title = view.read(cx).title();
         let changes = cx.new(|cx| ChangesView::new(dir, base, title, Some(view), window, cx));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(changes.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
+        self.add_right_panel(changes.clone(), window, cx);
         self.changes_views.push(changes.downgrade());
         cx.notify();
     }
@@ -400,6 +458,10 @@ impl Workspace {
 
     /// Settings saved: open threads start their next session from the new bindings.
     pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
+        crate::ui::set_accounts(cx, &self.config);
+        // Show nothing rather than the previous binding until the new one is resolved.
+        self.project_accounts.clear();
+        self.resolve_project_accounts(cx);
         super::orchestrate::set_config(cx, &self.config);
         let config = self.config.clone();
         for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {

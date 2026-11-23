@@ -10,6 +10,20 @@ thread of the current project to open, or an open tab to go to. Type a few lette
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
 
+## Layout
+
+The sidebar lists your projects, each with the account its folder is bound to; the selected project's threads sit
+under it with their state (**Working**, **Interrupted**, **Failed**) or how long ago they last changed. Threads open
+in the center. Tools open in the right panel beside the thread: **Changes**, browsers and **Devices**. Settings and
+Remote open in the center.
+
+The three buttons at the right end of the center's tab bar show and hide the sidebar (<kbd>⌘B</kbd>), the terminal
+drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag a panel's edge to resize it.
+
+SkyeLab remembers the window's size and position and the right panel's width and whether it was open, in
+`settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
+no longer connected is ignored.
+
 ## Accounts and bindings
 
 SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
@@ -46,7 +60,7 @@ In Settings, under **Folder bindings**, pick the account and click **Bind folder
 now runs on that account. A deeper binding wins over a shallower one, so you can bind `~/work` to your work account
 and `~/work/oss-fork` to your personal one. Use **Test folder** to check which account a path resolves to.
 
-The status bar shows the account for the current folder, or **No account bound**. If you send a prompt in an unbound
+The status bar shows the account for the current folder, or **No account** in the warning color. If you send a prompt in an unbound
 folder, the thread asks you to bind it first and offers a **Bind this folder to an account** button.
 
 ### Stale bindings and Re-confirm
@@ -96,8 +110,8 @@ event, and saves them in order once the store works again. Closing the tab or qu
 Closing a thread's tab or quitting SkyeLab stops its agent. A thread that was still running when SkyeLab last closed
 without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
 
-The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
-tab for your dev server.
+The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
+as. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
 
 A terminal runs as the folder's account: `claude` or `codex` typed there uses that account's config dir, and
 `gh` and `git push` over https use its GitHub login when it has one (without one, `gh` keeps your default login

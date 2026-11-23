@@ -2,6 +2,8 @@ mod environment;
 mod palette;
 mod remote;
 mod settings;
+mod ui;
+mod window_layout;
 mod workspace;
 
 #[cfg(unix)]
@@ -25,6 +27,8 @@ fn window_options(bounds: Bounds<gpui::Pixels>) -> WindowOptions {
         } else {
             WindowKind::Normal
         },
+        titlebar: Some(ui::titlebar_options()),
+        window_min_size: Some(size(px(800.), px(560.))),
         ..Default::default()
     }
 }
@@ -229,79 +233,94 @@ fn main() {
         None => (AccountsConfig::default(), None),
     };
 
-    gpui_platform::application().run(move |cx: &mut App| {
-        gpui_component::init(cx);
-        settings::init(cx);
-        skyelab_terminal::init(cx);
-        workspace::init(cx);
-        cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
-            Some(bin) if cfg!(debug_assertions) => bin.into(),
-            _ => "gh".into(),
-        }));
-        cx.set_global(workspace::CodexBin(agent_bin(
-            std::env::var_os("SKYELAB_CODEX_BIN"),
-            cfg!(debug_assertions),
-            "codex",
-        )));
-        if let Some(path) = &path {
-            cx.set_global(workspace::AccountsFile(path.clone()));
-        }
-        // Home until a project is selected.
-        let folder = dirs::home_dir().unwrap_or_default();
-        let (mut store, store_error) = open_store();
-        let slot = remote::DaemonSlot::default();
-        remote::push_events(&mut store, slot.clone());
-        let store = Arc::new(Mutex::new(store));
-        let (agents, calls) = remote::UiAgents::new();
-        let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
-        let device_key = device_key();
-        let host = remote::Host {
-            settings_path: AppSettings::default_path(),
-            tailnet: tailnet.clone(),
-            config: skyelab_daemon::Config::default(),
-            backend: Arc::new(skyelab_daemon::StoreBackend::shared(
-                store.clone(),
-                agents,
-                path.clone(),
-            )),
-            slot,
-        };
-        let remote = cx.new(|cx| remote::Remote::new(host, cx));
-        let backend = workspace::Backend {
-            store,
-            claude_bin: agent_bin(
-                std::env::var_os("SKYELAB_CLAUDE_BIN"),
+    gpui_platform::application()
+        .with_assets(gpui_kit_assets::Assets)
+        .run(move |cx: &mut App| {
+            gpui_component::init(cx);
+            if let Err(e) = ui::install_theme(cx) {
+                eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
+            }
+            settings::init(cx);
+            skyelab_terminal::init(cx);
+            workspace::init(cx);
+            cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
+                Some(bin) if cfg!(debug_assertions) => bin.into(),
+                _ => "gh".into(),
+            }));
+            cx.set_global(workspace::CodexBin(agent_bin(
+                std::env::var_os("SKYELAB_CODEX_BIN"),
                 cfg!(debug_assertions),
-                "claude",
-            ),
-        };
-        #[cfg(unix)]
-        let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
-        let bounds = Bounds::centered(None, size(px(1200.), px(800.)), cx);
-        let opened = cx.open_window(window_options(bounds), |window, cx| {
-            let view = cx.new(|cx| {
-                let mut ws =
-                    workspace::Workspace::new(folder, path, config, error, backend, window, cx);
-                ws.store_error = store_error.map(Into::into);
-                ws.set_remote(remote, calls, window, cx);
-                let mut options = environment::client_options(tailnet.clone());
-                options.device_key = device_key.clone();
-                ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
-                #[cfg(unix)]
-                if let Some(o) = orchestrate {
-                    ws.set_orchestrator(o, window, cx);
-                }
-                ws
+                "codex",
+            )));
+            if let Some(path) = &path {
+                cx.set_global(workspace::AccountsFile(path.clone()));
+            }
+            // Home until a project is selected.
+            let folder = dirs::home_dir().unwrap_or_default();
+            let (mut store, store_error) = open_store();
+            let slot = remote::DaemonSlot::default();
+            remote::push_events(&mut store, slot.clone());
+            let store = Arc::new(Mutex::new(store));
+            let (agents, calls) = remote::UiAgents::new();
+            let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
+            let device_key = device_key();
+            let host = remote::Host {
+                settings_path: AppSettings::default_path(),
+                tailnet: tailnet.clone(),
+                config: skyelab_daemon::Config::default(),
+                backend: Arc::new(skyelab_daemon::StoreBackend::shared(
+                    store.clone(),
+                    agents,
+                    path.clone(),
+                )),
+                slot,
+            };
+            let remote = cx.new(|cx| remote::Remote::new(host, cx));
+            let backend = workspace::Backend {
+                store,
+                claude_bin: agent_bin(
+                    std::env::var_os("SKYELAB_CLAUDE_BIN"),
+                    cfg!(debug_assertions),
+                    "claude",
+                ),
+            };
+            #[cfg(unix)]
+            let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
+            // The last frame when it still shows on a connected display, else most of the primary display.
+            let saved = AppSettings::default_path()
+                .and_then(|p| AppSettings::load(&p).ok())
+                .and_then(|s| s.window);
+            let displays: Vec<_> = cx.displays().iter().map(|d| d.bounds()).collect();
+            let visible = cx.primary_display().map_or_else(
+                || Bounds::centered(None, size(px(1200.), px(800.)), cx),
+                |d| d.visible_bounds(),
+            );
+            let bounds = window_layout::initial_bounds(saved.as_ref(), &displays, visible);
+            let opened = cx.open_window(window_options(bounds), |window, cx| {
+                let view = cx.new(|cx| {
+                    let mut ws =
+                        workspace::Workspace::new(folder, path, config, error, backend, window, cx);
+                    ws.store_error = store_error.map(Into::into);
+                    ws.set_remote(remote, calls, window, cx);
+                    let mut options = environment::client_options(tailnet.clone());
+                    options.device_key = device_key.clone();
+                    ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
+                    ws.restore_layout(AppSettings::default_path(), saved.as_ref(), window, cx);
+                    #[cfg(unix)]
+                    if let Some(o) = orchestrate {
+                        ws.set_orchestrator(o, window, cx);
+                    }
+                    ws
+                });
+                let focus = view.read(cx).focus_handle(cx);
+                window.focus(&focus, cx);
+                dispatch_verify_actions(window, cx);
+                cx.new(|cx| Root::new(view, window, cx))
             });
-            let focus = view.read(cx).focus_handle(cx);
-            window.focus(&focus, cx);
-            dispatch_verify_actions(window, cx);
-            cx.new(|cx| Root::new(view, window, cx))
+            if let Err(e) = opened {
+                eprintln!("failed to open window: {e:#}");
+                cx.quit();
+            }
+            cx.activate(true);
         });
-        if let Err(e) = opened {
-            eprintln!("failed to open window: {e:#}");
-            cx.quit();
-        }
-        cx.activate(true);
-    });
 }

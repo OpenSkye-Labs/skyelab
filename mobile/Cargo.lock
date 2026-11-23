@@ -6510,6 +6510,7 @@ dependencies = [
  "anyhow",
  "dirs 7.0.0",
  "serde",
+ "tempfile",
  "toml 1.2.2+spec-1.1.0",
 ]
 
@@ -6588,6 +6589,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "skyelab-core",
  "thiserror 2.0.21",
 ]
 

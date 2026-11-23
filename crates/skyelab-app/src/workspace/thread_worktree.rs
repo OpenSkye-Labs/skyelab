@@ -150,19 +150,14 @@ impl ThreadView {
             return None;
         }
         Some(
-            div()
-                .px_4()
-                .pb_1()
-                .child(
-                    Checkbox::new("use-worktree")
-                        .small()
-                        .label("Run in a new worktree")
-                        .checked(self.wt.use_worktree)
-                        .tooltip("A git worktree on a new skyelab/… branch, inside this project")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.toggle_worktree(&ToggleWorktree, window, cx)
-                        })),
-                )
+            Checkbox::new("use-worktree")
+                .xsmall()
+                .label("Run in a new worktree")
+                .checked(self.wt.use_worktree)
+                .tooltip("A git worktree on a new skyelab/… branch, inside this project")
+                .on_click(cx.listener(|this, _, window, cx| {
+                    this.toggle_worktree(&ToggleWorktree, window, cx)
+                }))
                 .into_any_element(),
         )
     }
@@ -176,7 +171,7 @@ impl ThreadView {
             .gap_2()
             .child(
                 Button::new("open-changes")
-                    .outline()
+                    .ghost()
                     .xsmall()
                     .label("Changes")
                     .on_click(cx.listener(|this, _, window, cx| {
@@ -186,7 +181,7 @@ impl ThreadView {
             .when(has_worktree, |this| {
                 this.child(
                     Button::new("worktree-terminal")
-                        .outline()
+                        .ghost()
                         .xsmall()
                         .label("Open terminal here")
                         .on_click(cx.listener(|this, _, window, cx| {
@@ -195,7 +190,7 @@ impl ThreadView {
                 )
                 .child(
                     Button::new("discard-worktree")
-                        .outline()
+                        .ghost()
                         .xsmall()
                         .label("Discard worktree")
                         .on_click(cx.listener(|this, _, window, cx| {

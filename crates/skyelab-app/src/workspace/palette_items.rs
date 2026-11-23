@@ -85,20 +85,20 @@ impl Workspace {
         }
         for view in self.changes_views.iter().filter_map(|v| v.upgrade()) {
             let title = view.read(cx).title();
-            tabs.push(self.tab(title, &view, cx));
+            tabs.push(self.tab_in(DockPlacement::Right, title, &view, cx));
         }
         for (i, panel) in self.terminals.iter().enumerate() {
             let title = format!("Terminal {}", i + 1).into();
             tabs.push(self.tab_in(DockPlacement::Bottom, title, panel, cx));
         }
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {
-            tabs.push(self.tab("Browser".into(), &panel, cx));
+            tabs.push(self.tab_in(DockPlacement::Right, "Browser".into(), &panel, cx));
         }
         if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
             tabs.push(self.tab("Settings".into(), &settings, cx));
         }
         if let Some(devices) = self.devices.as_ref().and_then(|d| d.upgrade()) {
-            tabs.push(self.tab("Devices".into(), &devices, cx));
+            tabs.push(self.tab_in(DockPlacement::Right, "Devices".into(), &devices, cx));
         }
         tabs
     }

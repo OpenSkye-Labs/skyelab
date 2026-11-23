@@ -1,12 +1,13 @@
 //! The workspace's dock panels and the dock traits each one needs.
 
 use crate::settings::Settings;
+use crate::ui;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
+    ActiveTheme as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -16,12 +17,16 @@ use gpui_component::{
 use skyelab_browser::BrowserView;
 use skyelab_terminal::TerminalView;
 
-/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
+/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar. `center` panels
+/// carry the dock toggles at the end of their tab bar.
 macro_rules! panel {
     ($ty:ty, $name:literal, closable: $closable:literal, |$this:ident| $title:expr) => {
-        panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
+        panel!($ty, $name, closable: $closable, title_bar: true, toggles: false, |$this| $title);
     };
-    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, $(removed: $removed:ident,)? |$this:ident| $title:expr) => {
+    ($ty:ty, $name:literal, closable: $closable:literal, center, |$this:ident| $title:expr) => {
+        panel!($ty, $name, closable: $closable, title_bar: true, toggles: true, |$this| $title);
+    };
+    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, toggles: $toggles:literal, $(removed: $removed:ident,)? |$this:ident| $title:expr) => {
         impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
@@ -50,142 +55,19 @@ macro_rules! panel {
             fn title_bar(&self, _: &App) -> bool {
                 $title_bar
             }
+            fn toolbar_buttons(
+                &mut self,
+                _: &mut Window,
+                cx: &mut Context<Self>,
+            ) -> Option<Vec<gpui_component::button::Button>> {
+                $toggles.then(|| crate::workspace::layout::dock_toggles(cx))
+            }
         }
     };
 }
 
-/// A row in a sidebar section. `id` is the domain id (project path, thread id), so it stays stable.
-pub struct SidebarItem {
-    pub id: SharedString,
-    pub label: SharedString,
-    pub selected: bool,
-    /// Dispatched when the row is clicked.
-    pub action: Box<dyn Action>,
-}
-
-/// One titled group in the sidebar, with what to show while it is empty.
-pub struct SidebarSection {
-    pub title: SharedString,
-    pub items: Vec<SidebarItem>,
-    pub empty_title: SharedString,
-    pub empty_hint: SharedString,
-    /// A small button next to the title, e.g. "Add".
-    pub button: Option<(SharedString, Box<dyn Action>)>,
-}
-
-pub struct Sidebar {
-    pub sections: Vec<SidebarSection>,
-    /// The environment switcher, drawn in place of the title once the workspace sets it.
-    pub picker: Option<Entity<super::env_picker::EnvPicker>>,
-    focus: FocusHandle,
-}
-
-impl Sidebar {
-    pub fn new(sections: Vec<SidebarSection>, cx: &mut Context<Self>) -> Self {
-        Self {
-            sections,
-            picker: None,
-            focus: cx.focus_handle(),
-        }
-    }
-}
-
-// The sidebar draws its own header.
-panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
-
-impl Render for Sidebar {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        let section = |s: &SidebarSection| {
-            let body = if s.items.is_empty() {
-                v_flex()
-                    .gap_1()
-                    .px_3()
-                    .py_3()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(theme.sidebar_border)
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.sidebar_foreground)
-                            .child(s.empty_title.clone()),
-                    )
-                    .child(
-                        div()
-                            .text_xs()
-                            .line_height(gpui::rems(1.1))
-                            .text_color(theme.muted_foreground)
-                            .child(s.empty_hint.clone()),
-                    )
-            } else {
-                v_flex().gap_0p5().children(s.items.iter().map(|item| {
-                    let action = item.action.boxed_clone();
-                    div()
-                        .id(item.id.clone())
-                        .px_2()
-                        .py_1()
-                        .rounded_md()
-                        .text_sm()
-                        .truncate()
-                        .cursor_pointer()
-                        .when(item.selected, |this| this.bg(theme.sidebar_accent))
-                        .hover(|this| this.bg(theme.sidebar_accent))
-                        .on_click(move |_, window, cx| {
-                            window.dispatch_action(action.boxed_clone(), cx)
-                        })
-                        .child(item.label.clone())
-                }))
-            };
-            v_flex()
-                .gap_2()
-                .child(
-                    h_flex()
-                        .justify_between()
-                        .child(
-                            div()
-                                .px_1()
-                                .text_xs()
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(theme.muted_foreground)
-                                .child(s.title.to_uppercase()),
-                        )
-                        .children(s.button.as_ref().map(|(label, action)| {
-                            let action = action.boxed_clone();
-                            Button::new(SharedString::from(format!("section-{}", s.title)))
-                                .ghost()
-                                .xsmall()
-                                .label(label.clone())
-                                .on_click(move |_, window, cx| {
-                                    window.dispatch_action(action.boxed_clone(), cx)
-                                })
-                        })),
-                )
-                .child(body)
-        };
-        v_flex()
-            .id("sidebar")
-            .track_focus(&self.focus)
-            .size_full()
-            .overflow_y_scroll()
-            .px_3()
-            .pt_4()
-            .pb_3()
-            .gap_6()
-            .bg(theme.sidebar)
-            .text_color(theme.sidebar_foreground)
-            .child(match &self.picker {
-                Some(picker) => picker.clone().into_any_element(),
-                None => div()
-                    .px_1()
-                    .text_base()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("SkyeLab")
-                    .into_any_element(),
-            })
-            .children(self.sections.iter().map(section))
-    }
-}
+mod sidebar;
+pub use sidebar::{RowAccount, Sidebar, SidebarItem, SidebarSection};
 
 /// The center's first tab: what SkyeLab is and the keys that do things today.
 pub struct Welcome {
@@ -200,25 +82,22 @@ impl Welcome {
     }
 }
 
-panel!(Welcome, "Welcome", closable: false, |_this| "Welcome");
+panel!(Welcome, "Welcome", closable: false, center, |_this| "Welcome");
 
 impl Render for Welcome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let shortcut = |label: &'static str, key: &'static str, action: Box<dyn Action>| {
-            h_flex()
+            div()
                 .id(label)
                 .w_full()
-                .justify_between()
-                .px_2()
+                .px_2p5()
                 .py_1p5()
-                .rounded_md()
-                .text_sm()
+                .rounded(ui::RADIUS)
                 .cursor_pointer()
-                .hover(|this| this.bg(theme.secondary))
+                .hover(|this| this.bg(theme.accent))
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-                .child(div().text_color(theme.foreground).child(label))
-                .children(Keystroke::parse(key).ok().map(Kbd::new))
+                .child(ui::KeyHint::new(label, key))
         };
         v_flex()
             .id("welcome")
@@ -229,27 +108,16 @@ impl Render for Welcome {
             .bg(theme.background)
             .child(
                 v_flex()
-                    .w(gpui::px(340.))
+                    .w(gpui::px(384.))
                     .gap_6()
                     .child(
-                        v_flex()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_xl()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_color(theme.foreground)
-                                    .child("No thread open"),
-                            )
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(theme.muted_foreground)
-                                    .child("Every folder runs on the account it is bound to."),
-                            ),
+                        ui::EmptyState::new("Pick a thread to continue")
+                            .hint("Or start one from a project in the sidebar. Every folder runs on the account it is bound to.")
+                            .page(),
                     )
                     .child(
                         v_flex()
+                            .gap_0p5()
                             .child(shortcut(
                                 "Toggle sidebar",
                                 super::TOGGLE_SIDEBAR_KEY,
@@ -264,6 +132,11 @@ impl Render for Welcome {
                                 "New terminal",
                                 super::NEW_TERMINAL_KEY,
                                 Box::new(super::NewTerminal),
+                            ))
+                            .child(shortcut(
+                                "Command palette",
+                                crate::palette::OPEN_PALETTE_KEY,
+                                Box::new(crate::palette::OpenCommandPalette),
                             ))
                             .child(shortcut(
                                 "Accounts and folders",
@@ -299,7 +172,8 @@ impl Render for TerminalsEmpty {
             .size_full()
             .justify_center()
             .gap_2()
-            .text_sm()
+            .bg(theme.background)
+            .text_size(ui::BODY)
             .text_color(theme.muted_foreground)
             .child("No terminal running. Press")
             .children(Keystroke::parse(super::NEW_TERMINAL_KEY).ok().map(Kbd::new))
@@ -311,16 +185,36 @@ impl Render for TerminalsEmpty {
 pub struct TerminalPanel {
     pub view: Entity<TerminalView>,
     title: SharedString,
+    /// The account the shell was started under (`None`: unbound folder), shown on its tab.
+    account: Option<skyelab_core::Account>,
 }
 
 impl TerminalPanel {
-    pub fn new(view: Entity<TerminalView>, title: SharedString) -> Self {
-        Self { view, title }
+    pub fn new(
+        view: Entity<TerminalView>,
+        title: SharedString,
+        account: Option<skyelab_core::Account>,
+    ) -> Self {
+        Self {
+            view,
+            title,
+            account,
+        }
     }
 }
 
 // shortcut: terminal tabs can't be closed yet (the workspace owns their PTYs), add closing with tab management.
-panel!(TerminalPanel, "Terminal", closable: false, |this| this.title.clone());
+panel!(TerminalPanel, "Terminal", closable: false, |this| {
+    h_flex()
+        .gap_2()
+        .child(this.title.clone())
+        .child(
+            this.account
+                .as_ref()
+                .map_or_else(ui::AccountBadge::unbound, ui::AccountBadge::of)
+                .chip(),
+        )
+});
 
 impl Focusable for TerminalPanel {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
@@ -334,10 +228,44 @@ impl Render for TerminalPanel {
     }
 }
 
-panel!(Settings, "Settings", closable: true, |_this| "Settings");
-panel!(super::thread::ThreadView, "Thread", closable: true, |this| this.title());
-panel!(crate::remote::RemotePanel, "Remote", closable: true, |_this| "Remote");
-panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, title_bar: true, removed: closed, |this| this.title());
+panel!(Settings, "Settings", closable: true, center, |_this| "Settings");
+panel!(super::thread::ThreadView, "Thread", closable: true, center, |this| this.title());
+panel!(crate::remote::RemotePanel, "Remote", closable: true, center, |_this| "Remote");
+panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, title_bar: true, toggles: true, removed: closed, |this| this.title());
+
+/// The right dock's content while no tool is open in it.
+pub struct RightEmpty {
+    focus: FocusHandle,
+}
+
+impl RightEmpty {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        Self {
+            focus: cx.focus_handle(),
+        }
+    }
+}
+
+panel!(RightEmpty, "RightEmpty", closable: false, |_this| "Tools");
+
+impl Render for RightEmpty {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .id("right-empty")
+            .track_focus(&self.focus)
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .p_6()
+            .bg(cx.theme().background)
+            .child(
+                ui::EmptyState::new("Nothing open here").hint(
+                    "Changes, the browser and devices open on this side, next to the thread.",
+                ),
+            )
+    }
+}
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
@@ -407,29 +335,49 @@ impl Render for BrowserPanel {
         let theme = cx.theme();
         // Drawn above the page: the native webview covers anything inside its own bounds.
         let bar = self.agent.as_ref().map(|a| {
+            // T3's warning surface: the warning color tinted under foreground text, a hairline below.
             h_flex()
                 .id("agent-bar")
+                .h(gpui::px(36.))
                 .gap_2()
-                .px_2()
-                .py_1()
-                .bg(theme.warning)
-                .text_color(gpui::black()) // the theme's warning_foreground is barely readable on warning
-                .text_sm()
+                .px_3()
+                .bg(theme.warning.opacity(0.14))
+                .border_b_1()
+                .border_color(theme.warning.opacity(0.4))
+                .text_color(theme.foreground)
+                .text_size(ui::BODY)
+                .child(ui::StatusDot::new(theme.warning))
                 .child(
-                    div()
+                    h_flex()
                         .flex_1()
-                        .child(format!("Agent is controlling this tab ({})", a.title)),
+                        .min_w_0()
+                        .gap_1()
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .child("Agent is controlling this tab"),
+                        )
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_color(theme.muted_foreground)
+                                .child(format!("({})", a.title)),
+                        ),
                 )
                 .child(
                     Button::new("take-over")
                         .label("Take over")
-                        .small()
+                        .primary()
+                        .xsmall()
                         .on_click(cx.listener(|this, _, _, cx| this.take_over(cx))),
                 )
                 .child(
                     Button::new("close-agent-tab")
                         .label("Close")
-                        .small()
+                        .ghost()
+                        .xsmall()
                         .on_click(cx.listener(|_, _, _, cx| cx.emit(CloseBrowser))),
                 )
         });
@@ -449,4 +397,4 @@ macro_rules! focusable {
         }
     )*};
 }
-focusable!(Sidebar, Welcome, TerminalsEmpty);
+focusable!(Sidebar, Welcome, TerminalsEmpty, RightEmpty);

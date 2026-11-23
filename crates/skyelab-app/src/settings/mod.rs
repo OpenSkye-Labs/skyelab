@@ -486,26 +486,50 @@ impl Render for Settings {
             .on_action(cx.listener(Self::reconfirm_binding))
             .size_full()
             .overflow_y_scroll()
-            .p_4()
-            .flex()
-            .flex_col()
-            .gap_3()
             .bg(theme.background)
             .text_color(theme.foreground)
-            .child(div().text_xl().child("SkyeLab · Accounts"))
-            .children(self.error.clone().map(|e| {
+            .child(
+                // T3's settings page: 896 wide, 24 padding, 32 between sections.
                 div()
-                    .id("settings-error")
-                    .p_2()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(theme.danger)
-                    .text_color(theme.danger)
-                    .child(e)
-            }))
-            .child(self.render_accounts(cx))
-            .child(self.render_bindings(cx))
-            .child(self.render_test(cx))
+                    .w_full()
+                    .max_w(crate::ui::PAGE_MAX_W)
+                    .mx_auto()
+                    .px_6()
+                    .pt_6()
+                    .pb_12()
+                    .flex()
+                    .flex_col()
+                    .gap_8()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(crate::ui::page_title("Settings", theme))
+                            .child(
+                                div()
+                                    .text_size(crate::ui::BODY)
+                                    .text_color(theme.muted_foreground)
+                                    .child("Every folder runs on the account it is bound to. SkyeLab never picks one for you."),
+                            ),
+                    )
+                    .children(self.error.clone().map(|e| {
+                        div()
+                            .id("settings-error")
+                            .px_4()
+                            .py_3()
+                            .rounded(crate::ui::RADIUS_LG)
+                            .bg(theme.danger.opacity(0.1))
+                            .border_1()
+                            .border_color(theme.danger.opacity(0.35))
+                            .text_size(crate::ui::BODY)
+                            .text_color(crate::ui::ink(theme, theme.danger))
+                            .child(e)
+                    }))
+                    .child(self.render_accounts(cx))
+                    .child(self.render_bindings(cx))
+                    .child(self.render_test(cx)),
+            )
     }
 }
 

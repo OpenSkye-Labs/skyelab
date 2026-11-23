@@ -11,7 +11,7 @@ with no binding doesn't fall back to a default. SkyeLab asks you to bind it firs
 
 > **Status: early, pre-release.** Expect rough edges and breaking changes. macOS is the main platform.
 
-![A thread running Claude Code in a worktree](docs/images/thread.png)
+![A thread with its Changes open in the right panel](docs/images/thread.png)
 
 ## Features
 
@@ -28,7 +28,7 @@ What's built today:
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
 - **Worktrees and diff review.** Tick "Run in a new worktree" and the thread gets its own git worktree on a
-  `skyelab/<slug>` branch. The Changes tab shows a coloured diff of what the agent did, and you can discard the worktree.
+  `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
   switches project, opens a thread or goes to an open tab.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.

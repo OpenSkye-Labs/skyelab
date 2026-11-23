@@ -3,13 +3,14 @@
 
 use super::changes_model::{self, Changes, LineKind, Row};
 use super::thread::ThreadView;
+use crate::ui;
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString, Task,
     UniformListScrollHandle, Window, actions, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::Button,
+    ActiveTheme as _, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
     h_flex,
     input::{InputState, TextareaState},
@@ -23,6 +24,8 @@ use std::path::PathBuf;
 actions!(skyelab, [RefreshChanges]);
 
 const ROW_HEIGHT: f32 = 20.;
+/// The file list's rows, T3's 28.
+const FILE_ROW_HEIGHT: f32 = 28.;
 
 pub struct ChangesView {
     focus: FocusHandle,
@@ -154,17 +157,22 @@ impl ChangesView {
                             Some(old) => format!("{} → {}", old.display(), f.path.display()),
                             None => f.path.display().to_string(),
                         };
-                        base.px_2()
+                        // T3's file header: sans 12, medium, on the muted surface with a hairline.
+                        base.px_3()
                             .gap_2()
-                            .bg(theme.secondary)
-                            .font_weight(FontWeight::SEMIBOLD)
+                            .bg(theme.muted)
+                            .border_t_1()
+                            .border_color(theme.border)
+                            .font_family(theme.font_family.clone())
+                            .font_weight(FontWeight::MEDIUM)
                             .child(kind_badge(f.kind, cx))
                             .child(name)
                     }
                     Row::Hunk(h) => base
-                        .px_2()
-                        .text_color(theme.muted_foreground)
-                        .bg(theme.muted)
+                        .px_3()
+                        .font_family(theme.font_family.clone())
+                        .text_size(px(11.))
+                        .text_color(theme.muted_foreground.opacity(0.7))
                         .child(h.clone()),
                     Row::Placeholder(p) => base
                         .px_2()
@@ -186,8 +194,8 @@ impl ChangesView {
                     } => {
                         let (sign, bg) = match kind {
                             LineKind::Context => (" ", None),
-                            LineKind::Added => ("+", Some(theme.success.opacity(0.15))),
-                            LineKind::Removed => ("-", Some(theme.danger.opacity(0.15))),
+                            LineKind::Added => ("+", Some(theme.success.opacity(0.12))),
+                            LineKind::Removed => ("-", Some(theme.danger.opacity(0.12))),
                         };
                         base.when_some(bg, |b, bg| b.bg(bg))
                             .child(num(*old))
@@ -231,12 +239,13 @@ impl ChangesView {
                 h_flex()
                     .id(("file", ix))
                     .w_full()
-                    .h(px(ROW_HEIGHT))
+                    .h(px(FILE_ROW_HEIGHT))
                     .px_2()
                     .gap_2()
-                    .text_xs()
+                    .text_size(ui::META)
+                    .rounded(ui::RADIUS_MD)
                     .cursor_pointer()
-                    .hover(|s| s.bg(theme.secondary))
+                    .hover(|s| s.bg(theme.accent))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.scroll.scroll_to_item(row, ScrollStrategy::Top);
                         cx.notify();
@@ -268,7 +277,8 @@ fn kind_badge(kind: ChangeKind, cx: &App) -> impl IntoElement {
         ChangeKind::Deleted => ("D", theme.danger),
         ChangeKind::Renamed => ("R", theme.info),
         ChangeKind::Copied => ("C", theme.info),
-        ChangeKind::Modified | ChangeKind::TypeChanged => ("M", theme.warning),
+        // T3 gives modified files a muted blue so added and deleted ones lead.
+        ChangeKind::Modified | ChangeKind::TypeChanged => ("M", theme.info.opacity(0.75)),
         ChangeKind::Unmerged => ("U", theme.danger),
     };
     div()
@@ -293,7 +303,7 @@ impl Render for ChangesView {
             file_count,
             cx.processor(|this, range, _, cx| this.render_files(range, cx)),
         )
-        .w(px(240.))
+        .w(px(200.))
         .flex_none()
         .h_full()
         .border_r_1()
@@ -303,34 +313,35 @@ impl Render for ChangesView {
         let theme = cx.theme();
         let count = self.changes.as_ref().map(|c| c.rows.len()).unwrap_or(0);
         let empty = self.changes.as_ref().is_some_and(|c| c.files.is_empty());
-        let header = h_flex()
+        let header = ui::header(theme)
+            .h(px(40.))
             .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(theme.border)
             .child(
-                v_flex()
+                h_flex()
                     .flex_1()
                     .min_w_0()
+                    .gap_2()
                     .child(
                         div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
+                            .flex_shrink_0()
+                            .text_size(ui::BODY)
+                            .font_weight(FontWeight::MEDIUM)
                             .child(self.title()),
                     )
                     .child(
                         div()
-                            .text_xs()
+                            .min_w_0()
                             .truncate()
+                            .text_size(ui::META)
                             .text_color(theme.muted_foreground)
-                            .child(self.dir.display().to_string()),
+                            .child(ui::short_path(&self.dir, dirs::home_dir().as_deref())),
                     ),
             )
             .child(
                 Button::new("refresh-changes")
-                    .outline()
+                    .ghost()
                     .xsmall()
+                    .icon(IconName::RefreshCw)
                     .label("Refresh")
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.on_refresh(&RefreshChanges, window, cx)
@@ -339,20 +350,25 @@ impl Render for ChangesView {
         let body = if let Some(e) = &self.error {
             div()
                 .p_4()
-                .text_sm()
-                .text_color(theme.danger)
+                .text_size(ui::BODY)
+                .text_color(crate::ui::ink(theme, theme.danger))
                 .child(e.clone())
                 .into_any_element()
         } else if empty {
             div()
-                .p_4()
-                .text_sm()
-                .text_color(theme.muted_foreground)
-                .child(if self.base.is_some() {
-                    "No changes since this worktree was created."
-                } else {
-                    "No changes against HEAD."
-                })
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    ui::EmptyState::new("Nothing to review")
+                        .hint(if self.base.is_some() {
+                            "No changes since this worktree was created."
+                        } else {
+                            "No changes against HEAD."
+                        })
+                        .page(),
+                )
                 .into_any_element()
         } else {
             h_flex()

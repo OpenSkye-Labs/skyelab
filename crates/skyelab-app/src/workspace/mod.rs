@@ -10,7 +10,10 @@ mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
+pub(crate) mod layout;
+mod settings_tab;
 mod terminal_launch;
+mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
 pub(crate) mod github;
 #[cfg(unix)]
@@ -42,14 +45,13 @@ use gpui::{
     Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Theme,
+    ActiveTheme as _,
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
     v_flex,
 };
-use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
+use panels::{BrowserPanel, RightEmpty, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
-use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thread::ThreadView;
@@ -124,6 +126,7 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
         ]);
     }
+    layout::bind_keys(cx);
     crate::palette::init(cx);
 }
 
@@ -142,7 +145,17 @@ pub struct Workspace {
     config: AccountsConfig,
     load_error: Option<String>,
     account: Option<SharedString>,
+    /// The id of `account`, for its color.
+    account_id: Option<String>,
+    /// Each project's account (`None`: unbound), resolved off the UI thread since resolving touches the disk.
+    project_accounts: std::collections::HashMap<i64, Option<skyelab_core::Account>>,
+    _project_accounts: Option<Task<()>>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
+    /// The right dock's placeholder until a tool opens there.
+    right_empty: Option<Entity<RightEmpty>>,
+    layout: layout::LayoutStore,
+    _window_bounds: Option<Subscription>,
+    _dock_events: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
@@ -192,14 +205,15 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Theme::sync_system_appearance(Some(window), cx);
+        crate::ui::sync_appearance(window, cx);
         let _appearance = cx.observe_window_appearance(window, |_, window, cx| {
-            Theme::sync_system_appearance(Some(window), cx);
+            crate::ui::sync_appearance(window, cx);
         });
 
         let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
         let welcome = cx.new(Welcome::new);
         let terminals_empty = cx.new(TerminalsEmpty::new);
+        let right_empty = cx.new(RightEmpty::new);
 
         let (dock, skin) = DockSkin::dock_area("workspace", None, window, cx);
         skin.set_toggle_button_visible(false, cx);
@@ -212,7 +226,7 @@ impl Workspace {
                 window,
                 cx,
             );
-            dock.set_dock_size(DockPlacement::Left, px(260.), window, cx);
+            dock.set_dock_size(DockPlacement::Left, px(256.), window, cx);
             dock.set_dock(
                 DockPlacement::Bottom,
                 tabs(panel_handle(terminals_empty.clone()), cx),
@@ -221,12 +235,27 @@ impl Workspace {
             );
             dock.set_dock_size(DockPlacement::Bottom, px(280.), window, cx);
             dock.toggle_dock(DockPlacement::Bottom, window, cx);
+            dock.set_dock(
+                DockPlacement::Right,
+                tabs(panel_handle(right_empty.clone()), cx),
+                window,
+                cx,
+            );
+            dock.set_dock_size(DockPlacement::Right, layout::RIGHT_DEFAULT_W, window, cx);
+            dock.toggle_dock(DockPlacement::Right, window, cx);
+        });
+        let _dock_events = cx.subscribe_in(&dock, window, |this, _, e, window, cx| {
+            this.dock_changed(e, window, cx)
         });
 
+        crate::ui::set_accounts(cx, &config);
         let mut this = Self {
             focus: cx.focus_handle(),
             dock,
             account: account_label(&config, &folder),
+            account_id: config.resolve(&folder).map(|a| a.id.clone()),
+            project_accounts: Default::default(),
+            _project_accounts: None,
             folder_label: match dirs::home_dir() {
                 Some(home) if folder == home => "~".into(),
                 _ => folder.display().to_string().into(),
@@ -236,6 +265,10 @@ impl Workspace {
             config,
             load_error,
             terminals_empty: Some(terminals_empty),
+            right_empty: Some(right_empty),
+            layout: Default::default(),
+            _window_bounds: None,
+            _dock_events,
             terminals: Vec::new(),
             browsers: Vec::new(),
             #[cfg(all(test, unix))]
@@ -267,6 +300,7 @@ impl Workspace {
             starts: remote::StartQueue::new(),
         };
         this.refresh_sidebar(cx);
+        this.sync_toggles(cx);
         this.load_projects(None, cx);
         this
     }
@@ -288,121 +322,6 @@ impl Workspace {
     ) {
         self.toggle(DockPlacement::Bottom, window, cx);
     }
-
-    fn new_terminal(&mut self, _: &NewTerminal, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_remote() {
-            return; // the project is on another machine; a local shell here would be misleading
-        }
-        let job = self.terminal_job(cx);
-        // A terminal for the folder the window showed when asked; a switch meanwhile drops it.
-        let same_folder = |this: &Self, o: &SpawnOptions| o.cwd == this.folder;
-        self.open_terminal(job, same_folder, window, cx, |_, e, _| {
-            eprintln!("failed to open terminal: {e:#}")
-        });
-    }
-
-    pub(super) fn add_terminal_with(
-        &mut self,
-        options: SpawnOptions,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        let (terminal, events) = Terminal::spawn(options)?;
-        let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
-        let title = format!("Terminal {}", self.terminals.len() + 1).into();
-        let panel = cx.new(|_| TerminalPanel::new(view.clone(), title));
-        let empty = self.terminals_empty.take();
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Bottom,
-                None,
-                window,
-                cx,
-            );
-            // Added before the placeholder leaves, so the dock never goes empty.
-            if let Some(empty) = empty {
-                dock.remove_panel(empty, window, cx);
-            }
-            if !dock.is_dock_open(DockPlacement::Bottom) {
-                dock.toggle_dock(DockPlacement::Bottom, window, cx);
-            }
-        });
-        self.terminals.push(panel);
-        view.read(cx).focus_handle(cx).focus(window, cx);
-        Ok(())
-    }
-
-    fn open_settings(&mut self, _: &OpenSettings, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
-            settings.update(cx, |s, cx| s.check_gh_logins(cx)); // a login may have finished since
-            let id = settings.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            settings.read(cx).focus_handle(cx).focus(window, cx);
-            return;
-        }
-        self.reload_accounts();
-        self.push_config(cx); // orchestration and open threads check against what's on disk now
-        let (path, config, error) = (
-            self.accounts_path.clone(),
-            self.config.clone(),
-            self.load_error.clone(),
-        );
-        let settings = cx.new(|cx| Settings::new(path, config, error, window, cx));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(settings.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-        settings.read(cx).focus_handle(cx).focus(window, cx);
-        // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.
-        self._settings_saved = Some(cx.observe(&settings, |this, _, cx| {
-            this.reload_accounts();
-            this.push_config(cx);
-            cx.notify();
-        }));
-        self._settings_events = Some(cx.subscribe_in(
-            &settings,
-            window,
-            |this, _, e: &SettingsEvent, window, cx| {
-                let opened = match e {
-                    SettingsEvent::GhLogin { dir } => gh_login_options(&gh_bin(cx), dir),
-                    SettingsEvent::CodexLogin { dir } => {
-                        github::codex_login_options(&github::codex_bin(cx), dir)
-                    }
-                }
-                .and_then(|o| this.add_terminal_with(o, window, cx));
-                if let Err(e) = opened {
-                    eprintln!("failed to open the login terminal: {e:#}");
-                }
-            },
-        ));
-        self.settings = Some(settings.downgrade());
-        cx.notify();
-    }
-
-    fn reload_accounts(&mut self) {
-        let Some(path) = &self.accounts_path else {
-            return;
-        };
-        match AccountsConfig::load(path) {
-            Ok(config) => {
-                (self.config, self.load_error) = (config, None);
-                self.account = account_label(&self.config, &self.folder);
-            }
-            Err(e) => {
-                self.load_error = Some(format!("{e:#}"));
-                // A broken file binds nothing we can trust: terminals and threads then ask, too.
-                self.config = AccountsConfig::default();
-                self.account = None;
-            }
-        }
-    }
 }
 
 impl Focusable for Workspace {
@@ -413,6 +332,9 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // macOS: with the sidebar hidden, nothing holds room for the traffic lights, so give them a row of their own.
+        let lights_row =
+            cfg!(target_os = "macos") && !self.dock.read(cx).is_dock_open(DockPlacement::Left);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
@@ -420,6 +342,7 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_bottom))
+            .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::open_browser))
@@ -439,6 +362,18 @@ impl Render for Workspace {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
+            // Windows: the titlebar is transparent, so draw the window controls in theme colors.
+            .when(lights_row, |el| {
+                el.child(
+                    div()
+                        .flex_shrink_0()
+                        .h(crate::ui::TOP_ROW_H)
+                        .bg(theme.tab_bar),
+                )
+            })
+            .when(cfg!(target_os = "windows"), |el| {
+                el.child(gpui_component::TitleBar::new().child("SkyeLab"))
+            })
             .child(div().flex_1().min_h_0().child(self.dock.clone()))
             .child(self.render_status(cx))
     }
@@ -458,6 +393,15 @@ mod thread_model_test;
 
 #[cfg(test)]
 mod threads_test;
+
+#[cfg(test)]
+mod sidebar_account_test;
+
+#[cfg(test)]
+mod layout_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod sidebar_status_test;
 
 #[cfg(test)]
 mod agent_bin_test;

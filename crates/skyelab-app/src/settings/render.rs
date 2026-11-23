@@ -1,5 +1,7 @@
 use super::widgets::{path_text, row, section};
 use super::*;
+use crate::ui;
+use gpui_component::v_flex;
 
 impl Settings {
     pub(super) fn render_accounts(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -8,8 +10,7 @@ impl Settings {
             Some(id) => format!("Edit account '{id}'"),
             None => "Add account".into(),
         };
-        section("Accounts", cx)
-            .children(self.config.accounts.iter().map(|a| {
+        let accounts = self.config.accounts.iter().enumerate().map(|(i, a)| {
                 let edit = EditAccount { id: a.id.clone() };
                 let remove = RemoveAccount { id: a.id.clone() };
                 let github = a.gh_config_dir.as_ref().map(|dir| {
@@ -22,7 +23,7 @@ impl Settings {
                     div()
                         .flex()
                         .gap_1()
-                        .text_sm()
+                        .text_size(ui::META)
                         .text_color(theme.muted_foreground)
                         .child(div().flex_shrink_0().child("GitHub:"))
                         .child(path_text(format!("gh-{}", a.id), dir))
@@ -31,19 +32,20 @@ impl Settings {
                 let log_in = GhLogIn { id: a.id.clone() };
                 let has_gh = github.is_some();
                 let codex_id = (a.provider == Provider::Codex).then(|| a.id.clone());
-                row(cx)
+                row(i == 0, cx)
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
                             .flex()
                             .flex_col()
+                            .gap_0p5()
                             .child(
                                 div()
                                     .flex()
+                                    .items_center()
                                     .gap_2()
                                     .min_w_0()
-                                    .child(div().truncate().child(format!("{}  ({})", a.label, a.id)))
                                     .child(
                                         div()
                                             .id(SharedString::from(format!("provider-{}", a.id)))
@@ -51,18 +53,14 @@ impl Settings {
                                                 let s = format!("provider-{}", a.id);
                                                 move || s
                                             })
-                                            .flex_shrink_0()
-                                            .px_1p5()
-                                            .rounded_sm()
-                                            .border_1()
-                                            .border_color(theme.border)
-                                            .text_xs()
-                                            .child(a.provider.label()),
-                                    ),
+                                            .min_w_0()
+                                            .child(ui::AccountBadge::of(a).chip()),
+                                    )
+                                    .child(ui::mono(a.id.clone(), theme).text_size(ui::META)),
                             )
                             .child(
                                 path_text(format!("dir-{}", a.id), &a.config_dir)
-                                    .text_sm()
+                                    .text_size(ui::META)
                                     .text_color(theme.muted_foreground),
                             )
                             .children(github),
@@ -107,13 +105,36 @@ impl Settings {
                             .label("Remove")
                             .flex_shrink_0()
                             .small()
-                            .danger()
+                            .ghost()
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.remove_account(&remove, window, cx)
                             })),
                     )
-            }))
-            .child(div().pt_2().text_sm().child(form_title))
+                    .into_any_element()
+        });
+        let accounts: Vec<_> = accounts.collect();
+        let empty = self.config.accounts.is_empty().then(|| {
+            row(true, cx)
+                .child(ui::EmptyState::new("No accounts yet").hint(
+                    "Add one per Claude or Codex login: each gets its own config folder, so logins never mix.",
+                ))
+                .into_any_element()
+        });
+        let (muted, border) = (theme.muted, theme.border);
+        let form = v_flex()
+            .px_4()
+            .py_3()
+            .gap_2()
+            .bg(muted)
+            .when(!self.config.accounts.is_empty(), |d| {
+                d.border_t_1().border_color(border)
+            })
+            .child(
+                div()
+                    .text_size(ui::BODY)
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .child(form_title),
+            )
             .child(
                 div()
                     .flex()
@@ -154,26 +175,31 @@ impl Settings {
                         )
                     }),
             )
+            .into_any_element();
+        section(
+            "Accounts",
+            accounts
+                .into_iter()
+                .chain(empty)
+                .chain(std::iter::once(form)),
+            cx,
+        )
     }
 
     pub(super) fn render_bindings(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let label_of = |id: &str| {
-            self.config
-                .accounts
-                .iter()
-                .find(|a| a.id == id)
-                .map_or(id.to_string(), |a| a.label.clone())
+        let badge_of = |id: &str| match self.config.accounts.iter().find(|a| a.id == id) {
+            Some(a) => ui::AccountBadge::of(a).chip(),
+            None => ui::AccountBadge::new(id.to_string(), id.to_string()).chip(),
         };
-        section("Folder bindings", cx)
-            .when(self.config.bindings.is_empty(), |d| {
-                d.child(
-                    div().text_sm().text_color(theme.muted_foreground).child(
-                        "No folders bound yet. Agents won't start anywhere until you bind one.",
-                    ),
-                )
-            })
-            .children(self.config.bindings.iter().map(|b| {
+        let empty = self.config.bindings.is_empty().then(|| {
+            row(true, cx)
+                .child(ui::EmptyState::new("No folders bound yet").hint(
+                    "Agents won't start anywhere until you bind one. Pick an account below, then a folder.",
+                ))
+                .into_any_element()
+        });
+        let bindings = self.config.bindings.iter().enumerate().map(|(i, b)| {
                 let remove = RemoveBinding {
                     path: b.path.clone(),
                 };
@@ -193,24 +219,36 @@ impl Settings {
                     div()
                         .flex()
                         .gap_1()
-                        .text_sm()
+                        .text_size(ui::META)
                         .text_color(theme.muted_foreground)
                         .child(div().flex_shrink_0().child(label.to_string()))
                         .child(path_text(format!("{key}-{id}"), path))
                 };
-                row(cx)
+                row(i == 0, cx)
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
                             .flex()
                             .flex_col()
-                            .child(path_text(format!("path-{}", b.path.display()), &b.path))
-                            .children(
-                                warning.map(|why| {
-                                    div().text_sm().text_color(theme.warning).child(why)
-                                }),
+                            .gap_0p5()
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .min_w_0()
+                                    .child(path_text(format!("path-{}", b.path.display()), &b.path))
+                                    .when(stale.is_some(), |d| {
+                                        d.child(
+                                            ui::Pill::new("Stale")
+                                                .color(ui::Status::Stale.color(theme)),
+                                        )
+                                    }),
                             )
+                            .children(warning.map(|why| {
+                                div().text_size(ui::META).text_color(ui::ink(theme, theme.warning)).child(why)
+                            }))
                             .children(now.as_deref().map(|now| labelled("Now:", "now", now)))
                             .children(
                                 stale
@@ -218,14 +256,7 @@ impl Settings {
                                     .map(|was| labelled("Confirmed:", "was", was)),
                             ),
                     )
-                    .child(
-                        div()
-                            .flex_shrink_0()
-                            .max_w_48()
-                            .truncate()
-                            .text_color(theme.muted_foreground)
-                            .child(format!("→  {}", label_of(&b.account))),
-                    )
+                    .child(div().flex_shrink_0().max_w_48().child(badge_of(&b.account)))
                     .when_some(reconfirm, |d, reconfirm| {
                         d.child(
                             Button::new(SharedString::from(format!(
@@ -248,15 +279,22 @@ impl Settings {
                             .label("Remove")
                             .flex_shrink_0()
                             .small()
-                            .danger()
+                            .ghost()
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.remove_binding(&remove, window, cx)
                             })),
                     )
-            }))
+                    .into_any_element()
+        });
+        let add = div()
+            .px_4()
+            .py_3()
+            .bg(theme.muted)
+            .when(!self.config.bindings.is_empty(), |d| {
+                d.border_t_1().border_color(theme.border)
+            })
             .child(
                 div()
-                    .pt_2()
                     .flex()
                     .gap_2()
                     .items_center()
@@ -277,26 +315,50 @@ impl Settings {
                             })),
                     ),
             )
+            .into_any_element();
+        section(
+            "Folder bindings",
+            bindings.chain(empty).chain(std::iter::once(add)),
+            cx,
+        )
     }
 
     pub(super) fn render_test(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let result = match &self.test_result {
             None => None,
-            Some(Some(a)) => Some(div().text_color(theme.success).child(format!(
-                "Runs as {} ({})",
-                a.label,
-                a.config_dir.display()
-            ))),
+            Some(Some(a)) => Some(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child("Runs as")
+                    .child(ui::AccountBadge::of(a).chip())
+                    .child(path_text("test-dir".into(), &a.config_dir)),
+            ),
             Some(None) => Some(
                 div()
-                    .text_color(theme.warning)
-                    .child("Unbound, agents won't start here"),
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(ui::AccountBadge::unbound().chip())
+                    .child("Agents won't start here"),
             ),
         };
-        section("Test folder", cx)
-            .child(Input::new(&self.test_input))
-            .children(result)
+        section(
+            "Test folder",
+            [row(true, cx)
+                .flex_col()
+                .items_start()
+                .child(div().w_full().child(Input::new(&self.test_input)))
+                .children(result)
+                .into_any_element()],
+            cx,
+        )
     }
 }
 

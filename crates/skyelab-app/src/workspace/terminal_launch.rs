@@ -88,18 +88,22 @@ impl Workspace {
     pub(super) fn terminal_job(
         &self,
         cx: &App,
-    ) -> impl FnOnce() -> anyhow::Result<SpawnOptions> + Send + use<> {
+    ) -> impl FnOnce() -> anyhow::Result<(SpawnOptions, Option<skyelab_core::Account>)> + Send + use<>
+    {
         let config = self.accounts_job(cx);
         let folder = self.folder.clone();
         move || {
             let config = config();
-            Ok(SpawnOptions {
+            // The tab shows the account this env was built for, from the same read of accounts.toml.
+            let account = config.resolve(&folder).cloned();
+            let options = SpawnOptions {
                 env: terminal_env(&config, &folder, &unbound_root()?)?,
                 cwd: folder,
                 command: None,
                 cols: 80,
                 lines: 24,
-            })
+            };
+            Ok((options, account))
         }
     }
 
@@ -115,7 +119,9 @@ impl Workspace {
     /// unless the window moved on meanwhile: to another machine, or `wanted` says no.
     pub(super) fn open_terminal(
         &mut self,
-        job: impl FnOnce() -> anyhow::Result<SpawnOptions> + Send + 'static,
+        job: impl FnOnce() -> anyhow::Result<(SpawnOptions, Option<skyelab_core::Account>)>
+        + Send
+        + 'static,
         wanted: impl FnOnce(&Self, &SpawnOptions) -> bool + 'static,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -125,11 +131,11 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
-                let opened = options.and_then(|o| {
+                let opened = options.and_then(|(o, account)| {
                     if this.is_remote() || !wanted(this, &o) {
                         return Ok(());
                     }
-                    this.add_terminal_with(o, window, cx)
+                    this.add_terminal_with(o, account, window, cx)
                 });
                 if let Err(e) = opened {
                     failed(this, e, cx);
