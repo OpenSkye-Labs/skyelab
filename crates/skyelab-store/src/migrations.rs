@@ -295,4 +295,7 @@ UPDATE turn_usage SET cost_usd = COALESCE((SELECT ",
 DROP TABLE turn_raw;
 "
     ),
+    // Version 18: side chats (T3's `/side`): a small thread beside `side_of`, in its folder under its account. Hidden
+    // from the thread lists and listed under its parent; its first session starts with `fork_context`.
+    "ALTER TABLE threads ADD COLUMN side_of INTEGER;",
 ];

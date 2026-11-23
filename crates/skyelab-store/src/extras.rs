@@ -1,4 +1,4 @@
-//! Generated titles, composer drafts and forks.
+//! Generated titles, composer drafts, forks and side chats.
 
 use anyhow::{Context as _, Result};
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
@@ -145,6 +145,47 @@ impl Store {
         let thread = tx.query_row(&sql, [id], thread_from_row)?;
         tx.commit()?;
         Ok(thread)
+    }
+}
+
+impl Store {
+    /// A side chat of thread `parent`: a new row with `new`'s folder and account, no copied history, and `context` (a
+    /// summary of the parent) for its first session.
+    pub fn create_side_chat(
+        &mut self,
+        new: &NewThread,
+        parent: i64,
+        context: &str,
+    ) -> Result<Thread> {
+        self.conn
+            .execute(
+                "INSERT INTO threads (project_id, title, cwd, account_id, status, created_at, updated_at, side_of,
+                                      fork_context)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8)",
+                params![
+                    new.project_id,
+                    new.title,
+                    path_str(new.cwd)?,
+                    new.account_id,
+                    new.status,
+                    now_ms(),
+                    parent,
+                    context
+                ],
+            )
+            .with_context(|| format!("create a side chat of thread {parent}"))?;
+        let id = self.conn.last_insert_rowid();
+        self.thread(id)?.context("the new side chat is gone")
+    }
+
+    /// Thread `parent`'s side chats, newest first; deleted ones are left out.
+    pub fn side_chats(&self, parent: i64) -> Result<Vec<Thread>> {
+        let sql = format!(
+            "SELECT {THREAD_COLS} FROM threads WHERE side_of = ?1 AND deleted_at IS NULL ORDER BY id DESC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([parent], thread_from_row)?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 }
 
