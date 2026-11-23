@@ -75,6 +75,7 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        self.restore_draft(window, cx); // set_value emits no Change
         self.push(
             &Record::Prompt(super::composer::shown_prompt(&text, &attachments)),
             cx,

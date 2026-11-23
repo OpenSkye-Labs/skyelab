@@ -181,6 +181,8 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.open_threads.retain(|v| v != view);
+        self.thread_subs.remove(&view.entity_id());
+        self.waiters.retain(|_, (id, _)| *id != view.entity_id());
         view.update(cx, |v, _| v.close());
         self.orphan_terminals(view.entity_id(), window, cx);
         if self.page == Page::Thread(view.downgrade()) {

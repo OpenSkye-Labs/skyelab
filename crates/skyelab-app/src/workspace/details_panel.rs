@@ -201,12 +201,15 @@ impl Focusable for DetailsPanel {
 
 impl Render for DetailsPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme().clone();
-        let usage = render_usage(&self.usage, &theme, cx);
+        let theme = cx.theme();
+        let usage = render_usage(&self.usage, theme, cx);
         let content = match self.thread.as_ref().and_then(|t| t.upgrade()) {
-            Some(view) => view.update(cx, |v, cx| v.render_details(usage, cx)),
+            Some(view) => {
+                let on = super::thread_details::On(view.downgrade());
+                view.read(cx).render_details(usage, &on, cx)
+            }
             None => v_flex()
-                .child(caption("Usage", &theme))
+                .child(caption("Usage", theme))
                 .child(usage)
                 .child(
                     div()

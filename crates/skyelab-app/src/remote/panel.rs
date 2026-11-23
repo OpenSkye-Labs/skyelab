@@ -2,7 +2,10 @@
 
 use super::{AllowDevice, DenyDevice, DisconnectPeer, Remote, RevokeDevice, ToggleSharing};
 use crate::ui;
-use gpui::{App, Context, Entity, FocusHandle, Focusable, Subscription, Window, div, prelude::*};
+use gpui::{
+    App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Window, div,
+    prelude::*,
+};
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
@@ -91,7 +94,10 @@ impl Render for RemotePanel {
                     },
                 );
                 ui::group_row(n == 0, theme)
-                    .id(("request", n))
+                    .id(SharedString::from(format!(
+                        "request-{}-{}",
+                        r.node_id, r.key_hash
+                    )))
                     .child(ui::StatusDot::new(theme.warning))
                     .child(
                         div()
@@ -102,17 +108,28 @@ impl Render for RemotePanel {
                     )
                     .child(ui::mono(format!("code {}", r.code), theme))
                     .child(
-                        Button::new(("allow", n))
-                            .small()
-                            .primary()
-                            .label("Allow")
-                            .on_click(move |_, window, cx| {
-                                window.dispatch_action(Box::new(allow.clone()), cx)
-                            }),
+                        Button::new(SharedString::from(format!(
+                            "allow-{}-{}",
+                            r.node_id, r.key_hash
+                        )))
+                        .small()
+                        .primary()
+                        .label("Allow")
+                        .on_click(move |_, window, cx| {
+                            window.dispatch_action(Box::new(allow.clone()), cx)
+                        }),
                     )
-                    .child(Button::new(("deny", n)).small().label("Deny").on_click(
-                        move |_, window, cx| window.dispatch_action(Box::new(deny.clone()), cx),
-                    ))
+                    .child(
+                        Button::new(SharedString::from(format!(
+                            "deny-{}-{}",
+                            r.node_id, r.key_hash
+                        )))
+                        .small()
+                        .label("Deny")
+                        .on_click(move |_, window, cx| {
+                            window.dispatch_action(Box::new(deny.clone()), cx)
+                        }),
+                    )
                     .into_any_element()
             })
             .collect();
@@ -135,7 +152,10 @@ impl Render for RemotePanel {
                         key_hash: d.key_hash.clone(),
                     };
                     ui::group_row(n == 0, theme)
-                        .id(("approved", n))
+                        .id(SharedString::from(format!(
+                            "approved-{}-{}",
+                            d.node_id, d.key_hash
+                        )))
                         .child(div().flex_1().min_w_0().truncate().child(d.name.clone()))
                         .child(ui::mono(
                             format!(
@@ -146,13 +166,16 @@ impl Render for RemotePanel {
                             theme,
                         ))
                         .child(
-                            Button::new(("revoke", n))
-                                .small()
-                                .ghost()
-                                .label("Revoke")
-                                .on_click(move |_, window, cx| {
-                                    window.dispatch_action(Box::new(revoke.clone()), cx)
-                                }),
+                            Button::new(SharedString::from(format!(
+                                "revoke-{}-{}",
+                                d.node_id, d.key_hash
+                            )))
+                            .small()
+                            .ghost()
+                            .label("Revoke")
+                            .on_click(move |_, window, cx| {
+                                window.dispatch_action(Box::new(revoke.clone()), cx)
+                            }),
                         )
                         .into_any_element()
                 })

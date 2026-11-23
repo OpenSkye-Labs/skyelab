@@ -23,3 +23,7 @@ mod working_shelf_test;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "working_elapsed_test.rs"]
 mod working_elapsed_test;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "sidebar_rebuild_test.rs"]
+mod sidebar_rebuild_test;

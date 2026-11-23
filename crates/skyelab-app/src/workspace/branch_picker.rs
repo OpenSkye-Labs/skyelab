@@ -39,6 +39,8 @@ pub struct BranchPicker {
     _load: Option<Task<()>>,
     /// A switch or create; apart from `_load`, so reopening the list never drops it.
     _switch: Option<Task<()>>,
+    /// Redraws the list as the query changes.
+    _query: gpui::Subscription,
 }
 
 /// How a switch or create ended, when git didn't fail.
@@ -57,7 +59,7 @@ impl BranchPicker {
     ) -> Self {
         let query =
             cx.new(|cx| InputState::new(window, cx).placeholder("Search or create a branch"));
-        cx.observe(&query, |_, _, cx| cx.notify()).detach();
+        let _query = cx.observe(&query, |_, _, cx| cx.notify());
         let mut this = Self {
             owner,
             dir,
@@ -71,6 +73,7 @@ impl BranchPicker {
             busy: false,
             _load: None,
             _switch: None,
+            _query,
         };
         this.reload(cx);
         this

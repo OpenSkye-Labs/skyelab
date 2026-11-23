@@ -24,6 +24,9 @@ mod composer_queue;
 #[path = "composer_queue_test.rs"]
 mod composer_queue_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "composer_restore_test.rs"]
+mod composer_restore_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "composer_review_test.rs"]
 mod composer_review_test;
 #[path = "composer_send.rs"]
@@ -210,7 +213,11 @@ impl ThreadView {
                     .ghost()
                     .small()
                     .label("Force stop")
-                    .tooltip("The agent isn't answering Interrupt: end it (⌥⌘.)")
+                    .tooltip_with_action(
+                        "The agent isn't answering Interrupt: end it",
+                        &thread::Stop,
+                        Some(thread::CONTEXT),
+                    )
                     .on_click(
                         cx.listener(|this, _, window, cx| this.stop(&thread::Stop, window, cx)),
                     )
@@ -240,9 +247,16 @@ impl ThreadView {
                 .hover(move |this| this.bg(danger))
                 .cursor_pointer()
                 .tooltip(|window, cx| {
-                    gpui_component::tooltip::Tooltip::new("Interrupt (⌘.)").build(window, cx)
+                    gpui_component::tooltip::Tooltip::new("Interrupt")
+                        .action(&thread::Interrupt, Some(thread::CONTEXT))
+                        .build(window, cx)
                 })
-                .child(div().size(px(12.)).rounded(px(3.)).bg(gpui::white()))
+                .child(
+                    div()
+                        .size(px(12.))
+                        .rounded(px(3.))
+                        .bg(cx.theme().danger_foreground),
+                )
                 .on_click(
                     cx.listener(|this, _, window, cx| {
                         this.interrupt(&thread::Interrupt, window, cx)
@@ -305,8 +319,9 @@ impl ThreadView {
                                 .xsmall()
                                 .icon(Icon::new(Lucide::X))
                                 .tooltip("Remove")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.remove_attachment(ix, cx)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_attachment(ix, cx);
+                                    this.restore_draft(window, cx);
                                 })),
                         )
                 }))

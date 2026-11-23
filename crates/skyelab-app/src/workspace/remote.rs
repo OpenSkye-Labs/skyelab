@@ -350,24 +350,24 @@ impl Workspace {
         let mut done = Some(done);
         // A launch already under way that ends with no agent failed, even on a thread that stays resumable.
         let began = view.read(cx).starting;
-        self._thread_events
-            .push(cx.observe(view, move |_, view, cx| {
-                let view = view.read(cx);
-                // The details (paths, store errors) stay in this machine's log and the thread's tab.
-                let result = match (&view.thread, view.starting) {
-                    (Some(t), _) if view.session.is_some() => Ok(t.id),
-                    (Some(_), _) if view.read_only => Err("the agent didn't start"),
-                    (Some(_), false) if began => Err("the agent didn't start"),
-                    (None, false) => Err("the thread couldn't be created"),
-                    _ => return,
-                };
-                if let Err(why) = result {
-                    eprintln!("skyelab: start failed: {why}: {:?}", view.error);
-                }
-                if let Some(done) = done.take() {
-                    done(result);
-                }
-            }));
+        self.wait_on(view, cx, move |_, view, cx| {
+            let view = view.read(cx);
+            // The details (paths, store errors) stay in this machine's log and the thread's tab.
+            let result = match (&view.thread, view.starting) {
+                (Some(t), _) if view.session.is_some() => Ok(t.id),
+                (Some(_), _) if view.read_only => Err("the agent didn't start"),
+                (Some(_), false) if began => Err("the agent didn't start"),
+                (None, false) => Err("the thread couldn't be created"),
+                _ => return false,
+            };
+            if let Err(why) = result {
+                eprintln!("skyelab: start failed: {why}: {:?}", view.error);
+            }
+            if let Some(done) = done.take() {
+                done(result);
+            }
+            true
+        });
     }
 
     /// Holds a start until the first project load ends, so its project can be found.

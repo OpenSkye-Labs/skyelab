@@ -203,6 +203,7 @@ impl ThreadView {
         let attachments = std::mem::take(&mut self.composer.attachments);
         self.composer.queue.push(text, attachments);
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        self.restore_draft(window, cx); // set_value emits no Change
         // The queue takes room under the messages: keep the end of the thread in view above it.
         self.list.scroll_to_end();
         cx.notify();
@@ -281,6 +282,7 @@ impl ThreadView {
             let attachments = self.take_attachments(external);
             if self.follow_up(text, attachments, mode == SendMode::Steer, &account, cx) {
                 self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+                self.restore_draft(window, cx); // set_value emits no Change
             } else if !external {
                 self.composer.terminal_contexts = contexts; // refused: the prompt stays, so do they
             }

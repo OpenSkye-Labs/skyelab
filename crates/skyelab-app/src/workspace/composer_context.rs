@@ -18,6 +18,8 @@ const MAX_CONTEXTS: usize = 8;
 /// One excerpt waiting in the composer.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TerminalContext {
+    /// Its element id and what its buttons act on: an index would shift when an earlier chip goes.
+    pub id: u64,
     /// The terminal's tab title ("Terminal 2").
     pub label: SharedString,
     /// Already capped ([`terminal_context::clip`]).
@@ -47,11 +49,14 @@ impl ThreadView {
         if text.trim().is_empty() || self.read_only {
             return;
         }
+        let id = self.composer.next_context;
+        self.composer.next_context += 1;
         let contexts = &mut self.composer.terminal_contexts;
         if contexts.len() >= MAX_CONTEXTS {
             contexts.remove(0);
         }
         contexts.push(TerminalContext {
+            id,
             label,
             text,
             open: false,
@@ -82,9 +87,10 @@ impl ThreadView {
             return None;
         }
         let theme = cx.theme();
-        let chips = contexts.iter().enumerate().map(|(ix, c)| {
+        let chips = contexts.iter().map(|c| {
+            let id = c.id;
             h_flex()
-                .id(("terminal-context", ix))
+                .id(("terminal-context", id))
                 .h(px(28.))
                 .max_w(px(260.))
                 .pl_2()
@@ -97,7 +103,8 @@ impl ThreadView {
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .cursor_pointer()
                 .on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(c) = this.composer.terminal_contexts.get_mut(ix) {
+                    let contexts = &mut this.composer.terminal_contexts;
+                    if let Some(c) = contexts.iter_mut().find(|c| c.id == id) {
                         c.open = !c.open;
                     }
                     cx.notify();
@@ -109,39 +116,33 @@ impl ThreadView {
                 )
                 .child(div().min_w_0().truncate().child(c.chip_label()))
                 .child(
-                    Button::new(("remove-terminal-context", ix))
+                    Button::new(("remove-terminal-context", id))
                         .ghost()
                         .xsmall()
                         .icon(Icon::new(Lucide::X))
                         .tooltip("Remove")
                         .on_click(cx.listener(move |this, _, _, cx| {
                             cx.stop_propagation();
-                            if ix < this.composer.terminal_contexts.len() {
-                                this.composer.terminal_contexts.remove(ix);
-                            }
+                            this.composer.terminal_contexts.retain(|c| c.id != id);
                             cx.notify();
                         })),
                 )
         });
-        let open = contexts
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.open)
-            .map(|(ix, c)| {
-                div()
-                    .id(("terminal-context-text", ix))
-                    .max_h(px(160.))
-                    .overflow_y_scroll()
-                    .p_2()
-                    .rounded(ui::RADIUS)
-                    .border_1()
-                    .border_color(theme.border)
-                    .bg(theme.background)
-                    .font_family(theme.mono_font_family.clone())
-                    .text_xs()
-                    .whitespace_normal()
-                    .child(c.text.clone())
-            });
+        let open = contexts.iter().filter(|c| c.open).map(|c| {
+            div()
+                .id(("terminal-context-text", c.id))
+                .max_h(px(160.))
+                .overflow_y_scroll()
+                .p_2()
+                .rounded(ui::RADIUS)
+                .border_1()
+                .border_color(theme.border)
+                .bg(theme.background)
+                .font_family(theme.mono_font_family.clone())
+                .text_xs()
+                .whitespace_normal()
+                .child(c.text.clone())
+        });
         Some(
             v_flex()
                 .gap_1p5()

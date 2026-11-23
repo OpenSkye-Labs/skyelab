@@ -4,7 +4,7 @@
 
 use super::sidebar_rows::{THREAD_INDENT, scope_button, section_button, sidebar_row};
 use super::*;
-use gpui::{AnyElement, Subscription};
+use gpui::{AnyElement, ListAlignment, ListOffset, ListState, Subscription, list};
 use gpui_component::input::{Input, InputEvent, InputState};
 
 /// Which account a project row runs on.
@@ -129,9 +129,47 @@ pub struct Sidebar {
     /// A click happened and the pointer hasn't moved since: rows show no hover card, so a row the click left under
     /// a resting pointer (or one the list moved there) opens its card only after the pointer moves and rests again.
     cards_held: bool,
+    /// The list's lines, rebuilt with the rows (`rows_changed`); only the visible ones are drawn.
+    entries: Vec<Entry>,
+    list: ListState,
+    /// How often the rows were rebuilt: tests check a keystroke or a streamed delta rebuilds nothing.
+    #[cfg(test)]
+    pub rebuilds: usize,
     _search: Subscription,
     /// Redraws each second while a row shows a working timer.
     _tick: Option<gpui::Task<()>>,
+}
+
+/// One line of the sidebar's list: section `s`'s header, its row `i` or its empty state, the archived toggle and
+/// rows, then the bottom padding.
+#[derive(Clone, Copy)]
+enum Entry {
+    Header(usize),
+    Row(usize, usize),
+    Empty(usize),
+    ArchivedHead,
+    Archived(usize),
+    End,
+}
+
+fn entries(sections: &[SidebarSection], archived: Option<&ArchivedRows>) -> Vec<Entry> {
+    let mut out = Vec::new();
+    for (s, section) in sections.iter().enumerate() {
+        out.push(Entry::Header(s));
+        if section.items.is_empty() {
+            out.push(Entry::Empty(s));
+        }
+        out.extend((0..section.items.len()).map(|i| Entry::Row(s, i)));
+    }
+    // "Archived" at the end of the list, as the user guide says.
+    if let Some(a) = archived.filter(|a| !a.items.is_empty()) {
+        out.push(Entry::ArchivedHead);
+        if a.open {
+            out.extend((0..a.items.len()).map(Entry::Archived));
+        }
+    }
+    out.push(Entry::End);
+    out
 }
 
 impl EventEmitter<SidebarSearch> for Sidebar {}
@@ -145,7 +183,7 @@ impl Sidebar {
                 cx.emit(SidebarSearch(text));
             }
         });
-        Self {
+        let mut this = Self {
             sections,
             picker: None,
             marks: Default::default(),
@@ -155,13 +193,36 @@ impl Sidebar {
             scope: None,
             focus: cx.focus_handle(),
             cards_held: false,
+            entries: Vec::new(),
+            list: ListState::new(0, ListAlignment::Top, gpui::px(200.)),
+            #[cfg(test)]
+            rebuilds: 0,
             _search,
             _tick: None,
+        };
+        this.rows_changed(cx);
+        this
+    }
+
+    /// The sections, marks or archived rows were replaced: re-list them, keeping the scroll position.
+    pub fn rows_changed(&mut self, cx: &mut Context<Self>) {
+        #[cfg(test)]
+        {
+            self.rebuilds += 1;
         }
+        self.entries = entries(&self.sections, self.archived.as_ref());
+        let top = self.list.logical_scroll_top();
+        self.list.reset(self.entries.len());
+        self.list.scroll_to(ListOffset {
+            item_ix: top.item_ix.min(self.entries.len() - 1),
+            offset_in_item: top.offset_in_item,
+        });
+        self.sync_tick(cx);
+        cx.notify();
     }
 
     /// Working rows read "Working 1m 12s": redraw each second while one does, and stop when none does.
-    pub fn sync_tick(&mut self, cx: &mut Context<Self>) {
+    fn sync_tick(&mut self, cx: &mut Context<Self>) {
         if !self.marks.values().any(|m| m.started_ms.is_some()) {
             self._tick = None;
         } else if self._tick.is_none() {
@@ -183,23 +244,37 @@ impl Sidebar {
 panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
 
 impl Sidebar {
-    fn rows(
-        &self,
-        s: &SidebarSection,
-        indent: bool,
-        now: i64,
-        theme: &gpui_component::Theme,
-    ) -> gpui::Div {
-        if s.items.is_empty() {
-            return v_flex()
-                .when(indent, |this| this.pl(gpui::px(THREAD_INDENT - 8.)))
-                .child(ui::EmptyState::new(s.empty_title.clone()).hint(s.empty_hint.clone()));
-        }
-        v_flex().gap_0p5().children(
-            s.items
-                .iter()
-                .map(|item| self.row(item, indent, now, theme)),
-        )
+    /// List line `ix`, spaced as the sections were: 16 px between blocks, 4 under a header, 2 between rows.
+    fn render_entry(&self, ix: usize, cx: &App) -> AnyElement {
+        let theme = cx.theme();
+        let now = ui::now_ms();
+        let (top, el) = match self.entries[ix] {
+            Entry::Header(s) => {
+                let s = &self.sections[s];
+                let header = ui::SectionHeader::new(s.title.clone())
+                    .when_some(section_button(s), |h, b| h.trailing(b));
+                (if ix == 0 { 0. } else { 16. }, header.into_any_element())
+            }
+            Entry::Empty(s) => {
+                let s = &self.sections[s];
+                let empty = ui::EmptyState::new(s.empty_title.clone()).hint(s.empty_hint.clone());
+                (4., empty.into_any_element())
+            }
+            Entry::Row(s, i) => {
+                let row = self.row(&self.sections[s].items[i], false, now, theme);
+                (if i == 0 { 4. } else { 2. }, row)
+            }
+            Entry::ArchivedHead => {
+                let head = self.archived_head(theme).into_any_element();
+                (if ix == 0 { 0. } else { 16. }, head)
+            }
+            Entry::Archived(i) => match &self.archived {
+                Some(a) => (2., self.row(&a.items[i], true, now, theme)),
+                None => (0., div().into_any_element()),
+            },
+            Entry::End => (12., div().into_any_element()),
+        };
+        div().px_2().pt(gpui::px(top)).child(el).into_any_element()
     }
 
     fn row(
@@ -220,17 +295,22 @@ impl Sidebar {
         )
     }
 
-    /// The archived threads' toggle row ("Archived 3") and, when open, their rows.
-    fn archived(&self, now: i64, theme: &gpui_component::Theme) -> Option<gpui::Div> {
-        let a = self.archived.as_ref().filter(|a| !a.items.is_empty())?;
-        let toggle = a.toggle.boxed_clone();
-        let head = ui::row("archived-toggle", false, theme)
+    /// The archived threads' toggle row ("Archived 3").
+    fn archived_head(&self, theme: &gpui_component::Theme) -> gpui::Stateful<gpui::Div> {
+        let (open, count, toggle) = self.archived.as_ref().map_or((false, 0, None), |a| {
+            (a.open, a.items.len(), Some(a.toggle.boxed_clone()))
+        });
+        ui::row("archived-toggle", false, theme)
             .pl(gpui::px(THREAD_INDENT))
             .text_size(ui::META)
             .text_color(theme.muted_foreground)
-            .on_click(move |_, window, cx| window.dispatch_action(toggle.boxed_clone(), cx))
+            .on_click(move |_, window, cx| {
+                if let Some(t) = &toggle {
+                    window.dispatch_action(t.boxed_clone(), cx)
+                }
+            })
             .child(
-                Icon::new(if a.open {
+                Icon::new(if open {
                     IconName::ChevronDown
                 } else {
                     IconName::ChevronRight
@@ -238,33 +318,13 @@ impl Sidebar {
                 .size_3(),
             )
             .child(div().flex_1().child("Archived"))
-            .child(a.items.len().to_string());
-        Some(v_flex().gap_0p5().child(head).when(a.open, |this| {
-            this.children(a.items.iter().map(|item| self.row(item, true, now, theme)))
-        }))
+            .child(count.to_string())
     }
 }
 
 impl Render for Sidebar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let now = ui::now_ms();
-        let blocks: Vec<_> = self
-            .sections
-            .iter()
-            .map(|s| {
-                v_flex()
-                    .gap_1()
-                    .child(
-                        ui::SectionHeader::new(s.title.clone())
-                            .when_some(section_button(s), |h, b| h.trailing(b)),
-                    )
-                    .child(self.rows(s, false, now, theme))
-                    .into_any_element()
-            })
-            // "Archived" at the end of the list, as the user guide says.
-            .chain(self.archived(now, theme).map(IntoElement::into_any_element))
-            .collect();
         let focus = self.focus.clone();
         v_flex()
             .id("sidebar")
@@ -332,15 +392,13 @@ impl Render for Sidebar {
                 )
             })
             .child(
-                v_flex()
-                    .id("sidebar-list")
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .px_2()
-                    .pb_3()
-                    .gap_4()
-                    .children(blocks),
+                list(
+                    self.list.clone(),
+                    cx.processor(|this, ix, _, cx| this.render_entry(ix, cx)),
+                )
+                .flex_1()
+                .min_h_0()
+                .w_full(),
             )
             // T3's footer: Settings, always in reach.
             .child(

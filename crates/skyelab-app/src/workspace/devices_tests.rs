@@ -81,9 +81,9 @@ fn setup(cx: &mut TestAppContext) {
 }
 
 /// A workspace whose device source is `fake`, with the Devices tab opened by its key.
-fn open(
+fn open<S: DeviceSource>(
     cx: &mut TestAppContext,
-    fake: Arc<Fake>,
+    fake: Arc<S>,
 ) -> (
     Entity<Workspace>,
     Entity<DevicesPanel>,
@@ -117,7 +117,7 @@ fn open(
 
 #[gpui::test]
 fn open_devices_key_opens_one_tab(cx: &mut TestAppContext) {
-    let (ws, panel, cx) = open(cx, Arc::default());
+    let (ws, panel, cx) = open(cx, Arc::<Fake>::default());
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
     cx.simulate_keystrokes(OPEN_DEVICES_KEY);
     cx.run_until_parked();
@@ -127,7 +127,7 @@ fn open_devices_key_opens_one_tab(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn lists_devices_grouped_with_badges_and_missing_toolchain(cx: &mut TestAppContext) {
-    let (_, panel, cx) = open(cx, Arc::default());
+    let (_, panel, cx) = open(cx, Arc::<Fake>::default());
     panel.read_with(cx, |panel, _| {
         assert_eq!(
             panel.section(Platform::Ios),
@@ -239,5 +239,87 @@ fn polling_stops_when_hidden(cx: &mut TestAppContext) {
     assert!(
         panel.read_with(cx, |p, _| p.poll.is_some()),
         "polling resumes when shown"
+    );
+}
+
+/// An AVD listed as shut down until the test says the emulator came up.
+#[derive(Default)]
+struct Avd {
+    up: std::sync::atomic::AtomicBool,
+}
+
+impl DeviceSource for Avd {
+    fn list(&self) -> Listing {
+        let state = if self.up.load(std::sync::atomic::Ordering::SeqCst) {
+            DeviceState::Booted
+        } else {
+            DeviceState::Shutdown
+        };
+        Listing {
+            ios: Err(Error::NotAvailable(Platform::Ios)),
+            android: Ok(vec![device(
+                "pixel",
+                Platform::Android,
+                state,
+                DeviceKind::Emulator,
+            )]),
+        }
+    }
+    fn boot(&self, _: &Device) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn shutdown(&self, _: &Device) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn install(&self, _: &Device, _: &std::path::Path) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn open_url(&self, _: &Device, _: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn screenshot(&self, _: &Device) -> anyhow::Result<Vec<u8>> {
+        Ok(Vec::new())
+    }
+}
+
+/// Boot holds its spinner until adb lists the AVD, waiting on the executor's timer (no pool thread asleep), and
+/// gives up after 90 s.
+#[gpui::test]
+fn android_boot_waits_on_a_timer_until_adb_lists_it(cx: &mut TestAppContext) {
+    let avd = Arc::new(Avd::default());
+    let (_, panel, cx) = open(cx, avd.clone());
+    let pixel = device(
+        "pixel",
+        Platform::Android,
+        DeviceState::Shutdown,
+        DeviceKind::Emulator,
+    );
+    let busy = |cx: &mut gpui::VisualTestContext| {
+        panel.read_with(cx, |p, _| p.ops.get("pixel").and_then(|o| o.busy))
+    };
+    panel.update(cx, |p, cx| p.boot(&pixel, cx));
+    cx.run_until_parked();
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(5));
+    cx.run_until_parked();
+    assert!(
+        busy(cx).is_some(),
+        "still booting while adb lists it stopped"
+    );
+    avd.up.store(true, std::sync::atomic::Ordering::SeqCst);
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(1));
+    cx.run_until_parked();
+    assert_eq!(busy(cx), None, "the spinner ends once adb lists it");
+
+    avd.up.store(false, std::sync::atomic::Ordering::SeqCst);
+    panel.update(cx, |p, cx| p.boot(&pixel, cx));
+    cx.executor()
+        .advance_clock(std::time::Duration::from_secs(91));
+    cx.run_until_parked();
+    let error = panel.read_with(cx, |p, _| p.ops["pixel"].error.clone());
+    assert!(
+        error.is_some_and(|e| e.contains("within 90 s")),
+        "BOOT_WAIT_NEVER_ENDS"
     );
 }

@@ -28,6 +28,12 @@ fn unlink_a_pull_request_and_undo(cx: &mut gpui::TestAppContext) {
     assert_eq!(badge(&r, id, cx).as_deref(), Some("#42"));
 
     view.update(cx, |v, cx| v.unlink_pr(cx));
+    // The write runs on the background executor, not inside the click on the UI thread.
+    assert_eq!(
+        r.row(id).and_then(|t| t.pr_url).as_deref(),
+        Some(url),
+        "WRITE_ON_UI_THREAD"
+    );
     cx.run_until_parked();
     assert_eq!(
         r.row(id).and_then(|t| t.pr_url),
@@ -51,6 +57,7 @@ fn unlink_a_pull_request_and_undo(cx: &mut gpui::TestAppContext) {
     r.ws.update_in(cx, |ws, window, cx| {
         ws.relink_pr(id, url.into(), window, cx)
     });
+    assert_eq!(r.row(id).and_then(|t| t.pr_url), None, "WRITE_ON_UI_THREAD");
     cx.run_until_parked();
     assert_eq!(r.row(id).and_then(|t| t.pr_url).as_deref(), Some(url));
     assert_eq!(

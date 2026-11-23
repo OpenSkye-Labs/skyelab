@@ -53,6 +53,26 @@ and how Zed uses it, not blog posts or memory.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
 
+## Redraw discipline
+
+- A `cx.notify()` re-renders the view **and every ancestor view** up to the window root (`Window::mark_view_dirty`).
+  A cached view (a dock panel) is reused only while nothing under it notified. So moving a ticking label into its own
+  entity doesn't spare its parent's render; keeping the parent's render cheap does (a virtualized `list`).
+- `cx.observe(&view, ..)` fires on every notify of that view: each streamed delta, keystroke and timer tick. Don't
+  rebuild derived models from it. Emit a specific event when the thing you show changes, or compare against the last
+  value you drew and return early (the sidebar keeps a `RowSig` per open thread).
+- A per-second tick lives in the smallest view that shows the time, runs only while something ticks, and only
+  notifies. It never rebuilds a model.
+- `render` only reads. No `entity.update`, no `set_value`, no restoring state: do that where the state changes (an event
+  handler, the task that got the result). To draw another entity's content, read it (`view.read(cx)`) and build its
+  click handlers from a `WeakEntity` (see `thread_details::On`).
+- Per-frame work is per visible row. Borrow items, don't clone them. Cache what's derived from text (linkified
+  markdown) in element state (`window.use_keyed_state`), keyed by the element's id.
+- Blocking or O(n) work (store writes, ranking thousands of rows, polling a CLI) goes to `background_spawn`, and waits
+  use `background_executor().timer`, never `std::thread::sleep` on the pool.
+- Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
+  one-shot wait removes its own `Subscription` once it fires.
+
 ## Keyboard and focus
 
 - Commands are `actions!(skyelab, [NewThread, ..])`, bound with `KeyBinding::new("cmd-n", NewThread, Some("Workspace"))`. `KeyBinding::new` panics on `secondary-` (it has no OS to resolve it): use `KeyBinding::load(.., cx)` for those.
