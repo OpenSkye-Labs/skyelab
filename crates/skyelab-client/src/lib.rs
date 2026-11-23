@@ -144,6 +144,8 @@ impl<T> Pending<T> {
 /// may go out on it instead).
 pub struct Client {
     commands: flume::Sender<conn::Command>,
+    /// Set (under its lock) once the connection task has ended and failed what was left in `commands`.
+    stopped: Arc<Mutex<bool>>,
     updates: flume::Receiver<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
     next_watch: AtomicU64,
@@ -186,6 +188,8 @@ impl Client {
             .enable_all()
             .build()?;
         let shared_hello = hello.clone();
+        let stopped = Arc::new(Mutex::new(false));
+        let task_stopped = stopped.clone();
         std::thread::Builder::new()
             .name("skyelab-client".into())
             .spawn(move || {
@@ -193,15 +197,22 @@ impl Client {
                     host,
                     options,
                     tls,
-                    commands_rx,
+                    commands_rx.clone(),
                     updates_tx,
                     shared_hello,
                 ));
+                // A request queued as the task ended would wait forever: nobody reads it, and the client's sender
+                // keeps it alive. Fail those, and every later one (`command` checks the flag under this lock).
+                let mut stopped = task_stopped.lock().unwrap_or_else(PoisonError::into_inner);
+                *stopped = true;
+                commands_rx.drain().for_each(fail_stopped);
+                drop(stopped);
                 // A DNS lookup in flight can't be cancelled; don't wait for it.
                 runtime.shutdown_background();
             })?;
         Ok(Self {
             commands,
+            stopped,
             updates,
             hello,
             next_watch: AtomicU64::new(1),
@@ -349,11 +360,18 @@ impl Client {
 
     fn command(&self, command: conn::Command) {
         // The connection task has stopped (a fatal error): fail the request right away.
-        if let Err(flume::SendError(conn::Command::Call { reply, .. })) =
-            self.commands.send(command)
-        {
-            reply(Err(Error::Stopped));
+        let stopped = self.stopped.lock().unwrap_or_else(PoisonError::into_inner);
+        if *stopped {
+            fail_stopped(command);
+        } else if let Err(flume::SendError(command)) = self.commands.send(command) {
+            fail_stopped(command);
         }
+    }
+}
+
+fn fail_stopped(command: conn::Command) {
+    if let conn::Command::Call { reply, .. } = command {
+        reply(Err(Error::Stopped));
     }
 }
 
