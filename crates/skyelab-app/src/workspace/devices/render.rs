@@ -204,7 +204,7 @@ impl Render for DevicesPanel {
                     .child(
                         h_flex()
                             .justify_between()
-                            .child(ui::page_title("Devices", &theme))
+                            .child(ui::page_title("Devices", theme))
                             .child(refresh.icon(gpui_component::IconName::RefreshCw)),
                     )
                     .child(self.render_section(Platform::Ios, cx))

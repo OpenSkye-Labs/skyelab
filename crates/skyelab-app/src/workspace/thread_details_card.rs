@@ -85,7 +85,7 @@ impl ThreadView {
                         .into_iter()
                         .flatten()
                         .enumerate()
-                        .map(|(i, (title, body))| section(i == 0, title, body, &theme)),
+                        .map(|(i, (title, body))| section(i == 0, title, body, theme)),
                 )
                 .into_any_element()
             }
@@ -103,7 +103,7 @@ impl ThreadView {
         let cwd = self.cwd.clone();
         v_flex()
             .child(
-                row("details-machine", IconName::Monitor, machine, &theme)
+                row("details-machine", IconName::Monitor, machine, theme)
                     .cursor_default()
                     .child(
                         Button::new("details-open-folder")
@@ -126,7 +126,7 @@ impl ThreadView {
         } else {
             (IconName::Play, "Run project script")
         };
-        row("details-scripts", icon, label, &theme)
+        row("details-scripts", icon, label, theme)
             .on_click(on.click(|this, _, cx| {
                 this.scripts.update(cx, |m, cx| m.set_open(true, cx));
                 cx.notify();
@@ -143,7 +143,7 @@ impl ThreadView {
             None => "Open in editor".into(),
         };
         let can_choose = editors.is_some_and(|e| !e.choices.is_empty());
-        row("details-open-in", IconName::SquareCode, open_in, &theme)
+        row("details-open-in", IconName::SquareCode, open_in, theme)
             .on_click(on.click(|this, window, cx| {
                 this.details_home(cx);
                 window.dispatch_action(Box::new(super::super::attention::OpenInEditor), cx);
@@ -173,7 +173,7 @@ impl ThreadView {
                     SharedString::from(format!("details-editor-{bin}")),
                     IconName::SquareCode,
                     editor_name(bin),
-                    &theme,
+                    theme,
                 )
                 .when(current, |r| {
                     r.child(
@@ -204,7 +204,7 @@ impl ThreadView {
         back: impl Fn(&mut ThreadView, &mut Context<ThreadView>) + 'static,
     ) -> AnyElement {
         let theme = cx.theme();
-        row("details-back", IconName::ChevronLeft, title, &theme)
+        row("details-back", IconName::ChevronLeft, title, theme)
             .on_click(on.click(move |this, _, cx| back(this, cx)))
             .into_any_element()
     }

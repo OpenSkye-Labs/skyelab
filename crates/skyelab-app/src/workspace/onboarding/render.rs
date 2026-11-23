@@ -380,7 +380,7 @@ impl gpui::Render for Onboarding {
                     .border_color(theme.border.opacity(0.6))
                     .children(bands),
             )
-            .children(error.map(|e| div().pt_3().text_size(ui::META).text_color(ui::ink(&theme, theme.danger)).child(e)))
+            .children(error.map(|e| div().pt_3().text_size(ui::META).text_color(ui::ink(theme, theme.danger)).child(e)))
             .child(
                 h_flex()
                     .mt_6()

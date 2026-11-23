@@ -209,7 +209,7 @@ impl Render for DetailsPanel {
                 view.read(cx).render_details(usage, &on, cx)
             }
             None => v_flex()
-                .child(caption("Usage", &theme))
+                .child(caption("Usage", theme))
                 .child(usage)
                 .child(
                     div()

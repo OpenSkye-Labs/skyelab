@@ -36,7 +36,7 @@ impl ThreadView {
         let branch_row = match worktree_branch {
             // A worktree thread's branch is its own; it doesn't switch.
             Some(branch) => {
-                row("details-branch", IconName::GitBranch, branch, &theme).cursor_default()
+                row("details-branch", IconName::GitBranch, branch, theme).cursor_default()
             }
             None => {
                 let picker = self.branch_picker.clone();
@@ -44,9 +44,9 @@ impl ThreadView {
                     "details-branch",
                     IconName::GitBranch,
                     self.branch_picker.read(cx).label(picks_base),
-                    &theme,
+                    theme,
                 )
-                .child(chevron(IconName::ChevronDown, &theme))
+                .child(chevron(IconName::ChevronDown, theme))
                 .on_click(on.click(move |_, _, cx| {
                     picker.update(cx, |p, cx| p.set_open(true, cx));
                     cx.notify();
@@ -64,12 +64,12 @@ impl ThreadView {
                 .text_size(ui::META)
                 .child(
                     div()
-                        .text_color(ui::ink(&theme, theme.success))
+                        .text_color(ui::ink(theme, theme.success))
                         .child(format!("+{added}")),
                 )
                 .child(
                     div()
-                        .text_color(ui::ink(&theme, theme.danger))
+                        .text_color(ui::ink(theme, theme.danger))
                         .child(format!("−{removed}")),
                 )
         });
@@ -82,9 +82,9 @@ impl ThreadView {
                         "details-commit",
                         IconName::CloudUpload,
                         "Commit & push",
-                        &theme,
+                        theme,
                     )
-                    .child(chevron(IconName::ChevronRight, &theme))
+                    .child(chevron(IconName::ChevronRight, theme))
                     .on_click(on.click(|this, _, cx| this.open_git_menu(cx))),
                 )
                 .child(
@@ -92,7 +92,7 @@ impl ThreadView {
                         "details-changes",
                         IconName::FileDiff,
                         format!("Changes vs {base}"),
-                        &theme,
+                        theme,
                     )
                     .children(stat)
                     .on_click(on.click(|this, window, cx| {
@@ -106,7 +106,7 @@ impl ThreadView {
                             "details-worktree-terminal",
                             IconName::SquareTerminal,
                             "Open terminal here",
-                            &theme,
+                            theme,
                         )
                         .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
@@ -118,7 +118,7 @@ impl ThreadView {
                             "details-discard-worktree",
                             IconName::Trash,
                             "Discard worktree",
-                            &theme,
+                            theme,
                         )
                         .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
@@ -150,14 +150,14 @@ impl ThreadView {
             .children(running.into_iter().map(|c| self.agent_row(c, on, cx)))
             .when(previous > 0, |v| {
                 v.child(
-                    row("details-previous", IconName::Bot, "Previous agents", &theme)
+                    row("details-previous", IconName::Bot, "Previous agents", theme)
                         .child(
                             div()
                                 .text_size(ui::META)
                                 .text_color(theme.muted_foreground)
                                 .child(previous.to_string()),
                         )
-                        .child(chevron(IconName::ChevronRight, &theme))
+                        .child(chevron(IconName::ChevronRight, theme))
                         .on_click(on.click(|this, _, cx| this.details_page(Page::Previous, cx))),
                 )
             });
@@ -175,7 +175,7 @@ impl ThreadView {
                     "details-link-pr",
                     IconName::Plus,
                     "Link pull request…",
-                    &theme,
+                    theme,
                 )
                 .on_click(on.click(|this, window, cx| this.open_link_pr(window, cx)))
                 .into_any_element(),
@@ -183,7 +183,7 @@ impl ThreadView {
         };
         let label = url.trim_start_matches("https://").to_owned();
         Some(
-            row("details-pr", IconName::GitPullRequest, label, &theme)
+            row("details-pr", IconName::GitPullRequest, label, theme)
                 .on_click(move |_, _, cx| {
                     if super::super::thread_render::opens_in_browser(&url) {
                         cx.open_url(&url);
@@ -276,7 +276,7 @@ impl ThreadView {
             .clone()
             .unwrap_or_else(|| "Checking the GitHub login…".into());
         let action = |id: &'static str, icon: IconName, label: &'static str, a: GitAction| {
-            row(id, icon, label, &theme)
+            row(id, icon, label, theme)
                 .on_click(on.click(move |this, _, cx| {
                     this.details_home(cx);
                     cx.emit(ThreadViewEvent::Git(a));
@@ -288,7 +288,7 @@ impl ThreadView {
                 "details-git-view-pr",
                 IconName::ExternalLink,
                 "View PR",
-                &theme,
+                theme,
             )
             .on_click(move |_, _, cx| {
                 if super::super::thread_render::opens_in_browser(&url) {
@@ -422,7 +422,7 @@ impl ThreadView {
                 .px_2p5()
                 .py_1()
                 .text_size(ui::META)
-                .text_color(ui::ink(&theme, theme.danger))
+                .text_color(ui::ink(theme, theme.danger))
                 .child(e)
                 .into_any_element()
         }))
