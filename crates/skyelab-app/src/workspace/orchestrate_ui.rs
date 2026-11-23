@@ -191,14 +191,32 @@ impl Workspace {
             return answer(self, result);
         }
         let mut answer = Some(answer);
-        self._thread_events
-            .push(cx.observe(view, move |this, view, cx| {
-                if let Some(result) = row_result(view.read(cx))
-                    && let Some(answer) = answer.take()
-                {
-                    answer(this, result);
-                }
-            }));
+        self.wait_on(view, cx, move |this, view, cx| {
+            let Some(result) = row_result(view.read(cx)) else {
+                return false;
+            };
+            if let Some(answer) = answer.take() {
+                answer(this, result);
+            }
+            true
+        });
+    }
+
+    /// Watches `view` until `done` returns true, then drops the watch.
+    pub(super) fn wait_on(
+        &mut self,
+        view: &Entity<ThreadView>,
+        cx: &mut Context<Self>,
+        mut done: impl FnMut(&mut Self, Entity<ThreadView>, &mut Context<Self>) -> bool + 'static,
+    ) {
+        let key = self.next_waiter;
+        self.next_waiter += 1;
+        let watch = cx.observe(view, move |this, view, cx| {
+            if done(this, view, cx) {
+                this.waiters.remove(&key);
+            }
+        });
+        self.waiters.insert(key, watch);
     }
 
     fn delegated_send(

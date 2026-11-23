@@ -34,8 +34,7 @@ impl Workspace {
                 sidebar.archived = None;
                 sidebar.searchable = false;
                 sidebar.scope = None;
-                sidebar.sync_tick(cx);
-                cx.notify();
+                sidebar.rows_changed(cx);
             });
         }
         // An open tab knows its thread's state now; the row is only as fresh as the last load.
@@ -199,8 +198,7 @@ impl Workspace {
             sidebar.searchable = true;
             sidebar.scope = Some(scope);
             sidebar.sections = sections;
-            sidebar.sync_tick(cx);
-            cx.notify();
+            sidebar.rows_changed(cx);
         });
     }
 

@@ -97,3 +97,26 @@ pub(super) fn awaiting_approval(v: &ThreadView) -> bool {
             .take(32)
             .any(|i| matches!(i, super::thread_model::Item::Approval(a) if a.decision.is_none()))
 }
+
+/// What a sidebar row shows of an open view. The sidebar is rebuilt when this changes, not on every notify (a streamed
+/// delta or a keystroke notifies the view too).
+#[derive(Clone, PartialEq)]
+pub(super) struct RowSig {
+    id: Option<i64>,
+    state: (Status, bool, Option<i64>),
+    pr_url: Option<String>,
+}
+
+pub(super) fn row_sig(v: &ThreadView) -> RowSig {
+    RowSig {
+        id: v.thread.as_ref().map(|t| t.id),
+        state: (v.live_status(), awaiting_approval(v), v.turn_started_ms),
+        pr_url: v.thread.as_ref().and_then(|t| t.pr_url.clone()),
+    }
+}
+
+/// An open view's subscriptions, and the row state the sidebar last drew for it.
+pub(super) struct ThreadSubs {
+    pub sig: RowSig,
+    pub _subs: [gpui::Subscription; 2],
+}

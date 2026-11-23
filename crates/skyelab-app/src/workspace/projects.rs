@@ -280,13 +280,18 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // Its state shows in the sidebar, so redraw that when the tab changes.
-        self._thread_events
-            .push(cx.observe(&view, |this, view, cx| {
-                this.sync_lineage(&view, cx);
-                this.refresh_sidebar(cx)
-            }));
-        self._thread_events.push(cx.subscribe_in(
+        // Its state shows in the sidebar: rebuild that when what the row shows changed, not on every notify.
+        let observe = cx.observe(&view, |this, view, cx| {
+            let sig = super::thread_rows::row_sig(view.read(cx));
+            match this.thread_subs.get_mut(&view.entity_id()) {
+                Some(subs) if subs.sig == sig => return,
+                Some(subs) => subs.sig = sig,
+                None => {}
+            }
+            this.sync_lineage(&view, cx);
+            this.refresh_sidebar(cx)
+        });
+        let events = cx.subscribe_in(
             &view,
             window,
             |this, view, e: &ThreadViewEvent, window, cx| match e {
@@ -371,7 +376,13 @@ impl Workspace {
                     this.run_setup_scripts(project, cwd.clone(), account_id.clone(), window, cx);
                 }
             },
-        ));
+        );
+        let sig = super::thread_rows::row_sig(view.read(cx));
+        let subs = super::thread_rows::ThreadSubs {
+            sig,
+            _subs: [observe, events],
+        };
+        self.thread_subs.insert(view.entity_id(), subs);
         self.open_threads.push(view.clone());
         if focus {
             return self.show(Page::Thread(view.downgrade()), window, cx);
