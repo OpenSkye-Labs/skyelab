@@ -66,36 +66,29 @@ pub fn capture_checkpoint(dir: &Path, key: &str, turn: u32) -> Result<String> {
 /// Thread `key`'s checkpoints, by turn.
 pub fn checkpoints(dir: &Path, key: &str) -> Result<Vec<Checkpoint>> {
     let prefix = prefix(key)?;
+    // `%(tree)` is empty for a ref that isn't a commit: such a ref (not ours) is skipped, not fatal.
     let out = git(
         dir,
-        &[
-            "for-each-ref",
-            "--format=%(refname) %(objectname)^{tree}",
-            &prefix,
-        ],
+        &["for-each-ref", "--format=%(refname) %(tree)", &prefix],
     )?;
-    let mut list = Vec::new();
-    for line in lossy(&out).lines() {
-        let Some((name, commit)) = line.split_once(' ') else {
-            continue;
-        };
-        let Some(turn) = name.strip_prefix(&prefix).and_then(|t| t.parse().ok()) else {
-            continue;
-        };
-        list.push((turn, commit.to_owned()));
-    }
-    list.sort();
-    if list.is_empty() {
-        return Ok(Vec::new());
-    }
-    // One rev-parse for every `<commit>^{tree}`.
-    let revs: Vec<&str> = list.iter().map(|(_, c)| c.as_str()).collect();
-    let trees = git(dir, &[&["rev-parse"][..], &revs].concat())?;
-    Ok(list
-        .into_iter()
-        .zip(lossy(&trees).lines().map(str::to_owned))
-        .map(|((turn, _), tree)| Checkpoint { turn, tree })
-        .collect())
+    let mut list: Vec<Checkpoint> = lossy(&out)
+        .lines()
+        .filter_map(|line| {
+            let (name, tree) = line.split_once(' ')?;
+            let turn = name.strip_prefix(&prefix)?.parse().ok()?;
+            is_object_id(tree).then(|| Checkpoint {
+                turn,
+                tree: tree.to_owned(),
+            })
+        })
+        .collect();
+    list.sort_by_key(|c| c.turn);
+    Ok(list)
+}
+
+/// A full hex object id (SHA-1 or SHA-256), so it can't be read as an option or a revision expression.
+fn is_object_id(id: &str) -> bool {
+    matches!(id.len(), 40 | 64) && id.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Deletes every checkpoint ref of thread `key`. The snapshots become unreachable, so `git gc` prunes them.
@@ -133,8 +126,8 @@ pub struct RewindPlan {
     pub restore: Vec<PathBuf>,
     /// Files created since, deleted.
     pub remove: Vec<PathBuf>,
-    /// Files the checkpoint has that now exist as ignored (or otherwise unrecorded) files: overwritten only when
-    /// the caller passes `overwrite_ignored`.
+    /// Files of the checkpoint that something git doesn't record (an ignored file or folder) stands in the way of:
+    /// written, replacing that, only when the caller passes `overwrite_ignored`.
     pub ignored: Vec<PathBuf>,
 }
 
@@ -144,9 +137,17 @@ impl RewindPlan {
     }
 }
 
-/// What rewinding `dir`'s repo to tree `to` would change.
+/// What rewinding `dir` to tree `to` (a checkpoint of its repo) would change. Only paths inside `dir` are rewound, so
+/// a project in a subfolder never touches its repo's other folders.
 pub fn plan_rewind(dir: &Path, to: &str) -> Result<RewindPlan> {
+    if !is_object_id(to) {
+        return Err(Error::Invalid(format!("`{to}` is not a tree id")));
+    }
     let root = repo_root(dir)?;
+    let scope = std::fs::canonicalize(dir)?
+        .strip_prefix(std::fs::canonicalize(&root)?)
+        .map(Path::to_owned)
+        .unwrap_or_default();
     let now = snapshot_tree(&root)?;
     let out = git(
         &root,
@@ -166,6 +167,7 @@ pub fn plan_rewind(dir: &Path, to: &str) -> Result<RewindPlan> {
         ..RewindPlan::default()
     };
     // `:<old mode> <new mode> <old id> <new id> <status>` NUL `<path>` NUL, old = now, new = the checkpoint.
+    let mut added = Vec::new();
     let mut fields = out.split(|b| *b == 0);
     while let (Some(meta), Some(path)) = (fields.next(), fields.next()) {
         let meta = lossy(meta);
@@ -179,43 +181,121 @@ pub fn plan_rewind(dir: &Path, to: &str) -> Result<RewindPlan> {
         }
         let path = PathBuf::from(lossy(path));
         safe_relative(&path)?;
-        let status = parts.nth(2).unwrap_or("");
-        match status {
+        if !path.starts_with(&scope) {
+            continue;
+        }
+        match parts.nth(2).unwrap_or("") {
             "D" => plan.remove.push(path),
-            "A" if std::fs::symlink_metadata(root.join(&path)).is_ok() => plan.ignored.push(path),
+            // In the checkpoint only: whatever stands at its place now decides (after the deletions).
+            "A" => added.push(path),
+            // In both: a file git records now, so writing it replaces nothing unrecorded.
             _ => plan.restore.push(path),
         }
     }
+    let removed = Removed::new(&plan.remove);
+    for path in added {
+        if blocked(&root, &path, &removed) {
+            plan.ignored.push(path);
+        } else {
+            plan.restore.push(path);
+        }
+    }
     Ok(plan)
+}
+
+/// The paths a rewind deletes, compared without case: on a case-insensitive file system `Readme.md` and `README.md`
+/// are one file.
+struct Removed(std::collections::HashSet<String>);
+
+impl Removed {
+    fn new(paths: &[PathBuf]) -> Self {
+        Self(paths.iter().map(|p| key(p)).collect())
+    }
+
+    fn has(&self, path: &Path) -> bool {
+        self.0.contains(&key(path))
+    }
+}
+
+fn key(path: &Path) -> String {
+    path.to_string_lossy().to_lowercase()
+}
+
+/// Whether writing checkpoint file `path` would replace something git doesn't record: a file or symlink (not one
+/// the rewind deletes) at `path` or at a folder on the way to it, or a folder at `path` holding anything the rewind
+/// doesn't delete.
+fn blocked(root: &Path, path: &Path, removed: &Removed) -> bool {
+    let mut at = PathBuf::new();
+    for part in path.components() {
+        at.push(part);
+        let Ok(meta) = std::fs::symlink_metadata(root.join(&at)) else {
+            return false; // nothing there: free
+        };
+        if removed.has(&at) {
+            return false; // deleted first
+        }
+        if !meta.is_dir() {
+            return true; // an unrecorded file or link in the way
+        }
+        if at == path {
+            return !all_removed(root, &at, removed);
+        }
+    }
+    false
+}
+
+/// Every file under folder `dir` is one the rewind deletes (so the folder goes too).
+fn all_removed(root: &Path, dir: &Path, removed: &Removed) -> bool {
+    let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+        return false;
+    };
+    entries.flatten().all(|e| {
+        let rel = dir.join(e.file_name());
+        match e.file_type() {
+            Ok(t) if t.is_dir() => all_removed(root, &rel, removed),
+            Ok(_) => removed.has(&rel),
+            Err(_) => false,
+        }
+    })
 }
 
 /// Brings the working tree back to `plan.to`: deletes what was created since, writes back what changed. The user's
 /// index and branches are untouched (rewound files then show as changes against them). Refuses if the working tree
 /// changed after the plan was made, and never writes through a symlinked folder, so nothing outside the repo is hit.
 pub fn rewind(dir: &Path, plan: &RewindPlan, overwrite_ignored: bool) -> Result<()> {
+    if !is_object_id(&plan.to) {
+        return Err(Error::Invalid(format!("`{}` is not a tree id", plan.to)));
+    }
     let root = repo_root(dir)?;
     if snapshot_tree(&root)? != plan.now {
         return Err(Error::Invalid(
             "the files changed since the rewind was shown; nothing was changed. Look again, then rewind".into(),
         ));
     }
+    let mut write: Vec<&PathBuf> = plan.restore.iter().collect();
+    if overwrite_ignored {
+        write.extend(&plan.ignored);
+    }
+    // Every path is checked before anything changes, so a refused rewind changes nothing. A link the rewind deletes
+    // first doesn't count; the writes are checked again once it is gone.
+    let removed = Removed::new(&plan.remove);
+    for path in plan.remove.iter().chain(write.iter().copied()) {
+        inside(&root, path, &removed)?;
+    }
+    let none = Removed::new(&[]);
     for path in &plan.remove {
-        let full = inside(&root, path)?;
+        let full = inside(&root, path, &none)?;
         match std::fs::remove_file(&full) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
             _ => prune_empty(&root, &full),
         }
-    }
-    let mut write: Vec<&PathBuf> = plan.restore.iter().collect();
-    if overwrite_ignored {
-        write.extend(&plan.ignored);
     }
     if write.is_empty() {
         return Ok(());
     }
     let mut input = Vec::new();
     for path in &write {
-        inside(&root, path)?;
+        inside(&root, path, &none)?;
         input.extend_from_slice(path.as_os_str().as_encoded_bytes());
         input.push(0);
     }
@@ -248,14 +328,18 @@ fn safe_relative(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// `root/path`, once no folder on the way there is a symlink (which could lead out of the repo).
-fn inside(root: &Path, path: &Path) -> Result<PathBuf> {
+/// `root/path`, once no folder on the way there is a symlink (which could lead out of the repo), apart from links in
+/// `removed` (deleted before anything is written).
+fn inside(root: &Path, path: &Path, removed: &Removed) -> Result<PathBuf> {
     safe_relative(path)?;
     let mut at = root.to_owned();
+    let mut rel = PathBuf::new();
     let mut parts = path.components().peekable();
     while let Some(part) = parts.next() {
         at.push(part);
+        rel.push(part);
         if parts.peek().is_some()
+            && !removed.has(&rel)
             && std::fs::symlink_metadata(&at).is_ok_and(|m| m.file_type().is_symlink())
         {
             return Err(Error::Invalid(format!(
