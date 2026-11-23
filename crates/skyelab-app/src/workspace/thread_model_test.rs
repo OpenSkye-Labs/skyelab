@@ -50,6 +50,7 @@ fn assistant_text_tool_calls_and_result_map_to_items() {
             is_error,
             duration_ms,
             cost_usd,
+            ..
         }) => {
             assert!(!is_error);
             assert_eq!(*duration_ms, 4210);

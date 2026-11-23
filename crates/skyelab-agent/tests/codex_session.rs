@@ -3,7 +3,7 @@
 #![cfg(unix)]
 
 use serde_json::Value;
-use skyelab_agent::{Block, Event, Launch, Session, start_with_bin};
+use skyelab_agent::{Block, DeltaKind, Event, Launch, Session, Usage, start_with_bin};
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -116,6 +116,15 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
                 session_id: "thr_fake".into(),
                 model: "gpt-fake".into()
             },
+            Event::Delta {
+                kind: DeltaKind::Thinking,
+                text: "Listing the repo".into()
+            },
+            Event::Assistant {
+                content: vec![Block::Thinking {
+                    thinking: "Listing the repo".into()
+                }]
+            },
             Event::Assistant {
                 content: vec![Block::ToolUse {
                     id: "item_2".into(),
@@ -130,6 +139,14 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
                     is_error: false,
                 }]
             },
+            Event::Delta {
+                kind: DeltaKind::Text,
+                text: "Hello from ".into()
+            },
+            Event::Delta {
+                kind: DeltaKind::Text,
+                text: "fake codex.".into()
+            },
             Event::Assistant {
                 content: vec![Block::Text {
                     text: "Hello from fake codex.".into()
@@ -141,6 +158,10 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
                 total_cost_usd: 0.0,
                 result: Some("Hello from fake codex.".into()),
                 prompts: 1,
+                usage: Some(Usage {
+                    input: 1000,
+                    output: 200
+                }),
             },
         ]
     );

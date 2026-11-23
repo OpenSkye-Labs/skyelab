@@ -12,7 +12,8 @@ use pipes::{read_events, read_stderr, write_lines};
 pub mod mcp;
 mod permission;
 
-pub use event::{Block, Event};
+pub use claude::QUESTION_TOOL;
+pub use event::{Block, DeltaKind, Event, TODO_TOOL, Todo, TodoStatus, Usage, session_gone, todos};
 pub use permission::{Decision, Mode, summary};
 
 use anyhow::{Context as _, Result, bail};
@@ -113,7 +114,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         None => bail!("{} is not bound to an account", dir.display()),
     }
     if let Some(id) = resume
-        && !valid_session_id(id)
+        && !launch::valid_session_id(id)
     {
         bail!("refusing to resume session id {id:?}");
     }
@@ -137,7 +138,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
     let codex = match account.provider {
         Provider::Claude => {
-            claude_args(&mut cmd, mcp_config, resume, mode);
+            launch::claude_args(&mut cmd, mcp_config, resume, mode);
             None
         }
         Provider::Codex => {
@@ -255,53 +256,6 @@ fn lock(state: &Mutex<codex::Codex>) -> std::sync::MutexGuard<'_, codex::Codex> 
     state.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str>, mode: Mode) {
-    cmd.args([
-        "-p",
-        "--input-format",
-        "stream-json",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
-        "--setting-sources",
-        "user",
-        "--strict-mcp-config",
-        // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
-        "--permission-prompt-tool",
-        "stdio",
-    ])
-    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
-    .args(match mode {
-        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
-        Mode::Bypass => vec![
-            "--permission-mode",
-            mode.claude(),
-            "--allow-dangerously-skip-permissions",
-        ],
-    })
-    // Our own server only (--strict-mcp-config keeps every other out); its tools enforce their own rules.
-    .args(mcp_config.into_iter().flat_map(|path| {
-        [
-            "--mcp-config".as_ref(),
-            path.as_os_str(),
-            "--allowedTools".as_ref(),
-            "mcp__skyelab".as_ref(),
-        ]
-    }))
-    .args(resume.into_iter().flat_map(|id| ["--resume", id]));
-}
-
-/// Claude Code's session ids and Codex's thread ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
-fn valid_session_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 128
-        && !id.starts_with('-')
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
 impl Session {
     /// Events in the order `claude` printed them.
     ///
@@ -347,6 +301,31 @@ impl Session {
             let _ = tx.send(Event::PermissionResolved {
                 id: id.to_owned(),
                 decision,
+            });
+        }
+        Ok(())
+    }
+
+    /// Answers the AskUserQuestion ask `id` with each question's picked labels, in question order (a typed "Other"
+    /// answer is a label too). Then the session's events carry [`Event::PermissionResolved`] (allowed once). Fails,
+    /// sending nothing, when `id` isn't a waiting question or the count doesn't match its questions.
+    pub fn answer_questions(&mut self, id: &str, answers: &[Vec<String>]) -> Result<()> {
+        let line = match &self.codex {
+            Some(state) => lock(state).answer_questions(id, answers),
+            None => claude::answer_questions(&self.asks, id, answers).map(|v| v.to_string()),
+        };
+        let Some(line) = line else {
+            bail!("the agent is no longer waiting for these answers");
+        };
+        self.queue(line)?;
+        match &self.codex {
+            Some(state) => lock(state).forget(id),
+            None => claude::forget(&self.asks, id),
+        }
+        if let Some(tx) = self.events_tx.upgrade() {
+            let _ = tx.send(Event::PermissionResolved {
+                id: id.to_owned(),
+                decision: Decision::AllowOnce,
             });
         }
         Ok(())

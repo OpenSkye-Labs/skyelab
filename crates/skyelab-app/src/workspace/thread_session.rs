@@ -89,6 +89,15 @@ impl ThreadView {
                         continue;
                     }
                 };
+                // Streaming text is shown, never stored: the complete block that follows is.
+                if matches!(event, Event::Delta { .. }) {
+                    let record = Record::Agent(event);
+                    if this.update(cx, |this, cx| this.push(&record, cx)).is_err() {
+                        return;
+                    }
+                    continue;
+                }
+                let gone = skyelab_agent::session_gone(&event);
                 // An interrupt ends a Codex turn as an error too; the user asked for that one.
                 let failed = matches!(&event, Event::Result { is_error: true, result, .. }
                     if result.as_deref() != Some("interrupted"));
@@ -103,6 +112,11 @@ impl ThreadView {
                         if this.session.is_none() && !this.starting {
                             this.finish(cx); // stopped before this arrived: it's resumable now
                         }
+                    }
+                    if gone {
+                        this.rerun = this.resumed_prompt.clone();
+                    } else if matches!(record, Record::Agent(Event::Init { .. })) {
+                        this.resumed_prompt = None; // the session answered: it exists
                     }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
@@ -125,6 +139,9 @@ impl ThreadView {
                 let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let _ = this.update(cx, |this, cx| {
                     this.saved(left, cx);
+                    if matches!(&record, Record::Agent(e) if skyelab_agent::session_gone(e)) {
+                        this.rerun = this.resumed_prompt.clone();
+                    }
                     this.push(&record, cx);
                 });
             }
@@ -149,6 +166,15 @@ impl ThreadView {
         let session = self.session.take();
         self.turns.store(0, Ordering::SeqCst); // no agent, so no turn is running
         self.finish(cx);
+        if let Some(text) = self.rerun.take().filter(|_| !self.stop_requested) {
+            self.resumed_prompt = None;
+            // The old process is gone; reap it off the UI thread, then start the prompt in a new session.
+            self.in_background(cx, move || {
+                drop(session);
+                Ok(())
+            });
+            return self.start_fresh(text, cx);
+        }
         // Reaping the child waits, so it happens off the UI thread, after the status is written
         // (so a quick resume's "running" can't be overwritten by it).
         self.in_background(cx, move || {

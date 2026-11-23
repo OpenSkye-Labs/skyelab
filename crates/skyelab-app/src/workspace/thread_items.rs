@@ -1,8 +1,9 @@
 //! How a thread's items look, shared by local (`ThreadView`) and remote (`RemoteThreadView`) thread tabs.
 
-use super::thread::ThreadView;
+use super::ask_cards::{self, QuestionDraft};
 use super::thread_model::{ApprovalItem, Item, ToolItem};
-use super::thread_render::opens_in_browser;
+use super::timeline_text::{divider_text, limited_text, markdown};
+use super::tool_cards;
 use crate::ui;
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
@@ -11,16 +12,14 @@ use gpui::{
 use gpui_component::{
     ActiveTheme as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
-    h_flex,
-    text::TextView,
-    v_flex,
+    h_flex, v_flex,
 };
-use skyelab_agent::Decision;
+use skyelab_agent::{Decision, DeltaKind};
 
 /// Longest tool input or result shown when a row is expanded; the store keeps the whole text.
 const TOOL_PREVIEW: usize = 4000;
 
-fn clip(s: &str) -> String {
+pub(super) fn clip(s: &str) -> String {
     match s.char_indices().nth(TOOL_PREVIEW) {
         Some((at, _)) => format!("{}\n…", &s[..at]),
         None => s.to_owned(),
@@ -46,23 +45,50 @@ pub(super) trait ItemsView: Sized + 'static {
     /// Whether an agent is there to answer a pending permission request.
     fn can_answer(&self, cx: &App) -> bool;
     fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
-}
-
-impl ItemsView for ThreadView {
-    fn items(&self) -> &[Item] {
-        &self.items
+    /// Shows `path` (a tool card's file, a markdown link) in the Changes tab. Remote tabs have no local files.
+    fn open_path(&mut self, _path: &str, _cx: &mut Context<Self>) {}
+    /// Whether AskUserQuestion answers can be sent from here (remote tabs can't yet).
+    fn can_answer_questions(&self, _cx: &App) -> bool {
+        false
     }
-    fn is_expanded(&self, tool_id: &str) -> bool {
-        ThreadView::is_expanded(self, tool_id)
+    fn draft(&self, _id: &str) -> Option<&QuestionDraft> {
+        None
     }
-    fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>) {
-        ThreadView::toggle_tool(self, tool_id, cx)
+    /// Picks option `option` (or [`ask_cards::OTHER`]) of question `q`.
+    fn pick(
+        &mut self,
+        _id: &str,
+        _q: usize,
+        _option: usize,
+        _multi: bool,
+        _cx: &mut Context<Self>,
+    ) {
     }
-    fn can_answer(&self, _: &App) -> bool {
-        self.session.is_some()
+    /// The text field of question `q`'s "Other" answer.
+    fn other_input(
+        &mut self,
+        _id: &str,
+        _q: usize,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
+        None
     }
-    fn answer(&mut self, id: &str, decision: Decision, _: &mut Window, cx: &mut Context<Self>) {
-        ThreadView::answer(self, id, decision, cx)
+    fn submit_answers(&mut self, _id: &str, _window: &mut Window, _cx: &mut Context<Self>) {}
+    /// ExitPlanMode: approve the plan (the agent may start), or keep planning (it's told no).
+    fn answer_plan(
+        &mut self,
+        id: &str,
+        approve: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let d = if approve {
+            Decision::AllowOnce
+        } else {
+            Decision::Deny
+        };
+        self.answer(id, d, window, cx)
     }
 }
 
@@ -70,15 +96,16 @@ impl ItemsView for ThreadView {
 pub(super) fn render_item<V: ItemsView>(
     this: &mut V,
     ix: usize,
-    _: &mut Window,
+    window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
     let theme = cx.theme();
-    let Some(item) = this.items().get(ix) else {
+    let Some(item) = this.items().get(ix).cloned() else {
         return div().into_any_element();
     };
+    let item = &item;
     // T3's chat column: 736 wide, centered; rows 16 apart.
     let column = |child: AnyElement| {
         h_flex()
@@ -114,27 +141,96 @@ pub(super) fn render_item<V: ItemsView>(
                 .into_any_element(),
         ),
         Item::Text(text) => column(
-            div()
+            v_flex()
                 .px_1()
+                .gap_1()
                 .text_size(ui::BODY)
+                .child(markdown(ix, text, false, cx))
                 .child(
-                    TextView::markdown(("md", ix), text.clone())
-                        .selectable(true)
-                        .on_link_click(|url, _, _, cx| {
-                            if opens_in_browser(url) {
-                                cx.open_url(url);
-                            }
-                        }),
+                    h_flex()
+                        .debug_selector(|| "message-copy".into())
+                        .opacity(0.6)
+                        .child(tool_cards::copy(("copy-msg", ix), text.clone())),
                 )
                 .into_any_element(),
         ),
+        Item::Live {
+            kind: DeltaKind::Text,
+            text,
+        } => column(
+            div()
+                .debug_selector(|| "streaming-text".into())
+                .px_1()
+                .text_size(ui::BODY)
+                .child(markdown(ix, text, true, cx))
+                .into_any_element(),
+        ),
+        Item::Live {
+            kind: DeltaKind::Thinking,
+            text,
+        } => tight(tool_cards::render_thinking(
+            this,
+            &format!("thinking-{ix}"),
+            text,
+            true,
+            cx,
+        )),
+        Item::Thinking { id, text } => {
+            tight(tool_cards::render_thinking(this, id, text, false, cx))
+        }
+        Item::Todo(todos) => column(tool_cards::render_todo(todos, cx)),
+        Item::Tool(tool) if tool_cards::is_shell(&tool.name) => {
+            tight(tool_cards::render_bash(this, tool, cx))
+        }
+        Item::Tool(tool)
+            if tool_cards::is_edit(&tool.name) && tool.raw["file_path"].is_string() =>
+        {
+            tight(tool_cards::render_edit(tool, cx))
+        }
         Item::Tool(tool) => tight(render_tool(this, tool, cx)),
+        Item::Approval(a) if a.tool == skyelab_agent::QUESTION_TOOL => {
+            column(ask_cards::render_questions(this, a, window, cx))
+        }
+        Item::Approval(a) if a.tool == "ExitPlanMode" => {
+            column(ask_cards::render_plan(this, a, cx))
+        }
         Item::Approval(a) => column(render_approval(this, a, cx)),
-        Item::Output { id, text } => tight(render_output(this, id, text, cx)),
+        Item::Limit { resets_at } => column(
+            h_flex()
+                .debug_selector(|| "limit-row".into())
+                .gap_1p5()
+                .px_3()
+                .py_2()
+                .rounded(ui::RADIUS_LG)
+                .bg(theme.warning.opacity(0.08))
+                .border_1()
+                .border_color(theme.warning.opacity(0.35))
+                .text_size(ui::BODY)
+                .child(
+                    Icon::new(IconName::TriangleAlert)
+                        .size_4()
+                        .text_color(ui::ink(theme, theme.warning)),
+                )
+                .child(limited_text(*resets_at, ui::now_ms() / 1000))
+                .into_any_element(),
+        ),
+        Item::Notice(text) => column(
+            h_flex()
+                .debug_selector(|| "notice-row".into())
+                .gap_1p5()
+                .px_1()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(Icon::new(IconName::Info).size_3p5())
+                .child(text.clone())
+                .into_any_element(),
+        ),
+        Item::Output { id, text } => tight(tool_cards::render_output(this, id, text, cx)),
         Item::Done {
             is_error,
             duration_ms,
             cost_usd,
+            usage,
         } => {
             let verb = if *is_error {
                 "Failed after"
@@ -155,7 +251,7 @@ pub(super) fn render_item<V: ItemsView>(
                     .text_size(ui::META)
                     .text_color(color)
                     .child(rule())
-                    .child(format!("{verb} {secs:.1}s · ${cost_usd:.4}"))
+                    .child(divider_text(verb, secs, *usage, *cost_usd))
                     .child(rule())
                     .into_any_element(),
             )
@@ -420,87 +516,5 @@ fn render_approval<V: ItemsView>(this: &V, a: &ApprovalItem, cx: &mut Context<V>
                 .child(clip(&a.input)),
         )
         .child(actions)
-        .into_any_element()
-}
-
-/// The agent's stderr, collapsed to one line until opened.
-fn render_output<V: ItemsView>(this: &V, id: &str, text: &str, cx: &mut Context<V>) -> AnyElement {
-    let theme = cx.theme();
-    let open = this.is_expanded(id);
-    let first = text
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or_default()
-        .to_owned();
-    let key = id.to_owned();
-    let header = h_flex()
-        .id(SharedString::from(id.to_owned()))
-        .min_h(px(28.))
-        .gap_1p5()
-        .px_1()
-        .rounded(ui::RADIUS_MD)
-        .cursor_pointer()
-        .text_size(ui::BODY)
-        .hover(|s| s.bg(theme.accent))
-        .on_click(cx.listener(move |this, _, _, cx| this.toggle_tool(&key, cx)))
-        .child(
-            div()
-                .w(px(24.))
-                .flex()
-                .justify_center()
-                .flex_shrink_0()
-                .child(
-                    Icon::new(IconName::CircleAlert)
-                        .size_4()
-                        .text_color(theme.danger),
-                ),
-        )
-        .child(
-            div()
-                .flex_shrink_0()
-                .font_weight(FontWeight::MEDIUM)
-                .child("Agent output"),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .truncate()
-                .font_family(theme.mono_font_family.clone())
-                .text_size(ui::META)
-                .text_color(theme.muted_foreground)
-                .child(first),
-        )
-        .child(
-            Icon::new(if open {
-                IconName::ChevronDown
-            } else {
-                IconName::ChevronRight
-            })
-            .size_3()
-            .text_color(theme.muted_foreground.opacity(0.7)),
-        );
-    v_flex()
-        .w_full()
-        .child(header)
-        .when(open, |this| {
-            this.child(
-                div()
-                    .ml_7()
-                    .mt_1()
-                    .mb_2()
-                    .px_3()
-                    .py_2()
-                    .rounded(ui::RADIUS)
-                    .bg(theme.muted)
-                    .border_1()
-                    .border_color(theme.border)
-                    .font_family(theme.mono_font_family.clone())
-                    .text_size(ui::META)
-                    .text_color(theme.muted_foreground)
-                    .child(clip(text)),
-            )
-        })
         .into_any_element()
 }

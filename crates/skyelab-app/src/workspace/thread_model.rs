@@ -2,7 +2,7 @@
 
 use anyhow::{Context as _, Result};
 use serde_json::Value;
-use skyelab_agent::{Block, Decision, Event};
+use skyelab_agent::{Block, Decision, DeltaKind, Event, Todo, Usage};
 
 /// One stored thread event. The store's `kind` column says which.
 #[derive(Debug, Clone, PartialEq)]
@@ -46,6 +46,8 @@ pub struct ToolItem {
     pub name: String,
     /// The input as pretty JSON.
     pub input: String,
+    /// The input as the agent sent it, for the cards that lay it out (Bash, Edit, Write).
+    pub raw: Value,
     pub result: Option<String>,
     pub is_error: bool,
 }
@@ -60,6 +62,8 @@ pub struct ApprovalItem {
     pub summary: String,
     /// The input as pretty JSON.
     pub input: String,
+    /// The input as the agent sent it: an AskUserQuestion's questions, an ExitPlanMode's plan.
+    pub raw: Value,
     /// `None` while the agent waits for an answer.
     pub decision: Option<Decision>,
 }
@@ -69,12 +73,31 @@ pub enum Item {
     Prompt(String),
     /// Assistant text, as markdown.
     Text(String),
+    /// Text or thinking still streaming in; the complete block replaces it.
+    Live {
+        kind: DeltaKind,
+        text: String,
+    },
+    /// What the agent thought; `id` keys its expanded state.
+    Thinking {
+        id: String,
+        text: String,
+    },
     Tool(ToolItem),
+    /// The turn's todo list: every TodoWrite in a turn updates this one row.
+    Todo(Vec<Todo>),
     Done {
         is_error: bool,
         duration_ms: u64,
         cost_usd: f64,
+        usage: Option<Usage>,
     },
+    /// The usage limit was hit; it resets at `resets_at` (Unix seconds), when known.
+    Limit {
+        resets_at: Option<i64>,
+    },
+    /// Something SkyeLab did that the user should know about.
+    Notice(String),
     Approval(ApprovalItem),
     /// What the agent wrote to stderr; `id` keys its expanded state.
     Output {
@@ -88,7 +111,7 @@ impl Item {
     pub fn expand_id(&self) -> Option<&str> {
         match self {
             Item::Tool(t) => Some(&t.id),
-            Item::Output { id, .. } => Some(id),
+            Item::Output { id, .. } | Item::Thinking { id, .. } => Some(id),
             _ => None,
         }
     }
@@ -101,20 +124,41 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
     let mut first_changed = None;
     match record {
         Record::Prompt(text) => items.push(Item::Prompt(text.clone())),
+        Record::Agent(Event::Delta { kind, text }) => match live(items, *kind) {
+            Some(ix) => {
+                if let Item::Live { text: t, .. } = &mut items[ix] {
+                    t.push_str(text);
+                }
+                first_changed = Some(ix);
+            }
+            None => items.push(Item::Live {
+                kind: *kind,
+                text: text.clone(),
+            }),
+        },
         Record::Agent(Event::Assistant { content }) => {
             for block in content {
-                match block {
-                    Block::Text { text } if !text.trim().is_empty() => {
-                        items.push(Item::Text(text.clone()))
+                let changed = match block {
+                    Block::Text { text } => finish(items, DeltaKind::Text, text),
+                    Block::Thinking { thinking } => finish(items, DeltaKind::Thinking, thinking),
+                    Block::ToolUse { name, input, .. } if name == skyelab_agent::TODO_TOOL => {
+                        todo(items, skyelab_agent::todos(input))
                     }
-                    Block::ToolUse { id, name, input } => items.push(Item::Tool(ToolItem {
-                        id: id.clone(),
-                        name: name.clone(),
-                        input: serde_json::to_string_pretty(input).unwrap_or_default(),
-                        result: None,
-                        is_error: false,
-                    })),
-                    _ => {}
+                    Block::ToolUse { id, name, input } => {
+                        items.push(Item::Tool(ToolItem {
+                            id: id.clone(),
+                            name: name.clone(),
+                            input: serde_json::to_string_pretty(input).unwrap_or_default(),
+                            raw: input.clone(),
+                            result: None,
+                            is_error: false,
+                        }));
+                        None
+                    }
+                    _ => None,
+                };
+                if let Some(ix) = changed {
+                    first_changed = Some(first_changed.map_or(ix, |f: usize| f.min(ix)));
                 }
             }
         }
@@ -148,18 +192,34 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
             is_error,
             duration_ms,
             total_cost_usd,
+            usage,
             ..
-        }) => items.push(Item::Done {
-            is_error: *is_error,
-            duration_ms: *duration_ms,
-            cost_usd: *total_cost_usd,
-        }),
+        }) => {
+            // A block that never completed (the turn was stopped) stays as it streamed.
+            for (ix, item) in items.iter_mut().enumerate() {
+                if let Item::Live { kind, text } = item {
+                    let done = settled(*kind, std::mem::take(text), ix);
+                    *item = done;
+                    first_changed = Some(first_changed.map_or(ix, |f: usize| f.min(ix)));
+                }
+            }
+            // The failure that says a resumed session is gone is explained by the note just above it.
+            if !(*is_error && matches!(items.last(), Some(Item::Notice(_)))) {
+                items.push(Item::Done {
+                    is_error: *is_error,
+                    duration_ms: *duration_ms,
+                    cost_usd: *total_cost_usd,
+                    usage: *usage,
+                })
+            }
+        }
         Record::Agent(Event::Permission { id, tool, input }) => {
             items.push(Item::Approval(ApprovalItem {
                 id: id.clone(),
                 tool: tool.clone(),
                 summary: skyelab_agent::summary(input),
                 input: serde_json::to_string_pretty(input).unwrap_or_default(),
+                raw: input.clone(),
                 decision: None,
             }))
         }
@@ -177,16 +237,114 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                 first_changed = Some(ix);
             }
         }
+        Record::Agent(e @ (Event::SessionGone | Event::Stderr { .. }))
+            if skyelab_agent::session_gone(e) =>
+        {
+            if !matches!(items.last(), Some(Item::Notice(_))) {
+                items.push(Item::Notice(SESSION_GONE_NOTE.into()));
+            }
+        }
+        Record::Agent(Event::RateLimit {
+            limited: true,
+            resets_at,
+        }) => items.push(Item::Limit {
+            resets_at: *resets_at,
+        }),
         Record::Agent(Event::Stderr { text }) => items.push(Item::Output {
             id: format!("output-{before}"),
             text: text.clone(),
         }),
-        Record::Agent(Event::Init { .. } | Event::Unknown(_)) => {}
+        Record::Agent(
+            Event::Init { .. } | Event::Unknown(_) | Event::RateLimit { .. } | Event::SessionGone,
+        ) => {}
     }
     if items.len() > before {
         first_changed = Some(first_changed.map_or(before, |f| f.min(before)));
     }
     first_changed
+}
+
+/// What a thread says when its resumed session was gone and it went on in a new one.
+pub const SESSION_GONE_NOTE: &str =
+    "The agent's earlier session couldn't be found, so this continues in a new session.";
+
+/// The thread's usage limit after `record`: `Some(resets_at)` while limited. A limited rate-limit event sets it; an
+/// unlimited one, or a turn that succeeded, clears it.
+pub fn limit_after(now: Option<Option<i64>>, record: &Record) -> Option<Option<i64>> {
+    match record {
+        Record::Agent(Event::RateLimit { limited, resets_at }) => limited.then_some(*resets_at),
+        Record::Agent(Event::Result {
+            is_error: false, ..
+        }) => None,
+        _ => now,
+    }
+}
+
+/// The streaming row of `kind`, among the rows still streaming at the end.
+fn live(items: &[Item], kind: DeltaKind) -> Option<usize> {
+    items
+        .iter()
+        .enumerate()
+        .rev()
+        .take_while(|(_, i)| matches!(i, Item::Live { .. }))
+        .find(|(_, i)| matches!(i, Item::Live { kind: k, .. } if *k == kind))
+        .map(|(ix, _)| ix)
+}
+
+/// A complete text or thinking row at `ix`.
+fn settled(kind: DeltaKind, text: String, ix: usize) -> Item {
+    match kind {
+        DeltaKind::Text => Item::Text(text),
+        DeltaKind::Thinking => Item::Thinking {
+            id: format!("thinking-{ix}"),
+            text,
+        },
+    }
+}
+
+/// A complete text or thinking block: it replaces its streaming row (returned as changed), or is pushed. An empty
+/// one (thinking the agent didn't show) keeps what streamed, or adds nothing.
+fn finish(items: &mut Vec<Item>, kind: DeltaKind, text: &str) -> Option<usize> {
+    let at = live(items, kind);
+    let text = match (text.trim().is_empty(), at) {
+        (false, _) => text.to_owned(),
+        (true, Some(ix)) => match &mut items[ix] {
+            Item::Live { text, .. } => std::mem::take(text),
+            _ => String::new(),
+        },
+        (true, None) => return None,
+    };
+    match at {
+        Some(ix) => {
+            items[ix] = settled(kind, text, ix);
+            Some(ix)
+        }
+        None => {
+            items.push(settled(kind, text, items.len()));
+            None
+        }
+    }
+}
+
+/// A TodoWrite: it updates the turn's todo row in place (returned as changed), or starts one.
+fn todo(items: &mut Vec<Item>, todos: Vec<Todo>) -> Option<usize> {
+    let turn = items
+        .iter()
+        .rposition(|i| matches!(i, Item::Prompt(_)))
+        .map_or(0, |p| p + 1);
+    match items[turn..]
+        .iter()
+        .position(|i| matches!(i, Item::Todo(_)))
+    {
+        Some(at) => {
+            items[turn + at] = Item::Todo(todos);
+            Some(turn + at)
+        }
+        None => {
+            items.push(Item::Todo(todos));
+            None
+        }
+    }
 }
 
 /// A tool result's content is a string or an array of blocks; keep the text.

@@ -196,6 +196,8 @@ pub enum Status {
     Interrupted,
     Failed,
     Stale,
+    /// The account's usage limit holds the agent back.
+    Limited,
     Unknown,
 }
 
@@ -216,7 +218,7 @@ impl Status {
         match self {
             Self::Starting | Self::Running => theme.info,
             Self::Idle => theme.success,
-            Self::Interrupted | Self::Stale => theme.warning,
+            Self::Interrupted | Self::Stale | Self::Limited => theme.warning,
             Self::Failed => theme.danger,
             Self::Stopped | Self::Unknown => theme.muted_foreground,
         }
@@ -231,6 +233,7 @@ impl Status {
             Self::Interrupted => Some((I::TriangleAlert, "Interrupted")),
             Self::Failed => Some((I::CircleAlert, "Failed")),
             Self::Stale => Some((I::TriangleAlert, "Stale")),
+            Self::Limited => Some((I::TriangleAlert, "Limited")),
             Self::Idle | Self::Stopped | Self::Unknown => None,
         }
     }

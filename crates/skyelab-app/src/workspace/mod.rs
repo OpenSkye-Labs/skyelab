@@ -35,11 +35,14 @@ mod remote_thread;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
+mod ask_cards;
 mod thread_items;
 mod thread_list;
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
+mod timeline_text;
+mod tool_cards;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
@@ -442,6 +445,24 @@ mod browser_tests;
 
 #[cfg(test)]
 mod thread_model_test;
+
+#[cfg(test)]
+mod timeline_model_test;
+
+#[cfg(all(test, unix))] // builds its thread on the fake agent, a shell script
+mod tool_cards_test;
+
+#[cfg(test)]
+mod card_path_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod ask_question_e2e_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod delta_store_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod rate_limit_state_test;
 
 #[cfg(test)]
 mod threads_test;

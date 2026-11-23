@@ -98,6 +98,7 @@ fn env_check_in_child() {
         "--output-format stream-json",
         "--input-format stream-json",
         "--verbose",
+        "--include-partial-messages",
     ] {
         assert!(args.contains(flag), "missing {flag} in {args}");
     }

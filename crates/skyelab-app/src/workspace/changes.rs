@@ -45,6 +45,8 @@ pub struct ChangesView {
     pub(super) selected: HashSet<PathBuf>,
     /// The file last jumped to (sidebar click or a terminal link), highlighted in the sidebar.
     pub(super) active_file: Option<PathBuf>,
+    /// A file to scroll to once the diff loads (a timeline path opened this tab).
+    pub(super) reveal_after_load: Option<PathBuf>,
     pub(super) publish_error: Option<SharedString>,
     pub(super) publish_note: Option<SharedString>,
     /// A commit, push or PR is running; another click is ignored.
@@ -86,6 +88,7 @@ impl ChangesView {
             pr_body,
             selected: HashSet::new(),
             active_file: None,
+            reveal_after_load: None,
             publish_error: None,
             publish_note: None,
             busy: false,
@@ -112,6 +115,9 @@ impl ChangesView {
                         this.selected
                             .retain(|p| c.files.iter().any(|f| &f.path == p));
                         (this.changes, this.error) = (Some(c), None);
+                        if let Some(path) = this.reveal_after_load.take() {
+                            this.reveal(&path, cx);
+                        }
                     }
                     Err(e) => this.error = Some(format!("{e:#}").into()),
                 }
@@ -154,15 +160,6 @@ impl ChangesView {
         let theme = cx.theme();
         let Some(changes) = &self.changes else {
             return Vec::new();
-        };
-        let num = |n: Option<u32>| {
-            div()
-                .w(px(44.))
-                .flex_none()
-                .text_right()
-                .pr_2()
-                .text_color(theme.muted_foreground)
-                .child(n.map(|n| n.to_string()).unwrap_or_default())
         };
         range
             .filter_map(|ix| changes.rows.get(ix).map(|r| (ix, r)))
@@ -216,18 +213,7 @@ impl ChangesView {
                         new,
                         kind,
                         text,
-                    } => {
-                        let (sign, bg) = match kind {
-                            LineKind::Context => (" ", None),
-                            LineKind::Added => ("+", Some(theme.success.opacity(0.12))),
-                            LineKind::Removed => ("-", Some(theme.danger.opacity(0.12))),
-                        };
-                        base.when_some(bg, |b, bg| b.bg(bg))
-                            .child(num(*old))
-                            .child(num(*new))
-                            .child(div().w(px(14.)).flex_none().child(sign))
-                            .child(text.clone())
-                    }
+                    } => diff_line(base, *old, *new, *kind, text.clone().into(), theme),
                 }
                 .into_any_element()
             })
@@ -430,4 +416,35 @@ impl Render for ChangesView {
             .child(self.render_publish(cx))
             .child(body)
     }
+}
+
+/// One diff line on `base`: both line numbers, the sign, the text, tinted when added or removed. The Changes tab and
+/// the timeline's edit cards draw lines with it.
+pub(super) fn diff_line(
+    base: gpui::Stateful<gpui::Div>,
+    old: Option<u32>,
+    new: Option<u32>,
+    kind: LineKind,
+    text: SharedString,
+    theme: &gpui_component::Theme,
+) -> gpui::Stateful<gpui::Div> {
+    let num = |n: Option<u32>| {
+        div()
+            .w(px(44.))
+            .flex_none()
+            .text_right()
+            .pr_2()
+            .text_color(theme.muted_foreground)
+            .child(n.map(|n| n.to_string()).unwrap_or_default())
+    };
+    let (sign, bg) = match kind {
+        LineKind::Context => (" ", None),
+        LineKind::Added => ("+", Some(theme.success.opacity(0.12))),
+        LineKind::Removed => ("-", Some(theme.danger.opacity(0.12))),
+    };
+    base.when_some(bg, |b, bg| b.bg(bg))
+        .child(num(old))
+        .child(num(new))
+        .child(div().w(px(14.)).flex_none().child(sign))
+        .child(text)
 }

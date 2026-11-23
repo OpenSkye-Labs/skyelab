@@ -108,15 +108,19 @@ pub(crate) fn user_message(text: &str, pending: &Sent) -> Value {
 
 /// One stdout line. A result that lists prompt uuids answers those of ours it names. Without the list, one from
 /// another origin than the user (a background wake, a peer) answers none, and any other answers the oldest prompt
-/// (an older CLI).
+/// (an older CLI). Streaming chatter nobody shows yields nothing.
 pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
     if let Some(events) = control(line, open) {
         return events;
     }
-    let mut event = Event::parse(line);
-    if let Event::Result { prompts, .. } = &mut event
-        && let Ok(v) = serde_json::from_str::<Value>(line)
-    {
+    let Ok(v) = serde_json::from_str::<Value>(line) else {
+        return vec![Event::Unknown(Value::String(line.to_owned()))];
+    };
+    let gone = v["type"] == "result" && crate::event::names_gone_session(&v);
+    let Some(mut event) = Event::from_claude(v.clone()) else {
+        return Vec::new();
+    };
+    if let Event::Result { prompts, .. } = &mut event {
         let listed: Option<Vec<&str>> = match (&v["user_message_uuids"], &v["user_message_uuid"]) {
             (Value::Array(ids), _) => Some(ids.iter().filter_map(Value::as_str).collect()),
             (_, Value::String(id)) => Some(vec![id.as_str()]),
@@ -142,11 +146,45 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
         } else {
             Vec::new()
         };
+        if gone {
+            events.push(Event::SessionGone);
+        }
         events.push(event);
         return events;
     }
     vec![event]
 }
+
+/// The `control_response` line answering AskUserQuestion ask `id`: `answers` holds each question's picked labels,
+/// in question order. Claude reads them from `updatedInput.answers`, keyed by question text, labels joined by ", ".
+/// `None` when `id` isn't an open AskUserQuestion ask or the answer count doesn't match its questions.
+pub(crate) fn answer_questions(open: &Asks, id: &str, answers: &[Vec<String>]) -> Option<Value> {
+    let book = asks(open);
+    let ask = book.open.get(id).filter(|a| a.tool == QUESTION_TOOL)?;
+    let questions = ask.input["questions"].as_array()?;
+    if questions.len() != answers.len() {
+        return None;
+    }
+    let map: serde_json::Map<String, Value> = questions
+        .iter()
+        .zip(answers)
+        .map(|(q, a)| {
+            let text = q["question"].as_str().unwrap_or_default().to_owned();
+            (text, Value::String(a.join(", ")))
+        })
+        .collect();
+    let response = json!({
+        "behavior": "allow",
+        "updatedInput": { "questions": ask.input["questions"], "answers": map },
+    });
+    Some(json!({
+        "type": "control_response",
+        "response": { "subtype": "success", "request_id": ask.request_id, "response": response },
+    }))
+}
+
+/// The tool Claude asks the user questions with; Codex's user-input requests arrive under the same name.
+pub const QUESTION_TOOL: &str = "AskUserQuestion";
 
 /// Every open ask, withdrawn: its turn or its process is over.
 pub(crate) fn withdraw_all(open: &Asks) -> Vec<Event> {

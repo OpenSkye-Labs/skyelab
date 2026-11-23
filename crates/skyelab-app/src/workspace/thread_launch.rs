@@ -70,11 +70,46 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        self.push(&Record::Prompt(text.clone()), cx);
+        self.start_agent(text, account, resume, false, cx);
+    }
+
+    /// The resumed session was gone: start `text` again in a new session. Its prompt is already shown and stored.
+    pub(super) fn start_fresh(&mut self, text: String, cx: &mut Context<Self>) {
+        let Some(mut thread) = self.thread.clone() else {
+            return;
+        };
+        let Some(account) = self.config.resolve(&self.cwd).cloned() else {
+            return;
+        };
+        if account.id != thread.account_id {
+            return; // send_prompt's resume check explains a rebound folder on the next send
+        }
+        thread.agent_session_id = None;
+        if let Some(t) = &mut self.thread {
+            t.agent_session_id = None;
+        }
+        self.start_agent(text, account, Some(thread), true, cx);
+    }
+
+    /// Starts the agent; `again` reruns a prompt that is already shown and stored (no second prompt row).
+    fn start_agent(
+        &mut self,
+        text: String,
+        account: Account,
+        resume: Option<Thread>,
+        again: bool,
+        cx: &mut Context<Self>,
+    ) {
+        // A resume whose session turns out to be gone reruns this prompt (see `start_fresh`).
+        self.resumed_prompt = resume
+            .as_ref()
+            .filter(|t| t.agent_session_id.is_some())
+            .map(|_| text.clone());
         self.starting = true;
         self.stop_requested = false;
         self.launches += 1;
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        self.push(&Record::Prompt(text.clone()), cx);
 
         let bin = match account.provider {
             Provider::Claude => self.backend.claude_bin.clone(),
@@ -174,11 +209,16 @@ impl ThreadView {
                         unsaved
                             .flush(&store, thread.id)
                             .context("earlier events of this thread aren't saved yet")?;
-                        append(
-                            &mut *lock(&store)?,
-                            thread.id,
-                            &Record::Prompt(text.clone()),
-                        )?;
+                        if again {
+                            // The gone session's id must not be resumed again if this start fails too.
+                            lock(&store)?.set_agent_session_id(thread.id, None)?;
+                        } else {
+                            append(
+                                &mut *lock(&store)?,
+                                thread.id,
+                                &Record::Prompt(text.clone()),
+                            )?;
+                        }
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {

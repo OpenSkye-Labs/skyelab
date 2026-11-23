@@ -1,4 +1,5 @@
 use super::*;
+use crate::Block;
 
 /// Queues a prompt on a thread that opened.
 fn p(c: &mut Codex, text: &str) -> Vec<String> {
@@ -117,7 +118,7 @@ fn approval_requests_wait_for_an_answer_and_others_are_refused() {
     );
     assert_eq!(c.answer("codex-7", Decision::Deny), None, "answered once");
     let (_, writes) =
-        c.on_line(json!({ "id": "x", "method": "item/tool/requestUserInput", "params": {} }));
+        c.on_line(json!({ "id": "x", "method": "mcpServer/elicitation/request", "params": {} }));
     assert_eq!(parse(&writes[0])["id"], "x");
     assert!(parse(&writes[0])["error"]["message"].is_string());
 }
@@ -240,6 +241,7 @@ fn items_map_to_tool_use_results_and_text() {
             total_cost_usd: 0.0,
             result: Some("done".into()),
             prompts: 1,
+            usage: None,
         }]
     );
 }
