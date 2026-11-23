@@ -112,7 +112,9 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
         .expect("downgrade");
     drop(conn);
 
-    let store = Store::open(&path).expect("migrates");
+    let mut store = Store::open(&path).expect("migrates");
+    let purged: Vec<i64> = store.take_purged().iter().map(|t| t.id).collect();
+    assert_eq!(purged, [gone], "the v7 delete mark survived the upgrade");
     let version: i64 = Connection::open(&path)
         .expect("raw")
         .query_row("PRAGMA user_version", [], |r| r.get(0))
