@@ -17,7 +17,7 @@ fn luminance(c: Hsla) -> f32 {
     0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
 }
 
-fn ratio(a: Hsla, b: Hsla) -> f32 {
+pub(super) fn ratio(a: Hsla, b: Hsla) -> f32 {
     let (x, y) = (luminance(a), luminance(b));
     (x.max(y) + 0.05) / (x.min(y) + 0.05)
 }

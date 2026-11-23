@@ -238,6 +238,10 @@ pub fn apply(cx: &mut App) {
     };
     let (light, dark) = (adjust(&light, &s, false), adjust(&dark, &s, true));
     COMPACT.store(s.compact, Ordering::Relaxed);
+    // Every family has them (`terminal_colors_test`); a broken file keeps the last family's.
+    if let Some(colors) = ansi(f) {
+        cx.set_global(colors);
+    }
     let theme = Theme::global_mut(cx);
     theme.light_theme = Rc::new(light);
     theme.dark_theme = Rc::new(dark);
@@ -254,7 +258,25 @@ pub fn sync(window: &mut gpui::Window, cx: &mut App) {
     }
 }
 
-fn hex(s: &str) -> Option<Hsla> {
+/// The family's terminal colors: each theme's `terminal.ansi`, 16 hex colors (gpui-component ignores the key).
+pub(crate) fn ansi(f: &Family) -> Option<skyelab_terminal::AnsiColors> {
+    let file: serde_json::Value = serde_json::from_str(f.json).ok()?;
+    let theme = |mode: &str| -> Option<[Hsla; 16]> {
+        let t = file["themes"]
+            .as_array()?
+            .iter()
+            .find(|t| t["mode"] == mode)?;
+        let list = t["terminal.ansi"].as_array()?;
+        let colors: Vec<Hsla> = list.iter().filter_map(|c| parse_hex(c.as_str()?)).collect();
+        colors.try_into().ok()
+    };
+    Some(skyelab_terminal::AnsiColors {
+        light: theme("light")?,
+        dark: theme("dark")?,
+    })
+}
+
+pub(crate) fn parse_hex(s: &str) -> Option<Hsla> {
     let v = u32::from_str_radix(s.trim_start_matches('#'), 16).ok()?;
     Some(gpui::rgb(v).into())
 }
@@ -266,7 +288,9 @@ pub(crate) fn adjust(base: &ThemeConfig, s: &AppearanceSettings, dark: bool) -> 
     c.mono_font_size = Some(f32::from(s.code_font_size));
     if let Some(a) = accent(s.accent.as_deref()) {
         let (fill, text) = if dark { a.dark } else { a.light };
-        let Some(color) = hex(fill) else { return c };
+        let Some(color) = parse_hex(fill) else {
+            return c;
+        };
         let shade = |up: bool| {
             let shaded = if up == dark {
                 color.lighten(0.08)

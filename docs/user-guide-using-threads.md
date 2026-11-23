@@ -123,12 +123,23 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   `$VISUAL`, else `$EDITOR`, else `code` or `zed` from your PATH. The editor gets a terminal's environment, never an
   account's config dir.
 
-The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
-as. In a terminal, <kbd>⌘D</kbd> (<kbd>Ctrl+Shift+D</kbd>) splits it: a second shell beside it in the same tab,
-on the folder's account, and <kbd>⌥⌘→</kbd>/<kbd>⌥⌘←</kbd> (<kbd>Ctrl+Alt+→/←</kbd>) move between the panes. A
-terminal belongs to the thread that was showing when you opened it: another thread hides it, and it comes back,
-still running, with its thread. Terminals opened with no thread showing stay with every thread. Terminals and their
-scrollback end when SkyeLab quits. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
+The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. Its tab shows what runs in front
+of the shell (`npm`, `vim`), else the folder's name, then the account it runs as. Double-click the title to rename the
+tab (<kbd>Enter</kbd> keeps it, <kbd>Esc</kbd> cancels, an empty name goes back to the automatic one). In a terminal,
+<kbd>⌘D</kbd> (<kbd>Ctrl+Shift+D</kbd>) splits the focused pane side by side and <kbd>⇧⌘D</kbd>
+(<kbd>Ctrl+Alt+Shift+D</kbd>) stacks a new one under it, each a new shell on that folder's account; splits nest.
+Drag the line between two panes to resize them. <kbd>⌥⌘→</kbd>/<kbd>⌥⌘←</kbd> (<kbd>Ctrl+Alt+→/←</kbd>) move between
+the panes. <kbd>⌘W</kbd> (<kbd>Ctrl+Shift+W</kbd>) closes the focused pane, and the tab with its last one; the × on
+the tab closes the whole tab. When a shell you close is still running a command, SkyeLab asks first; turn that off
+with **Terminal close confirmation** in Settings → General. A terminal belongs to the thread that was showing when you
+opened it: another thread hides it, and it comes back, still running, with its thread. Terminals opened with no
+thread showing stay with every thread.
+
+When SkyeLab starts again, each window reopens its terminal tabs with their splits, sizes and names, each pane in the
+folder its shell was last in. They are new shells: running programs and scrollback don't survive a quit, and no
+scrollback is written to disk. A thread's tabs open the first time that thread shows. Terminal text uses the code text
+size from Settings → Appearance, and its colors come from the theme. <kbd>⌥⌘B</kbd> opens a browser tab for your dev
+server in the right panel.
 
 A terminal runs as the folder's account: `claude` or `codex` typed there uses that account's config dir, and
 `gh` and `git push` over https use its GitHub login when it has one (without one, `gh` keeps your default login

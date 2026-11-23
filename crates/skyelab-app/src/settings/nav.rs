@@ -14,6 +14,11 @@ const INDEX: &[(Section, &str, &str)] = &[
     ),
     (
         Section::General,
+        "Terminal close confirmation",
+        "ask before stop process shell console",
+    ),
+    (
+        Section::General,
         "Check for updates",
         "update release version",
     ),

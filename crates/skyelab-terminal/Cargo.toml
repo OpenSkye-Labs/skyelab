@@ -12,9 +12,11 @@ skyelab-core.workspace = true
 futures.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
+sysinfo.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 rustix-openpty.workspace = true
+rustix.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit.workspace = true
@@ -23,5 +25,6 @@ objc2-app-kit.workspace = true
 workspace = true
 
 [dev-dependencies]
+tempfile.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }

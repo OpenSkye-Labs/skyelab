@@ -39,8 +39,12 @@ mod onboarding;
 mod settings_tab;
 mod setup_flow;
 mod side_chat;
+mod terminal_close;
 mod terminal_launch;
 mod terminal_panel;
+mod terminal_restore;
+mod terminal_split;
+mod terminal_tab;
 mod terminals;
 pub(crate) mod usage_page;
 mod usage_page_render;
@@ -184,6 +188,7 @@ pub struct Workspace {
     _dock_events: Subscription,
     _details_events: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
+    terms: terminal_close::Terms,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
     #[cfg(test)]
@@ -356,6 +361,7 @@ impl Workspace {
             _dock_events,
             _details_events,
             terminals: Vec::new(),
+            terms: Default::default(),
             browsers: Vec::new(),
             #[cfg(test)]
             browser_engine: None,
@@ -603,6 +609,8 @@ mod single_view_test;
 mod stale_idle_test;
 #[cfg(test)]
 mod stale_status_test;
+#[cfg(all(test, unix))]
+mod terminal_close_test;
 #[cfg(test)]
 mod terminal_context_test;
 #[cfg(test)]
@@ -613,8 +621,12 @@ mod terminal_link_subdir_test;
 mod terminal_link_test;
 #[cfg(test)]
 mod terminal_owner_test;
+#[cfg(all(test, unix))]
+mod terminal_restore_test;
 #[cfg(test)]
 mod terminal_split_test;
+#[cfg(all(test, unix))]
+mod terminal_title_test;
 #[cfg(test)]
 mod tests;
 #[cfg(all(test, unix))]

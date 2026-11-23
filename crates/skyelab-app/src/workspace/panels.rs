@@ -200,8 +200,6 @@ impl Render for TerminalsEmpty {
     }
 }
 
-panel!(super::terminal_panel::TerminalPanel, "Terminal", closable: false, |this| this.tab_title());
-
 panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).

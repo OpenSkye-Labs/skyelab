@@ -87,6 +87,7 @@ pub fn init(cx: &mut App) {
     thread_find::bind_keys(cx);
     changes::bind_keys(cx);
     terminal_panel::bind_keys(cx);
+    terminal_tab::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
 }

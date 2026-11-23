@@ -34,6 +34,24 @@ pub struct AppSettings {
     pub appearance: AppearanceSettings,
     /// Settings → Scheduled tasks: missed runs and how many run at once.
     pub scheduled: ScheduledSettings,
+    /// Settings → General: the terminal.
+    pub terminal: TerminalSettings,
+}
+
+/// Settings → General's terminal switch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TerminalSettings {
+    /// Ask before closing a terminal pane or tab whose shell is running a command (T3's terminal close confirmation).
+    pub confirm_close: bool,
+}
+
+impl Default for TerminalSettings {
+    fn default() -> Self {
+        Self {
+            confirm_close: true,
+        }
+    }
 }
 
 /// Light, dark, or whatever the system shows.
@@ -182,6 +200,8 @@ pub struct WindowLayout {
     pub right_panel_width: i32,
     /// The page the center showed: `thread:<id>`, `settings:<section>` or `welcome` (empty in older files).
     pub view: String,
+    /// The window's terminal tabs, in tab order; they reopen with it (new shells, same layout and folders).
+    pub terminals: Vec<crate::terminal_layout::SavedTerminalTab>,
 }
 
 /// One device the user allowed in the Remote tab.

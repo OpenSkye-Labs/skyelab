@@ -1,7 +1,7 @@
 //! Settings → Threads: the defaults new threads start with, from `settings.toml`, shared app-wide.
 
 use gpui::{App, AppContext as _, Global, Task};
-use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
+use skyelab_core::{AppSettings, DiffSettings, TerminalSettings, ThreadSettings};
 use std::path::PathBuf;
 
 /// The loaded Threads settings and the file they save to.
@@ -10,6 +10,8 @@ pub(crate) struct ThreadPrefs {
     pub settings: ThreadSettings,
     /// The Changes tab's toggles, saved under `[diff]`.
     pub diff: DiffSettings,
+    /// Settings → General's terminal switch, saved under `[terminal]`.
+    pub terminal: TerminalSettings,
 }
 
 impl Global for ThreadPrefs {}
@@ -24,6 +26,7 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
         path,
         settings: loaded.threads,
         diff: loaded.diff,
+        terminal: loaded.terminal,
     });
 }
 
@@ -50,6 +53,7 @@ pub(crate) fn save(settings: ThreadSettings, cx: &mut App) -> Task<anyhow::Resul
         path: path.clone(),
         settings: settings.clone(),
         diff: get_diff(cx),
+        terminal: get_terminal(cx),
     });
     cx.background_spawn(async move {
         match path {
@@ -74,6 +78,7 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
                 path: None,
                 settings: get(cx),
                 diff,
+                terminal: get_terminal(cx),
             });
             return Task::ready(Ok(()));
         }
@@ -82,6 +87,27 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
     cx.background_spawn(async move {
         match path {
             Some(p) => AppSettings::update(&p, |s| s.diff = diff).map(drop),
+            None => Ok(()),
+        }
+    })
+}
+
+/// The terminal settings now (the defaults with none installed: confirmation on).
+pub(crate) fn get_terminal(cx: &App) -> TerminalSettings {
+    cx.try_global::<ThreadPrefs>()
+        .map_or_else(TerminalSettings::default, |p| p.terminal)
+}
+
+/// Uses `terminal` from now on and saves it into the file as it is on disk (other settings untouched).
+pub(crate) fn save_terminal(terminal: TerminalSettings, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let path = path(cx);
+    if cx.try_global::<ThreadPrefs>().is_none() {
+        install(None, cx);
+    }
+    cx.global_mut::<ThreadPrefs>().terminal = terminal;
+    cx.background_spawn(async move {
+        match path {
+            Some(p) => AppSettings::update(&p, |s| s.terminal = terminal).map(drop),
             None => Ok(()),
         }
     })

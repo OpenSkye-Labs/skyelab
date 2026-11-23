@@ -160,7 +160,7 @@ impl Workspace {
             .cloned()
             .collect();
         for panel in &docked {
-            let title = panel.read(cx).title();
+            let title = panel.read(cx).tab_label();
             tabs.push(self.tab_in(DockPlacement::Bottom, title, panel, cx));
         }
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {
