@@ -111,10 +111,12 @@ impl Workspace {
         move || super::thread::accounts_now(file.as_deref(), &config)
     }
 
-    /// Builds a terminal's options with `job` in the background, then opens it here (or hands the error to `failed`).
+    /// Builds a terminal's options with `job` in the background, then opens it here (or hands the error to `failed`),
+    /// unless the window moved on meanwhile: to another machine, or `wanted` says no.
     pub(super) fn open_terminal(
         &mut self,
         job: impl FnOnce() -> anyhow::Result<SpawnOptions> + Send + 'static,
+        wanted: impl FnOnce(&Self, &SpawnOptions) -> bool + 'static,
         window: &mut Window,
         cx: &mut Context<Self>,
         failed: impl FnOnce(&mut Self, anyhow::Error, &mut Context<Self>) + 'static,
@@ -123,7 +125,13 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
-                if let Err(e) = options.and_then(|o| this.add_terminal_with(o, window, cx)) {
+                let opened = options.and_then(|o| {
+                    if this.is_remote() || !wanted(this, &o) {
+                        return Ok(());
+                    }
+                    this.add_terminal_with(o, window, cx)
+                });
+                if let Err(e) = opened {
                     failed(this, e, cx);
                 }
             });

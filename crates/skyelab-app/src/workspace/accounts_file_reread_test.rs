@@ -111,3 +111,31 @@ fn push_uses_a_github_login_added_to_the_file_meanwhile(cx: &mut TestAppContext)
     let e = error(&changes, cx).unwrap_or_default();
     assert!(!e.contains("no GitHub login"), "{e}");
 }
+
+/// The terminal env loads in the background: a folder switch meanwhile drops the terminal asked for before it.
+#[gpui::test]
+fn a_terminal_for_a_folder_left_meanwhile_does_not_open(cx: &mut TestAppContext) {
+    let f = fixture();
+    let (ws, _thread, cx) = open_thread(&f, cx);
+    let other = f.project.parent().expect("parent").to_path_buf();
+    ws.update_in(cx, |ws, window, cx| {
+        ws.new_terminal(&NewTerminal, window, cx);
+        ws.folder = other; // before the options come back
+    });
+    cx.run_until_parked();
+    assert_eq!(ws.read_with(cx, |ws, _| ws.terminals.len()), 0);
+
+    let back = f.project.clone();
+    ws.update_in(cx, |ws, window, cx| {
+        ws.folder = back;
+        ws.new_terminal(&NewTerminal, window, cx);
+    });
+    for _ in 0..200 {
+        cx.run_until_parked();
+        if ws.read_with(cx, |ws, _| ws.terminals.len()) == 1 {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the terminal for the current folder opened");
+}

@@ -300,12 +300,18 @@ impl Workspace {
                         (this.accounts_job(cx), cwd.clone(), account_id.clone());
                     let view = view.downgrade();
                     let job = move || worktree::terminal_options(&config(), &cwd, &account_id);
-                    this.open_terminal(job, window, cx, move |_, e, cx| {
-                        let _ = view.update(cx, |v, cx| {
-                            v.error = Some(format!("{e:#}").into());
-                            cx.notify();
-                        });
-                    });
+                    this.open_terminal(
+                        job,
+                        |_, _| true,
+                        window,
+                        cx,
+                        move |_, e, cx| {
+                            let _ = view.update(cx, |v, cx| {
+                                v.error = Some(format!("{e:#}").into());
+                                cx.notify();
+                            });
+                        },
+                    );
                 }
                 ThreadViewEvent::TurnDone => this.refresh_changes(view, cx),
             },

@@ -294,7 +294,9 @@ impl Workspace {
             return; // the project is on another machine; a local shell here would be misleading
         }
         let job = self.terminal_job(cx);
-        self.open_terminal(job, window, cx, |_, e, _| {
+        // A terminal for the folder the window showed when asked; a switch meanwhile drops it.
+        let same_folder = |this: &Self, o: &SpawnOptions| o.cwd == this.folder;
+        self.open_terminal(job, same_folder, window, cx, |_, e, _| {
             eprintln!("failed to open terminal: {e:#}")
         });
     }
