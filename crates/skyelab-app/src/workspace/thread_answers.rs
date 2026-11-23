@@ -232,6 +232,18 @@ impl ItemsView for ThreadView {
     fn preview_path(&mut self, path: &str, line: Option<u32>, cx: &mut Context<Self>) {
         cx.emit(ThreadViewEvent::Preview(path.into(), line));
     }
+    fn turn_files(&self, done: usize) -> Option<(u32, &[super::super::turn_files::FileStat])> {
+        let f = &self.timeline.files;
+        let turn =
+            super::super::turn_files::turn_of(&self.items, done, f.turns, f.dividers_at_load)?;
+        Some((turn, f.by_turn.get(&turn)?))
+    }
+    fn open_turn_file(&mut self, turn: u32, path: &std::path::Path, cx: &mut Context<Self>) {
+        cx.emit(ThreadViewEvent::OpenTurnPath(turn, path.to_owned()));
+    }
+    fn find_mark(&self, ix: usize) -> Option<bool> {
+        self.timeline.find.mark(ix)
+    }
     fn can_answer_questions(&self, _: &App) -> bool {
         self.session.is_some()
     }
@@ -255,5 +267,29 @@ impl ItemsView for ThreadView {
     }
     fn answer_plan(&mut self, id: &str, approve: bool, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::answer_plan(self, id, approve, cx)
+    }
+}
+
+impl ThreadView {
+    /// "Label · id" of the account the thread was started with, from its store row.
+    #[cfg(all(test, unix))] // only the unix-only thread tests read it
+    pub fn badge(&self) -> Option<gpui::SharedString> {
+        let id = &self.thread.as_ref()?.account_id;
+        let label = self
+            .config
+            .accounts
+            .iter()
+            .find(|a| &a.id == id)
+            .map_or("Unknown account", |a| a.label.as_str());
+        Some(format!("{label} · {id}").into())
+    }
+
+    /// The provider of the account the thread was started with (`None` before the thread has a row,
+    /// or when that account is gone).
+    #[cfg(all(test, unix))]
+    pub fn provider(&self) -> Option<skyelab_core::Provider> {
+        let id = &self.thread.as_ref()?.account_id;
+        let account = self.config.accounts.iter().find(|a| &a.id == id)?;
+        Some(account.provider)
     }
 }

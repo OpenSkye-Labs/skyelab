@@ -184,7 +184,10 @@ impl ThreadView {
             }
             work.spawn(async move { crate::workspace::thread_checkpoints::after_turn(&cwd, &key) })
                 .await;
-            let _ = this.update(cx, |_, cx| cx.emit(ThreadViewEvent::FilesChanged));
+            let _ = this.update(cx, |this, cx| {
+                this.load_turn_files(cx);
+                cx.emit(ThreadViewEvent::FilesChanged)
+            });
         }));
     }
 

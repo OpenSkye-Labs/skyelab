@@ -306,6 +306,8 @@ impl Render for ThreadView {
             .clone()
             .map(|r| self.render_refused(r, cx));
         let composer = self.render_composer(cx);
+        let failure = self.render_failure(cx);
+        let find = self.render_find(cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
         let working = self
@@ -341,9 +343,18 @@ impl Render for ThreadView {
                 )
                 .into_any_element()
         } else {
-            list(self.list.clone(), cx.processor(render_item))
+            div()
                 .flex_1()
-                .py_3()
+                .min_h_0()
+                .relative()
+                .flex()
+                .flex_col()
+                .child(
+                    list(self.list.clone(), cx.processor(render_item))
+                        .flex_1()
+                        .py_3(),
+                )
+                .children(find)
                 .into_any_element()
         };
         let line = |text: SharedString, color: gpui::Hsla| {
@@ -375,6 +386,10 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::discard_worktree))
             .on_action(cx.listener(Self::confirm_discard))
             .on_action(cx.listener(Self::cancel_discard))
+            .on_action(cx.listener(Self::find_in_thread))
+            .on_action(cx.listener(Self::find_next))
+            .on_action(cx.listener(Self::find_previous))
+            .on_action(cx.listener(Self::close_find))
             .size_full()
             .bg(theme.background)
             .child(header)
@@ -408,6 +423,7 @@ impl Render for ThreadView {
                         )
                         .debug_selector(|| "limited-banner".into())
                     }))
+                    .children(failure)
                     .children(self.error.clone().map(|e| line(e, ui::ink(theme, theme.danger))))
                     .children(note.map(|n| line(n.into(), theme.muted_foreground)))
                     .children(working.map(|w| {

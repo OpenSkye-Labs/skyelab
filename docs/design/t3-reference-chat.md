@@ -38,6 +38,20 @@ there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main,
 - "Worked for {duration}" (`c/chat/MessagesTimeline.logic.ts:1270`). Separator: `h-px` lines at `border/70` either side
   of 12 px muted text, `gap-3`; failures turn the text destructive (`c/chat/MessagesTimeline.tsx:1791-1795`).
 - Assistant meta on hover: 12 px tabular time plus copy/fork icons (`TimelineAssistantRows.tsx:242-266`).
+- Changed files under a turn's reply (`chat/ChangedFilesTree.tsx:95-175,333-395`): a `rounded-lg bg-secondary` card,
+  header `text-xs font-medium` "N changed files" plus a `+a −r` stat and an xs ghost "Open diff"; file rows 28 tall,
+  14 px file icon, mono `text-xs` path, stat at the right. SkyeLab: `workspace/turn_files.rs`, a flat list (no folder
+  tree) from the turn's checkpoint diff.
+- Subagents (`chat/ProviderSubagentBar.tsx`, `BackgroundWorkDetails.tsx`): model/type label in `font-medium`, a muted
+  status with elapsed time, "Running"/"Waiting". SkyeLab draws one bordered card per Agent call in the work log
+  (`workspace/subagent_card.rs`), its nested calls as 24 px rows inside.
+- Error banner (`chat/ThreadErrorBanner.tsx`): an `Alert` of variant error (warning for usage limits), centered, max
+  width 48rem, a circle-alert icon, the message, actions, a ghost × to dismiss. SkyeLab: `workspace/thread_failure.rs`,
+  danger at 8% with a 35% border over the composer.
+- Find bar (`chat/ThreadFindBar.tsx`): absolute `top-3 right-3`, popover input group, "i/n" count in `text-xs
+  tabular-nums` (destructive when nothing matches), up/down/× xs ghost icon buttons; Enter / Shift-Enter step. SkyeLab:
+  `workspace/thread_find.rs`, 360 wide; matching rows are tinted (warning 8%, current 22%) since gpui-component's
+  markdown can't mark ranges.
 
 ## 4. Composer
 

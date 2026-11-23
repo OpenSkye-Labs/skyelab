@@ -307,6 +307,13 @@ impl Workspace {
                     let root = view.read(cx).cwd.clone();
                     this.open_preview(root, path.clone(), *line, window, cx)
                 }
+                ThreadViewEvent::OpenTurnPath(turn, path) => {
+                    let changes = this.open_changes(view, window, cx);
+                    changes.update(cx, |c, cx| {
+                        c.reveal_after_load = Some(path.clone());
+                        c.set_scope(super::changes_model::Scope::Turn(*turn), cx);
+                    });
+                }
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =
                         (this.accounts_job(cx), cwd.clone(), account_id.clone());

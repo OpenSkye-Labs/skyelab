@@ -1,7 +1,7 @@
 //! How a thread's items look, shared by local (`ThreadView`) and remote (`RemoteThreadView`) thread tabs.
 
 use super::ask_cards::{self, QuestionDraft};
-use super::thread_model::{ApprovalItem, Item, ToolItem};
+use super::thread_model::{Item, ToolItem};
 use super::timeline_fold;
 use super::timeline_text::{divider_text, limited_text, markdown};
 use super::tool_cards;
@@ -10,11 +10,7 @@ use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
     relative,
 };
-use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
 use skyelab_agent::{Decision, DeltaKind};
 
 /// Longest tool input or result shown when a row is expanded; the store keeps the whole text.
@@ -56,6 +52,16 @@ pub(super) trait ItemsView: Sized + 'static {
     }
     /// Shows a file a reply links to in the Preview tab, at `line`.
     fn preview_path(&mut self, _path: &str, _line: Option<u32>, _cx: &mut Context<Self>) {}
+    /// The checkpoint turn and changed files of the turn whose divider is row `done`.
+    fn turn_files(&self, _done: usize) -> Option<(u32, &[super::turn_files::FileStat])> {
+        None
+    }
+    /// Shows `path` (absolute) in the Changes tab, scoped to checkpoint turn `turn`.
+    fn open_turn_file(&mut self, _turn: u32, _path: &std::path::Path, _cx: &mut Context<Self>) {}
+    /// The find bar's tint for row `ix`: `Some(true)` holds the active match, `Some(false)` another one.
+    fn find_mark(&self, _ix: usize) -> Option<bool> {
+        None
+    }
     /// Whether AskUserQuestion answers can be sent from here.
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
@@ -110,7 +116,18 @@ pub(super) fn render_item<V: ItemsView>(
 ) -> AnyElement {
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
-    timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx)
+    let mark = this.find_mark(ix);
+    let row = timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx);
+    match mark {
+        None => row,
+        // A find match: tinted, the current one stronger (T3 marks the text; markdown here can't).
+        Some(active) => div()
+            .debug_selector(move || if active { "find-active" } else { "find-match" }.into())
+            .w_full()
+            .bg(cx.theme().warning.opacity(if active { 0.22 } else { 0.08 }))
+            .child(row)
+            .into_any_element(),
+    }
 }
 
 fn render_row<V: ItemsView>(
@@ -126,6 +143,7 @@ fn render_row<V: ItemsView>(
     });
     let divider_folded = timeline_fold::fold_head(this.items(), ix).is_some();
     let root = this.files_root().map(std::path::Path::to_path_buf);
+    let files = super::turn_files::render(this, ix, cx);
     let theme = cx.theme();
     let muted = theme.muted_foreground;
     let Some(item) = this.items().get(ix).cloned() else {
@@ -221,13 +239,14 @@ fn render_row<V: ItemsView>(
             tight(tool_cards::render_edit(tool, cx))
         }
         Item::Tool(tool) => tight(render_tool(this, tool, cx)),
+        Item::Subagent(s) => tight(super::subagent::render(this, s, cx)),
         Item::Approval(a) if a.tool == skyelab_agent::QUESTION_TOOL => {
             column(ask_cards::render_questions(this, a, window, cx))
         }
         Item::Approval(a) if a.tool == skyelab_agent::PLAN_TOOL => {
             column(ask_cards::render_plan(this, a, cx))
         }
-        Item::Approval(a) => column(render_approval(this, a, cx)),
+        Item::Approval(a) => column(ask_cards::render_approval(this, a, cx)),
         Item::Limit { resets_at } => column(
             h_flex()
                 .debug_selector(|| "limit-row".into())
@@ -269,7 +288,10 @@ fn render_row<V: ItemsView>(
         ),
         Item::Output { id, text } => tight(tool_cards::render_output(this, id, text, cx)),
         // The turn's fold header says it already.
-        Item::Done { .. } if divider_folded => div().into_any_element(),
+        Item::Done { .. } if divider_folded => match files {
+            Some(files) => column(files),
+            None => div().into_any_element(),
+        },
         Item::Done {
             is_error,
             duration_ms,
@@ -290,26 +312,27 @@ fn render_row<V: ItemsView>(
             };
             let rule = || div().flex_1().h_px().bg(theme.border);
             column(
-                h_flex()
-                    .gap_3()
-                    .py_1()
-                    .text_size(ui::META)
-                    .text_color(color)
-                    .child(rule())
-                    .child(divider_text(verb, secs, *usage, *cost_usd))
-                    .child(rule())
+                v_flex()
+                    .child(
+                        h_flex()
+                            .gap_3()
+                            .py_1()
+                            .text_size(ui::META)
+                            .text_color(color)
+                            .child(rule())
+                            .child(divider_text(verb, secs, *usage, *cost_usd))
+                            .child(rule()),
+                    )
+                    .children(files)
                     .into_any_element(),
             )
         }
     }
 }
 
-fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> AnyElement {
-    let theme = cx.theme();
-    let open = this.is_expanded(&tool.id);
-    // The first argument's value, as T3 shows it (`ls crates`, not `"command": "ls crates"`).
-    let summary: String = tool
-        .input
+/// The first argument's value, as T3 shows it (`ls crates`, not `"command": "ls crates"`).
+pub(super) fn tool_summary(tool: &ToolItem) -> String {
+    tool.input
         .lines()
         .find_map(|l| l.split_once(':').map(|(_, v)| v))
         .unwrap_or_default()
@@ -318,7 +341,13 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
         .trim_matches('"')
         .chars()
         .take(80)
-        .collect();
+        .collect()
+}
+
+fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> AnyElement {
+    let theme = cx.theme();
+    let open = this.is_expanded(&tool.id);
+    let summary = tool_summary(tool);
     let state = match (&tool.result, tool.is_error) {
         (None, _) => "running",
         (Some(_), true) => "error",
@@ -419,155 +448,5 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
                     .children(tool.result.as_deref().map(|r| block("Result", clip(r)))),
             )
         })
-        .into_any_element()
-}
-
-/// The label a decided request keeps.
-fn decided(d: Decision) -> &'static str {
-    match d {
-        Decision::AllowOnce => "Allowed once",
-        Decision::AllowThread => "Allowed for this thread",
-        Decision::Deny => "Denied",
-        Decision::Withdrawn => "Withdrawn",
-    }
-}
-
-/// A permission request, T3's pending-approval row: what the tool wants to do in mono, then the answers. Once
-/// decided it shrinks to one line saying what was decided.
-fn render_approval<V: ItemsView>(this: &V, a: &ApprovalItem, cx: &mut Context<V>) -> AnyElement {
-    let theme = cx.theme();
-    let summary = div()
-        .flex_1()
-        .min_w_0()
-        .truncate()
-        .font_family(theme.mono_font_family.clone())
-        .text_size(ui::META)
-        .text_color(theme.muted_foreground)
-        .child(a.summary.clone());
-    if let Some(d) = a.decision {
-        let (icon, color) = match d {
-            Decision::AllowOnce | Decision::AllowThread => {
-                (IconName::Check, theme.muted_foreground)
-            }
-            Decision::Deny => (IconName::CircleAlert, theme.danger),
-            Decision::Withdrawn => (IconName::CircleAlert, theme.muted_foreground),
-        };
-        return h_flex()
-            .min_h(px(28.))
-            .gap_1p5()
-            .px_1()
-            .text_size(ui::BODY)
-            .child(
-                div()
-                    .w(px(24.))
-                    .flex()
-                    .justify_center()
-                    .flex_shrink_0()
-                    .child(Icon::new(icon).size_4().text_color(color)),
-            )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(a.tool.clone()),
-            )
-            .child(summary)
-            .child(
-                div()
-                    .text_size(ui::META)
-                    .text_color(color)
-                    .child(decided(d)),
-            )
-            .into_any_element();
-    }
-    let answerable = this.can_answer(cx);
-    let theme = cx.theme();
-    let button = |label: &'static str, key: &str, decision: Decision| {
-        let id = a.id.clone();
-        Button::new(SharedString::from(format!("{key}-{}", a.id)))
-            .xsmall()
-            .label(label)
-            .on_click(
-                cx.listener(move |this, _, window, cx| this.answer(&id, decision, window, cx)),
-            )
-    };
-    let actions = if answerable {
-        h_flex()
-            .gap_2()
-            .child(button("Allow once", "allow-once", Decision::AllowOnce).primary())
-            .child(
-                button(
-                    "Allow for this thread",
-                    "allow-thread",
-                    Decision::AllowThread,
-                )
-                .outline(),
-            )
-            .child(button("Deny", "deny", Decision::Deny).ghost())
-            .child(
-                Button::new(SharedString::from(format!("interrupt-{}", a.id)))
-                    .xsmall()
-                    .ghost()
-                    .label("Interrupt")
-                    .tooltip("Stop this turn instead (⌘.)")
-                    .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx))),
-            )
-            .into_any_element()
-    } else {
-        div()
-            .text_size(ui::META)
-            .text_color(theme.muted_foreground)
-            .child(
-                "The agent isn't running, so this can't be answered. Send a message to continue.",
-            )
-            .into_any_element()
-    };
-    let theme = cx.theme();
-    v_flex()
-        .debug_selector(|| "pending-approval".into())
-        .w_full()
-        .gap_2()
-        .px_3()
-        .py_2p5()
-        .rounded(ui::RADIUS_LG)
-        .bg(theme.warning.opacity(0.08))
-        .border_1()
-        .border_color(theme.warning.opacity(0.35))
-        .child(
-            h_flex()
-                .gap_1p5()
-                .text_size(ui::BODY)
-                .child(
-                    Icon::new(IconName::TriangleAlert)
-                        .size_4()
-                        .text_color(ui::ink(theme, theme.warning)),
-                )
-                .child(div().font_weight(FontWeight::MEDIUM).child(a.tool.clone()))
-                .child(
-                    div()
-                        .text_size(ui::META)
-                        .text_color(ui::ink(theme, theme.warning))
-                        .child("Waiting for approval"),
-                ),
-        )
-        .child(
-            div()
-                .font_family(theme.mono_font_family.clone())
-                .text_size(ui::BODY)
-                .child(a.summary.clone()),
-        )
-        .child(
-            div()
-                .px_3()
-                .py_2()
-                .rounded(ui::RADIUS)
-                .bg(theme.muted)
-                .border_1()
-                .border_color(theme.border)
-                .font_family(theme.mono_font_family.clone())
-                .text_size(ui::META)
-                .child(clip(&a.input)),
-        )
-        .child(actions)
         .into_any_element()
 }

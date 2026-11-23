@@ -93,6 +93,8 @@ pub enum Item {
         text: String,
     },
     Tool(ToolItem),
+    /// A subagent (Claude's Agent tool) with the calls it made.
+    Subagent(super::subagent::SubagentItem),
     /// The turn's todo list: every TodoWrite in a turn updates this one row.
     Todo(Vec<Todo>),
     Done {
@@ -102,6 +104,8 @@ pub enum Item {
         usage: Option<Usage>,
         /// When the turn ended (ms since the epoch), once [`stamp_done`] has set it.
         at_ms: Option<i64>,
+        /// A failed turn's error text, when the agent gave one.
+        error: Option<String>,
     },
     /// The usage limit was hit; it resets at `resets_at` (Unix seconds), when known.
     Limit {
@@ -128,6 +132,7 @@ impl Item {
     pub fn expand_id(&self) -> Option<&str> {
         match self {
             Item::Tool(t) => Some(&t.id),
+            Item::Subagent(s) => Some(&s.id),
             Item::Output { id, .. } | Item::Thinking { id, .. } => Some(id),
             _ => None,
         }
@@ -171,6 +176,14 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                         items.insert(at, Item::Interrupted);
                         Some(at)
                     }
+                    Block::ToolUse { id, name, input }
+                        if super::subagent::is_subagent_tool(name) =>
+                    {
+                        items.push(Item::Subagent(super::subagent::SubagentItem::new(
+                            id, name, input,
+                        )));
+                        None
+                    }
                     Block::ToolUse { id, name, input } => {
                         items.push(Item::Tool(ToolItem {
                             id: id.clone(),
@@ -208,9 +221,15 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                         Item::Tool(t) if t.id == *tool_use_id => Some((ix, t)),
                         _ => None,
                     });
-                if let Some((ix, tool)) = row {
-                    tool.result = Some(result_text(content));
-                    tool.is_error = *is_error;
+                let changed = match row {
+                    Some((ix, tool)) => {
+                        tool.result = Some(result_text(content));
+                        tool.is_error = *is_error;
+                        Some(ix)
+                    }
+                    None => super::subagent::result(items, tool_use_id, content, *is_error),
+                };
+                if let Some(ix) = changed {
                     first_changed = Some(first_changed.map_or(ix, |f: usize| f.min(ix)));
                 }
             }
@@ -220,6 +239,7 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
             duration_ms,
             total_cost_usd,
             usage,
+            result,
             ..
         }) => {
             if let Some(ix) = settle_live(items) {
@@ -239,6 +259,7 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                     cost_usd: *total_cost_usd,
                     usage: *usage,
                     at_ms: None,
+                    error: result.clone().filter(|_| *is_error),
                 });
                 // The finished turn folds its work rows (`timeline_fold`), so all of them change.
                 let start = super::timeline_fold::turn_start(items, items.len() - 1);
@@ -286,6 +307,25 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
         }) => items.push(Item::Limit {
             resets_at: *resets_at,
         }),
+        Record::Agent(Event::Task {
+            tool_use_id,
+            status,
+            activity,
+            summary,
+            duration_ms,
+        }) => {
+            first_changed = super::subagent::task(
+                items,
+                tool_use_id,
+                status.as_deref(),
+                activity.as_deref(),
+                summary.as_deref(),
+                *duration_ms,
+            );
+        }
+        Record::Agent(Event::Nested { parent, content }) => {
+            first_changed = super::subagent::nested(items, parent, content);
+        }
         Record::Agent(Event::Stderr { text }) => items.push(Item::Output {
             id: format!("output-{before}"),
             text: text.clone(),
@@ -426,7 +466,7 @@ fn todo(items: &mut Vec<Item>, todos: Vec<Todo>) -> Option<usize> {
 }
 
 /// A tool result's content is a string or an array of blocks; keep the text.
-fn result_text(content: &Value) -> String {
+pub(super) fn result_text(content: &Value) -> String {
     match content {
         Value::String(s) => s.clone(),
         Value::Array(blocks) => blocks

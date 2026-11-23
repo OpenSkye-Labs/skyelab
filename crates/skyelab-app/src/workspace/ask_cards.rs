@@ -1,7 +1,7 @@
 //! The cards that wait for the user: AskUserQuestion's questions (options, multi-select, "Other") and ExitPlanMode's
 //! proposed plan. Their drafts live in the thread view (`thread_answers.rs`).
 
-use super::thread_items::ItemsView;
+use super::thread_items::{ItemsView, clip};
 use super::thread_model::ApprovalItem;
 use super::tool_cards::slot;
 use crate::ui;
@@ -382,4 +382,158 @@ fn interrupt<V: ItemsView>(id: &str, cx: &mut Context<V>) -> Button {
         .label("Interrupt")
         .tooltip("Stop this turn instead (⌘.)")
         .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx)))
+}
+
+/// The label a decided request keeps.
+fn decided(d: Decision) -> &'static str {
+    match d {
+        Decision::AllowOnce => "Allowed once",
+        Decision::AllowThread => "Allowed for this thread",
+        Decision::Deny => "Denied",
+        Decision::Withdrawn => "Withdrawn",
+    }
+}
+
+/// A permission request, T3's pending-approval row: what the tool wants to do in mono, then the answers. Once
+/// decided it shrinks to one line saying what was decided.
+pub(super) fn render_approval<V: ItemsView>(
+    this: &V,
+    a: &ApprovalItem,
+    cx: &mut Context<V>,
+) -> AnyElement {
+    let theme = cx.theme();
+    let summary = div()
+        .flex_1()
+        .min_w_0()
+        .truncate()
+        .font_family(theme.mono_font_family.clone())
+        .text_size(ui::META)
+        .text_color(theme.muted_foreground)
+        .child(a.summary.clone());
+    if let Some(d) = a.decision {
+        let (icon, color) = match d {
+            Decision::AllowOnce | Decision::AllowThread => {
+                (IconName::Check, theme.muted_foreground)
+            }
+            Decision::Deny => (IconName::CircleAlert, theme.danger),
+            Decision::Withdrawn => (IconName::CircleAlert, theme.muted_foreground),
+        };
+        return h_flex()
+            .min_h(px(28.))
+            .gap_1p5()
+            .px_1()
+            .text_size(ui::BODY)
+            .child(
+                div()
+                    .w(px(24.))
+                    .flex()
+                    .justify_center()
+                    .flex_shrink_0()
+                    .child(Icon::new(icon).size_4().text_color(color)),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(a.tool.clone()),
+            )
+            .child(summary)
+            .child(
+                div()
+                    .text_size(ui::META)
+                    .text_color(color)
+                    .child(decided(d)),
+            )
+            .into_any_element();
+    }
+    let answerable = this.can_answer(cx);
+    let theme = cx.theme();
+    let button = |label: &'static str, key: &str, decision: Decision| {
+        let id = a.id.clone();
+        Button::new(SharedString::from(format!("{key}-{}", a.id)))
+            .xsmall()
+            .label(label)
+            .on_click(
+                cx.listener(move |this, _, window, cx| this.answer(&id, decision, window, cx)),
+            )
+    };
+    let actions = if answerable {
+        h_flex()
+            .gap_2()
+            .child(button("Allow once", "allow-once", Decision::AllowOnce).primary())
+            .child(
+                button(
+                    "Allow for this thread",
+                    "allow-thread",
+                    Decision::AllowThread,
+                )
+                .outline(),
+            )
+            .child(button("Deny", "deny", Decision::Deny).ghost())
+            .child(
+                Button::new(SharedString::from(format!("interrupt-{}", a.id)))
+                    .xsmall()
+                    .ghost()
+                    .label("Interrupt")
+                    .tooltip("Stop this turn instead (⌘.)")
+                    .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx))),
+            )
+            .into_any_element()
+    } else {
+        div()
+            .text_size(ui::META)
+            .text_color(theme.muted_foreground)
+            .child(
+                "The agent isn't running, so this can't be answered. Send a message to continue.",
+            )
+            .into_any_element()
+    };
+    let theme = cx.theme();
+    v_flex()
+        .debug_selector(|| "pending-approval".into())
+        .w_full()
+        .gap_2()
+        .px_3()
+        .py_2p5()
+        .rounded(ui::RADIUS_LG)
+        .bg(theme.warning.opacity(0.08))
+        .border_1()
+        .border_color(theme.warning.opacity(0.35))
+        .child(
+            h_flex()
+                .gap_1p5()
+                .text_size(ui::BODY)
+                .child(
+                    Icon::new(IconName::TriangleAlert)
+                        .size_4()
+                        .text_color(ui::ink(theme, theme.warning)),
+                )
+                .child(div().font_weight(FontWeight::MEDIUM).child(a.tool.clone()))
+                .child(
+                    div()
+                        .text_size(ui::META)
+                        .text_color(ui::ink(theme, theme.warning))
+                        .child("Waiting for approval"),
+                ),
+        )
+        .child(
+            div()
+                .font_family(theme.mono_font_family.clone())
+                .text_size(ui::BODY)
+                .child(a.summary.clone()),
+        )
+        .child(
+            div()
+                .px_3()
+                .py_2()
+                .rounded(ui::RADIUS)
+                .bg(theme.muted)
+                .border_1()
+                .border_color(theme.border)
+                .font_family(theme.mono_font_family.clone())
+                .text_size(ui::META)
+                .child(clip(&a.input)),
+        )
+        .child(actions)
+        .into_any_element()
 }

@@ -132,11 +132,11 @@ fn deltas_thinking_and_usage_parse_and_chatter_is_dropped() {
         })
         .collect();
     assert!(chatter.is_empty(), "{chatter:?}");
-    // Truly unknown lines still arrive as Unknown.
+    // A background task's lines are task events (a Bash task here: no subagent card takes them).
     assert!(
         events
             .iter()
-            .any(|e| matches!(e, Event::Unknown(v) if v["subtype"] == "task_started"))
+            .any(|e| matches!(e, Event::Task { status: Some(s), .. } if s == "running"))
     );
     match events.last() {
         Some(Event::Result { usage, .. }) => assert_eq!(

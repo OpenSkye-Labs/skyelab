@@ -117,24 +117,8 @@ first). Approvals, the agent's questions and plans show as cards in the thread. 
 
 ### What the timeline shows
 
-- Text and thinking stream in word by word as the agent writes. Thinking is a **Thought** row; click it to read it.
-  Complete blocks are saved. Text a turn cut off (Stop, Interrupt, a crash) is saved as far as it got and marked
-  **(interrupted)**, so a reopened thread still shows it.
-- The agent's todo list (Claude's `TodoWrite`, Codex's plan) is one checklist per turn that updates in place.
-- Edits (`Edit`, `Write`, `MultiEdit`) show their diff inline. Click the file name to open it in the Changes tab.
-- File paths in the agent's text open in the **Preview** tab at their line: markdown links (`[a.rs](src/a.rs:12)`),
-  `path:line` text (`src/a.rs:12`) and code spans naming a file (`` `src/a.rs` ``). Only paths inside the thread's
-  folder become links; a path outside it stays plain text. Web links open in your browser, and nothing else opens.
-- Shell commands show as `$ command` with how they ended (`exit 1`, `failed`); click one for its output.
-- Messages and code blocks have copy buttons; under a turn's final reply the copy button sits next to the time the
-  turn ended.
-- A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
-  **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›**. Click it to open or fold the work. A running turn shows
-  everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.
-- When the account hits its usage limit, the thread says **Limited until it resets in …** above the composer and the
-  sidebar shows **Limited**, until a turn succeeds again.
-- If a Claude thread's earlier session can't be found when you continue it (its history was deleted, or it ran under
-  another config dir), the thread says so and runs your message in a new session. A Codex thread shows the failure.
+Streaming text and thinking, tool calls and edits, subagent cards, the files each turn changed, a banner when a turn
+fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-timeline.md).
 
 ### Finding and managing threads
 
