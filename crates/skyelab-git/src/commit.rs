@@ -18,6 +18,13 @@ use crate::{Result, command, git, git_succeeds, hooked_command, lossy, repo_root
 /// out of the commit and staged. Either way, a commit that touches a path outside `paths` (or, committing everything,
 /// outside what changed between `HEAD` and the reviewed tree) is undone: a pre-commit hook, which an agent can write,
 /// may `git add` anything.
+/// `dir` relative to the repo's root, when it is a subfolder of it (`None` at the root itself).
+fn folder_in_repo(dir: &Path, root: &Path) -> Option<PathBuf> {
+    let (dir, root) = (dir.canonicalize().ok()?, root.canonicalize().ok()?);
+    let rel = dir.strip_prefix(&root).ok()?;
+    (!rel.as_os_str().is_empty()).then(|| rel.to_owned())
+}
+
 pub fn commit(
     dir: &Path,
     message: &str,
@@ -31,6 +38,15 @@ pub fn commit(
         ));
     }
     let root = repo_root(dir)?;
+    // Commit all from a project inside a bigger repo commits that folder only, never the rest of the repo.
+    let folder: Vec<PathBuf>;
+    let paths = match (paths.is_empty(), folder_in_repo(dir, &root)) {
+        (true, Some(rel)) => {
+            folder = vec![rel];
+            &folder[..]
+        }
+        _ => paths,
+    };
     let tree = snapshot_tree(&root)?;
     if reviewed.is_some_and(|r| r != tree) {
         return Err(invalid(
@@ -132,7 +148,11 @@ pub fn commit(
     }
     let extra: Vec<String> = changed_paths(&root, before.as_deref(), &sha)?
         .into_iter()
-        .filter(|p| !allowed.contains(p))
+        .filter(|p| {
+            !allowed
+                .iter()
+                .any(|a| p == a || p.starts_with(&format!("{a}/")))
+        })
         .collect();
     if !extra.is_empty() {
         return undo(format!(

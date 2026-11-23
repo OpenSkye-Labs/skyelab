@@ -96,7 +96,9 @@ didn't review, the commit is undone and they stay staged. Push never pushes subm
 
 **Generated commit messages and PRs.** The sparkle next to the commit message asks the thread's own account's agent
 for a conventional commit message (a subject of 72 characters at most, and a short body when it helps) from the
-diff Commit would commit: the ticked files, or every listed file with none ticked. The sparkle next to the PR title
+diff Commit would commit: the ticked files, or every listed file with none ticked. With none ticked, Commit
+commits everything changed in the project's folder; when the project is a subfolder of a bigger repo, the rest of
+that repo is left alone. The sparkle next to the PR title
 writes the title and description from the branch's commits and its diff against its base (`origin/HEAD`, else
 `main` or `master`), filling the repo's PR template (`.github/pull_request_template.md` and the usual other
 places) when it has one. Both send only files inside the thread's folder, never ignored files, and at most 60 KB of
