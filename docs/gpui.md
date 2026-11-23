@@ -71,8 +71,9 @@ and how Zed uses it, not blog posts or memory.
   row) whenever that set changes (`ChangesView::comments_changed`).
 - Hover-only buttons over a row (settle, snooze): `.group(name)` on the row, the buttons `absolute()` with
   `.invisible().group_hover(name, |s| s.visible())` and the text under them `group_hover(.., |s| s.invisible())`. A
-  hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks; a
-  gpui-component `Button` stops propagation, so a shown one doesn't also open the row.
+  hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A
+  gpui-component `Button`'s click bubbles on (it stops propagation only while loading), so wrap the buttons in a div
+  whose `on_click` calls `cx.stop_propagation()`, or a click also opens the row.
 - A hit target over part of a row (the diff gutter) is an `absolute` child with its own id and mouse handlers. A plain
   `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
   row's own colors still show under it.

@@ -110,7 +110,8 @@ impl Workspace {
                 id.clone(),
                 RowMarks {
                     pinned: t.pinned_at.is_some(),
-                    shelf: Some(super::panels::RowShelf {
+                    // Archived rows aren't listed by shelf, so they offer no settle or snooze.
+                    shelf: t.archived_at.is_none().then_some(super::panels::RowShelf {
                         id: t.id,
                         settled: t.settled_at.is_some(),
                         snoozed_until: t.snoozed_until,
@@ -272,14 +273,16 @@ impl Workspace {
         let now = crate::ui::now_ms();
         let mut groups: [Vec<&Thread>; 5] = Default::default();
         for t in self.listed_threads().0 {
-            let at = if t.pinned_at.is_some() {
-                0
-            } else if row_state(&live, t).working() {
-                1
-            } else if skyelab_core::snooze::is_asleep(t.snoozed_until, now) {
+            // T3's order: a shelf beats the pin, and only working beats a shelf.
+            let working = row_state(&live, t).working();
+            let at = if !working && skyelab_core::snooze::is_asleep(t.snoozed_until, now) {
                 3
-            } else if t.settled_at.is_some() {
+            } else if !working && t.settled_at.is_some() {
                 4
+            } else if t.pinned_at.is_some() {
+                0
+            } else if working {
+                1
             } else {
                 2
             };

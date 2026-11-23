@@ -69,7 +69,8 @@ week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30
 thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
 **Woke** until you open it. Each notice has **Undo**. A settled row's hover button un-settles it, and a snoozed row's
 wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
-Thread** for the open thread. A thread that starts working shows under Working whatever its shelf.
+Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
+snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
 
 The sidebar's bottom row: **Settings**, **Pull requests** and **Issues** (coming soon), **Usage**, and at the right
 **Refresh**, which reloads the thread list.
@@ -79,8 +80,8 @@ sidebar (or picking it in the palette) switches the page; there are no center ta
 project: the status bar, terminals and Open in editor use its folder and account. A thread you switch away from keeps
 running, and its row keeps its state. A thread that starts on its own (delegated, or from another device) doesn't take
 the page: its row says **Done** until you open it (see **Unread** below). While the agent waits on threads it delegated, or on
-subagents in its turn, a line over the composer says **Waiting on N subagents** with their names: **Details** opens
-the details panel (with Lineage) and **Stop** stops them (a subagent stops with the turn that runs it). Tools open in the right panel beside the
+subagents in its turn, a line over the composer says **Waiting on N subagents** with their names: **Details** shows or
+hides the right panel, where the details card lists them under Lineage, and **Stop** stops them (a subagent stops with the turn that runs it). Tools open in the right panel beside the
 thread: **Changes**, browsers and **Devices**.
 
 <kbd>⌘[</kbd> and <kbd>⌘]</kbd> go back and forward between pages (<kbd>Alt+←</kbd> and <kbd>Alt+→</kbd> on Linux

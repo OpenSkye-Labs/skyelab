@@ -44,3 +44,20 @@ fn settle_and_snooze_clear_each_other_and_keep_the_order() {
     assert_eq!(t.updated_at, before);
     assert!(s.set_thread_settled(id + 1, true).is_err(), "unknown id");
 }
+
+#[test]
+fn clearing_woke_keeps_a_newer_snooze() {
+    let s = Store::open_in_memory().expect("store");
+    let id = thread(&s);
+    s.set_thread_snoozed(id, Some(100)).expect("snooze");
+    s.clear_woke(id, 50).expect("not due yet");
+    assert_eq!(
+        s.thread(id).expect("read").expect("row").snoozed_until,
+        Some(100)
+    );
+    s.clear_woke(id, 100).expect("due");
+    assert_eq!(
+        s.thread(id).expect("read").expect("row").snoozed_until,
+        None
+    );
+}

@@ -40,8 +40,10 @@ fn settle_moves_to_the_shelf_with_undo_and_unsettles(cx: &mut TestAppContext) {
     assert!(r.row(a).expect("row").settled_at.is_some(), "stored");
     assert!(r.notices(cx).iter().any(|n| n == "Settled “alpha”"));
 
-    // The notice's Undo.
-    r.ws.update_in(cx, |ws, window, cx| ws.settle(a, false, false, window, cx));
+    // What the notice's Undo runs.
+    r.ws.update_in(cx, |ws, window, cx| {
+        ws.restore(a, (false, None), window, cx)
+    });
     cx.run_until_parked();
     assert_eq!(r.listed(cx), ["beta", "alpha"]);
     assert!(
@@ -161,4 +163,34 @@ fn working_header_counts_and_folds(cx: &mut TestAppContext) {
         (0, false),
         "stays folded"
     );
+}
+
+#[gpui::test]
+fn shelves_beat_the_pin_and_undo_puts_a_thread_back_where_it_was(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let a = r.thread("alpha", cx);
+    r.thread("beta", cx);
+    r.f.store
+        .lock()
+        .expect("lock")
+        .set_thread_pinned(a, true)
+        .expect("pin");
+    r.reload(cx);
+    let later = crate::ui::now_ms() + 3_600_000;
+    shelve(a, Shelf::Snooze(later), cx);
+    assert_eq!(
+        r.listed(cx),
+        ["beta"],
+        "a pinned thread snoozes out of Pinned"
+    );
+    assert_eq!(shelf(&r, "Snoozed", cx), ["alpha"]);
+
+    // Settled from the Snoozed shelf, then undone: snoozed again, with its old wake time.
+    let was = r.ws.read_with(cx, |ws, _| ws.shelf_of(a));
+    shelve(a, Shelf::Settle, cx);
+    assert_eq!(shelf(&r, "Settled", cx), ["alpha"]);
+    r.ws.update_in(cx, |ws, window, cx| ws.restore(a, was, window, cx));
+    cx.run_until_parked();
+    assert_eq!(shelf(&r, "Snoozed", cx), ["alpha"]);
+    assert_eq!(r.row(a).expect("row").snoozed_until, Some(later));
 }

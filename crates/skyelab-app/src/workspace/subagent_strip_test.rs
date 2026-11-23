@@ -45,3 +45,15 @@ fn waits_only_on_running_children_and_live_subagents() {
         "nothing runs: no strip"
     );
 }
+
+#[test]
+fn a_card_left_running_by_an_earlier_turn_is_not_waited_on() {
+    let items = [
+        Item::Prompt("first".into()),
+        subagent("Never reported back", SubagentStatus::Running),
+        Item::Prompt("second".into()),
+        subagent("This turn's", SubagentStatus::Running),
+    ];
+    assert_eq!(waiting_on(&[], &items, true), ["This turn's"]);
+    assert!(waiting_on(&[], &items[..3], true).is_empty());
+}

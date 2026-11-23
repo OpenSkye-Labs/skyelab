@@ -376,7 +376,7 @@ impl Workspace {
         !self.other_windows(cx).is_empty()
     }
 
-    fn other_windows(&self, cx: &App) -> Vec<(AnyWindowHandle, WeakEntity<Workspace>)> {
+    pub(super) fn other_windows(&self, cx: &App) -> Vec<(AnyWindowHandle, WeakEntity<Workspace>)> {
         cx.try_global::<Windows>()
             .map(|reg| {
                 reg.workspaces

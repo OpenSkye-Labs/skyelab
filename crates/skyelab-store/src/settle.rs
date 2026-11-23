@@ -1,4 +1,4 @@
-//! T3's settled and snoozed threads (schema v21). Settling clears a snooze and snoozing clears the settle: a thread
+//! T3's settled and snoozed threads. Settling clears a snooze and snoozing clears the settle: a thread
 //! is in one shelf at a time. Neither is a thread update, so `updated_at` (the sidebar's order) stays.
 
 use anyhow::Result;
@@ -27,5 +27,14 @@ impl Store {
             params![id, until],
         )?;
         expect_one(n, "thread", id)
+    }
+
+    /// Clears a passed snooze (the thread was looked at); a newer snooze set since is kept.
+    pub fn clear_woke(&self, id: i64, now_ms: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE threads SET snoozed_until = NULL WHERE id = ?1 AND snoozed_until <= ?2",
+            params![id, now_ms],
+        )?;
+        Ok(())
     }
 }

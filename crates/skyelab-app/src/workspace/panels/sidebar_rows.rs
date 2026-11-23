@@ -75,12 +75,25 @@ fn thread_row(
     let marks = marks.unwrap_or(&empty);
     let (pinned, unread, approval) = (marks.pinned, marks.unread, marks.approval);
     let project = item.project.clone().unwrap_or_default();
+    let snoozed = marks.shelf.and_then(|s| s.snoozed_until);
+    let running = matches!(
+        item.status,
+        Some(ui::Status::Starting | ui::Status::Running)
+    );
     let status = if approval {
         Some((
             Icon::new(IconName::TriangleAlert),
             "Approval".into(),
             theme.warning,
         ))
+    } else if let Some(until) = snoozed.filter(|_| !running) {
+        // T3's alarm clock: asleep shows when it wakes; woke (passed, not opened yet) says so.
+        if snooze::is_woke(Some(until), now) {
+            Some((Icon::new(Lucide::AlarmClock), "Woke".into(), theme.warning))
+        } else {
+            let when = snooze::wake_label(until, now).into();
+            Some((Icon::new(Lucide::AlarmClock), when, theme.info))
+        }
     } else if let Some((icon, word)) = item.status.and_then(ui::Status::badge) {
         let color = item
             .status
@@ -91,16 +104,6 @@ fn thread_row(
             None => word.into(),
         };
         Some((Icon::new(icon), word, color))
-    } else if let Some(until) = marks.shelf.and_then(|s| s.snoozed_until) {
-        // T3's alarm clock: asleep shows when it wakes; woke (passed, not opened yet) says so.
-        Some(match snooze::is_woke(Some(until), now) {
-            true => (Icon::new(Lucide::AlarmClock), "Woke".into(), theme.warning),
-            false => (
-                Icon::new(Lucide::AlarmClock),
-                snooze::wake_label(until, now).into(),
-                theme.info,
-            ),
-        })
     } else {
         // T3's "Done": a finished turn nobody has looked at yet.
         unread.then_some((
@@ -136,15 +139,18 @@ fn thread_row(
     };
     let muted = theme.muted_foreground;
     let selector = format!("row-{}", item.id);
-    // The hover buttons cover the status or time (T3's settle and snooze buttons).
     let group = SharedString::from(format!("hover-{}", item.id));
     let actions = marks.shelf.map(|s| hover_actions(s, now, theme));
     let right = div()
         .relative()
         .text_size(ui::META)
-        .child(div().when(actions.is_some(), |d| {
-            d.group_hover(group.clone(), |s| s.invisible()).child(right)
-        }))
+        .child(
+            div()
+                .when(actions.is_some(), |d| {
+                    d.group_hover(group.clone(), |s| s.invisible())
+                })
+                .child(right),
+        )
         .children(actions.map(|a| {
             a.absolute()
                 .right_0()
@@ -234,9 +240,12 @@ fn thread_row(
         )
 }
 
-/// A thread row's settle and snooze buttons: Un-settle on a settled row, Wake now on a snoozed one, else Snooze
-/// (a menu of times) and Settle.
-fn hover_actions(s: RowShelf, now: i64, theme: &gpui_component::Theme) -> gpui::Div {
+/// T3's settle and snooze buttons, shown over the status or time while the row is hovered.
+fn hover_actions(
+    s: RowShelf,
+    now: i64,
+    theme: &gpui_component::Theme,
+) -> gpui::Stateful<gpui::Div> {
     use super::super::thread_list::{Shelf, ShelveThread, snooze_menu};
     let id = s.id;
     let button = |name: &str, icon: Lucide, tip: &'static str| {
@@ -251,7 +260,12 @@ fn hover_actions(s: RowShelf, now: i64, theme: &gpui_component::Theme) -> gpui::
             window.dispatch_action(Box::new(ShelveThread { id, to }), cx)
         }
     };
-    let row = h_flex().gap_0p5().text_color(theme.muted_foreground);
+    // gpui-component's Button lets a click bubble on to the row, which would open the thread too.
+    let row = h_flex()
+        .id(SharedString::from(format!("shelf-actions-{id}")))
+        .gap_0p5()
+        .text_color(theme.muted_foreground)
+        .on_click(|_, _, cx| cx.stop_propagation());
     if s.settled {
         return row
             .child(button("unsettle", Lucide::Undo2, "Un-settle").on_click(act(Shelf::Unsettle)));

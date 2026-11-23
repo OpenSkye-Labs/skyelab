@@ -1,5 +1,5 @@
 //! T3's "Waiting on N subagents" strip over the composer: the running delegated children and in-turn subagents by
-//! name, with Details (the thread's details card) and Stop (stops them).
+//! name, with Details (toggles the right panel, where the details card is) and Stop (stops them).
 
 use super::super::Workspace;
 use super::super::layout::ToggleRightPanel;
@@ -14,7 +14,8 @@ use gpui_component::{
     h_flex,
 };
 
-/// Stops thread `id`'s running children: each delegated thread, and its turn when in-turn subagents run.
+/// Stops thread `id`'s running children: each delegated thread open in any window, and its turn when in-turn
+/// subagents run.
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct StopChildren {
@@ -22,30 +23,41 @@ pub struct StopChildren {
 }
 
 /// Who the thread waits on: running delegated children, then subagents still running in its live turn (a card left
-/// running by an ended turn waits on nothing).
+/// running by an earlier turn waits on nothing).
 pub(in crate::workspace) fn waiting_on(
     children: &[ChildLink],
     items: &[Item],
     turn_running: bool,
 ) -> Vec<SharedString> {
-    let kids = children
+    let kids = running_children(children).map(|c| c.title.clone());
+    let subagents = turn_subagents(items, turn_running).filter_map(|i| match i {
+        Item::Subagent(s) if s.status == SubagentStatus::Running => Some(
+            match s.description.is_empty() {
+                true => s.kind.clone(),
+                false => s.description.clone(),
+            }
+            .into(),
+        ),
+        _ => None,
+    });
+    kids.chain(subagents).collect()
+}
+
+fn running_children(children: &[ChildLink]) -> impl Iterator<Item = &ChildLink> {
+    children
         .iter()
         .filter(|c| matches!(c.status, Status::Starting | Status::Running))
-        .map(|c| c.title.clone());
-    let subagents = items
+}
+
+/// The live turn's running subagent cards: those after its prompt.
+fn turn_subagents(items: &[Item], turn_running: bool) -> impl Iterator<Item = &Item> {
+    let start = items
         .iter()
-        .filter(|_| turn_running)
-        .filter_map(|i| match i {
-            Item::Subagent(s) if s.status == SubagentStatus::Running => Some(
-                match s.description.is_empty() {
-                    true => s.kind.clone(),
-                    false => s.description.clone(),
-                }
-                .into(),
-            ),
-            _ => None,
-        });
-    kids.chain(subagents).collect()
+        .rposition(|i| matches!(i, Item::Prompt(_)))
+        .map_or(0, |p| p + 1);
+    items[start..].iter().filter(move |i| {
+        turn_running && matches!(i, Item::Subagent(s) if s.status == SubagentStatus::Running)
+    })
 }
 
 impl ThreadView {
@@ -108,18 +120,19 @@ impl Workspace {
         };
         let (kids, subagents) = {
             let v = view.read(cx);
-            let kids: Vec<i64> = v
-                .children
-                .iter()
-                .filter(|c| matches!(c.status, Status::Starting | Status::Running))
-                .map(|c| c.id)
-                .collect();
-            let subagents = waiting_on(&[], &v.items, v.turn_running()).len();
-            (kids, subagents > 0)
+            let kids: Vec<i64> = running_children(&v.children).map(|c| c.id).collect();
+            (
+                kids,
+                turn_subagents(&v.items, v.turn_running()).next().is_some(),
+            )
         };
-        // shortcut: a running child open only in another window is not reached; stop it there.
         for kid in kids {
-            if let Some(kid) = self.open_view(kid, cx) {
+            let found = self.open_view(kid, cx).or_else(|| {
+                self.other_windows(cx)
+                    .into_iter()
+                    .find_map(|(_, ws)| ws.upgrade()?.read(cx).open_view(kid, cx))
+            });
+            if let Some(kid) = found {
                 kid.update(cx, |k, cx| k.stop(&Stop, window, cx));
             }
         }

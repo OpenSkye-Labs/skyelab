@@ -34,6 +34,13 @@ fn presets_follow_the_local_clock() {
         late.last().map(|c| c.until_ms),
         Some(ms("2026-12-07 09:00"))
     );
+    let sunday = presets(&at("2026-11-29 10:00"));
+    let next_week = sunday.last().map(|c| c.until_ms);
+    assert_eq!(
+        next_week,
+        Some(ms("2026-12-07 09:00")),
+        "not tomorrow again"
+    );
 }
 
 #[test]
@@ -64,6 +71,8 @@ fn custom_times_parse_and_must_be_ahead() {
         "2026-11-24 10:00",
         "25:00",
         "99999999999999999d",
+        "4000d",
+        "2400-01-01",
     ] {
         assert_eq!(parse_custom(bad, &now), None, "{bad:?}");
     }
@@ -83,4 +92,5 @@ fn a_snooze_sleeps_until_its_time_then_wakes() {
         "2d"
     );
     assert_eq!(wake_label(until, until), "now");
+    assert_eq!(wake_label(100_000, 10_000), "2m", "90 seconds round up");
 }

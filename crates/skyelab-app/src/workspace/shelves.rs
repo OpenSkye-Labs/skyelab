@@ -1,6 +1,7 @@
 //! T3's settle and snooze: a settled thread is done and lists in the Settled shelf; a snoozed one hides in the
 //! Snoozed shelf until its time, then lists again as woke until it is opened. Both from the row's hover buttons and
-//! its menu, each with an Undo notice. Also the sidebar footer's actions. Local threads only.
+//! its menu; settling and snoozing show an Undo notice that puts the thread back where it was. Also the sidebar
+//! footer's and the subagent strip's actions. Local threads only.
 
 use super::super::Workspace;
 use super::super::manage::Job;
@@ -41,7 +42,6 @@ actions!(
     ]
 );
 
-/// A page of the Settled shelf (T3's).
 pub(in crate::workspace) const SETTLED_PAGE: usize = 25;
 
 impl Workspace {
@@ -91,7 +91,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if self.is_remote() {
-            return; // another machine's rows are shown
+            return;
         }
         let id = a.id;
         match a.to {
@@ -113,6 +113,31 @@ impl Workspace {
         }
     }
 
+    /// Where thread `id` sits now: (settled, snoozed until), for an undo to put it back.
+    fn shelf_of(&self, id: i64) -> (bool, Option<i64>) {
+        self.threads
+            .iter()
+            .find(|t| t.id == id)
+            .map_or((false, None), |t| (t.settled_at.is_some(), t.snoozed_until))
+    }
+
+    fn restore(
+        &mut self,
+        id: i64,
+        was: (bool, Option<i64>),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match was {
+            (true, _) => self.settle(id, true, false, window, cx),
+            (false, Some(until)) => self.snooze(id, Some(until), false, window, cx),
+            (false, None) => {
+                self.settle(id, false, false, window, cx);
+                self.snooze(id, None, false, window, cx);
+            }
+        }
+    }
+
     fn settle(
         &mut self,
         id: i64,
@@ -122,6 +147,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let title = self.thread_title(id, cx).unwrap_or_default();
+        let was = self.shelf_of(id);
         let job: Job = Box::new(move |s| s.set_thread_settled(id, on));
         let then = move |ws: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
             ws.update_row(
@@ -135,7 +161,7 @@ impl Workspace {
             if undo {
                 ws.undo_notice(
                     format!("Settled “{title}”"),
-                    move |ws, window, cx| ws.settle(id, false, false, window, cx),
+                    move |ws, window, cx| ws.restore(id, was, window, cx),
                     window,
                     cx,
                 );
@@ -153,6 +179,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let title = self.thread_title(id, cx).unwrap_or_default();
+        let was = self.shelf_of(id);
         let job: Job = Box::new(move |s| s.set_thread_snoozed(id, until));
         let then = move |ws: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
             ws.update_row(
@@ -167,7 +194,7 @@ impl Workspace {
                 let when = snooze::wake_label(until, crate::ui::now_ms());
                 ws.undo_notice(
                     format!("Snoozed “{title}” for {when}"),
-                    move |ws, window, cx| ws.snooze(id, None, false, window, cx),
+                    move |ws, window, cx| ws.restore(id, was, window, cx),
                     window,
                     cx,
                 );
@@ -176,8 +203,11 @@ impl Workspace {
         self.store_then(job, then, window, cx);
     }
 
-    /// The shown thread was looked at: a woke one is plain again (T3 clears Woke on a visit).
+    /// T3 clears Woke on a visit.
     pub(in crate::workspace) fn clear_woke(&mut self, id: i64, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            return; // the shown thread is another machine's: its id means nothing here
+        }
         let now = crate::ui::now_ms();
         let Some(t) = self
             .threads
@@ -191,14 +221,15 @@ impl Workspace {
         // Best effort, like the unread mark: the Woke label is a hint.
         cx.background_spawn(async move {
             if let Ok(s) = super::super::lock(&store) {
-                let _ = s.set_thread_snoozed(id, None);
+                let _ = s.clear_woke(id, now);
             }
         })
         .detach();
         self.refresh_sidebar(cx);
     }
 
-    /// Redraws the sidebar when the next snoozed thread wakes (a newer schedule replaces the last).
+    /// Redraws the sidebar when the next snoozed thread wakes. The timer is monotonic and stops while the machine
+    /// sleeps, so it wakes at least each minute to read the wall clock again.
     pub(in crate::workspace) fn arm_wake(&mut self, cx: &mut Context<Self>) {
         let now = crate::ui::now_ms();
         let next = self
@@ -211,12 +242,16 @@ impl Workspace {
             return;
         }
         self.previews.wake = next.map(|at| {
-            let wait = std::time::Duration::from_millis((at - now).unsigned_abs());
+            let wait = std::time::Duration::from_millis((at - now).unsigned_abs().min(60_000));
             let task = cx.spawn(async move |this, cx| {
                 cx.background_executor().timer(wait).await;
                 let _ = this.update(cx, |this, cx| {
                     this.previews.wake = None;
-                    this.refresh_sidebar(cx);
+                    if at <= crate::ui::now_ms() {
+                        this.refresh_sidebar(cx);
+                    } else {
+                        this.arm_wake(cx);
+                    }
                 });
             });
             (at, task)
