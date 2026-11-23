@@ -14,6 +14,11 @@ In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kb
 While the window shows another machine, the palette lists that machine's projects and the selected project's
 threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** shows whether it is **On** or **Off**.
 
+## Files
+
+**Go to File** (<kbd>⌘P</kbd>), **Search in Files** (<kbd>⇧⌘F</kbd>) and the read-only **Preview** tab: see
+[Files](user-guide-files.md).
+
 ## Layout
 
 The sidebar lists the threads of all your projects in one list: **Pinned** first, then **Working** (agents running
@@ -117,7 +122,9 @@ first). Approvals, the agent's questions and plans show as cards in the thread. 
   **(interrupted)**, so a reopened thread still shows it.
 - The agent's todo list (Claude's `TodoWrite`, Codex's plan) is one checklist per turn that updates in place.
 - Edits (`Edit`, `Write`, `MultiEdit`) show their diff inline. Click the file name to open it in the Changes tab.
-  File links in the agent's text (`[a.rs](src/a.rs)`) do the same; web links open in your browser, and nothing else opens.
+- File paths in the agent's text open in the **Preview** tab at their line: markdown links (`[a.rs](src/a.rs:12)`),
+  `path:line` text (`src/a.rs:12`) and code spans naming a file (`` `src/a.rs` ``). Only paths inside the thread's
+  folder become links; a path outside it stays plain text. Web links open in your browser, and nothing else opens.
 - Shell commands show as `$ command` with how they ended (`exit 1`, `failed`); click one for its output.
 - Messages and code blocks have copy buttons; under a turn's final reply the copy button sits next to the time the
   turn ended.
