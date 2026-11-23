@@ -22,6 +22,9 @@ mod manage;
 mod model;
 pub use model::ModelChoice;
 mod migrations;
+mod settle;
+mod thread_row;
+pub(crate) use thread_row::{THREAD_COLS, thread_from_row};
 pub mod usage;
 use migrations::MIGRATIONS;
 pub use usage::UsageReading;
@@ -71,6 +74,10 @@ pub struct Thread {
     pub pr_state: Option<String>,
     /// The thread this one is a side chat of: hidden from the thread lists, listed under it.
     pub side_of: Option<i64>,
+    /// When the user settled it (done: listed in the Settled shelf).
+    pub settled_at: Option<i64>,
+    /// Hidden until then; once passed it lists again as woke, until opened.
+    pub snoozed_until: Option<i64>,
 }
 
 /// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
@@ -117,7 +124,6 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from, pr_state, side_of";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -336,6 +342,8 @@ impl Store {
             forked_from: None,
             pr_state: None,
             side_of: None,
+            settled_at: None,
+            snoozed_until: None,
         })
     }
 
@@ -479,32 +487,6 @@ fn project_from_row(r: &Row) -> rusqlite::Result<Project> {
         name: r.get(1)?,
         path: PathBuf::from(r.get::<_, String>(2)?),
         created_at: r.get(3)?,
-    })
-}
-
-pub(crate) fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
-    Ok(Thread {
-        id: r.get(0)?,
-        project_id: r.get(1)?,
-        title: r.get(2)?,
-        cwd: PathBuf::from(r.get::<_, String>(3)?),
-        account_id: r.get(4)?,
-        agent_session_id: r.get(5)?,
-        status: r.get(6)?,
-        created_at: r.get(7)?,
-        updated_at: r.get(8)?,
-        worktree_path: r.get::<_, Option<String>>(9)?.map(PathBuf::from),
-        worktree_branch: r.get(10)?,
-        worktree_base: r.get(11)?,
-        pr_url: r.get(12)?,
-        parent_thread_id: r.get(13)?,
-        permission_mode: r.get(14)?,
-        pinned_at: r.get(15)?,
-        archived_at: r.get(16)?,
-        unread: r.get(17)?,
-        forked_from: r.get(18)?,
-        pr_state: r.get(19)?,
-        side_of: r.get(20)?,
     })
 }
 

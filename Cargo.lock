@@ -7774,6 +7774,7 @@ name = "skyelab-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "dirs 7.0.0",
  "grep-regex",
  "grep-searcher",
