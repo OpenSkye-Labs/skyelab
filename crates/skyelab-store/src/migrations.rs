@@ -150,4 +150,7 @@ CREATE TRIGGER event_text_insert AFTER INSERT ON events BEGIN
     ) WHERE body IS NOT NULL AND body <> '';
 END;
 ",
+    // Version 12: image and PDF bytes are no longer stored. The rewrite of older rows is Rust (`images.rs`), run by
+    // `Store::init` when it upgrades past 11; this step itself changes no schema.
+    "",
 ];

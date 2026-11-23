@@ -2,7 +2,7 @@
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
-# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (its row shows the text block: size, not pixels); `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
+# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (echoed as text plus a base64 image block, as real claude does); `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
@@ -74,6 +74,12 @@ while IFS= read -r line; do
   resp=$(rpc "{\"jsonrpc\":\"2.0\",\"id\":$n,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$json}}")
   text=$(printf '%s' "$resp" | sed -nE 's/.*"text":"(([^"\\]|\\.)*)".*/\1/p')
   err=$(printf '%s' "$resp" | sed -nE 's/.*"isError":(true|false).*/\1/p')
-  printf '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_mcp%s","content":"%s","is_error":%s}]}}\n' "$n" "$text" "${err:-true}"
+  # An image block comes back the way real claude echoes it: text then the image as a base64 source.
+  data=$(printf '%s' "$resp" | sed -nE 's/.*"data":"([A-Za-z0-9+/=]*)".*/\1/p')
+  if [ -n "$data" ]; then
+    printf '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_mcp%s","content":[{"type":"text","text":"%s"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"%s"}}],"is_error":%s}]}}\n' "$n" "$text" "$data" "${err:-true}"
+  else
+    printf '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_mcp%s","content":"%s","is_error":%s}]}}\n' "$n" "$text" "${err:-true}"
+  fi
   done_turn "called $tool"
 done

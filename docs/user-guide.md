@@ -181,7 +181,9 @@ Relative paths are read from the folder the terminal started in.
 
 An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read
 `browser_url`, run `browser_eval` (a JavaScript expression; the JSON result comes back, up to 64 KiB, within 10
-seconds) and take a `browser_screenshot` (a PNG of the visible page, at most 1600 px wide and 1 MiB; macOS only). Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
+seconds) and take a `browser_screenshot` (a PNG of the visible page, at most 1600 px wide and 1 MiB; macOS only). SkyeLab doesn't keep image bytes in its thread history: the tool row shows **Image (205 KB)**
+while the thread is open, and **Image (205 KB) not kept** after a restart. The same goes for any image or PDF a tool
+returns. Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
 local file page. Each thread has one tab, titled **Agent browser**, with a bar saying the agent controls it:
 
 - **Take over** makes it your tab. The agent can't reach it any more; its next `browser_open` opens a new tab.
