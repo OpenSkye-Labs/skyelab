@@ -136,6 +136,7 @@ impl Workspace {
                         this.threads = threads;
                         this.rerun_search(cx);
                         this.load_previews(cx);
+                        this.poll_prs(cx); // every linked PR, whichever page shows
                     }
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
                 }

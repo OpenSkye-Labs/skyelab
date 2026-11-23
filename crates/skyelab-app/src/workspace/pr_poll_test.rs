@@ -55,7 +55,7 @@ fn never_opened_thread_gets_its_pr_state_and_merged_stops_reads(cx: &mut gpui::T
                 .and_then(|m| m.pr.as_ref().map(|p| (p.state, p.checks)))
         })
     };
-    r.ws.update(cx, |ws, cx| ws.poll_prs(cx));
+    // Loading the thread list reads its PRs, whatever page shows: no thread was opened or shown.
     wait_until(cx, "first read", |cx| {
         badge(cx).is_some_and(|(s, _)| s.is_some())
     });
