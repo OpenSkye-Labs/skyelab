@@ -2,7 +2,7 @@
 //! window's copy of it: an outside edit that rebinds or unbinds a folder applies to them at once.
 
 use super::changes_model_test::git;
-use super::publish_test::{error, set_input, thread_and_changes};
+use super::publish_test::{error, set_text, thread_and_changes};
 use super::worktree_thread_test::{fixture, open_thread, wait_until};
 use super::*;
 use gpui::TestAppContext;
@@ -61,7 +61,7 @@ fn commit_is_refused_once_the_file_rebinds_the_folder(cx: &mut TestAppContext) {
     rebound.save(&accounts).expect("save");
     cx.update(|_, cx| cx.set_global(AccountsFile(accounts)));
 
-    set_input(
+    set_text(
         &changes.read_with(cx, |c, _| c.commit_message.clone()),
         "Add new.txt",
         cx,

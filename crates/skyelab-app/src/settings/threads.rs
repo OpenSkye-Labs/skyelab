@@ -151,6 +151,21 @@ impl Settings {
             ),
             row(
                 false,
+                "Generate commit messages and PRs",
+                "A sparkle button in the Changes tab asks the thread's own account's agent for a commit message, \
+                 or a pull request title and description, from the diff. It only fills the field.",
+                Switch::new("threads-git-text")
+                    .checked(t.generate_git_text)
+                    .accessibility_label("Generate commit messages and PRs")
+                    .on_click(cx.listener(|this, on: &bool, _, cx| {
+                        let on = *on;
+                        this.set_threads(|t| t.generate_git_text = on, cx)
+                    }))
+                    .into_any_element(),
+                cx,
+            ),
+            row(
+                false,
                 "Default permissions",
                 "What a new thread's agent may do without asking. Full access is picked per thread.",
                 mode_menu,

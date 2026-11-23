@@ -324,7 +324,8 @@ gpui_kit_assets::icon_assets!(
         PenLine,
         ShieldOff,
         GitCommitVertical,
-        Unlink
+        Unlink,
+        Sparkles
     ]
 );
 

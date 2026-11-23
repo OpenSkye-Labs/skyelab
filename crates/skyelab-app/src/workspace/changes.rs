@@ -38,7 +38,8 @@ pub struct ChangesView {
     scroll: UniformListScrollHandle,
     /// The thread whose account commits, pushes and opens PRs here.
     pub(super) thread: Option<gpui::WeakEntity<ThreadView>>,
-    pub(super) commit_message: Entity<InputState>,
+    /// A subject, then a blank line and a body when there is one.
+    pub(super) commit_message: Entity<TextareaState>,
     pub(super) pr_title: Entity<InputState>,
     pub(super) pr_body: Entity<TextareaState>,
     /// Files ticked for the next commit; none ticked commits everything.
@@ -52,6 +53,9 @@ pub struct ChangesView {
     /// A commit, push or PR is running; another click is ignored.
     pub(super) busy: bool,
     pub(super) _publish: Option<Task<()>>,
+    /// A commit message or PR being generated (Changes → sparkle).
+    pub(super) generating: Option<super::changes_generate::Gen>,
+    pub(super) _generate: Option<Task<()>>,
     /// Working tree, the whole thread, or one turn.
     pub(super) scope: Scope,
     /// A rewind shown for confirming.
@@ -71,7 +75,11 @@ impl ChangesView {
         let input = |placeholder: &'static str, window: &mut Window, cx: &mut Context<Self>| {
             cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
         };
-        let commit_message = input("Commit message", window, cx);
+        let commit_message = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .auto_grow(1, 6)
+                .placeholder("Commit message")
+        });
         let pr_title = input("Pull request title", window, cx);
         let pr_body = cx.new(|cx| {
             TextareaState::new(window, cx)
@@ -97,6 +105,8 @@ impl ChangesView {
             publish_note: None,
             busy: false,
             _publish: None,
+            generating: None,
+            _generate: None,
             scope: Scope::Working,
             rewind: None,
             _load: None,

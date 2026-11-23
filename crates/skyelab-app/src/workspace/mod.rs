@@ -7,6 +7,7 @@ mod browser_agent;
 mod browser_tabs;
 mod center;
 mod changes;
+mod changes_generate;
 mod changes_model;
 mod changes_open;
 mod changes_publish;
@@ -468,6 +469,8 @@ mod env_switch_test;
 mod env_whois_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
+#[cfg(test)]
+mod generate_text_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;
 #[cfg(test)]
