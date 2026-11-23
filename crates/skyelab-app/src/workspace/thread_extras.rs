@@ -11,6 +11,9 @@ pub(super) mod title;
 #[cfg(all(test, unix))]
 #[path = "draft_test.rs"]
 mod draft_test;
+#[cfg(test)]
+#[path = "fork_cut_gone_test.rs"]
+mod fork_cut_gone_test;
 #[cfg(all(test, unix))]
 #[path = "fork_test.rs"]
 mod fork_test;

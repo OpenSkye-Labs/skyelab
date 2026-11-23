@@ -113,3 +113,24 @@ fn fork_copies_the_given_events_and_records_its_source() {
     assert_eq!(copied[1].payload_json, r#"{"Result":{}}"#);
     assert_eq!(store.thread(id).unwrap().unwrap().forked_from, None);
 }
+
+#[test]
+fn an_unsent_fork_keeps_its_marker_after_its_source_is_deleted() {
+    let mut s = Store::open_in_memory().expect("store");
+    let (project, src) = thread(&s);
+    let nt = NewThread {
+        project_id: project,
+        title: "t",
+        cwd: Path::new("/work/demo"),
+        account_id: "work",
+        status: "stopped",
+    };
+    let fork = s.create_fork(&nt, src, "ctx", &[]).expect("fork");
+    s.delete_thread(src).expect("delete");
+    let f = s.thread(fork.id).expect("read").expect("row");
+    assert_eq!(f.forked_from, Some(src), "still a fork, so still sendable");
+    assert_eq!(
+        s.fork_context(fork.id).expect("ctx").as_deref(),
+        Some("ctx")
+    );
+}

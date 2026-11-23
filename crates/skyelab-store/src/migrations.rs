@@ -153,12 +153,13 @@ END;
     // Version 12: image and PDF bytes are no longer stored. The rewrite of older rows is Rust (`images.rs`), run by
     // `Store::init` when it upgrades past 11; this step itself changes no schema.
     "",
-    // Version 13: generated titles (who set the title: 'prompt', 'generated', 'user' or 'fork'), forks (the source
-    // thread and the context prompt its first session starts with) and composer drafts, per thread or per project's
-    // "New thread" tab (`owner` is `thread:<id>` or `project:<id>`).
+    // Version 13: generated titles (who set the title: 'prompt', 'generated', 'user' or 'fork'); forks (the source
+    // thread, kept without a foreign key so an unsent fork stays sendable after its source is deleted, and the context
+    // prompt its first session starts with); composer drafts per thread or per project's "New thread" tab (`owner` is
+    // `thread:<id>` or `project:<id>`).
     "
 ALTER TABLE threads ADD COLUMN title_source TEXT NOT NULL DEFAULT 'prompt';
-ALTER TABLE threads ADD COLUMN forked_from INTEGER REFERENCES threads(id) ON DELETE SET NULL;
+ALTER TABLE threads ADD COLUMN forked_from INTEGER;
 ALTER TABLE threads ADD COLUMN fork_context TEXT;
 CREATE TABLE drafts (
     owner      TEXT PRIMARY KEY,

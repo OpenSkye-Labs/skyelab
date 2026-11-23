@@ -2,7 +2,7 @@
 //! up to that reply copied in. Agent sessions can't be forked, so its first session starts with a context prompt
 //! built from that history (stored on the row until the session reports its id).
 
-use crate::workspace::thread_model::Record;
+use crate::workspace::thread_model::{Item, Record, apply};
 use crate::workspace::{OpenThread, Workspace, lock};
 use anyhow::{Context as _, bail};
 use gpui::{Action, AnyElement, AppContext as _, Context, SharedString, Window, div, prelude::*};
@@ -39,21 +39,27 @@ pub(in crate::workspace) fn button(action: ForkThread) -> AnyElement {
         .into_any_element()
 }
 
-/// `events` up to and including the `turns`-th turn's result (all of them if the thread has fewer).
+/// `events` up to and including the turn whose result the timeline shows as its `turns`-th finished turn (all of them
+/// if there are fewer). Counted as the timeline counts, so a result it draws no row for (a gone session) isn't a turn.
 pub(in crate::workspace) fn cut(
     events: &[skyelab_store::Event],
     turns: usize,
 ) -> &[skyelab_store::Event] {
-    let mut seen = 0;
+    let done = |items: &[Item]| {
+        items
+            .iter()
+            .filter(|i| matches!(i, Item::Done { .. }))
+            .count()
+    };
+    let mut items = Vec::new();
     for (i, e) in events.iter().enumerate() {
-        if matches!(
-            Record::from_row(&e.kind, &e.payload_json),
-            Ok(Record::Agent(Event::Result { .. }))
-        ) {
-            seen += 1;
-            if seen == turns {
-                return &events[..=i];
-            }
+        let Ok(record) = Record::from_row(&e.kind, &e.payload_json) else {
+            continue;
+        };
+        let result = matches!(record, Record::Agent(Event::Result { .. }));
+        apply(&mut items, &record);
+        if result && done(&items) == turns {
+            return &events[..=i];
         }
     }
     events

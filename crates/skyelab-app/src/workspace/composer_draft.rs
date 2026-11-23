@@ -9,6 +9,7 @@ use gpui::{
     App, AppContext as _, Context, Focusable as _, KeyBinding, SharedString, Window, actions,
 };
 use skyelab_agent::{Attachment, Mode};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 actions!(skyelab, [HistoryUp, HistoryDown]);
@@ -24,24 +25,25 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
 
 type Files = Vec<(String, Vec<u8>)>;
 
-/// Draft writes, latest first: each write stores the newest pending text (and files), so writes that finish out of
-/// order can't leave an older draft behind.
+/// Draft writes, latest first: each write stores the newest pending text (and files) of every owner, so writes that
+/// finish out of order can't leave an older draft behind, and a new thread's switch from its project's draft to its
+/// own can't drop the project's pending clear.
 #[derive(Default, Clone)]
 struct Saver {
-    text: Arc<Mutex<Option<(String, String)>>>,
-    files: Arc<Mutex<Option<(String, Files)>>>,
+    text: Arc<Mutex<HashMap<String, String>>>,
+    files: Arc<Mutex<HashMap<String, Files>>>,
     write: Arc<Mutex<()>>,
 }
 
 impl Saver {
     fn flush(&self, store: &SharedStore) -> anyhow::Result<()> {
         let _held = lock(&self.write)?;
-        let text = lock(&self.text)?.take();
-        if let Some((owner, text)) = text {
+        let text = std::mem::take(&mut *lock(&self.text)?);
+        for (owner, text) in text {
             lock(store)?.set_draft_text(&owner, &text)?;
         }
-        let files = lock(&self.files)?.take();
-        if let Some((owner, files)) = files {
+        let files = std::mem::take(&mut *lock(&self.files)?);
+        for (owner, files) in files {
             lock(store)?.set_draft_files(&owner, &files)?;
         }
         Ok(())
@@ -147,13 +149,10 @@ impl ThreadView {
         let text = self.prompt.read(cx).value();
         if *text != *self.composer.extras.saved_text {
             self.composer.extras.saved_text = text.to_string();
-            *self
-                .composer
-                .extras
-                .saver
-                .text
-                .lock()
-                .unwrap_or_else(|e| e.into_inner()) = Some((self.draft_owner(), text.to_string()));
+            let pending = &self.composer.extras.saver.text;
+            let mut pending = pending.lock().unwrap_or_else(|e| e.into_inner());
+            pending.insert(self.draft_owner(), text.to_string());
+            drop(pending);
             self.write_draft(cx);
         }
         let marks = self.file_marks();
@@ -163,13 +162,10 @@ impl ThreadView {
         self.composer.extras.saved_files = marks;
         let files = self.composer.attachments.iter();
         let files = files.map(|a| (a.name.clone(), a.data.clone())).collect();
-        *self
-            .composer
-            .extras
-            .saver
-            .files
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = Some((self.draft_owner(), files));
+        let pending = &self.composer.extras.saver.files;
+        let mut pending = pending.lock().unwrap_or_else(|e| e.into_inner());
+        pending.insert(self.draft_owner(), files);
+        drop(pending);
         self.write_draft(cx);
     }
 

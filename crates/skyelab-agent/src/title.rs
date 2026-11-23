@@ -37,6 +37,11 @@ fn cut(s: &str) -> String {
 /// The title in an agent's answer: its first non-empty line, quotes and markdown stripped, cut to six words and 80
 /// characters. `None` when nothing is left.
 pub fn clean_title(raw: &str) -> Option<String> {
+    // Bidi controls and zero-width characters could make a title read as something else.
+    let raw: String = raw
+        .chars()
+        .filter(|c| !matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}'))
+        .collect();
     let line = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
     let line = line
         .trim_start_matches(['#', '*', '-', '>', ' '])
@@ -53,7 +58,7 @@ pub fn clean_title(raw: &str) -> Option<String> {
 
 /// Asks `account`'s agent for a title for `prompt` (from [`title_prompt`]), in `dir`, which must still resolve to
 /// `account`. Claude: `claude -p` on its smallest model with no tools, no MCP and no saved session. Codex: an
-/// ephemeral read-only `codex exec`. The env is the agent allowlist plus the account's own, as for every agent.
+/// ephemeral read-only `codex exec` with no MCP servers or hooks (its shell can still read files). The env is the agent allowlist plus the account's own, as for every agent.
 pub fn generate_title(
     bin: &Path,
     config: &AccountsConfig,
@@ -91,6 +96,11 @@ pub fn generate_title(
                 "read-only",
                 "--config",
                 "model_reasoning_effort=\"low\"",
+                // No MCP servers or hooks: the prompt holds the agent's reply, which may quote untrusted text.
+                "--config",
+                "mcp_servers={}",
+                "--config",
+                "features.hooks=false",
                 "--output-last-message",
             ])
             .arg(out_file.path())
@@ -146,6 +156,10 @@ mod tests {
             Some("one two three four five six")
         );
         assert_eq!(clean_title("  \n\"\"\n"), None);
+        assert_eq!(
+            clean_title("Fix\u{202E}gol bug").as_deref(),
+            Some("Fixgol bug")
+        );
     }
 
     #[test]

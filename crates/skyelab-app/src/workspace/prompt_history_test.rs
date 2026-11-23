@@ -50,4 +50,17 @@ fn up_and_down_walk_the_threads_prompts(cx: &mut TestAppContext) {
     cx.simulate_input("typed");
     cx.simulate_keystrokes("up");
     assert_eq!(value(cx), "typed", "typed text stays");
+
+    // With the slash menu open, Up belongs to the menu: the text stays.
+    view.update_in(cx, |t, window, cx| {
+        t.prompt.update(cx, |p, cx| p.set_value("", window, cx))
+    });
+    cx.simulate_input("/");
+    cx.run_until_parked();
+    assert!(
+        view.read_with(cx, |t, _| t.composer.menu.is_some()),
+        "the menu opened"
+    );
+    cx.simulate_keystrokes("up");
+    assert_eq!(value(cx), "/", "the history left it to the menu");
 }
