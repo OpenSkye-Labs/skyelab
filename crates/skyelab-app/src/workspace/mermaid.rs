@@ -11,6 +11,10 @@ use gpui::{App, Hsla, SharedString};
 use gpui_component::text::{MarkdownNode, MarkdownParseContext, markdown_ast::Node};
 use resvg::{tiny_skia, usvg};
 
+#[cfg(test)]
+#[path = "mermaid_pool_test.rs"]
+mod pool_test;
+
 /// The custom markdown node's name.
 pub(super) const NODE: &str = "mermaid";
 /// Longer sources are shown as code: they are slow to lay out and no reader follows them as a picture.

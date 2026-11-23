@@ -531,8 +531,6 @@ mod env_whois_test;
 mod exit_holding_stdout_test;
 #[cfg(test)]
 mod focus_areas_test;
-#[cfg(test)]
-mod fork_cost_test;
 #[cfg(all(test, unix))] // uses publish_test's fake-gh helpers
 mod generate_text_test;
 #[cfg(test)]
@@ -555,8 +553,6 @@ mod manage_threads_test;
 mod mermaid_cap_test;
 #[cfg(test)]
 mod mermaid_href_test;
-#[cfg(test)]
-mod mermaid_pool_test;
 #[cfg(test)]
 mod mermaid_test;
 #[cfg(test)]

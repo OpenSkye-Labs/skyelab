@@ -1,7 +1,7 @@
 //! Acceptance: diagrams render on a fixed pool of worker threads. A reply with many diagrams queues them instead of
 //! starting a thread each, and a render that panics doesn't take its worker with it.
 
-use super::mermaid::Pool;
+use super::Pool;
 use std::collections::HashSet;
 use std::sync::mpsc;
 use std::time::Duration;

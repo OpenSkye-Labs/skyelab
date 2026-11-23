@@ -2,7 +2,7 @@
 //! is fresh, so its first turn's divider shows the whole running total it reported; later turns count from the
 //! fork's own totals. (The stored usage does the same: skyelab-store's migration 20.)
 
-use super::thread_model::{Item, Record, apply, mark_copied, stamp_done};
+use crate::workspace::thread_model::{Item, Record, apply, replay};
 use skyelab_agent::Event;
 
 fn result(total: f64) -> Record {
@@ -31,9 +31,7 @@ fn last_cost(items: &[Item]) -> f64 {
 fn a_forks_first_turn_counts_its_whole_total() {
     let mut items = Vec::new();
     // The source's turn, copied with its time; the fork was made at 200.
-    apply(&mut items, &result(0.5));
-    stamp_done(&mut items, 100);
-    mark_copied(&mut items, 200);
+    replay(&mut items, &result(0.5), 100, Some(200));
     apply(&mut items, &result(0.75));
     assert_eq!(last_cost(&items), 0.75, "not 0.25 over the copied 0.5");
     apply(&mut items, &result(1.0));

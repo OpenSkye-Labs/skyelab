@@ -4,7 +4,7 @@
 //! reaps the child while holding the session lock.
 
 use super::thread_find::FindHost as _;
-use super::thread_model::{Item, Record, apply, limit_after, mark_copied, stamp_done};
+use super::thread_model::{Item, Record, apply, limit_after, replay, stamp_done};
 use super::{Backend, SharedStore, lock};
 use anyhow::Result;
 use gpui::{
@@ -223,13 +223,11 @@ impl ThreadView {
                     this.children = children;
                     this.details.side_chats = sides;
                     this.finish(cx);
+                    let fork_made = this.thread.as_ref().filter(|t| t.forked_from.is_some());
+                    let fork_made = fork_made.map(|t| t.created_at);
                     for (r, at) in &records {
-                        apply(&mut this.items, r);
-                        stamp_done(&mut this.items, *at);
+                        replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
-                    }
-                    if let Some(t) = this.thread.as_ref().filter(|t| t.forked_from.is_some()) {
-                        mark_copied(&mut this.items, t.created_at);
                     }
                     this.list.reset(this.items.len());
                     this.load_turn_files(cx);

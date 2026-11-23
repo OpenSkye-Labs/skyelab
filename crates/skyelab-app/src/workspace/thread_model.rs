@@ -475,18 +475,15 @@ pub fn stamp_done(items: &mut [Item], at_ms: i64) {
     }
 }
 
-/// Marks the turns that ended by `fork_made_ms` as copied into a fork (see `Item::Done::copied`).
-pub fn mark_copied(items: &mut [Item], fork_made_ms: i64) {
-    for i in items {
-        if let Item::Done {
-            at_ms: Some(at),
-            copied,
-            ..
-        } = i
-            && *at <= fork_made_ms
-        {
-            *copied = true;
-        }
+/// Applies a stored record dated `at_ms`. In a fork made at `fork_made_ms`, a turn that ended by then was copied
+/// from its source (`Item::Done::copied`), and is marked before the next record takes it as a baseline.
+pub fn replay(items: &mut Vec<Item>, record: &Record, at_ms: i64, fork_made_ms: Option<i64>) {
+    apply(items, record);
+    stamp_done(items, at_ms);
+    if let (Some(Item::Done { copied, .. }), Some(made)) = (items.last_mut(), fork_made_ms)
+        && at_ms <= made
+    {
+        *copied = true;
     }
 }
 

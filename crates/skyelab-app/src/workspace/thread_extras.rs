@@ -15,6 +15,12 @@ mod context_fence_test;
 #[path = "draft_test.rs"]
 mod draft_test;
 #[cfg(test)]
+#[path = "fork_cost_reload_test.rs"]
+mod fork_cost_reload_test;
+#[cfg(test)]
+#[path = "fork_cost_test.rs"]
+mod fork_cost_test;
+#[cfg(test)]
 #[path = "fork_cut_gone_test.rs"]
 mod fork_cut_gone_test;
 #[cfg(all(test, unix))]
