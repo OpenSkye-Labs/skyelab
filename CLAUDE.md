@@ -53,6 +53,8 @@ What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-g
   a default account.** Deepest binding wins, and path matching is component-wise.
 - Every agent process is launched with the env from `AccountsConfig::launch_env(dir)` (`CLAUDE_CONFIG_DIR`,
   or `CODEX_HOME` for a Codex account). Never inherit the parent's `CLAUDE_CONFIG_DIR` / `CODEX_HOME`. Clear it, then set it.
+- Any child process (agent, terminal, git, gh) starts from `env_clear()` plus `skyelab_core::env`'s allowlist
+  (`inherited_agent_env`, or `terminal_allowed` for terminals), never from a hand-written `env_remove` list.
 - Config: `~/.config/skyelab/accounts.toml` (platform config dir). An unknown account id is a load error, not a warning.
 
 ## Platform setup

@@ -32,6 +32,7 @@ fn env_check_in_child() {
         provider: Provider::Codex,
         config_dir: dir.join("codex-home"),
         gh_config_dir: None,
+        ssh_agent: false,
     };
     let config = AccountsConfig {
         accounts: vec![account.clone()],

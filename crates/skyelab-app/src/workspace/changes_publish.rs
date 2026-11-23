@@ -112,12 +112,14 @@ impl ChangesView {
 
     pub(super) fn commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let message = self.commit_message.read(cx).value().to_string();
-        let files = self
+        let (files, tree) = self
             .changes
             .as_ref()
-            .map(|c| c.files.as_slice())
+            .map(|c| (c.files.as_slice(), c.tree.clone()))
             .unwrap_or_default();
-        // A ticked rename takes its old path along, so the deletion lands in the same commit.
+        let nothing = files.is_empty();
+        // A ticked rename takes its old path along, so the deletion lands in the same commit. Nothing ticked is
+        // everything, which `commit` only does while the tree is exactly the one shown (`tree`).
         let paths: Vec<PathBuf> = files
             .iter()
             .filter(|f| self.selected.contains(&f.path))
@@ -128,7 +130,21 @@ impl ChangesView {
             window,
             cx,
             move |t, _| {
-                let sha = skyelab_git::commit(&t.dir, &message, &paths)?;
+                if nothing {
+                    bail!("nothing to commit");
+                }
+                let tree = tree.context(
+                    "the files were changing while the Changes tab loaded; refresh it, then commit",
+                )?;
+                let mut env = t.config.launch_env(&t.dir)?;
+                // ssh commit signing needs the agent; only for accounts that let their agents use it too, since
+                // the repo's hooks (agent-writable) see the same env.
+                if t.config.resolve(&t.dir).is_some_and(|a| a.ssh_agent)
+                    && let Some(sock) = std::env::var_os("SSH_AUTH_SOCK")
+                {
+                    env.push(("SSH_AUTH_SOCK", sock.into()));
+                }
+                let sha = skyelab_git::commit(&t.dir, &message, &paths, &env, Some(&tree))?;
                 Ok(format!("Committed {}", sha.get(..8).unwrap_or(&sha)))
             },
             |this, note, window, cx| {
@@ -182,12 +198,8 @@ impl ChangesView {
 
     pub(super) fn render_publish(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let n = self.selected.len();
-        let commit_label = match n {
-            0 => "Commit all".to_string(),
-            1 => "Commit 1 file".to_string(),
-            n => format!("Commit {n} files"),
-        };
+        let total = self.changes.as_ref().map_or(0, |c| c.files.len());
+        let commit_label = commit_label(self.selected.len(), total);
         let button = |id: &'static str, label: String| {
             Button::new(id)
                 .xsmall()
@@ -246,5 +258,20 @@ impl ChangesView {
                     .child(n)
             }))
             .into_any_element()
+    }
+}
+
+/// What the Commit button will commit: the ticked files, or every listed one.
+pub(super) fn commit_label(selected: usize, total: usize) -> String {
+    let files = |n: usize| {
+        if n == 1 {
+            "1 file".to_string()
+        } else {
+            format!("{n} files")
+        }
+    };
+    match selected {
+        0 => format!("Commit all {}", files(total)),
+        n => format!("Commit {}", files(n)),
     }
 }

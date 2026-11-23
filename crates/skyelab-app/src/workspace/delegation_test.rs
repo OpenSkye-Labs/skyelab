@@ -56,6 +56,7 @@ pub(super) fn rig_with(open: impl FnOnce(&Path) -> Store) -> (Rig, PathBuf, Acco
                 config_dir: root.join(format!(".claude-{id}")),
                 provider: Default::default(),
                 gh_config_dir: None,
+                ssh_agent: false,
             })
             .expect("account");
     }

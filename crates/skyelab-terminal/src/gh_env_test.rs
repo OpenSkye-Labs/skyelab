@@ -19,7 +19,17 @@ fn unset(account: &[(&str, &str)], windows: bool) -> (Vec<String>, HashMap<Strin
         .iter()
         .map(|(k, v)| (k.to_string(), v.to_string()))
         .collect();
-    let (program, args, env) = launch(Some(("prog".into(), vec!["a".into()])), env, windows);
+    let parent: Vec<String> = TOKENS
+        .iter()
+        .chain(&["CLAUDE_CONFIG_DIR", "CODEX_HOME", "GH_CONFIG_DIR"])
+        .map(|s| s.to_string())
+        .collect();
+    let (program, args, env) = launch(
+        Some(("prog".into(), vec!["a".into()])),
+        env,
+        &parent,
+        windows,
+    );
     if windows {
         assert_eq!(program, "prog");
         let gone = env

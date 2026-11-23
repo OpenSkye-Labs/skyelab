@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 mod app_settings;
 pub mod delegation;
+pub mod env;
 pub use app_settings::{AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS};
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
@@ -52,6 +53,10 @@ pub struct Account {
     /// refuse, and agents get gh's default config.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gh_config_dir: Option<PathBuf>,
+    /// Let this account's agents use the user's ssh-agent (`SSH_AUTH_SOCK`) and git's ssh transport. Off by
+    /// default: an ssh key isn't bound to any account, so an agent's ssh push could land as anyone.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub ssh_agent: bool,
 }
 
 impl Account {

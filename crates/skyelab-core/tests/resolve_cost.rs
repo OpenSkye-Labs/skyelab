@@ -17,6 +17,7 @@ fn resolve_costs_well_under_a_millisecond_with_twenty_bindings() {
             config_dir: root.join(format!(".claude-{i}")),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
         let dir = root.join(format!("work/team-{i}/repo"));

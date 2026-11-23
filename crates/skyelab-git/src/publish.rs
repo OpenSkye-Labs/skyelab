@@ -1,13 +1,12 @@
-//! Commit, push and open a pull request, each under one account's `gh` login.
+//! Push and open a pull request under one account's `gh` login.
 
-use std::ffi::OsStr;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use crate::{Error, Result, command, git, git_succeeds, lossy, repo_root};
+use crate::{Error, Result, git, git_succeeds, hooked_command, lossy, repo_root};
 
-const MAX_MESSAGE: usize = 64 * 1024;
+pub(crate) const MAX_MESSAGE: usize = 64 * 1024;
 const MAX_TITLE: usize = 256;
 const MAX_BODY: usize = 64 * 1024;
 const MAX_URL: usize = 2048;
@@ -18,32 +17,6 @@ pub struct GitHub<'a> {
     /// An absolute path, or a bare name looked up in the absolute entries of `PATH`.
     pub gh: &'a Path,
     pub config_dir: &'a Path,
-}
-
-/// Commits `paths` (every change, untracked files included, when empty) with `message`, and returns the new commit.
-pub fn commit(dir: &Path, message: &str, paths: &[PathBuf]) -> Result<String> {
-    if message.trim().is_empty() || message.contains('\0') || message.len() > MAX_MESSAGE {
-        return Err(invalid(
-            "a commit message must be non-empty text under 64 KiB",
-        ));
-    }
-    let root = repo_root(dir)?;
-    // Literal, so a ticked file named `*` is that file, not a glob.
-    let literal: &OsStr = "--literal-pathspecs".as_ref();
-    let mut add: Vec<&OsStr> = vec![literal, "add".as_ref(), "-A".as_ref()];
-    let mut commit: Vec<&OsStr> = vec![literal, "commit".as_ref(), "-F".as_ref(), "-".as_ref()];
-    if !paths.is_empty() {
-        let tail = std::iter::once("--".as_ref()).chain(paths.iter().map(|p| p.as_os_str()));
-        add.extend(tail.clone());
-        commit.extend(tail);
-    }
-    git(&root, &add)?;
-    let mut cmd = command(Path::new("git"), &root);
-    cmd.args(&commit);
-    checked(cmd, "git commit", Some(message.as_bytes()))?;
-    Ok(lossy(&git(&root, &["rev-parse", "HEAD"])?)
-        .trim()
-        .to_owned())
 }
 
 /// Pushes the current branch to its upstream, or to `origin/<branch>` (and sets that as the upstream).
@@ -75,11 +48,14 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
             "SkyeLab won't push to a remote named {remote}"
         )));
     }
-    check_push_url(&root, &remote)?;
+    let urls = check_push_urls(&root, &remote)?;
+    let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let refspec = format!("HEAD:refs/heads/{branch}");
-    let mut cmd = command(Path::new("git"), &root);
-    cmd.args(credential_args(gh)?)
+    let mut cmd = hooked_command(Path::new("git"), &root);
+    cmd.args(credential_args(gh, &urls)?)
         .arg("push")
+        // A submodule's own remote is never checked, so never pushed to.
+        .arg("--recurse-submodules=no")
         .args(set_upstream.then_some("--set-upstream"))
         .args([&remote, &refspec])
         .env("GH_CONFIG_DIR", gh.config_dir)
@@ -88,29 +64,43 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
     Ok(format!("{remote}/{branch}"))
 }
 
-/// Only an https URL without credentials (the bound gh answers) or a local path (nothing to log in to). An ssh
-/// key, a token in the URL or a rewrite to either would push as someone no account binds.
-fn check_push_url(root: &Path, remote: &str) -> Result<()> {
-    let url = lossy(&git(root, &["remote", "get-url", "--push", remote])?)
-        .trim()
-        .to_owned();
-    let https = url.strip_prefix("https://").is_some_and(|rest| {
-        let authority = rest.split('/').next().unwrap_or_default();
-        !authority.is_empty() && !authority.contains('@')
-    });
-    if https || url.starts_with("file://") || Path::new(&url).is_absolute() {
-        return Ok(());
+/// Every URL `remote` pushes to (git pushes to all of them), each only an https URL without credentials (the bound
+/// gh answers) or a local path (nothing to log in to). An ssh key, a token in the URL or a rewrite to either would
+/// push as someone no account binds.
+fn check_push_urls(root: &Path, remote: &str) -> Result<Vec<String>> {
+    let out = lossy(&git(
+        root,
+        &["remote", "get-url", "--push", "--all", remote],
+    )?);
+    let urls: Vec<String> = out
+        .lines()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(str::to_owned)
+        .collect();
+    let plain = |url: &str| {
+        let https = url.strip_prefix("https://").is_some_and(|rest| {
+            let authority = rest.split('/').next().unwrap_or_default();
+            // `=` would end the key of the `-c http.<url>.extraHeader=` reset.
+            !authority.is_empty() && !authority.contains('@') && !url.contains('=')
+        });
+        https || url.starts_with("file://") || Path::new(url).is_absolute()
+    };
+    if !urls.is_empty() && urls.iter().all(|u| plain(u)) {
+        return Ok(urls);
     }
     // The URL itself isn't shown: it may hold a token.
     Err(invalid(format!(
-        "{remote}'s push URL isn't a plain https:// URL. SkyeLab pushes only over https, where the account's \
+        "a push URL of {remote} isn't a plain https:// URL. SkyeLab pushes only over https, where the account's \
          gh login answers; an ssh key or a token in the URL can't be bound to an account"
     )))
 }
 
 /// The `-c` args that make git ask only the bound `gh` for https credentials: the empty helper drops every
 /// helper from the user's and system config (the keychain's login among them), then `gh auth git-credential`.
-pub fn credential_args(gh: &GitHub) -> Result<Vec<String>> {
+/// `http.extraHeader` is cleared generically and scoped to each https URL in `push_urls`: a header scoped to the
+/// exact URL is the most specific, so no other config header can win over the reset.
+pub fn credential_args(gh: &GitHub, push_urls: &[&str]) -> Result<Vec<String>> {
     let bin = resolve(gh.gh)?;
     let bin = bin.to_str().filter(|b| !b.contains('\'')).ok_or_else(|| {
         invalid(format!(
@@ -119,14 +109,21 @@ pub fn credential_args(gh: &GitHub) -> Result<Vec<String>> {
         ))
     })?;
     // git runs a `!` helper through the shell, so the path is single-quoted.
-    Ok(vec![
+    let mut args: Vec<String> = vec![
         "-c".into(),
         "credential.helper=".into(),
         "-c".into(),
         "http.extraHeader=".into(),
+        // No askpass from the user's config: if gh can't answer, nobody does.
+        "-c".into(),
+        "core.askPass=".into(),
         "-c".into(),
         format!("credential.helper=!'{bin}' auth git-credential"),
-    ])
+    ];
+    for url in push_urls.iter().filter(|u| u.starts_with("https://")) {
+        args.extend(["-c".into(), format!("http.{url}.extraHeader=")]);
+    }
+    Ok(args)
 }
 
 /// Opens a pull request for the current branch with `gh pr create`; the base is gh's default (the repo's
@@ -208,13 +205,12 @@ pub fn gh_login(gh: &GitHub) -> Result<Option<String>> {
         .map(str::to_owned))
 }
 
-/// `gh` in `dir` with nothing of the parent's GitHub env (see `command`), only the bound config dir.
+/// `gh` in `dir` with the scrubbed env (see `hooked_command`) and the bound config dir.
 fn gh_command(gh: &GitHub, dir: &Path, args: &[&str]) -> Result<Command> {
     let mut cmd = Command::new(resolve(gh.gh)?);
-    for var in crate::PARENT_LOGIN_VARS.iter().chain(&crate::GIT_REPO_VARS) {
-        cmd.env_remove(var);
-    }
-    cmd.args(args)
+    cmd.env_clear()
+        .envs(skyelab_core::env::inherited_agent_env(false))
+        .args(args)
         .current_dir(dir)
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GH_PROMPT_DISABLED", "1")
@@ -243,7 +239,7 @@ fn current_branch(root: &Path) -> Result<String> {
 }
 
 /// Runs `cmd` with `input` on stdin; a non-zero exit is an error carrying stderr.
-fn checked(mut cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
+pub(crate) fn checked(mut cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
     cmd.stdin(if input.is_some() {
         Stdio::piped()
     } else {
@@ -318,7 +314,7 @@ fn candidates(dir: &Path, bin: &Path, windows: bool, pathext: Option<&str>) -> V
         .collect()
 }
 
-fn invalid(why: impl Into<String>) -> Error {
+pub(crate) fn invalid(why: impl Into<String>) -> Error {
     Error::Invalid(why.into())
 }
 

@@ -115,10 +115,13 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 
 - **Account invariant.** A folder resolves to its account or to nothing. There is never a default account. An
   unknown account id in `accounts.toml` is a load error.
-- **Clean agent environment.** Each agent starts with an empty environment. A short allowlist passes through
-  (`PATH`, `HOME`, locale, proxy and CA settings, `SSH_AUTH_SOCK`, and the like), and then SkyeLab sets
-  `CLAUDE_CONFIG_DIR` or `CODEX_HOME` for the bound account. Nothing that could pick another account, provider or
-  API base URL (`ANTHROPIC_*`, `OPENAI_*`, `CODEX_API_KEY`, the parent's own `CODEX_HOME`) is inherited.
+- **Clean environment, one allowlist.** Each agent starts with an empty environment. A short allowlist passes
+  through (`PATH`, `HOME`, locale, proxy and CA settings, and the like), and then SkyeLab sets `CLAUDE_CONFIG_DIR`
+  or `CODEX_HOME` for the bound account. Nothing that could pick another account, provider or API base URL
+  (`ANTHROPIC_*`, `CLAUDE_CODE_*`, `OPENAI_*`, `CODEX_*`, `GH_TOKEN`, `AWS_*`, the parent's own homes) is inherited.
+  Project terminals and every git/gh call SkyeLab runs use the same list (terminals add shell vars such as
+  `EDITOR`, `PAGER` and `SSH_AUTH_SOCK`). An agent's own `git push` asks only the account's `gh` for https
+  credentials, and gets no ssh-agent unless the account sets `ssh_agent = true`.
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. Codex runs with the folder and
   every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and

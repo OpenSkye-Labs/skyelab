@@ -52,7 +52,7 @@ fn a_branch_tracking_main_is_never_pushed_onto_main() {
     );
     let main_before = git(&remote, &["rev-parse", "refs/heads/main"]);
     fs::write(repo.join("a.txt"), "two\n").expect("write");
-    skyelab_git::commit(&repo, "fix", &[]).expect("commit");
+    skyelab_git::commit(&repo, "fix", &[], &[], None).expect("commit");
     let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-gh.sh");
     let _ = skyelab_git::push(
         &repo,

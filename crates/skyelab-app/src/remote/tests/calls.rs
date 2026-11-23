@@ -37,6 +37,7 @@ fn sharing_workspace(
             config_dir: account_dir.clone(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     if bound {

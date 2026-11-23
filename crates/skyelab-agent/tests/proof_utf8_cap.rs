@@ -27,6 +27,7 @@ fn capped_line_stays_within_cap() {
             config_dir: dir.join("acct"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         }],
         bindings: vec![Binding::new(dir.clone(), "a".into())],
     };

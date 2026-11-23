@@ -35,20 +35,32 @@ worktree /r/wt with space\0HEAD 2222222222222222222222222222222222222222\0detach
     assert_eq!(list[1].branch, None);
 }
 
+/// Every var the command sets on top of `env_clear` is allowlisted (or the locale and the lock opt-out).
+/// `get_envs` can't show `env_clear` itself; scrubbed_env_hooks.rs checks the real child env.
+#[test]
+fn command_env_is_only_the_allowlist() {
+    let cmd = command(Path::new("git"), Path::new("."));
+    for (k, _) in cmd.get_envs() {
+        let ok = skyelab_core::env::agent_allowed(k, cfg!(windows), false)
+            || k == "LC_ALL"
+            || k == "GIT_OPTIONAL_LOCKS";
+        assert!(ok, "{k:?} reaches git");
+    }
+}
+
+/// None of the vars that point git at another repo is set on the command (`env_clear` drops inherited ones;
+/// scrubbed_env_hooks.rs plants them in a real parent env).
 #[test]
 fn command_strips_inherited_repo_env() {
     let cmd = command(Path::new("git"), Path::new("."));
-    let envs: Vec<_> = cmd.get_envs().collect();
+    let set: Vec<_> = cmd.get_envs().map(|(k, _)| k).collect();
     for var in [
         "GIT_DIR",
         "GIT_WORK_TREE",
         "GIT_INDEX_FILE",
         "GIT_CONFIG_PARAMETERS",
     ] {
-        assert!(
-            envs.contains(&(std::ffi::OsStr::new(var), None)),
-            "{var} not removed"
-        );
+        assert!(!set.contains(&std::ffi::OsStr::new(var)), "{var} is set");
     }
 }
 

@@ -36,6 +36,7 @@ pub(super) fn fixture() -> Fixture {
                 config_dir: dir,
                 provider: Default::default(),
                 gh_config_dir: None,
+                ssh_agent: false,
             })
             .expect("add account");
     }

@@ -19,6 +19,8 @@ const MAX_TOKEN_LINE: u64 = 128;
 /// The proxy sends its token right away; a silent connection is dropped.
 const TOKEN_TIMEOUT: Duration = Duration::from_secs(5);
 const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
+/// sun_path holds 104 bytes on macOS (108 on Linux), the terminating NUL included.
+const MAX_SOCKET_PATH: usize = 103;
 
 struct Entry {
     caller: Caller,
@@ -32,6 +34,8 @@ struct Entry {
 struct Inner {
     dir: PathBuf,
     socket: PathBuf,
+    /// The short private dir holding `socket` when `<dir>/mcp.sock` is too long a path; removed on drop.
+    socket_dir: Option<PathBuf>,
     grants: Mutex<HashMap<u64, (String, Entry)>>,
     next: AtomicU64,
     stop: AtomicBool,
@@ -76,12 +80,19 @@ impl Server {
             .with_context(|| format!("creating {}", dir.display()))?;
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
             .with_context(|| format!("making {} private", dir.display()))?;
-        let socket = dir.join("mcp.sock");
+        let (socket, socket_dir) = match dir.join("mcp.sock") {
+            s if s.as_os_str().len() <= MAX_SOCKET_PATH => (s, None),
+            _ => {
+                let short = short_socket_dir(dir)?;
+                (short.join("mcp.sock"), Some(short))
+            }
+        };
         let listener = UnixListener::bind(&socket)
             .with_context(|| format!("listening on {}", socket.display()))?;
         let inner = Arc::new(Inner {
             dir: dir.to_owned(),
             socket,
+            socket_dir,
             grants: Mutex::new(HashMap::new()),
             next: AtomicU64::new(0),
             stop: AtomicBool::new(false),
@@ -173,7 +184,39 @@ impl Drop for Server {
         self.inner.stop.store(true, Ordering::SeqCst);
         let _ = UnixStream::connect(&self.inner.socket); // wakes the accept loop so it sees `stop`
         let _ = std::fs::remove_file(&self.inner.socket);
+        if let Some(d) = &self.inner.socket_dir {
+            let _ = std::fs::remove_dir_all(d);
+        }
     }
+}
+
+/// A fresh dir for the socket when the run dir is too deep (a long HOME): under the temp dir, else `/tmp`.
+/// Created exclusively with mode 0700, then checked to be a real dir, 0700 and owned like the run dir (ours),
+/// so nobody else can have planted it or can reach the socket.
+fn short_socket_dir(run_dir: &Path) -> Result<PathBuf> {
+    use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _};
+    let name = format!("skyelab-{}-{}", std::process::id(), &random_token()?[..16]);
+    let tmp = std::env::temp_dir().join(&name);
+    let dir = if tmp.join("mcp.sock").as_os_str().len() <= MAX_SOCKET_PATH {
+        tmp
+    } else {
+        Path::new("/tmp").join(name)
+    };
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&dir)
+        .with_context(|| format!("creating {}", dir.display()))?;
+    // A strict umask may have taken the owner's bits too.
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
+        .with_context(|| format!("making {} private", dir.display()))?;
+    let meta = std::fs::symlink_metadata(&dir).context("checking the socket dir")?;
+    let owner = std::fs::metadata(run_dir)
+        .context("checking the run dir")?
+        .uid();
+    if !meta.is_dir() || meta.permissions().mode() & 0o777 != 0o700 || meta.uid() != owner {
+        anyhow::bail!("{} is not a private dir of ours", dir.display());
+    }
+    Ok(dir)
 }
 
 impl Grant {

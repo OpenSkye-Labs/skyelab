@@ -36,6 +36,7 @@ fn fixture() -> Fixture {
                 config_dir: root.join(format!(".claude-{id}")),
                 provider: Default::default(),
                 gh_config_dir: None,
+                ssh_agent: false,
             })
             .expect("account");
     }

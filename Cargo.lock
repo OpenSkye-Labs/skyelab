@@ -7625,6 +7625,7 @@ version = "0.1.0"
 dependencies = [
  "dirs 7.0.0",
  "serde_json",
+ "skyelab-core",
  "tempfile",
  "thiserror 2.0.21",
 ]
@@ -7668,6 +7669,7 @@ dependencies = [
  "gpui-pre",
  "objc2-app-kit 0.3.2",
  "rustix-openpty",
+ "skyelab-core",
 ]
 
 [[package]]

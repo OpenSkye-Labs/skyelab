@@ -323,6 +323,12 @@ impl Settings {
             gh_config_dir: Some(value(&self.gh_input))
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
+            // Not in the form (accounts.toml only), so an edit keeps it.
+            ssh_agent: self
+                .editing
+                .as_ref()
+                .and_then(|id| self.config.accounts.iter().find(|a| &a.id == id))
+                .is_some_and(|a| a.ssh_agent),
         };
         let adding = self.editing.is_none();
         let saved = self.apply(

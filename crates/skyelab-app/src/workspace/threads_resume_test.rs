@@ -81,6 +81,7 @@ pub(in crate::workspace) fn rebind(f: &Fixture, to: Option<&str>) {
             label: "Other Co".into(),
             config_dir: f.account_dir.with_file_name(".claude-other"),
             gh_config_dir: None,
+            ssh_agent: false,
             provider: Default::default(),
         })
         .expect("add account");

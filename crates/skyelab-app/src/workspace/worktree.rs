@@ -191,7 +191,7 @@ pub(super) fn terminal_options(
     Ok(SpawnOptions {
         cwd: cwd.to_owned(),
         command: None,
-        env: super::terminal_env(config, cwd)?,
+        env: super::terminal_env(config, cwd, &super::unbound_root()?)?,
         cols: 80,
         lines: 24,
     })

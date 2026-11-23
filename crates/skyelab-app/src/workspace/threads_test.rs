@@ -59,6 +59,7 @@ pub(super) fn fixture(bound: bool) -> Fixture {
             config_dir: account_dir.clone(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("add account");
     if bound {
@@ -200,14 +201,19 @@ fn add_project_lists_it_and_selecting_sets_folder_and_account(cx: &mut TestAppCo
 fn terminal_env_is_the_bound_account_or_empty() {
     let f = fixture(true);
     let config = AccountsConfig::load(&f.accounts_path).expect("load");
-    let env = terminal_env(&config, &f.project_dir).expect("env");
+    let unbound = tempfile::tempdir().expect("tempdir");
+    let env = terminal_env(&config, &f.project_dir, unbound.path()).expect("env");
     assert_eq!(
         env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
         f.account_dir.to_str()
     );
-    // Unbound: no CLAUDE_CONFIG_DIR, so skyelab-terminal clears the inherited one.
+    // Unbound: an empty "unbound" home, never the account's or the default one.
     let parent = f.project_dir.parent().expect("parent");
-    assert!(terminal_env(&config, parent).expect("env").is_empty());
+    let env = terminal_env(&config, parent, unbound.path()).expect("env");
+    assert_eq!(
+        env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+        unbound.path().join("claude").to_str()
+    );
 }
 
 #[test]

@@ -19,6 +19,7 @@ fn bound(dir: &Path, config_dir: &Path) -> AccountsConfig {
             config_dir: config_dir.into(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         }],
         bindings: vec![Binding::new(dir.into(), "acme".into())],
     }
@@ -55,6 +56,7 @@ fn unbound_folder_errors() {
         config_dir: dir.join("account"),
         provider: Default::default(),
         gh_config_dir: None,
+        ssh_agent: false,
     };
     let launch = Launch {
         account: &account,

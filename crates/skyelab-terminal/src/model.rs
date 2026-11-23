@@ -56,7 +56,7 @@ impl Terminal {
     pub fn spawn(opts: SpawnOptions) -> anyhow::Result<(Self, UnboundedReceiver<Event>)> {
         let (tx, rx) = unbounded();
         let listener = Listener(tx);
-        let (program, args, env) = launch(opts.command, opts.env, cfg!(windows));
+        let (program, args, env) = launch(opts.command, opts.env, &parent_names(), cfg!(windows));
         let options = tty::Options {
             shell: Some(tty::Shell::new(program, args)),
             working_directory: Some(opts.cwd),
@@ -197,28 +197,25 @@ fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> Wind
 
 #[cfg(test)]
 const CLAUDE_CONFIG_DIR: &str = "CLAUDE_CONFIG_DIR";
-/// Vars that pick an account or carry a login. A terminal gets one only when the caller set it (the account env).
-const ACCOUNT_VARS: [&str; 11] = [
-    "CLAUDE_CONFIG_DIR",
-    "CODEX_HOME",
-    "CODEX_API_KEY",
-    "CODEX_ACCESS_TOKEN",
-    "GH_CONFIG_DIR",
-    "GH_TOKEN",
-    "GITHUB_TOKEN",
-    "GH_ENTERPRISE_TOKEN",
-    "GITHUB_ENTERPRISE_TOKEN",
-    "GH_HOST",
-    "GH_REPO",
-];
 
-/// The child's program, args and env: the caller's env plus `TERM`/`COLORTERM`, and none of the parent's
-/// [`ACCOUNT_VARS`] the caller didn't set. Unix runs the command through `env -u ..`. On Windows alacritty adds
-/// every inherited var the env map doesn't name, and has no way to remove one, so each is overridden with an empty
-/// value instead. `windows` picks the branch, so tests cover both on any OS.
+/// The names of this process's env vars, which [`launch`] filters.
+// shortcut: a var whose name isn't UTF-8 can't be named to `env -u` and passes through; none of the credential
+// vars is such a name. Upgrade if alacritty takes OsString args.
+fn parent_names() -> Vec<String> {
+    std::env::vars_os()
+        .filter_map(|(k, _)| k.into_string().ok())
+        .collect()
+}
+
+/// The child's program, args and env: the terminal-allowed part of the parent's env (`skyelab_core::env`, the
+/// agents' allowlist plus shell vars), the caller's env (the bound account), and `TERM`/`COLORTERM`. Every other
+/// var in `parent` is removed: unix runs the command through `env -u ..`. On Windows alacritty adds every inherited
+/// var the env map doesn't name, and has no way to remove one, so each is overridden with an empty value instead.
+/// `windows` picks the branch, so tests cover both on any OS.
 fn launch(
     command: Option<(String, Vec<String>)>,
     mut env: HashMap<String, String>,
+    parent: &[String],
     windows: bool,
 ) -> (String, Vec<String>, HashMap<String, String>) {
     env.entry("TERM".into()).or_insert("xterm-256color".into());
@@ -227,14 +224,20 @@ fn launch(
         let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell().into());
         (shell, login_args())
     });
-    let unset: Vec<&str> = ACCOUNT_VARS
-        .into_iter()
-        .filter(|v| env.get(*v).is_none_or(|v| v.is_empty()))
+    let unset: Vec<String> = parent
+        .iter()
+        // Windows names are case-insensitive, so `Gh_Config_Dir` in the parent is the caller's `GH_CONFIG_DIR`.
+        .filter(|v| {
+            !env.keys()
+                .any(|k| k == *v || (windows && k.eq_ignore_ascii_case(v)))
+        })
+        .filter(|v| !skyelab_core::env::terminal_allowed(v.as_ref(), windows))
+        .cloned()
         .collect();
     if windows {
         // shortcut: on Windows the child sees VAR="" (alacritty can't remove a var); upgrade when its Options can.
         for v in unset {
-            env.insert(v.into(), String::new());
+            env.insert(v, String::new());
         }
         return (program, args, env);
     }
@@ -242,8 +245,8 @@ fn launch(
     // containing `=` as an assignment; no caller passes one.
     let mut wrapped = Vec::new();
     for v in unset {
-        wrapped.extend(["-u".to_string(), v.to_string()]);
-        env.remove(v);
+        env.remove(&v);
+        wrapped.extend(["-u".to_string(), v]);
     }
     wrapped.extend(["--".into(), program]);
     wrapped.extend(args);
@@ -314,7 +317,8 @@ mod env_tests {
 
     fn config_dir_case(windows: bool) {
         let cmd = || Some(("prog".to_string(), vec!["a".to_string()]));
-        let (program, args, env) = launch(cmd(), HashMap::new(), windows);
+        let parent = [CLAUDE_CONFIG_DIR.to_string()];
+        let (program, args, env) = launch(cmd(), HashMap::new(), &parent, windows);
         assert_eq!(env["TERM"], "xterm-256color");
         if windows {
             assert_eq!(
@@ -330,7 +334,7 @@ mod env_tests {
         }
 
         let account = HashMap::from([(CLAUDE_CONFIG_DIR.to_string(), "/acct".to_string())]);
-        let (_, args, env) = launch(cmd(), account, windows);
+        let (_, args, env) = launch(cmd(), account, &parent, windows);
         assert!(!args.iter().any(|a| a == CLAUDE_CONFIG_DIR), "{args:?}");
         assert_eq!(env[CLAUDE_CONFIG_DIR], "/acct");
     }
@@ -339,3 +343,11 @@ mod env_tests {
 #[cfg(test)]
 #[path = "codex_env_test.rs"]
 mod codex_env_test;
+
+#[cfg(test)]
+#[path = "env_policy_test.rs"]
+mod env_policy_test;
+
+#[cfg(test)]
+#[path = "account_env_platform_test.rs"]
+mod account_env_platform_test;

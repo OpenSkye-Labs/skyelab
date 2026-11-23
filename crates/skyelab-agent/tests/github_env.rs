@@ -28,6 +28,7 @@ fn gh_env(gh_config_dir: Option<&Path>) -> serde_json::Value {
             config_dir: dir.join("claude"),
             provider: Default::default(),
             gh_config_dir: gh_config_dir.map(Path::to_path_buf),
+            ssh_agent: false,
         }],
         bindings: vec![Binding::new(dir.clone(), "acme".into())],
     };

@@ -51,12 +51,18 @@ pub enum Row {
 pub struct Changes {
     pub files: Vec<ChangedFile>,
     pub rows: Vec<Row>,
+    /// [`skyelab_git::snapshot_tree`] of the working tree, the same before and after the diff was read (else
+    /// `None`): Commit refuses unless the tree still matches, so it never commits anything but what is shown.
+    pub tree: Option<String>,
 }
 
 /// Tracked changes from `diff HEAD` (staged and unstaged together), untracked files from `status`.
 /// With a `base` commit, tracked changes are since that commit, commits included.
 pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
+    // Before and after the diff: if they differ, what's shown may be neither, so Commit refuses (`tree: None`).
+    // A failed snapshot (say an unreadable file) still shows the tab, and Commit refuses the same way.
+    let tree = skyelab_git::snapshot_tree(&root).ok();
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
     // What is left of the diff's line cap for untracked files, after the tracked ones.
     let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
@@ -118,7 +124,11 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     }
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
 
-    let mut changes = Changes::default();
+    let after = skyelab_git::snapshot_tree(&root).ok();
+    let mut changes = Changes {
+        tree: tree.filter(|t| after.as_ref() == Some(t)),
+        ..Changes::default()
+    };
     for (mut f, rows) in entries {
         f.first_row = changes.rows.len();
         changes.rows.push(Row::File(changes.files.len()));

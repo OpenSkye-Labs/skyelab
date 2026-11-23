@@ -10,6 +10,8 @@ mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
+mod terminal_launch;
+use terminal_launch::{terminal_env, unbound_root};
 pub(crate) mod github;
 #[cfg(unix)]
 pub(crate) mod orchestrate;
@@ -48,7 +50,6 @@ use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
 use skyelab_terminal::{SpawnOptions, Terminal, TerminalView};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thread::ThreadView;
@@ -124,22 +125,6 @@ pub fn init(cx: &mut App) {
         ]);
     }
     crate::palette::init(cx);
-}
-
-/// Env for a terminal in `dir`: the bound account's, or none, so skyelab-terminal clears the
-/// inherited `CLAUDE_CONFIG_DIR` (unix only so far, see its `shell`).
-fn terminal_env(config: &AccountsConfig, dir: &Path) -> anyhow::Result<HashMap<String, String>> {
-    if config.resolve(dir).is_none() {
-        return Ok(HashMap::new());
-    }
-    config
-        .launch_env(dir)?
-        .into_iter()
-        .map(|(k, v)| match v.to_str() {
-            Some(v) => Ok((k.to_owned(), v.to_owned())),
-            None => anyhow::bail!("{k} for {} is not valid UTF-8", dir.display()),
-        })
-        .collect()
 }
 
 /// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
@@ -318,7 +303,7 @@ impl Workspace {
         Ok(SpawnOptions {
             cwd: self.folder.clone(),
             command: None,
-            env: terminal_env(&self.config, &self.folder)?,
+            env: terminal_env(&self.config, &self.folder, &unbound_root()?)?,
             cols: 80,
             lines: 24,
         })
@@ -610,6 +595,13 @@ mod browser_agent_cap_test;
 
 #[cfg(all(test, unix))]
 mod browser_agent_review_test;
+
+#[cfg(test)]
+mod terminal_env_test;
+
+#[cfg(test)]
+mod commit_snapshot_test;
+
 #[cfg(test)]
 mod changes_cap_test;
 #[cfg(test)]

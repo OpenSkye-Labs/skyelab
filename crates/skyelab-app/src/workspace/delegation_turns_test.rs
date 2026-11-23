@@ -44,6 +44,7 @@ fn a_queued_follow_up_keeps_the_child_busy_until_its_own_result(cx: &mut TestApp
             label: "work account".into(),
             config_dir: root.join(".claude-work"),
             gh_config_dir: None,
+            ssh_agent: false,
             provider: Default::default(),
         })
         .expect("account");

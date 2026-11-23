@@ -57,6 +57,7 @@ fn start_a_new_thread_opens_in_the_refused_threads_folder(cx: &mut TestAppContex
                 config_dir: root.join(format!(".claude-{id}")),
                 provider: Default::default(),
                 gh_config_dir: None,
+                ssh_agent: false,
             })
             .expect("add account");
     }

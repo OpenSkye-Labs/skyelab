@@ -40,6 +40,7 @@ fn bound() -> Fixture {
         provider: Provider::Codex,
         config_dir: root.join("codex-home"),
         gh_config_dir: None,
+        ssh_agent: false,
     };
     let config = AccountsConfig {
         accounts: vec![account.clone()],

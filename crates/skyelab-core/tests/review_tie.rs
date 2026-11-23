@@ -13,6 +13,7 @@ fn bindings_that_become_the_same_folder_do_not_silently_pick_one() {
             config_dir: format!("/abs/{id}").into(),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     }

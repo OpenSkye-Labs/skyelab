@@ -36,6 +36,7 @@ fn rig(cx: &mut TestAppContext) -> Rig {
             label: "work account".into(),
             config_dir: root.join(".claude-work"),
             gh_config_dir: None,
+            ssh_agent: false,
             provider: Default::default(),
         })
         .expect("account");

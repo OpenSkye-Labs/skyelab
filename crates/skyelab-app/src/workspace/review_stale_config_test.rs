@@ -25,6 +25,7 @@ fn a_broken_accounts_file_launches_nothing_under_the_old_binding(cx: &mut TestAp
             config_dir: root.join(".claude-acme"),
             provider: Default::default(),
             gh_config_dir: None,
+            ssh_agent: false,
         })
         .expect("account");
     config
@@ -39,8 +40,11 @@ fn a_broken_accounts_file_launches_nothing_under_the_old_binding(cx: &mut TestAp
     ws.update(cx, |ws, _| ws.reload_accounts());
     ws.read_with(cx, |ws, _| {
         assert_eq!(ws.account, None);
-        assert!(
-            terminal_env(&ws.config, &dir).expect("env").is_empty(),
+        let unbound = tempfile::tempdir().expect("tempdir");
+        let env = terminal_env(&ws.config, &dir, unbound.path()).expect("env");
+        assert_eq!(
+            env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
+            unbound.path().join("claude").to_str(),
             "STALE_BINDING_STILL_LAUNCHES"
         );
     });

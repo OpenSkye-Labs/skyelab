@@ -14,6 +14,7 @@ fn reconfirm_refuses_a_folder_swapped_for_a_link_to_the_disk_root() {
         config_dir: "/home/me/.claude-acme".into(),
         provider: Default::default(),
         gh_config_dir: None,
+        ssh_agent: false,
     })
     .expect("account");
     c.add_binding(Binding::new(acme.clone(), "acme".into()))

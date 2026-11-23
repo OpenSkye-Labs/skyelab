@@ -72,6 +72,7 @@ fn account(provider: Provider, gh: Option<&str>) -> Account {
         provider,
         config_dir: "/home/me/.acct".into(),
         gh_config_dir: gh.map(PathBuf::from),
+        ssh_agent: false,
     }
 }
 

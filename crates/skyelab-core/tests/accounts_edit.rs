@@ -10,6 +10,7 @@ fn acct(id: &str) -> Account {
         config_dir: PathBuf::from(format!("/home/me/.claude-{id}")),
         provider: Default::default(),
         gh_config_dir: None,
+        ssh_agent: false,
     }
 }
 

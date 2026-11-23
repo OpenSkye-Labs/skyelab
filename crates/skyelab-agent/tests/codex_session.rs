@@ -19,6 +19,7 @@ fn codex_account(dir: &Path) -> Account {
         provider: Provider::Codex,
         config_dir: dir.join("codex-home"),
         gh_config_dir: None,
+        ssh_agent: false,
     }
 }
 
