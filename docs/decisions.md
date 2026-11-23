@@ -13,7 +13,7 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   shows whatever is drawn in the tab's rect, which can be the user's content. (2026-11-23)
 - **Minimum macOS: 14.** wry crashes on macOS < 14 for URLs with unusual characters. (2026-11-23)
 - **Agent env:** parent env is cleared, then an allowlist passes through. Network and session plumbing (proxy, CA certs,
-  ssh-agent, TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
+  TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
 - **Project settings:** agents launch with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23)
 - **Remote is TLS-only, with the node's `tailscale cert` certificate.** The address guard can't tell a tailnet peer
@@ -45,3 +45,37 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   (2026-11-23)
 - **Codex provider:** `codex app-server` under `CODEX_HOME`, the folder's account picks the provider. Protocol,
   event mapping, hardening and limits: [codex.md](codex.md). (2026-11-23)
+- **One env allowlist** (`skyelab_core::env`) for agents, project terminals and every git/gh call SkyeLab runs. A
+  terminal gets the agent list plus harmless shell vars (`EDITOR`, `PAGER`, colours, display, tool homes such as
+  `CARGO_HOME`) and keeps relative PATH entries; no credential, provider or base-URL var (`ANTHROPIC_*`,
+  `CLAUDE_CODE_*`, `OPENAI_*`, `CODEX_*`, `GH_*`/`GITHUB_TOKEN`, `AWS_*`, `GOOGLE_*`, `CLOUD_ML_*`, `GIT_*`) is ever in
+  it. A terminal always names both provider homes: the bound account's, and an empty private dir under
+  `<data dir>/skyelab/unbound` for the other one (and for `GH_CONFIG_DIR` when the folder is unbound), so the CLI
+  asks to log in rather than using the default account. A login made there stays in that dir; agents never use it,
+  since they never start unbound. Limit: a login shell's rc files may export credentials again. (2026-11-23)
+- **Agent git credentials and ssh:** agents get `GIT_CONFIG_COUNT`/`KEY_n`/`VALUE_n` that reset `credential.helper`
+  and add `gh auth git-credential` (under the account's `GH_CONFIG_DIR`; no helper at all without one, so nothing
+  answers), and clear `http.extraHeader`, generically and for every URL-scoped `http.<url>.extraHeader` git config
+  holds at launch. `SSH_AUTH_SOCK` no longer reaches agents, and `core.sshCommand` fails with a message: an ssh key
+  isn't bound to any account, so an ssh push would land as whoever owns the key. An account opts in with
+  `ssh_agent = true` (accounts.toml only, not the form). Terminals keep `SSH_AUTH_SOCK`: a terminal is the user's own
+  shell, so their ssh keys are theirs to use there; https pushes from it still go through the account's gh when it
+  has one. This stops accidents, not a hostile agent, which can still read `~/.ssh` (HOME passes). (2026-11-23)
+- **SkyeLab's own git calls:** run with `env_clear` plus the allowlist, and `-c core.hooksPath=/dev/null` for
+  everything except Commit and Push (status, diff, add, worktree add, the snapshot index). Commit and Push run the
+  repo's hooks, since users rely on pre-commit and pre-push, with the scrubbed env plus the bound account's
+  `launch_env` (Push: its `GH_CONFIG_DIR`), so a hook an agent planted sees nothing the agent couldn't already.
+  Filters (`filter.<x>.clean`/`process`, from repo config and `.gitattributes`) can't be turned off generically
+  without breaking LFS-style repos, so they still run during status, diff and add, with the scrubbed env only: the
+  residual risk is code the agent wrote running with no more than the agent has. (2026-11-23)
+- **Push URLs:** every URL of `git remote get-url --push --all` must be plain https or local (git pushes to all of
+  them), and `-c http.<url>.extraHeader=` is passed for each https one, the most specific scope, so a URL-scoped
+  header can't win over the reset. (2026-11-23)
+- **Commit snapshot:** the Changes tab records the working tree's tree id (a scratch index, `add -A`, `write-tree`)
+  before reading the diff. Commit stages the listed files by name (`--literal-pathspecs`, after `--`) and refuses if
+  the tree id changed, so files that appeared or changed after the user looked are never committed. Limit: a change in
+  the milliseconds between that check and `git add`. (2026-11-23)
+- **MCP socket path:** `<data dir>/skyelab/run/<pid>/mcp.sock` can exceed sun_path (104 bytes on macOS) with a long
+  HOME. Then the socket goes in a fresh dir under the temp dir (else `/tmp`), created exclusively with mode 0700 and
+  checked to be a real dir owned like the run dir; grant files stay in the run dir. Removed when the server drops; a
+  crash leaves it for the OS's temp cleanup. (2026-11-23)
