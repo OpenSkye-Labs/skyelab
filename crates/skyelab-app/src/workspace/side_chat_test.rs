@@ -201,5 +201,8 @@ fn a_rebound_or_unbound_folder_makes_no_side_chat() {
         context.contains("side chat next to the thread \"fix it\""),
         "{context}"
     );
-    assert!(context.contains("User: fix the login"), "{context}");
+    assert!(
+        context.contains(r#"{"role":"user","text":"fix the login"}"#),
+        "{context}"
+    );
 }

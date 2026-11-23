@@ -175,6 +175,16 @@ impl ThreadView {
     pub(super) fn render_mode_picker(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let (label, tip) = mode_label(self.mode);
+        if self.is_side_chat() {
+            // Locked: no menu, and the tooltip says why.
+            return Button::new("permission-mode")
+                .ghost()
+                .small()
+                .icon(Icon::new(mode_icon(self.mode)))
+                .when(!compact, |b| b.label(label))
+                .tooltip(super::side_chat::PLAN_ONLY)
+                .into_any_element();
+        }
         let view = cx.entity().downgrade();
         let current = self.mode;
         Button::new("permission-mode")

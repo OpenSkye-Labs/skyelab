@@ -42,6 +42,7 @@ fn turn() -> Vec<Item> {
             usage: None,
             at_ms: Some(1),
             error: None,
+            copied: false,
         },
     ]
 }

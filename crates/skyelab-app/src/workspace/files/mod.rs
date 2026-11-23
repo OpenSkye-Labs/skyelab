@@ -36,6 +36,11 @@ pub(super) struct FileTabs {
 }
 
 impl Workspace {
+    #[cfg(test)]
+    pub(super) fn preview_tab(&self) -> Option<gpui::Entity<PreviewPanel>> {
+        self.files.preview.as_ref()?.upgrade()
+    }
+
     /// Where files come from: the shown thread's folder (its worktree, if it has one), else the project's. `None`
     /// when the workspace shows another machine: its files aren't here.
     pub(super) fn files_root(&self, cx: &gpui::App) -> Option<PathBuf> {

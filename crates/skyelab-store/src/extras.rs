@@ -149,8 +149,8 @@ impl Store {
 }
 
 impl Store {
-    /// A side chat of thread `parent`: a new row with `new`'s folder and account, no copied history, and `context` (a
-    /// part of the parent's conversation) for its first session. Its title is kept: no title is generated for it.
+    /// A side chat of thread `parent`: a new row with `new`'s folder and account, in Plan mode, no copied history, and
+    /// `context` (a part of the parent's conversation) for its first session. Its title is kept: no title is generated for it.
     pub fn create_side_chat(
         &mut self,
         new: &NewThread,
@@ -160,8 +160,8 @@ impl Store {
         self.conn
             .execute(
                 "INSERT INTO threads (project_id, title, cwd, account_id, status, created_at, updated_at, side_of,
-                                      fork_context, title_source)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8, 'side')",
+                                      fork_context, title_source, permission_mode)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, ?7, ?8, 'side', 'plan')",
                 params![
                     new.project_id,
                     new.title,

@@ -155,12 +155,18 @@ impl ThreadView {
         let use_worktree = resume.is_none() && self.wt.use_worktree;
         let base_branch = self.branch_picker.read(cx).base.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
-        let tools = crate::workspace::orchestrate::Tools::get(cx);
+        // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
+        let side = self.is_side_chat() || resume.as_ref().is_some_and(|t| t.side_of.is_some());
+        let tools = crate::workspace::orchestrate::Tools::get(cx).filter(|_| !side);
         let accounts_file = cx
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
-        let mode = self.mode;
+        let mode = if side {
+            skyelab_agent::Mode::Plan
+        } else {
+            self.mode
+        };
         let pump_store = store.clone();
         // The row reaches the view as soon as it is saved, before the agent is up: a delegated start answers then.
         let (saved_tx, saved_rx) = flume::bounded::<Thread>(1);

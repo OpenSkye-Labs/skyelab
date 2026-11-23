@@ -194,6 +194,7 @@ fn the_turn_divider_carries_usage_and_cost() {
             usage: Some(usage),
             at_ms: None,
             error: None,
+            copied: false,
         }
     );
 }

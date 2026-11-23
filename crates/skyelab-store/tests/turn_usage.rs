@@ -278,11 +278,10 @@ fn a_forks_first_turn_is_never_charged_its_sources_spend() {
     std::thread::sleep(std::time::Duration::from_millis(2));
     let fork = s.create_fork(&new, t, "ctx", &events).expect("fork").id;
     std::thread::sleep(std::time::Duration::from_millis(2));
-    // A fork starts a fresh session, so this total is its own; the copied history's 1.0 is still the baseline, so the
-    // turn undercounts rather than repeating the source's spend.
+    // A fork starts a fresh session, so this total is all its own: the copied history's 1.0 is no baseline.
     s.append_event(fork, "agent", &result(1.25, 1, 1))
         .expect("e");
-    assert!(close(cost(&s), 1.25), "{}", cost(&s));
+    assert!(close(cost(&s), 2.25), "{}", cost(&s));
 }
 
 #[test]

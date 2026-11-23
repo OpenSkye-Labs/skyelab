@@ -43,6 +43,9 @@ mod composer_state;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "context_chips_test.rs"]
 mod context_chips_test;
+#[cfg(test)]
+#[path = "side_commands_test.rs"]
+mod side_commands_test;
 pub(in crate::workspace) use composer_machine::machine_name;
 
 #[cfg(test)]

@@ -87,8 +87,42 @@ fn regular_file(path: &Path) -> Option<std::fs::Metadata> {
     std::fs::symlink_metadata(path).ok().filter(|m| m.is_file())
 }
 
+/// `dir`'s entries when it is a real dir, not a link: a linked `projects/` or `sessions/` could be another account's.
+fn real_dir(dir: &Path) -> Option<std::fs::ReadDir> {
+    std::fs::symlink_metadata(dir)
+        .ok()
+        .filter(|m| m.is_dir())
+        .and_then(|_| std::fs::read_dir(dir).ok())
+}
+
+/// Whether `path` is in `home` with every folder between them a real one, not a link (nor `..`).
+fn under_real_dirs(home: &Path, path: &Path) -> bool {
+    use std::path::Component;
+    let Ok(rel) = path.strip_prefix(home) else {
+        return false;
+    };
+    let mut at = home.to_path_buf();
+    let mut parts = rel.components().peekable();
+    while let Some(c) = parts.next() {
+        let Component::Normal(name) = c else {
+            return false;
+        };
+        at.push(name);
+        let last = parts.peek().is_none();
+        // The file itself is checked as it opens (`regular_file`).
+        if !last && !std::fs::symlink_metadata(&at).is_ok_and(|m| m.is_dir()) {
+            return false;
+        }
+    }
+    true
+}
+
 /// Reads one transcript, up to `cap` bytes. `None` when it can't be opened or names no session or folder.
 pub fn read(provider: Provider, home: &Path, path: &Path, cap: u64) -> Option<Transcript> {
+    // Listed earlier: a folder on the way may have become a link since.
+    if !under_real_dirs(home, path) {
+        return None;
+    }
     let mut t = read_file(provider, path, cap)?;
     if provider == Provider::Codex
         && let Some(name) = codex::names(home).remove(&t.id)
@@ -183,7 +217,7 @@ fn claude_files(home: &Path, folder: &Path) -> Vec<PathBuf> {
     let name = claude_dir_name(folder);
     // A subfolder's name starts with the folder's, up to the cut; a long folder's own dir is matched whole.
     let prefix = &name[..name.len().min(CLAUDE_DIR_NAME_MAX)];
-    let Ok(dirs) = std::fs::read_dir(home.join("projects")) else {
+    let Some(dirs) = real_dir(&home.join("projects")) else {
         return Vec::new();
     };
     // `file_type` doesn't follow links: a linked dir could be another account's.

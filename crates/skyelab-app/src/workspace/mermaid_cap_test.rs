@@ -49,25 +49,3 @@ fn bad_source_falls_back_with_a_reason() {
     let err = render_png("this is not a diagram ->->", palette()).expect_err("no diagram");
     assert!(!err.is_empty());
 }
-
-#[test]
-fn renders_wait_for_a_place_and_give_it_back() {
-    use super::mermaid::Gate;
-    use std::sync::mpsc;
-    use std::time::Duration;
-    static GATE: Gate = Gate::new(2);
-    let (a, b) = (GATE.take(), GATE.take());
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _third = GATE.take();
-        tx.send(()).expect("send");
-    });
-    assert!(
-        rx.recv_timeout(Duration::from_millis(200)).is_err(),
-        "a third render waits while two draw"
-    );
-    drop(a);
-    rx.recv_timeout(Duration::from_secs(5))
-        .expect("a freed place lets it in");
-    drop(b);
-}

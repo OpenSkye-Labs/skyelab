@@ -17,6 +17,7 @@ fn done(is_error: bool, error: Option<&str>) -> Item {
         usage: None,
         at_ms: None,
         error: error.map(str::to_owned),
+        copied: false,
     }
 }
 
