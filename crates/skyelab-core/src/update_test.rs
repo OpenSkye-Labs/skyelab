@@ -1,0 +1,63 @@
+use crate::update::*;
+
+#[test]
+fn newer_compares_numbers_not_strings() {
+    assert!(is_newer("v0.10.0", "0.9.3"));
+    assert!(is_newer("1.0", "0.99.99"));
+    assert!(is_newer("v0.2.1", "0.2.0"));
+    assert!(!is_newer("v0.2.0", "0.2.0"));
+    assert!(!is_newer("0.2", "0.2.0"));
+    assert!(!is_newer("v0.1.9", "0.2.0"));
+    // A pre-release suffix is ignored: the same numbers are not newer.
+    assert!(!is_newer("v0.2.0-beta.1", "0.2.0"));
+    assert!(is_newer("v0.3.0-rc.1", "0.2.0"));
+    // Not a version: never newer.
+    assert!(!is_newer("nightly", "0.2.0"));
+    assert!(!is_newer("", "0.2.0"));
+    assert!(!is_newer("v1..2", "0.2.0"));
+}
+
+#[test]
+fn only_this_repos_release_pages_open() {
+    assert!(release_page_ok(
+        "https://github.com/OpenSkye-Labs/skyelab/releases/tag/v0.3.0"
+    ));
+    for bad in [
+        "https://github.com/OpenSkye-Labs/skyelab/releases/",
+        "https://github.com/evil/skyelab/releases/tag/v1",
+        "http://github.com/OpenSkye-Labs/skyelab/releases/tag/v1",
+        "https://github.com/OpenSkye-Labs/skyelab/releases/tag/v1?x=y",
+        "https://github.com/OpenSkye-Labs/skyelab/releases/../../evil",
+        "file:///etc/passwd",
+        "https://github.com.evil.io/OpenSkye-Labs/skyelab/releases/tag/v1",
+    ] {
+        assert!(!release_page_ok(bad), "{bad}");
+    }
+}
+
+#[test]
+fn due_daily_by_wall_clock() {
+    let day = CHECK_EVERY_SECS;
+    assert!(due(None, 1_000));
+    assert!(!due(Some(1_000), 1_000 + day - 1));
+    assert!(due(Some(1_000), 1_000 + day));
+    // The clock went back: check rather than wait for it to catch up.
+    assert!(due(Some(1_000 + day), 1_000));
+}
+
+#[test]
+fn settings_default_on_and_round_trip() {
+    let s = crate::AppSettings::default();
+    assert!(s.updates.check);
+    let toml = "[updates]\ncheck = false\nlast_check = 5\nskipped = \"v0.3.0\"\n";
+    let parsed: crate::AppSettings = toml::from_str(toml).expect("parses");
+    assert_eq!(
+        parsed.updates,
+        UpdateSettings {
+            check: false,
+            last_check: Some(5),
+            skipped: Some("v0.3.0".into())
+        }
+    );
+    assert_eq!(display_version("v0.3.0"), "0.3.0");
+}

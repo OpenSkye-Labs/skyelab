@@ -26,6 +26,8 @@ pub struct AppSettings {
     pub threads: ThreadSettings,
     /// The Changes tab's view toggles.
     pub diff: DiffSettings,
+    /// Settings → About: the update check.
+    pub updates: crate::update::UpdateSettings,
 }
 
 /// How the Changes tab draws a diff (T3's diff layout, word wrap and whitespace settings).

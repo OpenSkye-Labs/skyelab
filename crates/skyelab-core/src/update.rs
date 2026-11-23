@@ -1,0 +1,80 @@
+//! The update check's rules: is a release newer than this build, may its page be opened, is a check due.
+//! The fetch lives in `skyelab-client`; the notice in the app. Nothing here touches the network.
+
+use serde::{Deserialize, Serialize};
+
+/// The public endpoint the app asks; no auth, nothing sent but the GET.
+pub const LATEST_RELEASE_URL: &str =
+    "https://api.github.com/repos/OpenSkye-Labs/skyelab/releases/latest";
+/// Only a page under this prefix is opened by Download.
+pub const RELEASES_PAGE: &str = "https://github.com/OpenSkye-Labs/skyelab/releases/";
+/// The start check runs at most this often (seconds of wall-clock time).
+pub const CHECK_EVERY_SECS: u64 = 24 * 60 * 60;
+
+/// Settings → About: the update check (`[updates]` in settings.toml).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct UpdateSettings {
+    /// Check GitHub for a newer release on start, at most daily.
+    pub check: bool,
+    /// The last check, Unix seconds.
+    pub last_check: Option<u64>,
+    /// A version the user chose to skip: the automatic check doesn't show it again.
+    pub skipped: Option<String>,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        Self {
+            check: true,
+            last_check: None,
+            skipped: None,
+        }
+    }
+}
+
+/// `v1.2.3`, `1.2`, `1.2.3-beta.1` → numeric parts; a pre-release or build suffix is ignored. `None` if not a version.
+fn parts(tag: &str) -> Option<Vec<u64>> {
+    let tag = tag.trim();
+    let tag = tag.strip_prefix(['v', 'V']).unwrap_or(tag);
+    let core = tag.split(['-', '+']).next()?;
+    let parts: Option<Vec<u64>> = core.split('.').map(|p| p.parse().ok()).collect();
+    parts.filter(|p| !p.is_empty() && p.len() <= 4)
+}
+
+/// Whether release `latest` is newer than `current`, comparing numerically part by part (a missing part is 0).
+/// Anything that isn't a version is never newer.
+pub fn is_newer(latest: &str, current: &str) -> bool {
+    let (Some(mut l), Some(mut c)) = (parts(latest), parts(current)) else {
+        return false;
+    };
+    let n = l.len().max(c.len());
+    l.resize(n, 0);
+    c.resize(n, 0);
+    l > c
+}
+
+/// The version as shown: the tag without its `v`.
+pub fn display_version(tag: &str) -> &str {
+    let tag = tag.trim();
+    tag.strip_prefix(['v', 'V']).unwrap_or(tag)
+}
+
+/// Whether Download may open `url`: this repo's releases page, nothing else (the API answer is untrusted).
+pub fn release_page_ok(url: &str) -> bool {
+    url.strip_prefix(RELEASES_PAGE).is_some_and(|rest| {
+        !rest.is_empty()
+            && rest
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-._/".contains(c))
+            && !rest.contains("..")
+    })
+}
+
+/// Whether the automatic check is due at `now` (Unix seconds): never checked, a day has passed, or the clock went back.
+pub fn due(last_check: Option<u64>, now: u64) -> bool {
+    match last_check {
+        None => true,
+        Some(last) => now < last || now - last >= CHECK_EVERY_SECS,
+    }
+}

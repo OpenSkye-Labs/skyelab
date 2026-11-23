@@ -19,6 +19,9 @@ mod conn;
 mod device_key;
 mod guard;
 mod options;
+pub mod release;
+#[cfg(test)]
+mod release_test;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 #[cfg(test)]
