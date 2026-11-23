@@ -1,9 +1,13 @@
 //! Acceptance: which PRs are read, and that a read runs only under the thread's own account's GitHub login.
 
-use super::{PrEntry, PrView, due, read_pr};
-use skyelab_core::{Account, AccountsConfig, Binding};
+use super::{PrEntry, PrView, due};
 use skyelab_git::{Checks, PrState, PrStatus, Review};
-use std::path::{Path, PathBuf};
+#[cfg(unix)] // only the fake-gh tests read
+use {
+    super::read_pr,
+    skyelab_core::{Account, AccountsConfig, Binding},
+    std::path::{Path, PathBuf},
+};
 
 const URL: &str = "https://github.com/acme/demo/pull/7";
 
