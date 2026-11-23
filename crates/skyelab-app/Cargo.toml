@@ -35,6 +35,8 @@ skyelab-git.workspace = true
 # devices: screenshot temp files
 tempfile.workspace = true
 dirs.workspace = true
+mermaid-rs-renderer.workspace = true
+resvg.workspace = true
 
 [lints]
 workspace = true

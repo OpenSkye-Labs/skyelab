@@ -78,7 +78,7 @@ What's built today:
   split panes, tabs that follow their thread, and **Add to prompt** to send selected output to the agent.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL, evaluate JavaScript in it and take a screenshot of it (http and https only, localhost included; screenshots
-  on macOS only). The tab says an agent controls it;
+  on macOS and Linux). The tab says an agent controls it;
   **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
   its own cookies and storage. macOS and Linux only (like delegation).
 - **Device hub.** Lists iOS Simulators and Android emulators. Boot, shut down, take screenshots, open URLs and

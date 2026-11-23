@@ -1,4 +1,5 @@
-//! The timeline's text: agent markdown (streamed words fade in, code blocks get a copy button, links are checked),
+//! The timeline's text: agent markdown (streamed words fade in, code blocks get a copy button, mermaid fences draw as
+//! diagrams, links are checked),
 //! the turn divider and the usage-limit line.
 
 use super::files::{lexically_inside, link_line, linkify};
@@ -100,6 +101,9 @@ pub(super) fn markdown<V: ItemsView>(
     TextView::markdown(id, text)
         .selectable(true)
         .stream_fade(live)
+        // A closed ```mermaid fence draws as a diagram (see `mermaid`).
+        .markdown_block_parser(super::mermaid::parse)
+        .markdown_block_renderer(super::mermaid::NODE, super::mermaid_block::render)
         .code_block_actions(move |block, _, _| {
             let code = block.code();
             let key = code.len() as u64
