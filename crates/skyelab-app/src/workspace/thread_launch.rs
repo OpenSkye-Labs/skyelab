@@ -88,6 +88,7 @@ impl ThreadView {
         );
         // A resumed thread keeps the folder it started in (its worktree, if it had one).
         let use_worktree = resume.is_none() && self.wt.use_worktree;
+        let base_branch = self.branch_picker.read(cx).base.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
         let tools = crate::workspace::orchestrate::Tools::get(cx);
         let accounts_file = cx
@@ -110,7 +111,12 @@ impl ThreadView {
         })
         .detach();
         let unsaved = self.unsaved.clone();
+        // A checkpoint the last turn's end queued is taken before this turn's starting one.
+        let prev = self.send_chain.take();
         self._task = Some(cx.spawn(async move |this, cx| {
+            if let Some(prev) = prev {
+                prev.await;
+            }
             let started = cx
                 .background_spawn(async move {
                     // The thread whose slot this launch took, so a failure below gives it back.
@@ -123,6 +129,7 @@ impl ThreadView {
                                     &cwd,
                                     &account.id,
                                     &text,
+                                    base_branch.as_deref(),
                                 )
                             })
                             .transpose()
@@ -174,6 +181,11 @@ impl ThreadView {
                             thread.id,
                             &Record::Prompt(text.clone()),
                         )?;
+                        // Before the agent can touch anything: what "before this turn" rewinds to.
+                        crate::workspace::thread_checkpoints::before_turn(
+                            &cwd,
+                            &crate::workspace::thread_checkpoints::key(&thread),
+                        );
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {
@@ -281,6 +293,10 @@ impl ThreadView {
             thread.parent_thread_id,
         );
         let turns = self.turns.clone();
+        let (cwd, key) = (
+            thread.cwd.clone(),
+            crate::workspace::thread_checkpoints::key(thread),
+        );
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
@@ -295,6 +311,7 @@ impl ThreadView {
             }
             let sent = write
                 .spawn(async move {
+                    crate::workspace::thread_checkpoints::before_turn(&cwd, &key);
                     // An idle child that gets a new turn takes a slot again: claimed with its status write.
                     let was = {
                         let store = lock(&store)?;

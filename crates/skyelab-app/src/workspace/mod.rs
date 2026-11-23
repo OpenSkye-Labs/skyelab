@@ -1,11 +1,13 @@
 //! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
 
+mod branch_picker;
 #[cfg(unix)]
 mod browser_agent;
 mod browser_tabs;
 mod changes;
 mod changes_model;
 mod changes_publish;
+mod changes_turns;
 mod child_slots;
 mod devices;
 mod env_mode;
@@ -31,6 +33,7 @@ mod remote_thread;
 mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
+mod thread_checkpoints;
 mod thread_items;
 mod thread_model;
 mod thread_render;
@@ -426,6 +429,12 @@ mod changes_model_test;
 
 #[cfg(test)]
 mod worktree_thread_test;
+
+#[cfg(all(test, unix))]
+mod checkpoint_turns_test;
+
+#[cfg(all(test, unix))]
+mod worktree_base_test;
 
 #[cfg(test)]
 mod worktree_guard_test;

@@ -52,13 +52,14 @@ pub(super) fn slug(title: &str, now_ms: u128) -> String {
     }
 }
 
-/// Creates a worktree of `project` on `skyelab/<slug>` from its HEAD, and returns it once it
-/// resolves to `account_id`. Anything else is refused and the worktree removed again.
+/// Creates a worktree of `project` on `skyelab/<slug>` from local branch `base_branch` (its HEAD when `None`), and
+/// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again.
 pub(super) fn create(
     config: &AccountsConfig,
     project: &Path,
     account_id: &str,
     title: &str,
+    base_branch: Option<&str>,
 ) -> Result<Created> {
     let project = std::fs::canonicalize(project)
         .with_context(|| format!("resolving {}", project.display()))?;
@@ -84,7 +85,15 @@ pub(super) fn create(
     let slug = slug(title, now_ms());
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
-    let base = skyelab_git::rev_parse(&project, "HEAD")?;
+    let base = match base_branch {
+        // A branch, never a revision expression an option could hide in.
+        Some(b) if !b.starts_with('-') => {
+            skyelab_git::rev_parse(&project, &format!("refs/heads/{b}"))
+                .with_context(|| format!("the base branch {b} is gone"))?
+        }
+        Some(b) => bail!("`{b}` is not a branch"),
+        None => skyelab_git::rev_parse(&project, "HEAD")?,
+    };
     let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;
     if let Err(e) = check(config, &project, &path, account_id) {
         return Err(match skyelab_git::remove_worktree(&project, &path, true) {

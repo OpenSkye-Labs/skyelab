@@ -81,6 +81,7 @@ impl ThreadView {
                     }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
+                        this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
                     }
                 });
@@ -89,6 +90,23 @@ impl ThreadView {
                 }
             }
             let _ = this.update(cx, |this, cx| this.ended(launch, cx));
+        }));
+    }
+
+    /// A turn ended: its checkpoint is queued behind earlier sends, and before the next turn's starting one. Changes
+    /// tabs refresh once it is taken.
+    fn checkpoint_turn_end(&mut self, cx: &mut Context<Self>) {
+        let Some(t) = &self.thread else { return };
+        let (cwd, key) = (t.cwd.clone(), crate::workspace::thread_checkpoints::key(t));
+        let prev = self.send_chain.take();
+        let work = cx.background_executor().clone();
+        self.send_chain = Some(cx.spawn(async move |this, cx| {
+            if let Some(prev) = prev {
+                prev.await;
+            }
+            work.spawn(async move { crate::workspace::thread_checkpoints::after_turn(&cwd, &key) })
+                .await;
+            let _ = this.update(cx, |_, cx| cx.emit(ThreadViewEvent::FilesChanged));
         }));
     }
 

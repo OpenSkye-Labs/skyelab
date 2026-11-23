@@ -51,6 +51,8 @@ pub enum ThreadViewEvent {
     /// The agent's Result event arrived: its changes may be on disk now.
     TurnDone,
     OpenChanges,
+    /// The folder's files or checkpoints changed (a turn's checkpoint, a branch switch): Changes tabs reload.
+    FilesChanged,
     /// A terminal in the thread's worktree, under the thread's account.
     OpenTerminal {
         cwd: PathBuf,
@@ -93,6 +95,8 @@ pub struct ThreadView {
     /// thread's row is still loading.
     pub(super) read_only: bool,
     pub(super) wt: super::thread_worktree::WorktreeState,
+    /// The header's branch picker, on the folder this view opened on.
+    pub(super) branch_picker: Entity<super::branch_picker::BranchPicker>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
@@ -106,7 +110,7 @@ pub struct ThreadView {
     pub(super) children: Vec<ChildLink>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
-    send_chain: Option<Task<()>>,
+    pub(super) send_chain: Option<Task<()>>,
     /// Answered with the next follow-up's result, once its store write (and slot claim) is done.
     pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
     _pump: Option<Task<()>>,
@@ -235,7 +239,11 @@ impl ThreadView {
             cx.on_app_quit(|this, _| this.quitting()),
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
+        let owner = cx.weak_entity();
+        let branch_picker =
+            cx.new(|cx| super::branch_picker::BranchPicker::new(owner, cwd.clone(), window, cx));
         Self {
+            branch_picker,
             folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,

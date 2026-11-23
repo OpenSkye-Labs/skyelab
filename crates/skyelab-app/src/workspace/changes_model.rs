@@ -1,7 +1,7 @@
 //! What the Changes tab shows: every changed file in a folder's repo against `HEAD` (or a
 //! worktree's base), flattened into fixed-height rows so a long diff renders through `uniform_list`.
 
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use skyelab_git::{ChangeKind, Line};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -54,6 +54,100 @@ pub struct Changes {
     /// [`skyelab_git::snapshot_tree`] of the working tree, the same before and after the diff was read (else
     /// `None`): Commit refuses unless the tree still matches, so it never commits anything but what is shown.
     pub tree: Option<String>,
+    /// The thread's checkpoints when the tab loaded, by turn.
+    pub checkpoints: Vec<skyelab_git::Checkpoint>,
+}
+
+/// What the Changes tab compares: the working tree (against `HEAD` or the worktree base), or a thread's
+/// checkpoints.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Scope {
+    #[default]
+    Working,
+    /// Checkpoint 0 against the working tree now.
+    SinceStart,
+    /// Checkpoint `n - 1` against checkpoint `n`.
+    Turn(u32),
+}
+
+/// [`load`] for `Scope::Working`, else the checkpoint diff it names. `checkpoints` (the thread's, by turn) are
+/// listed on the result either way so the tab can offer the turns.
+pub fn load_scope(
+    dir: &Path,
+    base: Option<&str>,
+    scope: Scope,
+    key: Option<&str>,
+) -> Result<Changes> {
+    let checkpoints = match key {
+        Some(key) => skyelab_git::checkpoints(dir, key).unwrap_or_default(),
+        None => Vec::new(),
+    };
+    let tree_of = |turn: u32| {
+        checkpoints
+            .iter()
+            .find(|c| c.turn == turn)
+            .map(|c| c.tree.clone())
+            .with_context(|| format!("there is no checkpoint for turn {turn} any more"))
+    };
+    let mut changes = match scope {
+        Scope::Working => load(dir, base)?,
+        Scope::SinceStart => {
+            let now = skyelab_git::snapshot_tree(dir)?;
+            from_diffs(skyelab_git::diff_trees(dir, &tree_of(0)?, &now)?)
+        }
+        Scope::Turn(n) => from_diffs(skyelab_git::diff_trees(
+            dir,
+            &tree_of(n.saturating_sub(1))?,
+            &tree_of(n)?,
+        )?),
+    };
+    changes.checkpoints = checkpoints;
+    Ok(changes)
+}
+
+/// Rows for checkpoint diffs: both sides are trees, so there is nothing untracked to add.
+fn from_diffs(diffs: Vec<skyelab_git::FileDiff>) -> Changes {
+    let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
+    let mut entries = diff_entries(diffs, &mut lines_left);
+    entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
+    assemble(entries, None) // nothing here is committable
+}
+
+/// The turns a thread has (turn `n` needs checkpoints `n - 1` and `n`).
+pub fn turns(checkpoints: &[skyelab_git::Checkpoint]) -> Vec<u32> {
+    checkpoints
+        .iter()
+        .map(|c| c.turn)
+        .filter(|t| *t > 0 && checkpoints.iter().any(|c| c.turn == t - 1))
+        .collect()
+}
+
+/// The rewind confirm: every file it changes, by what happens to it, and the ignored files it leaves unless asked.
+pub fn rewind_message(plan: &skyelab_git::RewindPlan, overwrite_ignored: bool) -> String {
+    fn list(paths: &[PathBuf]) -> String {
+        let mut sorted: Vec<String> = paths.iter().map(|p| p.display().to_string()).collect();
+        sorted.sort();
+        sorted.join(", ")
+    }
+    if plan.is_empty() {
+        return "Nothing to rewind: the files already match.".into();
+    }
+    let mut parts = Vec::new();
+    if !plan.restore.is_empty() {
+        parts.push(format!("Restores {}", list(&plan.restore)));
+    }
+    if !plan.remove.is_empty() {
+        parts.push(format!("Deletes {}", list(&plan.remove)));
+    }
+    if !plan.ignored.is_empty() {
+        let verb = if overwrite_ignored {
+            "Overwrites ignored"
+        } else {
+            "Leaves ignored"
+        };
+        parts.push(format!("{verb} {}", list(&plan.ignored)));
+    }
+    parts.join(". ") + "."
 }
 
 /// Tracked changes from `diff HEAD` (staged and unstaged together), untracked files from `status`.
@@ -63,13 +157,53 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     // Before and after the diff: if they differ, what's shown may be neither, so Commit refuses (`tree: None`).
     // A failed snapshot (say an unreadable file) still shows the tab, and Commit refuses the same way.
     let tree = skyelab_git::snapshot_tree(&root).ok();
-    let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
     // What is left of the diff's line cap for untracked files, after the tracked ones.
     let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let diffs = match base {
         Some(base) => skyelab_git::diff_merge_base(dir, base)?,
         None => diff_head(dir)?,
     };
+    let mut entries = diff_entries(diffs, &mut lines_left);
+    let mut budget = MAX_UNTRACKED_TOTAL;
+    for rel in skyelab_git::status(dir)?.untracked {
+        let max_lines = skyelab_git::MAX_FILE_LINES.min(lines_left);
+        let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget, max_lines);
+        let shown = rows
+            .iter()
+            .filter(|r| matches!(r, Row::Line { .. }))
+            .count();
+        lines_left -= shown;
+        entries.push((file(rel, None, ChangeKind::Added, binary), rows));
+    }
+    entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
+
+    let after = skyelab_git::snapshot_tree(&root).ok();
+    Ok(assemble(
+        entries,
+        tree.filter(|t| after.as_ref() == Some(t)),
+    ))
+}
+
+fn assemble(entries: Vec<(ChangedFile, Vec<Row>)>, tree: Option<String>) -> Changes {
+    let mut changes = Changes {
+        tree,
+        ..Changes::default()
+    };
+    for (mut f, rows) in entries {
+        f.first_row = changes.rows.len();
+        changes.rows.push(Row::File(changes.files.len()));
+        changes.rows.extend(rows);
+        changes.files.push(f);
+    }
+    changes
+}
+
+/// Each diffed file with its rows, `lines_left` counting down the total cap.
+fn diff_entries(
+    diffs: Vec<skyelab_git::FileDiff>,
+    lines_left: &mut usize,
+) -> Vec<(ChangedFile, Vec<Row>)> {
+    let mut entries = Vec::new();
     for d in diffs {
         let Some(path) = d.new_path.clone().or(d.old_path.clone()) else {
             continue;
@@ -82,7 +216,7 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
             rows.push(Row::TooLarge(n));
         }
         for h in &d.hunks {
-            lines_left = lines_left.saturating_sub(h.lines.len());
+            *lines_left = lines_left.saturating_sub(h.lines.len());
             rows.push(Row::Hunk(format!(
                 "@@ -{},{} +{},{} @@ {}",
                 h.old_start, h.old_lines, h.new_start, h.new_lines, h.header
@@ -111,31 +245,7 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
             .flatten();
         entries.push((file(path, old_path, d.kind, d.binary), rows));
     }
-    let mut budget = MAX_UNTRACKED_TOTAL;
-    for rel in skyelab_git::status(dir)?.untracked {
-        let max_lines = skyelab_git::MAX_FILE_LINES.min(lines_left);
-        let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget, max_lines);
-        let shown = rows
-            .iter()
-            .filter(|r| matches!(r, Row::Line { .. }))
-            .count();
-        lines_left -= shown;
-        entries.push((file(rel, None, ChangeKind::Added, binary), rows));
-    }
-    entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
-
-    let after = skyelab_git::snapshot_tree(&root).ok();
-    let mut changes = Changes {
-        tree: tree.filter(|t| after.as_ref() == Some(t)),
-        ..Changes::default()
-    };
-    for (mut f, rows) in entries {
-        f.first_row = changes.rows.len();
-        changes.rows.push(Row::File(changes.files.len()));
-        changes.rows.extend(rows);
-        changes.files.push(f);
-    }
-    Ok(changes)
+    entries
 }
 
 /// `diff HEAD`, or against the empty tree while the repo has no commit to compare with.

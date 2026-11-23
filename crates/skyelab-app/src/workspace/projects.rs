@@ -381,7 +381,9 @@ impl Workspace {
                         },
                     );
                 }
-                ThreadViewEvent::TurnDone => this.refresh_changes(view, cx),
+                ThreadViewEvent::TurnDone | ThreadViewEvent::FilesChanged => {
+                    this.refresh_changes(view, cx)
+                }
             },
         ));
         self.open_threads.retain(|t| t.upgrade().is_some());
