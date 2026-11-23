@@ -123,7 +123,9 @@ const PROJECT_COLS: &str = "id, name, path, created_at";
 const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id";
 
 impl Store {
-    /// Opens (creating if needed) a database file in WAL mode and migrates it.
+    /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
+    /// `starting` or `running` has no agent any more, so it becomes `interrupted`: it holds no child slot and
+    /// reads as done.
     pub fn open(path: &Path) -> Result<Self> {
         let conn =
             Connection::open(path).with_context(|| format!("open store at {}", path.display()))?;
@@ -131,7 +133,17 @@ impl Store {
         if mode != "wal" {
             bail!("store at {} refused WAL mode (got {mode})", path.display());
         }
-        Self::init(conn).with_context(|| format!("init store at {}", path.display()))
+        let store = Self::init(conn).with_context(|| format!("init store at {}", path.display()))?;
+        // shortcut: assumes one app per store; a second instance on the same data dir would interrupt the first
+        // one's live threads. Upgrade with an owner pid per row or an instance lock if that becomes real.
+        store
+            .conn
+            .execute(
+                "UPDATE threads SET status = 'interrupted' WHERE status IN ('starting', 'running')",
+                [],
+            )
+            .context("marking the last run's threads interrupted")?;
+        Ok(store)
     }
 
     pub fn open_in_memory() -> Result<Self> {
