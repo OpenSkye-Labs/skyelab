@@ -91,6 +91,8 @@ pub enum Item {
         duration_ms: u64,
         cost_usd: f64,
         usage: Option<Usage>,
+        /// When the turn ended (ms since the epoch), once [`stamp_done`] has set it.
+        at_ms: Option<i64>,
     },
     /// The usage limit was hit; it resets at `resets_at` (Unix seconds), when known.
     Limit {
@@ -215,7 +217,11 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                     duration_ms: *duration_ms,
                     cost_usd: *total_cost_usd,
                     usage: *usage,
-                })
+                    at_ms: None,
+                });
+                // The finished turn folds its work rows (`timeline_fold`), so all of them change.
+                let start = super::timeline_fold::turn_start(items, items.len() - 1);
+                first_changed = Some(first_changed.map_or(start, |f: usize| f.min(start)));
             }
         }
         Record::Agent(Event::Permission { id, tool, input }) => {
@@ -349,6 +355,16 @@ fn finish(items: &mut Vec<Item>, kind: DeltaKind, text: &str) -> Option<usize> {
             items.push(settled(kind, text, items.len()));
             None
         }
+    }
+}
+
+/// Dates the last turn divider, if `apply` just added it: `at_ms` is the event's time (now, for a live one).
+pub fn stamp_done(items: &mut [Item], at_ms: i64) {
+    if let Some(Item::Done {
+        at_ms: at @ None, ..
+    }) = items.last_mut()
+    {
+        *at = Some(at_ms);
     }
 }
 

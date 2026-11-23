@@ -2,6 +2,7 @@
 
 use super::ask_cards::{self, QuestionDraft};
 use super::thread_model::{ApprovalItem, Item, ToolItem};
+use super::timeline_fold;
 use super::timeline_text::{divider_text, limited_text, markdown};
 use super::tool_cards;
 use crate::ui;
@@ -94,7 +95,7 @@ pub(super) trait ItemsView: Sized + 'static {
     }
 }
 
-/// One row of a thread's item list.
+/// One row of a thread's item list, folded into its finished turn's header when the turn folds it.
 pub(super) fn render_item<V: ItemsView>(
     this: &mut V,
     ix: usize,
@@ -103,7 +104,23 @@ pub(super) fn render_item<V: ItemsView>(
 ) -> AnyElement {
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
+    timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx)
+}
+
+fn render_row<V: ItemsView>(
+    this: &mut V,
+    ix: usize,
+    window: &mut Window,
+    cx: &mut Context<V>,
+) -> AnyElement {
+    // The finished turn this row is the reply of: its time goes on the copy row; a folded turn's divider is its header.
+    let reply_at = timeline_fold::reply_of(this.items(), ix).and_then(|d| match this.items()[d] {
+        Item::Done { at_ms, .. } => at_ms,
+        _ => None,
+    });
+    let divider_folded = timeline_fold::fold_head(this.items(), ix).is_some();
     let theme = cx.theme();
+    let muted = theme.muted_foreground;
     let Some(item) = this.items().get(ix).cloned() else {
         return div().into_any_element();
     };
@@ -151,8 +168,15 @@ pub(super) fn render_item<V: ItemsView>(
                 .child(
                     h_flex()
                         .debug_selector(|| "message-copy".into())
-                        .opacity(0.6)
-                        .child(tool_cards::copy(("copy-msg", ix), text.clone())),
+                        .gap_1()
+                        .text_size(ui::META)
+                        .text_color(muted)
+                        .child(
+                            div()
+                                .opacity(0.6)
+                                .child(tool_cards::copy(("copy-msg", ix), text.clone())),
+                        )
+                        .children(reply_at.map(ui::clock)),
                 )
                 .into_any_element(),
         ),
@@ -228,11 +252,14 @@ pub(super) fn render_item<V: ItemsView>(
                 .into_any_element(),
         ),
         Item::Output { id, text } => tight(tool_cards::render_output(this, id, text, cx)),
+        // The turn's fold header says it already.
+        Item::Done { .. } if divider_folded => div().into_any_element(),
         Item::Done {
             is_error,
             duration_ms,
             cost_usd,
             usage,
+            ..
         } => {
             let verb = if *is_error {
                 "Failed after"

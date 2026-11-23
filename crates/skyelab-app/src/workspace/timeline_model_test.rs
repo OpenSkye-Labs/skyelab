@@ -190,7 +190,8 @@ fn the_turn_divider_carries_usage_and_cost() {
             is_error: false,
             duration_ms: 4200,
             cost_usd: 0.0421,
-            usage: Some(usage)
+            usage: Some(usage),
+            at_ms: None,
         }
     );
 }

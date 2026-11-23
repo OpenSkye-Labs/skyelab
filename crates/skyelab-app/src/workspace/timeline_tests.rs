@@ -10,6 +10,9 @@ mod timeline_model_test;
 #[path = "tool_cards_test.rs"]
 mod tool_cards_test;
 
+#[path = "timeline_fold_test.rs"]
+mod timeline_fold_test;
+
 #[path = "card_path_test.rs"]
 mod card_path_test;
 
