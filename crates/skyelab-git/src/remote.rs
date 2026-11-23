@@ -75,9 +75,10 @@ pub(crate) fn fetch_command(
     Ok(cmd)
 }
 
-/// Keys that name a program for a fetch to run, or reroute or re-trust its https (where the bound gh hands over its
-/// token). An agent can write the repo's own config, and one `.git/config` can serve folders bound to other accounts.
-const UNSAFE_REPO_KEYS: &str = r"^(remote\..*\.(uploadpack|proxy)|http\..*(proxy|sslcainfo|sslcapath|sslcert|sslkey|curloptresolve|cookiefile|pinnedpubkey))$";
+/// Keys that name a program for a fetch to run (`vcs` hands even an https remote to `git-remote-<vcs>`), or reroute
+/// or re-trust its https (where the bound gh hands over its token). An agent can write the repo's own config, and one
+/// `.git/config` can serve folders bound to other accounts.
+const UNSAFE_REPO_KEYS: &str = r"^(remote\..*\.(uploadpack|proxy|vcs)|http\..*(proxy|sslcainfo|sslcapath|sslcert|sslkey|curloptresolve|cookiefile|pinnedpubkey))$";
 
 /// Refuses a fetch (it runs on a timer, unasked) while the repo's own config sets any [`UNSAFE_REPO_KEYS`].
 fn check_repo_config(root: &Path) -> Result<()> {
