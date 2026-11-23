@@ -116,14 +116,20 @@ impl Workspace {
             return;
         };
         let store = self.backend.store.clone();
-        let task = cx.background_spawn(async move { lock(&store)?.list_threads(project_id) });
+        let task = cx.background_spawn(async move {
+            let store = lock(&store)?;
+            anyhow::Ok((store.list_threads(project_id)?, store.unread_project_ids()?))
+        });
         self._threads = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     // A slow load for a project that is no longer selected changes nothing.
-                    Ok(threads) if this.project.as_ref().map(|p| p.id) == Some(project_id) => {
+                    Ok((threads, unread))
+                        if this.project.as_ref().map(|p| p.id) == Some(project_id) =>
+                    {
                         this.threads = threads;
+                        this.unread_projects = unread.into_iter().collect();
                         this.rerun_search(cx);
                     }
                     Ok(_) => {}
@@ -192,7 +198,7 @@ impl Workspace {
         let (store, id) = (self.backend.store.clone(), a.id);
         cx.spawn_in(window, async move |this, cx| {
             let row = cx
-                .background_spawn(async move { lock(&store)?.thread(id) })
+                .background_spawn(async move { lock(&store)?.listed_thread(id) })
                 .await;
             let _ = this.update_in(cx, |this, window, cx| match row {
                 Ok(Some(thread)) if this.open_view(id, cx).is_none() => {
@@ -235,8 +241,7 @@ impl Workspace {
                     // A draft just got its row, so the saved page can name it now.
                     if this.current_thread().as_ref() == Some(view) {
                         this.schedule_layout_save(window, cx);
-                    } else {
-                        // Started in the background (delegated, or from another device): unread until opened.
+                    } else if view.read(cx).background {
                         this.mark_unread(view, cx);
                     }
                 }
@@ -276,7 +281,7 @@ impl Workspace {
         if focus {
             return self.show(Page::Thread(view.downgrade()), window, cx);
         }
-        // A background start never takes the page; its row is marked unread once it has one (see `Started`).
+        view.update(cx, |v, _| v.background = true);
         self.refresh_sidebar(cx);
         cx.notify();
     }

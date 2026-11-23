@@ -164,14 +164,14 @@ impl Workspace {
             c.content = view;
             cx.notify();
         });
-        self.mark_seen(window, cx); // a thread shown is a thread read
+        self.mark_seen(window, cx);
         self.refresh_sidebar(cx);
         self.schedule_layout_save(window, cx);
         cx.notify();
     }
 
     /// Drops a thread's view: its agent stops at once (the last drawn frames may hold the view a moment longer) and
-    /// its row ends `stopped`. The page falls back to Welcome if it showed the thread. Archive and delete call it.
+    /// its row ends `stopped`. The page falls back to Welcome if it showed the thread.
     pub(crate) fn close_thread(
         &mut self,
         view: &Entity<ThreadView>,

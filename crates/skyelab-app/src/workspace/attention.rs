@@ -215,6 +215,9 @@ impl Workspace {
     }
 
     fn step_thread(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            return; // the order is this machine's threads; another machine's sidebar is shown
+        }
         let order = self.thread_order();
         if order.is_empty() {
             return;
@@ -231,6 +234,9 @@ impl Workspace {
     }
 
     fn jump(&mut self, n: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_remote() {
+            return; // the order is this machine's threads; another machine's sidebar is shown
+        }
         if let Some(&id) = self.thread_order().get(n - 1) {
             self.open_thread(&OpenThread { id }, window, cx);
         }

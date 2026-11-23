@@ -260,6 +260,27 @@ impl Settings {
         }
     }
 
+    /// Shows `config` (just saved here, or re-read from the file when the page is shown again).
+    pub fn set_config(
+        &mut self,
+        config: AccountsConfig,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.config = config;
+        let ids = account_ids(&self.config);
+        self.account_select.update(cx, |s, cx| {
+            let keep = s.selected_value().cloned();
+            s.set_items(ids.clone(), window, cx);
+            if let Some(id) = keep.filter(|id| ids.contains(id)).or(ids.first().cloned()) {
+                s.set_selected_value(&id, window, cx);
+            }
+        });
+        self.refresh_fs(cx);
+        self.check_gh_logins(cx);
+        cx.notify();
+    }
+
     /// Run one core edit on a copy, save it, and only then adopt it. A failed edit or save
     /// leaves memory and disk unchanged, and shows the core's error inline.
     fn apply(
@@ -287,18 +308,8 @@ impl Settings {
             });
         let ok = match result {
             Ok(()) => {
-                self.config = next;
                 self.error = None;
-                let ids = account_ids(&self.config);
-                self.account_select.update(cx, |s, cx| {
-                    let keep = s.selected_value().cloned();
-                    s.set_items(ids.clone(), window, cx);
-                    if let Some(id) = keep.filter(|id| ids.contains(id)).or(ids.first().cloned()) {
-                        s.set_selected_value(&id, window, cx);
-                    }
-                });
-                self.refresh_fs(cx);
-                self.check_gh_logins(cx);
+                self.set_config(next, window, cx);
                 true
             }
             Err(e) => {
@@ -333,12 +344,7 @@ impl Settings {
             gh_config_dir: Some(value(&self.gh_input))
                 .filter(|v| !v.is_empty())
                 .map(PathBuf::from),
-            // Not in the form (accounts.toml only), so an edit keeps it.
-            ssh_agent: self
-                .editing
-                .as_ref()
-                .and_then(|id| self.config.accounts.iter().find(|a| &a.id == id))
-                .is_some_and(|a| a.ssh_agent),
+            ssh_agent: false,
         };
         let adding = self.editing.is_none();
         let saved = self.apply(
@@ -346,7 +352,16 @@ impl Settings {
                 if adding {
                     c.add_account(account)
                 } else {
-                    c.update_account(account)
+                    // Not in the form (accounts.toml only): an edit keeps what the file says now.
+                    let ssh_agent = c
+                        .accounts
+                        .iter()
+                        .find(|a| a.id == account.id)
+                        .is_some_and(|a| a.ssh_agent);
+                    c.update_account(Account {
+                        ssh_agent,
+                        ..account
+                    })
                 }
             },
             window,

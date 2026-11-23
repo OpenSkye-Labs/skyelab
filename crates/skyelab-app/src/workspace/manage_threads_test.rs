@@ -57,7 +57,7 @@ fn delete_hides_undo_restores_and_the_window_purges(cx: &mut TestAppContext) {
     act(id, ThreadOp::Delete, cx);
     assert!(r.listed(cx).is_empty());
     assert_eq!(r.notices(cx), ["Deleted “doomed”"]);
-    r.ws.update_in(cx, |ws, window, cx| ws.undelete_thread(id, window, cx));
+    r.ws.update_in(cx, |ws, window, cx| ws.undo_delete(id, false, window, cx));
     cx.run_until_parked();
     assert_eq!(r.listed(cx), ["doomed"], "undo brings it back");
 

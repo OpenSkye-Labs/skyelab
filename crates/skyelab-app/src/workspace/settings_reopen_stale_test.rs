@@ -44,3 +44,34 @@ fn reopened_settings_does_not_clobber_an_outside_edit(cx: &mut TestAppContext) {
         "STALE SETTINGS CLOBBERED the outside binding"
     );
 }
+
+#[gpui::test]
+fn an_account_edit_keeps_the_files_ssh_agent(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let mut on = AccountsConfig::load(&f.accounts_path).expect("load");
+    let mut acme = on.accounts[0].clone();
+    acme.ssh_agent = true;
+    on.update_account(acme).expect("ssh on");
+    on.save(&f.accounts_path).expect("save");
+    let (_ws, cx) = open_workspace(&f, cx);
+    cx.dispatch_action(OpenSettings);
+    cx.run_until_parked();
+    cx.dispatch_action(crate::settings::EditAccount { id: "acme".into() });
+    cx.run_until_parked();
+
+    // Revoked in the file while the form is open.
+    let mut off = AccountsConfig::load(&f.accounts_path).expect("load");
+    let mut acme = off.accounts[0].clone();
+    acme.ssh_agent = false;
+    off.update_account(acme).expect("ssh off");
+    off.save(&f.accounts_path).expect("save");
+
+    cx.dispatch_action(crate::settings::SaveAccount);
+    cx.run_until_parked();
+    let saved = AccountsConfig::load(&f.accounts_path).expect("load");
+    assert!(
+        !saved.accounts[0].ssh_agent,
+        "SSH_AGENT_RESTORED by a stale form"
+    );
+}

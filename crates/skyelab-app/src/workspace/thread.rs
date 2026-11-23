@@ -86,6 +86,8 @@ pub struct ThreadView {
     expanded: HashSet<String>,
     pub(super) error: Option<SharedString>,
     pub(super) starting: bool,
+    /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
+    pub(super) background: bool,
     stop_requested: bool,
     /// Bumped by every launch; a pump from an earlier launch never ends a later one.
     pub(super) launches: u64,
@@ -260,6 +262,7 @@ impl ThreadView {
             expanded: HashSet::new(),
             error: None,
             starting: false,
+            background: false,
             stop_requested: false,
             launches: 0,
             read_only: false,

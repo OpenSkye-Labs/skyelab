@@ -19,12 +19,14 @@ impl Workspace {
             });
         }
         let current = self.project.as_ref().map(|p| p.id);
-        // An unread thread in a project that isn't selected (a background start there) shows on its project's row.
+        // A project that isn't selected shows its unread threads on its row: the stored ones as of the last thread
+        // load, and the open views marked since.
         let unread_projects: std::collections::HashSet<i64> = self
             .open_threads
             .iter()
             .filter_map(|v| v.read(cx).thread.as_ref().filter(|t| t.unread))
             .map(|t| t.project_id)
+            .chain(self.unread_projects.iter().copied())
             .filter(|&p| Some(p) != current)
             .collect();
         let mut marks = std::collections::HashMap::new();

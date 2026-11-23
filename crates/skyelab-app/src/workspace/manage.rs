@@ -221,6 +221,18 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.archive_and_show(id, on, false, window, cx);
+    }
+
+    /// Archives or unarchives; with `reshow`, shows the thread again once the store has it (an undo).
+    fn archive_and_show(
+        &mut self,
+        id: i64,
+        on: bool,
+        reshow: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if on && self.working(id, cx) {
             return self.say(
                 "This thread is working. Stop it before archiving.",
@@ -237,7 +249,16 @@ impl Workspace {
         self.store_then(
             job,
             move |ws, window, cx| {
-                ws.update_row(id, |t| t.archived_at = on.then(crate::ui::now_ms), cx);
+                let at = on.then(crate::ui::now_ms);
+                ws.update_row(id, |t| t.archived_at = at, cx);
+                if let Some(view) = ws.open_view(id, cx) {
+                    view.update(cx, |v, _| {
+                        v.thread.iter_mut().for_each(|t| t.archived_at = at)
+                    });
+                }
+                if reshow && !ws.is_remote() {
+                    ws.open_thread(&OpenThread { id }, window, cx);
+                }
                 if on {
                     ws.undo_notice(
                         format!("Archived “{title}”"),
@@ -321,13 +342,11 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.archive_thread(id, false, window, cx);
-        if shown {
-            self.open_thread(&OpenThread { id }, window, cx);
-        }
+        self.archive_and_show(id, false, shown, window, cx);
     }
 
-    /// Undo for a delete; a thread that was on screen is shown again (its row is read even while deleted).
+    /// Undo for a delete: the thread is listed again (once purged, the store says there is no such thread), and one
+    /// that was on screen is shown again once the store lists it.
     pub(super) fn undo_delete(
         &mut self,
         id: i64,
@@ -335,17 +354,15 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.undelete_thread(id, window, cx);
-        if shown {
-            self.open_thread(&OpenThread { id }, window, cx);
-        }
-    }
-
-    /// Undo for a delete: the thread is listed again (once purged, the store says there is no such thread).
-    pub(super) fn undelete_thread(&mut self, id: i64, window: &mut Window, cx: &mut Context<Self>) {
         self.purges.remove(&id);
         let job: Job = Box::new(move |s| s.set_thread_deleted(id, false));
-        self.store_then(job, |ws, _, cx| ws.load_threads(cx), window, cx);
+        let then = move |ws: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
+            ws.load_threads(cx);
+            if shown && !ws.is_remote() {
+                ws.open_thread(&OpenThread { id }, window, cx);
+            }
+        };
+        self.store_then(job, then, window, cx);
     }
 
     /// The thread shown in the center, for the unit actions (Rename Thread…).

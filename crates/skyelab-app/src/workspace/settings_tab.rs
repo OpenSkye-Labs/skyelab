@@ -13,8 +13,14 @@ impl Workspace {
             Page::Settings(section) => *section,
             _ => crate::settings::Section::Accounts,
         };
-        if let Some(settings) = &self.settings {
-            settings.update(cx, |s, cx| s.check_gh_logins(cx)); // a login may have finished since
+        if let Some(settings) = self.settings.clone() {
+            // The page lives all session: show the file as it is now (an edit elsewhere, a login since).
+            self.reload_accounts();
+            self.push_config(cx);
+            if self.load_error.is_none() {
+                let config = self.config.clone();
+                settings.update(cx, |s, cx| s.set_config(config, window, cx));
+            }
         }
         self.show(Page::Settings(section), window, cx);
     }

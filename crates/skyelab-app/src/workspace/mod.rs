@@ -163,6 +163,8 @@ pub struct Workspace {
     // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
     // thread it opened in memory; evict idle hidden ones if that ever matters.
     open_threads: Vec<Entity<ThreadView>>,
+    /// Projects with a stored unread thread, as of the last thread load (see `thread_list`).
+    unread_projects: std::collections::HashSet<i64>,
     center: Entity<Center>,
     welcome: Entity<Welcome>,
     page: Page,
@@ -296,6 +298,7 @@ impl Workspace {
             project: None,
             threads: Vec::new(),
             open_threads: Vec::new(),
+            unread_projects: Default::default(),
             center,
             welcome,
             page: Page::Welcome,
@@ -626,5 +629,7 @@ mod permission_thread_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_mode_test;
 
+#[cfg(all(test, unix))]
+mod project_unread_restart_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod single_view_merge_test;

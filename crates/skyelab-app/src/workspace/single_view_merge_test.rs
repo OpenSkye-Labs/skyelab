@@ -133,3 +133,29 @@ fn back_forward_and_previous_next_have_their_own_keys(cx: &mut TestAppContext) {
         assert_ne!(key, format!("{M}-{theirs}"), "no shared key");
     }
 }
+
+#[gpui::test]
+fn an_undone_archive_reopens_a_view_that_is_not_archived(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let id = r.thread("back again", cx);
+    r.open(id, cx);
+    cx.dispatch_action(ManageThread {
+        id,
+        op: ThreadOp::Archive,
+    });
+    cx.run_until_parked();
+    undo_last(&r, ThreadOp::Archive, id, cx);
+    super::threads_test::wait_until(cx, "the thread shown again", |cx| {
+        page_thread(&r, cx) == Some(id)
+    });
+    let archived = r.ws.read_with(cx, |ws, cx| {
+        ws.current_thread()
+            .and_then(|v| v.read(cx).thread.as_ref().map(|t| t.archived_at))
+    });
+    assert_eq!(
+        archived,
+        Some(None),
+        "the reopened view's row is unarchived"
+    );
+    assert!(r.row(id).is_some_and(|t| t.archived_at.is_none()));
+}

@@ -327,8 +327,7 @@ impl Workspace {
             _ => None,
         };
         let has_project = env.project.is_some();
-        // Threads that opened on this machine meanwhile (delegated, or started from another device).
-        // Unread local threads: a background start (delegated, or from another device) is marked so.
+        // Open local threads marked unread: background starts, and turns that finished unseen.
         let waiting = self
             .open_threads
             .iter()

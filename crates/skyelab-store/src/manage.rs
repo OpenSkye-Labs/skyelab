@@ -58,6 +58,25 @@ impl Store {
         expect_one(n, "thread", id)
     }
 
+    /// The thread, unless it is deleted (in its undo window): what may be opened.
+    pub fn listed_thread(&self, id: i64) -> Result<Option<Thread>> {
+        let sql = format!("SELECT {THREAD_COLS} FROM threads WHERE id = ?1 AND deleted_at IS NULL");
+        Ok(self
+            .conn
+            .query_row(&sql, [id], thread_from_row)
+            .optional()?)
+    }
+
+    /// Projects with an unread thread that is listed (not archived, not deleted).
+    pub fn unread_project_ids(&self) -> Result<Vec<i64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT project_id FROM threads
+             WHERE unread = 1 AND archived_at IS NULL AND deleted_at IS NULL",
+        )?;
+        let ids = stmt.query_map([], |r| r.get(0))?;
+        Ok(ids.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Deletes the thread if it is still marked deleted (its undo was not used). Otherwise does nothing.
     pub fn purge_thread(&self, id: i64) -> Result<()> {
         self.conn.execute(
