@@ -7580,7 +7580,9 @@ dependencies = [
  "serde",
  "serde_json",
  "skyelab-core",
+ "skyelab-pipe-sys",
  "tempfile",
+ "tokio",
  "uuid",
  "win32job",
 ]
@@ -7719,6 +7721,14 @@ dependencies = [
  "skyelab-core",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "skyelab-pipe-sys"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

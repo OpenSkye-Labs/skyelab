@@ -331,7 +331,6 @@ impl ThreadView {
     }
 
     /// May start or drive other threads: its agent runs (or is starting) and the user hasn't stopped it.
-    #[cfg(unix)]
     pub(super) fn is_live(&self) -> bool {
         (self.session.is_some() || self.starting) && !self.stop_requested
     }

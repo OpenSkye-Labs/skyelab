@@ -1,12 +1,11 @@
-//! The socket listener, the grants (one-use tokens), and the JSON-RPC loop.
+//! The listener (a unix socket or a named pipe, see `transport`), the grants (one-use tokens), and the JSON-RPC loop.
 
+use super::transport::{self, Conn};
 use super::{Caller, Host, Proxy, SOCKET_ENV, TOKEN_ENV, tools};
 use anyhow::{Context as _, Result};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{BufRead as _, BufReader, Read as _, Write as _};
-use std::os::unix::fs::{DirBuilderExt as _, OpenOptionsExt as _, PermissionsExt as _};
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -19,8 +18,6 @@ const MAX_TOKEN_LINE: u64 = 128;
 /// The proxy sends its token right away; a silent connection is dropped.
 const TOKEN_TIMEOUT: Duration = Duration::from_secs(5);
 const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
-/// sun_path holds 104 bytes on macOS (108 on Linux), the terminating NUL included.
-const MAX_SOCKET_PATH: usize = 103;
 
 struct Entry {
     caller: Caller,
@@ -28,11 +25,12 @@ struct Entry {
     /// A connection took this token; a second one is refused.
     used: bool,
     /// That connection, shut down when the grant drops.
-    conn: Option<UnixStream>,
+    conn: Option<Conn>,
 }
 
 struct Inner {
     dir: PathBuf,
+    /// Where the proxy connects: the socket's path, or the pipe's name on Windows.
     socket: PathBuf,
     /// The short private dir holding `socket` when `<dir>/mcp.sock` is too long a path; removed on drop.
     socket_dir: Option<PathBuf>,
@@ -48,7 +46,7 @@ impl Inner {
     }
 }
 
-/// Listens on `<dir>/mcp.sock` until dropped.
+/// Listens on `<dir>/mcp.sock` (unix) or a per-run named pipe (Windows) until dropped.
 pub struct Server {
     inner: Arc<Inner>,
 }
@@ -63,7 +61,7 @@ pub struct Grant {
 }
 
 impl Server {
-    /// Binds the socket in `dir`, made private (0700) first.
+    /// Binds the socket in `dir`, made private (0700) first; on Windows a pipe only this user can open.
     pub fn start(dir: &Path, host: Arc<dyn Host>) -> Result<Server> {
         // Emptied first: a crashed run with the same pid may have left grant files behind.
         match std::fs::remove_dir_all(dir) {
@@ -72,23 +70,8 @@ impl Server {
             }
             _ => {}
         }
-        // Private from creation; the chmod after covers a dir that already existed with another mode.
-        std::fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(dir)
-            .with_context(|| format!("creating {}", dir.display()))?;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-            .with_context(|| format!("making {} private", dir.display()))?;
-        let (socket, socket_dir) = match dir.join("mcp.sock") {
-            s if s.as_os_str().len() <= MAX_SOCKET_PATH => (s, None),
-            _ => {
-                let short = short_socket_dir(dir)?;
-                (short.join("mcp.sock"), Some(short))
-            }
-        };
-        let listener = UnixListener::bind(&socket)
-            .with_context(|| format!("listening on {}", socket.display()))?;
+        transport::private_dir(dir)?;
+        let (listener, socket, socket_dir) = transport::bind(dir, &random_token())?;
         let inner = Arc::new(Inner {
             dir: dir.to_owned(),
             socket,
@@ -101,7 +84,8 @@ impl Server {
         std::thread::Builder::new()
             .name("skyelab-mcp-accept".into())
             .spawn(move || {
-                for stream in listener.incoming() {
+                loop {
+                    let stream = listener.accept().map(|(conn, _)| conn);
                     if accept.stop.load(Ordering::SeqCst) {
                         break;
                     }
@@ -131,7 +115,7 @@ impl Server {
 
     /// A new one-use token for `caller`, and a private `--mcp-config` file that runs `proxy` with it.
     pub fn grant(&self, caller: Caller, proxy: &Proxy) -> Result<Grant> {
-        let token = random_token()?;
+        let token = random_token();
         let id = self.inner.next.fetch_add(1, Ordering::SeqCst);
         let config = self.inner.dir.join(format!("grant-{id}.json"));
         let socket = self
@@ -149,11 +133,7 @@ impl Server {
                 }
             }
         });
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&config)
+        let mut file = transport::create_private_file(&config)
             .with_context(|| format!("creating {}", config.display()))?;
         let text = serde_json::to_string_pretty(&json).context("encoding the MCP config")?;
         file.write_all(text.as_bytes())
@@ -182,41 +162,9 @@ impl Server {
 impl Drop for Server {
     fn drop(&mut self) {
         self.inner.stop.store(true, Ordering::SeqCst);
-        let _ = UnixStream::connect(&self.inner.socket); // wakes the accept loop so it sees `stop`
-        let _ = std::fs::remove_file(&self.inner.socket);
-        if let Some(d) = &self.inner.socket_dir {
-            let _ = std::fs::remove_dir_all(d);
-        }
+        let _ = transport::connect(&self.inner.socket); // wakes the accept loop so it sees `stop`
+        transport::cleanup(&self.inner.socket, self.inner.socket_dir.as_deref());
     }
-}
-
-/// A fresh dir for the socket when the run dir is too deep (a long HOME): under the temp dir, else `/tmp`.
-/// Created exclusively with mode 0700, then checked to be a real dir, 0700 and owned like the run dir (ours),
-/// so nobody else can have planted it or can reach the socket.
-fn short_socket_dir(run_dir: &Path) -> Result<PathBuf> {
-    use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _};
-    let name = format!("skyelab-{}-{}", std::process::id(), &random_token()?[..16]);
-    let tmp = std::env::temp_dir().join(&name);
-    let dir = if tmp.join("mcp.sock").as_os_str().len() <= MAX_SOCKET_PATH {
-        tmp
-    } else {
-        Path::new("/tmp").join(name)
-    };
-    std::fs::DirBuilder::new()
-        .mode(0o700)
-        .create(&dir)
-        .with_context(|| format!("creating {}", dir.display()))?;
-    // A strict umask may have taken the owner's bits too.
-    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
-        .with_context(|| format!("making {} private", dir.display()))?;
-    let meta = std::fs::symlink_metadata(&dir).context("checking the socket dir")?;
-    let owner = std::fs::metadata(run_dir)
-        .context("checking the run dir")?
-        .uid();
-    if !meta.is_dir() || meta.permissions().mode() & 0o777 != 0o700 || meta.uid() != owner {
-        anyhow::bail!("{} is not a private dir of ours", dir.display());
-    }
-    Ok(dir)
 }
 
 impl Grant {
@@ -240,12 +188,13 @@ impl Drop for Grant {
     }
 }
 
-fn random_token() -> Result<String> {
-    let mut bytes = [0u8; 32];
-    std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut bytes))
-        .context("reading /dev/urandom")?;
-    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+/// 64 hex chars from the OS's CSPRNG (two v4 uuids: 244 random bits).
+fn random_token() -> String {
+    format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
 }
 
 /// Equal-time comparison, so response timing doesn't reveal how much of a token matched.
@@ -258,7 +207,7 @@ fn same(a: &str, b: &str) -> bool {
 }
 
 /// Takes the grant `token` names, once: marks it used and deletes its config file.
-fn claim(inner: &Inner, token: &str, conn: &UnixStream) -> Option<(u64, Caller)> {
+fn claim(inner: &Inner, token: &str, conn: &Conn) -> Option<(u64, Caller)> {
     let mut grants = inner.grants();
     let (id, (_, entry)) = grants
         .iter_mut()
@@ -270,7 +219,7 @@ fn claim(inner: &Inner, token: &str, conn: &UnixStream) -> Option<(u64, Caller)>
 }
 
 /// Reads one line of at most `max` bytes. `None` at EOF, on an error, or for an oversized line.
-fn read_line(reader: &mut BufReader<UnixStream>, max: u64) -> Option<String> {
+fn read_line(reader: &mut BufReader<Conn>, max: u64) -> Option<String> {
     let mut buf = Vec::new();
     match reader.by_ref().take(max + 1).read_until(b'\n', &mut buf) {
         Ok(0) | Err(_) => None,
@@ -281,7 +230,7 @@ fn read_line(reader: &mut BufReader<UnixStream>, max: u64) -> Option<String> {
 
 /// The token line, which must arrive whole within [`TOKEN_TIMEOUT`] of connecting, not per read: a client
 /// dripping a byte at a time can't hold the connection.
-fn read_token(reader: &mut BufReader<UnixStream>) -> Option<String> {
+fn read_token(reader: &mut BufReader<Conn>) -> Option<String> {
     let deadline = Instant::now() + TOKEN_TIMEOUT;
     let mut buf = Vec::new();
     loop {
@@ -306,7 +255,7 @@ fn read_token(reader: &mut BufReader<UnixStream>) -> Option<String> {
     }
 }
 
-fn serve(stream: UnixStream, inner: &Inner, host: &dyn Host) {
+fn serve(stream: Conn, inner: &Inner, host: &dyn Host) {
     let mut claimed = None;
     serve_until_closed(stream, inner, host, &mut claimed);
     // The grant holds a clone (to cut the connection); take it back so the socket really closes.
@@ -317,12 +266,7 @@ fn serve(stream: UnixStream, inner: &Inner, host: &dyn Host) {
     }
 }
 
-fn serve_until_closed(
-    stream: UnixStream,
-    inner: &Inner,
-    host: &dyn Host,
-    claimed: &mut Option<u64>,
-) {
+fn serve_until_closed(stream: Conn, inner: &Inner, host: &dyn Host, claimed: &mut Option<u64>) {
     let Ok(mut writer) = stream.try_clone() else {
         return;
     };
@@ -442,17 +386,8 @@ pub fn remove_stale_runs(root: &Path) {
         else {
             continue;
         };
-        if pid != std::process::id() && !alive(pid) {
+        if pid != std::process::id() && !transport::alive(pid) {
             let _ = std::fs::remove_dir_all(entry.path());
         }
     }
-}
-
-/// `unsafe` is denied, so no `libc::kill(pid, 0)`: the kill binary asks instead. A reused pid only keeps a dead dir.
-fn alive(pid: u32) -> bool {
-    std::process::Command::new("/bin/kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map_or(true, |s| s.success()) // can't ask: keep the dir rather than break a live run
 }

@@ -20,7 +20,7 @@ pub use launch::resolve_bin;
 use pipes::{read_events, read_stderr, write_lines};
 pub use title::{clean_title, generate_title, one_shot, title_prompt};
 pub use version::agent_version;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub mod mcp;
 mod models;
 mod permission;

@@ -37,6 +37,8 @@ futures = "0.3"
 rustix = { version = "1.1", features = ["process"] }
 # Windows Job Objects (kill an agent with its whole process tree), a safe API.
 win32job = "2.1"
+# The MCP pipe's security descriptor (skyelab-pipe-sys).
+windows-sys = "0.61.2"
 # Prompt ids claude echoes back in a result (user_message_uuids).
 uuid = { version = "1.29", features = ["v4"] }
 base64 = "0.23"
@@ -71,6 +73,7 @@ tungstenite = "0.30"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-browser = { path = "crates/skyelab-browser" }
 skyelab-webkit-sys = { path = "crates/skyelab-webkit-sys" }
+skyelab-pipe-sys = { path = "crates/skyelab-pipe-sys" }
 skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }
 skyelab-client = { path = "crates/skyelab-client" }

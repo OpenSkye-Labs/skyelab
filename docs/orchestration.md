@@ -43,11 +43,18 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   sidebar row (and its project's row) gets an unread dot until the user opens it. While the window shows another
   machine, the sidebar gets a "This Mac · N new threads here" row that switches back. Its agent runs meanwhile, and
   delegated sends and Stop still reach it.
-- **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<data dir>/skyelab/run/<pid>/` (0700). Each agent
-  session gets a grant: a one-use random token and a 0600 `--mcp-config` file that runs `skyelab --mcp-proxy`. The
-  proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
-  connection. Never TCP. The run dir is created 0700 (and chmod'ed again, past the umask), the token line must
-  arrive whole within 5 s of connecting, and an accept error backs off 100 ms instead of spinning.
+- **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<local data dir>/skyelab/run/<pid>/` (0700), or on
+  Windows on a named pipe `\\.\pipe\skyelab-<pid>-<64 random hex>` whose DACL lets only the current user open it
+  (local clients only, created as the first instance; the proxy opens it only if the process named in it serves it). Each agent session gets a grant: a one-use random token and a
+  0600 `--mcp-config` file in the run dir that runs `skyelab --mcp-proxy`. The proxy's first connection consumes the
+  token and deletes the file. Ending the session revokes the grant and cuts the connection. Never TCP. The run dir is
+  created 0700 (and chmod'ed again, past the umask), the token line must arrive whole within 5 s of connecting, and
+  an accept error backs off 100 ms instead of spinning. Run dirs of SkyeLab processes that are gone are removed at
+  start. Only `mcp/transport/{unix,windows}.rs` differ per OS.
+- **Lost connection.** There is no reconnect: if SkyeLab's end closes while the agent still talks (the app quit or
+  restarted, the thread was stopped, the token was refused), the proxy answers every request in flight and after it
+  with an error saying SkyeLab's tools are gone for this session and to start the thread again from SkyeLab (a tool
+  call gets an `isError` result, anything else JSON-RPC error -32000). Why: [decisions](decisions/orchestration.md).
   A `wait_thread` stops polling, with an error, as soon as the caller's grant is revoked or its row is no longer
   live (stopped, exited, or the thread closed). Browser calls from a thread that isn't running here any more are refused like start and
   send.
@@ -67,6 +74,7 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
 - **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
   `parent_thread_id` (schema 3).
 - **Codex** sessions get the same tools and grant; see [codex.md](codex.md).
-- **Not yet:** Windows (no named-pipe transport, so threads there run without the tools) and delegation to other
-  machines.
+- **Windows:** the same tools over the named pipe, compile-checked only (`scripts/check-windows.sh`), not yet run on
+  Windows. Screenshots there answer "not supported yet".
+- **Not yet:** delegation to other machines.
 
