@@ -87,7 +87,8 @@ impl Server {
                 (short.join("mcp.sock"), Some(short))
             }
         };
-        let listener = UnixListener::bind(&socket)
+        // Under the spawn lock: an agent forked mid-bind would keep the listener for its whole life.
+        let listener = skyelab_core::process::exclusive(|| UnixListener::bind(&socket))
             .with_context(|| format!("listening on {}", socket.display()))?;
         let inner = Arc::new(Inner {
             dir: dir.to_owned(),

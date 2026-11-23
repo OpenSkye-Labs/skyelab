@@ -4,9 +4,11 @@
 //! inherits its write end. A read to EOF then waits for that unrelated process (an agent that runs for hours). That
 //! includes the pipe std's own `spawn` reads to learn whether the exec worked: `spawn` itself then never returns.
 //! Sockets are made the same way (a listener a child inherits keeps its port bound). So every child this process
-//! starts goes through [`spawn`] (or [`exclusive`]), one at a time, and so does a listener whose port must come free
-//! when it closes: no fd is ever half made while another thread forks. On top of that, [`output`]'s stdin, stdout and stderr are unnamed temp files
-//! (opened close-on-exec in one step), read once the child has exited.
+//! starts goes through [`spawn`] (or [`exclusive`]), one at a time, and so do the listeners we bind: no pipe or
+//! listener is ever half made while another thread forks. Sockets made elsewhere (accepted or outgoing connections)
+//! can still reach a child; closing them then doesn't end the connection until that child exits. On top of that,
+//! [`output`]'s stdin, stdout and stderr are unnamed temp files (opened close-on-exec in one step), read once the
+//! child has exited.
 
 use std::fs::File;
 use std::io::{self, Read as _, Seek as _, SeekFrom, Write as _};
