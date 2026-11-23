@@ -88,6 +88,18 @@ const TERMINAL_ENV: &[&str] = &[
     "CommonProgramFiles",
     "PUBLIC",
     "ALLUSERSPROFILE",
+    "CommonProgramFiles(x86)",
+    "CommonProgramW6432",
+    "PROCESSOR_IDENTIFIER",
+    "PROCESSOR_LEVEL",
+    "PROCESSOR_REVISION",
+    "USERDOMAIN",
+    "USERDOMAIN_ROAMINGPROFILE",
+    "LOGONSERVER",
+    "SESSIONNAME",
+    "OneDrive",
+    "DriverData",
+    "PROMPT",
 ];
 
 /// Whether the parent's `name` may reach an agent (and SkyeLab's own git/gh). Windows names are case-insensitive.

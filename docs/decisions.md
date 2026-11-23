@@ -67,7 +67,9 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   `launch_env` (Push: its `GH_CONFIG_DIR`), so a hook an agent planted sees nothing the agent couldn't already.
   Filters (`filter.<x>.clean`/`process`, from repo config and `.gitattributes`) can't be turned off generically
   without breaking LFS-style repos, so they still run during status, diff and add, with the scrubbed env only: the
-  residual risk is code the agent wrote running with no more than the agent has. (2026-11-23)
+  residual risk is code the agent wrote running with no more than the agent has. Commit gets `SSH_AUTH_SOCK` (ssh
+  commit signing) only for an account with `ssh_agent = true`, since its hooks see the same env. GPG signing with a
+  custom `GNUPGHOME` isn't passed. (2026-11-23)
 - **Push URLs:** every URL of `git remote get-url --push --all` must be plain https or local (git pushes to all of
   them), and `-c http.<url>.extraHeader=` is passed for each https one, the most specific scope, so a URL-scoped
   header can't win over the reset. (2026-11-23)

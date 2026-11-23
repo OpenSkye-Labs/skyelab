@@ -133,7 +133,14 @@ impl ChangesView {
                 if paths.is_empty() {
                     bail!("nothing to commit");
                 }
-                let env = t.config.launch_env(&t.dir)?;
+                let mut env = t.config.launch_env(&t.dir)?;
+                // ssh commit signing needs the agent; only for accounts that let their agents use it too, since
+                // the repo's hooks (agent-writable) see the same env.
+                if t.config.resolve(&t.dir).is_some_and(|a| a.ssh_agent)
+                    && let Some(sock) = std::env::var_os("SSH_AUTH_SOCK")
+                {
+                    env.push(("SSH_AUTH_SOCK", sock.into()));
+                }
                 let sha = skyelab_git::commit(&t.dir, &message, &paths, &env, Some(&tree))?;
                 Ok(format!("Committed {}", sha.get(..8).unwrap_or(&sha)))
             },
