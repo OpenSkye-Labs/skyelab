@@ -15,34 +15,58 @@ use gpui_component::{
 };
 use skyelab_agent::Event;
 use skyelab_core::{Account, Provider};
-use skyelab_store::Store;
+use skyelab_store::{Store, UsageReading};
 
-/// What SkyeLab last saw of one account's limits: the newest reading of each window and when it came.
+/// One window's newest reading: how much of it is used (0 to 1), when it resets and when the reading came.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UsageWindow {
+    /// "5h" or "Weekly".
+    pub label: &'static str,
+    pub used: f32,
+    /// Unix seconds, when the reading said.
+    pub resets_at: Option<i64>,
+    /// When this reading was stored, ms since the epoch.
+    pub at_ms: i64,
+}
+
+impl UsageWindow {
+    /// The window has reset since its reading, so its percentage no longer holds (`now` in Unix seconds).
+    pub(super) fn is_reset(&self, now: i64) -> bool {
+        self.resets_at.is_some_and(|at| at <= now)
+    }
+}
+
+/// What SkyeLab last saw of one account's limits: the newest reading of each window, and whether it is limited.
 #[derive(Debug, Clone, PartialEq)]
 pub struct AccountUsage {
     pub id: String,
     pub label: String,
     pub provider: Provider,
-    /// 5h, then Weekly: how much of each is used (0 to 1), when a reading said.
-    pub windows: Vec<(&'static str, f32)>,
+    /// 5h, then Weekly, when a reading said.
+    pub windows: Vec<UsageWindow>,
     /// `Some(resets_at)` (Unix seconds) when the newest reading says the account is refused.
     pub limited: Option<Option<i64>>,
-    /// When the newest reading was stored (`None`: nothing reported yet).
-    pub as_of_ms: Option<i64>,
+    /// When that newest reading was stored (ms), which ages out a "Limited" that names no reset.
+    pub limited_ms: Option<i64>,
 }
 
 /// `account`'s newest stored readings, kept per window by the store as its threads' agents report them
 /// (Claude's `rate_limit_event`, Codex's `account/rateLimits/updated`). Only what was reported: nothing is asked of
 /// the account, and a store error reads as no data.
 pub fn account_usage(store: &Store, account: &Account) -> AccountUsage {
-    let readings = store.usage_readings(&account.id).unwrap_or_default();
-    let mut windows: Vec<(&'static str, f32)> = Vec::new();
-    let (mut limited, mut as_of_ms) = (None, None);
-    for r in &readings {
+    usage_from(
+        &store.usage_readings(&account.id).unwrap_or_default(),
+        account,
+    )
+}
+
+pub(super) fn usage_from(readings: &[UsageReading], account: &Account) -> AccountUsage {
+    let mut windows = Vec::new();
+    let (mut limited, mut limited_ms) = (None, None);
+    for r in readings {
         let Ok(Record::Agent(event)) = Record::from_row("agent", &r.payload_json) else {
             continue;
         };
-        as_of_ms = as_of_ms.max(Some(r.created_at));
         if r.window.is_empty() {
             if let Event::RateLimit {
                 limited: true,
@@ -51,31 +75,49 @@ pub fn account_usage(store: &Store, account: &Account) -> AccountUsage {
             } = event
             {
                 limited = Some(resets_at);
+                limited_ms = Some(r.created_at);
             }
-        } else if let Some(w @ ("5h" | "Weekly", _)) = event.rate_limit() {
-            windows.push(w);
+        } else if let Some((label @ ("5h" | "Weekly"), used)) = event.rate_limit()
+            && let Event::RateLimit { resets_at, .. } = event
+        {
+            windows.push(UsageWindow {
+                label,
+                used,
+                resets_at,
+                at_ms: r.created_at,
+            });
         }
     }
     // 5h before Weekly, like the CLI's /usage.
-    windows.sort_by_key(|(label, _)| *label != "5h");
+    windows.sort_by_key(|w| w.label != "5h");
     AccountUsage {
         id: account.id.clone(),
         label: account.label.clone(),
         provider: account.provider,
         windows,
         limited,
-        as_of_ms,
+        limited_ms,
     }
 }
 
-/// "Limited · resets in 2h 14m" while the newest reading says limited and its reset is ahead (`now` in Unix seconds).
-pub(super) fn limit_text(limited: Option<Option<i64>>, now: i64) -> Option<String> {
+/// A "Limited" that names no reset stops showing this long after its reading: the CLI may never report it lifted.
+const LIMITED_TRUST_MS: i64 = 6 * 3600 * 1000;
+
+/// "Limited · resets in 2h 14m" while the newest reading says limited and its reset is ahead; a plain "Limited"
+/// until it is 6 h old (`now_ms` and `at_ms` in ms since the epoch).
+pub(super) fn limit_text(
+    limited: Option<Option<i64>>,
+    at_ms: Option<i64>,
+    now_ms: i64,
+) -> Option<String> {
+    let now = now_ms / 1000;
     match limited? {
         Some(at) if at <= now => None,
         Some(at) => Some(format!(
             "Limited · resets in {}",
             super::timeline_text::wait(at - now)
         )),
+        None if at_ms.is_some_and(|at| now_ms - at > LIMITED_TRUST_MS) => None,
         None => Some("Limited".into()),
     }
 }
@@ -208,27 +250,17 @@ fn caption(text: &'static str, theme: &Theme) -> impl IntoElement {
         .child(text)
 }
 
-/// One row per account: its color, name and provider, then how old the reading is (or that it is limited, in the
-/// warning color), and on the right a compact bar per window; "—" when its agents haven't reported anything.
+/// One row per account: its color, name and provider, whether it is limited (in the warning color), and on the
+/// right a compact bar per window, each dated by its own reading; "—" when its agents haven't reported anything.
 fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
     let now = ui::now_ms();
     v_flex()
         .children(usage.iter().map(|a| {
-            let limit = limit_text(a.limited, now / 1000);
-            let meta = match (&limit, a.as_of_ms) {
-                (Some(text), _) => Some((text.clone(), ui::ink(theme, theme.warning))),
-                (None, Some(at)) => {
-                    Some((format!("as of {}", as_of(now, at)), theme.muted_foreground))
-                }
-                (None, None) => None,
-            };
+            let limit = limit_text(a.limited, a.limited_ms, now);
             let windows = if a.windows.is_empty() && limit.is_none() {
                 vec![div().child("—").into_any_element()]
             } else {
-                a.windows
-                    .iter()
-                    .map(|&(label, used)| usage_bar(label, used, theme))
-                    .collect()
+                a.windows.iter().map(|w| usage_bar(w, now, theme)).collect()
             };
             h_flex()
                 .id(gpui::SharedString::from(format!("usage-{}", a.id)))
@@ -263,11 +295,11 @@ fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
                                         .child(a.provider.label()),
                                 ),
                         )
-                        .children(meta.map(|(text, color)| {
+                        .children(limit.map(|text| {
                             div()
                                 .truncate()
                                 .text_size(ui::META)
-                                .text_color(color)
+                                .text_color(ui::ink(theme, theme.warning))
                                 .child(text)
                         })),
                 )
@@ -285,19 +317,28 @@ fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-/// "5h ▬▬▭ 62%": the window, a 40 px track filled to its use, and the percentage.
-fn usage_bar(label: &'static str, used: f32, theme: &Theme) -> AnyElement {
+/// "5h ▬▬▭ 62% 3m": the window, a 40 px track filled to its use, the percentage and how old its reading is. A
+/// window past its reset is dimmed and says "reset" instead: its percentage no longer holds.
+fn usage_bar(w: &UsageWindow, now_ms: i64, theme: &Theme) -> AnyElement {
     const TRACK: f32 = 40.;
-    let color = usage_color(used, theme);
+    let reset = w.is_reset(now_ms / 1000);
+    let color = if reset {
+        theme.muted_foreground
+    } else {
+        usage_color(w.used, theme)
+    };
+    let filled = if reset { 0. } else { w.used.clamp(0., 1.) };
     h_flex()
+        .id(gpui::SharedString::from(format!("usage-bar-{}", w.label)))
         .gap_1p5()
+        .when(reset, |el| el.opacity(0.6))
         .child(
             div()
                 .w(gpui::px(44.))
                 .flex()
                 .justify_end()
                 .text_color(theme.muted_foreground)
-                .child(label),
+                .child(w.label),
         )
         .child(
             div()
@@ -308,7 +349,7 @@ fn usage_bar(label: &'static str, used: f32, theme: &Theme) -> AnyElement {
                 .child(
                     div()
                         .h_full()
-                        .w(gpui::px(TRACK * used.clamp(0., 1.)))
+                        .w(gpui::px(TRACK * filled))
                         .rounded_full()
                         .bg(color),
                 ),
@@ -319,17 +360,22 @@ fn usage_bar(label: &'static str, used: f32, theme: &Theme) -> AnyElement {
                 .flex()
                 .justify_end()
                 .text_color(color)
-                .child(format!("{}%", (used * 100.).round() as u32)),
+                .child(if reset {
+                    "reset".to_owned()
+                } else {
+                    format!("{}%", (w.used * 100.).round() as u32)
+                }),
+        )
+        .child(
+            div()
+                .w(gpui::px(24.))
+                .flex()
+                .justify_end()
+                .text_color(theme.muted_foreground)
+                .font_weight(FontWeight::NORMAL)
+                .child(ui::ago(now_ms, w.at_ms)),
         )
         .into_any_element()
-}
-
-/// "just now", else "12m ago".
-fn as_of(now_ms: i64, at_ms: i64) -> String {
-    match ui::ago(now_ms, at_ms) {
-        a if a == "now" => "just now".into(),
-        a => format!("{a} ago"),
-    }
 }
 
 /// Plain until a window is nearly spent.
@@ -344,18 +390,5 @@ fn usage_color(used: f32, theme: &Theme) -> gpui::Hsla {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::limit_text;
-
-    #[test]
-    fn details_usage_limited_says_when_it_resets() {
-        let now = 1_000_000;
-        assert_eq!(
-            limit_text(Some(Some(now + 2 * 3600 + 14 * 60)), now).as_deref(),
-            Some("Limited · resets in 2h 14m")
-        );
-        assert_eq!(limit_text(Some(None), now).as_deref(), Some("Limited"));
-        assert_eq!(limit_text(Some(Some(now)), now), None, "already reset");
-        assert_eq!(limit_text(None, now), None);
-    }
-}
+#[path = "usage_freshness_test.rs"]
+mod usage_freshness_test;

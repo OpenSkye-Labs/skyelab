@@ -86,7 +86,8 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - Hover card (`SidebarThreadTooltip`, 263-403, `ThreadHoverCard.tsx`): to the row's right, max width 320, title
   `text-xs font-medium`, then `text-xs` muted lines with 12 px icons (project, branch, worktree, provider). SkyeLab adds
   the PR link, the account + provider, the binding folder and the times (`panels/sidebar_card.rs`, gpui-component
-  `HoverCard` anchored `LeftCenter`, 500 ms open delay).
+  `HoverCard` anchored `LeftCenter`, 500 ms open delay). Like T3's tooltip, a click closes it and keeps cards closed
+  until the pointer moves again (`Sidebar::cards_held`), so a row left or moved under a resting pointer opens nothing.
 
 ## 5. Thread header
 

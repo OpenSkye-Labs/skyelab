@@ -64,6 +64,10 @@ impl Workspace {
             let account = self.project_accounts.get(&t.project_id);
             let card = RowCard {
                 title: t.title.clone().into(),
+                project: projects
+                    .get(&t.project_id)
+                    .map(|p| p.name.clone().into())
+                    .unwrap_or_default(),
                 path: projects
                     .get(&t.project_id)
                     .map(|p| crate::ui::short_path(&p.path, home.as_deref()).into())

@@ -23,8 +23,8 @@ project's folder is bound to (**No account** in the warning color if it has none
 thread (**#24**) and the branch (the thread's worktree branch, else the branch the project folder has checked out).
 Beside the title is the thread's state (**Working 1m 12s**, counting up while the turn runs,
 **Approval** while the agent waits for your answer, **Failed**, **Interrupted**, **Done** for a finished turn you
-haven't seen) or how long ago it last changed. Hold the pointer on a row for a moment to see its card: the project
-folder, the worktree and branch, the pull request (click to open it), the account with its provider, the bound folder
+haven't seen) or how long ago it last changed. Hold the pointer still on a row for a moment to see its card (a click
+holds cards back until the pointer moves again): the project's name and folder, the worktree and branch, the pull request (click to open it), the account with its provider, the bound folder
 that picks that account, and when the thread was created and last updated.
 
 Above the list are the search field, the project filter (the folder button) and **New thread** (**+**). The project
@@ -86,7 +86,8 @@ Binding folders to accounts, and a GitHub login per account: see [user-guide-acc
   it before the first send to run in a new worktree), how many files changed (click it to open Changes, refreshed
   after each turn) and the current branch.
 
-The thread header is a breadcrumb (project / parent thread / title) with the provider (**Claude** or **Codex**) and
+The thread header is a breadcrumb (the project's name as the sidebar shows it / parent thread / title; hover it for
+the folder's path) with the provider (**Claude** or **Codex**) and
 the account it runs on. While a turn runs, **Working for 1m 12s** above the composer counts how long, and while the
 composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
 ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.

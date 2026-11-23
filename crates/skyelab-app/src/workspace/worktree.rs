@@ -193,6 +193,14 @@ pub(super) fn resolves_to(config: &AccountsConfig, dir: &Path, account_id: &str)
     }
 }
 
+/// What Push checks before it runs: the folder, and its repo's root (Push acts on the whole repo), still resolve to
+/// the thread's account.
+pub(super) fn push_account(config: &AccountsConfig, dir: &Path, account_id: &str) -> Result<()> {
+    resolves_to(config, dir, account_id)?;
+    let root = skyelab_git::repo_root(dir)?;
+    resolves_to(config, &root, account_id)
+}
+
 /// A terminal in a thread's worktree, under the thread's account, or an error if the folder
 /// now resolves to any other account (rebound since the thread started).
 pub(super) fn terminal_options(

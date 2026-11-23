@@ -88,7 +88,10 @@ fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
             v_flex()
                 .gap_1p5()
                 .text_color(theme.foreground.opacity(0.75))
-                .child(line(Lucide::Folder, card.path.clone()))
+                .child(line(
+                    Lucide::Folder,
+                    format!("{} · {}", card.project, card.path).into(),
+                ))
                 .children(card.worktree.clone().map(|w| line(Lucide::FolderGit2, w)))
                 .children(card.branch.clone().map(|b| line(Lucide::GitBranch, b)))
                 .children(pr)

@@ -323,7 +323,8 @@ gpui_kit_assets::icon_assets!(
         ClipboardList,
         PenLine,
         ShieldOff,
-        GitCommitVertical
+        GitCommitVertical,
+        Unlink
     ]
 );
 

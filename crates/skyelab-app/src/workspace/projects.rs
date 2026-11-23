@@ -6,7 +6,7 @@ use super::worktree;
 use super::{
     AddProject, NewThread, NewThreadIn, OpenThread, SelectProject, Workspace, account_label, lock,
 };
-use gpui::{AppContext as _, Context, Entity, PathPromptOptions, Window};
+use gpui::{App, AppContext as _, Context, Entity, PathPromptOptions, Window};
 
 use skyelab_store::Thread;
 use std::path::PathBuf;
@@ -24,6 +24,7 @@ impl Workspace {
                 match loaded {
                     Ok(projects) => {
                         this.projects = projects;
+                        this.sync_project_names(cx);
                         let listed = &this.projects;
                         this.scope.retain(|id| listed.iter().any(|p| p.id == *id));
                         this.resolve_project_accounts(cx);
@@ -257,7 +258,15 @@ impl Workspace {
     fn open_stored(&mut self, thread: Thread, window: &mut Window, cx: &mut Context<Self>) {
         let (config, backend) = (self.config.clone(), self.backend.clone());
         let view = cx.new(|cx| ThreadView::open(thread, config, backend, window, cx));
+        name_project(&self.projects, &view, cx);
         self.add_thread_tab(view, true, window, cx);
+    }
+
+    /// Open threads name their project as the sidebar does, after a rename too.
+    pub(super) fn sync_project_names(&self, cx: &mut Context<Self>) {
+        for view in &self.open_threads {
+            name_project(&self.projects, view, cx);
+        }
     }
 
     /// Keeps `view` alive and shows it. `focus: false` for a thread that started in the background (delegated, or
@@ -334,6 +343,11 @@ impl Workspace {
                     this.run_script(script, cwd, account, window, cx);
                 }
                 ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
+                ThreadViewEvent::PrUnlinked(url) => {
+                    if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
+                        this.pr_unlinked(id, url.clone(), window, cx);
+                    }
+                }
                 ThreadViewEvent::WorktreeCreated { cwd, account_id } => {
                     let project = view.read(cx).project_id;
                     this.run_setup_scripts(project, cwd.clone(), account_id.clone(), window, cx);
@@ -385,5 +399,20 @@ impl Workspace {
         for view in &self.open_threads {
             view.update(cx, |t, cx| t.set_config(config.clone(), cx));
         }
+    }
+}
+
+/// Gives `view` its project's stored name, when it differs.
+fn name_project(projects: &[skyelab_store::Project], view: &Entity<ThreadView>, cx: &mut App) {
+    let id = view.read(cx).project_id;
+    let Some(p) = projects.iter().find(|p| p.id == id) else {
+        return;
+    };
+    if view.read(cx).project_name.as_ref() != p.name {
+        let name = p.name.clone().into();
+        view.update(cx, |v, cx| {
+            v.project_name = name;
+            cx.notify();
+        });
     }
 }

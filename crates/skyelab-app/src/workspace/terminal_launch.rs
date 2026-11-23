@@ -112,7 +112,7 @@ impl Workspace {
     pub(super) fn accounts_job(&self, cx: &App) -> impl FnOnce() -> AccountsConfig + Send + use<> {
         let file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         let config = self.config.clone();
-        move || super::thread::accounts_now(file.as_deref(), &config)
+        move || super::accounts_now(file.as_deref(), &config)
     }
 
     /// Builds a terminal's options with `job` in the background, then opens it here (or hands the error to `failed`),

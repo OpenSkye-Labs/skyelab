@@ -24,6 +24,7 @@ mod settings_tab;
 mod terminal_launch;
 mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
+mod accounts_file;
 pub(crate) mod github;
 #[cfg(unix)]
 pub(crate) mod orchestrate;
@@ -41,7 +42,7 @@ mod remote_thread;
 mod scripts;
 mod status_bar;
 mod thread;
-pub use thread::AccountsFile;
+pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
 mod shell_card;
 pub(crate) mod thread_checkpoints;
@@ -449,7 +450,7 @@ mod manage_threads_test;
 #[cfg(test)]
 mod palette_search_test;
 #[cfg(test)]
-mod review_fixes_d_test;
+mod review_fixes_tests;
 #[cfg(test)]
 mod thread_keys_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script

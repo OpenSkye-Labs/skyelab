@@ -47,7 +47,7 @@ pub struct Details {
     stat: Option<(u64, u64)>,
     editors: Option<Editors>,
     /// Who the Commit & push menu pushes as: the account's GitHub login, or why there is none.
-    gh_login: Option<SharedString>,
+    pub(in crate::workspace) gh_login: Option<SharedString>,
     /// The "Link pull request…" field and what was wrong with the last link.
     pr_input: Option<Entity<gpui_component::input::InputState>>,
     pr_error: Option<SharedString>,

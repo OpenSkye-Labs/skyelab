@@ -71,6 +71,8 @@ pub struct RowMarks {
 #[derive(Clone, Default)]
 pub struct RowCard {
     pub title: SharedString,
+    /// The project's name, as its sidebar row shows it.
+    pub project: SharedString,
     /// The project folder, `~` for home.
     pub path: SharedString,
     pub worktree: Option<SharedString>,
@@ -127,6 +129,9 @@ pub struct Sidebar {
     /// The project filter; `None` while another machine is shown.
     pub scope: Option<ScopeMenu>,
     pub(super) focus: FocusHandle,
+    /// A click happened and the pointer hasn't moved since: rows show no hover card, so a row the click left under
+    /// a resting pointer (or one the list moved there) opens its card only after the pointer moves and rests again.
+    cards_held: bool,
     _search: Subscription,
     /// Redraws each second while a row shows a working timer.
     _tick: Option<gpui::Task<()>>,
@@ -152,6 +157,7 @@ impl Sidebar {
             searchable: false,
             scope: None,
             focus: cx.focus_handle(),
+            cards_held: false,
             _search,
             _tick: None,
         }
@@ -211,6 +217,7 @@ impl Sidebar {
             self.marks.get(&item.id),
             &self.focus,
             indent,
+            !self.cards_held,
             now,
             theme,
         )
@@ -287,6 +294,16 @@ impl Render for Sidebar {
         v_flex()
             .id("sidebar")
             .track_focus(&self.focus)
+            .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
+                this.cards_held = true;
+                cx.notify();
+            }))
+            .on_mouse_move(cx.listener(|this, _, _, cx| {
+                if this.cards_held {
+                    this.cards_held = false;
+                    cx.notify();
+                }
+            }))
             .size_full()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)

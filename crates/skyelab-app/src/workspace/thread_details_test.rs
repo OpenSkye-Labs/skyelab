@@ -49,13 +49,17 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
     ws.read_with(cx, |ws, cx| {
         let usage = &ws.details.read(cx).usage;
         let work = usage.iter().find(|a| a.id == "work").expect("work listed");
-        assert_eq!(work.windows, vec![("5h", 0.91), ("Weekly", 0.62)]);
-        assert!(work.as_of_ms.is_some());
+        let windows: Vec<(&str, f32)> = work.windows.iter().map(|w| (w.label, w.used)).collect();
+        assert_eq!(windows, vec![("5h", 0.91), ("Weekly", 0.62)]);
+        assert!(
+            work.windows.iter().all(|w| w.at_ms > 0),
+            "each bar has its reading's time"
+        );
         // Every configured account is listed; one whose agents reported nothing has no numbers.
         assert!(
             usage
                 .iter()
-                .any(|a| a.id != "work" && a.windows.is_empty() && a.as_of_ms.is_none())
+                .any(|a| a.id != "work" && a.windows.is_empty() && a.limited.is_none())
         );
     });
 

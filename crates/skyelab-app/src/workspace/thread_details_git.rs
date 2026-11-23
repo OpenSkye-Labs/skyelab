@@ -194,18 +194,54 @@ impl ThreadView {
                         cx.open_url(&url);
                     }
                 })
+                .child(
+                    Button::new("details-unlink-pr")
+                        .ghost()
+                        .xsmall()
+                        .icon(IconName::Unlink)
+                        .tooltip("Unlink pull request")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            cx.stop_propagation(); // not the row's open-in-browser
+                            this.unlink_pr(cx);
+                        })),
+                )
                 .into_any_element(),
         )
     }
 
+    /// Forgets the thread's pull request (the PR itself is untouched); the workspace's notice can undo it.
+    pub(in crate::workspace) fn unlink_pr(&mut self, cx: &mut Context<Self>) {
+        let Some((id, Some(url))) = self.thread.as_ref().map(|t| (t.id, t.pr_url.clone())) else {
+            return;
+        };
+        let saved =
+            super::super::lock(&self.backend.store).and_then(|s| s.set_thread_pr_url(id, None));
+        if let Err(e) = saved {
+            self.error = Some(format!("Couldn't unlink the pull request: {e:#}").into());
+            cx.notify();
+            return;
+        }
+        self.set_pr_url(None, cx);
+        cx.emit(ThreadViewEvent::PrUnlinked(url));
+    }
+
     /// The Commit & push menu, and who it pushes as (read from the account's `gh` now, off the UI thread).
-    fn open_git_menu(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn open_git_menu(&mut self, cx: &mut Context<Self>) {
         self.details.page = Page::Git;
         self.details.gh_login = None;
-        let gh_dir = self.config.github_config_dir(&self.cwd);
+        let (dir, config) = (self.cwd.clone(), self.config.clone());
+        let account = self.thread.as_ref().map(|t| t.account_id.clone());
+        let accounts_file = cx
+            .try_global::<super::super::AccountsFile>()
+            .map(|f| f.0.clone());
         let gh_bin = super::super::gh_bin(cx);
         let task = cx.background_spawn(async move {
-            let dir = gh_dir.map_err(|e| format!("{e:#}"))?;
+            // Push's own checks, against accounts.toml as saved now: a rebind since the thread started refuses.
+            let account = account.ok_or("send a prompt first: the thread has no account yet")?;
+            let config = super::super::accounts_now(accounts_file.as_deref(), &config);
+            let checked = super::super::worktree::push_account(&config, &dir, &account)
+                .and_then(|()| config.github_config_dir(&dir));
+            let dir = checked.map_err(|e| format!("{e:#}"))?;
             skyelab_git::gh_login(&skyelab_git::GitHub {
                 gh: &gh_bin,
                 config_dir: &dir,
@@ -340,7 +376,7 @@ impl ThreadView {
             return;
         }
         input.update(cx, |s, cx| s.set_value("", window, cx));
-        self.set_pr_url(url, cx);
+        self.set_pr_url(Some(url), cx);
         self.details_home(cx);
     }
 
