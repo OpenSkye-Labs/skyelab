@@ -17,7 +17,11 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   together with the status write (`child_slots::claim`): on every new child row, every resume of a stopped child,
   and every follow-up that gives an idle child a new turn, whatever sent the prompt (the parent, another device,
   the user). A child counts as busy until the result of its last queued prompt (follow-ups sent mid-turn are
-  counted), not the first result after them. A refused resume leaves the child as it was and its tab says why (the
+  counted), not the first result after them. A result ends the turns of the prompts it answered: claude names them
+  in `user_message_uuids` (a follow-up it folded into the running turn ends with it, a background wake ends none),
+  and an older CLI without the list answers one; a Codex thread that fails to open answers every queued prompt. An
+  agent that exits ends its row within about a second even if a tool it started still holds its stdout, and that
+  tool (in its process group) is ended with it. A refused resume leaves the child as it was and its tab says why (the
   refused prompt still shows in the tab, though it was never stored or sent); a Send from another device has
   already been answered Ok by then, but a delegated `send_message` answers only after the child's slot is claimed,
   so one that would pass the cap is refused to the parent. A row counts only while its agent is live: ending, Stop, a failed start, closing the tab (even while it
@@ -43,8 +47,9 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
   connection. Never TCP. The run dir is created 0700 (and chmod'ed again, past the umask), the token line must
   arrive whole within 5 s of connecting, and an accept error backs off 100 ms instead of spinning.
-  Limit: a `wait_thread` already polling keeps polling until its timeout (at most 300 s) after the grant is revoked;
-  its answer is dropped, but the host can't see the revocation to stop sooner.
+  A `wait_thread` stops polling, with an error, as soon as the calling thread's row is no longer live (stopped,
+  exited, its tab closed). Browser calls from a thread that isn't running here any more are refused like start and
+  send.
 - **Browser tools.** A thread reaches only the tab it opened (`BrowserPanel::agent` names its thread); the user's
   tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI
   thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page
