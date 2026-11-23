@@ -17,7 +17,10 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
 - **Transport.** `skyelab-agent::mcp` listens on a unix socket in `<data dir>/skyelab/run/<pid>/` (0700). Each agent
   session gets a grant: a one-use random token and a 0600 `--mcp-config` file that runs `skyelab --mcp-proxy`. The
   proxy's first connection consumes the token and deletes the file. Ending the session revokes the grant and cuts the
-  connection. Never TCP.
+  connection. Never TCP. The run dir is created 0700 (and chmod'ed again, past the umask), the token line must
+  arrive whole within 5 s of connecting, and an accept error backs off 100 ms instead of spinning.
+  Limit: a `wait_thread` already polling keeps polling until its timeout (at most 300 s) after the grant is revoked;
+  its answer is dropped, but the host can't see the revocation to stop sooner.
 - **Browser tools.** A thread reaches only the tab it opened (`BrowserPanel::agent` names its thread); the user's
   tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI
   thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page

@@ -28,7 +28,9 @@ exactly, is valid now, and matches its key.
 2. `tailscale whois` on the socket's peer address must name one of **your own, untagged** devices: the node's user
    and the profile's user both equal this node's user, the node has no tags, and it isn't this node itself (another
    OS user on this machine could reach the tailnet IP too). Tagged nodes belong to the tailnet, not to you, so they
-   are refused even if you tagged them. A whois error or timeout refuses the connection.
+   are refused even if you tagged them. A whois error or timeout refuses the connection. At most 16 connections wait
+   on whois at once, and at most 4 from one address, so one tailnet member can't take every slot from your devices.
+   An address whois just refused as someone else's is dropped without another whois for 30 s.
 3. TLS 1.3 with this node's certificate. A client speaking plaintext fails here.
 4. A WebSocket handshake carrying an `Origin` header is refused: that is a web page open on one of your devices,
    which would pass whois.
@@ -47,7 +49,9 @@ anything else. Remote calls run through the same `ThreadView` code a local promp
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread opens as a tab in the local window (without
 taking focus), and closing that tab stops its agent, as for any thread. Every stored event, local or remote, is
-pushed to connected clients. The Remote tab lists connected devices (MagicDNS name, login, address) with a
+pushed to connected clients. A reply to `thread_events_since` holds at most 500 events and 8 MiB (half the
+client's 16 MiB message limit), and the client asks again from the last seq until it has caught up. A single event
+over 8 MiB keeps its seq but arrives as a short notice to open the thread on its own machine. The Remote tab lists connected devices (MagicDNS name, login, address) with a
 Disconnect button.
 
 **Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window
