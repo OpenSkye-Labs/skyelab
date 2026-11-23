@@ -108,6 +108,17 @@ and how Zed uses it, not blog posts or memory.
   resvg `Options` whose `image_href_resolver` refuses both data and string hrefs, and hand GPUI the PNG.
 - Blocking or O(n) work (store writes, ranking thousands of rows, polling a CLI) goes to `background_spawn`, and waits
   use `background_executor().timer`, never `std::thread::sleep` on the pool.
+- A view drawn from another entity (the Details tab reads the thread view) observes it but compares a signature
+  of what it draws (`DetailsSig`: every field `render_details` reads, plus the minute for "3m" labels) and notifies
+  only when it differs. GPUI coalesces notifies per flush, so the observer runs once per frame at most.
+- Element ids and keyed element state of list rows use a key the row keeps (`thread_model::Items` gives each row one
+  from a global counter), never the row's index: the timeline is spliced, and an index id hands a row's markdown
+  cache, selection or open fold to its neighbour. A list built again gets new keys, so stale state never attaches.
+- Measure redraws with `SKYELAB_DEBUG_RENDERS=1` (debug builds): every view's `render` calls
+  `crate::debug_renders::count("Name")`, and stderr gets `renders/s Workspace=17 ThreadView=16 timeline row=144 …`
+  once a second. `Workspace` is the frame count per window. A new view adds the call as its render's first line.
+  Measured: the focused composer's caret blink re-renders `ThreadView` (and rebuilds its visible timeline rows)
+  twice a second while idle; only moving the timeline into its own cached view would stop that.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 

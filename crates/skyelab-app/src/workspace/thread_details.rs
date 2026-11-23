@@ -93,6 +93,7 @@ enum Page {
     LinkPr,
 }
 
+#[derive(Clone, PartialEq)]
 struct Editors {
     /// The editor "Open in" runs now (settings, `$VISUAL`, `$EDITOR`, else one on PATH).
     current: Option<String>,
@@ -134,7 +135,55 @@ fn editors() -> Editors {
     Editors { current, choices }
 }
 
+/// Everything the Details card reads from its thread view, so the tab redraws when one of them changes and not on
+/// every notify of the view (each streamed delta, keystroke, tick). The branch picker and script menu notify the tab
+/// themselves, and pull request reads notify it from the workspace. A new read in `render_details` goes here too.
+#[derive(PartialEq)]
+pub(in crate::workspace) struct DetailsSig {
+    page: Page,
+    machine: Option<SharedString>,
+    stat: Option<(u64, u64)>,
+    editors: Option<Editors>,
+    side_chats: Vec<(i64, SharedString)>,
+    gh_login: Option<SharedString>,
+    pr_input: Option<gpui::EntityId>,
+    pr_error: Option<SharedString>,
+    sync: Option<(u32, u32)>,
+    fetch_error: Option<SharedString>,
+    fetching: bool,
+    children: Vec<ChildLink>,
+    thread: Option<skyelab_store::Thread>,
+    cwd: std::path::PathBuf,
+    use_worktree: bool,
+    status: Status,
+    /// The card's "3m" labels move once a minute.
+    minute: i64,
+}
+
 impl ThreadView {
+    pub(in crate::workspace) fn details_sig(&self) -> DetailsSig {
+        let d = &self.details;
+        DetailsSig {
+            page: d.page,
+            machine: d.machine.clone(),
+            stat: d.stat,
+            editors: d.editors.clone(),
+            side_chats: d.side_chats.clone(),
+            gh_login: d.gh_login.clone(),
+            pr_input: d.pr_input.as_ref().map(|i| i.entity_id()),
+            pr_error: d.pr_error.clone(),
+            sync: d.sync,
+            fetch_error: d.fetch_error.clone(),
+            fetching: d.fetching,
+            children: self.children.clone(),
+            thread: self.thread.clone(),
+            cwd: self.cwd.clone(),
+            use_worktree: self.wt.use_worktree,
+            status: self.live_status(),
+            minute: crate::ui::now_ms() / 60_000,
+        }
+    }
+
     pub(in crate::workspace) fn live_status(&self) -> crate::ui::Status {
         use crate::ui::Status;
         let running = self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0;

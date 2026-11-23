@@ -125,6 +125,11 @@ pub(super) fn limit_text(
 pub struct DetailsPanel {
     focus: FocusHandle,
     thread: Option<WeakEntity<ThreadView>>,
+    /// What the card showed of the thread last time it was drawn: a notify of the view that changes none of it (a
+    /// streamed delta) leaves the tab alone.
+    sig: Option<super::thread_details::DetailsSig>,
+    #[cfg(test)]
+    pub(super) renders: usize,
     pub(super) usage: Vec<AccountUsage>,
     /// The usage read in flight; a newer one replaces it.
     pub(super) _load: Option<gpui::Task<()>>,
@@ -136,13 +141,16 @@ impl DetailsPanel {
         Self {
             focus: cx.focus_handle(),
             thread: None,
+            sig: None,
+            #[cfg(test)]
+            renders: 0,
             usage: Vec::new(),
             _load: None,
             _subs: Vec::new(),
         }
     }
 
-    /// Shows `view`'s details, redrawn whenever it or one of its pickers changes.
+    /// Shows `view`'s details, redrawn whenever what the card shows of it, or one of its pickers, changes.
     pub fn set_thread(&mut self, view: Option<gpui::Entity<ThreadView>>, cx: &mut Context<Self>) {
         if self.thread.as_ref().and_then(|t| t.upgrade()) == view {
             return;
@@ -153,11 +161,18 @@ impl DetailsPanel {
                 let v = view.read(cx);
                 (v.branch_picker.clone(), v.scripts.clone())
             };
-            self._subs.push(cx.observe(view, |_, _, cx| cx.notify()));
+            self._subs.push(cx.observe(view, |this, view, cx| {
+                let sig = view.read(cx).details_sig();
+                if this.sig.as_ref() != Some(&sig) {
+                    this.sig = Some(sig);
+                    cx.notify();
+                }
+            }));
             self._subs.push(cx.observe(&picker, |_, _, cx| cx.notify()));
             self._subs
                 .push(cx.observe(&scripts, |_, _, cx| cx.notify()));
         }
+        self.sig = view.as_ref().map(|v| v.read(cx).details_sig());
         self.thread = view.map(|v| v.downgrade());
         cx.notify();
     }
@@ -202,6 +217,10 @@ impl Focusable for DetailsPanel {
 impl Render for DetailsPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::debug_renders::count("DetailsPanel");
+        #[cfg(test)]
+        {
+            self.renders += 1;
+        }
         let theme = cx.theme();
         let usage = render_usage(&self.usage, theme, cx);
         let content = match self.thread.as_ref().and_then(|t| t.upgrade()) {
