@@ -173,3 +173,36 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
     let after = std::fs::metadata(&path).expect("size").len();
     assert!(after < 1_000_000, "file still {after} bytes");
 }
+
+#[test]
+fn codex_image_generation_and_mcp_resource_blobs_are_dropped() {
+    let mut store = Store::open_in_memory().expect("store");
+    let t = thread(&store);
+    let data = b64(BYTES);
+    let imagegen = json!({"Unknown": {"method": "item/completed", "params": {"item": {
+        "type": "imageGeneration", "id": "ig_1", "status": "completed", "result": data}}}});
+    let blob = json!({"User": {"content": [{"type": "tool_result", "tool_use_id": "x", "is_error": false,
+        "content": [{"type": "resource", "resource": {"uri": "shot://1", "mimeType": "image/png", "blob": data}}]}]}});
+    for payload in [imagegen, blob] {
+        let ev = store
+            .append_event(t, "agent", &payload.to_string())
+            .expect("append");
+        assert!(ev.payload_json.len() < 1024, "{}", ev.payload_json.len());
+        assert!(
+            ev.payload_json
+                .contains(&format!("\"omitted_bytes\":{BYTES}"))
+        );
+    }
+}
+
+#[test]
+fn data_that_is_not_base64_is_kept() {
+    let mut store = Store::open_in_memory().expect("store");
+    let t = thread(&store);
+    let id = "node-42:7 is a figma node id, not base64 at all, long enough to pass the floor";
+    let payload = json!({"Assistant": {"content": [{"type": "tool_use", "id": "u", "name": "mcp__figma__place",
+        "input": {"node": {"type": "image", "data": id}, "note": "x".repeat(2000)}}]}})
+    .to_string();
+    let ev = store.append_event(t, "agent", &payload).expect("append");
+    assert_eq!(ev.payload_json, payload);
+}

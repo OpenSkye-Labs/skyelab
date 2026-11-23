@@ -455,7 +455,7 @@ fn image_line(block: &Value) -> String {
     };
     let size = match bytes {
         b if b >= 1024 * 1024 => format!("{:.1} MB", b as f64 / (1024.0 * 1024.0)),
-        b => format!("{} KB", (b + 512) / 1024),
+        b => format!("{} KB", ((b + 512) / 1024).max(1)),
     };
     let kept = if omitted.is_some() { " not kept" } else { "" };
     format!("Image ({size}){kept}")

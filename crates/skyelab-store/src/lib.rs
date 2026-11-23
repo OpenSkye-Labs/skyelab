@@ -179,9 +179,9 @@ impl Store {
         tx.pragma_update(None, "user_version", latest)?;
         tx.commit()?;
         if slimmed > 0 {
-            // Give the dropped image bytes back to the disk, once.
-            conn.execute_batch("VACUUM")
-                .context("vacuum after dropping image data")?;
+            // Give the dropped image bytes back to the disk, once. Best effort: the rewrite is already committed, and
+            // a full disk or a busy file must not stop the app from opening (the free pages are reused anyway).
+            let _ = conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);");
         }
         Ok(Self {
             conn,

@@ -8,12 +8,17 @@ use serde_json::{Map, Value, json};
 
 /// Below this a payload can't hold an image worth dropping, so it isn't parsed.
 const MIN_LEN: usize = 1024;
+/// Shorter strings are left alone: they are ids or tiny icons, not worth a placeholder.
+const MIN_DATA: usize = 64;
+/// A payload with none of these can't hold a shape `omit_here` strips, so it isn't parsed.
+const MARKERS: [&str; 4] = ["base64", "\"image\"", "\"imageGeneration\"", "\"blob\""];
 
 /// `payload` with every base64 image (or document) replaced by a placeholder, or `None` when there is none.
-/// Handles the three shapes agents send: Claude's `source: {type: base64, data}`, MCP's `{type: image, data,
-/// mimeType}` and Codex's `{type: image, url: "data:…;base64,…"}`.
+/// Handles the shapes agents send: Claude's `source: {type: base64, data}`, MCP's `{type: image, data, mimeType}`
+/// and `{type: resource, resource: {blob}}`, Codex's `{type: image, url: "data:…;base64,…"}` and its
+/// `{type: imageGeneration, result}`. Only strings that decode as base64 are dropped.
 pub(crate) fn omit_images(payload: &str) -> Option<String> {
-    if payload.len() < MIN_LEN || !(payload.contains("base64") || payload.contains("\"image\"")) {
+    if payload.len() < MIN_LEN || !MARKERS.iter().any(|m| payload.contains(m)) {
         return None;
     }
     let mut v: Value = serde_json::from_str(payload).ok()?;
@@ -34,48 +39,61 @@ fn walk(v: &mut Value) -> bool {
 fn omit_here(obj: &mut Map<String, Value>) -> bool {
     if let Some(Value::Object(source)) = obj.get_mut("source")
         && source.get("type").and_then(Value::as_str) == Some("base64")
-        && let Some(Value::String(data)) = source.remove("data")
     {
-        let (bytes, sha) = describe(&data);
-        source.insert("omitted_bytes".into(), json!(bytes));
-        source.insert("sha256".into(), json!(sha));
-        return true;
+        return strip(source, "data");
     }
-    if obj.get("type").and_then(Value::as_str) != Some("image") {
-        return false;
+    match obj.get("type").and_then(Value::as_str) {
+        Some("image") => strip(obj, "data") || strip_data_url(obj),
+        Some("imageGeneration") => strip(obj, "result"),
+        Some("resource") => match obj.get_mut("resource") {
+            Some(Value::Object(resource)) => strip(resource, "blob"),
+            _ => false,
+        },
+        _ => false,
     }
-    if let Some(Value::String(data)) = obj.get("data") {
-        let (bytes, sha) = describe(data);
-        obj.remove("data");
-        obj.insert("omitted_bytes".into(), json!(bytes));
-        obj.insert("sha256".into(), json!(sha));
-        return true;
-    }
-    if let Some(Value::String(url)) = obj.get("url")
-        && let Some((media, data)) = url
-            .strip_prefix("data:")
-            .and_then(|u| u.split_once(";base64,"))
-    {
-        let (media, (bytes, sha)) = (media.to_owned(), describe(data));
-        obj.remove("url");
-        obj.insert("media_type".into(), json!(media));
-        obj.insert("omitted_bytes".into(), json!(bytes));
-        obj.insert("sha256".into(), json!(sha));
-        return true;
-    }
-    false
 }
 
-/// Decoded size and the first 16 hex digits of the bytes' SHA-256 (of the text, if it isn't valid base64).
-fn describe(data: &str) -> (usize, String) {
-    let decoded = base64::engine::general_purpose::STANDARD.decode(data.trim());
-    let bytes = decoded.as_deref().unwrap_or(data.as_bytes());
-    let digest = ring::digest::digest(&ring::digest::SHA256, bytes);
+/// Replaces `obj[key]`, when it is base64, with its size and hash.
+fn strip(obj: &mut Map<String, Value>, key: &str) -> bool {
+    let Some((bytes, sha)) = obj.get(key).and_then(Value::as_str).and_then(describe) else {
+        return false;
+    };
+    obj.remove(key);
+    obj.insert("omitted_bytes".into(), json!(bytes));
+    obj.insert("sha256".into(), json!(sha));
+    true
+}
+
+fn strip_data_url(obj: &mut Map<String, Value>) -> bool {
+    let Some((media, (bytes, sha))) = obj
+        .get("url")
+        .and_then(Value::as_str)
+        .and_then(|u| u.strip_prefix("data:")?.split_once(";base64,"))
+        .and_then(|(media, data)| Some((media.to_owned(), describe(data)?)))
+    else {
+        return false;
+    };
+    obj.remove("url");
+    obj.insert("media_type".into(), json!(media));
+    obj.insert("omitted_bytes".into(), json!(bytes));
+    obj.insert("sha256".into(), json!(sha));
+    true
+}
+
+/// Decoded size and the first 16 hex digits of the bytes' SHA-256, if `data` is base64 long enough to drop.
+fn describe(data: &str) -> Option<(usize, String)> {
+    if data.len() < MIN_DATA {
+        return None;
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data.trim())
+        .ok()?;
+    let digest = ring::digest::digest(&ring::digest::SHA256, &bytes);
     let hex: String = digest.as_ref()[..8]
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect();
-    (bytes.len(), hex)
+    Some((bytes.len(), hex))
 }
 
 /// Schema v12: rewrites the events an older build stored with image bytes, a batch at a time so a large store
@@ -85,7 +103,6 @@ pub(crate) fn omit_stored_images(tx: &Transaction) -> Result<usize> {
     let mut select = tx.prepare(
         "SELECT thread_id, seq, payload_json FROM events
          WHERE (thread_id, seq) > (?1, ?2) AND length(payload_json) >= ?3
-           AND (instr(payload_json, 'base64') > 0 OR instr(payload_json, '\"image\"') > 0)
          ORDER BY thread_id, seq LIMIT ?4",
     )?;
     let mut update =
