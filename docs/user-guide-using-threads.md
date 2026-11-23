@@ -85,7 +85,7 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
 
 - **Search.** The field at the top of the sidebar filters the listed threads by title and by what was
   said in them (your prompts and the agent's answers, not tool output).
-- Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Threads and **Fork from here**:
+- Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Chat and **Fork from here**:
   [user-guide-threads.md](user-guide-threads.md).
 - **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
   it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete

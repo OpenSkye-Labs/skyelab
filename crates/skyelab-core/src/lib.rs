@@ -20,8 +20,8 @@ pub mod prompt;
 pub mod scratch;
 pub mod snooze;
 pub use app_settings::{
-    AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ScheduledSettings,
-    ThreadSettings, WindowLayout,
+    AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
+    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, ThreadSettings, WindowLayout,
 };
 pub mod terminal_context;
 pub mod update;

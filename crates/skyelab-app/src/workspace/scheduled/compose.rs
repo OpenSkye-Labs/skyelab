@@ -1,7 +1,6 @@
 //! "Schedule this prompt…": from a composer, the Scheduled tasks editor with its text and project.
 
 use super::super::Workspace;
-use super::super::center::Page;
 use super::super::thread::ThreadView;
 use crate::settings::Section;
 use gpui::{Context, Window, actions};
@@ -41,7 +40,7 @@ impl Workspace {
         if self.is_remote() {
             return; // tasks run on this machine; another machine's composer is not this one's project
         }
-        self.show(Page::Settings(Section::Scheduled), window, cx);
+        self.open_settings_at(Section::Scheduled, window, cx);
         let page = self
             .settings
             .as_ref()

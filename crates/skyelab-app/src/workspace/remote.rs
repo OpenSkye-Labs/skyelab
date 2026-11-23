@@ -2,7 +2,6 @@
 //! the same `ThreadView` path a local prompt takes.
 
 use super::Workspace;
-use super::center::Page;
 pub(super) use super::remote_queue::StartQueue;
 use super::remote_queue::{FIRST_LOAD_WAIT, HeldStart, MAX_WAITING_STARTS};
 use super::thread::ThreadView;
@@ -124,11 +123,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.show(
-            Page::Settings(crate::settings::Section::Sharing),
-            window,
-            cx,
-        );
+        self.open_settings_at(crate::settings::Section::Sharing, window, cx);
     }
 
     /// What the Sharing section shows; `None` without a tailnet hook.

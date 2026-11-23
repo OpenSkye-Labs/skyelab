@@ -6,6 +6,7 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::debug_renders::count("Workspace");
         let ring = self.render_ring(window, cx);
+        let settings = self.settings_modal(window, cx);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
@@ -78,6 +79,7 @@ impl Render for Workspace {
                     .children(ring),
             )
             .child(self.render_status(cx))
+            .children(settings)
     }
 }
 

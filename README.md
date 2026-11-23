@@ -34,9 +34,9 @@ What's built today:
   accounts, with its own page, sidebar filter and panels. A thread open in two windows runs one agent; both show it.
 - **Update check.** Once a day at most, and from **Check for Updates**, SkyeLab asks GitHub for its latest release
   and shows a small notice with **Download** (opens the release page) and **Skip this version**. It sends nothing but
-  the request, installs nothing, and Settings → About turns it off.
+  the request, installs nothing, and Settings → General turns it off.
 - **Keyboard.** Every command is an action you can rebind in `keybindings.toml` (reloaded as you save; bad lines
-  are reported with their line number and skipped), listed with its current keys in Settings → Keyboard shortcuts.
+  are reported with their line number and skipped), listed with its current keys in Settings → Keybindings.
   F6 / Shift+F6 move between the sidebar, conversation, message input and the open panels.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
@@ -72,7 +72,7 @@ What's built today:
 - **Scratch threads.** **New Scratch Thread** asks for an account and runs a quick question in that account's own
   scratch folder, bound to it on first use and listed as **Scratch · <account>**. No default account, even here.
 - **Titles, drafts, history and forks.** After the first reply, the thread's own account names it (off in Settings →
-  Threads, which also holds the defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
+  Chat, next to the model and permission defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
   recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
   ([guide](docs/user-guide-threads.md)).
 - **Send to several models.** A new thread's prompt can go to 2–4 models of the folder's account at once, each its own
@@ -157,7 +157,7 @@ CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
 CLAUDE_CONFIG_DIR=~/.claude claude auth login
 ```
 
-For a Codex account, add it in Settings with **Codex** picked and press **Log in to Codex**, or run
+For a Codex account, add it in Settings with **Codex** picked and press **Log in** on its card, or run
 `CODEX_HOME=~/.codex-work codex login` yourself.
 
 Then start SkyeLab. On first run the Welcome page lists the config folders it found (`~/.claude`, `~/.claude-*`,

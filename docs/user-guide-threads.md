@@ -12,7 +12,7 @@ short title (six words at most) from your first prompt and its first reply, and 
 - A title you set yourself (**Rename**) is never replaced by a generated one.
 - **Right-click a thread → Regenerate title** names it again, replacing any title. If the folder is no longer bound to
   the thread's account, nothing runs and a notice says why.
-- Turn it off in **Settings → Threads → Generate thread titles**.
+- Turn it off in **Settings → Chat → Generate thread titles**.
 - Threads on another machine are named there, not here.
 
 ## Drafts
@@ -28,19 +28,19 @@ walks forward and ends at an empty composer. In a prompt with several lines, the
 can still edit it. Text you typed yourself is never replaced; the keys move the caret as usual. Files attached to an
 earlier prompt aren't brought back.
 
-## Settings → Threads
+## Defaults for new threads
 
-Defaults for new threads. A thread's own choice always wins.
+A thread's own choice always wins. They live in three Settings sections:
 
-- **Generate thread titles**: on by default.
-- **Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
+- **Chat → Generate thread titles**: on by default.
+- **Diffs & pull requests → Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
   ([how they work](user-guide-accounts.md)).
-- **Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
-- **New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
-- **Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
+- **Chat → Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
+- **Worktrees → New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
+- **Diffs & pull requests → Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
   its branch's upstream in the background under the thread's account's own GitHub login (the same rules as Push:
   https remotes only), so Details can say how far behind it is. Saved as `fetch_minutes`.
-- **Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
+- **Chat → Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
   thread in a project that hasn't picked a model yet (the last model picked in a project stays its default).
 
 They are saved in `settings.toml` under `[threads]`. Threads an agent delegates start in Ask.

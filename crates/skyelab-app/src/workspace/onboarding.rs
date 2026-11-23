@@ -8,6 +8,7 @@ use skyelab_core::onboarding::FoundAccount;
 use skyelab_core::{Account, AccountsConfig};
 use std::path::{Path, PathBuf};
 
+mod projects;
 mod render;
 
 pub enum OnboardingEvent {

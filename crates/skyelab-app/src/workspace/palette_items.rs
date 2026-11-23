@@ -140,6 +140,7 @@ impl Workspace {
             }));
         }
         out.extend(self.tabs(cx));
+        out.extend(theme_entries(cx));
         out
     }
 
@@ -200,5 +201,91 @@ impl Workspace {
                 focus.focus(window, cx);
             }),
         }
+    }
+}
+
+/// "Theme: …" (T3's theme items): the modes, then each theme family, the current ones checked. Each applies at once in
+/// every window and is saved like Settings → Appearance.
+fn theme_entries(cx: &App) -> Vec<Entry> {
+    use crate::ui::themes;
+    use skyelab_core::ColorMode;
+    let now = themes::get(cx);
+    let entry = |label: String,
+                 on: bool,
+                 change: Rc<dyn Fn(&mut skyelab_core::AppearanceSettings)>| Entry {
+        label: label.into(),
+        kind: Kind::Action("skyelab::Theme"),
+        binding: None,
+        checked: Some(on),
+        run: Rc::new(move |_, cx| {
+            let mut s = themes::get(cx);
+            change(&mut s);
+            gpui::TaskExt::detach_and_log_err(themes::set(s, cx), cx);
+        }),
+    };
+    let modes = [
+        (ColorMode::System, "System"),
+        (ColorMode::Light, "Light"),
+        (ColorMode::Dark, "Dark"),
+    ];
+    let mut out: Vec<Entry> = modes
+        .into_iter()
+        .map(|(m, l)| {
+            entry(
+                format!("Theme: {l}"),
+                now.mode == m,
+                Rc::new(move |s| s.mode = m),
+            )
+        })
+        .collect();
+    out.extend(themes::FAMILIES.iter().map(|f| {
+        let on = themes::family(&now.theme).key == f.key;
+        entry(
+            format!("Theme: {}", f.label),
+            on,
+            Rc::new(move |s| s.theme = f.key.into()),
+        )
+    }));
+    out
+}
+
+#[cfg(test)]
+mod theme_entries_test {
+    use gpui::TestAppContext;
+
+    #[gpui::test]
+    fn theme_entries_list_modes_and_themes_and_switch(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::ui::install_theme(cx).expect("themes load");
+        });
+        let cx = cx.add_empty_window();
+        let entries = cx.update(|_, cx| super::theme_entries(cx));
+        let labels: Vec<_> = entries
+            .iter()
+            .map(|e| (e.label.to_string(), e.checked))
+            .collect();
+        assert!(
+            labels.contains(&("Theme: System".into(), Some(true))),
+            "{labels:?}"
+        );
+        assert!(
+            labels.contains(&("Theme: SkyeLab".into(), Some(true))),
+            "{labels:?}"
+        );
+        let dawn = entries
+            .iter()
+            .find(|e| e.label.as_ref() == "Theme: Dawn")
+            .expect("Dawn listed");
+        assert_eq!(dawn.checked, Some(false));
+        let run = dawn.run.clone();
+        cx.update(|window, cx| run(window, cx));
+        cx.update(|_, cx| {
+            assert_eq!(
+                crate::ui::themes::get(cx).theme,
+                "dawn",
+                "running it switches"
+            )
+        });
     }
 }

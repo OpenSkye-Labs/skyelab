@@ -86,7 +86,10 @@ fn typing_and_enter_runs_the_action_in_the_workspace_and_hands_focus_back(cx: &m
     setup(cx);
     let (ws, cx) = open(test_backend(), cx);
     choose("settings", cx);
-    assert!(!dialog_open(cx), "enter closes the palette");
+    assert!(
+        ws.read_with(cx, |ws, _| ws.settings_open),
+        "the palette closed and Settings opened as a modal"
+    );
     assert!(
         settings_focused(&ws, cx),
         "OpenSettings ran in the workspace and focused its tab"

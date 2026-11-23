@@ -1,11 +1,11 @@
-//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), Settings, a
-//! remote thread, or the Pull requests or Issues page. Opening a thread switches the page; it never adds a tab.
-//! Thread views stay alive while another page shows, so a running agent keeps running.
+//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), a remote
+//! thread, or the Pull requests or Issues page. Settings is a modal over it (`settings_tab.rs`). Opening a thread
+//! switches the page; it never adds a tab. Thread views stay alive while another page shows, so a running agent
+//! keeps running.
 
 use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
 use super::{GoBack, GoForward, OpenSettingsSection, OpenThread, Workspace};
-use crate::settings::Section;
 use gpui::{
     AnyView, App, Context, Entity, FocusHandle, Focusable, IntoElement, MouseButton,
     NavigationDirection, WeakEntity, Window, div, prelude::*,
@@ -15,7 +15,6 @@ use gpui::{
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Page {
     Welcome,
-    Settings(Section),
     Thread(WeakEntity<ThreadView>),
     RemoteThread(WeakEntity<RemoteThreadView>),
     /// A multi-model send's threads side by side, by comparison group.
@@ -29,7 +28,6 @@ impl Page {
     /// and a remote thread (another machine's id) come back as Welcome.
     pub(crate) fn key(&self, cx: &App) -> String {
         match self {
-            Page::Settings(section) => format!("settings:{}", section.key()),
             Page::Github(kind) => format!("github:{}", kind.key()),
             Page::Thread(view) => view
                 .upgrade()
@@ -94,6 +92,7 @@ impl Workspace {
     }
 
     pub(super) fn show(&mut self, page: Page, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_settings(window, cx); // going to a page (a thread link in Settings) leaves the modal
         if page != self.page {
             self.back.push(std::mem::replace(&mut self.page, page));
             self.forward.clear();
@@ -103,8 +102,8 @@ impl Workspace {
 
     fn alive(&self, page: &Page, cx: &App) -> bool {
         match page {
-            // Settings and the GitHub pages are made on demand, so they can always show.
-            Page::Welcome | Page::Settings(_) | Page::Github(_) => true,
+            // The GitHub pages are made on demand, so they can always show.
+            Page::Welcome | Page::Github(_) => true,
             Page::Thread(view) => view
                 .upgrade()
                 .is_some_and(|v| self.open_threads.contains(&v)),
@@ -146,23 +145,6 @@ impl Workspace {
             Page::Welcome => {
                 self.welcome.read(cx).focus_handle(cx).focus(window, cx);
                 self.welcome.clone().into()
-            }
-            Page::Settings(section) => {
-                let settings = self.ensure_settings(window, cx);
-                settings.update(cx, |s, cx| {
-                    s.section = section;
-                    cx.notify();
-                });
-                if section == crate::settings::Section::Usage {
-                    self.reload_usage(cx);
-                }
-                if section == crate::settings::Section::Scheduled
-                    && let Some(page) = settings.read(cx).scheduled.clone()
-                {
-                    page.update(cx, |p, cx| p.reload(cx));
-                }
-                settings.read(cx).focus_handle(cx).focus(window, cx);
-                settings.into()
             }
             Page::Github(kind) => self.gh_page(kind, window, cx).into(),
             Page::Thread(view) => {
@@ -231,19 +213,18 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.show(Page::Settings(a.section), window, cx);
+        self.open_settings_at(a.section, window, cx);
     }
 
     pub(super) fn restore_page(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = key.strip_prefix("thread:").and_then(|id| id.parse().ok()) {
             self.open_thread(&OpenThread { id }, window, cx);
-        } else if let Some(section) = key.strip_prefix("settings:").and_then(Section::parse) {
-            self.show(Page::Settings(section), window, cx);
         } else if let Some(kind) = key
             .strip_prefix("github:")
             .and_then(super::gh_pages::Kind::parse)
         {
             self.show(Page::Github(kind), window, cx);
         }
+        // An older file's `settings:<section>`: Settings is a modal now, so the window opens on Welcome.
     }
 }

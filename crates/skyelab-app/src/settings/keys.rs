@@ -1,4 +1,4 @@
-//! Settings → Keyboard shortcuts (T3's Keybindings page): every SkyeLab action with the keys that run it now,
+//! Settings → Keybindings (T3's Keybindings page): every SkyeLab action with the keys that run it now,
 //! searchable, and the button that opens keybindings.toml. Editing happens in the file; this page reads it back.
 
 use super::{Settings, SettingsEvent, widgets};
@@ -194,16 +194,15 @@ impl Settings {
                 .into_any_element()
         });
         v_flex()
-            .gap_8()
-            .child(
-                div()
-                    .text_size(ui::BODY)
-                    .text_color(muted)
-                    .child("Rules in keybindings.toml go on top of these defaults and win. Saved changes apply at once."),
-            )
-            .child(widgets::section("Keyboard shortcuts", [toolbar.into_any_element()], cx))
+            .gap_4()
+            .child(widgets::section(
+                "Keyboard shortcuts",
+                "Rules in keybindings.toml go on top of these defaults and win. Saved changes apply at once.",
+                [toolbar.into_any_element()],
+                cx,
+            ))
             .when(!problems.is_empty(), |el| {
-                el.child(widgets::section("Problems in your file", problems, cx))
+                el.child(widgets::section("Problems in your file", "", problems, cx))
             })
             .child(ui::group(theme).children(rows).children(empty))
             .into_any_element()

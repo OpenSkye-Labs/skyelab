@@ -102,9 +102,13 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - 52 tall, `bg-background`, `px-5`, no bottom border in T3's chat (the timeline scrolls under a fade)
   (`W/components/ChatView.tsx:3513-3527`). It is the window's top row (`WorkspacePageHeader.tsx`): no tab strip above
   it, and with the sidebar collapsed it leaves room for the window controls.
-- The center shows one page, chosen by route (`W/routes/_chat.*.tsx`): a thread, a draft, the empty state, or
-  settings (`_chat.settings.tsx`: a 240 px section nav on the sidebar surface, then a 48 px breadcrumb header). Tabs
+- The center shows one page, chosen by route (`W/routes/_chat.*.tsx`): a thread, a draft or the empty state. Tabs
   exist only in the right panel (`RightPanelTabs.tsx`).
+- Settings is a modal over the app (`AppRouteModal.tsx`: up to 1280 × 960, 40 px of window around it, radius 16,
+  border): a search field with a `/` chip, ungrouped items, then groups with small muted headers, then bottom items;
+  a breadcrumb header with Restore defaults and ×; a centered column of bold section titles over one rounded card of
+  rows (label, muted description, control on the right). SkyeLab: `settings/page.rs`, `nav.rs`, `widgets.rs`, drawn
+  by `workspace/settings_tab.rs` as a deferred layer in the workspace (the `overlay` backdrop), one per window.
 - Breadcrumb: project (14 px favicon + name, muted) `/` thread title (`text-sm font-medium`, foreground), gap 12, the
   separator in `icon-muted` (`chat/ChatHeader.tsx:254-414`, `W/components/WorkspaceBreadcrumb.tsx:14,27-58`).
 - Right: ghost 28 px icon toggles for panels (`chat/PanelLayoutControls.tsx:63-174`). Branch and environment live in the
@@ -152,9 +156,10 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 
 - **Theme, not views.** All values in §1 live in `crates/skyelab-app/themes/skyelab.json` (gpui-component's theme
   format: `background`, `sidebar.background`, `sidebar.accent.background`, `border`, `input.border`, `primary.background`,
-  `ring`, `base.*`…). `ui::install_theme` loads it as the light and dark themes; views read `cx.theme()` only.
+  `ring`, `base.*`…), the default of the five families in `themes/*.json` ([brand.md](brand.md#themes)).
+  `ui::themes` applies the chosen family, accent and sizes; views read `cx.theme()` only.
 - **Tokens** in `crates/skyelab-app/src/ui/mod.rs`: radii (`RADIUS_SM` 4, `RADIUS_MD` 6, `RADIUS` 8, `RADIUS_LG` 12,
-  `RADIUS_XL` 16), type (`META` 12, `CODE` 13, `BODY` 14, `SECTION` 16, `PAGE` 20), geometry (`ROW_H` 32, `HEADER_H` 52,
+  `RADIUS_XL` 16), type in rems of the theme font size (`META` 12, `CODE` 13, `BODY` 14, `SECTION` 16, `PAGE` 20 at the default 14), geometry (`ROW_H` 32, `HEADER_H` 52,
   `CHAT_MAX_W` 736, `PAGE_MAX_W` 896). `ui::ink` darkens a status color for text in light themes (T3's 700 shades).
 - **Components** in `ui/components.rs`: `row` (sidebar menu row), `SectionHeader` (caption + rule + trailing control),
   `StatusDot`, `Pill` (T3 badge), `EmptyState` (§7; `.page()` for the large one), `KeyHint` (label + gpui-component

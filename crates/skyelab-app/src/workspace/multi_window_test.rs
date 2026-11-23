@@ -119,9 +119,9 @@ fn two_windows_share_one_thread_view(cx: &mut TestAppContext) {
     let (na, nb) = cx.update(|_, cx| (a.read(cx).notices.len(), b.read(cx).notices.len()));
     assert_eq!((na, nb), (0, 1), "one notification, from the owner");
 
-    // 12: pages are per window.
-    let pages = cx.update(|_, cx| (a.read(cx).page.clone(), b.read(cx).page.clone()));
-    assert!(matches!(pages.0, Page::Settings(_)) && pages.1 == Page::Welcome);
+    // 12: the Settings modal is per window.
+    let open = cx.update(|_, cx| (a.read(cx).settings_open, b.read(cx).settings_open));
+    assert_eq!(open, (true, false), "Settings opened over A only");
 
     // 4: an accounts change saved in A reaches B.
     let unbound = AccountsConfig::load(&f.accounts_path).expect("load");

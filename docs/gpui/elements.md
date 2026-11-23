@@ -47,3 +47,16 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A hit target over part of a row (the diff gutter) is an `absolute` child with its own id and mouse handlers. A plain
   `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
   row's own colors still show under it.
+
+### Settings modal, themes and text size
+
+- Text sizes are rems (`ui::BODY`…): `Root` sets the rem to `theme.font_size`, so Appearance's text size scales
+  every view. A px size never scales.
+- Bake a theme choice into the `light_theme`/`dark_theme` configs, then `Theme::change` (refreshes every window).
+  Fields written on `Theme` are lost at the next appearance flip (`ui::themes::apply`).
+- `window.open_dialog` panics without `Root` (test windows: `threads_test::add_rooted`).
+- A `Dialog` sits in `Root`'s layer, outside the workspace: actions dispatched inside it never reach the workspace.
+  A modal that must reach it is a `deferred` layer in `Workspace::render` (`settings_tab::settings_modal`).
+- A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.
+- `on_focus_out` fires only in an active window (tests: `activate_window()`), and going inactive counts as one:
+  check `window.is_window_active()` first.
