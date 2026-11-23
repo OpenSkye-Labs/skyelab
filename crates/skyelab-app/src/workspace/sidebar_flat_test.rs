@@ -182,7 +182,7 @@ fn previews_are_plain_text_and_pr_labels_are_numbers() {
         preview_text(
             "# Title\n\n- **one** `a_b`\n> quote\n\n```rust\nlet x = 1;\n```\n---\n| a | b |"
         ),
-        "Title one a_b quote let x = 1; a b"
+        "Title one a_b quote a b"
     );
     assert_eq!(
         preview_text("#24 is merged"),
@@ -190,6 +190,11 @@ fn previews_are_plain_text_and_pr_labels_are_numbers() {
         "a number is not a heading"
     );
     assert_eq!(preview_text("---\n\n```\n```"), "", "nothing to show");
+    assert_eq!(
+        preview_text("Here is the flow:\n```mermaid\nflowchart LR\nA --> B\n```\nDone."),
+        "Here is the flow: Done.",
+        "a fenced block's source stays out of the preview"
+    );
     assert_eq!(
         preview_text("See [event.rs](src/event.rs) and ![shot](a.png), [not a link"),
         "See event.rs and shot, [not a link",

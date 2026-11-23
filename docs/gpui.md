@@ -80,6 +80,15 @@ and how Zed uses it, not blog posts or memory.
   click handlers from a `WeakEntity` (see `thread_details::On`).
 - Per-frame work is per visible row. Borrow items, don't clone them. Cache what's derived from text (linkified
   markdown) in element state (`window.use_keyed_state`), keyed by the element's id.
+- Something slow to derive that a frame needs (a drawn diagram) is a `gpui::Asset` read with `window.use_asset`: it
+  starts once per source, is cached for the session and redraws the view when it lands. A render that must be
+  capped in time runs on its own thread, raced against a `background_executor().timer`, so a runaway never holds a
+  pool thread. Never do that work in a markdown block parser: gpui-component parses small texts on the UI thread.
+- Custom markdown blocks (the mermaid card) go through `TextView::markdown_block_parser` / `markdown_block_renderer`;
+  equal parser counts keep the parsed document across frames. Match the plain code block by reading the same tokens:
+  `theme.muted` background and `theme.semantic_tokens().radius.md`, not `theme.accent`.
+- Never hand untrusted SVG to GPUI's `img()`: its usvg loads `<image href>` from any path. Rasterize with our own
+  resvg `Options` whose `image_href_resolver` refuses both data and string hrefs, and hand GPUI the PNG.
 - Blocking or O(n) work (store writes, ranking thousands of rows, polling a CLI) goes to `background_spawn`, and waits
   use `background_executor().timer`, never `std::thread::sleep` on the pool.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A

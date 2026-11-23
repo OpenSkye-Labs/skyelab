@@ -27,6 +27,7 @@ fn a_stopped_turn_does_not_fold_into_the_next_one() {
             is_error: false,
             duration_ms: 4200,
             cost_usd: 0.0,
+            total_usd: 0.0,
             usage: None,
             at_ms: Some(1),
             error: None,

@@ -68,3 +68,6 @@ mod thread_find_test;
 
 #[path = "claude_interrupt_banner_test.rs"]
 mod claude_interrupt_banner_test;
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "turn_cost_test.rs"]
+mod turn_cost_test;

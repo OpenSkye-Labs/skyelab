@@ -1,5 +1,39 @@
 //! The schema, as an append-only list of upgrade steps.
 
+/// `skyelab_agent::turn_cost` in SQL: what a result with the running total `$cur` adds, given `$base`, a query for the
+/// thread's baseline (its latest earlier non-zero total, or 0 for an imported turn: unknown). The baseline is looked up
+/// only for a non-zero total, so a long Codex thread (all zero) isn't scanned per result.
+macro_rules! cost_rule {
+    ([$($cur:tt)*], [$($base:tt)*]) => {
+        concat!(
+            "(CASE WHEN ", $($cur)*, " <= 0 THEN 0 ELSE COALESCE((SELECT CASE WHEN b.v = 0 THEN 0 WHEN ", $($cur)*,
+            " < b.v THEN ", $($cur)*, " ELSE ", $($cur)*, " - b.v END FROM (", $($base)*, ") b), ", $($cur)*, ") END)"
+        )
+    };
+}
+
+/// The cost of the stored `Result` event `$e` (a row of `events`): [`cost_rule`] over the thread's earlier results.
+/// An imported turn (`skyelab_agent::import`: no cost, duration or usage) ends the search as an unknown baseline.
+macro_rules! turn_cost {
+    ($e:literal) => {
+        cost_rule!(
+            [concat!("COALESCE(json_extract(", $e, ".payload_json, '$.Result.total_cost_usd'), 0)")],
+            [concat!(
+                "SELECT COALESCE(json_extract(p.payload_json, '$.Result.total_cost_usd'), 0) AS v FROM events p
+                 WHERE p.thread_id = ", $e, ".thread_id AND p.seq < ", $e, ".seq AND p.kind = 'agent'
+                   AND instr(p.payload_json, '\"Result\"') > 0 AND json_valid(p.payload_json)
+                   AND json_type(p.payload_json, '$.Result') = 'object'
+                   AND (json_extract(p.payload_json, '$.Result.total_cost_usd') > 0
+                        OR (COALESCE(json_extract(p.payload_json, '$.Result.total_cost_usd'), 0) = 0
+                            AND json_extract(p.payload_json, '$.Result.duration_ms') = 0
+                            AND json_extract(p.payload_json, '$.Result.is_error') = 0
+                            AND COALESCE(json_type(p.payload_json, '$.Result.usage'), 'null') = 'null'))
+                 ORDER BY p.seq DESC LIMIT 1"
+            )]
+        )
+    };
+}
+
 /// Index `i` upgrades the schema from `user_version` `i` to `i + 1`. Only append.
 pub(crate) const MIGRATIONS: &[&str] = &[
     "
@@ -227,4 +261,38 @@ INSERT OR REPLACE INTO turn_usage
       AND json_type(e.payload_json, '$.Result') = 'object'
       AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR e.created_at > t.created_at);
 ",
+    // Version 17: a turn's cost is what it added to Claude's running `total_cost_usd` ([`turn_cost`]), in the trigger
+    // and in the rows already stored.
+    concat!(
+        "
+DROP TRIGGER turn_usage_insert;
+CREATE TRIGGER turn_usage_insert AFTER INSERT ON events
+WHEN NEW.kind = 'agent' AND instr(NEW.payload_json, '\"Result\"') > 0 AND json_valid(NEW.payload_json)
+     AND json_type(NEW.payload_json, '$.Result') = 'object'
+BEGIN
+    INSERT OR REPLACE INTO turn_usage
+        SELECT NEW.thread_id, NEW.seq, t.account_id, t.project_id, ",
+        turn_cost!("NEW"),
+        ",
+               COALESCE(json_extract(NEW.payload_json, '$.Result.usage.input'), 0),
+               COALESCE(json_extract(NEW.payload_json, '$.Result.usage.output'), 0),
+               NEW.created_at
+        FROM threads t WHERE t.id = NEW.thread_id
+          AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR NEW.created_at > t.created_at);
+END;
+CREATE TEMP TABLE turn_raw AS SELECT thread_id, seq, cost_usd AS v FROM turn_usage;
+UPDATE turn_usage SET cost_usd = COALESCE((SELECT ",
+        turn_cost!("e"),
+        " FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq),
+    -- A purged thread's events are gone: its stored totals are the running totals to diff.
+    ",
+        cost_rule!(
+            ["(SELECT v FROM turn_raw r WHERE r.thread_id = turn_usage.thread_id AND r.seq = turn_usage.seq)"],
+            ["SELECT v FROM turn_raw r WHERE r.thread_id = turn_usage.thread_id AND r.seq < turn_usage.seq AND r.v > 0
+              ORDER BY r.seq DESC LIMIT 1"]
+        ),
+        ");
+DROP TABLE turn_raw;
+"
+    ),
 ];
