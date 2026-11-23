@@ -11,12 +11,14 @@ use gpui::TestAppContext;
 use std::path::{Path, PathBuf};
 
 fn git_out(dir: &Path, args: &[&str]) -> String {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(args)
-        .output()
-        .expect("git runs");
+    let out = skyelab_core::process::output(
+        std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args),
+        None,
+    )
+    .expect("git runs");
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 

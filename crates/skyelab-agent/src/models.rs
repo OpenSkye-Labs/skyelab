@@ -59,7 +59,8 @@ pub fn list_codex_models(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
-    let mut child = cmd.spawn().context("starting codex to list its models")?;
+    let mut child =
+        skyelab_core::process::spawn(&mut cmd).context("starting codex to list its models")?;
     let pid = child.id();
     let result = (|| {
         let mut stdin = child.stdin.take().context("codex stdin was piped")?;

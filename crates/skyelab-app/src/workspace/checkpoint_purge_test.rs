@@ -9,12 +9,9 @@ use std::path::Path;
 use std::process::Command;
 
 fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(args)
-        .output()
-        .expect("git runs");
+    let out =
+        skyelab_core::process::output(Command::new("git").arg("-C").arg(dir).args(args), None)
+            .expect("git runs");
     assert!(out.status.success(), "git {args:?}");
 }
 

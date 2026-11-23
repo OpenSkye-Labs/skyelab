@@ -183,22 +183,24 @@ fn at_menu_lists_tracked_files_and_inserts_a_mention(cx: &mut TestAppContext) {
     setup(cx);
     let f = fixture(true);
     let git = |args: &[&str]| {
-        let ok = std::process::Command::new("git")
-            .arg("-C")
-            .arg(&f.project_dir)
-            .args([
-                "-c",
-                "user.name=t",
-                "-c",
-                "user.email=t@e",
-                "-c",
-                "commit.gpgsign=false",
-            ])
-            .args(args)
-            .output()
-            .expect("git")
-            .status
-            .success();
+        let ok = skyelab_core::process::output(
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(&f.project_dir)
+                .args([
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@e",
+                    "-c",
+                    "commit.gpgsign=false",
+                ])
+                .args(args),
+            None,
+        )
+        .expect("git")
+        .status
+        .success();
         assert!(ok, "git {args:?}");
     };
     git(&["init", "-q", "-b", "main"]);

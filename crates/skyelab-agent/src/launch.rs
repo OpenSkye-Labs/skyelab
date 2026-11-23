@@ -56,12 +56,14 @@ pub(crate) fn agent_command(
 #[cfg(unix)]
 pub(crate) fn kill_group(pid: u32) {
     let kill = resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
-    let _ = Command::new(kill)
-        .args(["-KILL", "--", &format!("-{pid}")])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
+    let _ = skyelab_core::process::spawn(
+        Command::new(kill)
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null()),
+    )
+    .and_then(|mut c| c.wait());
 }
 
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.

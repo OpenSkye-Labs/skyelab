@@ -450,9 +450,11 @@ pub fn remove_stale_runs(root: &Path) {
 
 /// `unsafe` is denied, so no `libc::kill(pid, 0)`: the kill binary asks instead. A reused pid only keeps a dead dir.
 fn alive(pid: u32) -> bool {
-    std::process::Command::new("/bin/kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map_or(true, |s| s.success()) // can't ask: keep the dir rather than break a live run
+    skyelab_core::process::spawn(
+        std::process::Command::new("/bin/kill")
+            .args(["-0", &pid.to_string()])
+            .stderr(std::process::Stdio::null()),
+    )
+    .and_then(|mut c| c.wait())
+    .map_or(true, |s| s.success()) // can't ask: keep the dir rather than break a live run
 }

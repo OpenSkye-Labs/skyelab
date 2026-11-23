@@ -1,13 +1,30 @@
-//! Running a short-lived child and reading what it printed, without pipes.
+//! Starting children, and running a short-lived one and reading what it printed, without pipes.
 //!
 //! On macOS std creates a pipe and only then marks it close-on-exec, so a process another thread spawns in between
-//! inherits its write end. A read to EOF then waits for that unrelated process (an agent that runs for hours). Here
-//! the child's stdin, stdout and stderr are unnamed temp files (opened close-on-exec in one step), and they are read
-//! once the child has exited, so no other process can hold the call open.
+//! inherits its write end. A read to EOF then waits for that unrelated process (an agent that runs for hours). That
+//! includes the pipe std's own `spawn` reads to learn whether the exec worked: `spawn` itself then never returns.
+//! Sockets are made the same way (a listener a child inherits keeps its port bound). So every child this process
+//! starts goes through [`spawn`] (or [`exclusive`]), one at a time, and so does a listener whose port must come free
+//! when it closes: no fd is ever half made while another thread forks. On top of that, [`output`]'s stdin, stdout and stderr are unnamed temp files
+//! (opened close-on-exec in one step), read once the child has exited.
 
 use std::fs::File;
 use std::io::{self, Read as _, Seek as _, SeekFrom, Write as _};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
+use std::sync::{Mutex, PoisonError};
+
+/// Starts `cmd` while no other child of this process is being started (see the module docs).
+pub fn spawn(cmd: &mut Command) -> io::Result<Child> {
+    exclusive(|| cmd.spawn())
+}
+
+/// Runs `start` under [`spawn`]'s lock: a spawn that doesn't go through a `Command` here (a terminal's PTY), or an
+/// fd std makes close-on-exec in a second step that no child may keep (a listener on a fixed port).
+pub fn exclusive<T>(start: impl FnOnce() -> T) -> T {
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+    let _held = ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner);
+    start()
+}
 
 /// A spawned child whose stdout and stderr go to temp files.
 pub struct Captured {
@@ -29,11 +46,11 @@ impl Captured {
             None => Stdio::null(),
         };
         let (stdout, stderr) = (tempfile::tempfile()?, tempfile::tempfile()?);
-        let child = cmd
-            .stdin(stdin)
-            .stdout(stdout.try_clone()?)
-            .stderr(stderr.try_clone()?)
-            .spawn()?;
+        let child = spawn(
+            cmd.stdin(stdin)
+                .stdout(stdout.try_clone()?)
+                .stderr(stderr.try_clone()?),
+        )?;
         Ok(Self {
             child,
             stdout,

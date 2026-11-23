@@ -275,17 +275,18 @@ impl DeviceHub {
                     .emulator
                     .as_deref()
                     .ok_or(Error::NotAvailable(Platform::Android))?;
-                let child = Command::new(emulator)
-                    .arg("-avd")
-                    .arg(not_a_flag(device.id.as_ref())?)
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .spawn()
-                    .map_err(|source| Error::Io {
-                        path: emulator.to_owned(),
-                        source,
-                    })?;
+                let child = skyelab_core::process::spawn(
+                    Command::new(emulator)
+                        .arg("-avd")
+                        .arg(not_a_flag(device.id.as_ref())?)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null()),
+                )
+                .map_err(|source| Error::Io {
+                    path: emulator.to_owned(),
+                    source,
+                })?;
                 Ok(Some(Emulator { child: Some(child) }))
             }
         }
@@ -453,11 +454,13 @@ impl Emulator {
         let child = self.child.as_mut().expect(TAKEN_IN_DROP);
         if cfg!(unix) && child.try_wait()?.is_none() {
             // std can only SIGKILL. An absolute path, so a planted `kill` on PATH can't skip the clean shutdown.
-            let termed = Command::new("/bin/kill")
-                .args(["-TERM", &child.id().to_string()])
-                .stderr(Stdio::null())
-                .status()
-                .is_ok_and(|s| s.success());
+            let termed = skyelab_core::process::spawn(
+                Command::new("/bin/kill")
+                    .args(["-TERM", &child.id().to_string()])
+                    .stderr(Stdio::null()),
+            )
+            .and_then(|mut c| c.wait())
+            .is_ok_and(|s| s.success());
             // No `/bin/kill` (NixOS): don't wait 30 s for a signal that was never sent.
             let wait = if termed {
                 Duration::from_secs(30)
