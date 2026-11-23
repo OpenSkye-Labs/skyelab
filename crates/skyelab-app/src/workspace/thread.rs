@@ -319,6 +319,26 @@ impl ThreadView {
         Some(account.provider)
     }
 
+    /// What the sidebar shows for this thread: its live session's state, or with no session, stopped (the stored row
+    /// may still say running from before).
+    pub(super) fn live_status(&self) -> crate::ui::Status {
+        use crate::ui::Status;
+        if self.starting {
+            Status::Starting
+        } else if self.session.is_some() {
+            if self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+                Status::Running
+            } else {
+                Status::Idle
+            }
+        } else {
+            match self.thread.as_ref().map(|t| Status::parse(&t.status)) {
+                Some(Status::Starting | Status::Running) | None => Status::Stopped,
+                Some(other) => other,
+            }
+        }
+    }
+
     pub fn is_expanded(&self, tool_id: &str) -> bool {
         self.expanded.contains(tool_id)
     }

@@ -461,6 +461,9 @@ mod sidebar_account_test;
 #[cfg(test)]
 mod layout_test;
 
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod sidebar_status_test;
+
 #[cfg(test)]
 mod agent_bin_test;
 

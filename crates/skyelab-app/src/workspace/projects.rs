@@ -190,6 +190,16 @@ impl Workspace {
                 }),
             })
             .collect();
+        // An open tab knows its thread's state now; the row is only as fresh as the last project load.
+        let live: std::collections::HashMap<i64, Status> = self
+            .open_threads
+            .iter()
+            .filter_map(|v| v.upgrade())
+            .filter_map(|v| {
+                let v = v.read(cx);
+                Some((v.thread.as_ref()?.id, v.live_status()))
+            })
+            .collect();
         let threads = self
             .threads
             .iter()
@@ -198,7 +208,11 @@ impl Workspace {
                 label: t.title.clone().into(),
                 selected: false,
                 action: Box::new(OpenThread { id: t.id }),
-                status: Some(Status::parse(&t.status)),
+                status: Some(
+                    live.get(&t.id)
+                        .copied()
+                        .unwrap_or_else(|| Status::parse(&t.status)),
+                ),
                 updated_ms: Some(t.updated_at),
                 account: None,
             })
@@ -333,6 +347,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Its state shows in the sidebar, so redraw that when the tab changes.
+        self._thread_events
+            .push(cx.observe(&view, |this, _, cx| this.refresh_sidebar(cx)));
         self._thread_events.push(cx.subscribe_in(
             &view,
             window,
