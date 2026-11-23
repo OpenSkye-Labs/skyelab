@@ -251,6 +251,8 @@ impl ThreadView {
         };
         popover(cx)
             .id("composer-menu")
+            .max_h(px(320.))
+            .overflow_y_scroll()
             .left_0()
             .right_0()
             .child(
@@ -416,8 +418,6 @@ pub(super) fn popover(cx: &gpui::App) -> gpui::Div {
         .bottom_full()
         .mb_2()
         .p_1()
-        .max_h(px(320.))
-        .overflow_hidden()
         .rounded(ui::RADIUS_LG)
         .border_1()
         .border_color(theme.border)

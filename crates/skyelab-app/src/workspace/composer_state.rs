@@ -284,6 +284,9 @@ impl ThreadView {
         let attachments = std::mem::take(&mut self.composer.attachments);
         self.composer.queue.push(text, attachments);
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        // The queue takes room under the messages; keep the last one in view above it.
+        // The queue takes room under the messages: keep the end of the thread in view above it.
+        self.list.scroll_to_end();
         cx.notify();
     }
 
