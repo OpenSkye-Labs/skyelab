@@ -38,6 +38,10 @@ pub struct Session {
     codex: Option<Arc<Mutex<codex::Codex>>>,
     /// Claude's prompts not answered yet (`claude::parse`).
     sent: claude::Sent,
+    /// Windows: the Job Object the agent runs in. Closing it ends the agent and every process it started (on
+    /// Windows `Child::kill` ends only the `claude.cmd` shim's cmd.exe).
+    #[cfg(windows)]
+    job: Option<win32job::Job>,
 }
 
 /// What to launch: the account the caller resolved for `dir` (and recorded), and optionally a
@@ -156,7 +160,14 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         next_request: 0,
         codex: codex.as_ref().map(|(state, _)| state.clone()),
         sent: claude::Sent::default(),
+        #[cfg(windows)]
+        job: None,
     };
+    // shortcut: a process the shim starts before this assignment is outside the job (a microsecond window); spawn suspended if that shows up.
+    #[cfg(windows)]
+    {
+        session.job = Some(job_for(&session.child).context("putting the agent in a Job Object")?);
+    }
     let parse: Box<Parse> = match codex {
         None => {
             let sent = session.sent.clone();
@@ -188,6 +199,17 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         .context("spawning writer thread")?;
     session.send_user_message(prompt)?;
     Ok(session)
+}
+
+/// A Job Object that ends every process in it when it closes, with `child` in it.
+#[cfg(windows)]
+fn job_for(child: &std::process::Child) -> Result<win32job::Job> {
+    use std::os::windows::io::AsRawHandle as _;
+    let mut limits = win32job::ExtendedLimitInfo::new();
+    limits.limit_kill_on_job_close();
+    let job = win32job::Job::create_with_limit_info(&limits)?;
+    job.assign_process(child.as_raw_handle() as isize)?;
+    Ok(job)
 }
 
 /// Turns one stdout line into events (and, for Codex, answers it).
@@ -345,8 +367,11 @@ impl Session {
         Ok(())
     }
 
-    /// SIGKILL to the agent's process group (unix; the group is the agent's pid).
-    fn kill_group(&self) {
+    /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing
+    /// its kill-on-close Job Object on Windows.
+    fn kill_group(&mut self) {
+        #[cfg(windows)]
+        drop(self.job.take());
         // `unsafe` is denied, so no libc::killpg: the kill binary signals the group instead.
         #[cfg(unix)]
         {
