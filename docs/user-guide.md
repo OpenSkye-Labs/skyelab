@@ -5,7 +5,9 @@ Shortcuts are shown for macOS. On Linux and Windows, use <kbd>Ctrl</kbd> for <kb
 ## Command palette
 
 Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with its shortcut), a project to switch to, a
-thread of the current project to open, or an open tab to go to. Type a few letters in order (`os` finds
+thread of the current project to open, or an open tab to go to. Threads of every project are also found by their
+messages: type a few words from a prompt or an answer (three letters or more) and matching threads list after the
+rest, with their project's name. Type a few letters in order (`os` finds
 **Open Settings**), move with the arrow keys, press <kbd>↩</kbd> to run it and <kbd>Esc</kbd> to close. The action runs
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
@@ -109,6 +111,30 @@ another SkyeLab on the same data), the thread still shows it and says how many e
 event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
 Closing a thread's tab or quitting SkyeLab stops its agent. A thread that was still running when SkyeLab last closed
 without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
+
+### Finding and managing threads
+
+- **Search.** The field at the top of the sidebar filters the selected project's threads by title and by what was
+  said in them (your prompts and the agent's answers, not tool output).
+- **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
+  it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete
+  show a notice with **Undo**. A deleted thread is gone for good about eight seconds later (or at the next start if
+  you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
+  worktree can't be deleted until you discard the worktree.
+- **Right-click a project** to **Rename** it or **Remove from SkyeLab**. Removing never touches the folder or its
+  files, and keeps the threads' history: add the same folder again and the project comes back with its threads. If
+  agents are running in it, SkyeLab asks first, and removing stops them.
+- **Unread.** When a turn finishes in a thread you aren't looking at, the thread's title turns bold with a dot until
+  you open it. You also get a notice: a toast in the window if SkyeLab is in front, or a system notification if it
+  is in the background (system notifications need the bundled app; macOS asks for permission the first time).
+  Archived threads stay quiet.
+- **Keys.** <kbd>⌘N</kbd> new thread, <kbd>⇧⌘]</kbd> / <kbd>⇧⌘[</kbd> next / previous thread, <kbd>⌘1</kbd>–<kbd>⌘9</kbd>
+  jump to a thread in sidebar order, <kbd>⌘O</kbd> open the folder in your editor. All are in the palette. On Linux
+  and Windows these <kbd>Ctrl</kbd> keys stay the shell's while a terminal is focused.
+- **Open in editor** (<kbd>⌘O</kbd>) opens the shown thread's folder (its worktree, if it has one), else the project's.
+  It runs `editor` from `settings.toml` (for example `editor = "zed --new"`; split on spaces, no shell), else
+  `$VISUAL`, else `$EDITOR`, else `code` or `zed` from your PATH. The editor gets a terminal's environment, never an
+  account's config dir.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
 as. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
