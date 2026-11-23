@@ -8,6 +8,8 @@ u() { printf '{"type":"user","message":{"role":"user","content":[%s]},"parent_to
 for w in "The user wants" " a parser for the" " new stream." " Start with the" " event types."; do d thinking_delta thinking "$w"; done
 a '{"type":"thinking","thinking":"The user wants a parser for the new stream. Start with the event types.","signature":"s"}'
 for w in "I'll add" " the parser," " then test" " it."; do d text_delta text "$w"; done
+# Hold mid-stream long enough for a loaded test machine to see the partial text.
+sleep 2
 a '{"type":"text","text":"I'"'"'ll add the parser, then test it."}'
 a '{"type":"tool_use","id":"toolu_t1","name":"TodoWrite","input":{"todos":[{"content":"Add the event types","status":"in_progress","activeForm":"Adding"},{"content":"Parse the stream","status":"pending","activeForm":"Parsing"},{"content":"Run the tests","status":"pending","activeForm":"Testing"}]}}'
 u '{"type":"tool_result","tool_use_id":"toolu_t1","content":"Todos updated"}'
