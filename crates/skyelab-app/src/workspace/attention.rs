@@ -201,6 +201,7 @@ impl Workspace {
         let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
             return;
         };
+        self.clear_woke(id, cx);
         let in_tab = view.update(cx, |v, _| {
             v.thread
                 .as_mut()

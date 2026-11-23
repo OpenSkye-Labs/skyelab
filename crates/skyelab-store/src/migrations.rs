@@ -361,4 +361,10 @@ WHERE thread_id IN (SELECT id FROM threads WHERE forked_from IS NOT NULL)
 "
     ),
     crate::scheduled::MIGRATION_V21,
+    // Version 22: T3's settled and snoozed threads. Settled ones list in their own shelf; snoozed ones hide until
+    // `snoozed_until`, then list again as woke until opened.
+    "
+ALTER TABLE threads ADD COLUMN settled_at INTEGER;
+ALTER TABLE threads ADD COLUMN snoozed_until INTEGER;
+",
 ];

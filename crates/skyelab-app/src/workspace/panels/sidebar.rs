@@ -41,12 +41,16 @@ pub struct SidebarSection {
     pub empty_hint: SharedString,
     /// A small button next to the title, e.g. "Add".
     pub button: Option<(SharedString, Box<dyn Action>)>,
+    /// The header shows the row count and folds the section on click (T3's Working shelf).
+    pub foldable: bool,
 }
 
 /// What a thread row carries besides its section item: kept apart so remote sections build rows as before.
 #[derive(Default)]
 pub struct RowMarks {
     pub pinned: bool,
+    /// Local thread rows: settle and snooze from the row's hover buttons and menu.
+    pub shelf: Option<RowShelf>,
     /// A scheduled task started it (from the stored row): the "Scheduled" badge.
     pub scheduled: bool,
     pub unread: bool,
@@ -83,6 +87,29 @@ pub struct RowCard {
     pub created_ms: i64,
     pub updated_ms: i64,
 }
+
+/// Where a local thread row sits for settle and snooze.
+#[derive(Clone, Copy)]
+pub struct RowShelf {
+    pub id: i64,
+    pub settled: bool,
+    /// Asleep while ahead, woke once passed (until opened).
+    pub snoozed_until: Option<i64>,
+}
+
+/// T3's folded shelves at the bottom of the list ("Snoozed 2", "Settled 227"), before Archived.
+pub struct Shelf {
+    pub title: SharedString,
+    pub items: Vec<SidebarItem>,
+    /// Lists [`SETTLED_PAGE`] rows at a time, with a "Show N more" row.
+    pub paged: bool,
+}
+
+use super::super::thread_list::SETTLED_PAGE;
+
+#[path = "sidebar_shelves.rs"]
+mod shelves;
+use shelves::footer;
 
 /// The selected project's archived threads, listed apart under a toggle row.
 pub struct ArchivedRows {
@@ -121,6 +148,12 @@ pub struct Sidebar {
     /// Thread rows' pin, unread and menu, by row id.
     pub marks: std::collections::HashMap<SharedString, RowMarks>,
     pub archived: Option<ArchivedRows>,
+    pub shelves: Vec<Shelf>,
+    /// Shelves the user opened and foldable sections the user folded, by title: kept across rebuilds.
+    opened: std::collections::HashSet<SharedString>,
+    folded: std::collections::HashSet<SharedString>,
+    /// How many rows a paged shelf lists.
+    paged_rows: usize,
     /// The thread filter (title and message text); hidden while another machine is shown.
     pub search: Entity<InputState>,
     pub searchable: bool,
@@ -150,20 +183,18 @@ enum Entry {
     Header(usize),
     Row(usize, usize),
     Empty(usize),
+    /// Shelf `k`'s toggle row, its row `i`, its "Show N more" row.
+    ShelfHead(usize),
+    ShelfRow(usize, usize),
+    ShelfMore(usize),
     ArchivedHead,
     Archived(usize),
     End,
 }
 
-fn entries(sections: &[SidebarSection], archived: Option<&ArchivedRows>) -> Vec<Entry> {
+/// The archived toggle and rows, then the bottom padding.
+fn entries(archived: Option<&ArchivedRows>) -> Vec<Entry> {
     let mut out = Vec::new();
-    for (s, section) in sections.iter().enumerate() {
-        out.push(Entry::Header(s));
-        if section.items.is_empty() {
-            out.push(Entry::Empty(s));
-        }
-        out.extend((0..section.items.len()).map(|i| Entry::Row(s, i)));
-    }
     // "Archived" at the end of the list, as the user guide says.
     if let Some(a) = archived.filter(|a| !a.items.is_empty()) {
         out.push(Entry::ArchivedHead);
@@ -191,6 +222,10 @@ impl Sidebar {
             picker: None,
             marks: Default::default(),
             archived: None,
+            shelves: Vec::new(),
+            opened: Default::default(),
+            folded: Default::default(),
+            paged_rows: SETTLED_PAGE,
             search,
             searchable: false,
             scope: None,
@@ -214,7 +249,7 @@ impl Sidebar {
         {
             self.rebuilds += 1;
         }
-        self.entries = entries(&self.sections, self.archived.as_ref());
+        self.entries = self.entries();
         let top = self.list.logical_scroll_top();
         self.list.reset(self.entries.len());
         self.list.scroll_to(ListOffset {
@@ -249,10 +284,36 @@ panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar")
 
 impl Sidebar {
     /// List line `ix`, spaced as the sections were: 16 px between blocks, 4 under a header, 2 between rows.
-    fn render_entry(&self, ix: usize, cx: &App) -> AnyElement {
+    fn render_entry(&self, ix: usize, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let now = ui::now_ms();
         let (top, el) = match self.entries[ix] {
+            Entry::Header(s) if self.sections[s].foldable => {
+                let s = &self.sections[s];
+                let open = !self.folded.contains(&s.title);
+                let head = self.fold_head(&s.title, s.items.len(), open, cx);
+                (if ix == 0 { 0. } else { 16. }, head)
+            }
+            Entry::ShelfHead(k) => {
+                let shelf = &self.shelves[k];
+                let open = self.opened.contains(&shelf.title);
+                (
+                    16.,
+                    self.fold_head(&shelf.title, shelf.items.len(), open, cx),
+                )
+            }
+            Entry::ShelfRow(k, i) => (2., self.row(&self.shelves[k].items[i], false, now, theme)),
+            Entry::ShelfMore(k) => {
+                let more = (self.shelves[k].items.len() - self.shelf_shown(&self.shelves[k]))
+                    .min(SETTLED_PAGE);
+                let row = ui::row("shelf-more", false, theme)
+                    .pl(gpui::px(THREAD_INDENT))
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .on_click(cx.listener(|this, _, _, cx| this.show_more(cx)))
+                    .child(format!("Show {more} more"));
+                (2., row.into_any_element())
+            }
             Entry::Header(s) => {
                 let s = &self.sections[s];
                 let header = ui::SectionHeader::new(s.title.clone())
@@ -406,33 +467,7 @@ impl Render for Sidebar {
                 .w_full(),
             )
             .children(super::super::update_notice::notice(cx))
-            // T3's footer: Settings and Usage, always in reach.
-            .child(
-                h_flex()
-                    .flex_shrink_0()
-                    .px_2()
-                    .py_2()
-                    .gap_1()
-                    .child(
-                        Button::new("sidebar-settings")
-                            .ghost()
-                            .small()
-                            .icon(IconName::Settings)
-                            .label("Settings")
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(super::super::OpenSettings), cx)
-                            }),
-                    )
-                    .child(
-                        Button::new("sidebar-usage")
-                            .ghost()
-                            .small()
-                            .icon(IconName::ChartPie)
-                            .label("Usage")
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(super::super::OpenUsage), cx)
-                            }),
-                    ),
-            )
+            // T3's footer: Settings, Pull requests, Issues and Usage, and Refresh at the end.
+            .child(footer())
     }
 }

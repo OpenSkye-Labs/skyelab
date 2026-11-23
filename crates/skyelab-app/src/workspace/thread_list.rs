@@ -11,6 +11,13 @@ use gpui::{Action, AppContext as _, Context, SharedString, Window};
 use skyelab_store::Thread;
 use std::collections::HashMap;
 
+#[path = "row_text.rs"]
+mod row_text;
+pub(super) use row_text::{pr_label, preview_text};
+#[path = "shelves.rs"]
+mod shelves;
+pub(super) use shelves::*;
+
 /// Adds the project to the sidebar's scope filter, or takes it out.
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
@@ -32,6 +39,7 @@ impl Workspace {
                 sidebar.sections = sections;
                 sidebar.marks = marks;
                 sidebar.archived = None;
+                sidebar.shelves = Vec::new();
                 sidebar.searchable = false;
                 sidebar.scope = None;
                 sidebar.rows_changed(cx);
@@ -102,6 +110,12 @@ impl Workspace {
                 id.clone(),
                 RowMarks {
                     pinned: t.pinned_at.is_some(),
+                    // Archived rows aren't listed by shelf, so they offer no settle or snooze.
+                    shelf: t.archived_at.is_none().then_some(super::panels::RowShelf {
+                        id: t.id,
+                        settled: t.settled_at.is_some(),
+                        snoozed_until: t.snoozed_until,
+                    }),
                     scheduled: t.scheduled_task_id.is_some(),
                     unread: t.unread,
                     approval: state.approval,
@@ -143,13 +157,25 @@ impl Workspace {
             }
         };
         let groups = self.thread_groups(cx);
-        let [pinned, working, rest] = groups;
+        let [pinned, working, rest, mut snoozed, mut settled] = groups;
+        snoozed.sort_by_key(|t| t.snoozed_until);
+        settled.sort_by_key(|t| std::cmp::Reverse(t.settled_at));
+        let shelved = !snoozed.is_empty() || !settled.is_empty();
+        let shelves = [("Snoozed", snoozed, false), ("Settled", settled, true)]
+            .into_iter()
+            .filter(|(_, rows, _)| !rows.is_empty())
+            .map(|(title, rows, paged)| super::panels::Shelf {
+                title: title.into(),
+                items: rows.into_iter().map(&mut item).collect(),
+                paged,
+            })
+            .collect();
         let (pinned, working): (Vec<_>, Vec<_>) = (
             pinned.into_iter().map(&mut item).collect(),
             working.into_iter().map(&mut item).collect(),
         );
         let rest: Vec<SidebarItem> = rest.into_iter().map(&mut item).collect();
-        let empty = rest.is_empty();
+        let empty = rest.is_empty() && !shelved;
         let archived = ArchivedRows {
             items: self.listed_threads().1.into_iter().map(&mut item).collect(),
             open: self.show_archived,
@@ -201,11 +227,13 @@ impl Workspace {
         self.sidebar.update(cx, |sidebar, cx| {
             sidebar.marks = marks;
             sidebar.archived = Some(archived);
+            sidebar.shelves = shelves;
             sidebar.searchable = true;
             sidebar.scope = Some(scope);
             sidebar.sections = sections;
             sidebar.rows_changed(cx);
         });
+        self.arm_wake(cx);
     }
 
     /// Reloads the rows' previews (each thread's last reply, one query) and each project folder's branch.
@@ -239,15 +267,22 @@ impl Workspace {
         }));
     }
 
-    /// The listed threads in the sidebar's three groups: pinned, working (running, starting or waiting on an approval),
-    /// the rest. Each keeps the newest-first order.
-    fn thread_groups(&self, cx: &gpui::App) -> [Vec<&Thread>; 3] {
+    /// The listed threads in the sidebar's groups: pinned, working (running, starting or waiting on an approval),
+    /// the rest, snoozed (still asleep) and settled. Each keeps the newest-first order.
+    fn thread_groups(&self, cx: &gpui::App) -> [Vec<&Thread>; 5] {
         let live = self.live_rows(cx);
-        let mut groups: [Vec<&Thread>; 3] = Default::default();
+        let now = crate::ui::now_ms();
+        let mut groups: [Vec<&Thread>; 5] = Default::default();
         for t in self.listed_threads().0 {
-            let at = if t.pinned_at.is_some() {
+            // T3's order: a shelf beats the pin, and only working beats a shelf.
+            let working = row_state(&live, t).working();
+            let at = if !working && skyelab_core::snooze::is_asleep(t.snoozed_until, now) {
+                3
+            } else if !working && t.settled_at.is_some() {
+                4
+            } else if t.pinned_at.is_some() {
                 0
-            } else if row_state(&live, t).working() {
+            } else if working {
                 1
             } else {
                 2
@@ -306,9 +341,10 @@ impl Workspace {
         self.refresh_sidebar(cx);
     }
 
-    /// The order thread keys walk (previous/next, 1–9): the sidebar's, archived ones left out.
+    /// The order thread keys walk (previous/next, 1–9): the sidebar's, shelved and archived ones left out.
     pub(super) fn thread_order(&self, cx: &gpui::App) -> Vec<i64> {
-        self.thread_groups(cx)
+        let [pinned, working, rest, ..] = self.thread_groups(cx);
+        [pinned, working, rest]
             .concat()
             .iter()
             .map(|t| t.id)
@@ -369,6 +405,8 @@ pub(super) struct Previews {
     pub bindings: HashMap<i64, std::path::PathBuf>,
     /// The running reload; a newer one replaces (cancels) it.
     _load: Option<gpui::Task<()>>,
+    /// The next snooze to wake (ms since the epoch) and the timer that redraws then.
+    pub wake: Option<(i64, gpui::Task<()>)>,
 }
 
 /// A titled section with no empty state and no button.
@@ -379,6 +417,7 @@ pub(super) fn plain_section(title: &str, items: Vec<SidebarItem>) -> SidebarSect
         empty_title: "".into(),
         empty_hint: "".into(),
         button: None,
+        foldable: false,
     }
 }
 
@@ -399,7 +438,10 @@ pub(super) fn flat_sections(
         .into_iter()
         .chain(DAYS.into_iter().zip(days))
         .filter(|(_, items)| !items.is_empty())
-        .map(|(title, items)| plain_section(title, items))
+        .map(|(title, items)| SidebarSection {
+            foldable: title == "Working",
+            ..plain_section(title, items)
+        })
         .collect()
 }
 
@@ -427,78 +469,4 @@ fn day_starts() -> [i64; 3] {
             .and_then(|m| Local.from_local_datetime(&m).earliest())
             .map_or(i64::MIN, |m| m.timestamp_millis())
     })
-}
-
-/// A reply as one plain line for the sidebar: markdown marks dropped, whitespace collapsed.
-pub(super) fn preview_text(markdown: &str) -> String {
-    let mut out = String::with_capacity(markdown.len());
-    let mut in_fence = false;
-    for line in markdown.lines() {
-        let line = line.trim();
-        // Fenced code (a diagram's source, a snippet) and rules carry no words; headings, quotes and bullets keep theirs.
-        if line.starts_with("```") {
-            in_fence = !in_fence;
-            continue;
-        }
-        if in_fence
-            || line
-                .chars()
-                .all(|c| matches!(c, '-' | '*' | '_' | '|' | ':' | ' '))
-        {
-            continue;
-        }
-        // A heading's marks ("## "), a quote's ("> "); "#24 merged" keeps its number.
-        let line = line.trim_start_matches(['>', ' ']);
-        let line = match line.trim_start_matches('#') {
-            rest if rest.starts_with(' ') => rest.trim_start(),
-            _ => line,
-        };
-        let line = line
-            .strip_prefix("- ")
-            .or_else(|| line.strip_prefix("* "))
-            .unwrap_or(line);
-        if !out.is_empty() {
-            out.push(' ');
-        }
-        out.extend(
-            link_text(line)
-                .chars()
-                .filter(|c| !matches!(c, '*' | '`' | '|')),
-        );
-    }
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// `[text](url)` and `![alt](url)` as just their text; a `[` that isn't a link stays.
-fn link_text(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    while let Some(open) = rest.find('[') {
-        let after = &rest[open + 1..];
-        let link = after.find("](").and_then(|close| {
-            let url = &after[close + 2..];
-            url.find(')').map(|end| (&after[..close], &url[end + 1..]))
-        });
-        match link {
-            Some((text, tail)) => {
-                out.push_str(rest[..open].strip_suffix('!').unwrap_or(&rest[..open]));
-                out.push_str(text);
-                rest = tail;
-            }
-            None => {
-                out.push_str(&rest[..=open]);
-                rest = after;
-            }
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
-/// "#24" for a pull request URL ending in its number, else "PR".
-pub(super) fn pr_label(url: &str) -> String {
-    match url.trim_end_matches('/').rsplit_once('/') {
-        Some((_, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => format!("#{n}"),
-        _ => "PR".into(),
-    }
 }

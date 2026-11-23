@@ -60,13 +60,28 @@ that picks that account, and when the thread was created and last updated.
 Above the list are the search field, the project filter (the folder button) and **New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
 **Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
-it asks which project. **Settings** is at the bottom of the sidebar.
+it asks which project. The **Working** header shows how many threads work now; click it to fold them away.
+
+**Settle and snooze.** Hover a thread row for two buttons where its time was: the check **settles** it (it's done:
+it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25 at a time with **Show N more**), and
+the alarm clock **snoozes** it: **In 1 hour**, **Tonight** (18:00, while that's ahead), **Tomorrow** (09:00), **Next
+week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30` or `2026-12-01 09:00`. A snoozed
+thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
+**Woke** until you open it. Each notice has **Undo**. A settled row's hover button un-settles it, and a snoozed row's
+wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
+Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
+snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
+
+The sidebar's bottom row: **Settings**, **Pull requests**, **Issues**, **Usage**, and at the right
+**Refresh**, which reloads the thread list.
 
 The center shows one page at a time: a thread, a new thread, Settings, or nothing open yet. Clicking a thread in the
 sidebar (or picking it in the palette) switches the page; there are no center tabs. The window follows the thread's
 project: the status bar, terminals and Open in editor use its folder and account. A thread you switch away from keeps
 running, and its row keeps its state. A thread that starts on its own (delegated, or from another device) doesn't take
-the page: its row says **Done** until you open it (see **Unread** below). Tools open in the right panel beside the
+the page: its row says **Done** until you open it (see **Unread** below). While the agent waits on threads it delegated, or on subagents in its turn, a line over the composer says
+**Waiting on N subagents** with their names: **Details** opens or closes the thread details card (Lineage lists them),
+and **Stop** stops them (a subagent stops with the turn that runs it). Tools open in the right panel beside the
 thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has

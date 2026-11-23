@@ -110,12 +110,12 @@ fn a_thread_started_by_a_task_carries_its_id() {
 }
 
 #[test]
-fn schema_is_21() {
+fn schema_is_22() {
     let dir = tempfile::tempdir().expect("tmp");
     let path = dir.path().join("s.db");
     drop(Store::open(&path).expect("open"));
     let conn = rusqlite_version(&path);
-    assert_eq!(conn, 21);
+    assert_eq!(conn, 22);
 }
 
 fn rusqlite_version(path: &Path) -> i64 {
