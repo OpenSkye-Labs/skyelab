@@ -162,6 +162,11 @@ impl ThreadView {
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
+        let link_pr = if is_new {
+            self.composer.extras.pending_pr.take()
+        } else {
+            None
+        };
         let mode = if side {
             skyelab_agent::Mode::Plan
         } else {
@@ -252,6 +257,15 @@ impl ThreadView {
                         // A new row, or a child's slot: either must not stay busy if this launch fails.
                         if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
+                        }
+                        // Best effort: a link that can't be saved doesn't stop the review.
+                        if let Some(url) = &link_pr {
+                            match lock(&store)
+                                .and_then(|s| s.set_thread_pr_url(thread.id, Some(url)))
+                            {
+                                Ok(()) => thread.pr_url = Some(url.clone()),
+                                Err(e) => eprintln!("skyelab: linking the PR failed: {e:#}"),
+                            }
                         }
                         if is_new && mode != skyelab_agent::Mode::Default {
                             lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;

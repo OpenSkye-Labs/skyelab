@@ -37,12 +37,12 @@ fn turns(n: u64) -> String {
 }
 
 /// A segmented toggle (T3's `ToggleGroup variant="segmented"`): a muted track, the chosen segment lifted.
-fn segments<T: Copy + PartialEq + 'static>(
+pub(super) fn segments<T: Copy + PartialEq + 'static, V: 'static>(
     id: &'static str,
     items: &[(T, &'static str)],
     on: T,
-    pick: impl Fn(&mut UsagePage, T, &mut Context<UsagePage>) + Copy + 'static,
-    cx: &mut Context<UsagePage>,
+    pick: impl Fn(&mut V, T, &mut Context<V>) + Copy + 'static,
+    cx: &mut Context<V>,
 ) -> AnyElement {
     let theme = cx.theme();
     h_flex()

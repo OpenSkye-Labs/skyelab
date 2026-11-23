@@ -109,6 +109,19 @@ login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 Starting threads, scratch threads, the composer, permissions, queueing and steering:
 [user-guide-using-threads.md](user-guide-using-threads.md).
 
+## Pull requests and issues
+
+**Open Pull Requests** and **Open Issues** in the command palette show one page each. Every project whose folder is
+bound to an account is listed under its name and account, read with that account's own `gh` login and never
+another's; the repo is the project's `origin` (a github.com https or ssh URL). An account with no GitHub login shows
+**Sign in to GitHub** and nothing is asked. Up to 50 open items per project are read, once per filter (**Mine**,
+**Review requested**, **All** for PRs; **Assigned to me**, **All** for issues) until you press refresh.
+
+- Click a PR to start a thread in its project with a review prompt; the PR is linked to the thread when you send it.
+  The arrow icon opens the PR in your browser.
+- Click an issue to start a thread with the issue (title, link, labels, the start of its text) as a context chip.
+  Click a label to show only that label's issues; click it again (or the **Label** button) to show all.
+
 ## Worktrees
 
 Click **Local checkout** under the composer (it turns into **New worktree**) before you send the first prompt. The thread then works in its own

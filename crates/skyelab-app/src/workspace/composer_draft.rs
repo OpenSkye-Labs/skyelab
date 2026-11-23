@@ -60,6 +60,8 @@ pub(crate) struct ComposerExtras {
     history: Option<(usize, String)>,
     /// The thread this one was forked from: (id, title).
     pub forked_from: Option<(i64, SharedString)>,
+    /// A draft started from the Pull requests page: the PR its row links once the first message saves it.
+    pub pending_pr: Option<String>,
 }
 
 /// A shown prompt as the composer can hold it again: without its "Attached: …" line (`None` for files alone).

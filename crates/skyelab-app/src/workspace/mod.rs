@@ -21,6 +21,8 @@ mod env_picker;
 mod env_sidebar;
 mod files;
 mod focus_areas;
+mod gh_pages;
+mod gh_pages_render;
 mod image_viewer;
 mod import_sessions;
 mod keymap_notice;
@@ -195,8 +197,7 @@ pub struct Workspace {
     /// The projects the sidebar's list is narrowed to; empty means all.
     scope: Vec<i64>,
     /// Every thread view of this window, shown or not: a hidden one keeps its agent running.
-    // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
-    // thread it opened in memory; evict idle hidden ones if that ever matters.
+    // shortcut: views are only dropped by close_thread, so a long session keeps every thread it opened in memory.
     open_threads: Vec<Entity<ThreadView>>,
     center: Entity<Center>,
     welcome: Entity<Welcome>,
@@ -240,6 +241,7 @@ pub struct Workspace {
     _search: Option<Task<()>>,
     _attention: Vec<Subscription>,
     pr_watch: pr_watch::Watch,
+    gh_pages: gh_pages::Pages,
     /// Deleted threads waiting out their undo window; dropping one (an undo, a new delete) cancels its purge.
     purges: std::collections::HashMap<i64, Task<()>>,
     /// The last unread-mark write; each new one waits for it.
@@ -379,6 +381,7 @@ impl Workspace {
             _search: None,
             _attention: Vec::new(),
             pr_watch: Default::default(),
+            gh_pages: Default::default(),
             purges: Default::default(),
             _unread_write: None,
             files: Default::default(),
