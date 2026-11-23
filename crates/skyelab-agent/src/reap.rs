@@ -1,9 +1,15 @@
 //! Ending an agent: reaping it, and killing its whole process tree.
 
-use crate::{Session, launch};
+use crate::Session;
+#[cfg(unix)]
+use crate::launch;
 use anyhow::{Context as _, Result};
-use std::path::Path;
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::ExitStatus;
+#[cfg(unix)]
+use std::{
+    path::Path,
+    process::{Command, Stdio},
+};
 
 impl Session {
     /// The exit status once the agent has exited (reaping it), or `None` while it runs. Reaping it also ends what
