@@ -20,6 +20,9 @@ pub trait Backend: Send + Sync + 'static {
     fn answer_permission(&self, _: i64, _: &str, _: PermissionAnswer) -> Result<(), RpcError> {
         NotWired::err()
     }
+    fn answer_questions(&self, _: i64, _: &str, _: &[Vec<String>]) -> Result<(), RpcError> {
+        NotWired::err()
+    }
 }
 
 /// Runs agents for remote requests. The daemon never launches anything itself. An implementation resolves the
@@ -31,6 +34,10 @@ pub trait Agents: Send + Sync + 'static {
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError>;
     /// Answers the permission request `request_id` the thread's agent waits on.
     fn answer_permission(&self, _: i64, _: &str, _: PermissionAnswer) -> Result<(), RpcError> {
+        NotWired::err()
+    }
+    /// Answers the AskUserQuestion `request_id` the thread's agent waits on: one list of labels per question.
+    fn answer_questions(&self, _: i64, _: &str, _: &[Vec<String>]) -> Result<(), RpcError> {
         NotWired::err()
     }
 }
@@ -131,7 +138,10 @@ impl<A: Agents> Backend for StoreBackend<A> {
     }
 
     fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
-        let threads = self.with_store(|s| s.list_threads(project_id))?;
+        // shortcut: every listing reads every thread's last reply (one query); fine for a sidebar's worth of threads,
+        // a per-project query is the upgrade if listings get slow.
+        let (threads, mut previews) =
+            self.with_store(|s| Ok((s.list_threads(project_id)?, s.last_replies()?)))?;
         let accounts = self.accounts();
         let label = |id: &str| {
             accounts
@@ -149,6 +159,9 @@ impl<A: Agents> Backend for StoreBackend<A> {
                 account_label: label(&t.account_id),
                 account_id: t.account_id,
                 status: t.status,
+                pinned: t.pinned_at.is_some(),
+                // The store already cuts it to `PREVIEW_CHARS`.
+                preview: previews.remove(&t.id),
                 created_at: t.created_at,
                 updated_at: t.updated_at,
             })
@@ -190,6 +203,15 @@ impl<A: Agents> Backend for StoreBackend<A> {
     ) -> Result<(), RpcError> {
         self.agents
             .answer_permission(thread_id, request_id, decision)
+    }
+
+    fn answer_questions(
+        &self,
+        thread_id: i64,
+        request_id: &str,
+        answers: &[Vec<String>],
+    ) -> Result<(), RpcError> {
+        self.agents.answer_questions(thread_id, request_id, answers)
     }
 }
 

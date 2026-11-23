@@ -102,8 +102,11 @@ certificate check does.
 
 **What a connected device can do.** List projects and threads, read thread events, start a thread in an existing
 project, send follow-ups, interrupt, and answer a permission request the thread's agent waits on
-(`answer_permission`, 1.3: Allow once, Allow for this thread or Deny, exactly as a click in the thread there; the
-reply waits until the agent took it). It can't change a thread's permission mode, add projects, change accounts or bindings, open terminals or run
+(`answer_permission`, 1.3: Allow once, Allow for this thread or Deny, exactly as a click in the thread there; on an
+ExitPlanMode request an allow approves the plan and moves the thread out of Plan, as Approve does there; the reply waits
+until the agent took it), and answer an AskUserQuestion (`answer_questions`, 1.4: one list of labels per question, sent
+as a Submit there; the agent refuses a count that doesn't match). Both go through `UiAgents` and its `CallGate` like
+every agent call. It can't change a thread's permission mode, add projects, change accounts or bindings, open terminals or run
 anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread appears in the local window's sidebar with an
@@ -116,8 +119,10 @@ Disconnect button.
 **Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window
 shows: "This Mac", your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this
 node), recent ones, or a MagicDNS name typed by hand. Recents are saved as `recent_environments` in `settings.toml`.
-On a remote machine the sidebar's projects and threads come from its daemon through `skyelab-client`, and opening a
-thread watches its events (the client fills gaps and replays after reconnects) into a remote thread page that draws
+On a remote machine the sidebar comes from its daemon through `skyelab-client`: every project's threads
+(`list_threads` per project, listed again a second after pushed events) in the local flat list's sections, with each
+thread's pin and last reply (1.4: `Thread.pinned`, `Thread.preview`, the reply's first 400 chars; absent from an older
+server), then its projects. Opening a thread watches its events (the client fills gaps and replays after reconnects) into a remote thread page that draws
 items with the same renderer as a local thread. Send starts a thread or sends a follow-up there; Stop interrupts it.
 The status bar and the thread header say which machine you are on and its connection state (connecting, connected,
 reconnecting, version mismatch, "that machine didn't accept this device" when its whois refuses you, or

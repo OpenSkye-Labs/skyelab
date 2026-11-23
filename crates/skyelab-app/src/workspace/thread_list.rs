@@ -27,10 +27,10 @@ pub struct NewThreadIn {
 
 impl Workspace {
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
-        if let Some(sections) = self.remote_sections(cx) {
+        if let Some((sections, marks)) = self.remote_sections(cx) {
             return self.sidebar.update(cx, |sidebar, cx| {
                 sidebar.sections = sections;
-                sidebar.marks.clear();
+                sidebar.marks = marks;
                 sidebar.archived = None;
                 sidebar.searchable = false;
                 sidebar.scope = None;
@@ -143,11 +143,8 @@ impl Workspace {
             pinned.into_iter().map(&mut item).collect(),
             working.into_iter().map(&mut item).collect(),
         );
-        let starts = day_starts();
-        let mut days: [Vec<SidebarItem>; 4] = Default::default();
-        for t in rest {
-            days[day_bucket(starts, t.updated_at)].push(item(t));
-        }
+        let rest: Vec<SidebarItem> = rest.into_iter().map(&mut item).collect();
+        let empty = rest.is_empty();
         let archived = ArchivedRows {
             items: self.listed_threads().1.into_iter().map(&mut item).collect(),
             open: self.show_archived,
@@ -166,27 +163,8 @@ impl Workspace {
         };
         let searching = self.thread_search.is_some();
         let no_projects = self.projects.is_empty();
-        let section = |title: &str, items| SidebarSection {
-            title: SharedString::from(title.to_owned()),
-            items,
-            empty_title: "".into(),
-            empty_hint: "".into(),
-            button: None,
-            nested: false,
-        };
-        let mut sections = Vec::new();
-        if !pinned.is_empty() {
-            sections.push(section("Pinned", pinned));
-        }
-        if !working.is_empty() {
-            sections.push(section("Working", working));
-        }
-        let empty = days.iter().all(Vec::is_empty);
-        for (title, items) in DAYS.iter().zip(days) {
-            if !items.is_empty() {
-                sections.push(section(title, items));
-            }
-        }
+        let section = plain_section;
+        let mut sections = flat_sections(pinned, working, rest);
         // Nothing outside Pinned and Working: the list's empty state, which says what to do next.
         if empty {
             sections.push(SidebarSection {
@@ -387,6 +365,38 @@ pub(super) struct Previews {
     pub bindings: HashMap<i64, std::path::PathBuf>,
     /// The running reload; a newer one replaces (cancels) it.
     _load: Option<gpui::Task<()>>,
+}
+
+/// A titled section with no empty state and no button.
+pub(super) fn plain_section(title: &str, items: Vec<SidebarItem>) -> SidebarSection {
+    SidebarSection {
+        title: SharedString::from(title.to_owned()),
+        items,
+        empty_title: "".into(),
+        empty_hint: "".into(),
+        button: None,
+    }
+}
+
+/// The flat list's sections: Pinned, Working, then `rest` by the day it last changed (each row's `updated_ms`),
+/// every section keeping the order given; empty ones are left out. Shared by this machine's sidebar and another's.
+pub(super) fn flat_sections(
+    pinned: Vec<SidebarItem>,
+    working: Vec<SidebarItem>,
+    rest: Vec<SidebarItem>,
+) -> Vec<SidebarSection> {
+    let starts = day_starts();
+    let mut days: [Vec<SidebarItem>; 4] = Default::default();
+    for item in rest {
+        days[day_bucket(starts, item.updated_ms.unwrap_or_default())].push(item);
+    }
+    let shelves = [("Pinned", pinned), ("Working", working)];
+    shelves
+        .into_iter()
+        .chain(DAYS.into_iter().zip(days))
+        .filter(|(_, items)| !items.is_empty())
+        .map(|(title, items)| plain_section(title, items))
+        .collect()
 }
 
 /// The date sections under Pinned and Working, T3's and Synara's: indexes [`day_bucket`] returns.

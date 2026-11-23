@@ -46,7 +46,21 @@ pub fn event_text(e: &ThreadEvent) -> String {
                         None => format!("→ {name}"),
                     })
                 }
-                "tool_result" => Some("(tool output)".to_owned()),
+                // Its text stays folded away; an image says its size, and whether that machine kept it.
+                "tool_result" => {
+                    let images: Vec<String> = b
+                        .get("content")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                        .filter(|c| c.get("type").and_then(Value::as_str) == Some("image"))
+                        .map(skyelab_protocol::image_label)
+                        .collect();
+                    Some(match images.is_empty() {
+                        true => "(tool output)".to_owned(),
+                        false => format!("(tool output)\n{}", images.join("\n")),
+                    })
+                }
                 _ => None,
             })
             .collect();

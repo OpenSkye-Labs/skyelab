@@ -89,6 +89,8 @@ fn the_label_round_trips_and_older_peers_still_parse() {
         account_id: "work".into(),
         account_label: Some("Work (Team)".into()),
         status: "idle".into(),
+        pinned: false,
+        preview: None,
         created_at: 0,
         updated_at: 0,
     };

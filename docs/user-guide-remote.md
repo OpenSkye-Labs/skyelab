@@ -42,8 +42,10 @@ allowed here once:
 - An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
 
 Connected devices are listed in Settings → Sharing, each with a **Disconnect** button, which closes the connection at once.
-A connected device can list projects and threads, start a thread in an existing project, send follow-ups and
-interrupt. A follow-up or interrupt is answered once the agent took it, or with why it couldn't (within 20 seconds). It can't add projects, change accounts or
+A connected device can list projects and threads, start a thread in an existing project, send follow-ups,
+interrupt, answer a permission request, answer an agent's questions and approve or reject its plan (approving moves the
+thread out of Plan mode here, as a click does). Each is answered once the agent took it, or with why it couldn't
+(within 20 seconds). It can't add projects, change accounts or
 bindings, or open terminals. Turning sharing off closes every connection.
 
 ## The environment switcher
@@ -54,8 +56,13 @@ MagicDNS names work, not IP addresses or short names. The other machine must hav
 time, it must also allow this device: the status bar says **Waiting for approval** with this device's code; check
 that the other machine shows the same code, click **Allow** there, and this window connects within a few seconds.
 
-On a remote machine, the sidebar lists its projects and threads. You can open threads, start new ones, send
-follow-ups and stop them. The account shown is the one that machine resolved. Terminals and worktree controls are
+On a remote machine, the sidebar shows the same list as here: every project's threads under **Pinned**, **Working**,
+then **Today**, **Yesterday**, **Previous 7 days** and **Older**, each row with its project, the agent's last reply,
+its status and its account. Its projects follow; the selected one is where **New thread** starts. You can open threads,
+start new ones, send follow-ups and stop them, answer permission requests and questions, approve plans, and find in a
+thread with ⌘F (Ctrl+F). The thread filter, scope menu, unread and approval marks are local only, and a machine on an
+older SkyeLab shows no pins or reply previews and can't take question answers. A screenshot the other machine's
+store didn't keep reads **Image (205 KB) not kept**, on the desktop and in the mobile app. The account shown is the one that machine resolved. Terminals and worktree controls are
 local only. A remote thread is shown as the page, like a local one. Switching back to **This Mac** closes the remote
 threads. A thread that starts on this machine while you look at another one (a delegated thread, or one started from
 your phone) waits: the sidebar shows **This Mac · 1 new thread here**, and clicking it switches back, where the

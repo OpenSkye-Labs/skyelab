@@ -17,6 +17,7 @@ mod details_panel;
 mod devices;
 mod env_mode;
 mod env_picker;
+mod env_sidebar;
 mod files;
 mod keys;
 pub(crate) mod layout;
@@ -40,7 +41,9 @@ mod orchestrate_ui;
 mod palette_items;
 mod panels;
 mod projects;
+mod question_drafts;
 mod remote;
+mod remote_answers;
 mod remote_queue;
 mod remote_thread;
 mod render;
@@ -453,6 +456,8 @@ mod devices_tests;
 mod drive_rebound_test;
 #[cfg(test)]
 mod env_approval_test;
+#[cfg(test)]
+mod env_flat_list_test;
 #[cfg(test)]
 mod env_followups_test;
 #[cfg(test)]

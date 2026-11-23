@@ -404,6 +404,24 @@ impl Client {
         )
     }
 
+    /// Answers an AskUserQuestion the thread's agent waits on (protocol 1.4): one list of labels per question.
+    pub fn answer_questions(
+        &self,
+        thread_id: i64,
+        request_id: impl Into<String>,
+        answers: Vec<Vec<String>>,
+    ) -> Pending<()> {
+        let request_id = request_id.into();
+        self.call(
+            Call::AnswerQuestions {
+                thread_id,
+                request_id,
+                answers,
+            },
+            ok,
+        )
+    }
+
     /// Delivers the thread's events after `after_seq` on [`Client::updates`], then every new one, each once, in
     /// order, across reconnects. Watching a thread again (a reopened tab) replays from the new `after_seq`, so a
     /// watcher already following it sees those events again and must drop them by seq.

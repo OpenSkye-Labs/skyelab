@@ -45,7 +45,8 @@ pub fn recorder(f: &Fixture) -> PathBuf {
     let bin = f.dir.parent().expect("root").join("recorder.sh");
     std::fs::write(
         &bin,
-        "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.txt\nwhile IFS= read -r l; do printf '%s\\n' \"$l\" >> stdin.txt; done\n",
+        // args.txt appears whole (renamed into place), so a reader never sees half the args.
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > args.tmp && mv args.tmp args.txt\nwhile IFS= read -r l; do printf '%s\\n' \"$l\" >> stdin.txt; done\n",
     )
     .expect("write recorder");
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");

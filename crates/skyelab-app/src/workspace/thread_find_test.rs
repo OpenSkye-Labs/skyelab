@@ -111,7 +111,7 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     one.view.update(cx, |v, cx| {
         v.items.push(Item::Text("one more needle".into()));
         v.list.reset(v.items.len());
-        v.find_rows_changed();
+        super::thread_find::FindHost::find_rows_changed(v);
         cx.notify();
     });
     assert_eq!(state(cx), (vec![1, 2, 2, 4], 1));
