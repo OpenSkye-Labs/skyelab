@@ -160,6 +160,12 @@ and how Zed uses it, not blog posts or memory.
   Keep anything else the draft has (files, chips) on the view, not in the input.
 - Code that runs inside `ws.update(..)` must not read every workspace entity (that one is mid-update and panics):
   keep cross-window data (each window's saved layout) in the registry global instead.
+- App-wide timed work (the scheduler) is one `Global` holding one `cx.spawn` task, started idempotently by whichever
+  window claims the hub; each tick looks up the hub window then (`windows::hub_workspace`), so a closed window never
+  takes the work with it and a second window never starts a second loop.
+- `window.update(..)` fails ("window not found") when called inside that same window's update: a click handler, a
+  view's `update_in`, `VisualTestContext::update`. Work that opens tabs on the hub window runs from the App level: a
+  click hands it over with `cx.defer`, and a test drives it with `TestAppContext::update(cx, f)`, not `cx.update`.
 - Find a closing window with `cx.on_window_closed`, not the root view's `on_release`: a test or a task holding the
   entity keeps it alive after its window is gone. Inside that callback `cx.windows()` no longer lists it.
 - A window whose focused element moved to another window has no focus, so its key bindings stop: give the page the

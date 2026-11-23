@@ -360,4 +360,5 @@ WHERE thread_id IN (SELECT id FROM threads WHERE forked_from IS NOT NULL)
   AND EXISTS (SELECT 1 FROM events e WHERE e.thread_id = turn_usage.thread_id AND e.seq = turn_usage.seq);
 "
     ),
+    crate::scheduled::MIGRATION_V21,
 ];

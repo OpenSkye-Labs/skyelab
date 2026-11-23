@@ -119,6 +119,11 @@ login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 Starting threads, scratch threads, the composer, permissions, queueing and steering:
 [user-guide-using-threads.md](user-guide-using-threads.md).
 
+## Scheduled tasks
+
+Saved prompts that start a thread on a schedule (intervals, daily, weekdays, cron), missed runs, and the account
+rule for unattended runs: [user-guide-scheduled.md](user-guide-scheduled.md).
+
 ## Worktrees
 
 Click **Local checkout** under the composer (it turns into **New worktree**) before you send the first prompt. The thread then works in its own

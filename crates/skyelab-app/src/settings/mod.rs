@@ -121,6 +121,8 @@ pub struct Settings {
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
     /// The Usage section's content; the workspace sets it and reads the store for it.
     pub usage: Option<Entity<crate::workspace::usage_page::UsagePage>>,
+    /// The Scheduled tasks section's content, set by the workspace like `usage`.
+    pub scheduled: Option<Entity<crate::workspace::scheduled::ScheduledPage>>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -213,6 +215,7 @@ impl Settings {
             section: Section::default(),
             remote: None,
             usage: None,
+            scheduled: None,
             focus: cx.focus_handle(),
             _pick: None,
             _subs: subs,

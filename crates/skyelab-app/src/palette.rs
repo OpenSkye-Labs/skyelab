@@ -139,6 +139,7 @@ pub fn rank<'a>(query: &str, labels: impl IntoIterator<Item = &'a str>) -> Vec<u
 const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::ToggleEnvironments", "Switch Machine"),
     ("skyelab::Stop", "Stop Agent"),
+    ("skyelab::SchedulePrompt", "Schedule this prompt…"),
     ("skyelab::Interrupt", "Interrupt Agent"),
     ("skyelab::RemoteStop", "Stop Remote Agent"),
     ("skyelab::SendRemotePrompt", "Send Prompt to Remote"),

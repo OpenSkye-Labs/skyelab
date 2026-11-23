@@ -47,6 +47,8 @@ pub struct SidebarSection {
 #[derive(Default)]
 pub struct RowMarks {
     pub pinned: bool,
+    /// A scheduled task started it (from the stored row): the "Scheduled" badge.
+    pub scheduled: bool,
     pub unread: bool,
     /// The agent waits for a permission answer.
     pub approval: bool,
