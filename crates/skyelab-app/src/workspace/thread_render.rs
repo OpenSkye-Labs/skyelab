@@ -42,10 +42,7 @@ impl ThreadView {
 
     fn render_header(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let folder = self.cwd.file_name().map_or_else(
-            || self.cwd.display().to_string(),
-            |n| n.to_string_lossy().into_owned(),
-        );
+        let project = self.project_name.clone();
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
         // The window's top row: breadcrumb and account, then the dock toggles. The thread's folder, branch, git and
         // lineage controls are in the right dock's Details tab.
@@ -64,7 +61,7 @@ impl ThreadView {
                             .min_w_0()
                             .truncate()
                             .text_color(theme.muted_foreground)
-                            .child(folder),
+                            .child(project),
                     )
                     .child(
                         div()
@@ -325,10 +322,7 @@ impl Render for ThreadView {
             Some("The agent has ended. Send a message to continue its session.")
         };
         let body = if self.items.is_empty() && !self.read_only {
-            let folder = self.cwd.file_name().map_or_else(
-                || self.cwd.display().to_string(),
-                |n| n.to_string_lossy().into_owned(),
-            );
+            let project = &self.project_name;
             div()
                 .flex_1()
                 .flex()
@@ -337,7 +331,7 @@ impl Render for ThreadView {
                 .px_6()
                 .child(
                     ui::EmptyState::new(match &self.thread {
-                        None => format!("New thread in {folder}"),
+                        None => format!("New thread in {project}"),
                         Some(_) => "Nothing here yet".to_string(),
                     })
                         .hint(

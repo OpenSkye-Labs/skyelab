@@ -19,6 +19,8 @@ pub enum ThreadViewEvent {
     FilesChanged,
     /// Run a project script in this thread's folder, on its account.
     RunScript(Box<skyelab_store::ProjectScript>),
+    /// The Details tab unlinked this pull request from the thread: the workspace offers to undo it.
+    PrUnlinked(String),
     /// The project's scripts were edited.
     ScriptsChanged,
     /// The thread got a new worktree: the project's setup scripts run there.

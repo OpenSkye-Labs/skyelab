@@ -263,7 +263,8 @@ impl ThreadView {
                         };
                         // The binding as saved right now: a rebind may have landed while this launch ran. An
                         // unreadable file binds nothing, so the check below refuses.
-                        let current = super::accounts_now(accounts_file.as_deref(), &config);
+                        let current =
+                            crate::workspace::accounts_now(accounts_file.as_deref(), &config);
                         let session = skyelab_agent::start_with_bin(&bin, &current, &launch);
                         let status = if session.is_ok() { "running" } else { "failed" };
                         lock(&store)?.set_thread_status(thread.id, status)?;

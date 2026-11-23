@@ -127,6 +127,49 @@ impl Workspace {
         super::manage::push_note(window, note, cx);
     }
 
+    /// The Details tab unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
+    pub(super) fn pr_unlinked(
+        &mut self,
+        id: i64,
+        url: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.update_row(id, |t| t.pr_url = None, cx);
+        let text = format!(
+            "Unlinked pull request {}",
+            super::thread_list::pr_label(&url)
+        );
+        self.undo_notice(
+            text,
+            move |ws, window, cx| ws.relink_pr(id, url.clone(), window, cx),
+            window,
+            cx,
+        );
+    }
+
+    pub(super) fn relink_pr(
+        &mut self,
+        id: i64,
+        url: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Err(e) = lock(&self.backend.store).and_then(|s| s.set_thread_pr_url(id, Some(&url)))
+        {
+            return self.say(
+                format!("Couldn't link the pull request again: {e:#}"),
+                window,
+                cx,
+            );
+        }
+        if let Some(view) = self.open_view(id, cx) {
+            let url = url.clone();
+            view.update(cx, |v, cx| v.set_pr_url(Some(url), cx));
+        }
+        self.update_row(id, |t| t.pr_url = Some(url), cx);
+    }
+
     fn update_row(
         &mut self,
         id: i64,

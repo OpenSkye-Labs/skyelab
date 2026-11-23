@@ -28,6 +28,7 @@ pub(super) fn sidebar_row(
     marks: Option<&RowMarks>,
     focus: &FocusHandle,
     indent: bool,
+    cards: bool,
     now: i64,
     theme: &gpui_component::Theme,
 ) -> AnyElement {
@@ -36,7 +37,7 @@ pub(super) fn sidebar_row(
     } else {
         plain_row(item, marks, indent, now, theme)
     };
-    let card = marks.and_then(|m| m.card.clone());
+    let card = marks.and_then(|m| m.card.clone()).filter(|_| cards);
     let Some(menu) = marks.filter(|m| !m.menu.is_empty()) else {
         return super::sidebar_card::with_card(&item.id, row, card);
     };
@@ -112,7 +113,9 @@ fn thread_row(
         Some(RowAccount::Hidden) | None => None,
     };
     let muted = theme.muted_foreground;
+    let selector = format!("row-{}", item.id);
     ui::row_surface(v_flex(), item.id.clone(), item.selected, theme)
+        .debug_selector(move || selector.clone())
         .py_1p5()
         .gap_0p5()
         .font_weight(gpui::FontWeight::NORMAL)

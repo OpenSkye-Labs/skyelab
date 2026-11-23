@@ -22,22 +22,6 @@ actions!(skyelab, [SendPrompt, Interrupt, Stop]);
 
 pub(super) const CONTEXT: &str = "Thread";
 
-/// The accounts.toml a launch re-reads right before it spawns.
-pub struct AccountsFile(pub PathBuf);
-
-impl gpui::Global for AccountsFile {}
-
-/// The accounts as `file` says right now (`fallback` without one). An unreadable file binds nothing.
-pub(super) fn accounts_now(
-    file: Option<&std::path::Path>,
-    fallback: &skyelab_core::AccountsConfig,
-) -> skyelab_core::AccountsConfig {
-    file.map_or_else(
-        || fallback.clone(),
-        |p| skyelab_core::AccountsConfig::load(p).unwrap_or_default(),
-    )
-}
-
 #[path = "thread_answers.rs"]
 mod answers;
 /// The composer under the thread (`composer.rs` and its parts).
@@ -60,6 +44,8 @@ pub use event::{GitAction, ThreadViewEvent};
 pub struct ThreadView {
     pub(super) focus: FocusHandle,
     pub(super) project_id: i64,
+    /// The project's name, as the sidebar shows it (the workspace keeps it current across renames).
+    pub(super) project_name: SharedString,
     pub(super) cwd: PathBuf,
     pub(super) config: AccountsConfig,
     /// The account `cwd` resolves to now, for display (resolving touches the filesystem, so never in render).
@@ -158,6 +144,7 @@ impl ThreadView {
             window,
             cx,
         );
+        this.project_name = project.name.clone().into();
         this.load_composer(cx);
         this
     }
@@ -285,6 +272,11 @@ impl ThreadView {
             folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,
+            // The folder's name until the workspace names the project (`new` and `open_stored` do at once).
+            project_name: cwd.file_name().map_or_else(
+                || cwd.display().to_string().into(),
+                |n| n.to_string_lossy().into_owned().into(),
+            ),
             cwd,
             config,
             backend,
@@ -349,9 +341,9 @@ impl ThreadView {
     }
 
     /// A PR was opened from this thread (already stored on its row).
-    pub fn set_pr_url(&mut self, url: String, cx: &mut Context<Self>) {
+    pub fn set_pr_url(&mut self, url: Option<String>, cx: &mut Context<Self>) {
         if let Some(t) = self.thread.as_mut() {
-            t.pr_url = Some(url);
+            t.pr_url = url;
             cx.notify();
         }
     }

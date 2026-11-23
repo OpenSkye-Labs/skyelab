@@ -3,7 +3,7 @@
 
 use super::changes::ChangesView;
 use super::thread::GitAction;
-use super::worktree::resolves_to;
+use super::worktree::push_account;
 use super::{SharedStore, lock};
 use crate::ui;
 use anyhow::{Context as _, Result, bail};
@@ -91,8 +91,8 @@ impl ChangesView {
         let task = cx.background_spawn(async move {
             let mut target = target;
             // The binding as saved right now, like an agent launch: an outside edit may have moved the folder.
-            target.config = super::thread::accounts_now(accounts_file.as_deref(), &target.config);
-            resolves_to(&target.config, &target.dir, &target.account_id)?;
+            target.config = super::accounts_now(accounts_file.as_deref(), &target.config);
+            push_account(&target.config, &target.dir, &target.account_id)?;
             if github {
                 target.gh_dir = Some(target.config.github_config_dir(&target.dir)?);
             }
@@ -100,9 +100,6 @@ impl ChangesView {
                 gh: &gh_bin,
                 config_dir,
             });
-            // Commit all and Push act on the whole repo, so its root must be the thread's account too.
-            let root = skyelab_git::repo_root(&target.dir)?;
-            resolves_to(&target.config, &root, &target.account_id)?;
             work(&target, gh)
         });
         self._publish = Some(cx.spawn_in(window, async move |this, cx| {
@@ -230,7 +227,7 @@ impl ChangesView {
             |this, url, _, cx| {
                 this.publish_note = Some(format!("Opened {url}").into());
                 if let Some(view) = this.thread.as_ref().and_then(|t| t.upgrade()) {
-                    view.update(cx, |t, cx| t.set_pr_url(url, cx));
+                    view.update(cx, |t, cx| t.set_pr_url(Some(url), cx));
                 }
             },
         );
