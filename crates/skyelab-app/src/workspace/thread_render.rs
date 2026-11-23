@@ -3,14 +3,17 @@
 use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
 use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
+use crate::ui;
 use gpui::{
-    AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*, px,
+    AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*,
+    px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
+    ActiveTheme as _, Disableable as _, IconName, Sizable as _,
+    button::{Button, ButtonRounded, ButtonVariants as _},
     h_flex,
     input::Textarea,
+    tooltip::Tooltip,
     v_flex,
 };
 
@@ -22,77 +25,74 @@ pub(super) fn opens_in_browser(url: &str) -> bool {
 }
 
 impl ThreadView {
+    /// The account this thread runs on: its own (from its store row), or for a new thread the one its folder resolves to.
+    pub(super) fn account_badge(&self) -> ui::AccountBadge {
+        match &self.thread {
+            Some(t) => match self.config.accounts.iter().find(|a| a.id == t.account_id) {
+                Some(a) => ui::AccountBadge::of(a),
+                None => ui::AccountBadge::new(t.account_id.clone(), "Unknown account"),
+            },
+            None => self
+                .folder_account
+                .as_ref()
+                .map_or_else(ui::AccountBadge::unbound, ui::AccountBadge::of),
+        }
+    }
+
     fn render_header(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let running = self.session.is_some();
-        h_flex()
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(theme.border)
+        let folder = self.cwd.file_name().map_or_else(
+            || self.cwd.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+        let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
+        ui::header(theme)
             .child(
-                v_flex()
+                h_flex()
+                    .id("thread-breadcrumb")
                     .flex_1()
                     .min_w_0()
+                    .gap_2()
+                    .text_size(ui::BODY)
+                    .font_weight(FontWeight::MEDIUM)
+                    .tooltip(move |window, cx| Tooltip::new(path.clone()).build(window, cx))
                     .child(
                         div()
-                            .text_sm()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .truncate()
-                            .child(self.title()),
+                            .flex_shrink_0()
+                            .text_color(theme.muted_foreground)
+                            .child(folder),
                     )
                     .child(
                         div()
-                            .text_xs()
-                            .truncate()
-                            .text_color(theme.muted_foreground)
-                            .child(self.cwd.display().to_string()),
+                            .flex_shrink_0()
+                            .text_color(theme.muted_foreground.opacity(0.6))
+                            .child("/"),
                     )
                     .children(self.parent.clone().map(|(id, title)| {
                         h_flex()
-                            .gap_1()
-                            .text_xs()
-                            .text_color(theme.muted_foreground)
-                            .child("Delegated by")
+                            .flex_shrink_0()
+                            .gap_2()
                             .child(thread_link("parent-link", id, title))
-                    })),
+                            .child(
+                                div()
+                                    .text_color(theme.muted_foreground.opacity(0.6))
+                                    .child("/"),
+                            )
+                    }))
+                    .child(div().min_w_0().truncate().child(self.title())),
             )
-            .children(self.provider().map(|p| {
-                let color = match p {
-                    skyelab_core::Provider::Claude => theme.warning,
-                    skyelab_core::Provider::Codex => theme.info,
-                };
-                h_flex()
+            .child(
+                div()
                     .id("provider-badge")
-                    .gap_1p5()
-                    .px_2()
-                    .py_0p5()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(color)
-                    .text_xs()
-                    .child(div().size(px(6.)).rounded_sm().bg(color))
-                    .child(p.label())
-            }))
-            .children(self.badge().map(|badge| {
-                h_flex()
-                    .gap_1p5()
-                    .px_2()
-                    .py_0p5()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(theme.border)
-                    .text_xs()
-                    .child(div().size(px(6.)).rounded_full().bg(theme.success))
-                    .child(badge)
-            }))
+                    .child(self.account_badge().chip()),
+            )
             .children(self.render_pr_link(cx))
             .child(self.render_worktree_actions(cx))
             .when(running, |this| {
                 this.child(
                     Button::new("interrupt")
-                        .outline()
+                        .ghost()
                         .xsmall()
                         .label("Interrupt")
                         .on_click(cx.listener(|this, _, window, cx| {
@@ -160,93 +160,144 @@ impl ThreadView {
     }
 
     fn render_cta(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
-        v_flex()
-            .mx_4()
-            .mb_2()
-            .p_3()
-            .gap_2()
-            .rounded_lg()
-            .border_1()
-            .border_color(theme.warning)
-            .child(
-                div()
-                    .text_sm()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child("This folder isn't bound to an account"),
-            )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(format!(
-                        "SkyeLab never picks an account for you. Bind {} to one, then send again.",
-                        self.cwd.display()
-                    )),
-            )
-            .child(
-                div()
-                    .self_start()
-                    .debug_selector(|| "bind-cta".into())
-                    .child(
-                        Button::new("bind-cta")
-                            .primary()
-                            .small()
-                            .label("Bind this folder to an account")
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(OpenSettings), cx)
-                            }),
-                    ),
-            )
-            .into_any_element()
+        banner(
+            "This folder isn't bound to an account",
+            format!(
+                "SkyeLab never picks an account for you. Bind {} to one, then send again.",
+                ui::short_path(&self.cwd, dirs::home_dir().as_deref())
+            ),
+            div().debug_selector(|| "bind-cta".into()).child(
+                Button::new("bind-cta")
+                    .primary()
+                    .small()
+                    .label("Bind this folder to an account")
+                    .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx)),
+            ),
+            cx,
+        )
     }
 }
 
 impl ThreadView {
     fn render_refused(&self, reason: SharedString, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
         let project_id = self.project_id;
-        v_flex()
-            .mx_4()
-            .mb_2()
-            .p_3()
-            .gap_2()
-            .rounded_lg()
+        banner(
+            "This thread can't continue here",
+            reason,
+            div().debug_selector(|| "new-thread-cta".into()).child(
+                Button::new("new-thread-cta")
+                    .primary()
+                    .small()
+                    .label("Start a new thread")
+                    .on_click(move |_, window, cx| {
+                        // The sidebar may show another project by now; start in this thread's.
+                        window.dispatch_action(Box::new(SelectProject { id: project_id }), cx);
+                        window.dispatch_action(Box::new(NewThread), cx);
+                    }),
+            ),
+            cx,
+        )
+    }
+
+    /// The composer, T3 style: one rounded card holding the prompt, the account that will run it, and a round Send;
+    /// a context strip under it for the folder and the worktree choice.
+    fn render_composer(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let card = v_flex()
+            .w_full()
+            .rounded(ui::RADIUS_XL)
+            .bg(theme.popover)
             .border_1()
-            .border_color(theme.warning)
+            .border_color(theme.border)
+            .when(!theme.is_dark(), |this| this.shadow_xs())
             .child(
                 div()
-                    .text_sm()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child("This thread can't continue here"),
+                    .px_3()
+                    .pt_2()
+                    .text_size(ui::BODY)
+                    .child(Textarea::new(&self.prompt).appearance(false)),
             )
             .child(
-                div()
-                    .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(reason),
-            )
-            .child(
-                div()
-                    .self_start()
-                    .debug_selector(|| "new-thread-cta".into())
+                h_flex()
+                    .px_3()
+                    .pb_2()
+                    .gap_2()
+                    .child(div().flex_1().min_w_0().child(self.account_badge()))
                     .child(
-                        Button::new("new-thread-cta")
+                        Button::new("send")
                             .primary()
-                            .small()
-                            .label("Start a new thread")
-                            .on_click(move |_, window, cx| {
-                                // The sidebar may show another project by now; start in this thread's.
-                                window.dispatch_action(
-                                    Box::new(SelectProject { id: project_id }),
-                                    cx,
-                                );
-                                window.dispatch_action(Box::new(NewThread), cx);
-                            }),
+                            .icon(IconName::ArrowUp)
+                            .rounded(ButtonRounded::Size(px(16.)))
+                            .tooltip("Send (⌘↩)")
+                            .disabled(self.read_only || self.starting)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.send_prompt(&SendPrompt, window, cx)
+                            })),
                     ),
+            );
+        let branch = self
+            .thread
+            .as_ref()
+            .and_then(|t| t.worktree_branch.clone())
+            .map(|b| format!("Worktree · {b}"));
+        let strip = h_flex()
+            .w_full()
+            .min_w_0()
+            .px_2()
+            .pt_2()
+            .gap_3()
+            .text_size(ui::META)
+            .text_color(theme.muted_foreground)
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .child(ui::short_path(&self.cwd, dirs::home_dir().as_deref())),
             )
+            .children(branch.map(|b| div().flex_shrink_0().child(b)))
+            .children(self.render_worktree_option(cx));
+        v_flex()
+            .w_full()
+            .max_w(ui::CHAT_MAX_W)
+            .child(card)
+            .child(strip)
             .into_any_element()
     }
+}
+
+/// A warning banner over the composer (T3's composer banner): a tinted card with a title, why, and the next step.
+fn banner(
+    title: &'static str,
+    detail: impl Into<SharedString>,
+    action: impl IntoElement,
+    cx: &App,
+) -> AnyElement {
+    let theme = cx.theme();
+    v_flex()
+        .w_full()
+        .max_w(ui::CHAT_MAX_W)
+        .mb_2()
+        .px_4()
+        .py_3()
+        .gap_1()
+        .rounded(ui::RADIUS_LG)
+        .bg(theme.warning.opacity(0.1))
+        .border_1()
+        .border_color(theme.warning.opacity(0.35))
+        .child(
+            div()
+                .text_size(ui::BODY)
+                .font_weight(FontWeight::MEDIUM)
+                .child(title),
+        )
+        .child(
+            div()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(detail.into()),
+        )
+        .child(div().pt_1().self_start().child(action))
+        .into_any_element()
 }
 
 /// A button that opens thread `id`.
@@ -263,12 +314,12 @@ impl Render for ThreadView {
         let header = self.render_header(cx);
         let children = self.render_children(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
-        let worktree_option = self.render_worktree_option(cx);
         let discard_confirm = self.render_discard_confirm(cx);
         let refused = self
             .resume_refused
             .clone()
             .map(|r| self.render_refused(r, cx));
+        let composer = self.render_composer(cx);
         let theme = cx.theme();
         let note = if self.starting {
             Some("Starting the agent…")
@@ -280,22 +331,39 @@ impl Render for ThreadView {
             Some("The agent has ended. Send a message to continue its session.")
         };
         let body = if self.items.is_empty() && !self.read_only {
+            let folder = self.cwd.file_name().map_or_else(
+                || self.cwd.display().to_string(),
+                |n| n.to_string_lossy().into_owned(),
+            );
             div()
                 .flex_1()
                 .flex()
                 .items_center()
                 .justify_center()
-                .text_sm()
-                .text_color(theme.muted_foreground)
+                .px_6()
                 .child(
-                    "Write a prompt below. The agent runs in this folder under its bound account.",
+                    ui::EmptyState::new(format!("New thread in {folder}"))
+                        .hint(
+                            "Write a prompt below. The agent runs in this folder under its bound account.",
+                        )
+                        .page(),
                 )
                 .into_any_element()
         } else {
             list(self.list.clone(), cx.processor(render_item))
                 .flex_1()
-                .py_2()
+                .py_3()
                 .into_any_element()
+        };
+        let line = |text: SharedString, color: gpui::Hsla| {
+            div()
+                .w_full()
+                .max_w(ui::CHAT_MAX_W)
+                .mb_2()
+                .px_1()
+                .text_size(ui::META)
+                .text_color(color)
+                .child(text)
         };
         v_flex()
             .id("thread")
@@ -315,56 +383,30 @@ impl Render for ThreadView {
             .child(header)
             .children(children)
             .child(body)
-            .children(cta)
-            .children(discard_confirm)
-            .children(refused)
-            .children((self.unsaved_events > 0).then(|| {
-                div()
-                    .debug_selector(|| "unsaved-events".into())
-                    .mx_4()
-                    .mb_2()
-                    .text_xs()
-                    .text_color(theme.warning)
-                    .child(format!(
-                        "{} events weren't saved (the store refused them). SkyeLab keeps retrying; \
-                         closing this tab or quitting before then loses them.",
-                        self.unsaved_events
-                    ))
-            }))
-            .children(self.error.clone().map(|e| {
-                div()
-                    .mx_4()
-                    .mb_2()
-                    .text_xs()
-                    .text_color(theme.danger)
-                    .child(e)
-            }))
-            .children(note.map(|n| {
-                div()
-                    .mx_4()
-                    .mb_2()
-                    .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(n)
-            }))
-            .children(worktree_option)
             .child(
-                h_flex()
-                    .px_4()
-                    .pb_3()
-                    .gap_2()
-                    .items_end()
-                    .child(div().flex_1().child(Textarea::new(&self.prompt)))
-                    .child(
-                        Button::new("send")
-                            .primary()
-                            .small()
-                            .label("Send")
-                            .disabled(self.read_only || self.starting)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.send_prompt(&SendPrompt, window, cx)
-                            })),
-                    ),
+                v_flex()
+                    .w_full()
+                    .items_center()
+                    .px_6()
+                    .pb_4()
+                    .children(cta)
+                    .children(discard_confirm)
+                    .children(refused)
+                    .children((self.unsaved_events > 0).then(|| {
+                        line(
+                            format!(
+                                "{} events weren't saved (the store refused them). SkyeLab keeps retrying; \
+                                 closing this tab or quitting before then loses them.",
+                                self.unsaved_events
+                            )
+                            .into(),
+                            theme.warning,
+                        )
+                        .debug_selector(|| "unsaved-events".into())
+                    }))
+                    .children(self.error.clone().map(|e| line(e, theme.danger)))
+                    .children(note.map(|n| line(n.into(), theme.muted_foreground)))
+                    .child(composer),
             )
     }
 }

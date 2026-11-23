@@ -59,6 +59,8 @@ pub struct ThreadView {
     pub(super) project_id: i64,
     pub(super) cwd: PathBuf,
     pub(super) config: AccountsConfig,
+    /// The account `cwd` resolves to now, for display (resolving touches the filesystem, so never in render).
+    pub(super) folder_account: Option<skyelab_core::Account>,
     pub(super) backend: Backend,
     pub(super) prompt: Entity<TextareaState>,
     pub(super) thread: Option<Thread>,
@@ -223,6 +225,7 @@ impl ThreadView {
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
         Self {
+            folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,
             cwd,
@@ -267,6 +270,7 @@ impl ThreadView {
     /// Accounts changed on disk (Settings saved). Used for the next start and the badge.
     pub fn set_config(&mut self, config: AccountsConfig, cx: &mut Context<Self>) {
         self.config = config;
+        self.folder_account = self.config.resolve(&self.cwd).cloned();
         self.resume_refused = None; // the next send checks the new bindings again
         if self.needs_binding && self.config.resolve(&self.cwd).is_some() {
             self.needs_binding = false;
@@ -294,6 +298,7 @@ impl ThreadView {
     }
 
     /// "Label · id" of the account the thread was started with, from its store row.
+    #[cfg(test)]
     pub fn badge(&self) -> Option<SharedString> {
         let id = &self.thread.as_ref()?.account_id;
         let label = self
@@ -307,6 +312,7 @@ impl ThreadView {
 
     /// The provider of the account the thread was started with (`None` before the thread has a row,
     /// or when that account is gone).
+    #[cfg(test)]
     pub fn provider(&self) -> Option<skyelab_core::Provider> {
         let id = &self.thread.as_ref()?.account_id;
         let account = self.config.accounts.iter().find(|a| &a.id == id)?;

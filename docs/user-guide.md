@@ -46,7 +46,7 @@ In Settings, under **Folder bindings**, pick the account and click **Bind folder
 now runs on that account. A deeper binding wins over a shallower one, so you can bind `~/work` to your work account
 and `~/work/oss-fork` to your personal one. Use **Test folder** to check which account a path resolves to.
 
-The status bar shows the account for the current folder, or **No account bound**. If you send a prompt in an unbound
+The status bar shows the account for the current folder, or **No account** in the warning color. If you send a prompt in an unbound
 folder, the thread asks you to bind it first and offers a **Bind this folder to an account** button.
 
 ### Stale bindings and Re-confirm

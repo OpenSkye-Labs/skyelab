@@ -15,7 +15,6 @@ use std::rc::Rc;
 
 actions!(skyelab, [OpenCommandPalette]);
 
-#[cfg(test)]
 pub const OPEN_PALETTE_KEY: &str = if cfg!(target_os = "macos") {
     "cmd-k"
 } else {

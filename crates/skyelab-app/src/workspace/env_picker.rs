@@ -2,12 +2,13 @@
 //! and a name typed by hand. Picking one dispatches `SwitchEnvironment`; the workspace does the switching.
 
 use super::env_mode::SwitchEnvironment;
+use crate::ui;
 use gpui::{
     Action as _, AppContext as _, Context, Entity, FontWeight, IntoElement, SharedString, Task,
     Window, actions, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
+    ActiveTheme as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -126,54 +127,48 @@ impl Render for EnvPicker {
         let header = h_flex()
             .id("env-picker")
             .justify_between()
-            .px_2()
-            .py_1()
-            .rounded_md()
+            .gap_2()
+            .px_2p5()
+            .py_1p5()
+            .rounded(ui::RADIUS)
             .cursor_pointer()
-            .hover(|s| s.bg(theme.sidebar_accent))
+            .hover(|s| s.bg(theme.sidebar_accent.opacity(0.7)))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleEnvironments), cx))
             .child(
                 v_flex()
                     .min_w_0()
                     .child(
                         div()
-                            .text_xs()
+                            .text_size(ui::META)
                             .text_color(theme.muted_foreground)
                             .child("SkyeLab on"),
                     )
                     .child(
                         div()
-                            .text_base()
+                            .text_size(ui::BODY)
                             .font_weight(FontWeight::SEMIBOLD)
                             .truncate()
                             .child(current),
                     ),
             )
             .child(
-                div()
-                    .text_color(theme.muted_foreground)
-                    .child(if self.open { "▴" } else { "▾" }),
+                Icon::new(IconName::ChevronsUpDown)
+                    .size_4()
+                    .text_color(theme.muted_foreground),
             );
         let row = |host: Option<String>, label: String, selected: bool| {
             let action = SwitchEnvironment { host };
-            div()
-                .id(SharedString::from(format!("env-{label}")))
-                .px_2()
-                .py_1()
-                .rounded_md()
-                .text_sm()
-                .truncate()
-                .cursor_pointer()
-                .when(selected, |d| d.bg(theme.sidebar_accent))
-                .hover(|d| d.bg(theme.sidebar_accent))
+            ui::row(SharedString::from(format!("env-{label}")), selected, theme)
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-                .child(label)
+                .child(div().min_w_0().truncate().child(label))
         };
         let caption = |text: &'static str| {
             div()
-                .px_2()
+                .px_2p5()
                 .pt_2()
-                .text_xs()
+                .pb_0p5()
+                .text_size(ui::META)
+                .font_weight(FontWeight::MEDIUM)
                 .text_color(theme.muted_foreground)
                 .child(text)
         };
@@ -190,9 +185,10 @@ impl Render for EnvPicker {
         let list = v_flex()
             .gap_0p5()
             .p_1()
-            .rounded_lg()
+            .rounded(ui::RADIUS)
+            .bg(theme.popover)
             .border_1()
-            .border_color(theme.sidebar_border)
+            .border_color(theme.border)
             .child(row(None, THIS_MAC.into(), self.current.is_none()))
             .child(caption("Your devices"))
             .children(
@@ -203,8 +199,8 @@ impl Render for EnvPicker {
             .when(self.peers.is_empty(), |l| {
                 l.child(
                     div()
-                        .px_2()
-                        .text_xs()
+                        .px_2p5()
+                        .text_size(ui::META)
                         .text_color(theme.muted_foreground)
                         .child(
                             self.peers_error
@@ -236,11 +232,13 @@ impl Render for EnvPicker {
                             }),
                     ),
             )
-            .children(
-                self.error
-                    .clone()
-                    .map(|e| div().px_2().text_xs().text_color(theme.danger).child(e)),
-            );
+            .children(self.error.clone().map(|e| {
+                div()
+                    .px_2p5()
+                    .text_size(ui::META)
+                    .text_color(theme.danger)
+                    .child(e)
+            }));
         v_flex()
             .gap_1()
             .child(header)

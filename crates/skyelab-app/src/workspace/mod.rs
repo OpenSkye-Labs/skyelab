@@ -42,7 +42,7 @@ use gpui::{
     Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Theme,
+    ActiveTheme as _,
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
     v_flex,
 };
@@ -142,6 +142,8 @@ pub struct Workspace {
     config: AccountsConfig,
     load_error: Option<String>,
     account: Option<SharedString>,
+    /// The id of `account`, for its color.
+    account_id: Option<String>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
@@ -192,9 +194,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        Theme::sync_system_appearance(Some(window), cx);
+        crate::ui::sync_appearance(window, cx);
         let _appearance = cx.observe_window_appearance(window, |_, window, cx| {
-            Theme::sync_system_appearance(Some(window), cx);
+            crate::ui::sync_appearance(window, cx);
         });
 
         let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
@@ -212,7 +214,7 @@ impl Workspace {
                 window,
                 cx,
             );
-            dock.set_dock_size(DockPlacement::Left, px(260.), window, cx);
+            dock.set_dock_size(DockPlacement::Left, px(256.), window, cx);
             dock.set_dock(
                 DockPlacement::Bottom,
                 tabs(panel_handle(terminals_empty.clone()), cx),
@@ -223,10 +225,12 @@ impl Workspace {
             dock.toggle_dock(DockPlacement::Bottom, window, cx);
         });
 
+        crate::ui::set_accounts(cx, &config);
         let mut this = Self {
             focus: cx.focus_handle(),
             dock,
             account: account_label(&config, &folder),
+            account_id: config.resolve(&folder).map(|a| a.id.clone()),
             folder_label: match dirs::home_dir() {
                 Some(home) if folder == home => "~".into(),
                 _ => folder.display().to_string().into(),
@@ -320,10 +324,13 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
+        let cwd = options.cwd.clone();
         let (terminal, events) = Terminal::spawn(options)?;
         let view = cx.new(|cx| TerminalView::new(terminal, events, cx));
         let title = format!("Terminal {}", self.terminals.len() + 1).into();
-        let panel = cx.new(|_| TerminalPanel::new(view.clone(), title));
+        // The same config terminal_env used to pick the shell's account.
+        let account = self.config.resolve(&cwd).cloned();
+        let panel = cx.new(|_| TerminalPanel::new(view.clone(), title, account));
         let empty = self.terminals_empty.take();
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(
@@ -407,12 +414,14 @@ impl Workspace {
             Ok(config) => {
                 (self.config, self.load_error) = (config, None);
                 self.account = account_label(&self.config, &self.folder);
+                self.account_id = self.config.resolve(&self.folder).map(|a| a.id.clone());
             }
             Err(e) => {
                 self.load_error = Some(format!("{e:#}"));
                 // A broken file binds nothing we can trust: terminals and threads then ask, too.
                 self.config = AccountsConfig::default();
                 self.account = None;
+                self.account_id = None;
             }
         }
     }

@@ -9,7 +9,8 @@ use gpui_component::dock::{DockPlacement, panel_handle};
 use skyelab_store::Thread;
 use std::path::PathBuf;
 
-use super::panels::{SidebarItem, SidebarSection};
+use super::panels::{RowAccount, SidebarItem, SidebarSection};
+use crate::ui::Status;
 
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
@@ -107,6 +108,7 @@ impl Workspace {
         self.folder = project.path.clone();
         self.folder_label = project.path.display().to_string().into();
         self.account = account_label(&self.config, &self.folder);
+        self.account_id = self.config.resolve(&self.folder).map(|a| a.id.clone());
         self.project = Some(project);
         self.threads.clear(); // never list another project's threads while this one's load
         self.refresh_sidebar(cx);
@@ -153,6 +155,12 @@ impl Workspace {
                 label: p.name.clone().into(),
                 selected: Some(p.id) == current,
                 action: Box::new(SelectProject { id: p.id }),
+                status: None,
+                updated_ms: None,
+                account: Some(match self.config.resolve(&p.path) {
+                    Some(a) => RowAccount::Bound(a.clone()),
+                    None => RowAccount::Unbound,
+                }),
             })
             .collect();
         let threads = self
@@ -163,6 +171,9 @@ impl Workspace {
                 label: t.title.clone().into(),
                 selected: false,
                 action: Box::new(OpenThread { id: t.id }),
+                status: Some(Status::parse(&t.status)),
+                updated_ms: Some(t.updated_at),
+                account: None,
             })
             .collect();
         let has_project = self.project.is_some();
@@ -175,6 +186,7 @@ impl Workspace {
                     empty_hint: "Add a folder to start. It runs on the account it is bound to."
                         .into(),
                     button: Some(("Add".into(), Box::new(AddProject))),
+                    nested: false,
                 },
                 SidebarSection {
                     title: "Threads".into(),
@@ -186,8 +198,13 @@ impl Workspace {
                         "Select a project to see its threads."
                     }
                     .into(),
-                    button: has_project
-                        .then(|| (SharedString::from("New"), Box::new(NewThread) as Box<_>)),
+                    button: has_project.then(|| {
+                        (
+                            SharedString::from("New thread"),
+                            Box::new(NewThread) as Box<_>,
+                        )
+                    }),
+                    nested: true,
                 },
             ];
             cx.notify();
@@ -392,6 +409,7 @@ impl Workspace {
 
     /// Settings saved: open threads start their next session from the new bindings.
     pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
+        crate::ui::set_accounts(cx, &self.config);
         super::orchestrate::set_config(cx, &self.config);
         let config = self.config.clone();
         for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {

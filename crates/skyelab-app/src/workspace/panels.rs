@@ -1,12 +1,13 @@
 //! The workspace's dock panels and the dock traits each one needs.
 
 use crate::settings::Settings;
+use crate::ui;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
+    ActiveTheme as _, Icon, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -54,6 +55,13 @@ macro_rules! panel {
     };
 }
 
+/// Which account a project row runs on.
+#[derive(Clone)]
+pub enum RowAccount {
+    Bound(skyelab_core::Account),
+    Unbound,
+}
+
 /// A row in a sidebar section. `id` is the domain id (project path, thread id), so it stays stable.
 pub struct SidebarItem {
     pub id: SharedString,
@@ -61,6 +69,12 @@ pub struct SidebarItem {
     pub selected: bool,
     /// Dispatched when the row is clicked.
     pub action: Box<dyn Action>,
+    /// Thread rows: the status dot.
+    pub status: Option<ui::Status>,
+    /// Thread rows: when the thread last changed (ms since the epoch), shown as "3m".
+    pub updated_ms: Option<i64>,
+    /// Project rows: the account the folder runs on.
+    pub account: Option<RowAccount>,
 }
 
 /// One titled group in the sidebar, with what to show while it is empty.
@@ -71,6 +85,9 @@ pub struct SidebarSection {
     pub empty_hint: SharedString,
     /// A small button next to the title, e.g. "Add".
     pub button: Option<(SharedString, Box<dyn Action>)>,
+    /// Drawn under the previous section's selected row (a project's threads, as in T3). With no row selected
+    /// there, it is drawn as its own section.
+    pub nested: bool,
 }
 
 pub struct Sidebar {
@@ -93,97 +110,154 @@ impl Sidebar {
 // The sidebar draws its own header.
 panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
 
+fn section_button(s: &SidebarSection) -> Option<Button> {
+    s.button.as_ref().map(|(label, action)| {
+        let action = action.boxed_clone();
+        Button::new(SharedString::from(format!("section-{}", s.title)))
+            .ghost()
+            .xsmall()
+            .icon(IconName::Plus)
+            .label(label.clone())
+            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+    })
+}
+
+/// Where a thread's title starts, so it lines up under its project's name (T3's `ps-9`): row padding + monogram + gap.
+const THREAD_INDENT: f32 = 36.;
+
+fn sidebar_row(
+    item: &SidebarItem,
+    indent: bool,
+    now: i64,
+    theme: &gpui_component::Theme,
+) -> impl IntoElement {
+    let action = item.action.boxed_clone();
+    let is_project = item.account.is_some();
+    ui::row(item.id.clone(), item.selected, theme)
+        .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+        .when(indent, |this| this.pl(gpui::px(THREAD_INDENT)))
+        .when(is_project, |this| {
+            this.child(ui::Monogram::new(&item.label))
+        })
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .child(item.label.clone()),
+        )
+        .children(item.account.as_ref().map(|a| {
+            let badge = match a {
+                RowAccount::Bound(acc) => ui::AccountBadge::new(acc.id.clone(), acc.label.clone()),
+                RowAccount::Unbound => ui::AccountBadge::unbound(),
+            };
+            div().flex_shrink_0().max_w(gpui::px(104.)).child(badge)
+        }))
+        .children(match item.status.and_then(ui::Status::badge) {
+            Some((icon, word)) => {
+                let color = item
+                    .status
+                    .map_or(theme.muted_foreground, |s| s.color(theme));
+                Some(
+                    h_flex()
+                        .flex_shrink_0()
+                        .gap_1()
+                        .text_size(ui::META)
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(color)
+                        .child(Icon::new(icon).size_3())
+                        .child(word)
+                        .into_any_element(),
+                )
+            }
+            // shortcut: the time is computed when the sidebar draws, so an idle sidebar shows it as of its last redraw.
+            None => item.updated_ms.map(|t| {
+                div()
+                    .flex_shrink_0()
+                    .text_size(ui::META)
+                    .font_weight(gpui::FontWeight::NORMAL)
+                    .text_color(theme.muted_foreground)
+                    .child(ui::ago(now, t))
+                    .into_any_element()
+            }),
+        })
+}
+
+fn rows(s: &SidebarSection, indent: bool, now: i64, theme: &gpui_component::Theme) -> gpui::Div {
+    if s.items.is_empty() {
+        return v_flex()
+            .when(indent, |this| this.pl(gpui::px(THREAD_INDENT - 8.)))
+            .child(ui::EmptyState::new(s.empty_title.clone()).hint(s.empty_hint.clone()));
+    }
+    v_flex().gap_0p5().children(
+        s.items
+            .iter()
+            .map(|item| sidebar_row(item, indent, now, theme)),
+    )
+}
+
 impl Render for Sidebar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let section = |s: &SidebarSection| {
-            let body = if s.items.is_empty() {
+        let now = ui::now_ms();
+        let mut blocks = Vec::new();
+        let mut i = 0;
+        while let Some(s) = self.sections.get(i) {
+            // A project's threads go under its row (T3's folder layout); with no project selected they stand alone.
+            let nested = self
+                .sections
+                .get(i + 1)
+                .filter(|n| n.nested && s.items.iter().any(|it| it.selected));
+            let body =
+                match nested {
+                    None => rows(s, false, now, theme),
+                    Some(n) => v_flex().gap_0p5().children(s.items.iter().map(|item| {
+                        let row = sidebar_row(item, false, now, theme).into_any_element();
+                        if !item.selected {
+                            return row;
+                        }
+                        v_flex()
+                            .gap_0p5()
+                            .child(row)
+                            .child(rows(n, true, now, theme))
+                            .children(section_button(n).map(|b| {
+                                h_flex().pl(gpui::px(THREAD_INDENT - 10.)).pb_1().child(b)
+                            }))
+                            .into_any_element()
+                    })),
+                };
+            blocks.push(
                 v_flex()
                     .gap_1()
-                    .px_3()
-                    .py_3()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(theme.sidebar_border)
                     .child(
-                        div()
-                            .text_sm()
-                            .text_color(theme.sidebar_foreground)
-                            .child(s.empty_title.clone()),
+                        ui::SectionHeader::new(s.title.clone())
+                            .when_some(section_button(s), |h, b| h.trailing(b)),
                     )
-                    .child(
-                        div()
-                            .text_xs()
-                            .line_height(gpui::rems(1.1))
-                            .text_color(theme.muted_foreground)
-                            .child(s.empty_hint.clone()),
-                    )
-            } else {
-                v_flex().gap_0p5().children(s.items.iter().map(|item| {
-                    let action = item.action.boxed_clone();
-                    div()
-                        .id(item.id.clone())
-                        .px_2()
-                        .py_1()
-                        .rounded_md()
-                        .text_sm()
-                        .truncate()
-                        .cursor_pointer()
-                        .when(item.selected, |this| this.bg(theme.sidebar_accent))
-                        .hover(|this| this.bg(theme.sidebar_accent))
-                        .on_click(move |_, window, cx| {
-                            window.dispatch_action(action.boxed_clone(), cx)
-                        })
-                        .child(item.label.clone())
-                }))
-            };
-            v_flex()
-                .gap_2()
-                .child(
-                    h_flex()
-                        .justify_between()
-                        .child(
-                            div()
-                                .px_1()
-                                .text_xs()
-                                .font_weight(gpui::FontWeight::MEDIUM)
-                                .text_color(theme.muted_foreground)
-                                .child(s.title.to_uppercase()),
-                        )
-                        .children(s.button.as_ref().map(|(label, action)| {
-                            let action = action.boxed_clone();
-                            Button::new(SharedString::from(format!("section-{}", s.title)))
-                                .ghost()
-                                .xsmall()
-                                .label(label.clone())
-                                .on_click(move |_, window, cx| {
-                                    window.dispatch_action(action.boxed_clone(), cx)
-                                })
-                        })),
-                )
-                .child(body)
-        };
+                    .child(body),
+            );
+            i += if nested.is_some() { 2 } else { 1 };
+        }
         v_flex()
             .id("sidebar")
             .track_focus(&self.focus)
             .size_full()
             .overflow_y_scroll()
-            .px_3()
-            .pt_4()
+            .px_2()
+            .pt_3()
             .pb_3()
-            .gap_6()
+            .gap_4()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
             .child(match &self.picker {
                 Some(picker) => picker.clone().into_any_element(),
                 None => div()
-                    .px_1()
-                    .text_base()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .px_2p5()
+                    .text_size(ui::BODY)
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .child("SkyeLab")
                     .into_any_element(),
             })
-            .children(self.sections.iter().map(section))
+            .children(blocks)
     }
 }
 
@@ -206,19 +280,16 @@ impl Render for Welcome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let shortcut = |label: &'static str, key: &'static str, action: Box<dyn Action>| {
-            h_flex()
+            div()
                 .id(label)
                 .w_full()
-                .justify_between()
-                .px_2()
+                .px_2p5()
                 .py_1p5()
-                .rounded_md()
-                .text_sm()
+                .rounded(ui::RADIUS)
                 .cursor_pointer()
-                .hover(|this| this.bg(theme.secondary))
+                .hover(|this| this.bg(theme.accent))
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-                .child(div().text_color(theme.foreground).child(label))
-                .children(Keystroke::parse(key).ok().map(Kbd::new))
+                .child(ui::KeyHint::new(label, key))
         };
         v_flex()
             .id("welcome")
@@ -229,27 +300,16 @@ impl Render for Welcome {
             .bg(theme.background)
             .child(
                 v_flex()
-                    .w(gpui::px(340.))
+                    .w(gpui::px(384.))
                     .gap_6()
                     .child(
-                        v_flex()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .text_xl()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_color(theme.foreground)
-                                    .child("No thread open"),
-                            )
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(theme.muted_foreground)
-                                    .child("Every folder runs on the account it is bound to."),
-                            ),
+                        ui::EmptyState::new("Pick a thread to continue")
+                            .hint("Or start one from a project in the sidebar. Every folder runs on the account it is bound to.")
+                            .page(),
                     )
                     .child(
                         v_flex()
+                            .gap_0p5()
                             .child(shortcut(
                                 "Toggle sidebar",
                                 super::TOGGLE_SIDEBAR_KEY,
@@ -264,6 +324,11 @@ impl Render for Welcome {
                                 "New terminal",
                                 super::NEW_TERMINAL_KEY,
                                 Box::new(super::NewTerminal),
+                            ))
+                            .child(shortcut(
+                                "Command palette",
+                                crate::palette::OPEN_PALETTE_KEY,
+                                Box::new(crate::palette::OpenCommandPalette),
                             ))
                             .child(shortcut(
                                 "Accounts and folders",
@@ -299,7 +364,8 @@ impl Render for TerminalsEmpty {
             .size_full()
             .justify_center()
             .gap_2()
-            .text_sm()
+            .bg(theme.background)
+            .text_size(ui::BODY)
             .text_color(theme.muted_foreground)
             .child("No terminal running. Press")
             .children(Keystroke::parse(super::NEW_TERMINAL_KEY).ok().map(Kbd::new))
@@ -311,16 +377,35 @@ impl Render for TerminalsEmpty {
 pub struct TerminalPanel {
     pub view: Entity<TerminalView>,
     title: SharedString,
+    /// The account the shell was started under (`None`: unbound folder), shown on its tab.
+    account: Option<skyelab_core::Account>,
 }
 
 impl TerminalPanel {
-    pub fn new(view: Entity<TerminalView>, title: SharedString) -> Self {
-        Self { view, title }
+    pub fn new(
+        view: Entity<TerminalView>,
+        title: SharedString,
+        account: Option<skyelab_core::Account>,
+    ) -> Self {
+        Self {
+            view,
+            title,
+            account,
+        }
     }
 }
 
 // shortcut: terminal tabs can't be closed yet (the workspace owns their PTYs), add closing with tab management.
-panel!(TerminalPanel, "Terminal", closable: false, |this| this.title.clone());
+panel!(TerminalPanel, "Terminal", closable: false, |this| {
+    h_flex()
+        .gap_2()
+        .child(this.title.clone())
+        .child(
+            this.account
+                .as_ref()
+                .map_or_else(ui::AccountBadge::unbound, ui::AccountBadge::of),
+        )
+});
 
 impl Focusable for TerminalPanel {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
@@ -407,29 +492,49 @@ impl Render for BrowserPanel {
         let theme = cx.theme();
         // Drawn above the page: the native webview covers anything inside its own bounds.
         let bar = self.agent.as_ref().map(|a| {
+            // T3's warning surface: the color tinted, ink in the foreground, a hairline under it.
             h_flex()
                 .id("agent-bar")
+                .h(gpui::px(36.))
                 .gap_2()
-                .px_2()
-                .py_1()
-                .bg(theme.warning)
-                .text_color(gpui::black()) // the theme's warning_foreground is barely readable on warning
-                .text_sm()
+                .px_3()
+                .bg(theme.warning.opacity(0.14))
+                .border_b_1()
+                .border_color(theme.warning.opacity(0.4))
+                .text_color(theme.foreground)
+                .text_size(ui::BODY)
+                .child(ui::StatusDot::new(theme.warning))
                 .child(
-                    div()
+                    h_flex()
                         .flex_1()
-                        .child(format!("Agent is controlling this tab ({})", a.title)),
+                        .min_w_0()
+                        .gap_1()
+                        .child(
+                            div()
+                                .flex_shrink_0()
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .child("Agent is controlling this tab"),
+                        )
+                        .child(
+                            div()
+                                .min_w_0()
+                                .truncate()
+                                .text_color(theme.muted_foreground)
+                                .child(format!("({})", a.title)),
+                        ),
                 )
                 .child(
                     Button::new("take-over")
                         .label("Take over")
-                        .small()
+                        .primary()
+                        .xsmall()
                         .on_click(cx.listener(|this, _, _, cx| this.take_over(cx))),
                 )
                 .child(
                     Button::new("close-agent-tab")
                         .label("Close")
-                        .small()
+                        .ghost()
+                        .xsmall()
                         .on_click(cx.listener(|_, _, _, cx| cx.emit(CloseBrowser))),
                 )
         });

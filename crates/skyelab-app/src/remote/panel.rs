@@ -1,6 +1,7 @@
 //! The Remote tab. Its buttons dispatch actions the Workspace handles, so SKYELAB_VERIFY_ACTIONS can drive them.
 
 use super::{AllowDevice, DenyDevice, DisconnectPeer, Remote, RevokeDevice, ToggleSharing};
+use crate::ui;
 use gpui::{App, Context, Entity, FocusHandle, Focusable, Subscription, Window, div, prelude::*};
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
@@ -39,23 +40,22 @@ impl Render for RemotePanel {
         let (status, status_color) = (remote.status.label(), remote.status.color(theme));
         let peers = if remote.peers.is_empty() {
             vec![
-                div()
-                    .text_color(theme.muted_foreground)
-                    .child("No devices connected.")
+                ui::group_row(true, theme)
+                    .child(
+                        ui::EmptyState::new("No devices connected")
+                            .hint("A device you allowed shows here while it is connected."),
+                    )
                     .into_any_element(),
             ]
         } else {
             remote
                 .peers
                 .iter()
-                .map(|p| {
+                .enumerate()
+                .map(|(n, p)| {
                     let id = p.id;
-                    h_flex()
+                    ui::group_row(n == 0, theme)
                         .id(("peer", id))
-                        .gap_2()
-                        .py_1()
-                        .border_b_1()
-                        .border_color(theme.border)
                         .child(div().flex_1().min_w_0().child(p.device.clone()))
                         .child(
                             div()
@@ -65,7 +65,7 @@ impl Render for RemotePanel {
                         .child(
                             Button::new(("disconnect", id))
                                 .small()
-                                .danger()
+                                .ghost()
                                 .label("Disconnect")
                                 .on_click(move |_, window, cx| {
                                     window.dispatch_action(Box::new(DisconnectPeer { id }), cx)
@@ -90,18 +90,17 @@ impl Render for RemotePanel {
                         key_hash: r.key_hash.clone(),
                     },
                 );
-                h_flex()
+                ui::group_row(n == 0, theme)
                     .id(("request", n))
-                    .gap_2()
-                    .py_1()
-                    .border_b_1()
-                    .border_color(theme.border)
-                    .child(div().flex_1().min_w_0().child(Remote::request_label(r)))
+                    .child(ui::StatusDot::new(theme.warning))
                     .child(
                         div()
-                            .text_color(theme.muted_foreground)
-                            .child(format!("code {}", r.code)),
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .child(Remote::request_label(r)),
                     )
+                    .child(ui::mono(format!("code {}", r.code), theme))
                     .child(
                         Button::new(("allow", n))
                             .small()
@@ -119,9 +118,10 @@ impl Render for RemotePanel {
             .collect();
         let approved: Vec<_> = if remote.approved.is_empty() {
             vec![
-                div()
-                    .text_color(theme.muted_foreground)
-                    .child("No devices allowed yet.")
+                ui::group_row(true, theme)
+                    .child(ui::EmptyState::new("No devices allowed yet").hint(
+                        "Turn sharing on, then connect from your other device: its request shows up above for you to allow.",
+                    ))
                     .into_any_element(),
             ]
         } else {
@@ -134,22 +134,21 @@ impl Render for RemotePanel {
                         node_id: d.node_id.clone(),
                         key_hash: d.key_hash.clone(),
                     };
-                    h_flex()
+                    ui::group_row(n == 0, theme)
                         .id(("approved", n))
-                        .gap_2()
-                        .py_1()
-                        .border_b_1()
-                        .border_color(theme.border)
-                        .child(div().flex_1().min_w_0().child(d.name.clone()))
-                        .child(div().text_color(theme.muted_foreground).child(format!(
-                            "{} · code {}",
-                            d.user,
-                            skyelab_protocol::device_code(&d.key_hash)
-                        )))
+                        .child(div().flex_1().min_w_0().truncate().child(d.name.clone()))
+                        .child(ui::mono(
+                            format!(
+                                "{} · code {}",
+                                d.user,
+                                skyelab_protocol::device_code(&d.key_hash)
+                            ),
+                            theme,
+                        ))
                         .child(
                             Button::new(("revoke", n))
                                 .small()
-                                .danger()
+                                .ghost()
                                 .label("Revoke")
                                 .on_click(move |_, window, cx| {
                                     window.dispatch_action(Box::new(revoke.clone()), cx)
@@ -159,62 +158,93 @@ impl Render for RemotePanel {
                 })
                 .collect()
         };
-        v_flex()
+        let section = |title: &'static str, rows: Vec<gpui::AnyElement>| {
+            v_flex()
+                .gap_2p5()
+                .child(ui::section_title(title, theme))
+                .child(ui::group(theme).children(rows))
+        };
+        div()
             .id("remote")
             .key_context("Remote")
             .track_focus(&self.focus)
             .size_full()
-            .p_4()
-            .gap_4()
-            .text_sm()
+            .overflow_y_scroll()
+            .bg(theme.background)
             .child(
                 v_flex()
-                    .gap_1()
+                    .w_full()
+                    .max_w(ui::PAGE_MAX_W)
+                    .mx_auto()
+                    .px_6()
+                    .pt_6()
+                    .pb_12()
+                    .gap_8()
+                    .text_size(ui::BODY)
                     .child(
-                        Switch::new("share-on-tailnet")
-                            .checked(remote.enabled)
-                            .label("Share this machine on my tailnet")
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(ToggleSharing), cx)
-                            }),
+                        v_flex()
+                            .gap_1()
+                            .child(ui::page_title("Remote access", theme))
+                            .child(div().text_color(theme.muted_foreground).child(
+                                "Use this machine's projects and agents from your other devices.",
+                            )),
                     )
-                    .child(div().text_color(status_color).child(status))
-                    .child(div().text_xs().text_color(theme.muted_foreground).child(
-                        "Only your own untagged devices on your tailnet can connect, over TLS with this \
-                         machine's Tailscale certificate (needs MagicDNS and HTTPS Certificates on in the \
-                         tailnet's admin console), and only after you allow each one here. They can list \
-                         projects and threads and run agents here, under each folder's bound account.",
-                    )),
-            )
-            .when(!waiting.is_empty(), |el| {
-                el.child(
-                    v_flex()
-                        .gap_1()
-                        .child(div().text_lg().child("Waiting for approval"))
-                        .child(div().text_xs().text_color(theme.muted_foreground).child(
-                            "Allow a device only if it shows the same code. Another program on one of your \
-                             devices can ask too.",
-                        ))
-                        .children(waiting),
-                )
-            })
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(div().text_lg().child("Allowed devices"))
-                    .children(
-                        remote
-                            .approval_error
-                            .clone()
-                            .map(|e| div().text_color(theme.danger).child(e)),
+                    .child(
+                        ui::group(theme).child(
+                            ui::group_row(true, theme)
+                                .items_start()
+                                .child(
+                                    v_flex()
+                                        .flex_1()
+                                        .gap_1()
+                                        .child(
+                                            h_flex()
+                                                .gap_2()
+                                                .child(
+                                                    div()
+                                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                                        .child("Share this machine on my tailnet"),
+                                                )
+                                                .child(ui::Pill::new(status).color(status_color)),
+                                        )
+                                        .child(div().text_size(ui::META).text_color(theme.muted_foreground).child(
+                                            "Only your own untagged devices on your tailnet can connect, over TLS with this \
+                                             machine's Tailscale certificate (needs MagicDNS and HTTPS Certificates on in the \
+                                             tailnet's admin console), and only after you allow each one here. They can list \
+                                             projects and threads and run agents here, under each folder's bound account.",
+                                        )),
+                                )
+                                .child(
+                                    Switch::new("share-on-tailnet")
+                                        .checked(remote.enabled)
+                                        .accessibility_label("Share this machine on my tailnet")
+                                        .on_click(|_, window, cx| {
+                                            window.dispatch_action(Box::new(ToggleSharing), cx)
+                                        }),
+                                ),
+                        ),
                     )
-                    .children(approved),
-            )
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(div().text_lg().child("Connected devices"))
-                    .children(peers),
+                    .when(!waiting.is_empty(), |el| {
+                        el.child(
+                            v_flex()
+                                .gap_2p5()
+                                .child(ui::section_title("Waiting for approval", theme))
+                                .child(div().px_1().text_size(ui::META).text_color(theme.muted_foreground).child(
+                                    "Allow a device only if it shows the same code. Another program on one of your \
+                                     devices can ask too.",
+                                ))
+                                .child(ui::group(theme).border_color(theme.warning.opacity(0.4)).children(waiting)),
+                        )
+                    })
+                    .child(
+                        section("Allowed devices", approved).children(
+                            remote
+                                .approval_error
+                                .clone()
+                                .map(|e| div().px_1().text_color(theme.danger).child(e)),
+                        ),
+                    )
+                    .child(section("Connected devices", peers)),
             )
     }
 }

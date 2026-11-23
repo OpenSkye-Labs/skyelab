@@ -301,6 +301,9 @@ impl Workspace {
                 label: p.name.clone().into(),
                 selected: env.project == Some(p.id),
                 action: Box::new(SelectRemoteProject { id: p.id }),
+                status: None,
+                updated_ms: None,
+                account: None, // bound on the other machine; this one can't tell
             })
             .collect();
         let threads = env
@@ -311,6 +314,9 @@ impl Workspace {
                 label: t.title.clone().into(),
                 selected: false,
                 action: Box::new(OpenRemoteThread { id: t.id }),
+                status: Some(crate::ui::Status::parse(&t.status)),
+                updated_ms: Some(t.updated_at),
+                account: None,
             })
             .collect();
         let connected = env.state == ConnState::Connected;
@@ -337,10 +343,14 @@ impl Workspace {
                 },
                 selected: false,
                 action: Box::new(SwitchEnvironment { host: None }),
+                status: None,
+                updated_ms: None,
+                account: None,
             }],
             empty_title: SharedString::default(),
             empty_hint: SharedString::default(),
             button: None,
+            nested: false,
         });
         let sections = vec![
             SidebarSection {
@@ -356,6 +366,7 @@ impl Workspace {
                     _ => format!("Projects on {}. Add them on that machine.", env.host).into(),
                 },
                 button: trust,
+                nested: false,
             },
             SidebarSection {
                 title: "Threads".into(),
@@ -372,10 +383,11 @@ impl Workspace {
                 .into(),
                 button: has_project.then(|| {
                     (
-                        SharedString::from("New"),
+                        SharedString::from("New thread"),
                         Box::new(NewRemoteThread) as Box<_>,
                     )
                 }),
+                nested: true,
             },
         ];
         Some(sections.into_iter().chain(here).collect())
