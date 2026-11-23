@@ -24,6 +24,9 @@ fn closing_a_thread_tab_kills_its_agent_and_marks_it_stopped(cx: &mut TestAppCon
     type_and_send(&thread, cx);
     wait_done(&thread, cx);
     let id = thread.read_with(cx, |t, _| t.thread.as_ref().expect("row").id);
+    wait_until(cx, "the fake's env report", |_| {
+        !env_reports(&f.store, id).is_empty()
+    });
     let pid = env_reports(&f.store, id)[0]["pid"]
         .as_i64()
         .expect("the fake reports its pid");

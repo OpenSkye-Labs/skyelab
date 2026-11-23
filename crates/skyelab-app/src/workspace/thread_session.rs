@@ -1,85 +1,16 @@
 //! A thread's agent session once started: the event pump that stores and shows each event,
 //! and stopping, interrupting and reaping the agent.
 
-use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, append, lock};
+use super::saves::save;
+use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, lock};
 use anyhow::{Context as _, Result};
-use gpui::{AppContext as _, AsyncApp, Context, Window};
+use gpui::{AppContext as _, Context, Window};
 use skyelab_agent::{Event, Session};
-use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-
-/// Tries for a batch of held events that just started failing, the first retry after [`SAVE_BACKOFF`], doubling.
-const SAVE_TRIES: u32 = 5;
-const SAVE_BACKOFF: Duration = Duration::from_millis(50);
-
-/// An agent event not fully stored yet. `appended` keeps a retry from storing the row twice when only its
-/// follow-up write (session id, status) failed.
-struct Held {
-    record: Record,
-    appended: bool,
-}
-
-/// Saves `held` front to back, up to `tries` times. What is still held afterwards stays for the next event.
-async fn save_held(
-    store: &SharedStore,
-    id: i64,
-    held: &mut VecDeque<Held>,
-    tries: u32,
-    cx: &mut AsyncApp,
-) {
-    let mut delay = SAVE_BACKOFF;
-    for attempt in 1..=tries {
-        let (store, batch) = (store.clone(), std::mem::take(held));
-        let (rest, saved) = cx
-            .background_spawn(async move { save_in_order(&store, id, batch) })
-            .await;
-        *held = rest;
-        match saved {
-            Ok(()) => return,
-            Err(e) if attempt == tries => {
-                eprintln!(
-                    "skyelab: {} agent events of thread {id} not saved yet: {e:#}",
-                    held.len()
-                );
-            }
-            Err(_) => {
-                cx.background_executor().timer(delay).await;
-                delay *= 2;
-            }
-        }
-    }
-}
-
-fn save_in_order(
-    store: &SharedStore,
-    id: i64,
-    mut batch: VecDeque<Held>,
-) -> (VecDeque<Held>, Result<()>) {
-    let saved = (|| {
-        let mut store = lock(store)?;
-        while let Some(h) = batch.front_mut() {
-            if !h.appended {
-                append(&mut store, id, &h.record)?;
-                h.appended = true;
-            }
-            match &h.record {
-                Record::Agent(Event::Init { session_id, .. }) => {
-                    store.set_agent_session_id(id, Some(session_id))?
-                }
-                Record::Agent(Event::Result { .. }) => store.set_thread_status(id, "idle")?,
-                _ => {}
-            }
-            batch.pop_front();
-        }
-        anyhow::Ok(())
-    })();
-    (batch, saved)
-}
 
 impl ThreadView {
     /// Each event is stored before it is shown, so the store keeps stdout's order. An event the store refuses is
-    /// still shown and held, with every later one, until a retry saves them in order: never dropped.
+    /// still shown, and held with every later one in the view's queue until a retry saves them (`thread_saves`).
     pub(super) fn run(
         &mut self,
         session: Session,
@@ -94,19 +25,13 @@ impl ThreadView {
         if let Some(old) = self._pump.take() {
             old.detach();
         }
+        let unsaved = self.unsaved.clone();
         self._pump = Some(cx.spawn(async move |this, cx| {
-            let mut held = VecDeque::new();
             while let Ok(event) = events.recv_async().await {
                 let record = Record::Agent(event);
-                held.push_back(Held {
-                    record: record.clone(),
-                    appended: false,
-                });
-                // A first failure gets retries with backoff; while already behind, one try per event.
-                let tries = if held.len() == 1 { SAVE_TRIES } else { 1 };
-                save_held(&store, id, &mut held, tries, cx).await;
+                let left = save(&unsaved, &store, id, record.clone(), cx).await;
                 let shown = this.update(cx, |this, cx| {
-                    this.set_unsaved(held.len(), cx);
+                    this.saved(left, cx);
                     if let (Record::Agent(Event::Init { session_id, .. }), Some(t)) =
                         (&record, &mut this.thread)
                     {
@@ -124,21 +49,8 @@ impl ThreadView {
                     return;
                 }
             }
-            if !held.is_empty() {
-                save_held(&store, id, &mut held, SAVE_TRIES, cx).await;
-            }
-            let _ = this.update(cx, |this, cx| {
-                this.set_unsaved(held.len(), cx);
-                this.ended(launch, cx)
-            });
+            let _ = this.update(cx, |this, cx| this.ended(launch, cx));
         }));
-    }
-
-    fn set_unsaved(&mut self, n: usize, cx: &mut Context<Self>) {
-        if self.unsaved_events != n {
-            self.unsaved_events = n;
-            cx.notify();
-        }
     }
 
     /// claude's stdout closed and every event is stored: record how the thread ended.
@@ -240,15 +152,22 @@ impl ThreadView {
 impl Drop for ThreadView {
     /// Closing the tab ends its agent. Killing and reaping waits, so it happens off the UI thread.
     fn drop(&mut self) {
-        let (Some(session), Some(thread)) = (self.session.take(), &self.thread) else {
+        let session = self.session.take();
+        let Some(thread) = &self.thread else {
             return;
         };
-        let (store, id) = (self.backend.store.clone(), thread.id);
+        if session.is_none() && self.unsaved_events == 0 {
+            return;
+        }
+        let (store, id, unsaved) = (self.backend.store.clone(), thread.id, self.unsaved.clone());
         let _ = std::thread::Builder::new()
             .name("skyelab-agent-reaper".into())
             .spawn(move || {
+                let stopped = session.is_some();
                 drop(session);
-                if let Ok(store) = lock(&store) {
+                // A last try for held events; past this they are lost, as the warning said.
+                let _ = unsaved.flush(&store, id);
+                if stopped && let Ok(store) = lock(&store) {
                     let _ = store.set_thread_status(id, "stopped");
                 }
             });

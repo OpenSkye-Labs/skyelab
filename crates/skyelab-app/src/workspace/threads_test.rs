@@ -520,9 +520,10 @@ fn assert_refused(f: &Fixture, row: &Thread, cx: &mut VisualTestContext, says: &
     wait_until(cx, "the row to load", |cx| {
         view.read_with(cx, |t, _| !t.read_only)
     });
+    let launches = view.read_with(cx, |t, _| t.launches);
     send_text(&view, "again", cx);
-    // `launch` sets `starting` before anything else, so a refused send that left it false launched nothing.
     view.read_with(cx, |t, _| {
+        assert_eq!(t.launches, launches, "nothing was launched");
         let why = t.resume_refused.clone().expect("resume refused");
         assert!(why.contains(says), "{why}");
         assert!(t.session.is_none(), "nothing started");

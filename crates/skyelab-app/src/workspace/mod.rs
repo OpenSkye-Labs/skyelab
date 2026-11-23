@@ -581,4 +581,6 @@ mod drive_rebound_test;
 #[cfg(test)]
 mod remote_resume_test;
 #[cfg(test)]
+mod save_retry_stop_test;
+#[cfg(test)]
 mod save_retry_test;

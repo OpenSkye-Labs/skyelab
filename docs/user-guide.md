@@ -82,8 +82,8 @@ an account.
 The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
 current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
-another SkyeLab on the same data), the thread still shows it and says how many events weren't saved; SkyeLab saves
-them, in order, with the next event once the store works again. Quitting before then loses them.
+another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
+event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.

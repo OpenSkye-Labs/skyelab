@@ -55,8 +55,7 @@ impl Slots {
         {
             return Err("refused moments ago");
         }
-        let busy = state.busy.entry(ip).or_default();
-        if *busy >= self.per_peer {
+        if state.busy.get(&ip).is_some_and(|n| *n >= self.per_peer) {
             return Err("too many connections from this address waiting for whois");
         }
         let global = self
@@ -64,7 +63,7 @@ impl Slots {
             .clone()
             .try_acquire_owned()
             .map_err(|_| "too many connections waiting for whois")?;
-        *busy += 1;
+        *state.busy.entry(ip).or_default() += 1;
         Ok(Slot {
             slots: self.clone(),
             ip,
@@ -77,7 +76,7 @@ impl Slot {
     /// whois said this peer is not one of the user's devices.
     pub(crate) fn refused(&self, now: Instant) {
         let mut state = self.slots.state();
-        // Bounded by the addresses refused within the window, which the slot caps keep small.
+        // Bounded by the tailnet addresses refused within the window; expired ones go here.
         state
             .refused
             .retain(|_, at| now.duration_since(*at) < REFUSED_FOR);

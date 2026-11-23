@@ -68,7 +68,7 @@ impl Server {
             }
             _ => {}
         }
-        // Private from creation, and again after, since the umask may have kept bits from `mode`.
+        // Private from creation; the chmod after covers a dir that already existed with another mode.
         std::fs::DirBuilder::new()
             .recursive(true)
             .mode(0o700)

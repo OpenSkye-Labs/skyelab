@@ -326,8 +326,8 @@ impl Render for ThreadView {
                     .text_xs()
                     .text_color(theme.warning)
                     .child(format!(
-                        "{} agent events weren't saved (the store refused them). SkyeLab saves them with the \
-                         next event; quitting now loses them.",
+                        "{} events weren't saved (the store refused them). SkyeLab keeps retrying; \
+                         closing this tab or quitting before then loses them.",
                         self.unsaved_events
                     ))
             }))
