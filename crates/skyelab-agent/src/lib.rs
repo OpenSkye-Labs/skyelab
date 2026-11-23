@@ -5,14 +5,19 @@ mod attach;
 mod claude;
 mod codex;
 mod event;
+mod git_text;
 mod launch;
 mod pipes;
 mod prompts;
 mod reap;
 mod title;
+pub use git_text::{
+    MAX_SUBJECT, clean_commit_message, clean_pr, commit_prompt, generate_commit_message,
+    generate_pr, pr_prompt,
+};
 pub use launch::resolve_bin;
 use pipes::{read_events, read_stderr, write_lines};
-pub use title::{clean_title, generate_title, title_prompt};
+pub use title::{clean_title, generate_title, one_shot, title_prompt};
 #[cfg(unix)]
 pub mod mcp;
 mod models;

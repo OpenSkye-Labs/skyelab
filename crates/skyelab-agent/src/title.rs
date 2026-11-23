@@ -7,9 +7,9 @@ use std::time::{Duration, Instant};
 
 /// How much of the first prompt and of the first reply the title prompt carries.
 const MAX_INPUT: usize = 2000;
-/// A title call that takes longer is killed; the thread keeps its first-line title.
+/// A one-shot call that takes longer is killed (a title call leaves the first-line title).
 const DEADLINE: Duration = Duration::from_secs(90);
-/// The most of the agent's answer read (only its first line is used).
+/// The most of the agent's answer read.
 const MAX_OUTPUT: usize = 64 << 10;
 /// The longest title kept.
 const MAX_WORDS: usize = 6;
@@ -26,22 +26,30 @@ pub fn title_prompt(first_prompt: &str, reply: &str) -> String {
     )
 }
 
-fn cut(s: &str) -> String {
-    let mut t: String = s.chars().take(MAX_INPUT).collect();
-    if s.chars().count() > MAX_INPUT {
+pub(crate) fn cut(s: &str) -> String {
+    cut_to(s, MAX_INPUT)
+}
+
+/// `s` cut to `max` characters, with `…` when anything was cut.
+pub(crate) fn cut_to(s: &str, max: usize) -> String {
+    let mut t: String = s.chars().take(max).collect();
+    if s.chars().count() > max {
         t.push('…');
     }
     t
 }
 
+/// `raw` without bidi controls and zero-width characters, which could make generated text read as something else.
+pub(crate) fn visible(raw: &str) -> String {
+    raw.chars()
+        .filter(|c| !matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}'))
+        .collect()
+}
+
 /// The title in an agent's answer: its first non-empty line, quotes and markdown stripped, cut to six words and 80
 /// characters. `None` when nothing is left.
 pub fn clean_title(raw: &str) -> Option<String> {
-    // Bidi controls and zero-width characters could make a title read as something else.
-    let raw: String = raw
-        .chars()
-        .filter(|c| !matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FEFF}'))
-        .collect();
+    let raw = visible(raw);
     let line = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
     let line = line
         .trim_start_matches(['#', '*', '-', '>', ' '])
@@ -57,8 +65,7 @@ pub fn clean_title(raw: &str) -> Option<String> {
 }
 
 /// Asks `account`'s agent for a title for `prompt` (from [`title_prompt`]), in `dir`, which must still resolve to
-/// `account`. Claude: `claude -p` on its smallest model with no tools, no MCP and no saved session. Codex: an
-/// ephemeral read-only `codex exec` with no MCP servers or hooks (its shell can still read files). The env is the agent allowlist plus the account's own, as for every agent.
+/// `account`. See [`one_shot`] for how the call runs.
 pub fn generate_title(
     bin: &Path,
     config: &AccountsConfig,
@@ -66,8 +73,25 @@ pub fn generate_title(
     dir: &Path,
     prompt: &str,
 ) -> Result<String> {
+    let text = one_shot(bin, config, account, dir, prompt, "title")?;
+    clean_title(&text).context("the agent's answer held no title")
+}
+
+/// One cheap answer from `account`'s agent for `prompt`, in `dir`, which must still resolve to `account`. Claude:
+/// `claude -p` on its smallest model with no tools, no MCP and no saved session. Codex: an ephemeral read-only
+/// `codex exec` with no MCP servers or hooks (its shell can still read files). The env is the agent allowlist plus
+/// the account's own, as for every agent. Killed past [`DEADLINE`]; at most [`MAX_OUTPUT`] of the answer is read.
+/// `what` names the call in errors ("title", "commit message").
+pub fn one_shot(
+    bin: &Path,
+    config: &AccountsConfig,
+    account: &Account,
+    dir: &Path,
+    prompt: &str,
+    what: &str,
+) -> Result<String> {
     let (mut cmd, _, dir) = crate::launch::agent_command(bin, config, account, dir)?;
-    let out_file = tempfile::NamedTempFile::new().context("creating the title's output file")?;
+    let out_file = tempfile::NamedTempFile::new().context("creating the answer's output file")?;
     match account.provider {
         Provider::Claude => {
             cmd.args([
@@ -109,10 +133,14 @@ pub fn generate_title(
     }
     cmd.current_dir(&dir);
     let mut run = skyelab_core::process::Captured::spawn(&mut cmd, Some(prompt.as_bytes()))
-        .context("starting the title call")?;
+        .with_context(|| format!("starting the {what} call"))?;
     let start = Instant::now();
     let status = loop {
-        if let Some(status) = run.child.try_wait().context("waiting for the title call")? {
+        if let Some(status) = run
+            .child
+            .try_wait()
+            .with_context(|| format!("waiting for the {what} call"))?
+        {
             break status;
         }
         if start.elapsed() > DEADLINE {
@@ -120,21 +148,23 @@ pub fn generate_title(
             crate::launch::kill_group(run.child.id());
             let _ = run.child.kill();
             let _ = run.child.wait();
-            bail!("the title call took longer than {}s", DEADLINE.as_secs());
+            bail!("the {what} call took longer than {}s", DEADLINE.as_secs());
         }
         std::thread::sleep(Duration::from_millis(50));
     };
-    let output = run.output(status).context("reading the title call")?;
+    let output = run
+        .output(status)
+        .with_context(|| format!("reading the {what} call"))?;
     if !status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        bail!("the title call failed ({status}): {}", err.trim());
+        bail!("the {what} call failed ({status}): {}", err.trim());
     }
     let mut text = match account.provider {
         Provider::Claude => output.stdout,
         Provider::Codex => std::fs::read(out_file.path()).context("reading Codex's answer")?,
     };
     text.truncate(MAX_OUTPUT);
-    clean_title(&String::from_utf8_lossy(&text)).context("the agent's answer held no title")
+    Ok(String::from_utf8_lossy(&text).into_owned())
 }
 
 #[cfg(test)]
