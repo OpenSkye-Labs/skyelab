@@ -1,6 +1,7 @@
 //! The timeline's text: agent markdown (streamed words fade in, code blocks get a copy button, links are checked),
 //! the turn divider and the usage-limit line.
 
+use super::files::{link_line, linkify};
 use super::thread_items::ItemsView;
 use super::thread_render::opens_in_browser;
 use super::tool_cards;
@@ -55,15 +56,18 @@ pub(in crate::workspace) fn wait(left: i64) -> String {
 }
 
 /// Agent markdown: selectable, a copy button on each code block, web links open in the browser and file links in
-/// Changes (agent text is untrusted, so nothing else opens). `live` fades streamed words in.
+/// the Preview tab (agent text is untrusted, so nothing else opens). Paths in `root` become links, file links outside
+/// it plain text (see `files::linkify`). `live` fades streamed words in.
 pub(super) fn markdown<V: ItemsView>(
     id: impl Into<gpui::ElementId>,
     text: &str,
     live: bool,
+    root: Option<&std::path::Path>,
     cx: &mut Context<V>,
 ) -> TextView {
     let view = cx.entity().downgrade();
-    TextView::markdown(id, text.to_owned())
+    let text = root.map_or_else(|| text.to_owned(), |root| linkify(text, root));
+    TextView::markdown(id, text)
         .selectable(true)
         .stream_fade(live)
         .code_block_actions(move |block, _, _| {
@@ -80,7 +84,8 @@ pub(super) fn markdown<V: ItemsView>(
             if opens_in_browser(url) {
                 cx.open_url(url);
             } else if let Some(path) = file_link(url) {
-                let _ = view.update(cx, |v, cx| v.open_path(&path, cx));
+                let line = link_line(url);
+                let _ = view.update(cx, |v, cx| v.preview_path(&path, line, cx));
             }
         })
 }

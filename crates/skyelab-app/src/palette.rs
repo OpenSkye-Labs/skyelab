@@ -146,6 +146,8 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::BindFolder", "Bind Folder to Account"),
     ("skyelab::ToggleWorktree", "Toggle Thread Worktree"),
     ("skyelab::OpenInEditor", "Open in Editor"),
+    ("skyelab::OpenFilePicker", "Go to File"),
+    ("skyelab::SearchFiles", "Search in Files"),
     ("skyelab::JumpToThread1", "Jump to Thread 1"),
     ("skyelab::JumpToThread2", "Jump to Thread 2"),
     ("skyelab::JumpToThread3", "Jump to Thread 3"),
@@ -163,6 +165,7 @@ const HIDDEN: &[&str] = &[
     "skyelab::ConfirmDiscardWorktree",
     "skyelab::CancelDiscardWorktree",
     "skyelab::CancelEdit",
+    "skyelab::OpenPickedInEditor",
 ];
 
 /// `skyelab::OpenSettings` → "Open Settings": the table, else the CamelCase name split into words.

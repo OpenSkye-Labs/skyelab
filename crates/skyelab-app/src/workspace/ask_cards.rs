@@ -366,6 +366,7 @@ pub(super) fn render_plan<V: ItemsView>(
                     SharedString::from(format!("plan-md-{}", a.id)),
                     &plan,
                     false,
+                    this.files_root(),
                     cx,
                 )),
         )

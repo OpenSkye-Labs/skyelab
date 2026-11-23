@@ -226,6 +226,12 @@ impl ItemsView for ThreadView {
     fn open_path(&mut self, path: &str, cx: &mut Context<Self>) {
         ThreadView::open_path(self, path, cx)
     }
+    fn files_root(&self) -> Option<&std::path::Path> {
+        Some(&self.cwd)
+    }
+    fn preview_path(&mut self, path: &str, line: Option<u32>, cx: &mut Context<Self>) {
+        cx.emit(ThreadViewEvent::Preview(path.into(), line));
+    }
     fn can_answer_questions(&self, _: &App) -> bool {
         self.session.is_some()
     }

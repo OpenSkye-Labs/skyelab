@@ -272,7 +272,7 @@ impl Workspace {
         self.open_dir_in_editor(dir, pick, window, cx);
     }
 
-    /// Opens `dir` in the user's editor (`pick`, saved to settings first, else the configured one); a missing
+    /// Opens `dir` (or a file) in the user's editor (`pick`, saved to settings first, else the configured one); a missing
     /// editor shows as a notice.
     pub(super) fn open_dir_in_editor(
         &mut self,
@@ -345,7 +345,12 @@ pub(super) fn editor_command(argv: &[String], dir: &Path) -> anyhow::Result<std:
     let mut cmd = std::process::Command::new(bin);
     cmd.args(args)
         .arg(dir)
-        .current_dir(dir)
+        // `dir` may be a file (the picker's mod+Enter): the editor starts in its folder.
+        .current_dir(if dir.is_file() {
+            dir.parent().unwrap_or(dir)
+        } else {
+            dir
+        })
         .env_clear()
         .envs(skyelab_core::env::terminal_vars(
             std::env::vars_os(),

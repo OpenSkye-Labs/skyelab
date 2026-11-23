@@ -48,8 +48,14 @@ pub(super) trait ItemsView: Sized + 'static {
     fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
     /// Stops the running turn instead of answering (T3 keeps Interrupt beside a pending ask).
     fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>);
-    /// Shows `path` (a tool card's file, a markdown link) in the Changes tab. Remote tabs have no local files.
+    /// Shows `path` (a tool card's file) in the Changes tab. Remote tabs have no local files.
     fn open_path(&mut self, _path: &str, _cx: &mut Context<Self>) {}
+    /// The local folder reply links resolve in; `None` (remote) leaves paths as text.
+    fn files_root(&self) -> Option<&std::path::Path> {
+        None
+    }
+    /// Shows a file a reply links to in the Preview tab, at `line`.
+    fn preview_path(&mut self, _path: &str, _line: Option<u32>, _cx: &mut Context<Self>) {}
     /// Whether AskUserQuestion answers can be sent from here.
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
@@ -119,6 +125,7 @@ fn render_row<V: ItemsView>(
         _ => None,
     });
     let divider_folded = timeline_fold::fold_head(this.items(), ix).is_some();
+    let root = this.files_root().map(std::path::Path::to_path_buf);
     let theme = cx.theme();
     let muted = theme.muted_foreground;
     let Some(item) = this.items().get(ix).cloned() else {
@@ -164,7 +171,7 @@ fn render_row<V: ItemsView>(
                 .px_1()
                 .gap_1()
                 .text_size(ui::BODY)
-                .child(markdown(("md", ix), text, false, cx))
+                .child(markdown(("md", ix), text, false, root.as_deref(), cx))
                 .child(
                     h_flex()
                         .debug_selector(|| "message-copy".into())
@@ -188,7 +195,7 @@ fn render_row<V: ItemsView>(
                 .debug_selector(|| "streaming-text".into())
                 .px_1()
                 .text_size(ui::BODY)
-                .child(markdown(("md", ix), text, true, cx))
+                .child(markdown(("md", ix), text, true, root.as_deref(), cx))
                 .into_any_element(),
         ),
         Item::Live {

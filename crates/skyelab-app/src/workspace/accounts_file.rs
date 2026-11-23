@@ -18,3 +18,11 @@ pub fn accounts_now(
         |p| skyelab_core::AccountsConfig::load(p).unwrap_or_default(),
     )
 }
+
+/// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
+pub(super) fn account_label(
+    config: &skyelab_core::AccountsConfig,
+    folder: &std::path::Path,
+) -> Option<gpui::SharedString> {
+    config.resolve(folder).map(|a| a.label.clone().into())
+}

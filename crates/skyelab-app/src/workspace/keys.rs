@@ -13,6 +13,8 @@ pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-al
 pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
 pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
 pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
+pub(crate) const FILE_PICKER_KEY: &str = if MAC { "cmd-p" } else { "ctrl-p" };
+pub(crate) const SEARCH_FILES_KEY: &str = if MAC { "cmd-shift-f" } else { "ctrl-shift-f" };
 
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
@@ -25,12 +27,16 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
         KeyBinding::new(GO_BACK_KEY, GoBack, Some(CONTEXT)),
         KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
+        KeyBinding::new(FILE_PICKER_KEY, files::OpenFilePicker, Some(CONTEXT)),
+        KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some(CONTEXT)),
     ]);
     // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
     if !MAC {
         cx.bind_keys([
             KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
+            // ctrl-p is the shell's previous command.
+            KeyBinding::new(FILE_PICKER_KEY, NoAction, Some("Terminal")),
             // alt-left/right move by word in a shell; in a text field they would surprise more than help.
             KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
@@ -42,9 +48,12 @@ pub fn init(cx: &mut App) {
         cx.bind_keys([
             KeyBinding::new(GO_BACK_KEY, GoBack, Some("Input")),
             KeyBinding::new(GO_FORWARD_KEY, GoForward, Some("Input")),
+            // A text field binds cmd-shift-f to Replace; the prompt and the read-only preview have nothing to replace.
+            KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some("Input")),
         ]);
     }
     layout::bind_keys(cx);
+    files::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
 }
