@@ -121,6 +121,15 @@ you to log in instead of using your default account. ssh keys work there as usua
 (`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `GH_TOKEN`, `AWS_*`, ...) don't reach it; your shell's own rc
 files still run, so a key they export is set again.
 
+In a terminal, the wheel or trackpad scrolls back through the last 10,000 lines, and so do
+<kbd>Shift+PageUp</kbd>/<kbd>Shift+PageDown</kbd>; new output doesn't move you while you're scrolled up, and typing
+jumps back to the bottom. Drag to select, double-click for a word, triple-click for a line, then <kbd>⌘C</kbd> to copy
+(<kbd>Ctrl+Shift+C</kbd> on Linux and Windows); <kbd>⌘V</kbd> (<kbd>Ctrl+Shift+V</kbd>) pastes. When a program
+such as vim or htop uses the mouse, clicks and the wheel go to it; hold <kbd>Shift</kbd> to select instead. Hold
+<kbd>⌘</kbd> (<kbd>Ctrl</kbd>) over a link to underline it and click to open it: `http` and `https` addresses open in
+your browser (no other kind ever does), and a file path jumps to that file in an open Changes tab that lists it.
+Relative paths are read from the folder the terminal started in.
+
 ### Agent browser tabs
 
 An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read

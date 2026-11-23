@@ -3,7 +3,9 @@ use std::{borrow::Cow, collections::HashMap, path::PathBuf, process::ExitStatus,
 use alacritty_terminal::{
     event::{EventListener, WindowSize},
     event_loop::{EventLoop, EventLoopSender, Msg},
-    grid::Dimensions,
+    grid::{Dimensions, Scroll},
+    index::{Column, Line, Point, Side},
+    selection::{Selection, SelectionType},
     sync::FairMutex,
     term::{Config, Term, cell::Flags, test::TermSize},
     tty,
@@ -11,7 +13,21 @@ use alacritty_terminal::{
 use anyhow::Context as _;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 
+use crate::links::{LinkKind, find_links};
+
 pub use alacritty_terminal::event::Event;
+
+/// Lines of scrollback kept above the screen.
+const HISTORY: usize = 10_000;
+
+/// A link under a cell: its text and its grid span (first and last cell, inclusive).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Link {
+    pub kind: LinkKind,
+    pub text: String,
+    pub start: Point,
+    pub end: Point,
+}
 
 /// Forwards alacritty's events (output arrived, child exited, …) to whoever owns the receiver.
 #[derive(Clone)]
@@ -40,6 +56,7 @@ pub struct Terminal {
     pty: EventLoopSender,
     exit: Option<ExitStatus>,
     size: (u16, u16),
+    cwd: PathBuf,
     /// macOS discards unread PTY output when the last slave fd closes; holding one makes the child's exit wait for
     /// the reader to drain it.
     _slave: Slave,
@@ -57,6 +74,7 @@ impl Terminal {
         let (tx, rx) = unbounded();
         let listener = Listener(tx);
         let (program, args, env) = launch(opts.command, opts.env, &parent_names(), cfg!(windows));
+        let cwd = opts.cwd.clone();
         let options = tty::Options {
             shell: Some(tty::Shell::new(program, args)),
             working_directory: Some(opts.cwd),
@@ -67,8 +85,12 @@ impl Terminal {
         };
         let window_size = window_size(opts.cols, opts.lines, 0.0, 0.0);
         let (pty, slave) = open_pty(&options, window_size).context("spawning the terminal pty")?;
+        let config = Config {
+            scrolling_history: HISTORY,
+            ..Config::default()
+        };
         let term = Term::new(
-            Config::default(),
+            config,
             &TermSize::new(opts.cols.into(), opts.lines.into()),
             listener.clone(),
         );
@@ -83,6 +105,7 @@ impl Terminal {
             pty,
             exit: None,
             size: (opts.cols, opts.lines),
+            cwd,
             _slave: slave,
         };
         Ok((this, rx))
@@ -135,6 +158,91 @@ impl Terminal {
         self.term.lock()
     }
 
+    /// The folder the terminal started in; relative path links resolve against it.
+    pub fn cwd(&self) -> &std::path::Path {
+        &self.cwd
+    }
+
+    /// Moves the view through the scrollback; `Delta(n > 0)` goes up into history.
+    pub fn scroll(&mut self, scroll: Scroll) {
+        self.term.lock().scroll_display(scroll);
+    }
+
+    /// How many lines the view is scrolled up from the bottom.
+    pub fn display_offset(&self) -> usize {
+        self.term().grid().display_offset()
+    }
+
+    /// Lines of scrollback above the screen.
+    pub fn history_size(&self) -> usize {
+        self.term().grid().history_size()
+    }
+
+    /// Starts a selection at a viewport cell (row 0 is the top visible row).
+    pub fn select(&mut self, kind: SelectionType, row: usize, col: usize, side: Side) {
+        let mut term = self.term.lock();
+        let at = viewport_point(&term, row, col);
+        term.selection = Some(Selection::new(kind, at, side));
+    }
+
+    /// Moves the end of the current selection to a viewport cell.
+    pub fn extend_selection(&mut self, row: usize, col: usize, side: Side) {
+        let mut term = self.term.lock();
+        let at = viewport_point(&term, row, col);
+        if let Some(s) = term.selection.as_mut() {
+            s.update(at, side);
+        }
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.term.lock().selection = None;
+    }
+
+    /// The selected text, `None` when nothing (or only an empty span) is selected.
+    pub fn selection_text(&self) -> Option<String> {
+        self.term().selection_to_string().filter(|s| !s.is_empty())
+    }
+
+    /// The link at a viewport cell, if any. Scans the (soft-wrapped) line holding the cell.
+    pub fn link_at(&self, row: usize, col: usize) -> Option<Link> {
+        let term = self.term();
+        let at = viewport_point(&term, row, col);
+        let (first, last) = (term.line_search_left(at), term.line_search_right(at));
+        // One entry per char of the line's text: the cell it came from.
+        let mut text = String::new();
+        let mut cells = Vec::new();
+        let grid = term.grid();
+        let mut p = first;
+        while p <= last {
+            let cell = &grid[p];
+            if !cell
+                .flags
+                .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
+            {
+                text.push(cell.c);
+                cells.push(p);
+            }
+            p = p.add(&*term, alacritty_terminal::index::Boundary::Grid, 1);
+            if p == first {
+                break;
+            }
+        }
+        let here = cells.iter().rposition(|c| *c <= at)?;
+        let link = find_links(&text)
+            .into_iter()
+            .find(|l| (l.start..l.end).contains(&here))?;
+        Some(Link {
+            kind: link.kind,
+            text: text
+                .chars()
+                .skip(link.start)
+                .take(link.end - link.start)
+                .collect(),
+            start: cells[link.start],
+            end: cells[link.end - 1],
+        })
+    }
+
     /// The visible screen as text, one line per row, trailing blanks trimmed.
     pub fn text(&self) -> String {
         let term = self.term();
@@ -165,6 +273,16 @@ impl Drop for Terminal {
     fn drop(&mut self) {
         let _ = self.pty.send(Msg::Shutdown);
     }
+}
+
+/// A viewport cell as a grid point, clamped to the grid.
+fn viewport_point<T>(term: &Term<T>, row: usize, col: usize) -> Point {
+    let row = row.min(term.screen_lines().saturating_sub(1));
+    let col = col.min(term.columns().saturating_sub(1));
+    Point::new(
+        Line(row as i32 - term.grid().display_offset() as i32),
+        Column(col),
+    )
 }
 
 /// The PTY plus a parent-held fd of its slave side (`()` on Windows).
