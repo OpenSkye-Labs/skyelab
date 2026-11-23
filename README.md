@@ -48,6 +48,9 @@ What's built today:
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
   switches project, opens a thread (also found by its messages, in any project) or goes to a terminal, Changes or
   browser tab.
+- **Files.** <kbd>⌘P</kbd> finds a file in the thread's folder, <kbd>⇧⌘F</kbd> searches file contents in a right-panel tab,
+  and a read-only Preview tab shows a file with syntax highlighting (or an image). File paths in the agent's replies
+  open there at their line. Nothing outside the thread's folder is read.
 - **Branches, checkpoints and scripts.** A branch picker in the Details tab (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.

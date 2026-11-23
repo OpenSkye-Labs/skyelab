@@ -79,10 +79,23 @@ pub fn repo_root(path: &Path) -> Result<PathBuf> {
 /// The files git tracks under `dir`, relative to it: what the composer's `@` menu offers. Ignored and untracked
 /// files never show.
 pub fn tracked_files(dir: &Path) -> Result<Vec<String>> {
-    let out = git(
-        dir,
-        &["-c", "core.quotePath=false", "ls-files", "-z", "--cached"],
-    )?;
+    ls_files(dir, &["--cached"])
+}
+
+/// What the file picker lists: the tracked files under `dir` plus the untracked ones that aren't ignored, relative to
+/// it and sorted.
+pub fn project_files(dir: &Path) -> Result<Vec<String>> {
+    let mut files = ls_files(dir, &["--cached", "--others", "--exclude-standard"])?;
+    files.sort();
+    files.dedup(); // an unmerged file is listed once per stage
+    files.retain(|f| !f.ends_with('/')); // an untracked nested repo is listed as `sub/`
+    Ok(files)
+}
+
+fn ls_files(dir: &Path, which: &[&str]) -> Result<Vec<String>> {
+    let mut args = vec!["-c", "core.quotePath=false", "ls-files", "-z"];
+    args.extend_from_slice(which);
+    let out = git(dir, &args)?;
     Ok(out
         .split(|b| *b == 0)
         .filter(|f| !f.is_empty())

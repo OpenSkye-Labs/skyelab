@@ -15,6 +15,8 @@ pub enum ThreadViewEvent {
     Git(GitAction),
     /// A file the agent's work names (a card's path, a link): show it in the Changes tab.
     OpenPath(PathBuf),
+    /// A reply links to a file (relative to the thread's folder, or absolute): show it in the Preview tab at the line.
+    Preview(PathBuf, Option<u32>),
     /// The folder's files or checkpoints changed (a turn's checkpoint, a branch switch): Changes tabs reload.
     FilesChanged,
     /// Run a project script in this thread's folder, on its account.

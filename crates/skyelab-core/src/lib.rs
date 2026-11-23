@@ -11,6 +11,7 @@ pub use editor::editor_argv;
 mod pr_url;
 pub use pr_url::github_pr_url;
 pub mod env;
+pub mod files;
 pub mod process;
 pub use app_settings::{AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS, WindowLayout};
 
