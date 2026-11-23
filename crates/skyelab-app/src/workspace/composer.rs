@@ -5,6 +5,8 @@
 // The composer's parts. Their `super::` paths name the workspace's modules through the imports below.
 #[path = "composer_attach.rs"]
 mod composer_attach;
+#[path = "composer_context.rs"]
+pub(crate) mod composer_context;
 #[path = "composer_draft.rs"]
 mod composer_draft;
 #[path = "composer_footer.rs"]
@@ -90,6 +92,7 @@ impl ThreadView {
         let menu_el = menu.map(|m| self.render_menu(m, cx));
         let picker = self.composer.picker_open.then(|| self.render_picker(cx));
         let attachments = self.render_attachments(cx);
+        let contexts = self.render_contexts(cx);
         let controls = self.render_controls(cx);
         let queue = self.render_queue(cx);
         let footer = self.render_footer(cx);
@@ -125,6 +128,7 @@ impl ThreadView {
             .children(menu_el)
             .children(picker)
             .children(attachments)
+            .children(contexts)
             .child(
                 div()
                     .px_4()
@@ -195,8 +199,9 @@ impl ThreadView {
     /// once pressed); and Force stop beside it when an interrupt went unanswered.
     fn render_primary(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let running = self.turn_running();
-        let empty =
-            self.prompt.read(cx).value().trim().is_empty() && self.composer.attachments.is_empty();
+        let empty = self.prompt.read(cx).value().trim().is_empty()
+            && self.composer.attachments.is_empty()
+            && self.composer.terminal_contexts.is_empty();
         let round = ButtonRounded::Size(px(16.));
         let mut out = Vec::new();
         if running && self.composer.stalled {

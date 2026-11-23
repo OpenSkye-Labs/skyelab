@@ -7,7 +7,7 @@ use gpui::{
     ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
     ScrollEvent, Task, Window, actions, canvas, div, font, point, prelude::*,
 };
-use gpui_component::ActiveTheme as _;
+use gpui_component::{ActiveTheme as _, menu::ContextMenuExt as _};
 
 use crate::{
     Event, Link, LinkKind, OptionKeys, Terminal, key_to_bytes,
@@ -17,13 +17,15 @@ use crate::{
     paint::{Palette, Style, layout},
 };
 
-actions!(terminal, [Copy, Paste]);
+actions!(terminal, [Copy, Paste, AddToPrompt]);
 
 /// What a terminal asks its host to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalEvent {
     /// A file path was cmd-clicked (absolute, resolved against the terminal's start folder).
     OpenPath(PathBuf),
+    /// "Add to prompt" with this selected text.
+    AddToPrompt(String),
 }
 
 const CONTEXT: &str = "Terminal";
@@ -34,6 +36,12 @@ const PASTE_KEY: &str = if cfg!(target_os = "macos") {
     "cmd-v"
 } else {
     "ctrl-shift-v"
+};
+// ctrl-l clears the screen in a shell, hence ctrl-shift-l off macOS.
+const ADD_TO_PROMPT_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-l"
+} else {
+    "ctrl-shift-l"
 };
 // ctrl-c is interrupt in a shell, hence ctrl-shift-c off macOS.
 const COPY_KEY: &str = if cfg!(target_os = "macos") {
@@ -47,6 +55,7 @@ pub fn init(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT)),
         KeyBinding::new(COPY_KEY, Copy, Some(CONTEXT)),
+        KeyBinding::new(ADD_TO_PROMPT_KEY, AddToPrompt, Some(CONTEXT)),
     ]);
 }
 
@@ -192,6 +201,7 @@ impl TerminalView {
             if let Some(button) = report_button(event.button) {
                 self.report(MouseAction::Press, button, row, col, &event.modifiers);
             }
+            cx.stop_propagation(); // the program gets the right click, not the context menu
             return;
         }
         if event.button != MouseButton::Left {
@@ -360,6 +370,12 @@ impl TerminalView {
         }
     }
 
+    fn add_to_prompt(&mut self, _: &AddToPrompt, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(text) = self.terminal.selection_text() {
+            cx.emit(TerminalEvent::AddToPrompt(text));
+        }
+    }
+
     fn paste(&mut self, _: &Paste, _: &mut Window, cx: &mut Context<Self>) {
         let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
             return;
@@ -390,12 +406,14 @@ impl Render for TerminalView {
             font_size: theme.mono_font_size,
         };
         let view = cx.entity();
+        let (focus, selected) = (self.focus.clone(), self.terminal.selection_text().is_some());
         div()
             .id("terminal")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::copy))
+            .on_action(cx.listener(Self::add_to_prompt))
             .on_key_down(cx.listener(Self::key_down))
             .on_any_mouse_down(cx.listener(Self::mouse_down))
             .on_mouse_move(cx.listener(Self::mouse_move))
@@ -421,6 +439,13 @@ impl Render for TerminalView {
                 )
                 .size_full(),
             )
+            .context_menu(move |menu, _, _| {
+                menu.action_context(focus.clone())
+                    .menu_with_disabled("Copy", Box::new(Copy), !selected)
+                    .menu("Paste", Box::new(Paste))
+                    .separator()
+                    .menu_with_disabled("Add to prompt", Box::new(AddToPrompt), !selected)
+            })
     }
 }
 
@@ -455,5 +480,6 @@ mod tests {
         // Panics on a keystroke string GPUI can't parse.
         KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT));
         KeyBinding::new(COPY_KEY, Copy, Some(CONTEXT));
+        KeyBinding::new(ADD_TO_PROMPT_KEY, AddToPrompt, Some(CONTEXT));
     }
 }

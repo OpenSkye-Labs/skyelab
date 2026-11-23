@@ -15,8 +15,10 @@ pub mod files;
 pub mod onboarding;
 pub mod process;
 pub use app_settings::{
-    AppSettings, ApprovedDevice, MAX_RECENT_ENVIRONMENTS, ThreadSettings, WindowLayout,
+    AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ThreadSettings,
+    WindowLayout,
 };
+pub mod terminal_context;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

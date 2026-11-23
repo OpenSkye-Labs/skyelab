@@ -441,3 +441,7 @@ pub(super) mod resume;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "session_gone_test.rs"]
 mod session_gone;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "threads_resume_contexts_test.rs"]
+mod resume_contexts;

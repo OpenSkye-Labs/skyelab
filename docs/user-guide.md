@@ -152,7 +152,11 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   account's config dir.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
-as. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
+as. In a terminal, <kbd>⌘D</kbd> (<kbd>Ctrl+Shift+D</kbd>) splits it: a second shell beside it in the same tab,
+on the folder's account, and <kbd>⌥⌘→</kbd>/<kbd>⌥⌘←</kbd> (<kbd>Ctrl+Alt+→/←</kbd>) move between the panes. A
+terminal belongs to the thread that was showing when you opened it: another thread hides it, and it comes back,
+still running, with its thread. Terminals opened with no thread showing stay with every thread. Terminals and their
+scrollback end when SkyeLab quits. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
 
 A terminal runs as the folder's account: `claude` or `codex` typed there uses that account's config dir, and
 `gh` and `git push` over https use its GitHub login when it has one (without one, `gh` keeps your default login
@@ -169,7 +173,10 @@ jumps back to the bottom. Drag to select, double-click for a word, triple-click 
 such as vim or htop uses the mouse, clicks and the wheel go to it; hold <kbd>Shift</kbd> to select instead. Hold
 <kbd>⌘</kbd> (<kbd>Ctrl</kbd>) over a link to underline it and click to open it: `http` and `https` addresses open in
 your browser (no other kind ever does), and a file path jumps to that file in an open Changes tab that lists it.
-Relative paths are read from the folder the terminal started in.
+Relative paths are read from the folder the terminal started in. To ask the agent about some output, select it and
+press <kbd>⌘L</kbd> (<kbd>Ctrl+Shift+L</kbd>) or right-click and pick **Add to prompt**: it shows above the prompt
+of the thread on screen as a chip (click it to read the text, × to drop it) and is sent after your message as a
+code block, up to 20,000 characters.
 
 ### Agent browser tabs
 

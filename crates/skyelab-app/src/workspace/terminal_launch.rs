@@ -90,8 +90,17 @@ impl Workspace {
         cx: &App,
     ) -> impl FnOnce() -> anyhow::Result<(SpawnOptions, Option<skyelab_core::Account>)> + Send + use<>
     {
+        self.terminal_job_in(self.folder.clone(), cx)
+    }
+
+    /// [`Self::terminal_job`] for `folder`: its bound account or none, like any terminal.
+    pub(super) fn terminal_job_in(
+        &self,
+        folder: PathBuf,
+        cx: &App,
+    ) -> impl FnOnce() -> anyhow::Result<(SpawnOptions, Option<skyelab_core::Account>)> + Send + use<>
+    {
         let config = self.accounts_job(cx);
-        let folder = self.folder.clone();
         move || {
             let config = config();
             // The tab shows the account this env was built for, from the same read of accounts.toml.
@@ -143,6 +152,8 @@ impl Workspace {
         failed: impl FnOnce(&mut Self, anyhow::Error, &mut Context<Self>) + 'static,
     ) {
         let options = cx.background_spawn(async move { job() });
+        // The tab belongs to the thread shown when it was asked for, even if another shows by the time it opens.
+        let owner = self.current_thread().map(|t| t.entity_id());
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
@@ -150,7 +161,12 @@ impl Workspace {
                     if this.is_remote() || !wanted(this, &o) {
                         return Ok(());
                     }
-                    this.add_terminal_tab(o, account, tab, window, cx)
+                    this.add_terminal_tab(o, account, tab, window, cx)?;
+                    if let Some(panel) = this.terminals.last() {
+                        panel.update(cx, |p, _| p.owner = owner);
+                    }
+                    this.sync_terminals(window, cx);
+                    Ok(())
                 });
                 if let Err(e) = opened {
                     failed(this, e, cx);

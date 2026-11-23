@@ -24,8 +24,8 @@ pub use checkpoint::{
 };
 pub use commit::{commit, snapshot_tree};
 pub use diff::{
-    FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base, diff_stat,
-    diff_trees,
+    Against, FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base,
+    diff_stat, diff_trees, diff_with,
 };
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use status::{FileChange, Status, status, status_with_ignored};
@@ -238,3 +238,5 @@ fn lossy(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod whitespace_test;

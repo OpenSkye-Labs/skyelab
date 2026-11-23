@@ -28,7 +28,7 @@ fn ten_thousand_changed_files_build_only_visible_sidebar_rows(cx: &mut TestAppCo
         cx.new(|cx| ChangesView::new(path, None, "app".into(), None, window, cx))
     });
     cx.run_until_parked();
-    view.update(cx, |v, _| (v.changes, v.error) = (Some(changes), None));
+    view.update(cx, |v, _| v.set_loaded(changes));
     let before = file_rows_built();
     cx.draw(point(px(0.), px(0.)), size(px(800.), px(600.)), |_, _| {
         view.clone().into_any_element()

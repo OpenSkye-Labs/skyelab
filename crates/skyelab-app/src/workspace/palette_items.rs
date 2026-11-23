@@ -151,8 +151,15 @@ impl Workspace {
             let title = view.read(cx).title();
             tabs.push(self.tab_in(DockPlacement::Right, title, &view, cx));
         }
-        for (i, panel) in self.terminals.iter().enumerate() {
-            let title = format!("Terminal {}", i + 1).into();
+        // Another thread's terminals are out of the dock until it shows.
+        let docked: Vec<_> = self
+            .terminals
+            .iter()
+            .filter(|p| p.read(cx).docked)
+            .cloned()
+            .collect();
+        for panel in &docked {
+            let title = panel.read(cx).title();
             tabs.push(self.tab_in(DockPlacement::Bottom, title, panel, cx));
         }
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {

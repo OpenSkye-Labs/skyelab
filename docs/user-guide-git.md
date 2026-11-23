@@ -1,4 +1,4 @@
-# User guide: branches, scripts and turns
+# User guide: branches, scripts, the diff and turns
 
 Back to the [user guide](user-guide.md).
 
@@ -25,6 +25,17 @@ usual environment plus `SKYELAB_PROJECT_ROOT` and, in a worktree, `SKYELAB_WORKT
 account bound runs nothing. Tick **Run in every new worktree** for setup scripts such as `pnpm install`: they run as
 soon as a worktree thread you start begins (not for threads an agent delegates). The command palette lists every script as **Run script: <name>** (it runs in the
 project folder). Scripts are kept in SkyeLab's own database, never in the repo, so an agent can't add one.
+
+## Reading the diff
+
+The Changes tab lists the changed files as a folder tree on the left: click a folder to fold it, a file to jump to it
+in the diff. A folder that only holds one folder is shown as one row (`crates/app/src`). The buttons in its header
+switch between a **unified** diff and a **split** one (old on the left, new on the right), turn **line wrapping** on
+or off, and **hide whitespace changes** (`git diff -w`: a file whose only change is whitespace shows as such). SkyeLab
+remembers all three in `settings.toml` under `[diff]`.
+
+Click in the diff and press <kbd>⌘F</kbd> (<kbd>Ctrl+F</kbd>) to find in it: the bar counts every match in the file
+names and lines, <kbd>↩</kbd> and <kbd>⇧↩</kbd> step through them, and <kbd>Esc</kbd> closes it.
 
 ## Turns and rewind
 

@@ -99,6 +99,8 @@ pub(crate) enum Submit {
 #[derive(Default)]
 pub(crate) struct Composer {
     pub attachments: Vec<Attachment>,
+    /// Terminal output added with "Add to prompt", sent after the text.
+    pub terminal_contexts: Vec<super::composer_context::TerminalContext>,
     pub queue: Queue,
     pub menu: Option<Menu>,
     pub picker_open: bool,

@@ -21,7 +21,7 @@ use gpui_component::{
 actions!(skyelab, [FindInThread, FindNext, FindPrevious, CloseFind]);
 
 const FIND_CONTEXT: &str = "ThreadFind";
-const FIND_KEY: &str = if cfg!(target_os = "macos") {
+pub(super) const FIND_KEY: &str = if cfg!(target_os = "macos") {
     "cmd-f"
 } else {
     "ctrl-f"
@@ -45,8 +45,8 @@ pub struct Find {
     /// Which of `matches` is current.
     pub active: usize,
     /// The query `matches` were counted for.
-    query: String,
-    _sub: Option<Subscription>,
+    pub query: String,
+    pub _sub: Option<Subscription>,
 }
 
 impl Find {
@@ -245,73 +245,88 @@ pub(super) trait FindHost: ItemsView {
         cx.notify();
     }
 
-    /// The bar, over the timeline's top right (T3: 12 px in, popover surface).
+    /// The bar, over the timeline's top right.
     fn render_find(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let input = self.find().input.clone()?;
-        let query = input.read(cx).value().to_string();
-        let f = self.find();
-        let theme = cx.theme();
-        let none = !query.trim().is_empty() && f.matches.is_empty();
-        let step = |id: &'static str, icon: IconName, forward: bool| {
-            Button::new(id)
-                .ghost()
-                .xsmall()
-                .icon(icon)
-                .disabled(f.matches.is_empty())
-                .on_click(cx.listener(move |this, _, _, cx| this.find_step(forward, cx)))
-        };
-        Some(
-            div()
-                .absolute()
-                .top_3()
-                .right_3()
-                .w(px(360.))
-                .child(
-                    h_flex()
-                        .id("find-bar")
-                        .debug_selector(|| "find-bar".into())
-                        .key_context(FIND_CONTEXT)
-                        .gap_1()
-                        .pl_1()
-                        .pr_1()
-                        .py_0p5()
-                        .rounded(ui::RADIUS_LG)
-                        .bg(theme.popover)
-                        .border_1()
-                        .border_color(theme.border)
-                        .shadow_md()
-                        .child(
-                            div()
-                                .flex_1()
-                                .child(Input::new(&input).appearance(false).small()),
-                        )
-                        .child(
-                            div()
-                                .debug_selector(|| "find-count".into())
-                                .min_w(px(40.))
-                                .text_size(ui::META)
-                                .text_color(if none {
-                                    ui::ink(theme, theme.danger)
-                                } else {
-                                    theme.muted_foreground
-                                })
-                                .child(f.count(&query)),
-                        )
-                        .child(step("find-prev", IconName::ChevronUp, false))
-                        .child(step("find-next", IconName::ChevronDown, true))
-                        .child(
-                            Button::new("find-close")
-                                .ghost()
-                                .xsmall()
-                                .icon(IconName::Close)
-                                .on_click(cx.listener(|this, _, window, cx| {
-                                    this.close_find(&CloseFind, window, cx)
-                                })),
-                        ),
-                )
-                .into_any_element(),
+        find_bar(
+            self.find(),
+            cx,
+            |this, forward, cx| this.find_step(forward, cx),
+            |this, window, cx| this.close_find(&CloseFind, window, cx),
         )
     }
+}
+
+/// A find bar over a view's top right (T3: 12 px in, popover surface): the query field, the "i/n" count, step
+/// buttons and close. `None` while `find` is closed. The Changes tab draws the same bar.
+pub(super) fn find_bar<V: 'static>(
+    f: &Find,
+    cx: &mut Context<V>,
+    step: impl Fn(&mut V, bool, &mut Context<V>) + Copy + 'static,
+    close: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
+) -> Option<AnyElement> {
+    let input = f.input.clone()?;
+    let query = input.read(cx).value().to_string();
+    let theme = cx.theme();
+    let none = !query.trim().is_empty() && f.matches.is_empty();
+    let step_button = |id: &'static str, icon: IconName, forward: bool| {
+        Button::new(id)
+            .ghost()
+            .xsmall()
+            .icon(icon)
+            .disabled(f.matches.is_empty())
+            .on_click(cx.listener(move |this, _, _, cx| step(this, forward, cx)))
+    };
+    Some(
+        div()
+            .absolute()
+            .top_3()
+            .right_3()
+            .w(px(360.))
+            .child(
+                h_flex()
+                    .id("find-bar")
+                    .debug_selector(|| "find-bar".into())
+                    .key_context(FIND_CONTEXT)
+                    .gap_1()
+                    .pl_1()
+                    .pr_1()
+                    .py_0p5()
+                    .rounded(ui::RADIUS_LG)
+                    .bg(theme.popover)
+                    .border_1()
+                    .border_color(theme.border)
+                    .shadow_md()
+                    .child(
+                        div()
+                            .flex_1()
+                            .child(Input::new(&input).appearance(false).small()),
+                    )
+                    .child(
+                        div()
+                            .debug_selector(|| "find-count".into())
+                            .min_w(px(40.))
+                            .text_size(ui::META)
+                            .text_color(if none {
+                                ui::ink(theme, theme.danger)
+                            } else {
+                                theme.muted_foreground
+                            })
+                            .child(f.count(&query)),
+                    )
+                    .child(step_button("find-prev", IconName::ChevronUp, false))
+                    .child(step_button("find-next", IconName::ChevronDown, true))
+                    .child(
+                        Button::new("find-close")
+                            .ghost()
+                            .xsmall()
+                            .icon(IconName::Close)
+                            .on_click(
+                                cx.listener(move |this, _, window, cx| close(this, window, cx)),
+                            ),
+                    ),
+            )
+            .into_any_element(),
+    )
 }
 
 impl FindHost for ThreadView {

@@ -16,6 +16,7 @@ pub(super) fn titles(on: bool, cx: &mut VisualTestContext) {
                 generate_titles: on,
                 ..Default::default()
             },
+            diff: Default::default(),
         })
     });
 }

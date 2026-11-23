@@ -1,31 +1,39 @@
-//! The Changes tab: a folder's changed files and their unified diff against `HEAD`, or against
-//! the commit a worktree thread started from.
+//! The Changes tab: a folder's changed files (as a folder tree) and their diff against `HEAD`, or against the
+//! commit a worktree thread started from; unified or split, clipped or wrapped, with find (T3's DiffPanel).
 
-use super::changes_model::{self, Changes, LineKind, Row, Scope};
+#[path = "changes_find.rs"]
+mod find;
+#[path = "changes_rows.rs"]
+mod rows;
+
+use super::changes_model::{self, Changes, Scope};
+use super::changes_tree::{self, SplitRow, TreeRow};
 use super::thread::ThreadView;
 use crate::ui;
 use gpui::{
-    App, Context, Entity, FocusHandle, Focusable, FontWeight, ScrollStrategy, SharedString, Task,
-    UniformListScrollHandle, Window, actions, div, prelude::*, px, uniform_list,
+    App, Context, Entity, FocusHandle, Focusable, FontWeight, ListAlignment, ListOffset, ListState,
+    MouseButton, SharedString, Task, Window, actions, div, list, prelude::*, px, uniform_list,
 };
 use gpui_component::{
     ActiveTheme as _, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
     h_flex,
     input::{InputState, TextareaState},
     v_flex,
 };
-use skyelab_git::ChangeKind;
 use std::collections::HashSet;
-use std::ops::Range;
 use std::path::PathBuf;
+
+pub(super) use find::bind_keys;
+pub(super) use rows::diff_line;
+#[cfg(test)]
+pub(super) use rows::file_rows_built;
 
 actions!(skyelab, [RefreshChanges]);
 
+const CONTEXT: &str = "Changes";
+/// A diff row's height while lines are clipped (wrapping measures each row).
 const ROW_HEIGHT: f32 = 20.;
-/// The file list's rows, T3's 28.
-const FILE_ROW_HEIGHT: f32 = 28.;
 
 pub struct ChangesView {
     focus: FocusHandle,
@@ -35,7 +43,16 @@ pub struct ChangesView {
     title: SharedString,
     pub(super) changes: Option<Changes>,
     pub(super) error: Option<SharedString>,
-    scroll: UniformListScrollHandle,
+    /// The diff's rows (unified) or `split` (side by side).
+    pub(super) list: ListState,
+    /// The file tree's visible rows, rebuilt when the diff loads or a folder folds.
+    pub(super) tree: Vec<TreeRow>,
+    /// Folded folders, by repo-relative path; kept across reloads.
+    collapsed: HashSet<PathBuf>,
+    /// The rows side by side, when `prefs.split`.
+    pub(super) split: Vec<SplitRow>,
+    pub(super) prefs: skyelab_core::DiffSettings,
+    pub(super) find: super::thread_find::Find,
     /// The thread whose account commits, pushes and opens PRs here.
     pub(super) thread: Option<gpui::WeakEntity<ThreadView>>,
     /// A subject, then a blank line and a body when there is one.
@@ -93,7 +110,12 @@ impl ChangesView {
             title,
             changes: None,
             error: None,
-            scroll: UniformListScrollHandle::new(),
+            list: ListState::new(0, ListAlignment::Top, px(400.)),
+            tree: Vec::new(),
+            collapsed: HashSet::new(),
+            split: Vec::new(),
+            prefs: super::thread_extras::prefs::get_diff(cx),
+            find: Default::default(),
             thread: thread.map(|t| t.downgrade()),
             commit_message,
             pr_title,
@@ -122,9 +144,9 @@ impl ChangesView {
     /// Re-reads status and diff off the UI thread. A newer refresh drops the older one.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         let (dir, base, scope) = (self.dir.clone(), self.base.clone(), self.scope);
-        let key = self.checkpoint_key(cx);
+        let (key, ws) = (self.checkpoint_key(cx), self.prefs.ignore_whitespace);
         let task = cx.background_spawn(async move {
-            changes_model::load_scope(&dir, base.as_deref(), scope, key.as_deref())
+            changes_model::load_scope(&dir, base.as_deref(), scope, key.as_deref(), ws)
         });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
@@ -136,7 +158,7 @@ impl ChangesView {
                             this.selected
                                 .retain(|p| c.files.iter().any(|f| &f.path == p));
                         }
-                        (this.changes, this.error) = (Some(c), None);
+                        this.set_loaded(c);
                         if let Some(path) = this.reveal_after_load.take() {
                             this.reveal(&path, cx);
                         }
@@ -167,168 +189,90 @@ impl ChangesView {
         else {
             return false;
         };
-        self.scroll.scroll_to_item(f.first_row, ScrollStrategy::Top);
-        self.active_file = Some(f.path.clone());
+        let (row, path) = (f.first_row, f.path.clone());
+        self.scroll_to_row(row);
+        self.active_file = Some(path);
         cx.notify();
         true
+    }
+
+    /// Shows a freshly loaded diff: rebuilds the tree and the layout, and counts an open find again.
+    pub(super) fn set_loaded(&mut self, changes: Changes) {
+        // A reload (a turn ended, a commit) keeps the reader's place.
+        let top = self.top_row();
+        (self.changes, self.error) = (Some(changes), None);
+        self.rebuild_tree();
+        if self.find.input.is_some() {
+            self.recount(self.find.query.clone());
+        }
+        self.relayout();
+        let rows = self.changes.as_ref().map_or(0, |c| c.rows.len());
+        if top > 0 && top < rows {
+            self.scroll_to_row(top);
+        }
+    }
+
+    /// The unified row at the top of the diff now, in either layout.
+    pub(super) fn top_row(&self) -> usize {
+        let ix = self.list.logical_scroll_top().item_ix;
+        match self.split.get(ix) {
+            Some(SplitRow::Full(r)) if self.prefs.split => *r,
+            Some(SplitRow::Pair(l, r)) if self.prefs.split => l.or(*r).unwrap_or(0),
+            _ if self.prefs.split => 0,
+            _ => ix,
+        }
+    }
+
+    fn rebuild_tree(&mut self) {
+        let files = self.changes.as_ref().map_or(&[][..], |c| &c.files[..]);
+        self.tree = changes_tree::tree_rows(files, &self.collapsed);
+    }
+
+    /// Recomputes the split rows and resets the list for the current layout (clipped rows share one height;
+    /// wrapped ones are measured).
+    pub(super) fn relayout(&mut self) {
+        let rows = self.changes.as_ref().map_or(&[][..], |c| &c.rows[..]);
+        self.split = if self.prefs.split {
+            changes_tree::split_rows(rows)
+        } else {
+            Vec::new()
+        };
+        let n = if self.prefs.split {
+            self.split.len()
+        } else {
+            rows.len()
+        };
+        if self.prefs.wrap {
+            self.list.reset(n);
+        } else {
+            self.list.reset_with_uniform_height(n, px(ROW_HEIGHT));
+        }
+    }
+
+    /// Scrolls the diff so row `row` (of the unified rows) is at the top, in either layout.
+    pub(super) fn scroll_to_row(&mut self, row: usize) {
+        let item_ix = if self.prefs.split {
+            self.split.iter().position(|s| s.shows(row)).unwrap_or(0)
+        } else {
+            row
+        };
+        self.list.scroll_to(ListOffset {
+            item_ix,
+            offset_in_item: px(0.),
+        });
+    }
+
+    fn toggle_folder(&mut self, path: &std::path::Path, cx: &mut Context<Self>) {
+        if !self.collapsed.remove(path) {
+            self.collapsed.insert(path.to_path_buf());
+        }
+        self.rebuild_tree();
+        cx.notify();
     }
 
     fn on_refresh(&mut self, _: &RefreshChanges, _: &mut Window, cx: &mut Context<Self>) {
         self.refresh(cx);
     }
-
-    fn render_rows(
-        &mut self,
-        range: Range<usize>,
-        cx: &mut Context<Self>,
-    ) -> Vec<gpui::AnyElement> {
-        let theme = cx.theme();
-        let Some(changes) = &self.changes else {
-            return Vec::new();
-        };
-        range
-            .filter_map(|ix| changes.rows.get(ix).map(|r| (ix, r)))
-            .map(|(ix, row)| {
-                let base = h_flex()
-                    .id(("diff-row", ix))
-                    .h(px(ROW_HEIGHT))
-                    .w_full()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .font_family(theme.mono_font_family.clone())
-                    .text_xs();
-                match row {
-                    Row::File(i) => {
-                        let f = &changes.files[*i];
-                        let name = match &f.old_path {
-                            Some(old) => format!("{} → {}", old.display(), f.path.display()),
-                            None => f.path.display().to_string(),
-                        };
-                        // T3's file header: sans 12, medium, on the muted surface with a hairline.
-                        base.px_3()
-                            .gap_2()
-                            .bg(theme.muted)
-                            .border_t_1()
-                            .border_color(theme.border)
-                            .font_family(theme.font_family.clone())
-                            .font_weight(FontWeight::MEDIUM)
-                            .child(kind_badge(f.kind, cx))
-                            .child(name)
-                    }
-                    Row::Hunk(h) => base
-                        .px_3()
-                        .font_family(theme.font_family.clone())
-                        .text_size(px(11.))
-                        .text_color(theme.muted_foreground.opacity(0.7))
-                        .child(h.clone()),
-                    Row::Placeholder(p) => base
-                        .px_2()
-                        .italic()
-                        .text_color(theme.muted_foreground)
-                        .child(*p),
-                    Row::TooLarge(n) => base
-                        .px_2()
-                        .italic()
-                        .text_color(theme.muted_foreground)
-                        .child(format!(
-                            "Diff too large: {n} lines. Open it in a terminal or editor."
-                        )),
-                    Row::Line {
-                        old,
-                        new,
-                        kind,
-                        text,
-                    } => diff_line(base, *old, *new, *kind, text.clone().into(), theme),
-                }
-                .into_any_element()
-            })
-            .collect()
-    }
-
-    /// The file sidebar's visible rows; a click scrolls the diff to that file.
-    fn render_files(
-        &mut self,
-        range: Range<usize>,
-        cx: &mut Context<Self>,
-    ) -> Vec<gpui::AnyElement> {
-        let theme = cx.theme();
-        let Some(changes) = &self.changes else {
-            return Vec::new();
-        };
-        range
-            .filter_map(|ix| changes.files.get(ix).map(|f| (ix, f)))
-            .map(|(ix, f)| {
-                #[cfg(test)]
-                FILE_ROWS_BUILT.with(|n| n.set(n.get() + 1));
-                let row = f.first_row;
-                let path = f.path.clone();
-                let ticked = self.selected.contains(&f.path);
-                let active = self.active_file.as_ref() == Some(&f.path);
-                let tick = Checkbox::new(SharedString::from(format!("pick-{}", f.path.display())))
-                    .xsmall()
-                    .checked(ticked)
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if !this.selected.remove(&path) {
-                            this.selected.insert(path.clone());
-                        }
-                        cx.notify();
-                    }));
-                h_flex()
-                    .id(("file", ix))
-                    .w_full()
-                    .h(px(FILE_ROW_HEIGHT))
-                    .px_2()
-                    .gap_2()
-                    .text_size(ui::META)
-                    .rounded(ui::RADIUS_MD)
-                    .cursor_pointer()
-                    .when(active, |d| d.bg(theme.accent))
-                    .hover(|s| s.bg(theme.accent))
-                    .on_click(cx.listener({
-                        let path = f.path.clone();
-                        move |this, _, _, cx| {
-                            this.scroll.scroll_to_item(row, ScrollStrategy::Top);
-                            this.active_file = Some(path.clone());
-                            cx.notify();
-                        }
-                    }))
-                    .child(tick)
-                    .child(kind_badge(f.kind, cx))
-                    .child(div().truncate().child(f.path.display().to_string()))
-                    .into_any_element()
-            })
-            .collect()
-    }
-}
-
-#[cfg(test)]
-thread_local! {
-    static FILE_ROWS_BUILT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
-/// How many file sidebar rows have been built on this thread, so tests can check only visible ones are.
-#[cfg(test)]
-pub(super) fn file_rows_built() -> usize {
-    FILE_ROWS_BUILT.with(|n| n.get())
-}
-
-fn kind_badge(kind: ChangeKind, cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    let (letter, color) = match kind {
-        ChangeKind::Added => ("A", theme.success),
-        ChangeKind::Deleted => ("D", theme.danger),
-        ChangeKind::Renamed => ("R", theme.info),
-        ChangeKind::Copied => ("C", theme.info),
-        // T3 gives modified files a muted blue so added and deleted ones lead.
-        ChangeKind::Modified | ChangeKind::TypeChanged => ("M", theme.info.opacity(0.75)),
-        ChangeKind::Unmerged => ("U", theme.danger),
-    };
-    div()
-        .w(px(12.))
-        .flex_none()
-        .font_weight(FontWeight::BOLD)
-        .text_color(color)
-        .child(letter)
 }
 
 impl Focusable for ChangesView {
@@ -339,21 +283,20 @@ impl Focusable for ChangesView {
 
 impl Render for ChangesView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let file_count = self.changes.as_ref().map_or(0, |c| c.files.len());
         let files = uniform_list(
             "changed-files",
-            file_count,
+            self.tree.len(),
             cx.processor(|this, range, _, cx| this.render_files(range, cx)),
         )
-        .w(px(200.))
+        .w(px(220.))
         .flex_none()
         .h_full()
         .border_r_1()
         .border_color(cx.theme().border)
         .py_1()
         .into_any_element();
+        let (toggles, find_bar) = (self.render_toggles(cx), self.render_find(cx));
         let theme = cx.theme();
-        let count = self.changes.as_ref().map(|c| c.rows.len()).unwrap_or(0);
         let empty = self.changes.as_ref().is_some_and(|c| c.files.is_empty());
         let header = ui::header(theme)
             .h(px(40.))
@@ -365,7 +308,8 @@ impl Render for ChangesView {
                     .gap_2()
                     .child(
                         div()
-                            .flex_shrink_0()
+                            .min_w_0()
+                            .truncate()
                             .text_size(ui::BODY)
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.title()),
@@ -379,6 +323,7 @@ impl Render for ChangesView {
                             .child(ui::short_path(&self.dir, dirs::home_dir().as_deref())),
                     ),
             )
+            .child(div().flex_none().child(toggles))
             .child(
                 Button::new("refresh-changes")
                     .ghost()
@@ -422,22 +367,30 @@ impl Render for ChangesView {
                 .items_start()
                 .child(files)
                 .child(
-                    uniform_list(
-                        "diff-rows",
-                        count,
-                        cx.processor(|this, range, _, cx| this.render_rows(range, cx)),
-                    )
-                    .track_scroll(&self.scroll)
-                    .flex_1()
-                    .h_full(),
+                    div()
+                        .relative()
+                        .flex_1()
+                        .h_full()
+                        .min_w_0()
+                        // A click in the diff focuses the tab, so mod+F finds in it.
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, window, cx| this.focus.focus(window, cx)),
+                        )
+                        .child(list(self.list.clone(), cx.processor(Self::render_item)).size_full())
+                        .children(find_bar),
                 )
                 .into_any_element()
         };
         v_flex()
             .id("changes")
-            .key_context("Changes")
+            .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::on_refresh))
+            .on_action(cx.listener(Self::find_in_changes))
+            .on_action(cx.listener(Self::find_next))
+            .on_action(cx.listener(Self::find_previous))
+            .on_action(cx.listener(Self::close_find))
             .size_full()
             .bg(theme.background)
             .child(header)
@@ -466,35 +419,4 @@ impl Render for ChangesView {
             })
             .child(body)
     }
-}
-
-/// One diff line on `base`: both line numbers, the sign, the text, tinted when added or removed. The Changes tab and
-/// the timeline's edit cards draw lines with it.
-pub(super) fn diff_line(
-    base: gpui::Stateful<gpui::Div>,
-    old: Option<u32>,
-    new: Option<u32>,
-    kind: LineKind,
-    text: SharedString,
-    theme: &gpui_component::Theme,
-) -> gpui::Stateful<gpui::Div> {
-    let num = |n: Option<u32>| {
-        div()
-            .w(px(44.))
-            .flex_none()
-            .text_right()
-            .pr_2()
-            .text_color(theme.muted_foreground)
-            .child(n.map(|n| n.to_string()).unwrap_or_default())
-    };
-    let (sign, bg) = match kind {
-        LineKind::Context => (" ", None),
-        LineKind::Added => ("+", Some(theme.success.opacity(0.12))),
-        LineKind::Removed => ("-", Some(theme.danger.opacity(0.12))),
-    };
-    base.when_some(bg, |b, bg| b.bg(bg))
-        .child(num(old))
-        .child(num(new))
-        .child(div().w(px(14.)).flex_none().child(sign))
-        .child(text)
 }

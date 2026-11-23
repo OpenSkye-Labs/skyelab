@@ -24,6 +24,20 @@ pub struct AppSettings {
     pub editor: Option<String>,
     /// Settings → Threads: what new threads start with.
     pub threads: ThreadSettings,
+    /// The Changes tab's view toggles.
+    pub diff: DiffSettings,
+}
+
+/// How the Changes tab draws a diff (T3's diff layout, word wrap and whitespace settings).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DiffSettings {
+    /// Old and new side by side; off is one unified column.
+    pub split: bool,
+    /// Long lines wrap instead of being clipped.
+    pub wrap: bool,
+    /// Whitespace-only changes are hidden (`git diff -w`).
+    pub ignore_whitespace: bool,
 }
 
 /// The defaults a new thread starts with. A thread's own pick (and a project's remembered model) still wins.

@@ -219,7 +219,9 @@ impl ThreadView {
         use super::composer_queue::SendMode;
         let external = how == super::composer_state::Submit::External;
         let text = self.prompt.read(cx).value().trim().to_string();
-        let has_files = !external && !self.composer.attachments.is_empty();
+        let has_files = !external
+            && !(self.composer.attachments.is_empty()
+                && self.composer.terminal_contexts.is_empty());
         if (text.is_empty() && !has_files) || self.read_only || self.starting {
             return;
         }
@@ -248,7 +250,13 @@ impl ThreadView {
             && let Some(thread) = self.thread.clone()
         {
             let attachments = self.take_attachments(external);
-            return self.resume(text, attachments, thread, resolved, window, cx);
+            let contexts = self.composer.terminal_contexts.clone();
+            let text = self.take_contexts(text, external);
+            self.resume(text, attachments, thread, resolved, window, cx);
+            if self.resume_refused.is_some() && !external {
+                self.composer.terminal_contexts = contexts; // kept with the unsent text
+            }
+            return;
         }
         let Some(account) = resolved else {
             self.needs_binding = true;
@@ -265,16 +273,21 @@ impl ThreadView {
                 return;
             }
             let mode = self.send_mode(how, &text);
+            let contexts = self.composer.terminal_contexts.clone();
+            let text = self.take_contexts(text, external);
             if mode == SendMode::Queue {
                 return self.queue_prompt(text, window, cx);
             }
             let attachments = self.take_attachments(external);
             if self.follow_up(text, attachments, mode == SendMode::Steer, &account, cx) {
                 self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+            } else if !external {
+                self.composer.terminal_contexts = contexts; // refused: the prompt stays, so do they
             }
             return;
         }
         let attachments = self.take_attachments(external);
+        let text = self.take_contexts(text, external);
         self.launch(text, attachments, account, None, window, cx);
     }
 

@@ -65,13 +65,14 @@ fn each_turn_leaves_a_checkpoint_and_changes_can_rewind_it(cx: &mut TestAppConte
         "no branch was added"
     );
 
-    let turn2 = changes_model::load_scope(&row.cwd, None, Scope::Turn(2), Some(&k)).expect("turn");
+    let turn2 =
+        changes_model::load_scope(&row.cwd, None, Scope::Turn(2), Some(&k), false).expect("turn");
     let paths: Vec<_> = turn2.files.iter().map(|f| f.path.clone()).collect();
     assert_eq!(paths, [PathBuf::from("agent-edit.txt")]);
     assert_eq!(turn2.files[0].kind, skyelab_git::ChangeKind::Modified);
     assert_eq!(changes_model::turns(&turn2.checkpoints), [1, 2]);
     let since =
-        changes_model::load_scope(&row.cwd, None, Scope::SinceStart, Some(&k)).expect("all");
+        changes_model::load_scope(&row.cwd, None, Scope::SinceStart, Some(&k), false).expect("all");
     assert_eq!(since.files.len(), 1);
     assert_eq!(since.files[0].kind, skyelab_git::ChangeKind::Added);
     assert_eq!(since.tree, None, "nothing in a turn scope is committable");

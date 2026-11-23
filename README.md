@@ -63,7 +63,8 @@ What's built today:
 - **Branches, checkpoints and scripts.** A branch picker in the Details tab (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
-- **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
+- **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder, with
+  split panes, tabs that follow their thread, and **Add to prompt** to send selected output to the agent.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL, evaluate JavaScript in it and take a screenshot of it (http and https only, localhost included; screenshots
   on macOS only). The tab says an agent controls it;
