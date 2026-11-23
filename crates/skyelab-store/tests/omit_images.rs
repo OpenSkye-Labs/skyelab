@@ -155,7 +155,7 @@ fn migration_v12_rewrites_stored_images_in_old_databases() {
          ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
          ALTER TABLE threads DROP COLUMN fork_context; PRAGMA user_version = 11;",
     )
-        .expect("downgrade");
+    .expect("downgrade");
     drop(conn);
     let before = std::fs::metadata(&path).expect("size").len();
     assert!(before > 5_000_000, "seeded {before}");

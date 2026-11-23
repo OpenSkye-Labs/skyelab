@@ -23,7 +23,11 @@ fn generated_title_replaces_only_a_first_line_title() {
     let store = Store::open_in_memory().expect("store");
     let (_, id) = thread(&store);
     assert_eq!(store.title_source(id).unwrap().as_deref(), Some("prompt"));
-    assert!(store.set_generated_title(id, "Fix login bug", false).unwrap());
+    assert!(
+        store
+            .set_generated_title(id, "Fix login bug", false)
+            .unwrap()
+    );
     assert_eq!(store.thread(id).unwrap().unwrap().title, "Fix login bug");
 
     // The user renames it: a late generated title doesn't replace theirs.
@@ -59,7 +63,10 @@ fn drafts_keep_text_and_files_per_owner_and_go_with_their_thread() {
 
     store.set_draft_text(&owner, "again").unwrap();
     store.delete_thread(id).unwrap();
-    assert!(store.draft(&owner).unwrap().is_empty(), "deleted with its thread");
+    assert!(
+        store.draft(&owner).unwrap().is_empty(),
+        "deleted with its thread"
+    );
 }
 
 #[test]
@@ -88,11 +95,21 @@ fn fork_copies_the_given_events_and_records_its_source() {
         .unwrap();
     assert_eq!(fork.forked_from, Some(id));
     assert_eq!(fork.account_id, "work");
-    assert_eq!(store.fork_context(fork.id).unwrap().as_deref(), Some("context"));
-    assert_eq!(store.title_source(fork.id).unwrap().as_deref(), Some("fork"));
+    assert_eq!(
+        store.fork_context(fork.id).unwrap().as_deref(),
+        Some("context")
+    );
+    assert_eq!(
+        store.title_source(fork.id).unwrap().as_deref(),
+        Some("fork")
+    );
     let copied = store.events_since(fork.id, 0).unwrap();
     let kinds: Vec<(i64, &str)> = copied.iter().map(|e| (e.seq, e.kind.as_str())).collect();
-    assert_eq!(kinds, [(1, "prompt"), (2, "agent")], "usage reading left out");
+    assert_eq!(
+        kinds,
+        [(1, "prompt"), (2, "agent")],
+        "usage reading left out"
+    );
     assert_eq!(copied[1].payload_json, r#"{"Result":{}}"#);
     assert_eq!(store.thread(id).unwrap().unwrap().forked_from, None);
 }

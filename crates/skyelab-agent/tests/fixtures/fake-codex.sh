@@ -8,6 +8,24 @@
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 here=$(dirname "$0")
+# `codex exec` (a title call): logs CODEX_HOME, its args and stdin to .fake-title-call, answers in the
+# --output-last-message file.
+if [ "$1" = exec ]; then
+  input=$(cat)
+  out=
+  prev=
+  for a in "$@"; do
+    [ "$prev" = --output-last-message ] && out=$a
+    prev=$a
+  done
+  {
+    printf 'codex_home=%s\n' "${CODEX_HOME-<unset>}"
+    for a in "$@"; do printf 'arg=[%s]\n' "$a"; done
+    printf '%s\n---\n' "$input"
+  } >> .fake-title-call
+  printf 'Codex fake title\n' > "$out"
+  exit 0
+fi
 v() { eval "printf '%s' \"\${$1-<unset>}\""; }
 while IFS= read -r line; do
   printf '{"method":"fake/request","params":%s}\n' "$line"

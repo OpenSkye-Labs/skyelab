@@ -3,7 +3,7 @@
 use anyhow::{Context as _, Result};
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 
-use crate::{Event, NewThread, Store, Thread, THREAD_COLS, now_ms, path_str, thread_from_row};
+use crate::{Event, NewThread, Store, THREAD_COLS, Thread, now_ms, path_str, thread_from_row};
 
 /// A composer's unsent text and files.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -24,7 +24,11 @@ impl Store {
     pub fn title_source(&self, id: i64) -> Result<Option<String>> {
         Ok(self
             .conn
-            .query_row("SELECT title_source FROM threads WHERE id = ?1", [id], |r| r.get(0))
+            .query_row(
+                "SELECT title_source FROM threads WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
             .optional()?)
     }
 
@@ -43,7 +47,9 @@ impl Store {
     pub fn draft(&self, owner: &str) -> Result<Draft> {
         let text = self
             .conn
-            .query_row("SELECT text FROM drafts WHERE owner = ?1", [owner], |r| r.get(0))
+            .query_row("SELECT text FROM drafts WHERE owner = ?1", [owner], |r| {
+                r.get(0)
+            })
             .optional()?
             .unwrap_or_default();
         let mut stmt = self
@@ -87,7 +93,11 @@ impl Store {
     pub fn fork_context(&self, id: i64) -> Result<Option<String>> {
         Ok(self
             .conn
-            .query_row("SELECT fork_context FROM threads WHERE id = ?1", [id], |r| r.get(0))
+            .query_row(
+                "SELECT fork_context FROM threads WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
             .optional()?
             .flatten())
     }

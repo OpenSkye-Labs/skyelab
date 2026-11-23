@@ -8,6 +8,19 @@
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
 # plan and a question (left waiting). With a .fake-session-gone file in the folder, a --resume start fails the way
 # Claude Code does for a session it doesn't have; a fresh start then reports session fake-sess-new.
+# A title call (`-p ... --no-session-persistence`) appends its config dir, args (one per line) and stdin to
+# .fake-title-call in its folder and answers "Fake title from <config dir name>".
+case " $* " in
+  *" --no-session-persistence "*)
+    input=$(cat)
+    {
+      printf 'config_dir=%s\n' "$CLAUDE_CONFIG_DIR"
+      for a in "$@"; do printf 'arg=[%s]\n' "$a"; done
+      printf '%s\n---\n' "$input"
+    } >> .fake-title-call
+    printf 'Fake title from %s\n' "$(basename "$CLAUDE_CONFIG_DIR")"
+    exit 0 ;;
+esac
 if [ -f .fake-session-gone ]; then
   case " $* " in
     *" --resume "*)
