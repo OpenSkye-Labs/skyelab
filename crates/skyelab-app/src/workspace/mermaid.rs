@@ -3,7 +3,7 @@
 //! rasterizes it to a PNG. No web view, no network, and every image href is refused: the renderer writes `<image>`
 //! for some shapes, and GPUI's own SVG path would load an href from any file.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, Condvar, LazyLock, Mutex, PoisonError};
 use std::time::Duration;
 
 use futures::future::{Either, select};
@@ -21,6 +21,51 @@ pub(super) const MAX_SIDE: f32 = 4096.0;
 const SCALE: f32 = 2.0;
 /// How long a render may take before the block falls back to code.
 pub(super) const RENDER_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// At most this many diagrams draw at once: a reply full of them waits its turn, not every core and a 64 MB pixmap
+/// each. A render past its timeout keeps its slot to its end, so runaways can't pile up either.
+const MAX_RENDERS: usize = 2;
+static RENDERS: Gate = Gate::new(MAX_RENDERS);
+
+/// A counting semaphore for render threads.
+pub(super) struct Gate {
+    max: usize,
+    live: Mutex<usize>,
+    freed: Condvar,
+}
+
+/// One held place in a [`Gate`], given back on drop (a panicking render included).
+pub(super) struct Slot<'a>(&'a Gate);
+
+impl Gate {
+    pub(super) const fn new(max: usize) -> Self {
+        Self {
+            max,
+            live: Mutex::new(0),
+            freed: Condvar::new(),
+        }
+    }
+
+    /// Waits for a place.
+    pub(super) fn take(&self) -> Slot<'_> {
+        let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        while *live >= self.max {
+            live = self
+                .freed
+                .wait(live)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        *live += 1;
+        Slot(self)
+    }
+}
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        *self.0.live.lock().unwrap_or_else(PoisonError::into_inner) -= 1;
+        self.0.freed.notify_one();
+    }
+}
 
 /// A mermaid fence: its diagram source, and whether its closing fence has arrived (a streamed reply ends mid-fence).
 #[derive(Clone, Debug, PartialEq)]
@@ -229,7 +274,13 @@ impl gpui::Asset for Render {
         // thread while it does.
         let started = std::thread::Builder::new()
             .name("mermaid".into())
-            .spawn(move || _ = tx.send(render_png(&source, palette)));
+            .spawn(move || {
+                let _slot = RENDERS.take();
+                // Timed out while waiting: the block already shows code.
+                if !tx.is_canceled() {
+                    _ = tx.send(render_png(&source, palette));
+                }
+            });
         async move {
             started.map_err(|e| SharedString::from(e.to_string()))?;
             let png = match select(rx, timeout).await {

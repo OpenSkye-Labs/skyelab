@@ -117,3 +117,58 @@ fn links_and_fifos_in_the_account_dir_are_skipped() {
         .expect("list hung on a FIFO");
     assert_eq!(found, 0, "neither the FIFO nor the linked file is read");
 }
+
+#[test]
+fn an_aborted_codex_turn_keeps_the_resent_prompt_and_a_fifo_index_never_blocks() {
+    let home = tempfile::tempdir().expect("temp dir");
+    let day = home.path().join("sessions/2026/11/21");
+    std::fs::create_dir_all(&day).expect("mkdir");
+    let ev = |t: &str, payload: serde_json::Value| {
+        serde_json::json!({"timestamp": t, "type": "event_msg", "payload": payload}).to_string()
+    };
+    let lines = [
+        serde_json::json!({"timestamp": "2026-11-21T08:00:00Z", "type": "session_meta",
+            "payload": {"id": "019a0c0d-0000-7000-8000-0000000abort", "cwd": "/w"}})
+        .to_string(),
+        ev(
+            "2026-11-21T08:00:01Z",
+            serde_json::json!({"type": "user_message", "message": "go"}),
+        ),
+        ev(
+            "2026-11-21T08:00:02Z",
+            serde_json::json!({"type": "turn_aborted", "reason": "interrupted"}),
+        ),
+        ev(
+            "2026-11-21T08:00:03Z",
+            serde_json::json!({"type": "user_message", "message": "go"}),
+        ),
+    ];
+    let f = day.join("rollout-2026-11-21T08-00-00-abort.jsonl");
+    std::fs::write(&f, lines.join("\n")).expect("write");
+    // An index that is a FIFO with no writer: opening it would block the scan for good.
+    assert!(
+        std::process::Command::new("mkfifo")
+            .arg(home.path().join("session_index.jsonl"))
+            .status()
+            .expect("mkfifo")
+            .success()
+    );
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (h, file) = (home.path().to_owned(), f.clone());
+    std::thread::spawn(move || {
+        let _ = tx.send(import::read(Provider::Codex, &h, &file, 1 << 20));
+    });
+    let t = rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("read hung on a FIFO index")
+        .expect("parses");
+    let prompts = t
+        .entries
+        .iter()
+        .filter(|e| matches!(e, import::Entry::Prompt(_)))
+        .count();
+    assert_eq!(
+        prompts, 2,
+        "the prompt sent again after an abort is its own turn"
+    );
+}

@@ -32,6 +32,8 @@ fn setup(
         cx.bind_keys([
             KeyBinding::new("x", Alpha, Some("Workspace")),
             KeyBinding::new("y", Beta, Some("Workspace")),
+            // Makes "Terminal" a context the defaults use, as the app's terminal does.
+            KeyBinding::new("w", Beta, Some("Terminal")),
         ]);
         init(path, cx);
     });
@@ -108,11 +110,17 @@ fn bad_rules_are_reported_with_their_line_and_the_rest_load(cx: &mut TestAppCont
                 [[binding]]\nkey = \"ctrl-foo-k\"\naction = \"keymap_test::Alpha\"\n\n\
                 [[binding]]\nkey = \"cmd+k\"\naction = \"keymap_test::Alpha\"\n\n\
                 [[binding]]\nkey = \"z\"\naction = \"keymap_test::Alpha\"\ncontext = \"(\"\n\n\
+                [[binding]]\nkey = \"z\"\naction = \"keymap_test::Alpha\"\ncontext = \"Termnal\"\n\n\
+                [[binding]]\nkey = \"ctrl-+\"\naction = \"keymap_test::Alpha\"\n\n\
                 [[binding]]\nkey = \"x\"\naction = \"keymap_test::Beta\"\n";
     let (_dir, path) = file(text);
     let (probe, cx) = setup(Some(path), cx);
     let found = problems(cx);
-    assert_eq!(found.len(), 4, "{found:?}");
+    assert_eq!(found.len(), 5, "{found:?}");
+    assert_eq!(
+        found[4],
+        "line 18: unknown context `Termnal` (known: Terminal, Workspace)"
+    );
     assert_eq!(found[0], "line 1: unknown action `skyelab::Nope`");
     assert_eq!(found[1], "line 5: bad key `ctrl-foo-k`");
     assert!(found[2].starts_with("line 9: bad key `cmd+k`"), "{found:?}");
@@ -162,4 +170,25 @@ fn the_file_is_reloaded_when_it_changes(cx: &mut TestAppContext) {
         ["alpha"],
         "a broken rule falls back to the default"
     );
+}
+
+#[gpui::test]
+fn a_file_that_cant_be_read_is_reported_not_taken_as_empty(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("keybindings.toml");
+    std::fs::write(&path, b"[[binding]]\nkey = \"x\"\naction = \"\xff\"\n").expect("write");
+    let (probe, cx) = setup(Some(path.clone()), cx);
+    let found = problems(cx);
+    assert!(
+        found.len() == 1 && found[0].starts_with("line 1: can't read the file"),
+        "{found:?}"
+    );
+    cx.simulate_keystrokes("x");
+    assert_eq!(ran(&probe, cx), ["alpha"], "the built-in keys still work");
+    // Not a regular file (a FIFO would block the read): refused unopened.
+    std::fs::remove_file(&path).expect("rm");
+    std::fs::create_dir(&path).expect("dir");
+    let (stamp, read) = read(&path, None);
+    assert!(stamp.is_some());
+    assert_eq!(read, Some(Err("it isn't a regular file".to_owned())));
 }

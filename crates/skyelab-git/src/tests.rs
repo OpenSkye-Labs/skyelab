@@ -89,3 +89,38 @@ fn default_dest_is_per_repo_and_stable() {
         .expect("repo dir");
     assert!(dir.to_string_lossy().starts_with("repo-"), "{dir:?}");
 }
+
+#[test]
+fn isolation_fetch_runs_with_the_account_gh_only() {
+    let gh = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-gh.sh");
+    let gh = GitHub {
+        gh: &gh,
+        config_dir: Path::new("/acct/gh"),
+    };
+    let cmd = remote::fetch_command(Path::new("/r"), "origin", &[], &gh).expect("command");
+    let env: Vec<(String, Option<String>)> = cmd
+        .get_envs()
+        .map(|(k, v)| {
+            (
+                k.to_string_lossy().into_owned(),
+                v.map(|v| v.to_string_lossy().into_owned()),
+            )
+        })
+        .collect();
+    let get = |key: &str| {
+        env.iter()
+            .find(|(k, _)| k == key)
+            .and_then(|(_, v)| v.clone())
+    };
+    assert_eq!(get("GH_CONFIG_DIR").as_deref(), Some("/acct/gh"));
+    assert_eq!(get("GIT_TERMINAL_PROMPT").as_deref(), Some("0"));
+    for leaked in [
+        "CLAUDE_CONFIG_DIR",
+        "CODEX_HOME",
+        "GH_TOKEN",
+        "GITHUB_TOKEN",
+        "GIT_DIR",
+    ] {
+        assert!(get(leaked).is_none(), "{leaked} leaked: {env:?}");
+    }
+}

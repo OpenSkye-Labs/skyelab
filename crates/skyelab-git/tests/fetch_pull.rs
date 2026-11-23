@@ -1,6 +1,6 @@
 //! Acceptance: fetch the branch's upstream under the account's own gh credentials, count ahead/behind, and pull
 //! fast-forward only. Remotes are local bare repos and `gh` is a fake; nothing reaches the network.
-#![cfg(unix)] // the fake gh and the env-dumping upload-pack are shell scripts
+#![cfg(unix)] // the fake gh and the planted upload-pack are shell scripts
 
 use skyelab_git::GitHub;
 use std::fs;
@@ -228,16 +228,16 @@ fn fetch_refuses_ssh_before_ssh_runs() {
 }
 
 #[test]
-fn isolation_fetch_runs_with_the_account_gh_only() {
+fn isolation_fetch_refuses_a_repo_configured_upload_pack() {
     let f = Fixture::new();
-    // upload-pack runs as a child of the fetch: it sees the env the fetch was given.
-    let dump = f.base.join("upload-env");
+    // An agent can write .git/config: a local remote runs uploadpack through sh, with the account's gh login in env.
+    let marker = f.base.join("payload-ran");
     let pack = f.base.join("upload-pack.sh");
     fs::write(
         &pack,
         format!(
-            "#!/bin/sh\nenv > '{}'\nexec git-upload-pack \"$@\"\n",
-            dump.display()
+            "#!/bin/sh\ntouch '{}'\nexec git-upload-pack \"$@\"\n",
+            marker.display()
         ),
     )
     .expect("write");
@@ -250,22 +250,48 @@ fn isolation_fetch_runs_with_the_account_gh_only() {
             pack.to_str().expect("utf-8"),
         ],
     );
-    git(&f.repo, &["config", "credential.helper", "store"]);
     f.upstream_moves(1);
-    skyelab_git::fetch(&f.repo, &f.gh()).expect("fetches");
-    let env = fs::read_to_string(&dump).expect("upload-pack ran");
+    let err = skyelab_git::fetch(&f.repo, &f.gh()).expect_err("refused");
     assert!(
-        env.contains(&format!("GH_CONFIG_DIR={}", f.gh_dir.display())),
-        "{env}"
+        err.to_string().contains("remote.origin.uploadpack"),
+        "{err}"
     );
-    // The -c credential args (shared with Push, see push_url_credentials.rs) don't reach a local upload-pack: git
-    // clears GIT_CONFIG_PARAMETERS for local transports, so only the env is checked here.
-    for leaked in [
-        "CLAUDE_CONFIG_DIR=",
-        "CODEX_HOME=",
-        "GH_TOKEN=",
-        "GITHUB_TOKEN=",
-    ] {
-        assert!(!env.contains(leaked), "{leaked} leaked: {env}");
-    }
+    assert!(
+        skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).is_err(),
+        "pull fetches first"
+    );
+    assert!(!marker.exists(), "the repo's upload-pack never ran");
+    // A proxy with its own CA would read the token gh hands over; worktree config counts as the repo's own too.
+    git(&f.repo, &["config", "--unset", "remote.origin.uploadpack"]);
+    git(
+        &f.repo,
+        &[
+            "config",
+            "http.https://github.com/.proxy",
+            "http://127.0.0.1:9",
+        ],
+    );
+    let err = skyelab_git::fetch(&f.repo, &f.gh()).expect_err("refused");
+    assert!(err.to_string().contains("proxy"), "{err}");
+    git(
+        &f.repo,
+        &["config", "--unset", "http.https://github.com/.proxy"],
+    );
+    assert!(skyelab_git::fetch(&f.repo, &f.gh()).expect("fetches"));
+}
+
+#[test]
+fn pull_keeps_an_ignored_local_file_the_upstream_starts_tracking() {
+    let f = Fixture::new();
+    fs::write(f.repo.join(".git/info/exclude"), "u1.txt\n").expect("exclude");
+    fs::write(f.repo.join("u1.txt"), "my only copy\n").expect("write");
+    f.upstream_moves(1);
+    assert!(
+        skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).is_err(),
+        "pull refuses to replace an ignored file"
+    );
+    assert_eq!(
+        fs::read_to_string(f.repo.join("u1.txt")).expect("read"),
+        "my only copy\n"
+    );
 }

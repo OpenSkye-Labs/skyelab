@@ -84,7 +84,8 @@ Agents, project terminals and the Changes tab's **Commit**, **Push**, **Pull** a
 account's GitHub login. If the account has none, Push, Pull and Open PR refuse instead of using your global `gh` login.
 Push only works for https remotes without credentials in the URL, and checks every push URL of the remote; ssh remotes
 are refused, because an ssh key isn't tied to an account. The background fetch and Pull follow the same rules for the
-remote's fetch URLs. A thread's pull request status is read with the same account's `gh` (`gh pr view`), and never
+remote's fetch URLs, and also refuse while the repo's own `.git/config` sets an upload-pack, a proxy or its own
+certificates (the message names the key to remove); set those in your global git config instead. A thread's pull request status is read with the same account's `gh` (`gh pr view`), and never
 for an account with no GitHub login: Details shows **Sign in to GitHub** instead.
 
 An agent's own `git push` (in its shell) also asks only the account's `gh` for https credentials, never your

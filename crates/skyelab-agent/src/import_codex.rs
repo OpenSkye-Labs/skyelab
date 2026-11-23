@@ -52,13 +52,16 @@ fn meta_cwd(path: &Path) -> Option<PathBuf> {
 
 /// Thread names from Codex's index: the newest per thread.
 pub(super) fn names(home: &Path) -> HashMap<String, String> {
-    let Ok(file) = std::fs::File::open(home.join("session_index.jsonl")) else {
+    let path = home.join("session_index.jsonl");
+    // Not a link (another account's names) or a FIFO (the open would block for good).
+    let Some(file) = super::regular_file(&path).and_then(|_| std::fs::File::open(path).ok()) else {
         return HashMap::new();
     };
+    // Bytes, not `lines()`: one line that isn't UTF-8 must not end the read.
     BufReader::new(file.take(INDEX_MAX))
-        .lines()
+        .split(b'\n')
         .map_while(Result::ok)
-        .filter_map(|l| serde_json::from_str::<Value>(&l).ok())
+        .filter_map(|l| serde_json::from_slice::<Value>(&l).ok())
         .filter_map(|v| {
             let name = v["thread_name"].as_str().and_then(title_of)?;
             Some((v["id"].as_str()?.to_owned(), name))
@@ -83,7 +86,7 @@ pub(super) fn parse(lines: &mut Lines) -> Option<Transcript> {
             (Some("event_msg"), Some("item_completed")) if p["item"]["type"] == "UserMessage" => {
                 prompt(&mut tl, Some(&text_of(&p["item"]["content"], &["text"])));
             }
-            (Some("event_msg"), Some("task_complete")) => tl.end_turn(),
+            (Some("event_msg"), Some("task_complete" | "turn_aborted")) => tl.end_turn(),
             (Some("response_item"), Some("message")) if p["role"] == "assistant" => {
                 let text = text_of(&p["content"], &["output_text"]);
                 if !text.trim().is_empty() {
