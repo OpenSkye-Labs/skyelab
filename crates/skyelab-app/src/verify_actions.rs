@@ -178,6 +178,12 @@ fn drag(
             click_count: 1,
             first_mouse: false,
         }),
+        // GPUI's first move only starts an `on_drag`; `on_drag_move` listeners hear the moves after it.
+        P::MouseMove(gpui::MouseMoveEvent {
+            position: from + (to - from) / 2.,
+            pressed_button: Some(button),
+            modifiers,
+        }),
         P::MouseMove(gpui::MouseMoveEvent {
             position: to,
             pressed_button: Some(button),

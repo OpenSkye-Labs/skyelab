@@ -160,3 +160,28 @@ fn saved_tabs_round_trip_through_settings_toml() {
 fn terminal_close_confirmation_is_on_by_default() {
     assert!(AppSettings::default().terminal.confirm_close);
 }
+
+#[test]
+fn huge_shares_from_a_file_become_equal_and_tiny_ones_nest() {
+    let t: PaneTree<u32> = PaneTree::Split {
+        axis: Axis::Row,
+        children: vec![PaneTree::Leaf(1), PaneTree::Leaf(2)],
+        sizes: vec![u32::MAX, 10_001],
+    };
+    assert_eq!(sizes(&t.repaired().expect("panes")), vec![5_000, 5_000]);
+
+    let mut t = PaneTree::Leaf(0);
+    for n in 1..20 {
+        assert!(t.split(&(n - 1), n, Axis::Row));
+    }
+    fn all_positive(t: &PaneTree<u32>) -> bool {
+        match t {
+            PaneTree::Leaf(_) => true,
+            PaneTree::Split {
+                children, sizes, ..
+            } => sizes.iter().all(|s| *s > 0) && children.iter().all(all_positive),
+        }
+    }
+    assert!(all_positive(&t), "every pane keeps a share");
+    assert_eq!(t.leaves().len(), 20);
+}

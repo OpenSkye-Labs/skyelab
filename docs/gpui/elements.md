@@ -53,6 +53,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   the children with `style().flex_grow = Some(share)` over `flex_basis(relative(0.))`, so the dividers come out of the
   space first. The drag is `on_drag(payload, ..)` on the divider and `on_drag_move::<Payload>` on the split, which
   gets the split's bounds; nested splits all see the move, so the payload names the split's path and each checks it.
+  The first move after the press only starts the drag; `on_drag_move` hears the moves after it (a test or
+  `SKYELAB_VERIFY_ACTIONS` `drag:` sends two).
 - A tab title that needs clicks (rename on double-click, its own ×) implements `Panel` by hand instead of the
   `panel!` macro: `Panel::title` gets `&mut Context<Self>` for `cx.listener`. Name the view's own title getter
   differently (`tab_label`): `self.title()` on `&mut self` resolves to the trait's `title(window, cx)` first.

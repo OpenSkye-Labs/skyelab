@@ -47,14 +47,27 @@ fn first_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<super
     panel
 }
 
-/// Types `sleep 30` into pane `at` and waits until it runs in front of the shell.
+/// Types `sleep 30` into pane `at` once its shell is at the prompt, and waits until `sleep` runs in front of it (a
+/// login shell's startup helpers count as busy too, so neither "busy" alone nor typing early proves it).
 fn run_sleep(panel: &Entity<super::TerminalPanel>, at: usize, cx: &mut VisualTestContext) {
     let view = panel.read_with(cx, |p, _| p.panes[at].view.clone());
-    // The login shell may still be starting; it reads the line once its prompt is up.
-    view.read_with(cx, |v, _| v.terminal().write(b"sleep 30\n".as_slice()));
-    wait_until(cx, "sleep in front", |cx| {
-        view.read_with(cx, |v, _| v.terminal().probe().is_some_and(|p| p.is_busy()))
+    let probe = view
+        .read_with(cx, |v, _| v.terminal().probe())
+        .expect("a live shell");
+    wait_until(cx, "the prompt", |cx| {
+        !probe.is_busy() && view.read_with(cx, |v, _| !v.terminal().text().trim().is_empty())
     });
+    view.read_with(cx, |v, _| v.terminal().write(b"sleep 30\n".as_slice()));
+    wait_until(cx, "sleep in front", |_| {
+        probe.foreground().command.as_deref() == Some("sleep")
+    });
+}
+
+fn no_confirm(cx: &mut VisualTestContext) {
+    let off = skyelab_core::TerminalSettings {
+        confirm_close: false,
+    };
+    cx.update(|_, cx| prefs::save_terminal(off, cx).detach());
 }
 
 fn dialog_open(cx: &mut VisualTestContext) -> bool {
@@ -64,6 +77,9 @@ fn dialog_open(cx: &mut VisualTestContext) -> bool {
 #[gpui::test]
 fn split_down_then_close_panes_and_the_tab(cx: &mut TestAppContext) {
     let (ws, cx, _home) = rooted(cx);
+    // Pane and tab mechanics only (the confirm has its own tests): a login shell's prompt hooks can make an idle
+    // shell look busy for a moment.
+    no_confirm(cx);
     let panel = first_tab(&ws, cx);
     cx.simulate_keystrokes(SPLIT_DOWN_KEY);
     wait_until(cx, "a stacked pane", |cx| {
@@ -79,7 +95,6 @@ fn split_down_then_close_panes_and_the_tab(cx: &mut TestAppContext) {
         ),
         "⌘⇧D stacks"
     );
-    // Idle shells close without asking.
     cx.simulate_keystrokes(CLOSE_TERMINAL_KEY);
     cx.run_until_parked();
     assert!(!dialog_open(cx));
@@ -149,15 +164,7 @@ fn closing_a_busy_shell_asks_first(cx: &mut TestAppContext) {
 #[gpui::test]
 fn with_the_setting_off_a_busy_shell_closes_at_once(cx: &mut TestAppContext) {
     let (ws, cx, _home) = rooted(cx);
-    cx.update(|_, cx| {
-        prefs::save_terminal(
-            skyelab_core::TerminalSettings {
-                confirm_close: false,
-            },
-            cx,
-        )
-        .detach()
-    });
+    no_confirm(cx);
     let panel = first_tab(&ws, cx);
     run_sleep(&panel, 0, cx);
     cx.simulate_keystrokes(CLOSE_TERMINAL_KEY);

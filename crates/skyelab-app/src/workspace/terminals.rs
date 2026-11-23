@@ -69,8 +69,8 @@ impl Workspace {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
                 let opened = options.and_then(|(o, account)| {
-                    if this.is_remote() {
-                        return Ok(()); // the window moved on meanwhile
+                    if this.is_remote() || !this.terminals.contains(&panel) {
+                        return Ok(()); // the window moved on, or the tab closed, meanwhile
                     }
                     let p = panel.read(cx);
                     let title = format!("{} · {}", p.tab_label(), p.panes.len() + 1).into();

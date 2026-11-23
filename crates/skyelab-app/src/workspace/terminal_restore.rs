@@ -27,6 +27,7 @@ impl Workspace {
                 thread: thread(p.read(cx).owner),
                 ..p.read(cx).saved()
             })
+            .chain(self.terms.restoring.iter().map(|(_, t)| t.clone()))
             .chain(self.terms.saved.iter().cloned())
             .collect()
     }
@@ -70,9 +71,12 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(tree) = tab.panes.repaired() else {
+        let Some(tree) = tab.panes.clone().repaired() else {
             return;
         };
+        let key = self.terms.next_restore;
+        self.terms.next_restore += 1;
+        self.terms.restoring.push((key, tab.clone()));
         let folders: Vec<PathBuf> = tree.leaves().into_iter().cloned().collect();
         let jobs: Vec<_> = folders
             .iter()
@@ -94,7 +98,9 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
+                this.terms.restoring.retain(|(k, _)| *k != key);
                 if this.is_remote() {
+                    this.terms.saved.push(tab); // back to waiting: this window shows another machine now
                     return;
                 }
                 let mut panes = Vec::new();

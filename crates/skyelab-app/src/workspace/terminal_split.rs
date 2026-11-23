@@ -69,7 +69,7 @@ impl TerminalPanel {
             cell.style().flex_basis = Some(relative(0.).into());
             items.push(cell.child(self.node(child, path, cx)).into_any_element());
         }
-        let split_path = path.clone();
+        let (split_path, count) = (path.clone(), children.len());
         div()
             .id(gpui::ElementId::Name(format!("split-{path:?}").into()))
             .flex()
@@ -90,11 +90,16 @@ impl TerminalPanel {
                             (e.event.position.y, e.bounds.origin.y, e.bounds.size.height)
                         }
                     };
+                    // Flex shares out the space left after the dividers, so measure in that space: divider d
+                    // sits after d dividers and its own middle.
+                    let divider = drag.divider;
+                    let width = GRAB * 2. + px(1.);
+                    let len = len - width * (count - 1) as f32;
                     if len <= px(0.) {
                         return;
                     }
-                    let divider = drag.divider;
-                    if this.tree.resize(&split_path, divider, (at - start) / len) {
+                    let at = at - start - width * divider as f32 - width / 2.;
+                    if this.tree.resize(&split_path, divider, at / len) {
                         cx.emit(TabEvent::Changed);
                         cx.notify();
                     }

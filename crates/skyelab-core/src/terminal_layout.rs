@@ -63,7 +63,8 @@ impl<L: PartialEq + Clone> PaneTree<L> {
                 let direct = children
                     .iter()
                     .position(|c| matches!(c, PaneTree::Leaf(l) if l == at));
-                if let (Some(i), true) = (direct, *own == axis) {
+                // A share too small to halve nests instead, so no pane ever gets a zero share.
+                if let Some(i) = direct.filter(|&i| *own == axis && sizes[i] >= 2) {
                     let half = sizes[i] / 2;
                     sizes[i] -= half;
                     sizes.insert(i + 1, half);
@@ -199,9 +200,10 @@ impl<L: PartialEq + Clone> PaneTree<L> {
                     0 => None,
                     1 => children.pop(),
                     n => {
+                        // Summed wide: a crafted file's huge shares must not wrap around to WHOLE.
                         let ok = sizes.len() == n
-                            && sizes.iter().all(|s| *s > 0)
-                            && sizes.iter().sum::<u32>() == WHOLE;
+                            && sizes.iter().all(|s| (1..=WHOLE).contains(s))
+                            && sizes.iter().map(|s| u64::from(*s)).sum::<u64>() == u64::from(WHOLE);
                         let sizes = if ok { sizes } else { equal(n) };
                         Some(PaneTree::Split {
                             axis,

@@ -24,6 +24,9 @@ pub(super) struct Terms {
     pending_close: Option<Rc<RefCell<Option<Then>>>>,
     /// Saved tabs of threads that haven't shown in this window since launch; they open when the thread does.
     pub saved: Vec<skyelab_core::terminal_layout::SavedTerminalTab>,
+    /// Saved tabs whose shells are starting: still saved, so a quit meanwhile doesn't lose them.
+    pub restoring: Vec<(usize, skyelab_core::terminal_layout::SavedTerminalTab)>,
+    pub next_restore: usize,
 }
 
 impl Workspace {
@@ -113,7 +116,7 @@ impl Workspace {
     }
 
     /// The confirmation's Close, as the dialog's button runs it (tests).
-    #[cfg(test)]
+    #[cfg(all(test, unix))] // its tests run real shells
     pub(super) fn confirm_pending_terminal_close(
         &mut self,
         window: &mut Window,
