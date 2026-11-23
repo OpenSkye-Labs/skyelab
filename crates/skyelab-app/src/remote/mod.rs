@@ -135,6 +135,9 @@ pub struct Remote {
     generation: Arc<AtomicU64>,
     /// Held while binding and while dropping a daemon, so a quick off→on never finds port 7287 still taken.
     bind: Arc<Mutex<()>>,
+    /// Stopped daemons not dropped yet. Filled on the UI thread at once; emptied (dropped) by whoever takes `bind`
+    /// next, so a start that wins `bind` before the stop's drop thread still frees the old port before binding.
+    retired: Retired,
     _start: Option<Task<()>>,
     _poll: Option<Task<()>>,
 }
@@ -155,6 +158,7 @@ impl Remote {
             unsaved_revokes: Vec::new(),
             generation: Arc::default(),
             bind: Arc::default(),
+            retired: Retired::default(),
             _start: None,
             _poll: None,
         };
@@ -202,12 +206,13 @@ impl Remote {
         self.stop(cx);
         self.status = Status::Starting;
         let generation = self.generation.load(Ordering::SeqCst);
-        let (tailnet, mut config, backend, current, bind) = (
+        let (tailnet, mut config, backend, current, bind, retired) = (
             self.host.tailnet.clone(),
             self.host.config.clone(),
             self.host.backend.clone(),
             self.generation.clone(),
             self.bind.clone(),
+            self.retired.clone(),
         );
         // From settings.toml as it is now. A file that can't be read approves nobody, never the last good list.
         let saved = self.host.settings_path.as_deref().map(AppSettings::load);
@@ -225,6 +230,8 @@ impl Remote {
         // Shells out to tailscale (status, then cert, which can take tens of seconds the first time).
         let started = cx.background_spawn(async move {
             let _bind = lock_unpoisoned(&bind);
+            let old = std::mem::take(&mut *lock_unpoisoned(&retired)); // guard ends here: the drop may take a second
+            drop(old);
             let daemon = Daemon::start(config, tailnet, backend)?;
             if current.load(Ordering::SeqCst) != generation {
                 drop(daemon); // stopped meanwhile; freed before the next start can bind
@@ -242,7 +249,7 @@ impl Remote {
             let _ = this.update(cx, |this, cx| {
                 if this.generation.load(Ordering::SeqCst) != generation {
                     if let Ok((daemon, ..)) = started {
-                        drop_off_thread(daemon, this.bind.clone());
+                        drop_off_thread(daemon, this.bind.clone(), &this.retired);
                     }
                     return;
                 }
@@ -279,7 +286,7 @@ impl Remote {
     fn halt(&mut self) {
         self.generation.fetch_add(1, Ordering::SeqCst);
         if let Some(daemon) = lock_slot(&self.host.slot).take() {
-            drop_off_thread(daemon, self.bind.clone());
+            drop_off_thread(daemon, self.bind.clone(), &self.retired);
         }
     }
 
@@ -445,12 +452,17 @@ fn lock_unpoisoned<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 /// Dropping a daemon joins its thread (up to a second), so never on the UI thread.
-fn drop_off_thread(daemon: Daemon, bind: Arc<Mutex<()>>) {
+type Retired = Arc<Mutex<Vec<Daemon>>>;
+
+fn drop_off_thread(daemon: Daemon, bind: Arc<Mutex<()>>, retired: &Retired) {
+    lock_unpoisoned(retired).push(daemon);
+    let retired = retired.clone();
     let _ = std::thread::Builder::new()
         .name("skyelab-daemon-stop".into())
         .spawn(move || {
             let _bind = lock_unpoisoned(&bind);
-            drop(daemon);
+            let old = std::mem::take(&mut *lock_unpoisoned(&retired));
+            drop(old);
         });
 }
 

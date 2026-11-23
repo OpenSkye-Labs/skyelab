@@ -88,50 +88,49 @@ impl Render for Welcome {
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
                 .child(ui::KeyHint::new(label, key))
         };
-        let body = div()
-            .flex_1()
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(
-                v_flex()
-                    .w(gpui::px(384.))
-                    .gap_6()
-                    .child(
-                        ui::EmptyState::new("Pick a thread to continue")
-                            .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
-                            .page(),
-                    )
-                    .child(
-                        v_flex()
-                            .gap_0p5()
-                            .child(shortcut(
-                                "Toggle sidebar",
-                                super::TOGGLE_SIDEBAR_KEY,
-                                Box::new(super::ToggleSidebar),
-                            ))
-                            .child(shortcut(
-                                "Toggle bottom panel",
-                                super::TOGGLE_BOTTOM_KEY,
-                                Box::new(super::ToggleBottomPanel),
-                            ))
-                            .child(shortcut(
-                                "New terminal",
-                                super::NEW_TERMINAL_KEY,
-                                Box::new(super::NewTerminal),
-                            ))
-                            .child(shortcut(
-                                "Command palette",
-                                crate::palette::OPEN_PALETTE_KEY,
-                                Box::new(crate::palette::OpenCommandPalette),
-                            ))
-                            .child(shortcut(
-                                "Accounts and folders",
-                                super::OPEN_SETTINGS_KEY,
-                                Box::new(super::OpenSettings),
-                            )),
-                    ),
-            );
+        let welcome = ui::EmptyState::new("Pick a thread to continue")
+            .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
+            .page();
+        let body = div().flex_1().flex().items_center().justify_center().child(
+            v_flex()
+                .w(gpui::px(384.))
+                .gap_6()
+                .child(
+                    v_flex()
+                        .gap_2()
+                        .child(ui::grip_mark(gpui::px(28.), theme.foreground))
+                        .child(welcome),
+                )
+                .child(
+                    v_flex()
+                        .gap_0p5()
+                        .child(shortcut(
+                            "Toggle sidebar",
+                            super::TOGGLE_SIDEBAR_KEY,
+                            Box::new(super::ToggleSidebar),
+                        ))
+                        .child(shortcut(
+                            "Toggle bottom panel",
+                            super::TOGGLE_BOTTOM_KEY,
+                            Box::new(super::ToggleBottomPanel),
+                        ))
+                        .child(shortcut(
+                            "New terminal",
+                            super::NEW_TERMINAL_KEY,
+                            Box::new(super::NewTerminal),
+                        ))
+                        .child(shortcut(
+                            "Command palette",
+                            crate::palette::OPEN_PALETTE_KEY,
+                            Box::new(crate::palette::OpenCommandPalette),
+                        ))
+                        .child(shortcut(
+                            "Accounts and folders",
+                            super::OPEN_SETTINGS_KEY,
+                            Box::new(super::OpenSettings),
+                        )),
+                ),
+        );
         let header = super::layout::page_header(cx)
             .child(
                 div()

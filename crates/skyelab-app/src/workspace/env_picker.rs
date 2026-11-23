@@ -141,12 +141,18 @@ impl Render for EnvPicker {
             .hover(|s| s.bg(theme.sidebar_accent.opacity(0.7)))
             .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleEnvironments), cx))
             .child(
-                div()
+                h_flex()
                     .min_w_0()
-                    .truncate()
-                    .text_size(ui::BODY)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(current),
+                    .gap_1p5()
+                    .child(ui::brand_mark(px(16.), theme.sidebar_foreground))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .truncate()
+                            .text_size(ui::BODY)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(current),
+                    ),
             )
             .child(
                 Icon::new(IconName::ChevronsUpDown)

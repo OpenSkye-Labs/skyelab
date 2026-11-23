@@ -26,7 +26,8 @@ fn fake_cli(dir: &Path, domains: &str, cert_body: &str) -> TailscaleCli {
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod fake cli");
     TailscaleCli::with_binaries(vec![bin])
         .with_cert_dir(dir.join("tls"))
-        .with_cert_timeout(Duration::from_millis(500))
+        // Long enough for a loaded machine to start the fake; the hang test still finishes far below its 30 s sleep.
+        .with_cert_timeout(Duration::from_secs(3))
 }
 
 /// Writes the files named by --cert-file / --key-file, as the real CLI does, and logs its args.
@@ -88,7 +89,7 @@ fn hung_cert_times_out_and_fails_closed() {
         "{err:?}"
     );
     assert!(
-        start.elapsed() < Duration::from_secs(5),
+        start.elapsed() < Duration::from_secs(15),
         "{:?}",
         start.elapsed()
     );

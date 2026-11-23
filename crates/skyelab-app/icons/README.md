@@ -1,4 +1,3 @@
-# App icon (PLACEHOLDER)
+# SkyeLab app icon
 
-These icons are a placeholder: a white "S" on a blue rounded square. Replace `icon.svg` with the real mark, then run
-`scripts/icons.sh` on macOS to regenerate the PNGs, `icon.icns` and `icon.ico`.
+Edit `icon.svg`, then run `scripts/icons.sh` on macOS with `resvg` installed to regenerate the desktop and mobile assets. GPUI uses `grip.svg` on Welcome and `mark.svg` for the compact mini-Bean. See the [brand guide](../../../docs/design/brand.md) for usage.
