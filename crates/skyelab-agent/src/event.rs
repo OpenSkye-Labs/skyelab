@@ -61,6 +61,25 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         used: Option<f32>,
     },
+    /// A subagent's progress (Claude's `task_started`, `task_progress` and `task_notification` lines), keyed by the
+    /// Agent tool call that started it. `status` is `running` once started and the final one (`completed`, `failed`,
+    /// `stopped`) when it ends; a progress line has none and says what it is doing in `activity`.
+    Task {
+        tool_use_id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        activity: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        summary: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        duration_ms: Option<u64>,
+    },
+    /// A subagent's own message (its tool calls, their results), under the Agent tool call `parent`.
+    Nested {
+        parent: String,
+        content: Vec<Block>,
+    },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.
@@ -205,6 +224,22 @@ impl Event {
                 model: i.model,
             }),
             (Some("system"), Some("thinking_tokens" | "status")) => return None,
+            (Some("system"), Some("task_updated" | "background_tasks_changed")) => return None,
+            (
+                Some("system"),
+                Some(kind @ ("task_started" | "task_progress" | "task_notification")),
+            ) => task(kind, &v),
+            (Some("assistant" | "user"), _) if v["parent_tool_use_id"].is_string() => {
+                Some(Event::Nested {
+                    parent: v["parent_tool_use_id"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_owned(),
+                    // A subagent's prompt arrives as a plain string: nothing to show of it.
+                    content: Vec::<Block>::deserialize(&v["message"]["content"])
+                        .unwrap_or_default(),
+                })
+            }
             (Some("stream_event"), _) => return delta(&v),
             (Some("rate_limit_event"), _) => rate_limit(&v["rate_limit_info"]),
             (Some("assistant"), _) => Message::deserialize(&v).ok().map(|m| Event::Assistant {
@@ -275,6 +310,26 @@ fn delta(v: &Value) -> Option<Event> {
     Some(Event::Delta {
         kind,
         text: text.to_owned(),
+    })
+}
+
+/// A `task_*` system line. One without the Agent tool call it belongs to stays `Unknown`.
+fn task(kind: &str, v: &Value) -> Option<Event> {
+    let text = |k: &str| v[k].as_str().map(str::to_owned);
+    Some(Event::Task {
+        tool_use_id: text("tool_use_id")?,
+        status: match kind {
+            "task_started" => Some("running".to_owned()),
+            "task_notification" => text("status"),
+            _ => None,
+        },
+        activity: (kind == "task_progress")
+            .then(|| text("description"))
+            .flatten(),
+        summary: (kind == "task_notification")
+            .then(|| text("summary"))
+            .flatten(),
+        duration_ms: v["usage"]["duration_ms"].as_u64(),
     })
 }
 
