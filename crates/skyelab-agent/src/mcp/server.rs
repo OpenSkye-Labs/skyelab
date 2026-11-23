@@ -5,12 +5,12 @@ use anyhow::{Context as _, Result};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{BufRead as _, BufReader, Read as _, Write as _};
-use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+use std::os::unix::fs::{DirBuilderExt as _, OpenOptionsExt as _, PermissionsExt as _};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Longest JSON-RPC line read; a longer one closes the connection.
 const MAX_LINE: u64 = 1 << 20;
@@ -68,7 +68,12 @@ impl Server {
             }
             _ => {}
         }
-        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        // Private from creation, and again after, since the umask may have kept bits from `mode`.
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir)
+            .with_context(|| format!("creating {}", dir.display()))?;
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
             .with_context(|| format!("making {} private", dir.display()))?;
         let socket = dir.join("mcp.sock");
@@ -89,7 +94,11 @@ impl Server {
                     if accept.stop.load(Ordering::SeqCst) {
                         break;
                     }
-                    let Ok(stream) = stream else { continue };
+                    let Ok(stream) = stream else {
+                        // EMFILE and friends: back off instead of spinning.
+                        std::thread::sleep(Duration::from_millis(100));
+                        continue;
+                    };
                     let (inner, host) = (accept.clone(), host.clone());
                     let _ = std::thread::Builder::new()
                         .name("skyelab-mcp-conn".into())
@@ -227,6 +236,33 @@ fn read_line(reader: &mut BufReader<UnixStream>, max: u64) -> Option<String> {
     }
 }
 
+/// The token line, which must arrive whole within [`TOKEN_TIMEOUT`] of connecting, not per read: a client
+/// dripping a byte at a time can't hold the connection.
+fn read_token(reader: &mut BufReader<UnixStream>) -> Option<String> {
+    let deadline = Instant::now() + TOKEN_TIMEOUT;
+    let mut buf = Vec::new();
+    loop {
+        let left = deadline
+            .checked_duration_since(Instant::now())
+            .filter(|d| !d.is_zero())?;
+        reader.get_ref().set_read_timeout(Some(left)).ok()?;
+        let chunk = reader.fill_buf().ok()?;
+        if chunk.is_empty() {
+            return None; // EOF
+        }
+        let end = chunk.iter().position(|b| *b == b'\n');
+        let take = end.map_or(chunk.len(), |i| i + 1);
+        buf.extend_from_slice(&chunk[..take]);
+        reader.consume(take);
+        if buf.len() as u64 > MAX_TOKEN_LINE {
+            return None;
+        }
+        if end.is_some() {
+            return String::from_utf8(buf).ok();
+        }
+    }
+}
+
 fn serve(stream: UnixStream, inner: &Inner, host: &dyn Host) {
     let mut claimed = None;
     serve_until_closed(stream, inner, host, &mut claimed);
@@ -247,9 +283,8 @@ fn serve_until_closed(
     let Ok(mut writer) = stream.try_clone() else {
         return;
     };
-    let _ = stream.set_read_timeout(Some(TOKEN_TIMEOUT));
     let mut reader = BufReader::new(stream);
-    let Some(token) = read_line(&mut reader, MAX_TOKEN_LINE) else {
+    let Some(token) = read_token(&mut reader) else {
         return;
     };
     let Some((id, caller)) = claim(inner, token.trim_end(), &writer) else {
