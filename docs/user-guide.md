@@ -5,7 +5,7 @@ Shortcuts are shown for macOS. On Linux and Windows, use <kbd>Ctrl</kbd> for <kb
 ## Command palette
 
 Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with its shortcut), a project to switch to, a
-thread of the current project to open, or an open tab to go to. Type a few letters in order (`os` finds
+thread of the current project to open, or a terminal, Changes or browser tab to go to. Type a few letters in order (`os` finds
 **Open Settings**), move with the arrow keys, press <kbd>↩</kbd> to run it and <kbd>Esc</kbd> to close. The action runs
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
@@ -13,15 +13,22 @@ In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kb
 ## Layout
 
 The sidebar lists your projects, each with the account its folder is bound to; the selected project's threads sit
-under it with their state (**Working**, **Interrupted**, **Failed**) or how long ago they last changed. Threads open
-in the center. Tools open in the right panel beside the thread: **Changes**, browsers and **Devices**. Settings and
-Remote open in the center.
+under it with their state (**Working**, **Interrupted**, **Failed**) or how long ago they last changed. The center
+shows one page at a time: a thread, a new thread, Settings, or nothing open yet. Clicking a thread in the sidebar (or
+picking it in the palette) switches the page; there are no center tabs. A thread you switch away from keeps running,
+and its row keeps its state. A thread that starts on its own (delegated, or from another device) doesn't take the
+page: its row gets a blue dot until you open it. Tools open in the right panel beside the thread: **Changes**,
+browsers and **Devices**.
 
-The three buttons at the right end of the center's tab bar show and hide the sidebar (<kbd>⌘B</kbd>), the terminal
-drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag a panel's edge to resize it.
+<kbd>⌘[</kbd> and <kbd>⌘]</kbd> go back and forward between pages (<kbd>Alt+←</kbd> and <kbd>Alt+→</kbd> on Linux
+and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
-SkyeLab remembers the window's size and position and the right panel's width and whether it was open, in
-`settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
+The page's top row shows where you are (project / thread) and its actions, and at its right end three buttons show
+and hide the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag
+a panel's edge to resize it.
+
+SkyeLab remembers the window's size and position, the right panel's width and whether it was open, and the page it
+showed, in `settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
 no longer connected is ignored.
 
 ## Accounts and bindings
@@ -37,7 +44,7 @@ A folder with no binding never runs an agent.
    CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
    ```
 
-2. Open Settings (<kbd>⌘,</kbd>). Under **Add account**, pick **Claude** or **Codex**, enter an id (`work`), a label
+2. Open Settings (<kbd>⌘,</kbd>). In **Accounts & bindings**, under **Add account**, pick **Claude** or **Codex**, enter an id (`work`), a label
    (`Work (Team)`) and the absolute config folder (`/Users/you/.claude-work`), then click **Add**.
 
 For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). After adding it,
@@ -78,9 +85,10 @@ The warning shows the folder the path points to now and the one you confirmed. I
 
 ## GitHub per account
 
-Give an account its own GitHub login: in Settings, set the account's GitHub config dir (an absolute path such as
-`/Users/me/.config/gh-work`) and press **Log in to GitHub**. That opens a terminal running `gh auth login` with
-`GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. Settings then shows which GitHub user is logged in.
+Give an account its own GitHub login: in Settings → **Accounts & bindings**, set the account's GitHub config dir (an
+absolute path such as `/Users/me/.config/gh-work`), then in Settings → **GitHub** press **Log in to GitHub**. That
+opens a terminal running `gh auth login` with `GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. The
+**GitHub** section then shows which GitHub user is logged in.
 
 Agents, project terminals and the Changes tab's **Commit**, **Push** and **Open PR** use the folder's account's
 GitHub login. If the account has none, Push and Open PR refuse instead of using your global `gh` login. Push only
@@ -106,8 +114,8 @@ The thread header shows the provider (**Claude** or **Codex**) and the account i
 current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
 another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
-event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
-Closing a thread's tab or quitting SkyeLab stops its agent. A thread that was still running when SkyeLab last closed
+event, and saves them in order once the store works again. Quitting before then loses them.
+Switching to another page doesn't stop a thread's agent; **Stop** or quitting SkyeLab does. A thread that was still running when SkyeLab last closed
 without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
@@ -139,12 +147,12 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 ### Delegated threads
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
-`wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
+`wait_thread`, and others). The new thread appears in the sidebar with a blue dot; the page you're on stays. Its header says **Delegated by** and links back to the
 parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
 when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
-tab says why. Once you stop a thread (or close its tab), it can't start or message other threads, even with a call
+header says why. Once you stop a thread, it can't start or message other threads, even with a call
 it had already sent. Codex threads get the same tools, with the same account rule. Not available on Windows yet.
 
 ## Worktrees
@@ -186,14 +194,14 @@ own accounts.
 
 ### Turn sharing on
 
-Click **Not sharing** in the status bar to open the Remote tab, then turn on **Share this machine on my tailnet**.
+Click **Not sharing** in the status bar to open Settings at **Sharing**, then turn on **Share this machine on my tailnet**.
 The status bar then reads `Sharing on <machine>.example.ts.net:7287` with the certificate's expiry date, or tells
 you why it couldn't start (Tailscale not installed, not running, logged out, or no certificate).
 
 Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Each one must also be
 allowed here once:
 
-- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and the Remote tab
+- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and Settings → Sharing
   lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
   **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
   the app you just opened. **Deny** turns it down until sharing restarts here.
@@ -201,7 +209,7 @@ allowed here once:
   at once and forgets it; it has to ask again.
 - An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
 
-Connected devices are listed in the Remote tab, each with a **Disconnect** button. A connected device can list projects and threads,
+Connected devices are listed in Settings → Sharing, each with a **Disconnect** button. A connected device can list projects and threads,
 start a thread in an existing project, send follow-ups and interrupt. It can't add projects, change accounts or
 bindings, or open terminals. Turning sharing off closes every connection.
 
@@ -215,17 +223,18 @@ that the other machine shows the same code, click **Allow** there, and this wind
 
 On a remote machine, the sidebar lists its projects and threads. You can open threads, start new ones, send
 follow-ups and stop them. The account shown is the one that machine resolved. Terminals and worktree controls are
-local only. Switching back to **This Mac** closes all remote tabs. A thread that starts on this machine while you
-look at another one (a delegated thread, or one started from your phone) doesn't open among the remote tabs: the
-sidebar shows **This Mac · 1 new thread here**, and clicking it switches back and shows it.
+local only. A remote thread is shown as the page, like a local one. Switching back to **This Mac** closes the remote
+threads. A thread that starts on this machine while you look at another one (a delegated thread, or one started from
+your phone) waits: the sidebar shows **This Mac · 1 new thread here**, and clicking it switches back, where the
+thread's row has a blue dot.
 
 Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
 one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
-name. If the name later answers from another node, its tabs close and a warning offers **Trust it**: trust it only if
+name. If the name later answers from another node, its threads close and a warning offers **Trust it**: trust it only if
 you replaced or renamed that machine. If your Tailscale says the machine isn't yours or can't answer, the status says
 so and nothing is sent to it. If the machine claims to be a different node than your Tailscale sees, the status says
 so and nothing is listed or sent after the handshake. After a reconnect nothing is asked of the machine until it is
-checked again, and a refusal clears its projects, threads and tabs from the window.
+checked again, and a refusal clears its projects and threads from the window.
 
 The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
 you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:

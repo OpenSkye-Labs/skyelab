@@ -30,7 +30,7 @@ What's built today:
 - **Worktrees and diff review.** Tick "Run in a new worktree" and the thread gets its own git worktree on a
   `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
-  switches project, opens a thread or goes to an open tab.
+  switches project, opens a thread or goes to a terminal, Changes or browser tab.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
   URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
