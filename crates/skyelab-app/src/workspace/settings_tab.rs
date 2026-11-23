@@ -64,13 +64,20 @@ impl Workspace {
             return;
         }
         self.settings_open = false;
-        let back = self
-            .settings
-            .as_ref()
-            .and_then(|s| s.update(cx, |s, _| s.return_focus.take()));
-        match back {
-            Some(f) => f.focus(window, cx),
-            None => self.focus.focus(window, cx),
+        let Some(settings) = self.settings.clone() else {
+            return cx.notify();
+        };
+        let back = settings.update(cx, |s, _| s.return_focus.take());
+        // Closed because something else took the focus (the palette, F6): that keeps it.
+        let inside = settings
+            .read(cx)
+            .focus_handle(cx)
+            .contains_focused(window, cx);
+        if inside || window.focused(cx).is_none() {
+            match back {
+                Some(f) => f.focus(window, cx),
+                None => self.focus.focus(window, cx),
+            }
         }
         cx.notify();
     }

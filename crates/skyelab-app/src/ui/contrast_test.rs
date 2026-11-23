@@ -72,6 +72,7 @@ fn every_theme_meets_body_text_contrast(cx: &mut TestAppContext) {
                         check(&format!("muted on {surface}"), t.muted_foreground, bg);
                     }
                     check("button text", t.primary_foreground, t.primary);
+                    check("link on background", t.link, t.background);
                 }
             }
         }

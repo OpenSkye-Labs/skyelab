@@ -100,7 +100,12 @@ impl FromStr for Schedule {
             }
             "cron" => {
                 let pattern = rest.split_whitespace().collect::<Vec<_>>().join(" ");
-                parse_cron(&pattern)?;
+                let cron = parse_cron(&pattern)?;
+                // `0 9 31 2 *` parses but never comes: saved, it would sit "not scheduled" for good.
+                let from = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).single();
+                if from.is_none_or(|from| cron.find_next_occurrence(&from, false).is_err()) {
+                    return Err("That cron expression never runs (no such date)".into());
+                }
                 Ok(Schedule::Cron(pattern))
             }
             _ => Err(format!("\"{}\" isn't a schedule", s.trim())),

@@ -21,3 +21,5 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `InputState::set_value` emits no `InputEvent::Change`. A test of a search field types into it
   (`simulate_input`), and the field must be drawn (its section shown) to take the keys.
 - Focusable views hold a `FocusHandle` (`cx.focus_handle()`), render `.track_focus(&self.focus)` and implement `Focusable`.
+- A modal that closes on focus-out must not give the focus back on that path: whatever took it (the palette, F6)
+  keeps it. Restore the saved focus only when the focus is still inside the modal or nowhere (Esc, ×, backdrop).

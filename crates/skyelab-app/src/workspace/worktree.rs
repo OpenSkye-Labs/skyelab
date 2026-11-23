@@ -8,7 +8,9 @@ use anyhow::{Context as _, Result, bail};
 use skyelab_core::AccountsConfig;
 use skyelab_git::Status;
 use skyelab_terminal::SpawnOptions;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// The folder inside a project that holds SkyeLab's worktrees, ignored through `info/exclude`.
 const DIR: &str = ".skyelab";
@@ -52,6 +54,13 @@ pub(super) fn slug(title: &str, now_ms: u128) -> String {
     }
 }
 
+/// The lock worktree creation in `repo` (a canonical root) holds.
+pub(super) fn creating(repo: &Path) -> Arc<Mutex<()>> {
+    static REPOS: Mutex<BTreeMap<PathBuf, Arc<Mutex<()>>>> = Mutex::new(BTreeMap::new());
+    let mut repos = REPOS.lock().unwrap_or_else(PoisonError::into_inner);
+    repos.entry(repo.to_owned()).or_default().clone()
+}
+
 /// Creates a worktree of `project` on `skyelab/<slug>` from local branch `base_branch` (its HEAD when `None`), and
 /// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again.
 pub(super) fn create(
@@ -79,12 +88,10 @@ pub(super) fn create(
             bail!("{} is not a plain folder; remove it first", dir.display());
         }
     }
-    // One at a time: a multi-model send makes several at once (the first live run lost one model's start), and two
-    // slugs of the same millisecond would collide.
-    static CREATING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _one = CREATING
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // One at a time per repo: a multi-model send makes several at once (the first live run lost one model's start),
+    // and two slugs of the same millisecond would collide. Another project's checkout doesn't wait on this one's.
+    let repo = creating(&project);
+    let _one = repo.lock().unwrap_or_else(PoisonError::into_inner);
     std::fs::create_dir_all(&parent).with_context(|| format!("creating {}", parent.display()))?;
     skyelab_git::exclude_locally(&project, &format!("/{DIR}/"))?;
 

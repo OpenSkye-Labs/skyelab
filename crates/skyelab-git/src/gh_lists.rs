@@ -173,10 +173,14 @@ fn rows(json: &[u8], what: &str) -> Result<Vec<Value>> {
     }
 }
 
-/// A string field, capped, without control or bidi-override characters (they could make a row read as something
-/// else). A body keeps its line breaks.
+/// A string field, capped, without control, bidi or zero-width characters (they could make a row read as something
+/// else, or hide text). A body keeps its line breaks.
 fn text(v: &Value, key: &str, max: usize) -> String {
-    let bidi = |c: char| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}');
+    let bidi = |c: char| {
+        matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200B}'..='\u{200F}'
+            | '\u{061C}' | '\u{2060}' | '\u{FEFF}')
+            || (key != "body" && matches!(c, '\u{2028}' | '\u{2029}'))
+    };
     v[key]
         .as_str()
         .unwrap_or_default()

@@ -204,3 +204,25 @@ fn worktrees_made_at_once_with_one_title_all_get_their_own() {
     let unique: std::collections::HashSet<_> = made.iter().collect();
     assert_eq!(unique.len(), 4, "{made:?}");
 }
+
+#[test]
+fn a_slow_checkout_in_one_repo_does_not_hold_up_another() {
+    let (a, b) = (
+        super::worktree_thread_test::fixture(),
+        super::worktree_thread_test::fixture(),
+    );
+    let a_root = std::fs::canonicalize(&a.project).expect("canonical");
+    let held = worktree::creating(&a_root);
+    let _busy = held.lock().expect("lock"); // repo A is making a worktree
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (config, project) = (b.config.clone(), b.project.clone());
+    std::thread::spawn(move || {
+        let made = worktree::create(&config, &project, "acme", "other repo", None);
+        let _ = tx.send(made.map(|m| m.path));
+    });
+    let made = rx.recv_timeout(std::time::Duration::from_secs(30));
+    assert!(
+        matches!(made, Ok(Ok(_))),
+        "repo B waited on repo A: {made:?}"
+    );
+}

@@ -10,7 +10,7 @@ use gpui::VisualTestContext;
 use skyelab_core::{Account, Binding};
 use std::path::Path;
 
-fn git_repo(dir: &Path, origin: &str) {
+pub(super) fn git_repo(dir: &Path, origin: &str) {
     std::fs::create_dir_all(dir).expect("mkdir");
     for args in [&["init", "-q"][..], &["remote", "add", "origin", origin]] {
         let ok = std::process::Command::new("git")
@@ -50,7 +50,7 @@ fn account(id: &str, root: &Path, gh: Option<PathBuf>) -> Account {
 }
 
 /// The rig's project (account acme, gh `acme_gh`) plus `extra` projects: (folder name, origin, binding).
-fn setup(
+pub(super) fn setup(
     r: &Rig,
     acme_gh: Option<PathBuf>,
     accounts: Vec<Account>,
@@ -90,7 +90,7 @@ fn setup(
     config
 }
 
-fn page(r: &Rig, kind: Kind, cx: &mut VisualTestContext) -> Entity<GhPage> {
+pub(super) fn page(r: &Rig, kind: Kind, cx: &mut VisualTestContext) -> Entity<GhPage> {
     r.ws.read_with(cx, |ws, _| match kind {
         Kind::Prs => ws.gh_pages.prs.clone(),
         Kind::Issues => ws.gh_pages.issues.clone(),
@@ -99,7 +99,7 @@ fn page(r: &Rig, kind: Kind, cx: &mut VisualTestContext) -> Entity<GhPage> {
 }
 
 /// Each shown group's (project folder name, account id, listing), once none is loading.
-fn settled(
+pub(super) fn settled(
     r: &Rig,
     page: &Entity<GhPage>,
     cx: &mut VisualTestContext,

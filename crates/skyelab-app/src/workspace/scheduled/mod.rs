@@ -25,6 +25,8 @@ mod page_test;
 #[cfg(test)]
 mod palette_test;
 #[cfg(test)]
+mod review_test;
+#[cfg(test)]
 mod test_util;
 #[cfg(test)]
 mod windows_test;
@@ -33,7 +35,7 @@ use super::thread::ThreadView;
 use super::{Workspace, lock, windows};
 use chrono::{Local, TimeZone as _, Utc};
 use gpui::{AnyWindowHandle, App, AppContext as _, Entity, Global, Task, WeakEntity};
-use skyelab_core::schedule::{Due, Schedule, due};
+use skyelab_core::schedule::{Due, MISSED_GRACE_MS, Schedule, due};
 use skyelab_core::{AppSettings, ScheduledSettings, delegation::is_busy};
 use skyelab_store::scheduled::ScheduledTask;
 use std::collections::{HashMap, HashSet};
@@ -52,6 +54,8 @@ pub(crate) struct Scheduler {
     fake_now: Option<i64>,
     /// Runs started here whose row may not exist yet, by task.
     launching: HashMap<i64, WeakEntity<ThreadView>>,
+    /// The last tick's time: a task can only have been missed if no tick ran for a while (start, or a wake).
+    last_tick: Option<i64>,
     /// Bumped whenever a tick or a run changed a task, so an open task list reads the store again.
     pub(crate) changes: u64,
     _tick: Option<Task<()>>,
@@ -139,14 +143,19 @@ pub(super) fn tick(cx: &mut App) {
     };
     let mut busy = launching(cx);
     busy.extend(runs.iter().filter(|r| is_busy(&r.2)).map(|r| r.0));
+    // A task late only because the cap held it while ticks ran wasn't missed; it still gets the next free slot.
+    let last = cx.default_global::<Scheduler>().last_tick.replace(now);
+    let skip_missed = settings.skip_missed && last.is_none_or(|t| now - t > MISSED_GRACE_MS);
+    // A hand-edited 0 would hold every task forever.
+    let cap = settings.max_concurrent.max(1) as usize;
     let mut changed = false;
     for task in tasks.iter().filter(|t| t.enabled) {
-        match due(task.next_run_at, now, settings.skip_missed) {
+        match due(task.next_run_at, now, skip_missed) {
             Due::NotYet => continue,
             Due::SkipMissed => skip(&ws, task, now, MISSED, cx),
             Due::Run if busy.contains(&task.id) => skip(&ws, task, now, STILL_RUNNING, cx),
             // Waits, still due, until a run ends.
-            Due::Run if busy.len() >= settings.max_concurrent as usize => continue,
+            Due::Run if busy.len() >= cap => continue,
             Due::Run => {
                 run(task, now, window, &ws, cx);
                 busy.insert(task.id);

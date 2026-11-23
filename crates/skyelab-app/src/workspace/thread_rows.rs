@@ -3,7 +3,7 @@
 
 use super::{Workspace, thread::ThreadView};
 use crate::ui::Status;
-use gpui::{AppContext as _, Context};
+use gpui::{AppContext as _, Context, Entity, Window};
 use skyelab_store::Thread;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -52,6 +52,7 @@ impl Workspace {
             let _ = this.update(cx, |this, cx| {
                 this.project_accounts = resolved;
                 this.previews.bindings = bindings;
+                this.sync_gh_sources(cx);
                 this.refresh_sidebar(cx);
             });
         }));
@@ -107,6 +108,13 @@ pub(super) struct RowSig {
     pr_url: Option<String>,
 }
 
+impl RowSig {
+    /// The agent waits on a permission answer.
+    pub(super) fn asks(&self) -> bool {
+        self.state.1
+    }
+}
+
 pub(super) fn row_sig(v: &ThreadView) -> RowSig {
     RowSig {
         id: v.thread.as_ref().map(|t| t.id),
@@ -119,4 +127,33 @@ pub(super) fn row_sig(v: &ThreadView) -> RowSig {
 pub(super) struct ThreadSubs {
     pub sig: RowSig,
     pub _subs: [gpui::Subscription; 2],
+}
+
+impl Workspace {
+    /// An open view notified: the sidebar is rebuilt when what its row shows changed, not on every notify; a
+    /// background run that starts waiting on a permission answer says so.
+    pub(super) fn thread_changed(
+        &mut self,
+        view: &Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // Cheap, and a parent's Lineage may have loaded after the child's last change.
+        self.sync_lineage(view, cx);
+        let sig = row_sig(view.read(cx));
+        let asked = match self.thread_subs.get_mut(&view.entity_id()) {
+            Some(subs) if subs.sig == sig => return,
+            Some(subs) => {
+                let asked = sig.asks() && !subs.sig.asks();
+                subs.sig = sig;
+                asked
+            }
+            None => false,
+        };
+        // A background run (a scheduled one has nobody watching) waits on this answer: say so.
+        if asked && view.read(cx).owned_by(window) {
+            self.approval_needed(view, window, cx);
+        }
+        self.refresh_sidebar(cx)
+    }
 }

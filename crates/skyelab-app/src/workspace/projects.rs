@@ -305,16 +305,8 @@ impl Workspace {
     ) {
         view.update(cx, |v, _| v.lists.add(window.window_handle()));
         // Its state shows in the sidebar: rebuild that when what the row shows changed, not on every notify.
-        let observe = cx.observe(view, |this, view, cx| {
-            // Cheap, and a parent's Lineage may have loaded after the child's last change.
-            this.sync_lineage(&view, cx);
-            let sig = super::thread_rows::row_sig(view.read(cx));
-            match this.thread_subs.get_mut(&view.entity_id()) {
-                Some(subs) if subs.sig == sig => return,
-                Some(subs) => subs.sig = sig,
-                None => {}
-            }
-            this.refresh_sidebar(cx)
+        let observe = cx.observe_in(view, window, |this, view, window, cx| {
+            this.thread_changed(&view, window, cx)
         });
         let events = cx.subscribe_in(
             view,
