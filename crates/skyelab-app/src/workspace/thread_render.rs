@@ -47,8 +47,8 @@ impl ThreadView {
             |n| n.to_string_lossy().into_owned(),
         );
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
-        // The window's top row: breadcrumb and account, then the details card's toggle beside the dock toggles. The
-        // thread's folder, branch, git and lineage controls live in that card.
+        // The window's top row: breadcrumb and account, then the dock toggles. The thread's folder, branch, git and
+        // lineage controls are in the right dock's Details tab.
         super::layout::page_header(cx)
             .child(
                 h_flex()
@@ -109,13 +109,7 @@ impl ThreadView {
                         .on_click(cx.listener(|this, _, window, cx| this.stop(&Stop, window, cx))),
                 )
             })
-            .child(
-                h_flex()
-                    .flex_shrink_0()
-                    .gap_0p5()
-                    .child(self.render_details_toggle(cx))
-                    .child(super::layout::panel_toggles(cx)),
-            )
+            .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
 
@@ -415,7 +409,6 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(Self::toggle_worktree))
             .on_action(cx.listener(Self::open_changes))
-            .on_action(cx.listener(Self::toggle_details))
             .on_action(cx.listener(Self::open_worktree_terminal))
             .on_action(cx.listener(Self::discard_worktree))
             .on_action(cx.listener(Self::confirm_discard))

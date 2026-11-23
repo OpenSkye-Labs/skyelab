@@ -125,8 +125,9 @@ without stopping it (a crash, say) shows as **interrupted**; send a follow-up to
 
 ### Thread details
 
-The square-menu button at the top right opens the thread's details card: its folder, editor, scripts, branch,
-git actions, delegated agents and usage, and the dialog backdrop: [user-guide-thread-details.md](user-guide-thread-details.md).
+The right panel's **Details** tab (the right-panel toggle opens it) holds the thread's folder, branch, git actions,
+scripts, delegated agents, pull request and editor, and every account's usage. Details and the dialog backdrop:
+[user-guide-thread-details.md](user-guide-thread-details.md).
 
 ### Permissions
 
@@ -219,7 +220,7 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 
 An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread`, `send_message`,
 `wait_thread`, and others). The new thread appears in the sidebar marked unread; the page you're on stays. Its header's breadcrumb links back to the
-parent, and the parent's details card lists it under **Lineage**. An agent can only start threads in projects bound to its own
+parent, and the parent's Details tab lists it under **Lineage**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
 when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
@@ -230,10 +231,10 @@ it had already sent. Codex threads get the same tools, with the same account rul
 
 Tick **Run in a new worktree** in the composer before you send the first prompt. The thread then works in its own
 git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`, started from the branch the
-details card's branch row shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
+Details tab's branch row shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
 
-The thread details card then has:
+The Details tab then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not. **Refresh** reloads it.
   A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one

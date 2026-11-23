@@ -278,6 +278,7 @@ impl Workspace {
                 }
                 ThreadViewEvent::TurnDone => {
                     this.refresh_changes(view, cx);
+                    this.refresh_details(cx);
                     this.turn_done(view, window, cx);
                 }
                 ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
@@ -367,6 +368,7 @@ impl Workspace {
     /// Settings saved: open threads start their next session from the new bindings.
     pub(super) fn push_config(&mut self, cx: &mut Context<Self>) {
         crate::ui::set_accounts(cx, &self.config);
+        self.refresh_details(cx);
         // Show nothing rather than the previous binding until the new one is resolved.
         self.project_accounts.clear();
         self.resolve_project_accounts(cx);

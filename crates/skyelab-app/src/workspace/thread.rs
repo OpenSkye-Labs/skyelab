@@ -95,7 +95,7 @@ pub struct ThreadView {
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
-    /// The header's thread details card.
+    /// The Details tab's state for this thread.
     pub(super) details: super::thread_details::Details,
     /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
     pub(super) mode: Mode,
@@ -453,9 +453,6 @@ impl ThreadView {
     }
 
     fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
-        if let Record::Agent(event) = record {
-            self.note_rate_limit(event);
-        }
         let old = self.items.len();
         if let Some(first) = apply(&mut self.items, record) {
             self.list.splice(first..old, self.items.len() - first);

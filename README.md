@@ -27,8 +27,8 @@ What's built today:
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and
   <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor. The header is a plain breadcrumb;
-  its **Thread details** card (top right) holds the folder, editor, scripts, branch, git actions, delegated agents
-  and the account's usage. Dialogs dim the window behind them.
+  the right panel's **Details** tab holds the folder, branch, git actions, scripts, delegated agents, pull request
+  and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user; inherited `GH_TOKEN` /
   `GITHUB_TOKEN` never pass through. Push accepts https remotes (credentials bound per account) and refuses ssh.
@@ -37,7 +37,7 @@ What's built today:
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
   switches project, opens a thread (also found by its messages, in any project) or goes to a terminal, Changes or
   browser tab.
-- **Branches, checkpoints and scripts.** A branch picker in the thread details card (switch, create, and stash or carry
+- **Branches, checkpoints and scripts.** A branch picker in the Details tab (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
@@ -56,7 +56,7 @@ What's built today:
   shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
   sends or stops, and answers the agent's permission requests. Not packaged for distribution yet.
 - **Agent orchestration.** An agent can start and drive other threads through SkyeLab's own MCP tools, only in
-  projects bound to its own account. A child's breadcrumb links its parent, and the parent's details card lists its
+  projects bound to its own account. A child's breadcrumb links its parent, and the parent's Details tab lists its
   delegated threads under Lineage, with their status. macOS and Linux only for now.
 
 - **Tool approvals in the thread.** When an agent needs permission for a tool (a command, an edit), the thread shows

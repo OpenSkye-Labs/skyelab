@@ -1,10 +1,10 @@
-//! The thread details card: it opens over the thread page, lists the threads its agent delegated with their live
-//! status, and shows the usage windows the bound account's agent reported.
+//! The Details tab: the right-panel toggle shows it, it lists the threads the shown thread's agent delegated with
+//! their live status, and every account's newest usage reading.
 #![cfg(unix)]
 
 use super::delegation_test::{open, rig, send, start, wait_until};
+use super::layout::ToggleRightPanel;
 use super::thread::Stop;
-use super::thread_details::ToggleThreadDetails;
 use crate::ui::Status;
 use gpui::TestAppContext;
 
@@ -30,25 +30,35 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
         parent.read_with(cx, |p, _| p.live_status() == Status::Idle)
     });
     send(&parent, "usage", cx);
-    wait_until(cx, "both usage windows", |cx| {
-        parent.read_with(cx, |p, _| p.details.limits.len() == 2)
+    wait_until(cx, "the work account's usage", |cx| {
+        ws.read_with(cx, |ws, cx| {
+            let usage = &ws.details.read(cx).usage;
+            usage.iter().any(|a| a.id == "work" && a.windows.len() == 2)
+        })
     });
-    parent.read_with(cx, |p, _| {
-        assert!(p.details.limits.contains(&("Weekly", 0.62)));
-        assert!(p.details.limits.contains(&("Session", 0.91)));
+    ws.read_with(cx, |ws, cx| {
+        let usage = &ws.details.read(cx).usage;
+        let work = usage.iter().find(|a| a.id == "work").expect("work listed");
+        assert_eq!(work.windows, vec![("Session", 0.91), ("Weekly", 0.62)]);
+        assert!(work.as_of_ms.is_some());
+        // Every configured account is listed; one whose agents reported nothing has no numbers.
+        assert!(
+            usage
+                .iter()
+                .any(|a| a.id != "work" && a.windows.is_empty() && a.as_of_ms.is_none())
+        );
     });
 
-    assert!(cx.debug_bounds("thread-details-card").is_none());
-    cx.dispatch_action(ToggleThreadDetails);
+    assert!(
+        cx.debug_bounds("thread-details-card").is_none(),
+        "the dock starts closed"
+    );
+    cx.dispatch_action(ToggleRightPanel);
     cx.run_until_parked();
-    assert!(parent.read_with(cx, |p, _| p.details.open));
     assert!(
         cx.debug_bounds("thread-details-card").is_some(),
-        "the card draws over the thread page"
+        "the right-panel toggle shows the Details tab"
     );
-    cx.dispatch_action(ToggleThreadDetails);
-    cx.run_until_parked();
-    assert!(cx.debug_bounds("thread-details-card").is_none());
 
     // Stopped, the child moves to Previous agents.
     let child_id = parent.read_with(cx, |p, _| p.children[0].id);

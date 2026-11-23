@@ -15,6 +15,7 @@ use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod manage;
 mod migrations;
+mod usage;
 use migrations::MIGRATIONS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

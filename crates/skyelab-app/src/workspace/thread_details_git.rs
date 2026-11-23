@@ -1,4 +1,4 @@
-//! The details card's version control, lineage and usage sections.
+//! The details card's version control rows, Lineage and Pull request sections.
 
 use super::super::OpenThread;
 use super::super::thread::{ChildLink, ThreadView};
@@ -6,8 +6,8 @@ use super::super::thread_worktree::{DiscardWorktree, OpenChanges, OpenWorktreeTe
 use super::card::{chevron, row};
 use super::{Page, is_running};
 use crate::ui::{self, Status};
-use gpui::{AnyElement, Context, FontWeight, Hsla, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Theme, h_flex, v_flex};
+use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use gpui_kit_assets::IconName;
 
 impl ThreadView {
@@ -37,7 +37,10 @@ impl ThreadView {
                     &theme,
                 )
                 .child(chevron(IconName::ChevronDown, &theme))
-                .on_click(move |_, _, cx| picker.update(cx, |p, cx| p.set_open(true, cx)))
+                .on_click(cx.listener(move |_, _, _, cx| {
+                    picker.update(cx, |p, cx| p.set_open(true, cx));
+                    cx.notify();
+                }))
             }
         };
         let base = thread
@@ -60,7 +63,6 @@ impl ThreadView {
                         .child(format!("−{removed}")),
                 )
         });
-        let pr = thread.and_then(|t| t.pr_url.clone());
         let has_worktree = thread.is_some_and(|t| t.worktree_path.is_some());
         Some(
             v_flex()
@@ -73,20 +75,10 @@ impl ThreadView {
                         &theme,
                     )
                     .on_click(cx.listener(|this, _, window, cx| {
-                        this.set_details(false, cx);
+                        this.details_home(cx);
                         this.open_changes(&OpenChanges, window, cx);
                     })),
                 )
-                .children(pr.map(|url| {
-                    let label = url.trim_start_matches("https://").to_owned();
-                    row("details-pr", IconName::GitPullRequest, label, &theme).on_click(
-                        move |_, _, cx| {
-                            if super::super::thread_render::opens_in_browser(&url) {
-                                cx.open_url(&url);
-                            }
-                        },
-                    )
-                }))
                 .child(
                     row(
                         "details-changes",
@@ -96,7 +88,7 @@ impl ThreadView {
                     )
                     .children(stat)
                     .on_click(cx.listener(|this, _, window, cx| {
-                        this.set_details(false, cx);
+                        this.details_home(cx);
                         this.open_changes(&OpenChanges, window, cx);
                     })),
                 )
@@ -109,7 +101,7 @@ impl ThreadView {
                             &theme,
                         )
                         .on_click(cx.listener(|this, _, window, cx| {
-                            this.set_details(false, cx);
+                            this.details_home(cx);
                             this.open_worktree_terminal(&OpenWorktreeTerminal, window, cx);
                         })),
                     )
@@ -121,7 +113,7 @@ impl ThreadView {
                             &theme,
                         )
                         .on_click(cx.listener(|this, _, window, cx| {
-                            this.set_details(false, cx);
+                            this.details_home(cx);
                             this.discard_worktree(&DiscardWorktree, window, cx);
                         })),
                     )
@@ -130,7 +122,11 @@ impl ThreadView {
         )
     }
 
-    pub(super) fn render_lineage(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    /// The running children, then a row to the finished ones; titled with how many run.
+    pub(super) fn render_lineage(
+        &self,
+        cx: &mut Context<Self>,
+    ) -> Option<(SharedString, AnyElement)> {
         if self.children.is_empty() {
             return None;
         }
@@ -142,37 +138,40 @@ impl ThreadView {
             .collect();
         let previous = self.children.len() - running.len();
         let title = match running.len() {
-            0 => "Lineage".to_owned(),
-            n => format!("Lineage · {n} running"),
+            0 => "Lineage".into(),
+            n => format!("Lineage · {n} running").into(),
         };
-        Some(
-            v_flex()
-                .child(
-                    div()
-                        .h(px(28.))
-                        .px_2p5()
-                        .flex()
-                        .items_center()
-                        .text_size(ui::META)
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(theme.foreground.opacity(0.8))
-                        .child(title),
+        let body = v_flex()
+            .children(running.into_iter().map(|c| self.agent_row(c, cx)))
+            .when(previous > 0, |v| {
+                v.child(
+                    row("details-previous", IconName::Bot, "Previous agents", &theme)
+                        .child(
+                            div()
+                                .text_size(ui::META)
+                                .text_color(theme.muted_foreground)
+                                .child(previous.to_string()),
+                        )
+                        .child(chevron(IconName::ChevronRight, &theme))
+                        .on_click(
+                            cx.listener(|this, _, _, cx| this.details_page(Page::Previous, cx)),
+                        ),
                 )
-                .children(running.into_iter().map(|c| self.agent_row(c, cx)))
-                .when(previous > 0, |v| {
-                    v.child(
-                        row("details-previous", IconName::Bot, "Previous agents", &theme)
-                            .child(
-                                div()
-                                    .text_size(ui::META)
-                                    .text_color(theme.muted_foreground)
-                                    .child(previous.to_string()),
-                            )
-                            .child(chevron(IconName::ChevronRight, &theme))
-                            .on_click(
-                                cx.listener(|this, _, _, cx| this.details_page(Page::Previous, cx)),
-                            ),
-                    )
+            });
+        Some((title, body.into_any_element()))
+    }
+
+    /// The pull request opened from this thread, if any.
+    pub(super) fn render_pr(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let theme = cx.theme().clone();
+        let url = self.thread.as_ref()?.pr_url.clone()?;
+        let label = url.trim_start_matches("https://").to_owned();
+        Some(
+            row("details-pr", IconName::GitPullRequest, label, &theme)
+                .on_click(move |_, _, cx| {
+                    if super::super::thread_render::opens_in_browser(&url) {
+                        cx.open_url(&url);
+                    }
                 })
                 .into_any_element(),
         )
@@ -219,63 +218,9 @@ impl ThreadView {
                     .child(trailing),
             )
             .on_click(cx.listener(move |this, _, window, cx| {
-                this.set_details(false, cx);
+                this.details_home(cx);
                 window.dispatch_action(Box::new(OpenThread { id }), cx);
             }))
             .into_any_element()
-    }
-
-    pub(super) fn render_usage(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if self.details.limits.is_empty() {
-            return None;
-        }
-        let theme = cx.theme();
-        Some(
-            v_flex()
-                .py_1()
-                .children(self.details.limits.iter().map(|&(label, used)| {
-                    h_flex()
-                        .h(px(26.))
-                        .px_2p5()
-                        .gap_3()
-                        .text_size(ui::META)
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(theme.foreground.opacity(0.8))
-                        .child(div().w(px(104.)).truncate().child(label))
-                        .child(
-                            div()
-                                .flex_1()
-                                .h(px(4.))
-                                .rounded_full()
-                                .bg(theme.border)
-                                .child(
-                                    div()
-                                        .h_full()
-                                        .rounded_full()
-                                        .w(gpui::relative(used))
-                                        .bg(usage_color(used, theme)),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .w(px(36.))
-                                .flex()
-                                .justify_end()
-                                .child(format!("{}%", (used * 100.).round() as u32)),
-                        )
-                }))
-                .into_any_element(),
-        )
-    }
-}
-
-/// The bar's fill: plain until the window is nearly spent.
-fn usage_color(used: f32, theme: &Theme) -> Hsla {
-    if used >= 0.9 {
-        theme.danger
-    } else if used >= 0.75 {
-        theme.warning
-    } else {
-        theme.foreground.opacity(0.7)
     }
 }

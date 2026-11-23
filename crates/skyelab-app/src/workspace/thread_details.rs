@@ -1,22 +1,20 @@
-//! The thread details card, opened from the header's top right (T3's `ThreadDetailsPanel`): this machine and the
-//! thread's folder, its editor and scripts, branch and git actions, the agents it delegated, and the bound account's
-//! usage. Everything here acts on the thread's own folder under its bound account, so the header stays a breadcrumb.
+//! The shown thread's details, as a card stack in the right dock's Details tab (T3's `ThreadDetailsPanel`, laid out
+//! like Synara's right panel): this machine and the thread's folder, branch and git actions, scripts, the agents it
+//! delegated, every account's usage, its pull request and editor. Everything acts on the thread's own folder under
+//! its bound account, so the header stays a breadcrumb.
 //!
-//! Pickers (branch, scripts, editors, finished agents) open as pages inside the card rather than as popovers of their
-//! own, so a click in one never counts as a click outside the card.
+//! Pickers (branch, scripts, editors, finished agents) open as pages inside the card.
 
 use super::Workspace;
 use super::thread::ThreadView;
 use crate::ui::Status;
-use gpui::{Action, AppContext as _, Context, Entity, SharedString, Task, Window, actions};
+use gpui::{Action, AppContext as _, Context, Entity, SharedString, Task};
 use std::path::Path;
 
 #[path = "thread_details_card.rs"]
 mod card;
 #[path = "thread_details_git.rs"]
 mod git;
-
-actions!(skyelab, [ToggleThreadDetails]);
 
 /// Opens the shown thread's folder in `editor` and keeps it as the editor setting.
 #[derive(Clone, PartialEq, Action)]
@@ -40,14 +38,11 @@ pub struct ChildLink {
 
 #[derive(Default)]
 pub struct Details {
-    pub open: bool,
     page: Page,
     machine: Option<SharedString>,
     /// Lines added and removed in the thread's folder since its base (`None` until loaded, or not a repo).
     stat: Option<(u64, u64)>,
     editors: Option<Editors>,
-    /// The bound account's usage windows, as its agent last reported them.
-    pub limits: Vec<(&'static str, f32)>,
     _load: Option<Task<()>>,
 }
 
@@ -128,19 +123,9 @@ impl ThreadView {
         }
     }
 
-    pub(super) fn toggle_details(
-        &mut self,
-        _: &ToggleThreadDetails,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.set_details(!self.details.open, cx);
-    }
-
-    pub(super) fn set_details(&mut self, open: bool, cx: &mut Context<Self>) {
-        self.details.open = open;
+    /// Back to the card's main page, its pickers closed.
+    pub(super) fn details_home(&mut self, cx: &mut Context<Self>) {
         self.details.page = Page::Main;
-        // Its pages close with it.
         self.branch_picker.update(cx, |p, cx| {
             if p.open {
                 p.set_open(false, cx)
@@ -151,14 +136,11 @@ impl ThreadView {
                 m.set_open(false, cx)
             }
         });
-        if open {
-            self.load_details(cx);
-        }
         cx.notify();
     }
 
     /// Reads what the card shows off the UI thread: the diff's size, the editors, this machine's name.
-    fn load_details(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn load_details(&mut self, cx: &mut Context<Self>) {
         let cwd = self.cwd.clone();
         let base = self.thread.as_ref().and_then(|t| t.worktree_base.clone());
         let task = cx.background_spawn(async move {
@@ -176,17 +158,6 @@ impl ThreadView {
         }));
     }
 
-    /// Keeps the newest reading of each usage window the agent reports.
-    pub(super) fn note_rate_limit(&mut self, event: &skyelab_agent::Event) {
-        let Some((label, used)) = event.rate_limit() else {
-            return;
-        };
-        match self.details.limits.iter_mut().find(|(l, _)| *l == label) {
-            Some(slot) => slot.1 = used,
-            None => self.details.limits.push((label, used)),
-        }
-    }
-
     fn details_page(&mut self, page: Page, cx: &mut Context<Self>) {
         self.details.page = page;
         cx.notify();
@@ -194,15 +165,30 @@ impl ThreadView {
 }
 
 impl Workspace {
-    pub(super) fn toggle_thread_details(
-        &mut self,
-        a: &ToggleThreadDetails,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(view) = self.current_thread() {
-            view.update(cx, |v, cx| v.toggle_details(a, window, cx));
+    /// The Details tab follows the shown thread: its folder's diff size and editors are read again, and every
+    /// account's usage too.
+    pub(super) fn refresh_details(&mut self, cx: &mut Context<Self>) {
+        let view = self.current_thread();
+        if let Some(view) = &view {
+            view.update(cx, |v, cx| v.load_details(cx));
         }
+        self.details.update(cx, |d, cx| d.set_thread(view, cx));
+        let (store, accounts) = (self.backend.store.clone(), self.config.accounts.clone());
+        let task = cx.background_spawn(async move {
+            let store = super::lock(&store)?;
+            anyhow::Ok(
+                accounts
+                    .iter()
+                    .map(|a| super::details_panel::account_usage(&store, a))
+                    .collect::<Vec<_>>(),
+            )
+        });
+        let details = self.details.downgrade();
+        self._usage = Some(cx.spawn(async move |_, cx| {
+            if let Ok(usage) = task.await {
+                let _ = details.update(cx, |d, cx| d.set_usage(usage, cx));
+            }
+        }));
     }
 
     /// A thread view changed: its parent's Lineage shows its new status.

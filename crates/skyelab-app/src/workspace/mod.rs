@@ -11,6 +11,7 @@ mod changes_model;
 mod changes_publish;
 mod changes_turns;
 mod child_slots;
+mod details_panel;
 mod devices;
 mod env_mode;
 mod env_picker;
@@ -62,7 +63,7 @@ use gpui_component::{
     dock::{DockArea, DockLayout, DockPlacement, DockSkin, panel_handle},
     v_flex,
 };
-use panels::{BrowserPanel, RightEmpty, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
+use panels::{BrowserPanel, Sidebar, TerminalPanel, TerminalsEmpty, Welcome};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Project, Store, Thread};
 use std::path::{Path, PathBuf};
@@ -146,7 +147,9 @@ pub struct Workspace {
     _project_accounts: Option<Task<()>>,
     terminals_empty: Option<Entity<TerminalsEmpty>>,
     /// The right dock's placeholder until a tool opens there.
-    right_empty: Option<Entity<RightEmpty>>,
+    /// The right dock's Details tab, always there.
+    details: Entity<details_panel::DetailsPanel>,
+    _usage: Option<Task<()>>,
     layout: layout::LayoutStore,
     _window_bounds: Option<Subscription>,
     _dock_events: Subscription,
@@ -236,7 +239,7 @@ impl Workspace {
         let welcome = cx.new(Welcome::new);
         let center = cx.new(|cx| Center::new(welcome.clone().into(), cx));
         let terminals_empty = cx.new(TerminalsEmpty::new);
-        let right_empty = cx.new(RightEmpty::new);
+        let details = cx.new(details_panel::DetailsPanel::new);
 
         let (dock, skin) = DockSkin::dock_area("workspace", None, window, cx);
         skin.set_toggle_button_visible(false, cx);
@@ -260,7 +263,7 @@ impl Workspace {
             dock.toggle_dock(DockPlacement::Bottom, window, cx);
             dock.set_dock(
                 DockPlacement::Right,
-                tabs(panel_handle(right_empty.clone()), cx),
+                tabs(panel_handle(details.clone()), cx),
                 window,
                 cx,
             );
@@ -290,7 +293,8 @@ impl Workspace {
             config,
             load_error,
             terminals_empty: Some(terminals_empty),
-            right_empty: Some(right_empty),
+            details,
+            _usage: None,
             layout: Default::default(),
             _window_bounds: None,
             _dock_events,
@@ -342,6 +346,7 @@ impl Workspace {
             notices: Vec::new(),
         };
         this.watch_attention(window, cx);
+        this.refresh_details(cx);
         this.refresh_sidebar(cx);
         this.sync_toggles(cx);
         this.load_projects(None, cx);
@@ -383,7 +388,6 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
-            .on_action(cx.listener(Self::toggle_thread_details))
             .on_action(cx.listener(Self::open_in_editor_with))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::on_run_project_script))

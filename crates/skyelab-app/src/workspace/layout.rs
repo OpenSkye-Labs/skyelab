@@ -139,13 +139,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let empty = self.right_empty.take();
         self.dock.update(cx, |dock, cx| {
             dock.add_panel_view(panel_handle(panel), DockPlacement::Right, None, window, cx);
-            // Added before the placeholder leaves, so the dock never goes empty.
-            if let Some(empty) = empty {
-                dock.remove_panel(empty, window, cx);
-            }
             if !dock.is_dock_open(DockPlacement::Right) {
                 dock.toggle_dock(DockPlacement::Right, window, cx);
             }
@@ -175,25 +170,9 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if matches!(e, DockEvent::LayoutChanged) {
-            self.refill_right(window, cx);
             self.sync_toggles(cx);
             self.schedule_layout_save(window, cx);
         }
-    }
-
-    /// The last tool left the right dock: put the placeholder back and close the dock, so it isn't open and empty.
-    fn refill_right(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.right_empty.is_some() || !self.dock.read(cx).is_empty(DockPlacement::Right, cx) {
-            return;
-        }
-        let empty = cx.new(super::panels::RightEmpty::new);
-        self.right_empty = Some(empty.clone());
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(panel_handle(empty), DockPlacement::Right, None, window, cx);
-            if dock.is_dock_open(DockPlacement::Right) {
-                dock.toggle_dock(DockPlacement::Right, window, cx);
-            }
-        });
     }
 
     pub(super) fn sync_toggles(&self, cx: &mut Context<Self>) {
