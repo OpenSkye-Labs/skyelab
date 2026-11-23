@@ -14,6 +14,8 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod events;
+mod extras;
+pub use extras::Draft;
 mod images;
 mod manage;
 mod model;
@@ -62,6 +64,8 @@ pub struct Thread {
     pub archived_at: Option<i64>,
     /// A turn finished while the user wasn't looking at it.
     pub unread: bool,
+    /// The thread this one was forked from, if any.
+    pub forked_from: Option<i64>,
 }
 
 /// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
@@ -108,7 +112,7 @@ pub struct Store {
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread";
+pub(crate) const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread, forked_from";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -324,6 +328,7 @@ impl Store {
             pinned_at: None,
             archived_at: None,
             unread: false,
+            forked_from: None,
         })
     }
 
@@ -364,8 +369,10 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// The user's own title: a generated one never replaces it (only Regenerate does).
     pub fn set_thread_title(&self, id: i64, title: &str) -> Result<()> {
-        self.update_thread(id, "title", title)
+        self.update_thread(id, "title", title)?;
+        self.update_thread(id, "title_source", "user")
     }
 
     pub fn set_thread_status(&self, id: i64, status: &str) -> Result<()> {
@@ -446,7 +453,7 @@ fn project_from_row(r: &Row) -> rusqlite::Result<Project> {
     })
 }
 
-fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
+pub(crate) fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
     Ok(Thread {
         id: r.get(0)?,
         project_id: r.get(1)?,
@@ -466,6 +473,7 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         pinned_at: r.get(15)?,
         archived_at: r.get(16)?,
         unread: r.get(17)?,
+        forked_from: r.get(18)?,
     })
 }
 

@@ -81,6 +81,7 @@ fn downgraded(dir: &Path, version: i64) -> std::path::PathBuf {
         }
     }
     let conn = Connection::open(&path).expect("open raw");
+    conn.execute_batch(common::UNDO_V13).expect("drop v13");
     conn.execute_batch(common::UNDO_V11).expect("drop v11");
     conn.execute_batch("DROP TRIGGER usage_reading_insert; DROP TABLE usage_readings;")
         .expect("drop v10");
@@ -134,7 +135,7 @@ fn v2_database_upgrades_with_no_parents() {
     assert_eq!(t.worktree_base, None);
     assert_eq!(t.pr_url, None);
     assert_eq!(t.parent_thread_id, None);
-    assert_eq!(version(&path), 12);
+    assert_eq!(version(&path), 13);
 }
 
 #[test]
@@ -147,7 +148,7 @@ fn v3_database_keeps_its_worktree_base_through_v5() {
     assert_eq!(t.worktree_base.as_deref(), Some("abc123"));
     assert_eq!(t.pr_url, None);
     assert_eq!(t.parent_thread_id, None);
-    assert_eq!(version(&path), 12);
+    assert_eq!(version(&path), 13);
     // The new column works on an upgraded file.
     let p = store.thread(1).expect("read").expect("t").project_id;
     let child = thread(&store, p, "child");
@@ -165,7 +166,7 @@ fn v4_database_keeps_worktree_base_and_pr_url_through_v5() {
     assert_eq!(t.worktree_base.as_deref(), Some("abc123"));
     assert_eq!(t.pr_url.as_deref(), Some("https://github.com/o/r/pull/1"));
     assert_eq!(t.parent_thread_id, None);
-    assert_eq!(version(&path), 12);
+    assert_eq!(version(&path), 13);
     let child = thread(&store, t.project_id, "child");
     store.set_thread_parent(child, Some(1)).expect("link");
     let kids = store.child_threads(1).expect("children");

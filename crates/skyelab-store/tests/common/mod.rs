@@ -17,3 +17,10 @@ CREATE TRIGGER event_text_insert AFTER INSERT ON events BEGIN
     ) WHERE body IS NOT NULL AND body <> '';
 END;
 ";
+
+/// Undoes migration 13: titles' source, forks and drafts.
+pub const UNDO_V13: &str = "
+DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
+ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
+ALTER TABLE threads DROP COLUMN fork_context;
+";
