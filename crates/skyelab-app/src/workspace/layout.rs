@@ -23,7 +23,7 @@ pub(crate) const TOGGLE_RIGHT_KEY: &str = if super::MAC {
     "ctrl-alt-r"
 };
 /// The right dock's width until the user resizes it.
-pub(super) const RIGHT_DEFAULT_W: Pixels = px(480.);
+pub(super) const RIGHT_DEFAULT_W: Pixels = px(560.);
 /// A layout change is saved once it has been quiet this long (a resize drag fires on every frame).
 const SAVE_AFTER: Duration = Duration::from_millis(600);
 

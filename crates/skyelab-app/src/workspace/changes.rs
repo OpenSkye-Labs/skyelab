@@ -303,7 +303,7 @@ impl Render for ChangesView {
             file_count,
             cx.processor(|this, range, _, cx| this.render_files(range, cx)),
         )
-        .w(px(240.))
+        .w(px(200.))
         .flex_none()
         .h_full()
         .border_r_1()
