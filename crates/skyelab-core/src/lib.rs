@@ -12,6 +12,7 @@ mod pr_url;
 pub use pr_url::github_pr_url;
 pub mod env;
 pub mod files;
+pub mod keymap;
 pub mod onboarding;
 pub mod process;
 pub mod prompt;

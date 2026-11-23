@@ -91,6 +91,19 @@ and how Zed uses it, not blog posts or memory.
   Use `secondary-` (cmd on mac, ctrl elsewhere) for cross-platform bindings.
 - Handlers: `.key_context("Workspace").on_action(cx.listener(Self::new_thread))`. Every user command is an action,
   so it is bindable and shows in the command palette. No ad-hoc `on_key_down` for commands.
+- A user keymap is Zed's reload: snapshot `cx.key_bindings()` once every `init` has bound (`KeyBinding` is `Clone`,
+  and the snapshot keeps gpui-component's bindings too), then on each load `clear_key_bindings`, the snapshot, the
+  user's rules last. Later wins at equal context depth, so the rules override.
+- `NoAction` only hides bindings whose `meta` is not smaller than its own, and a binding without a meta counts as 0
+  (the strongest). Give defaults a larger meta than the user's rules, or a user `none` hides nothing.
+- When several bindings match a key, GPUI dispatches them in precedence order until one is handled, so a broad
+  `Workspace` binding (Esc → composer) is a fallback a deeper context's handler still beats, and a handler can
+  `cx.propagate()` to pass the key on.
+- A ring drawn inside a dock panel's view (the composer) only changes when that view is notified: panels are cached,
+  so whoever moves the ring notifies the view too. A ring over a dock is drawn by the workspace over the `DockArea`
+  from `dock_size`, with no bounds bookkeeping.
+- `InputState::set_value` emits no `InputEvent::Change`. A test of a search field types into it
+  (`simulate_input`), and the field must be drawn (its section shown) to take the keys.
 - Focusable views hold a `FocusHandle` (`cx.focus_handle()`), render `.track_focus(&self.focus)` and implement `Focusable`.
 
 ## Testing

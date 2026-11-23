@@ -39,6 +39,8 @@ pub enum SettingsEvent {
     GhLogin { dir: PathBuf },
     /// The user asked to log in to Codex under `dir` (a Codex account's `CODEX_HOME`).
     CodexLogin { dir: PathBuf },
+    /// Open keybindings.toml in the user's editor, writing the commented template first if it doesn't exist.
+    OpenKeysFile { path: PathBuf },
 }
 
 #[derive(Clone, PartialEq, Action)]
@@ -112,6 +114,9 @@ pub struct Settings {
     /// Settings → Threads' Codex model field, and why its last save failed.
     codex_model_input: Entity<InputState>,
     threads_error: Option<String>,
+    /// Settings → Keyboard shortcuts' search, and the rows it leaves.
+    keys_search: Entity<InputState>,
+    keys: Vec<keys::KeyRow>,
     /// The Sharing section's content; `None` without a tailnet hook.
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
     /// The Usage section's content; the workspace sets it and reads the store for it.
@@ -146,6 +151,7 @@ impl Settings {
             cx,
         );
         let test_input = input("/path/to/a/folder", window, cx);
+        let keys_search = input("Search shortcuts", window, cx);
         let codex_model_input = input("Account default", window, cx);
         let codex_model = crate::workspace::thread_extras::prefs::get(cx).codex_model;
         codex_model_input.update(cx, |i, cx| {
@@ -161,6 +167,12 @@ impl Settings {
                     cx.notify();
                 }
             }),
+            cx.subscribe(&keys_search, |this, _, e: &InputEvent, cx| {
+                if matches!(e, InputEvent::Change) {
+                    this.refresh_keys(cx);
+                }
+            }),
+            cx.observe_global::<crate::keymap::Keymap>(Self::refresh_keys),
             cx.subscribe(&codex_model_input, |this, _, e: &InputEvent, cx| {
                 if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
                     this.save_codex_model(cx);
@@ -191,6 +203,8 @@ impl Settings {
             test_input,
             codex_model_input,
             threads_error: None,
+            keys_search,
+            keys: Vec::new(),
             gh_logins: HashMap::new(),
             gh_errors: HashMap::new(),
             _gh_check: None,
@@ -204,6 +218,7 @@ impl Settings {
             _subs: subs,
         };
         this.check_gh_logins(cx);
+        this.refresh_keys(cx);
         this
     }
 
@@ -514,6 +529,7 @@ impl Focusable for Settings {
     }
 }
 
+mod keys;
 mod page;
 pub use page::Section;
 mod render;
@@ -528,3 +544,5 @@ mod github_test;
 
 #[cfg(test)]
 mod codex_test;
+#[cfg(test)]
+mod keys_test;

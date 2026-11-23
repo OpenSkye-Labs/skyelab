@@ -19,8 +19,10 @@ mod env_mode;
 mod env_picker;
 mod env_sidebar;
 mod files;
+mod focus_areas;
 mod image_viewer;
 mod import_sessions;
+mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
 mod manage;
@@ -206,6 +208,8 @@ pub struct Workspace {
     /// Answers delegated starts and sends (see `orchestrate_ui`).
     _orchestrate: Option<Task<()>>,
     _settings_events: Option<Subscription>,
+    /// Toasts what is wrong with keybindings.toml each time it loads.
+    _keymap: Option<Subscription>,
     devices: Option<WeakEntity<devices::DevicesPanel>>,
     /// Created on first open; tests put a fake here first.
     device_source: Option<std::sync::Arc<dyn devices::DeviceSource>>,
@@ -349,6 +353,7 @@ impl Workspace {
             _settings_saved: None,
             _orchestrate: None,
             _settings_events: None,
+            _keymap: None,
             devices: None,
             device_source: None,
             _appearance,
@@ -373,6 +378,7 @@ impl Workspace {
         this.watch_attention(window, cx);
         this.watch_remote(cx);
         this.watch_setup(cx);
+        this.watch_keymap(window, cx);
         this.refresh_details(cx);
         this.refresh_sidebar(cx);
         this.sync_toggles(cx);
@@ -509,6 +515,8 @@ mod env_switch_test;
 mod env_whois_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
+#[cfg(test)]
+mod focus_areas_test;
 #[cfg(all(test, unix))] // uses publish_test's fake-gh helpers
 mod generate_text_test;
 #[cfg(test)]

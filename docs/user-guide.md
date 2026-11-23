@@ -14,6 +14,31 @@ In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kb
 While the window shows another machine, the palette lists that machine's projects and the selected project's
 threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** shows whether it is **On** or **Off**.
 
+## Keyboard
+
+**F6** and **Shift+F6** move the keyboard between the window's areas: the sidebar, the conversation, the message
+input, the right panel and the terminal (with no thread open, the page takes the conversation's place). Hidden areas
+are skipped and it wraps around. The area you land on gets a ring until your next click. **Esc** outside a text field
+goes back to the message input; in a terminal, Esc stays the shell's. F6 doesn't reach into a browser tab's page.
+
+**Settings → Keyboard shortcuts** lists every action with the keys that run it now (search by name or key), and
+**Open keybindings file** opens `keybindings.toml` in SkyeLab's config folder (`~/Library/Application Support/skyelab`
+on macOS, `~/.config/skyelab` on Linux), creating it with a commented example. Each rule names a key, an action and,
+optionally, where it applies:
+
+```toml
+[[binding]]
+key = "cmd-shift-t"      # modifiers joined with -: cmd, ctrl, alt, shift; secondary = cmd on macOS, ctrl elsewhere
+action = "NewTerminal"   # an action's name from that list; "none" frees the key
+context = "Workspace"    # optional: Workspace (the default, the whole window), Thread, Terminal, Settings, ...
+```
+
+The built-in keys stay; your rules go on top and win where they share a key. A rule only applies where its context
+is: one in `Terminal` works only with a terminal focused, and a text field's own keys still win inside it. Saved
+changes apply within a second, no restart. A rule SkyeLab can't use (an unknown action, a bad key or context) is
+skipped and shown once in a notice and on the Settings page, with its line number; the rest of the file still loads.
+The palette and the Welcome page show the keys in effect.
+
 ## Files
 
 **Go to File** (<kbd>⌘P</kbd>), **Search in Files** (<kbd>⇧⌘F</kbd>) and the read-only **Preview** tab: see

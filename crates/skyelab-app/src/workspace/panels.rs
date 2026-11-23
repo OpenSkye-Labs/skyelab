@@ -98,7 +98,7 @@ impl Render for Welcome {
                 .child(self.setup.clone())
                 .into_any_element();
         }
-        let shortcut = |label: &'static str, key: &'static str, action: Box<dyn Action>| {
+        let shortcut = |label: &'static str, action: Box<dyn Action>| {
             div()
                 .id(label)
                 .w_full()
@@ -107,8 +107,11 @@ impl Render for Welcome {
                 .rounded(ui::RADIUS)
                 .cursor_pointer()
                 .hover(|this| this.bg(theme.accent))
-                .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-                .child(ui::KeyHint::new(label, key))
+                .on_click({
+                    let action = action.boxed_clone();
+                    move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx)
+                })
+                .child(ui::KeyHint::new(label, action))
         };
         let welcome = ui::EmptyState::new("Pick a thread to continue")
             .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
@@ -126,29 +129,18 @@ impl Render for Welcome {
                 .child(
                     v_flex()
                         .gap_0p5()
-                        .child(shortcut(
-                            "Toggle sidebar",
-                            super::TOGGLE_SIDEBAR_KEY,
-                            Box::new(super::ToggleSidebar),
-                        ))
+                        .child(shortcut("Toggle sidebar", Box::new(super::ToggleSidebar)))
                         .child(shortcut(
                             "Toggle bottom panel",
-                            super::TOGGLE_BOTTOM_KEY,
                             Box::new(super::ToggleBottomPanel),
                         ))
-                        .child(shortcut(
-                            "New terminal",
-                            super::NEW_TERMINAL_KEY,
-                            Box::new(super::NewTerminal),
-                        ))
+                        .child(shortcut("New terminal", Box::new(super::NewTerminal)))
                         .child(shortcut(
                             "Command palette",
-                            crate::palette::OPEN_PALETTE_KEY,
                             Box::new(crate::palette::OpenCommandPalette),
                         ))
                         .child(shortcut(
                             "Accounts and folders",
-                            super::OPEN_SETTINGS_KEY,
                             Box::new(super::OpenSettings),
                         )),
                 ),

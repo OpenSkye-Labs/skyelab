@@ -47,6 +47,11 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
         KeyBinding::new(FILE_PICKER_KEY, files::OpenFilePicker, Some(CONTEXT)),
         KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some(CONTEXT)),
+        KeyBinding::new("f6", focus_areas::FocusNextArea, Some(CONTEXT)),
+        KeyBinding::new("shift-f6", focus_areas::FocusPreviousArea, Some(CONTEXT)),
+        KeyBinding::new("escape", focus_areas::FocusComposer, Some(CONTEXT)),
+        // A shell (vim, less, readline) needs its Esc.
+        KeyBinding::new("escape", NoAction, Some("Terminal")),
     ]);
     // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
     if !MAC {

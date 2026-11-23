@@ -82,6 +82,9 @@ impl Workspace {
             window,
             |this, _, e: &SettingsEvent, window, cx| {
                 let (opened, dir) = match e {
+                    SettingsEvent::OpenKeysFile { path } => {
+                        return this.open_keys_file(path, window, cx);
+                    }
                     SettingsEvent::GhLogin { dir } => (gh_login_options(&gh_bin(cx), dir), dir),
                     SettingsEvent::CodexLogin { dir } => (
                         github::codex_login_options(&github::codex_bin(cx), dir),

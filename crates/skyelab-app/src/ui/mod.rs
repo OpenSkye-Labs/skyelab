@@ -337,7 +337,8 @@ gpui_kit_assets::icon_assets!(
         GitPullRequestClosed,
         CircleDot,
         UserCheck,
-        UserRoundX
+        UserRoundX,
+        Keyboard
     ]
 );
 

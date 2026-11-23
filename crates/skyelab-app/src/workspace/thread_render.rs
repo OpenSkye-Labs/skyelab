@@ -300,7 +300,7 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 }
 
 impl Render for ThreadView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);
@@ -309,7 +309,7 @@ impl Render for ThreadView {
             .resume_refused
             .clone()
             .map(|r| self.render_refused(r, cx));
-        let composer = self.render_composer(cx);
+        let composer = self.render_composer(window, cx);
         let failure = self.render_failure(cx);
         let find = self.render_find(cx);
         let theme = cx.theme();

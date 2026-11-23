@@ -28,6 +28,9 @@ What's built today:
   Previous 7 days and Older), each row with the agent's last reply, its project, state (with a running timer while it works), branch, pull
   request and the account its folder is bound to; hovering a row shows where it runs, on which account and binding. A project filter narrows it, and New thread asks
   which project when it can't tell.
+- **Keyboard.** Every command is an action you can rebind in `keybindings.toml` (reloaded as you save; bad lines
+  are reported with their line number and skipped), listed with its current keys in Settings → Keyboard shortcuts.
+  F6 / Shift+F6 move between the sidebar, conversation, message input and the open panels.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
   commands with their output, a live todo list, answerable questions and plans, subagent cards), folds a finished
