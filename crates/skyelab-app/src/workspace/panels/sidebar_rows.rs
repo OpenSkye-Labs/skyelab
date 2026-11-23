@@ -1,12 +1,13 @@
 //! The sidebar's rows: a flat list's thread row (title, reply preview, meta line), the plain row (remote projects and their threads), and the
 //! project scope button.
 
-use super::sidebar::{RowAccount, RowMarks, ScopeMenu, SidebarItem, SidebarSection};
+use super::sidebar::{RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, SidebarSection};
 use super::*;
 use gpui::AnyElement;
 use gpui_component::Selectable as _;
 use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
 use gpui_kit_assets::IconName as Lucide;
+use skyelab_core::snooze;
 
 pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
     s.button.as_ref().map(|(label, action)| {
@@ -46,13 +47,16 @@ pub(super) fn sidebar_row(
         .iter()
         .map(|(l, a)| (l.clone(), a.boxed_clone()))
         .collect();
-    let focus = focus.clone();
-    let row = row.context_menu(move |mut menu, _, _| {
+    let (focus, shelf) = (focus.clone(), menu.shelf);
+    let row = row.context_menu(move |mut menu, window, cx| {
         menu = menu.action_context(focus.clone());
         for (label, action) in &entries {
             menu = menu.menu(label.clone(), action.boxed_clone());
         }
-        menu
+        match &shelf {
+            Some(s) => super::super::thread_list::shelf_menu(menu, s, window, cx),
+            None => menu,
+        }
     });
     super::sidebar_card::with_card(&item.id, row, card)
 }
@@ -72,7 +76,11 @@ fn thread_row(
     let (pinned, unread, approval) = (marks.pinned, marks.unread, marks.approval);
     let project = item.project.clone().unwrap_or_default();
     let status = if approval {
-        Some((IconName::TriangleAlert, "Approval".into(), theme.warning))
+        Some((
+            Icon::new(IconName::TriangleAlert),
+            "Approval".into(),
+            theme.warning,
+        ))
     } else if let Some((icon, word)) = item.status.and_then(ui::Status::badge) {
         let color = item
             .status
@@ -82,10 +90,24 @@ fn thread_row(
             Some(at) => format!("{word} {}", ui::elapsed(now - at)).into(),
             None => word.into(),
         };
-        Some((icon, word, color))
+        Some((Icon::new(icon), word, color))
+    } else if let Some(until) = marks.shelf.and_then(|s| s.snoozed_until) {
+        // T3's alarm clock: asleep shows when it wakes; woke (passed, not opened yet) says so.
+        Some(match snooze::is_woke(Some(until), now) {
+            true => (Icon::new(Lucide::AlarmClock), "Woke".into(), theme.warning),
+            false => (
+                Icon::new(Lucide::AlarmClock),
+                snooze::wake_label(until, now).into(),
+                theme.info,
+            ),
+        })
     } else {
         // T3's "Done": a finished turn nobody has looked at yet.
-        unread.then_some((IconName::CircleCheck, "Done".into(), theme.success))
+        unread.then_some((
+            Icon::new(IconName::CircleCheck),
+            "Done".into(),
+            theme.success,
+        ))
     };
     let right = match status {
         Some((icon, word, color)) => h_flex()
@@ -93,7 +115,7 @@ fn thread_row(
             .gap_1()
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(ui::ink(theme, color))
-            .child(Icon::new(icon).size_3().text_color(color))
+            .child(icon.size_3().text_color(color))
             .child(word)
             .into_any_element(),
         // shortcut: the time is computed when the sidebar draws, so an idle sidebar shows it as of its last redraw;
@@ -114,7 +136,24 @@ fn thread_row(
     };
     let muted = theme.muted_foreground;
     let selector = format!("row-{}", item.id);
+    // The hover buttons cover the status or time (T3's settle and snooze buttons).
+    let group = SharedString::from(format!("hover-{}", item.id));
+    let actions = marks.shelf.map(|s| hover_actions(s, now, theme));
+    let right = div()
+        .relative()
+        .text_size(ui::META)
+        .child(div().when(actions.is_some(), |d| {
+            d.group_hover(group.clone(), |s| s.invisible()).child(right)
+        }))
+        .children(actions.map(|a| {
+            a.absolute()
+                .right_0()
+                .top(gpui::px(-2.))
+                .invisible()
+                .group_hover(group.clone(), |s| s.visible())
+        }));
     ui::row_surface(v_flex(), item.id.clone(), item.selected, theme)
+        .group(group.clone())
         .debug_selector(move || selector.clone())
         .py_1p5()
         .gap_0p5()
@@ -137,7 +176,7 @@ fn thread_row(
                 .when(pinned, |this| {
                     this.child(Icon::new(IconName::Star).size_3().text_color(muted))
                 })
-                .child(div().text_size(ui::META).child(right)),
+                .child(right),
         )
         .children(marks.preview.clone().map(|p| {
             div()
@@ -193,6 +232,39 @@ fn thread_row(
                         .child(div().min_w_0().truncate().child(b))
                 })),
         )
+}
+
+/// A thread row's settle and snooze buttons: Un-settle on a settled row, Wake now on a snoozed one, else Snooze
+/// (a menu of times) and Settle.
+fn hover_actions(s: RowShelf, now: i64, theme: &gpui_component::Theme) -> gpui::Div {
+    use super::super::thread_list::{Shelf, ShelveThread, snooze_menu};
+    let id = s.id;
+    let button = |name: &str, icon: Lucide, tip: &'static str| {
+        Button::new(SharedString::from(format!("{name}-{id}")))
+            .ghost()
+            .xsmall()
+            .icon(Icon::new(icon).size_3())
+            .tooltip(tip)
+    };
+    let act = |to: Shelf| {
+        move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
+            window.dispatch_action(Box::new(ShelveThread { id, to }), cx)
+        }
+    };
+    let row = h_flex().gap_0p5().text_color(theme.muted_foreground);
+    if s.settled {
+        return row
+            .child(button("unsettle", Lucide::Undo2, "Un-settle").on_click(act(Shelf::Unsettle)));
+    }
+    if snooze::is_asleep(s.snoozed_until, now) {
+        return row
+            .child(button("wake", Lucide::AlarmClockOff, "Wake now").on_click(act(Shelf::Wake)));
+    }
+    row.child(
+        button("snooze", Lucide::AlarmClock, "Snooze")
+            .dropdown_menu(move |menu, _, _| snooze_menu(menu, id)),
+    )
+    .child(button("settle", Lucide::Check, "Settle").on_click(act(Shelf::Settle)))
 }
 
 fn plain_row(

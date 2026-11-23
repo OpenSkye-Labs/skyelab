@@ -48,6 +48,7 @@ impl Render for Workspace {
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| this.clear_ring(cx)))
             .map(|el| self.env_actions(el, cx))
             .map(|el| self.manage_actions(el, cx))
+            .map(|el| self.shelf_actions(el, cx))
             .map(|el| self.attention_actions(el, cx))
             .map(|el| self.file_actions(el, cx))
             .map(|el| self.scratch_actions(el, cx))

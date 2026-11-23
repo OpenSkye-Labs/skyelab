@@ -55,8 +55,8 @@ mod sidebar;
 mod sidebar_card;
 mod sidebar_rows;
 pub use sidebar::{
-    ArchivedRows, RowAccount, RowCard, RowMarks, ScopeMenu, ScopeProject, Sidebar, SidebarItem,
-    SidebarSearch, SidebarSection,
+    ArchivedRows, RowAccount, RowCard, RowMarks, RowShelf, ScopeMenu, ScopeProject, Shelf, Sidebar,
+    SidebarItem, SidebarSearch, SidebarSection,
 };
 
 /// The page with no thread open: what SkyeLab is and its main keys, or first-run setup while `show_setup`.

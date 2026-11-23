@@ -19,6 +19,9 @@ use gpui_component::{
 };
 use gpui_kit_assets::IconName as Lucide;
 
+#[path = "subagent_strip.rs"]
+mod subagent_strip;
+
 /// Agent text is untrusted (a repo can steer it), so its links only open web pages, never
 /// `file://` paths or app URL schemes.
 pub(super) fn opens_in_browser(url: &str) -> bool {
@@ -322,6 +325,7 @@ impl Render for ThreadView {
         let composer = self.render_composer(window, cx);
         let failure = self.render_failure(cx);
         let find = self.render_find(cx);
+        let strip = self.render_subagent_strip(cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
         let working = self
@@ -451,6 +455,7 @@ impl Render for ThreadView {
                     .children(working.map(|w| {
                         line(w.into(), theme.muted_foreground).debug_selector(|| "working-for".into())
                     }))
+                    .children(strip)
                     .child(composer),
             )
     }
