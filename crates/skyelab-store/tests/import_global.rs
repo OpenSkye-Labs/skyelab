@@ -92,11 +92,9 @@ fn session_busy_elsewhere() {
         !s.session_busy_elsewhere(b.id, "sess-1").expect("read"),
         "a thread doesn't block itself"
     );
+    // A crashed run leaves `idle` on the row with no agent behind it, so idle doesn't count.
     s.set_thread_status(b.id, "idle").expect("stored");
-    assert!(
-        s.session_busy_elsewhere(a.id, "sess-1").expect("read"),
-        "an idle agent still holds the session"
-    );
+    assert!(!s.session_busy_elsewhere(a.id, "sess-1").expect("read"));
     s.set_thread_status(b.id, "exited").expect("stored");
     assert!(!s.session_busy_elsewhere(a.id, "sess-1").expect("read"));
 }

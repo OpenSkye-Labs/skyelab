@@ -18,15 +18,17 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Whether a thread other than `thread_id` holds agent session `session_id` with its agent alive (starting,
-    /// running, or idle between turns): a second resume of it would run two agents on one session.
+    /// Whether a thread other than `thread_id` is running agent session `session_id` (starting or running): a second
+    /// resume of it would run two agents on one session.
+    // shortcut: `idle` (an agent alive between turns) isn't counted, since a crashed run leaves it on the row and
+    // `open` doesn't clear it; count it once `open` resets stale idle rows.
     pub fn session_busy_elsewhere(&self, thread_id: i64, session_id: &str) -> Result<bool> {
         let mut stmt = self.conn.prepare(
             "SELECT status FROM threads WHERE id != ?1 AND (agent_session_id = ?2 OR imported_session = ?2)",
         )?;
         let statuses = stmt.query_map(params![thread_id, session_id], |r| r.get::<_, String>(0))?;
         for status in statuses {
-            if skyelab_core::delegation::is_live(&status?) {
+            if skyelab_core::delegation::is_busy(&status?) {
                 return Ok(true);
             }
         }
