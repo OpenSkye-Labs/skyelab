@@ -51,6 +51,8 @@ and how Zed uses it, not blog posts or memory.
 - Use `gpui-component` before building a widget: `Input`, `Button`, `List`, `Table`, `Dock`, `Tabs`, `Dialog`, `Notification`,
   `Markdown`, the code editor. Only drop to raw `div()` for layout.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
+- gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
+  stretches across the footer. Use a plain `Button` whose `on_click` calls `window.close_dialog(cx)`.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
 
 ## Redraw discipline

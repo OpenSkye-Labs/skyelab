@@ -178,4 +178,9 @@ CREATE TRIGGER drafts_thread_delete AFTER DELETE ON threads BEGIN
     DELETE FROM draft_files WHERE owner = 'thread:' || OLD.id;
 END;
 ",
+    // Version 14: the agent session a thread was imported from. Its live session id can change on resume, so the
+    // import picker and `import_thread` also match on this.
+    "
+ALTER TABLE threads ADD COLUMN imported_session TEXT;
+",
 ];

@@ -6,10 +6,12 @@ use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 use std::collections::HashSet;
 
 impl Store {
-    /// Agent session ids that already have a thread in project `id` (imported, or started here).
+    /// Agent session ids that already have a thread in project `id`: imported (even if resuming changed the thread's
+    /// session id since), or started here.
     pub fn session_ids(&self, project_id: i64) -> Result<HashSet<String>> {
         let mut stmt = self.conn.prepare(
-            "SELECT agent_session_id FROM threads WHERE project_id = ?1 AND agent_session_id IS NOT NULL",
+            "SELECT agent_session_id FROM threads WHERE project_id = ?1 AND agent_session_id IS NOT NULL
+             UNION SELECT imported_session FROM threads WHERE project_id = ?1 AND imported_session IS NOT NULL",
         )?;
         let rows = stmt.query_map([project_id], |r| r.get(0))?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -30,7 +32,7 @@ impl Store {
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let taken = tx
             .query_row(
-                "SELECT 1 FROM threads WHERE project_id = ?1 AND agent_session_id = ?2",
+                "SELECT 1 FROM threads WHERE project_id = ?1 AND (agent_session_id = ?2 OR imported_session = ?2)",
                 params![new.project_id, session_id],
                 |_| Ok(()),
             )
@@ -40,8 +42,8 @@ impl Store {
         }
         tx.execute(
             "INSERT INTO threads (project_id, title, cwd, account_id, status, created_at, updated_at, title_source,
-                                  agent_session_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, 'import', ?7)",
+                                  agent_session_id, imported_session)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6, 'import', ?7, ?7)",
             params![
                 new.project_id,
                 new.title,

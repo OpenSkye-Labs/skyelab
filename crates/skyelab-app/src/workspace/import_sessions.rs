@@ -15,7 +15,7 @@ use gpui_component::{
     ActiveTheme as _, Disableable as _, Sizable as _, WindowExt as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
-    dialog::{DialogClose, DialogFooter},
+    dialog::DialogFooter,
     h_flex, v_flex,
 };
 use skyelab_agent::import::{self, Entry, MAX_TRANSCRIPT_BYTES, Transcript};
@@ -193,12 +193,12 @@ impl Render for ImportPicker {
         let open = self.rows.iter().filter(|r| !r.imported).count();
         let all = open > 0 && self.rows.iter().all(|r| r.imported || r.checked);
         let caption = format!(
-            "{} from {}'s sessions for this folder",
+            "{} · {} for this folder",
+            self.account.label,
             match self.rows.len() {
                 1 => "1 session".to_owned(),
                 n => format!("{n} sessions"),
-            },
-            self.account.label
+            }
         );
         if self.rows.is_empty() {
             return v_flex()
@@ -241,8 +241,8 @@ impl Render for ImportPicker {
                 .child(
                     Checkbox::new(SharedString::from(format!("import-check-{}", r.t.id)))
                         .checked(r.checked || r.imported)
-                        .disabled(r.imported)
-                        .on_click(cx.listener(move |this, _, _, cx| this.toggle(ix, cx))),
+                        // The row takes the click: a handler here too would toggle twice.
+                        .disabled(r.imported),
                 )
                 .child(
                     v_flex()
@@ -363,7 +363,14 @@ impl Workspace {
                 .child(picker.clone())
                 .footer(
                     DialogFooter::new()
-                        .child(DialogClose::new().trigger(|b| b.outline().small().label("Cancel")))
+                        // Not DialogClose: it wraps its button in a size_full div, which fills the footer.
+                        .child(
+                            Button::new("import-cancel")
+                                .outline()
+                                .small()
+                                .label("Cancel")
+                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                        )
                         .child(
                             Button::new("import-go")
                                 .primary()
@@ -401,7 +408,14 @@ impl Workspace {
                     for t in &done.threads {
                         ws.thread_started(t, cx);
                     }
-                    ws.say(summary(&done), window, cx);
+                    let text = summary(&done);
+                    #[cfg(test)]
+                    ws.notices.push(text.clone().into());
+                    super::manage::push_note(
+                        window,
+                        gpui_component::notification::Notification::info(text),
+                        cx,
+                    );
                 }
                 Err(e) => ws.say(format!("Couldn't import: {e:#}"), window, cx),
             });

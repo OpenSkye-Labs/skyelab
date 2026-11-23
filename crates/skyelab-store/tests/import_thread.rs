@@ -49,6 +49,19 @@ fn a_session_is_imported_once_per_project() {
     );
     assert_eq!(s.list_threads(p.id).expect("threads").len(), 1);
     assert!(s.session_ids(p.id).expect("ids").contains("sess-1"));
+    // Resuming can give the thread a new session id; the imported one still counts.
+    s.set_agent_session_id(t.id, Some("sess-1-resumed"))
+        .expect("stored");
+    assert!(
+        s.import_thread(&new(p.id), "sess-1", 1, &events)
+            .expect("stored")
+            .is_none()
+    );
+    let ids = s.session_ids(p.id).expect("ids");
+    assert!(
+        ids.contains("sess-1") && ids.contains("sess-1-resumed"),
+        "{ids:?}"
+    );
     // Another project is its own scope.
     assert!(
         s.import_thread(&new(other.id), "sess-1", 1, &events)

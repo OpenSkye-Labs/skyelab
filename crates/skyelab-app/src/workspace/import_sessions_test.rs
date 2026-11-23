@@ -203,3 +203,14 @@ fn import_sessions_lists_the_bound_accounts_sessions_and_imports_them_once(
         .to_owned();
     assert!(args.contains(&format!("--resume {OURS}")), "{args}");
 }
+
+#[test]
+fn a_turn_with_no_recorded_time_reads_without_one() {
+    use super::timeline_text::divider_text;
+    assert_eq!(divider_text("Worked for", 0.0, None, 0.0), "Worked");
+    assert_eq!(divider_text("Failed after", 0.0, None, 0.0), "Failed");
+    assert_eq!(
+        divider_text("Worked for", 1.0, None, 0.0),
+        "Worked for 1.0s"
+    );
+}

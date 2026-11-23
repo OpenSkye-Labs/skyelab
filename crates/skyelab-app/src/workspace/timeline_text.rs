@@ -10,7 +10,14 @@ use gpui_component::text::TextView;
 use skyelab_agent::Usage;
 
 /// The turn divider's text: "Worked for 4.2s · 12.3k in · 175 out · $0.0421".
+/// A turn that recorded nothing (an imported session's) reads "Worked", not "Worked for 0.0s".
 pub(super) fn divider_text(verb: &str, secs: f64, usage: Option<Usage>, cost: f64) -> String {
+    if secs <= 0.0 && usage.is_none() && cost <= 0.0 {
+        return verb
+            .trim_end_matches(" for")
+            .trim_end_matches(" after")
+            .to_owned();
+    }
     let tokens = usage
         .map(|u| format!(" · {} in · {} out", count(u.input), count(u.output)))
         .unwrap_or_default();

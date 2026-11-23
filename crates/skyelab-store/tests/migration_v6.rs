@@ -26,7 +26,8 @@ fn old_threads_read_default_and_the_mode_persists() {
     let conn = Connection::open(&path).expect("raw");
     // Undo v13 (titles, forks, drafts), v10 (usage readings), v9 (model pick), v8 (project scripts), then v7 (search table, pin/archive/unread/delete columns), then v6.
     conn.execute_batch(
-        "DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
+        "ALTER TABLE threads DROP COLUMN imported_session;
+         DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
          ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
          ALTER TABLE threads DROP COLUMN fork_context;
          DROP TRIGGER usage_reading_insert; DROP TABLE usage_readings;
