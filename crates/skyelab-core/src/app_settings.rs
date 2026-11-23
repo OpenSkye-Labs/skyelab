@@ -30,6 +30,27 @@ pub struct AppSettings {
     pub diff: DiffSettings,
     /// Settings → About: the update check.
     pub updates: crate::update::UpdateSettings,
+    /// Settings → Scheduled tasks: missed runs and how many run at once.
+    pub scheduled: ScheduledSettings,
+}
+
+/// How the scheduler treats runs. The tasks themselves live in the store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ScheduledSettings {
+    /// A run missed while SkyeLab wasn't running is skipped instead of run once at the next start.
+    pub skip_missed: bool,
+    /// Scheduled runs starting or working at once, app-wide; a due task waits for a free one.
+    pub max_concurrent: u32,
+}
+
+impl Default for ScheduledSettings {
+    fn default() -> Self {
+        Self {
+            skip_missed: false,
+            max_concurrent: 2,
+        }
+    }
 }
 
 /// How the Changes tab draws a diff (T3's diff layout, word wrap and whitespace settings).

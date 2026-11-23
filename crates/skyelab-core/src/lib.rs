@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 mod app_settings;
 pub mod delegation;
 mod editor;
+pub mod schedule;
 pub use editor::editor_argv;
 mod pr_url;
 pub use pr_url::github_pr_url;
@@ -18,8 +19,8 @@ pub mod process;
 pub mod prompt;
 pub mod scratch;
 pub use app_settings::{
-    AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ThreadSettings,
-    WindowLayout,
+    AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ScheduledSettings,
+    ThreadSettings, WindowLayout,
 };
 pub mod terminal_context;
 pub mod update;
