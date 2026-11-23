@@ -2,6 +2,7 @@
 //! a configurable fake tailnet, and an [`Env`] that serves a store through an in-process daemon on loopback.
 //! Never enabled in a shipped build.
 
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -158,6 +159,8 @@ pub struct FakeTailnet {
     /// `self_node` fails like a stopped Tailscale.
     pub down: AtomicBool,
     pub peer: Mutex<Peer>,
+    /// Overrides `peer` for callers from these addresses.
+    pub peer_by_ip: Mutex<HashMap<IpAddr, Peer>>,
     pub peers: Vec<Node>,
     pub whois_calls: AtomicUsize,
     /// What `cert` returns; an `Err` is the CLI's error text.
@@ -177,6 +180,7 @@ impl Default for FakeTailnet {
             ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
             down: AtomicBool::new(false),
             peer: Mutex::new(Peer::Own),
+            peer_by_ip: Mutex::default(),
             peers: Vec::new(),
             whois_calls: AtomicUsize::new(0),
             cert: Mutex::new(Ok(ca().issue(NODE_NAME))),
@@ -238,10 +242,16 @@ impl Tailnet for FakeTailnet {
         Ok(self.peers.clone())
     }
 
-    fn whois(&self, _addr: SocketAddr) -> Result<WhoIs, TailnetError> {
+    fn whois(&self, addr: SocketAddr) -> Result<WhoIs, TailnetError> {
         self.whois_calls.fetch_add(1, Ordering::SeqCst);
         // Copy out first: holding the lock through a Hang would serialize every whois.
-        let peer = *self.peer.lock().expect("peer lock");
+        let by_ip = self
+            .peer_by_ip
+            .lock()
+            .expect("peer lock")
+            .get(&addr.ip())
+            .copied();
+        let peer = by_ip.unwrap_or_else(|| *self.peer.lock().expect("peer lock"));
         match peer {
             Peer::Own => Ok(whois(ME, vec![])),
             Peer::OtherUser => Ok(whois(2002, vec![])),
