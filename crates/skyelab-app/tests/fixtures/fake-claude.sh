@@ -11,6 +11,11 @@ if [ -f .fake-agent-edits ]; then
   # An agent that edits a file every turn (one turn per run).
   printf 'turn\n' >> agent-edit.txt
 fi
-cat "$(dirname "$0")/session.jsonl"
+if [ -f .fake-agent-no-result ]; then
+  # A turn that never ends (no result event), so tests can act mid-turn.
+  grep -v '"type":"result"' "$(dirname "$0")/session.jsonl"
+else
+  cat "$(dirname "$0")/session.jsonl"
+fi
 printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s","pid":%s}\n' "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$*" "$$"
 while IFS= read -r line; do printf '%s\n' "$line"; done

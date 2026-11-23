@@ -315,9 +315,8 @@ impl ThreadView {
             }
             let sent = write
                 .spawn(async move {
-                    crate::workspace::thread_checkpoints::before_turn(&cwd, &key);
                     // An idle child that gets a new turn takes a slot again: claimed with its status write.
-                    let was = {
+                    let (was, idle) = {
                         let store = lock(&store)?;
                         let was = store.thread(id)?.map(|t| t.status).unwrap_or_default();
                         // Stop or an exit got here first: writing "running" would hold a slot with no process.
@@ -332,9 +331,14 @@ impl ThreadView {
                         store.set_thread_status(id, "running")?;
                         // Counted before it is sent, so a quick result can't find zero and mark the row idle early,
                         // and under the store lock, so a held idle can't land between "running" and the count.
-                        turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        was
+                        let idle = turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0;
+                        (was, idle)
                     };
+                    // Before the agent gets it: what "before this turn" rewinds to. A prompt queued behind a running
+                    // turn takes none, or it would overwrite that turn's own starting point.
+                    if idle {
+                        crate::workspace::thread_checkpoints::before_turn(&cwd, &key);
+                    }
                     // Queued first, so a full queue stores no prompt claude never got.
                     if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
                         turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);

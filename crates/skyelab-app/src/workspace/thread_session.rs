@@ -115,6 +115,10 @@ impl ThreadView {
         if launch != self.launches {
             return; // a stopped session's stream; Stop already recorded it
         }
+        // Stopped (or gone) mid-turn: that turn's end is still a checkpoint, so it can be reviewed and rewound.
+        if self.turns.load(Ordering::SeqCst) > 0 {
+            self.checkpoint_turn_end(cx);
+        }
         let Some(thread) = &self.thread else {
             return;
         };
