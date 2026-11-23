@@ -1,0 +1,56 @@
+use super::context::*;
+
+#[test]
+fn claude_models_have_a_200k_window() {
+    for m in [
+        "opus",
+        "sonnet",
+        "haiku",
+        "fable",
+        "claude-opus-5-5",
+        "claude-sonnet-4-5-20250929",
+    ] {
+        assert_eq!(window(m), Some(200_000), "{m}");
+    }
+}
+
+#[test]
+fn a_1m_suffix_means_a_million() {
+    assert_eq!(window("opus[1m]"), Some(1_000_000));
+    assert_eq!(window("claude-sonnet-5-5[1m]"), Some(1_000_000));
+}
+
+#[test]
+fn unknown_models_have_no_window() {
+    for m in ["", "gpt-5.5", "o3", "mystery[1m]", "claudex"] {
+        assert_eq!(window(m), None, "{m}");
+    }
+}
+
+#[test]
+fn percent_rounds_and_clamps() {
+    assert_eq!(percent(0, 200_000), Some(0));
+    assert_eq!(percent(84_000, 200_000), Some(42));
+    assert_eq!(percent(84_999, 200_000), Some(42)); // 42.4995
+    assert_eq!(percent(85_000, 200_000), Some(43)); // 42.5 rounds up
+    assert_eq!(percent(250_000, 200_000), Some(100));
+    assert_eq!(percent(5, 0), None, "no window, no percent");
+}
+
+#[test]
+fn near_full_starts_at_80_percent() {
+    assert!(!near_full(79));
+    assert!(near_full(80));
+    assert!(near_full(100));
+}
+
+#[test]
+fn token_counts_read_like_t3() {
+    assert_eq!(tokens_text(950), "950");
+    assert_eq!(tokens_text(9_500), "9.5k");
+    assert_eq!(tokens_text(9_000), "9k");
+    assert_eq!(tokens_text(84_400), "84k");
+    assert_eq!(tokens_text(200_000), "200k");
+    assert_eq!(tokens_text(1_000_000), "1m");
+    assert_eq!(tokens_text(1_250_000), "1.3m");
+}

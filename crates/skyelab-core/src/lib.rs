@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod app_settings;
+pub mod context;
 pub mod delegation;
 mod editor;
 pub mod schedule;
@@ -502,3 +503,7 @@ mod onboarding_test;
 
 #[cfg(test)]
 mod update_test;
+
+#[cfg(test)]
+#[path = "context_test.rs"]
+mod context_test;
