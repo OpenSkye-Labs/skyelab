@@ -302,7 +302,8 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
 
 // The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer, queue and
 // permission icons; the sidebar's branch and pull request states; the details card's commit, checks and review; the
-// diff toggles; the terminal chip; the mermaid card's code/diagram toggle; diff comments and side chats).
+// diff toggles; the terminal chip; the mermaid card's code/diagram toggle; diff comments and side chats; snooze and the
+// footer's Usage).
 gpui_kit_assets::icon_assets!(
     ExtraIcons,
     [
@@ -350,7 +351,11 @@ gpui_kit_assets::icon_assets!(
         SquareTerminal,
         Files,
         Link,
-        Smartphone
+        Smartphone,
+        // Snooze, and the sidebar footer's Usage.
+        AlarmClock,
+        AlarmClockOff,
+        ChartNoAxesColumn
     ]
 );
 

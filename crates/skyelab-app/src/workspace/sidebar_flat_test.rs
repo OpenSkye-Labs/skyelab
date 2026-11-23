@@ -177,8 +177,7 @@ fn day_buckets_split_at_each_start() {
 
 #[test]
 fn previews_are_plain_text_and_pr_labels_are_numbers() {
-    use pr_watch::pr_label;
-    use thread_list::preview_text;
+    use thread_list::{pr_label, preview_text};
     assert_eq!(
         preview_text(
             "# Title\n\n- **one** `a_b`\n> quote\n\n```rust\nlet x = 1;\n```\n---\n| a | b |"

@@ -115,10 +115,7 @@ fn schema_is_current() {
     let path = dir.path().join("s.db");
     drop(Store::open(&path).expect("open"));
     let conn = rusqlite_version(&path);
-    assert_eq!(
-        conn, 22,
-        "scheduled tasks (21), then comparison groups (22)"
-    );
+    assert_eq!(conn, 23);
 }
 
 fn rusqlite_version(path: &Path) -> i64 {

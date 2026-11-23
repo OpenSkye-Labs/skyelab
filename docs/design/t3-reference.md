@@ -83,6 +83,14 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 - Working rows add the turn's elapsed time after the label (`WorkingDuration`, 178-197, ticking each second); SkyeLab
   formats it like the chat's `AgentElapsed` (`12s`, `1m 12s`, `1h 05m`) and the thread view repeats it as
   "Working for …" (`chat/TimelineWorkGroupRows.tsx` `WorkingTimelineRow`).
+- Settle and snooze (`SidebarThreadRow.tsx` 1380-1500, `client-runtime/state/threadSettled.ts`): on hover a check
+  (settle) and an alarm clock (snooze) cover the time; settled rows offer Un-settle, snoozed ones Wake now. Shelves at
+  the end, `Snoozed N` and `Settled N` with a chevron, Settled paged 25 (`SETTLED_TAIL_PAGE_COUNT`). A passed snooze
+  reads **Woke** (alarm clock, warning) until visited. SkyeLab: `workspace/shelves.rs`, `skyelab_core::snooze`, the
+  presets fixed (T3's are a setting). The Working shelf header carries its count and folds.
+- Footer (`SidebarChrome.tsx`): icon buttons Settings, Pull requests, Issues, Usage, then Refresh at the right.
+- "Waiting on N subagents" (`chat/MessagesTimeline.logic.ts`): a muted line over the composer, the names, then
+  Details and Stop. SkyeLab: `workspace/subagent_strip.rs`.
 - Hover card (`SidebarThreadTooltip`, 263-403, `ThreadHoverCard.tsx`): to the row's right, max width 320, title
   `text-xs font-medium`, then `text-xs` muted lines with 12 px icons (project, branch, worktree, provider). SkyeLab adds
   the PR link, the account + provider, the binding folder and the times (`panels/sidebar_card.rs`, gpui-component

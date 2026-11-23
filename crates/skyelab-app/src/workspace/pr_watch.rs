@@ -291,7 +291,7 @@ pub(super) fn badge(t: &skyelab_store::Thread, url: &str, cx: &gpui::App) -> PrB
         ),
     };
     PrBadge {
-        label: pr_label(url).into(),
+        label: super::thread_list::pr_label(url).into(),
         state,
         checks,
     }
@@ -367,11 +367,3 @@ pub(crate) fn review_look(
 #[cfg(test)]
 #[path = "pr_watch_test.rs"]
 mod tests;
-
-/// "#24" for a pull request URL ending in its number, else "PR".
-pub(super) fn pr_label(url: &str) -> String {
-    match url.trim_end_matches('/').rsplit_once('/') {
-        Some((_, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => format!("#{n}"),
-        _ => "PR".into(),
-    }
-}

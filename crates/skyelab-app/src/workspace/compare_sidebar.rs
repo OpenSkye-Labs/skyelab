@@ -199,6 +199,8 @@ mod tests {
             side_of: None,
             compare_group: group,
             scheduled_task_id: None,
+            settled_at: None,
+            snoozed_until: None,
         }
     }
 

@@ -69,6 +69,11 @@ and how Zed uses it, not blog posts or memory.
 - `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
   diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
   row) whenever that set changes (`ChangesView::comments_changed`).
+- Hover-only buttons over a row (settle, snooze): `.group(name)` on the row, the buttons `absolute()` with
+  `.invisible().group_hover(name, |s| s.visible())` and the text under them `group_hover(.., |s| s.invisible())`. A
+  hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A
+  gpui-component `Button`'s click bubbles on (it stops propagation only while loading), so wrap the buttons in a div
+  whose `on_click` calls `cx.stop_propagation()`, or a click also opens the row.
 - A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
   `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after
   and over the dock. Not `anchored()`: that snaps to the window, while this one must sit under a button another view

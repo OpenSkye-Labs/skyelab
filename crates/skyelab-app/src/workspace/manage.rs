@@ -107,7 +107,7 @@ impl Workspace {
     }
 
     /// A notice with an Undo button that runs `undo` on this workspace.
-    fn undo_notice(
+    pub(super) fn undo_notice(
         &mut self,
         text: String,
         undo: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
@@ -149,7 +149,10 @@ impl Workspace {
             },
             cx,
         );
-        let text = format!("Unlinked pull request {}", super::pr_watch::pr_label(&url));
+        let text = format!(
+            "Unlinked pull request {}",
+            super::thread_list::pr_label(&url)
+        );
         self.undo_notice(
             text,
             move |ws, window, cx| ws.relink_pr(id, url.clone(), window, cx),
@@ -250,7 +253,7 @@ impl Workspace {
         }
     }
 
-    fn thread_title(&self, id: i64, cx: &Context<Self>) -> Option<String> {
+    pub(super) fn thread_title(&self, id: i64, cx: &Context<Self>) -> Option<String> {
         self.threads
             .iter()
             .find(|t| t.id == id)

@@ -26,7 +26,9 @@ What's built today:
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
 - **One thread list.** The sidebar lists every project's threads together (pinned, working, then Today, Yesterday,
   Previous 7 days and Older), each row with the agent's last reply, its project, state (with a running timer while it works), branch, pull
-  request and the account its folder is bound to; hovering a row shows where it runs, on which account and binding. A project filter narrows it, and New thread asks
+  request and the account its folder is bound to; hovering a row shows where it runs, on which account and binding. Settle a
+  finished thread or snooze it until later (both undoable); settled and snoozed ones wait in folded shelves at the
+  bottom, and a snoozed one comes back marked **Woke**. A project filter narrows it, and New thread asks
   which project when it can't tell.
 - **Several windows.** **New Window** (<kbd>⇧⌘N</kbd>) opens another window on the same projects, threads and
   accounts, with its own page, sidebar filter and panels. A thread open in two windows runs one agent; both show it.
