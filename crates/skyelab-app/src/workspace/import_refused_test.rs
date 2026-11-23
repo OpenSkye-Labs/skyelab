@@ -39,6 +39,6 @@ fn a_session_imported_elsewhere_is_refused_by_name(cx: &mut TestAppContext) {
     assert_eq!((again.threads.len(), again.already, again.left), (0, 1, 0));
     assert_eq!(
         summary(&again),
-        "Imported 0 sessions. 1 already imported in a project, so left alone: a session continues in one thread only."
+        "Imported 0 sessions. 1 already had a thread in a project, so left alone: a session continues in one thread only."
     );
 }

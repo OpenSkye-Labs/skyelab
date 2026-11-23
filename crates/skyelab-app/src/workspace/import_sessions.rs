@@ -102,9 +102,9 @@ pub(super) struct Imported {
     pub skipped: usize,
     /// Sessions read only up to the size cap.
     pub truncated: usize,
-    /// Sessions a project got a thread for after the picker listed them: one session, one thread.
+    /// Sessions some project got a thread for (imported or started) after the picker listed them.
     pub already: usize,
-    /// Sessions not imported: unreadable, or no longer this account's.
+    /// Sessions not imported: unreadable, no longer this account's, or not saved.
     pub left: usize,
 }
 
@@ -468,12 +468,15 @@ pub(super) fn summary(done: &Imported) -> String {
     };
     if done.already > 0 {
         text += &format!(
-            " {} already imported in a project, so left alone: a session continues in one thread only.",
+            " {} already had a thread in a project, so left alone: a session continues in one thread only.",
             done.already
         );
     }
     if done.left > 0 {
-        text += &format!(" {} left out (unreadable, or bound elsewhere).", done.left);
+        text += &format!(
+            " {} left out (unreadable, bound elsewhere, or not saved).",
+            done.left
+        );
     }
     if done.skipped > 0 {
         text += &format!(" {} unreadable lines skipped.", done.skipped);
