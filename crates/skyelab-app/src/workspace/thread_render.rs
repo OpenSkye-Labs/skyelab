@@ -185,13 +185,15 @@ impl ThreadView {
                 b.text_color(ui::ink(theme, theme.warning))
             })
             .dropdown_menu_with_anchor(gpui::Anchor::BottomLeft, move |mut menu, _, _| {
-                menu = menu.min_w(px(280.)).label("Permissions");
+                menu = menu.label("Permissions");
                 for mode in skyelab_agent::Mode::ALL {
                     let (label, tip) = mode_label(mode);
                     let view = view.clone();
                     let item = PopupMenuItem::element(move |_, cx| {
                         let theme = cx.theme();
+                        // A set width, so each description wraps inside the menu.
                         v_flex()
+                            .w(px(300.))
                             .py_0p5()
                             .child(
                                 h_flex()

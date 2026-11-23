@@ -98,7 +98,10 @@ fn thread_row(
             .into_any_element(),
     };
     let account = match &item.account {
-        Some(RowAccount::Bound(acc)) => Some(ui::AccountBadge::of(acc)),
+        // The label alone: the meta line is narrow, and the label names the login.
+        Some(RowAccount::Bound(acc)) => {
+            Some(ui::AccountBadge::new(acc.id.clone(), acc.label.clone()))
+        }
         Some(RowAccount::Unbound) => Some(ui::AccountBadge::unbound()),
         Some(RowAccount::Hidden) | None => None,
     };
@@ -134,6 +137,7 @@ fn thread_row(
                 .line_height(gpui::px(16.))
                 .text_color(muted)
                 .line_clamp(2)
+                .text_ellipsis()
                 .child(p)
         }))
         .child(
@@ -144,8 +148,15 @@ fn thread_row(
                 .text_size(ui::META)
                 .text_color(muted)
                 .child(ui::Monogram::new(&project))
-                .child(div().min_w_0().truncate().child(project))
-                .children(account.map(|badge| div().min_w_0().child(badge)))
+                // The account keeps its room (it is what SkyeLab is for); the project name gives way first.
+                .child(div().min_w(gpui::px(24.)).truncate().child(project))
+                .children(account.map(|badge| {
+                    div()
+                        .flex_shrink_0()
+                        .max_w(gpui::px(112.))
+                        .truncate()
+                        .child(badge)
+                }))
                 .child(div().flex_1())
                 .children(marks.pr.clone().map(|pr| {
                     h_flex()
@@ -158,7 +169,8 @@ fn thread_row(
                 .children(marks.branch.clone().map(|b| {
                     h_flex()
                         .min_w_0()
-                        .max_w(gpui::px(112.))
+                        .min_w(gpui::px(36.))
+                        .max_w(gpui::px(104.))
                         .gap_0p5()
                         .child(Icon::new(Lucide::GitBranch).size_3().flex_shrink_0())
                         .child(div().min_w_0().truncate().child(b))

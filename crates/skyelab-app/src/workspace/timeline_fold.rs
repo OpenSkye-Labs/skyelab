@@ -115,7 +115,11 @@ pub(super) fn fold_row<V: ItemsView>(
     let open = this.is_expanded(&key);
     let header = (fold_head(items, done) == Some(ix)).then(|| header(&items[done], open, key, cx));
     let body = open.then(|| row(this, cx));
-    v_flex().children(header).children(body).into_any_element()
+    v_flex()
+        .w_full()
+        .children(header)
+        .children(body)
+        .into_any_element()
 }
 
 /// "Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›": opens or folds the turn's work.
