@@ -153,6 +153,7 @@ impl Focusable for PreviewPanel {
 
 impl Render for PreviewPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("PreviewPanel");
         let theme = cx.theme();
         let shown = self.path.strip_prefix(&self.root).unwrap_or(&self.path);
         let dir = shown

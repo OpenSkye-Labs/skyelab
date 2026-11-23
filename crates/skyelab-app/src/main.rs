@@ -1,3 +1,4 @@
+mod debug_renders;
 mod environment;
 mod keymap;
 mod palette;
@@ -336,6 +337,7 @@ fn main() {
             cx.quit();
         }
         verify_actions::dispatch_verify_actions(cx);
+        debug_renders::start();
         cx.activate(true);
     });
 }

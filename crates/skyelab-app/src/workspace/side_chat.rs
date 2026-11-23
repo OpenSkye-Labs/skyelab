@@ -200,6 +200,7 @@ impl Focusable for SideChatPanel {
 
 impl Render for SideChatPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("SideChatPanel");
         let v = self.view.read(cx);
         let title = v.title();
         let answered = v.last_answer().is_some();

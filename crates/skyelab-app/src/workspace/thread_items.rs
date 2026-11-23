@@ -124,6 +124,7 @@ pub(super) fn render_item<V: ItemsView>(
 ) -> AnyElement {
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
+    crate::debug_renders::count("timeline row");
     let mark = this.find_mark(ix);
     let row = timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx);
     match mark {

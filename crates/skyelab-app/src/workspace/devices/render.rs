@@ -177,6 +177,7 @@ impl DevicesPanel {
 
 impl Render for DevicesPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("DevicesPanel");
         self.rendered = true;
         self.ensure_polling(cx);
         let theme = cx.theme();

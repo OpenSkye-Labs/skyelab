@@ -201,6 +201,7 @@ impl Focusable for DetailsPanel {
 
 impl Render for DetailsPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("DetailsPanel");
         let theme = cx.theme();
         let usage = render_usage(&self.usage, theme, cx);
         let content = match self.thread.as_ref().and_then(|t| t.upgrade()) {

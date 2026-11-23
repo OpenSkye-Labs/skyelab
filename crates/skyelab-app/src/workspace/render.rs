@@ -4,6 +4,7 @@ use super::*;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Workspace");
         let ring = self.render_ring(window, cx);
         let theme = cx.theme();
         v_flex()
