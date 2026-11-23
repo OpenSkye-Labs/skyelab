@@ -263,11 +263,17 @@ impl Workspace {
         match (taken, unused) {
             (Err(why), _) => _ = reply.send(Err(refused(why))),
             // No follow-up took it: the thread resumed, so the prompt goes in with the new agent.
-            (Ok(()), Some(_)) => self.reply_when_started(
-                &view,
-                move |r| _ = reply.send(r.map(drop).map_err(refused)),
-                cx,
-            ),
+            (Ok(()), Some(_)) => {
+                let (started, resumed) = flume::bounded(1);
+                self.reply_when_started(&view, move |r| _ = started.send(r), cx);
+                let resumed = async move {
+                    match resumed.recv_async().await {
+                        Ok(r) => r.map(drop).map_err(refused),
+                        Err(_) => Err(crate::remote::internal("the thread's tab closed")),
+                    }
+                };
+                answer_within(resumed, reply, cx);
+            }
             (Ok(()), None) => {
                 let delivered = async move {
                     match delivered.recv_async().await {
@@ -289,16 +295,26 @@ impl Workspace {
                 return;
             }
         };
-        let Some(session) = session else {
+        let (Some(session), Some(view)) = (session, self.open_view(thread_id, cx)) else {
             let _ = reply.send(Err(refused("the agent isn't running")));
             return;
         };
         let work = cx.background_spawn(async move { super::lock(&session)?.interrupt() });
-        answer_within(
-            async move { work.await.map_err(|e| refused(format!("{e:#}"))) },
-            reply,
-            cx,
-        );
+        let view = view.downgrade();
+        let mut async_cx = cx.to_async();
+        let delivered = async move {
+            let result = work.await;
+            // The local tab shows a failure too, as a local interrupt does.
+            if let Err(e) = &result {
+                let shown = format!("{e:#}");
+                let _ = view.update(&mut async_cx, |v, cx| {
+                    v.error = Some(shown.into());
+                    cx.notify();
+                });
+            }
+            result.map_err(|e| refused(format!("{e:#}")))
+        };
+        answer_within(delivered, reply, cx);
     }
 
     /// Opens a new thread tab (without taking the user's focus) and sends `prompt` from it. Replies with the
@@ -340,6 +356,8 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let mut done = Some(done);
+        // A launch already under way that ends with no agent failed, even on a thread that stays resumable.
+        let began = view.read(cx).starting;
         self._thread_events
             .push(cx.observe(view, move |_, view, cx| {
                 let view = view.read(cx);
@@ -347,6 +365,7 @@ impl Workspace {
                 let result = match (&view.thread, view.starting) {
                     (Some(t), _) if view.session.is_some() => Ok(t.id),
                     (Some(_), _) if view.read_only => Err("the agent didn't start"),
+                    (Some(_), false) if began => Err("the agent didn't start"),
                     (None, false) => Err("the thread couldn't be created"),
                     _ => return,
                 };

@@ -513,6 +513,8 @@ mod env_approval_test;
 mod env_queue_test;
 #[cfg(test)]
 mod palette_remote_test;
+#[cfg(test)]
+mod remote_resume_reply_test;
 
 #[cfg(test)]
 mod long_thread_test;

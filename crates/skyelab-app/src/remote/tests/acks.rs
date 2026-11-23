@@ -31,13 +31,31 @@ fn started(f: &Fixture, client: &Client, cx: &mut VisualTestContext) -> (i64, u3
         }
         // The fake's `fake_env` line ends with `"pid":<n>}`, whatever the row's envelope around it.
         pid = events.iter().find_map(|e| {
+            if !e.payload_json.contains("fake_env") {
+                return None;
+            }
             let (_, rest) = e.payload_json.split_once("\"pid\":")?;
             let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
             digits.parse().ok()
         });
         pid.is_some()
     });
-    (thread_id, pid.expect("waited for it"))
+    let pid = pid.expect("waited for it");
+    assert!(pid > 1, "a real child's pid, never a process group: {pid}");
+    (thread_id, pid)
+}
+
+/// Resumes the stopped fake however the test ends, so a failed assert never leaves it stopped.
+#[cfg(unix)]
+struct Resume(u32);
+
+#[cfg(unix)]
+impl Drop for Resume {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("/bin/kill")
+            .args(["-CONT", &self.0.to_string()])
+            .status();
+    }
 }
 
 fn send_message(client: &Client, id: u64, thread_id: i64, text: String) {
@@ -86,6 +104,7 @@ fn remote_interrupt_replies_after_delivery(cx: &mut TestAppContext) {
         .status()
         .expect("kill runs");
     assert!(stopped.success());
+    let _resume = Resume(pid);
     send_message(&client, 4, thread_id, "x".repeat(256 << 10));
     assert!(matches!(
         client.reply(4, &mut Vec::new(), cx),
@@ -99,9 +118,6 @@ fn remote_interrupt_replies_after_delivery(cx: &mut TestAppContext) {
             break;
         }
     }
-    let _ = std::process::Command::new("/bin/kill")
-        .args(["-CONT", &pid.to_string()])
-        .status();
     let error = refused.expect("an interrupt the agent can't take is refused");
     assert!(error.message.contains("isn't reading"), "{error:?}");
 }
