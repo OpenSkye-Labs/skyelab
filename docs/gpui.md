@@ -57,10 +57,12 @@ and how Zed uses it, not blog posts or memory.
   every view. A px size never scales.
 - Bake a theme choice into the `light_theme`/`dark_theme` configs, then `Theme::change` (refreshes every window).
   Fields written on `Theme` are lost at the next appearance flip (`ui::themes::apply`).
-- `window.open_dialog` panics without `Root`; test windows that open one use `threads_test::add_rooted`.
+- `window.open_dialog` panics without `Root` (test windows: `threads_test::add_rooted`).
 - A `Dialog` sits in `Root`'s layer, outside the workspace: actions dispatched inside it never reach the workspace.
   A modal that must reach it is a `deferred` layer in `Workspace::render` (`settings_tab::settings_modal`).
 - A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.
+- `on_focus_out` fires only in an active window (tests: `activate_window()`), and going inactive counts as one:
+  check `window.is_window_active()` first.
 - gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.
