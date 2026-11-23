@@ -76,4 +76,12 @@ fn allowing_a_side_chats_command_never_reaches_its_agent(cx: &mut gpui::TestAppC
     });
     let r = reply(&f, side.id).expect("reply");
     assert_eq!(r["response"]["response"]["behavior"], "deny", "{r}");
+
+    // A file name on one of its cards opens the Preview tab too.
+    side_view.update(cx, |v, cx| v.open_path("README.md", cx));
+    cx.run_until_parked();
+    let tab = ws
+        .read_with(cx, |ws, _| ws.preview_tab())
+        .expect("the Preview tab");
+    assert!(tab.read_with(cx, |p, _| p.path.ends_with("README.md")));
 }

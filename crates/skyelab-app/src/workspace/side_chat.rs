@@ -371,11 +371,15 @@ impl Workspace {
                 let (config, backend) = (self.config.clone(), self.backend.clone());
                 let (id, parent_id) = (side.id, side.side_of.unwrap_or_default());
                 let view = cx.new(|cx| ThreadView::open(side, config, backend, window, cx));
+                // Files its replies and cards name open in the Preview tab: a side chat changes none to review.
                 let events = cx.subscribe_in(&view, window, |ws, view, e, window, cx| {
-                    if let ThreadViewEvent::Preview(path, line) = e {
-                        let root = view.read(cx).cwd.clone();
-                        ws.open_preview(root, path.clone(), *line, window, cx)
-                    }
+                    let (path, line) = match e {
+                        ThreadViewEvent::Preview(path, line) => (path, *line),
+                        ThreadViewEvent::OpenPath(path) => (path, None),
+                        _ => return,
+                    };
+                    let root = view.read(cx).cwd.clone();
+                    ws.open_preview(root, path.clone(), line, window, cx)
                 });
                 let panel = cx.new(|cx| SideChatPanel {
                     focus: cx.focus_handle(),

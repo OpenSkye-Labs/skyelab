@@ -146,17 +146,21 @@ fn load_accounts(path: Option<&std::path::Path>) -> (AccountsConfig, Option<Stri
 
 actions!(skyelab, [Quit]);
 
-/// The app's menus and keys, then the user's keybindings file over them. The keymap keeps only the bindings made
-/// before it starts, so nothing binds a key after this.
+/// The app's own keys, then the user's keybindings file over them (the keymap keeps only the bindings made before it
+/// starts, so nothing binds a key after this), then the menus, which show the keys bound by then.
 fn init_keys(path: Option<std::path::PathBuf>, cx: &mut App) {
-    app_menus(cx);
+    cx.on_action(|_: &Quit, cx| cx.quit());
+    // Off macOS ctrl-q belongs to the shell (XON), and the window's close button quits.
+    if cfg!(target_os = "macos") {
+        cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
+    }
     keymap::init(path, cx);
+    app_menus(cx);
 }
 
 /// The macOS app menu (other OSes have no app menu bar): New Window, Check for Updates, Settings, Quit.
 fn app_menus(cx: &mut App) {
     use gpui::{Menu, MenuItem};
-    cx.on_action(|_: &Quit, cx| cx.quit());
     cx.set_menus([Menu {
         name: "SkyeLab".into(),
         items: vec![
@@ -168,10 +172,6 @@ fn app_menus(cx: &mut App) {
         ],
         disabled: false,
     }]);
-    // Off macOS ctrl-q belongs to the shell (XON), and the window's close button quits.
-    if cfg!(target_os = "macos") {
-        cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
-    }
 }
 
 /// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
