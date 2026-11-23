@@ -44,6 +44,7 @@ mod remote_answers;
 mod remote_queue;
 mod remote_thread;
 mod render;
+mod scratch;
 mod scripts;
 mod status_bar;
 mod thread;
@@ -162,6 +163,8 @@ pub struct Workspace {
     settings: Option<Entity<Settings>>,
     backend: Backend,
     pub(crate) store_error: Option<SharedString>,
+    /// Where scratch threads' per-account folders go (`<data dir>/skyelab/scratch`).
+    scratch_root: Option<PathBuf>,
     sidebar: Entity<Sidebar>,
     projects: Vec<Project>,
     project: Option<Project>,
@@ -310,6 +313,7 @@ impl Workspace {
             settings: None,
             backend,
             store_error: None,
+            scratch_root: dirs::data_dir().map(|d| d.join("skyelab").join("scratch")),
             sidebar,
             projects: Vec::new(),
             project: None,
@@ -544,6 +548,8 @@ mod save_retry_test;
 mod save_turns_test;
 #[cfg(all(test, unix))]
 mod saved_view_draft_test;
+#[cfg(test)]
+mod scratch_test;
 #[cfg(all(test, unix))]
 mod scripts_env_test;
 #[cfg(test)]

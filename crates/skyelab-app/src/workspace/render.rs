@@ -41,6 +41,7 @@ impl Render for Workspace {
             .map(|el| self.manage_actions(el, cx))
             .map(|el| self.attention_actions(el, cx))
             .map(|el| self.file_actions(el, cx))
+            .map(|el| self.scratch_actions(el, cx))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
