@@ -9,6 +9,8 @@ thread of the current project to open, or an open tab to go to. Type a few lette
 **Open Settings**), move with the arrow keys, press <kbd>↩</kbd> to run it and <kbd>Esc</kbd> to close. The action runs
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
+While the window shows another machine, the palette lists that machine's projects and the selected project's
+threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** shows whether it is **On** or **Off**.
 
 ## Layout
 
@@ -201,8 +203,9 @@ allowed here once:
   at once and forgets it; it has to ask again.
 - An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
 
-Connected devices are listed in the Remote tab, each with a **Disconnect** button. A connected device can list projects and threads,
-start a thread in an existing project, send follow-ups and interrupt. It can't add projects, change accounts or
+Connected devices are listed in the Remote tab, each with a **Disconnect** button, which closes the connection at once.
+A connected device can list projects and threads, start a thread in an existing project, send follow-ups and
+interrupt. A follow-up or interrupt is answered once the agent took it, or with why it couldn't (within 20 seconds). It can't add projects, change accounts or
 bindings, or open terminals. Turning sharing off closes every connection.
 
 ## The environment switcher
