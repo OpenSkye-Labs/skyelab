@@ -148,6 +148,10 @@ impl ThreadView {
 
     /// Stores what changed since the last save (sending empties the composer, which removes the draft).
     fn save_draft(&mut self, cx: &mut Context<Self>) {
+        // A review draft from the Pull requests page isn't the project's new-thread draft: saving it would replace that.
+        if self.thread.is_none() && self.composer.extras.pending_pr.is_some() {
+            return;
+        }
         let text = self.prompt.read(cx).value();
         if *text != *self.composer.extras.saved_text {
             self.composer.extras.saved_text = text.to_string();

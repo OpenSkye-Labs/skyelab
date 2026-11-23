@@ -92,7 +92,6 @@ pub(crate) enum GhEvent {
         project: i64,
         number: u64,
         url: String,
-        title: String,
     },
     StartIssue {
         project: i64,
@@ -153,7 +152,9 @@ impl GhPage {
             .as_ref()
             .is_some_and(|i| i.config != inputs.config)
         {
+            // Reads still running were made under the old binding.
             self.groups.clear();
+            self.pending.clear();
         }
         self.sources = sources;
         self.inputs = Some(inputs);
@@ -314,14 +315,11 @@ pub(crate) fn browser_url(url: &str) -> Option<&str> {
     (url.starts_with("https://github.com/") && !url.contains(char::is_whitespace)).then_some(url)
 }
 
-/// The prompt a "Review PR" thread starts with.
-pub(crate) fn review_prompt(number: u64, title: &str, url: &str) -> String {
-    let title: String = title
-        .chars()
-        .take(terminal_context::MAX_TITLE_CHARS)
-        .collect();
+/// The prompt a "Review PR" thread starts with: the number and link only, since the title is the PR author's text
+/// and would read as the user's own instruction.
+pub(crate) fn review_prompt(number: u64, url: &str) -> String {
     format!(
-        "Review pull request #{number} \"{title}\": {url}\n\nRead its description and diff (gh pr view {number} \
+        "Review pull request #{number}: {url}\n\nRead its description and diff (gh pr view {number} \
          --comments, gh pr diff {number}), then list bugs, risks and missing tests, most important first. Don't \
          push, merge or comment on GitHub."
     )
@@ -409,14 +407,17 @@ impl Workspace {
                 project,
                 number,
                 url,
-                title,
             } => {
+                // gh's JSON is untrusted: only a canonical PR link goes on the thread.
+                let Some(link) = skyelab_core::github_pr_url(url) else {
+                    return;
+                };
                 let Some(view) = self.new_draft_in(*project, window, cx) else {
                     return;
                 };
-                let text = review_prompt(*number, title, url);
+                let text = review_prompt(*number, &link);
                 view.update(cx, |v, cx| {
-                    v.composer.extras.pending_pr = Some(url.clone());
+                    v.composer.extras.pending_pr = Some(link);
                     v.prompt.update(cx, |p, cx| p.set_value(text, window, cx));
                     cx.notify();
                 });

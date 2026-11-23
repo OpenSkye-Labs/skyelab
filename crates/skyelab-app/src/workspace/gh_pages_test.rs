@@ -220,10 +220,19 @@ fn filters_are_cached_and_refresh_reads_again(cx: &mut gpui::TestAppContext) {
             {"number":2,"title":"b","url":"https://github.com/acme/demo/issues/2","labels":[{"name":"docs"}]}]"#,
     )
     .expect("fixture");
+    std::fs::write(
+        gh_a.join("fake-prs.json"),
+        r#"[{"number":9,"title":"only","url":"https://github.com/acme/demo/pull/9","isDraft":true}]"#,
+    )
+    .expect("fixture");
     setup(&r, Some(gh_a.clone()), vec![], &[], cx);
     cx.dispatch_action(OpenPullRequests);
     let p = page(&r, Kind::Prs, cx);
-    settled(&r, &p, cx);
+    let groups = settled(&r, &p, cx);
+    assert!(
+        matches!(&groups[0].2, Listing::Prs(l) if l.len() == 1 && l[0].row.number == 9 && l[0].row.draft),
+        "{groups:?}"
+    );
     assert_eq!(calls(&gh_a).len(), 1);
 
     p.update(cx, |p, cx| p.set_filter(Filter::Pr(PrFilter::Mine), cx));
@@ -286,6 +295,13 @@ fn review_pr_starts_a_thread_that_links_the_pr(cx: &mut gpui::TestAppContext) {
     cx.executor().allow_parking();
     let url = "https://github.com/acme/demo/pull/12";
     let project = r.project;
+    // An unsent new-thread draft the user left in this project.
+    let owner = format!("project:{project}");
+    r.f.store
+        .lock()
+        .expect("lock")
+        .set_draft_text(&owner, "my own notes")
+        .expect("draft");
     cx.dispatch_action(OpenPullRequests);
     let p = page(&r, Kind::Prs, cx);
     p.update(cx, |_, cx| {
@@ -293,7 +309,6 @@ fn review_pr_starts_a_thread_that_links_the_pr(cx: &mut gpui::TestAppContext) {
             project,
             number: 12,
             url: url.into(),
-            title: "Add the release workflow".into(),
         })
     });
     cx.run_until_parked();
@@ -302,8 +317,20 @@ fn review_pr_starts_a_thread_that_links_the_pr(cx: &mut gpui::TestAppContext) {
             .expect("a draft shows");
     let text = view.read_with(cx, |v, cx| v.prompt.read(cx).value().to_string());
     assert!(
-        text.starts_with("Review pull request #12") && text.contains(url),
+        text.starts_with("Review pull request #12: ") && text.contains(url),
         "{text}"
+    );
+    cx.run_until_parked();
+    let kept =
+        r.f.store
+            .lock()
+            .expect("lock")
+            .draft(&owner)
+            .expect("draft")
+            .text;
+    assert_eq!(
+        kept, "my own notes",
+        "the review prompt must not replace the project's draft"
     );
 
     view.update_in(cx, |v, window, cx| {

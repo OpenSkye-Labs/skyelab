@@ -91,6 +91,9 @@ fn repo_from_github_remote_urls_only() {
         ("https://github.com/acme/demo", "acme/demo"),
         ("git@github.com:acme/my.repo.git", "acme/my.repo"),
         ("ssh://git@github.com/acme/demo.git", "acme/demo"),
+        ("https://github.com/acme/demo/", "acme/demo"),
+        ("https://github.com/acme/.github.git", "acme/.github"),
+        ("git@github.com:acme/.dotfiles.git", "acme/.dotfiles"),
     ];
     for (url, slug) in ok {
         assert_eq!(parse_repo_url(url).as_deref(), Some(slug), "{url}");
@@ -104,6 +107,8 @@ fn repo_from_github_remote_urls_only() {
         "git@github.com:acme/de mo.git",
         "/local/path",
         "https://github.com/acme/..",
+        "https://github.com/acme/.",
+        "https://github.com/../demo",
     ] {
         assert_eq!(parse_repo_url(url), None, "{url}");
     }
@@ -194,4 +199,20 @@ fn times_out_a_hung_gh() {
     );
     assert!(r.is_err());
     assert!(started.elapsed() < std::time::Duration::from_secs(20));
+}
+
+#[test]
+fn strips_control_and_bidi_characters() {
+    let json = serde_json::json!([{
+        "number": 1,
+        "title": "ok\u{202E}gpj.exe\u{0007}",
+        "url": "https://github.com/acme/demo/issues/1",
+        "author": {"login": "a\u{2066}b"},
+        "labels": [], "assignees": [],
+        "body": "line one\nline\u{0000} two"
+    }]);
+    let r = &parse_issue_list(&serde_json::to_vec(&json).unwrap()).unwrap()[0];
+    assert_eq!(r.title, "okgpj.exe");
+    assert_eq!(r.author, "ab");
+    assert_eq!(r.body, "line one\nline two");
 }

@@ -73,6 +73,7 @@ pub fn parse_repo_url(url: &str) -> Option<String> {
         .strip_prefix("https://github.com/")
         .or_else(|| url.strip_prefix("git@github.com:"))
         .or_else(|| url.strip_prefix("ssh://git@github.com/"))?;
+    let path = path.strip_suffix('/').unwrap_or(path);
     let path = path.strip_suffix(".git").unwrap_or(path);
     let (owner, name) = path.split_once('/')?;
     (valid_part(owner) && valid_part(name)).then(|| format!("{owner}/{name}"))
@@ -81,7 +82,9 @@ pub fn parse_repo_url(url: &str) -> Option<String> {
 fn valid_part(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= MAX_NAME
-        && !s.starts_with(['-', '.'])
+        && !s.starts_with('-')
+        && s != "."
+        && s != ".."
         && s.chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
@@ -170,11 +173,15 @@ fn rows(json: &[u8], what: &str) -> Result<Vec<Value>> {
     }
 }
 
+/// A string field, capped, without control or bidi-override characters (they could make a row read as something
+/// else). A body keeps its line breaks.
 fn text(v: &Value, key: &str, max: usize) -> String {
+    let bidi = |c: char| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}');
     v[key]
         .as_str()
         .unwrap_or_default()
         .chars()
+        .filter(|&c| !bidi(c) && (!c.is_control() || (key == "body" && matches!(c, '\n' | '\t'))))
         .take(max)
         .collect()
 }

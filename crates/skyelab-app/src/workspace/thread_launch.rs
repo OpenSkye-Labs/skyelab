@@ -162,8 +162,9 @@ impl ThreadView {
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
+        // Cleared once the launch succeeds, so a failed first send keeps it for the next.
         let link_pr = if is_new {
-            self.composer.extras.pending_pr.take()
+            self.composer.extras.pending_pr.clone()
         } else {
             None
         };
@@ -332,6 +333,7 @@ impl ThreadView {
                 this.starting = false;
                 match started {
                     Ok((thread, session, grant)) => {
+                        this.composer.extras.pending_pr = None;
                         this.row_saved(&thread, cx);
                         this.thread = Some(thread.clone());
                         if !is_new {

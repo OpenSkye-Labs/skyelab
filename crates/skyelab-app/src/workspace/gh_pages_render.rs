@@ -145,7 +145,7 @@ impl GhPage {
                 .map(|(i, c, tip)| glyph(i, c, tip)),
         );
         let meta = vec![div().child(pr.author.clone()).into_any_element()];
-        let (number, url, title) = (pr.number, pr.url.clone(), pr.title.clone());
+        let (number, url) = (pr.number, pr.url.clone());
         row(format!("pr-{project}-{number}").into(), theme)
             .child(glyph(icon, color, label))
             .child(lines(number, &pr.title, signals, meta, r.updated_ms, theme))
@@ -158,7 +158,6 @@ impl GhPage {
                     project,
                     number,
                     url: url.clone(),
-                    title: title.clone(),
                 })
             }))
             .into_any_element()
