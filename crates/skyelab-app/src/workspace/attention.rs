@@ -11,7 +11,7 @@ use gpui_component::{
     dock::{DockPlacement, PaneRef, PanelId},
     notification::Notification,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 actions!(
@@ -225,7 +225,7 @@ impl Workspace {
     }
 
     fn step_thread(&mut self, delta: isize, window: &mut Window, cx: &mut Context<Self>) {
-        let order = self.thread_order();
+        let order = self.thread_order(cx);
         if order.is_empty() {
             return;
         }
@@ -241,7 +241,7 @@ impl Workspace {
     }
 
     fn jump(&mut self, n: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(&id) = self.thread_order().get(n - 1) {
+        if let Some(&id) = self.thread_order(cx).get(n - 1) {
             self.open_thread(&OpenThread { id }, window, cx);
         }
     }
@@ -258,6 +258,16 @@ impl Workspace {
                 None => return,
             },
         };
+        self.open_dir_in_editor(dir, window, cx);
+    }
+
+    /// Opens `dir` in the user's editor; a missing editor shows as a notice.
+    pub(super) fn open_dir_in_editor(
+        &mut self,
+        dir: PathBuf,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let settings = self.layout.path.clone();
         let task = cx.background_spawn(async move {
             let setting = settings

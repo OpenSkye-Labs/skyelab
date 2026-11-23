@@ -13,7 +13,13 @@ mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
+mod keys;
 pub(crate) mod layout;
+use keys::MAC;
+pub use keys::init;
+pub(crate) use keys::{NEW_TERMINAL_KEY, OPEN_SETTINGS_KEY, TOGGLE_BOTTOM_KEY, TOGGLE_SIDEBAR_KEY};
+#[cfg(test)]
+use keys::{OPEN_BROWSER_KEY, OPEN_DEVICES_KEY};
 mod manage;
 mod manage_projects;
 mod settings_tab;
@@ -41,6 +47,7 @@ pub use thread::AccountsFile;
 pub(crate) mod thread_checkpoints;
 mod thread_items;
 mod thread_list;
+use thread_list::{NewThreadIn, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
@@ -75,7 +82,8 @@ actions!(
         OpenBrowser,
         AddProject,
         NewThread,
-        OpenDevices
+        OpenDevices,
+        ShowAllProjects
     ]
 );
 
@@ -108,37 +116,6 @@ pub struct Backend {
 }
 
 const CONTEXT: &str = "Workspace";
-
-// `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
-const MAC: bool = cfg!(target_os = "macos");
-pub(crate) const TOGGLE_SIDEBAR_KEY: &str = if MAC { "cmd-b" } else { "ctrl-b" };
-pub(crate) const TOGGLE_BOTTOM_KEY: &str = if MAC { "cmd-j" } else { "ctrl-j" };
-pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-alt-t" };
-pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
-pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
-pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
-
-/// Binds the workspace keys. Call once at startup.
-pub fn init(cx: &mut App) {
-    cx.bind_keys([
-        KeyBinding::new(TOGGLE_SIDEBAR_KEY, ToggleSidebar, Some(CONTEXT)),
-        KeyBinding::new(TOGGLE_BOTTOM_KEY, ToggleBottomPanel, Some(CONTEXT)),
-        KeyBinding::new(NEW_TERMINAL_KEY, NewTerminal, Some(CONTEXT)),
-        KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
-        KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
-        KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
-    ]);
-    // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
-    if !MAC {
-        cx.bind_keys([
-            KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
-            KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
-        ]);
-    }
-    layout::bind_keys(cx);
-    attention::init(cx);
-    crate::palette::init(cx);
-}
 
 /// The label of the account `folder` is bound to. `None` means unbound: the UI says so, never guesses.
 fn account_label(config: &AccountsConfig, folder: &Path) -> Option<SharedString> {
@@ -177,11 +154,13 @@ pub struct Workspace {
     sidebar: Entity<Sidebar>,
     projects: Vec<Project>,
     project: Option<Project>,
-    /// The selected project's threads, most recently updated first.
+    /// Every listed project's threads, most recently updated first.
     threads: Vec<Thread>,
     /// The project's scripts, for the palette.
     scripts: Vec<skyelab_store::ProjectScript>,
     _scripts: Option<Task<()>>,
+    /// The projects the sidebar's list is narrowed to; empty means all.
+    scope: Vec<i64>,
     open_threads: Vec<WeakEntity<ThreadView>>,
     /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
     queued_tabs: Vec<Entity<ThreadView>>,
@@ -311,6 +290,7 @@ impl Workspace {
             threads: Vec::new(),
             scripts: Vec::new(),
             _scripts: None,
+            scope: Vec::new(),
             open_threads: Vec::new(),
             queued_tabs: Vec::new(),
             #[cfg(unix)]
@@ -392,6 +372,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::pick_project))
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
+            .on_action(cx.listener(Self::new_thread_in))
+            .on_action(cx.listener(Self::toggle_project_scope))
+            .on_action(cx.listener(Self::show_all_projects))
             .on_action(cx.listener(Self::open_thread))
             .on_action(cx.listener(Self::open_devices))
             .on_action(cx.listener(Self::open_remote))
@@ -458,6 +441,8 @@ mod threads_test;
 
 #[cfg(test)]
 mod sidebar_account_test;
+#[cfg(test)]
+mod sidebar_flat_test;
 
 #[cfg(test)]
 mod layout_test;

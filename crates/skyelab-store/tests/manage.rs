@@ -159,3 +159,33 @@ fn removed_projects_hide_keep_threads_and_come_back() {
             .is_none()
     );
 }
+
+#[test]
+fn list_all_threads_spans_projects_newest_first_and_skips_removed_and_deleted() {
+    let store = Store::open_in_memory().expect("store");
+    let a = store
+        .create_project("a", Path::new("/work/a"))
+        .expect("project a");
+    let b = store
+        .create_project("b", Path::new("/work/b"))
+        .expect("project b");
+    let gone = store
+        .create_project("gone", Path::new("/work/gone"))
+        .expect("project gone");
+    let a1 = store.create_thread(&new_thread(a.id, "a1")).expect("a1");
+    sleep(Duration::from_millis(5));
+    let b1 = store.create_thread(&new_thread(b.id, "b1")).expect("b1");
+    sleep(Duration::from_millis(5));
+    let deleted = store.create_thread(&new_thread(a.id, "x")).expect("x");
+    store.set_thread_deleted(deleted.id, true).expect("delete");
+    store.create_thread(&new_thread(gone.id, "g")).expect("g");
+    store.set_project_removed(gone.id, true).expect("remove");
+
+    let ids: Vec<i64> = store
+        .list_all_threads()
+        .expect("list")
+        .iter()
+        .map(|t| t.id)
+        .collect();
+    assert_eq!(ids, [b1.id, a1.id]);
+}

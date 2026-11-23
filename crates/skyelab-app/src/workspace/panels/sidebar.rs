@@ -1,9 +1,11 @@
-//! The sidebar: the environment picker, then projects with the selected one's threads under it (T3's folder layout).
+//! The sidebar: the environment picker, the search / project scope / new thread row, then every project's threads in
+//! one flat list (T3's default layout), and Settings at the bottom. Another machine's sidebar keeps its projects with
+//! the selected one's threads under it.
 
+use super::sidebar_rows::{THREAD_INDENT, scope_button, section_button, sidebar_row};
 use super::*;
 use gpui::{AnyElement, Subscription};
 use gpui_component::input::{Input, InputEvent, InputState};
-use gpui_component::menu::ContextMenuExt as _;
 
 /// Which account a project row runs on.
 #[derive(Clone)]
@@ -25,8 +27,10 @@ pub struct SidebarItem {
     pub status: Option<ui::Status>,
     /// Thread rows: when the thread last changed (ms since the epoch), shown as "3m".
     pub updated_ms: Option<i64>,
-    /// Project rows: the account the folder runs on.
+    /// Project rows, and flat thread rows: the account the folder runs on.
     pub account: Option<RowAccount>,
+    /// Flat thread rows: the project's name, drawn above the title. `None` for project rows and nested threads.
+    pub project: Option<SharedString>,
 }
 
 /// One titled group in the sidebar, with what to show while it is empty.
@@ -47,6 +51,8 @@ pub struct SidebarSection {
 pub struct RowMarks {
     pub pinned: bool,
     pub unread: bool,
+    /// The agent waits for a permission answer.
+    pub approval: bool,
     /// The right-click menu: label and the action it dispatches.
     pub menu: Vec<(SharedString, Box<dyn Action>)>,
 }
@@ -57,6 +63,25 @@ pub struct ArchivedRows {
     pub open: bool,
     /// Dispatched by the toggle row.
     pub toggle: Box<dyn Action>,
+}
+
+/// The project scope filter: which projects' threads the list shows, and each project's menu.
+#[derive(Clone, Default)]
+pub struct ScopeMenu {
+    pub projects: Vec<ScopeProject>,
+}
+
+#[derive(Clone)]
+pub struct ScopeProject {
+    pub id: i64,
+    pub name: SharedString,
+    pub checked: bool,
+}
+
+impl ScopeMenu {
+    pub(super) fn filtered(&self) -> bool {
+        self.projects.iter().any(|p| p.checked)
+    }
 }
 
 /// The thread filter's text changed.
@@ -72,6 +97,8 @@ pub struct Sidebar {
     /// The thread filter (title and message text); hidden while another machine is shown.
     pub search: Entity<InputState>,
     pub searchable: bool,
+    /// The project filter; `None` while another machine is shown.
+    pub scope: Option<ScopeMenu>,
     pub(super) focus: FocusHandle,
     _search: Subscription,
 }
@@ -94,6 +121,7 @@ impl Sidebar {
             archived: None,
             search,
             searchable: false,
+            scope: None,
             focus: cx.focus_handle(),
             _search,
         }
@@ -102,125 +130,6 @@ impl Sidebar {
 
 // The sidebar draws its own header.
 panel!(Sidebar, "Sidebar", closable: false, title_bar: false, toggles: false, |_this| "Sidebar");
-
-fn section_button(s: &SidebarSection) -> Option<Button> {
-    s.button.as_ref().map(|(label, action)| {
-        let action = action.boxed_clone();
-        Button::new(SharedString::from(format!("section-{}", s.title)))
-            .ghost()
-            .xsmall()
-            .icon(IconName::Plus)
-            .label(label.clone())
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-    })
-}
-
-/// Where a thread's title starts, so it lines up under its project's name (T3's `ps-9`): row padding + monogram + gap.
-const THREAD_INDENT: f32 = 36.;
-
-fn sidebar_row(
-    item: &SidebarItem,
-    marks: Option<&RowMarks>,
-    focus: &FocusHandle,
-    indent: bool,
-    now: i64,
-    theme: &gpui_component::Theme,
-) -> AnyElement {
-    let row = plain_row(item, marks, indent, now, theme);
-    let Some(menu) = marks.filter(|m| !m.menu.is_empty()) else {
-        return row.into_any_element();
-    };
-    let entries: Vec<(SharedString, Box<dyn Action>)> = menu
-        .menu
-        .iter()
-        .map(|(l, a)| (l.clone(), a.boxed_clone()))
-        .collect();
-    let focus = focus.clone();
-    row.context_menu(move |mut menu, _, _| {
-        menu = menu.action_context(focus.clone());
-        for (label, action) in &entries {
-            menu = menu.menu(label.clone(), action.boxed_clone());
-        }
-        menu
-    })
-    .into_any_element()
-}
-
-fn plain_row(
-    item: &SidebarItem,
-    marks: Option<&RowMarks>,
-    indent: bool,
-    now: i64,
-    theme: &gpui_component::Theme,
-) -> gpui::Stateful<gpui::Div> {
-    let action = item.action.boxed_clone();
-    let is_project = item.account.is_some();
-    let (pinned, unread) = marks.map_or((false, false), |m| (m.pinned, m.unread));
-    // A project row is never lifted (T3 keeps project headers flat): a selected one is only set in medium weight.
-    ui::row(item.id.clone(), item.selected && !is_project, theme)
-        .when(item.selected && is_project, |this| {
-            this.font_weight(gpui::FontWeight::MEDIUM)
-        })
-        .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-        .when(indent, |this| this.pl(gpui::px(THREAD_INDENT)))
-        .when(is_project, |this| {
-            this.child(ui::Monogram::new(&item.label))
-        })
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .truncate()
-                .when(unread, |d| d.font_weight(gpui::FontWeight::MEDIUM))
-                .child(item.label.clone()),
-        )
-        .when(pinned, |this| {
-            this.child(
-                Icon::new(IconName::Star)
-                    .size_3()
-                    .text_color(theme.muted_foreground),
-            )
-        })
-        // T3's unread dot: a finished turn nobody has looked at yet.
-        .when(unread, |this| this.child(ui::StatusDot::new(theme.info)))
-        .children(item.account.as_ref().and_then(|a| {
-            let badge = match a {
-                RowAccount::Bound(acc) => ui::AccountBadge::new(acc.id.clone(), acc.label.clone()),
-                RowAccount::Unbound => ui::AccountBadge::unbound(),
-                RowAccount::Hidden => return None,
-            };
-            Some(div().flex_shrink_0().max_w(gpui::px(104.)).child(badge))
-        }))
-        .children(match item.status.and_then(ui::Status::badge) {
-            Some((icon, word)) => {
-                let color = item
-                    .status
-                    .map_or(theme.muted_foreground, |s| s.color(theme));
-                Some(
-                    h_flex()
-                        .flex_shrink_0()
-                        .gap_1()
-                        .text_size(ui::META)
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(ui::ink(theme, color))
-                        .child(Icon::new(icon).size_3().text_color(color))
-                        .child(word)
-                        .into_any_element(),
-                )
-            }
-            // shortcut: the time is computed when the sidebar draws, so an idle sidebar shows it as of its last redraw;
-            // add a minute timer if stale times get noticed.
-            None => item.updated_ms.map(|t| {
-                div()
-                    .flex_shrink_0()
-                    .text_size(ui::META)
-                    .font_weight(gpui::FontWeight::NORMAL)
-                    .text_color(theme.muted_foreground)
-                    .child(ui::ago(now, t))
-                    .into_any_element()
-            }),
-        })
-}
 
 impl Sidebar {
     fn rows(
@@ -326,19 +235,17 @@ impl Render for Sidebar {
             );
             i += if nested.is_some() { 2 } else { 1 };
         }
+        let focus = self.focus.clone();
         v_flex()
             .id("sidebar")
             .track_focus(&self.focus)
             .size_full()
-            .overflow_y_scroll()
-            .px_2()
-            .pb_3()
-            .gap_4()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
             // The window's top row: on macOS the traffic lights sit at its start, so the picker starts after them.
             .child(
                 div()
+                    .px_2()
                     .min_h(ui::TOP_ROW_H)
                     .flex()
                     .flex_col()
@@ -358,13 +265,55 @@ impl Render for Sidebar {
             )
             .when(self.searchable, |this| {
                 this.child(
-                    Input::new(&self.search).small().cleanable(true).prefix(
-                        Icon::new(IconName::Search)
-                            .size_3p5()
-                            .text_color(theme.muted_foreground),
-                    ),
+                    h_flex()
+                        .px_2()
+                        .pb_2()
+                        .gap_1()
+                        .child(
+                            div().flex_1().min_w_0().child(
+                                Input::new(&self.search).small().cleanable(true).prefix(
+                                    Icon::new(IconName::Search)
+                                        .size_3p5()
+                                        .text_color(theme.muted_foreground),
+                                ),
+                            ),
+                        )
+                        .children(self.scope.clone().map(|scope| scope_button(scope, &focus)))
+                        .child(
+                            Button::new("sidebar-new-thread")
+                                .ghost()
+                                .small()
+                                .icon(IconName::Plus)
+                                .tooltip("New thread")
+                                .on_click(|_, window, cx| {
+                                    window.dispatch_action(Box::new(super::super::NewThread), cx)
+                                }),
+                        ),
                 )
             })
-            .children(blocks)
+            .child(
+                v_flex()
+                    .id("sidebar-list")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .px_2()
+                    .pb_3()
+                    .gap_4()
+                    .children(blocks),
+            )
+            // T3's footer: Settings, always in reach.
+            .child(
+                h_flex().flex_shrink_0().px_2().py_2().child(
+                    Button::new("sidebar-settings")
+                        .ghost()
+                        .small()
+                        .icon(IconName::Settings)
+                        .label("Settings")
+                        .on_click(|_, window, cx| {
+                            window.dispatch_action(Box::new(super::super::OpenSettings), cx)
+                        }),
+                ),
+            )
     }
 }

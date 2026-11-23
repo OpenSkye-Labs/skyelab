@@ -24,7 +24,15 @@ fn sidebar_thread_status_follows_the_store(cx: &mut TestAppContext) {
             .is_some_and(|t| t.status != "starting" && t.status != "running")
     });
     cx.run_until_parked();
-    let shown = ws.read_with(cx, |ws, cx| ws.sidebar.read(cx).sections[1].items[0].status);
+    let shown = ws.read_with(cx, |ws, cx| {
+        ws.sidebar
+            .read(cx)
+            .sections
+            .iter()
+            .flat_map(|s| &s.items)
+            .find(|i| i.id.as_ref() == format!("thread-{id}"))
+            .and_then(|i| i.status)
+    });
     assert!(
         !matches!(shown, Some(Status::Starting | Status::Running)),
         "SIDEBAR_STALE_STATUS {shown:?}"

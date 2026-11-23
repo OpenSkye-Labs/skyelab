@@ -21,6 +21,9 @@ What's built today:
   `CODEX_HOME` each) and bind folders to them in Settings. The folder decides both the account and the agent.
   The deepest binding wins. Each binding remembers the real folder you confirmed, so if the path later points
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
+- **One thread list.** The sidebar lists every project's threads together (pinned, working, then newest), each row
+  with its project, state and the account its folder is bound to. A project filter narrows it, and New thread asks
+  which project when it can't tell.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, renders its messages and tool calls as they arrive, and saves everything to a local SQLite database.
   Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete

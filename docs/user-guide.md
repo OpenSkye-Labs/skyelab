@@ -16,9 +16,17 @@ threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** sh
 
 ## Layout
 
-The sidebar lists your projects, each with the account its folder is bound to; the selected project's threads sit
-under it with their state (**Working**, **Interrupted**, **Failed**) or how long ago they last changed. Threads open
-in the center. Tools open in the right panel beside the thread: **Changes**, browsers and **Devices**. Settings and
+The sidebar lists the threads of all your projects in one list: **Pinned** first, then **Working** (agents running
+now), then the rest, newest first. Each row shows its project, then the title, then the account the project's folder
+is bound to (**No account** in the warning color if it has none). On the right is the thread's state (**Working**,
+**Approval** while the agent waits for your answer, **Failed**, **Interrupted**, **Done** for a finished turn you
+haven't seen) or how long ago it last changed. Threads open in the center, and the window follows the thread's
+project: the status bar, terminals and Open in editor use its folder and account.
+
+Above the list are the search field, the project filter (the folder button) and **New thread** (**+**). The project
+filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
+**Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
+it asks which project. **Settings** is at the bottom of the sidebar. Tools open in the right panel beside the thread: **Changes**, browsers and **Devices**. Settings and
 Remote open in the center.
 
 The three buttons at the right end of the center's tab bar show and hide the sidebar (<kbd>⌘B</kbd>), the terminal
@@ -143,18 +151,20 @@ tool, but SkyeLab has no way to answer its question yet.
 
 ### Finding and managing threads
 
-- **Search.** The field at the top of the sidebar filters the selected project's threads by title and by what was
+- **Search.** The field at the top of the sidebar filters the listed threads by title and by what was
   said in them (your prompts and the agent's answers, not tool output).
 - **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
   it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete
   show a notice with **Undo**. A deleted thread is gone for good about eight seconds later (or at the next start if
   you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
   worktree can't be deleted until you discard the worktree.
-- **Right-click a project** to **Rename** it or **Remove from SkyeLab**. Removing never touches the folder or its
+- **Manage a project** from the project filter: **Manage projects**, then the project, then **Rename**,
+  **Open in editor**, **Account bindings…** (opens Settings) or **Remove from SkyeLab**. **Switch to project** in the
+  palette narrows the list to that project. Removing never touches the folder or its
   files, and keeps the threads' history: add the same folder again and the project comes back with its threads. If
   agents are running in it, SkyeLab asks first, and removing stops them.
-- **Unread.** When a turn finishes in a thread you aren't looking at, the thread's title turns bold with a dot until
-  you open it. You also get a notice: a toast in the window if SkyeLab is in front, or a system notification if it
+- **Unread.** When a turn finishes in a thread you aren't looking at, the thread's title turns bold and its row says
+  **Done** until you open it. You also get a notice: a toast in the window if SkyeLab is in front, or a system notification if it
   is in the background (system notifications need the bundled app; macOS asks for permission the first time).
   Archived threads stay quiet.
 - **Keys.** <kbd>⌘N</kbd> new thread, <kbd>⇧⌘]</kbd> / <kbd>⇧⌘[</kbd> next / previous thread, <kbd>⌘1</kbd>–<kbd>⌘9</kbd>

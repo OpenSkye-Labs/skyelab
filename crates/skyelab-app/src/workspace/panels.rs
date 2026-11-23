@@ -67,8 +67,10 @@ macro_rules! panel {
 }
 
 mod sidebar;
+mod sidebar_rows;
 pub use sidebar::{
-    ArchivedRows, RowAccount, RowMarks, Sidebar, SidebarItem, SidebarSearch, SidebarSection,
+    ArchivedRows, RowAccount, RowMarks, ScopeMenu, ScopeProject, Sidebar, SidebarItem,
+    SidebarSearch, SidebarSection,
 };
 
 /// The center's first tab: what SkyeLab is and the keys that do things today.
@@ -114,7 +116,7 @@ impl Render for Welcome {
                     .gap_6()
                     .child(
                         ui::EmptyState::new("Pick a thread to continue")
-                            .hint("Or start one from a project in the sidebar. Every folder runs on the account it is bound to.")
+                            .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
                             .page(),
                     )
                     .child(

@@ -367,6 +367,19 @@ impl ThreadView {
         }
     }
 
+    /// The agent waits for a permission answer (T3's "Approval" in the sidebar).
+    pub(super) fn awaiting_approval(&self) -> bool {
+        // shortcut: only the last 32 items are checked (a waiting agent adds nothing after its ask, so it is near the
+        // end); scan further if asks ever get buried.
+        self.session.is_some()
+            && self
+                .items
+                .iter()
+                .rev()
+                .take(32)
+                .any(|i| matches!(i, Item::Approval(a) if a.decision.is_none()))
+    }
+
     pub fn is_expanded(&self, tool_id: &str) -> bool {
         self.expanded.contains(tool_id)
     }

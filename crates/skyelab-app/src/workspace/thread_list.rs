@@ -1,11 +1,27 @@
-//! The sidebar's rows: projects, and the selected project's threads in their order, the archived split, and the
-//! thread filter.
+//! The sidebar's rows: every project's threads in one list (pinned, working, the rest), the archived split, the
+//! project scope filter and the thread filter.
 
-use super::panels::{ArchivedRows, RowAccount, RowMarks, SidebarItem, SidebarSection};
-use super::{AddProject, NewThread, OpenThread, SelectProject, Workspace, lock};
+use super::panels::{
+    ArchivedRows, RowAccount, RowMarks, ScopeMenu, ScopeProject, SidebarItem, SidebarSection,
+};
+use super::{AddProject, OpenThread, ShowAllProjects, Workspace, lock};
 use crate::ui::Status;
-use gpui::{AppContext as _, Context, SharedString};
+use gpui::{Action, AppContext as _, Context, SharedString, Window};
 use skyelab_store::Thread;
+
+/// Adds the project to the sidebar's scope filter, or takes it out.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct ToggleProjectScope {
+    pub id: i64,
+}
+
+/// New thread in this project (the project picker's entries).
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct NewThreadIn {
+    pub id: i64,
+}
 
 impl Workspace {
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
@@ -15,55 +31,42 @@ impl Workspace {
                 sidebar.marks.clear();
                 sidebar.archived = None;
                 sidebar.searchable = false;
+                sidebar.scope = None;
                 cx.notify();
             });
         }
-        let mut marks = std::collections::HashMap::new();
-        for p in &self.projects {
-            marks.insert(
-                SharedString::from(format!("project-{}", p.id)),
-                RowMarks {
-                    menu: super::manage::project_menu(p.id),
-                    ..Default::default()
-                },
-            );
-        }
-        let current = self.project.as_ref().map(|p| p.id);
-        let projects = self
-            .projects
-            .iter()
-            .map(|p| SidebarItem {
-                id: format!("project-{}", p.id).into(),
-                label: p.name.clone().into(),
-                selected: Some(p.id) == current,
-                action: Box::new(SelectProject { id: p.id }),
-                status: None,
-                updated_ms: None,
-                account: Some(match self.project_accounts.get(&p.id) {
-                    Some(Some(a)) => RowAccount::Bound(a.clone()),
-                    Some(None) => RowAccount::Unbound,
-                    None => RowAccount::Hidden,
-                }),
-            })
-            .collect();
-        // An open tab knows its thread's state now; the row is only as fresh as the last project load.
-        let live: std::collections::HashMap<i64, Status> = self
+        // An open tab knows its thread's state now; the row is only as fresh as the last load.
+        let live: std::collections::HashMap<i64, (Status, bool)> = self
             .open_threads
             .iter()
             .filter_map(|v| v.upgrade())
             .filter_map(|v| {
                 let v = v.read(cx);
-                Some((v.thread.as_ref()?.id, v.live_status()))
+                Some((
+                    v.thread.as_ref()?.id,
+                    (v.live_status(), v.awaiting_approval()),
+                ))
             })
             .collect();
+        let names: std::collections::HashMap<i64, &str> = self
+            .projects
+            .iter()
+            .map(|p| (p.id, p.name.as_str()))
+            .collect();
         let shown = self.shown_thread(cx);
+        let mut marks = std::collections::HashMap::new();
         let mut item = |t: &Thread| {
             let id: SharedString = format!("thread-{}", t.id).into();
+            let (status, approval) = live
+                .get(&t.id)
+                .copied()
+                .unwrap_or_else(|| (Status::parse(&t.status), false));
             marks.insert(
                 id.clone(),
                 RowMarks {
                     pinned: t.pinned_at.is_some(),
                     unread: t.unread,
+                    approval,
                     menu: super::manage::thread_menu(t),
                 },
             );
@@ -72,70 +75,122 @@ impl Workspace {
                 label: t.title.clone().into(),
                 selected: Some(t.id) == shown,
                 action: Box::new(OpenThread { id: t.id }),
-                status: Some(
-                    live.get(&t.id)
-                        .copied()
-                        .unwrap_or_else(|| Status::parse(&t.status)),
-                ),
+                status: Some(status),
                 updated_ms: Some(t.updated_at),
-                account: None,
+                account: Some(match self.project_accounts.get(&t.project_id) {
+                    Some(Some(a)) => RowAccount::Bound(a.clone()),
+                    Some(None) => RowAccount::Unbound,
+                    None => RowAccount::Hidden,
+                }),
+                project: Some(
+                    names
+                        .get(&t.project_id)
+                        .copied()
+                        .unwrap_or_default()
+                        .to_owned()
+                        .into(),
+                ),
             }
         };
-        let (listed, archived) = self.listed_threads();
-        let threads: Vec<SidebarItem> = listed.into_iter().map(&mut item).collect();
+        let groups = self.thread_groups(cx);
+        let [pinned, working, rest] =
+            groups.map(|g| g.into_iter().map(&mut item).collect::<Vec<_>>());
         let archived = ArchivedRows {
-            items: archived.into_iter().map(&mut item).collect(),
+            items: self.listed_threads().1.into_iter().map(&mut item).collect(),
             open: self.show_archived,
             toggle: Box::new(super::manage::ToggleArchivedThreads),
         };
-        let has_project = self.project.is_some();
+        let scope = ScopeMenu {
+            projects: self
+                .projects
+                .iter()
+                .map(|p| ScopeProject {
+                    id: p.id,
+                    name: p.name.clone().into(),
+                    checked: self.scope.contains(&p.id),
+                })
+                .collect(),
+        };
         let searching = self.thread_search.is_some();
+        let no_projects = self.projects.is_empty();
+        let section = |title: &str, items| SidebarSection {
+            title: SharedString::from(title.to_owned()),
+            items,
+            empty_title: "".into(),
+            empty_hint: "".into(),
+            button: None,
+            nested: false,
+        };
+        let mut sections = Vec::new();
+        if !pinned.is_empty() {
+            sections.push(section("Pinned", pinned));
+        }
+        if !working.is_empty() {
+            sections.push(section("Working", working));
+        }
+        sections.push(SidebarSection {
+            empty_title: if searching {
+                "No matching threads"
+            } else if no_projects {
+                "No projects yet"
+            } else {
+                "No threads yet"
+            }
+            .into(),
+            empty_hint: if searching {
+                "Titles and messages are searched."
+            } else if no_projects {
+                "Add a folder to start. It runs on the account it is bound to."
+            } else {
+                "Start one with New thread."
+            }
+            .into(),
+            button: no_projects.then(|| {
+                (
+                    SharedString::from("Add project"),
+                    Box::new(AddProject) as Box<_>,
+                )
+            }),
+            ..section("Threads", rest)
+        });
         self.sidebar.update(cx, |sidebar, cx| {
             sidebar.marks = marks;
             sidebar.archived = Some(archived);
             sidebar.searchable = true;
-            sidebar.sections = vec![
-                SidebarSection {
-                    title: "Projects".into(),
-                    items: projects,
-                    empty_title: "No projects yet".into(),
-                    empty_hint: "Add a folder to start. It runs on the account it is bound to."
-                        .into(),
-                    button: Some(("Add".into(), Box::new(AddProject))),
-                    nested: false,
-                },
-                SidebarSection {
-                    title: "Threads".into(),
-                    items: threads,
-                    empty_title: if searching {
-                        "No matching threads"
-                    } else {
-                        "No threads yet"
-                    }
-                    .into(),
-                    empty_hint: if searching {
-                        "Titles and messages are searched."
-                    } else if has_project {
-                        "Start one with New thread."
-                    } else {
-                        "Select a project to see its threads."
-                    }
-                    .into(),
-                    button: has_project.then(|| {
-                        (
-                            SharedString::from("New thread"),
-                            Box::new(NewThread) as Box<_>,
-                        )
-                    }),
-                    nested: true,
-                },
-            ];
+            sidebar.scope = Some(scope);
+            sidebar.sections = sections;
             cx.notify();
         });
     }
 
-    /// The selected project's threads as the sidebar lists them: (pinned first, then by last change; the
-    /// archived ones), both narrowed by the thread filter.
+    /// The listed threads in the sidebar's three groups: pinned, working (running or starting), the rest. Each keeps
+    /// the newest-first order.
+    fn thread_groups(&self, cx: &gpui::App) -> [Vec<&Thread>; 3] {
+        let working: std::collections::HashSet<i64> = self
+            .open_threads
+            .iter()
+            .filter_map(|v| v.upgrade())
+            .filter_map(|v| {
+                let v = v.read(cx);
+                matches!(v.live_status(), Status::Starting | Status::Running)
+                    .then(|| v.thread.as_ref().map(|t| t.id))?
+            })
+            .collect();
+        let mut groups: [Vec<&Thread>; 3] = Default::default();
+        for t in self.listed_threads().0 {
+            let at = if t.pinned_at.is_some() {
+                0
+            } else if working.contains(&t.id) {
+                1
+            } else {
+                2
+            };
+            groups[at].push(t);
+        }
+        groups
+    }
+
+    /// The listed threads (in the scope, matching the filter) as (not archived, archived), newest first.
     pub(super) fn listed_threads(&self) -> (Vec<&Thread>, Vec<&Thread>) {
         // A title is checked live (rows change after a search ran); message matches come from the last search,
         // which reruns whenever the thread list reloads.
@@ -146,18 +201,47 @@ impl Workspace {
                     || ids.as_ref().is_some_and(|ids| ids.contains(&t.id))
             }
         };
-        let (mut listed, archived): (Vec<&Thread>, Vec<&Thread>) = self
-            .threads
+        let in_scope = |t: &&Thread| self.scope.is_empty() || self.scope.contains(&t.project_id);
+        self.threads
             .iter()
+            .filter(in_scope)
             .filter(matches)
-            .partition(|t| t.archived_at.is_none());
-        listed.sort_by_key(|t| t.pinned_at.is_none()); // stable, so each group keeps its order
-        (listed, archived)
+            .partition(|t| t.archived_at.is_none())
+    }
+
+    /// The scope filter's check row: the project joins the filter, or leaves it.
+    pub(super) fn toggle_project_scope(
+        &mut self,
+        a: &ToggleProjectScope,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match self.scope.iter().position(|&id| id == a.id) {
+            Some(at) => {
+                self.scope.remove(at);
+            }
+            None => self.scope.push(a.id),
+        }
+        self.refresh_sidebar(cx);
+    }
+
+    pub(super) fn show_all_projects(
+        &mut self,
+        _: &ShowAllProjects,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.scope.clear();
+        self.refresh_sidebar(cx);
     }
 
     /// The order thread keys walk (previous/next, 1–9): the sidebar's, archived ones left out.
-    pub(super) fn thread_order(&self) -> Vec<i64> {
-        self.listed_threads().0.iter().map(|t| t.id).collect()
+    pub(super) fn thread_order(&self, cx: &gpui::App) -> Vec<i64> {
+        self.thread_groups(cx)
+            .concat()
+            .iter()
+            .map(|t| t.id)
+            .collect()
     }
 
     /// The thread list changed (a load, a project switch, a finished turn): run the filter's search again.
@@ -168,7 +252,7 @@ impl Workspace {
         }
     }
 
-    /// The sidebar's filter changed: search titles and message text of the selected project's threads.
+    /// The sidebar's filter changed: search titles and message text of every project's threads.
     pub(super) fn search_threads(&mut self, query: SharedString, cx: &mut Context<Self>) {
         let query = query.trim().to_owned();
         if query.is_empty() {
@@ -183,12 +267,9 @@ impl Workspace {
         };
         self.thread_search = Some((query.clone(), kept));
         self.refresh_sidebar(cx);
-        let (store, project) = (
-            self.backend.store.clone(),
-            self.project.as_ref().map(|p| p.id),
-        );
+        let store = self.backend.store.clone();
         let task =
-            cx.background_spawn(async move { lock(&store)?.search_threads(&query, project, 500) });
+            cx.background_spawn(async move { lock(&store)?.search_threads(&query, None, 500) });
         self._search = Some(cx.spawn(async move |this, cx| {
             let found = task.await;
             let _ = this.update(cx, |this, cx| {
