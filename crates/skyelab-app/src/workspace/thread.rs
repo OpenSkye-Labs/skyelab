@@ -80,6 +80,8 @@ pub struct ThreadView {
     pub(super) rerun: Option<String>,
     /// Started without the user (delegated, or from another device): its row is marked unread when it gets one.
     pub(super) background: bool,
+    /// The window it shows in: an async refusal puts the message back into the prompt there.
+    pub(super) window: gpui::AnyWindowHandle,
     stop_requested: bool,
     /// Bumped by every launch; a pump from an earlier launch never ends a later one.
     pub(super) launches: u64,
@@ -258,7 +260,10 @@ impl ThreadView {
                     InputEvent::PressEnter {
                         secondary: true, ..
                     } => this.send_prompt(&SendPrompt, window, cx),
-                    InputEvent::Change => this.prompt_changed(cx),
+                    InputEvent::Change => {
+                        this.prompt_changed(cx);
+                        this.restore_draft(window, cx);
+                    }
                     _ => {}
                 },
             ),
@@ -273,6 +278,7 @@ impl ThreadView {
             super::scripts::ScriptMenu::new(owner, backend.store.clone(), project_id, window, cx)
         });
         Self {
+            window: window.window_handle(),
             branch_picker,
             scripts,
             folder_account: config.resolve(&cwd).cloned(),

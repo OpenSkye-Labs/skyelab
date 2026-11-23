@@ -24,6 +24,9 @@ mod composer_queue;
 #[path = "composer_queue_test.rs"]
 mod composer_queue_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "composer_restore_test.rs"]
+mod composer_restore_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "composer_review_test.rs"]
 mod composer_review_test;
 #[path = "composer_send.rs"]
@@ -305,8 +308,9 @@ impl ThreadView {
                                 .xsmall()
                                 .icon(Icon::new(Lucide::X))
                                 .tooltip("Remove")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.remove_attachment(ix, cx)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_attachment(ix, cx);
+                                    this.restore_draft(window, cx);
                                 })),
                         )
                 }))

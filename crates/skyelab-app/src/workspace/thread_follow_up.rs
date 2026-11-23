@@ -55,6 +55,7 @@ impl ThreadView {
         let draft = (text.clone(), attachments.clone());
         // Chained, so quick follow-ups reach the store and claude in the order they were sent.
         let prev = self.send_chain.take();
+        let shown_in = self.window;
         let write = cx.background_executor().clone();
         self.send_chain = Some(cx.spawn(async move |this, cx| {
             if let Some(prev) = prev {
@@ -134,6 +135,10 @@ impl ThreadView {
                     this.composer.restore = Some(draft);
                     this.show_error(e, cx)
                 }
+            });
+            // Back into the prompt now if it is empty, else once the user empties it (`restore_draft`).
+            let _ = shown_in.update(cx, |_, window, cx| {
+                this.update(cx, |this, cx| this.restore_draft(window, cx))
             });
         }));
         true
