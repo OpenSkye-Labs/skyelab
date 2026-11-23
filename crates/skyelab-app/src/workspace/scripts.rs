@@ -417,23 +417,3 @@ impl Render for ScriptMenu {
             }))
     }
 }
-
-impl ThreadView {
-    /// The header's Run menu.
-    pub(super) fn render_run(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let open = self.scripts.read(cx).open;
-        let (toggle, content) = (self.scripts.clone(), self.scripts.clone());
-        gpui_component::popover::Popover::new("run-popover")
-            .open(open)
-            .on_open_change(move |open, _, cx| toggle.update(cx, |m, cx| m.set_open(*open, cx)))
-            .trigger(
-                Button::new("run-trigger")
-                    .ghost()
-                    .xsmall()
-                    .icon(gpui_component::Icon::new(gpui_component::IconName::Play))
-                    .label("Run"),
-            )
-            .content(move |_, _, _| content.clone())
-            .into_any_element()
-    }
-}

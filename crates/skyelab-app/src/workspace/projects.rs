@@ -233,7 +233,10 @@ impl Workspace {
     ) {
         // Its state shows in the sidebar, so redraw that when the tab changes.
         self._thread_events
-            .push(cx.observe(&view, |this, _, cx| this.refresh_sidebar(cx)));
+            .push(cx.observe(&view, |this, view, cx| {
+                this.sync_lineage(&view, cx);
+                this.refresh_sidebar(cx)
+            }));
         self._thread_events.push(cx.subscribe_in(
             &view,
             window,

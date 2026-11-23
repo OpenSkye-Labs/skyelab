@@ -47,8 +47,8 @@ impl ThreadView {
             |n| n.to_string_lossy().into_owned(),
         );
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
-        // The window's top row: breadcrumb, then the thread's actions (other features add theirs here), then the
-        // dock toggles last.
+        // The window's top row: breadcrumb and account, then the details card's toggle beside the dock toggles. The
+        // thread's folder, branch, git and lineage controls live in that card.
         super::layout::page_header(cx)
             .child(
                 h_flex()
@@ -76,7 +76,6 @@ impl ThreadView {
                         h_flex()
                             .flex_shrink_0()
                             .gap_2()
-                            .child("Delegated by")
                             .child(thread_link("parent-link", id, title))
                             .child(
                                 div()
@@ -92,10 +91,6 @@ impl ThreadView {
                     .id("provider-badge")
                     .child(self.account_badge().chip()),
             )
-            .children(self.render_branch(cx))
-            .child(self.render_run(cx))
-            .children(self.render_pr_link(cx))
-            .child(self.render_worktree_actions(cx))
             .when(running, |this| {
                 this.child(
                     Button::new("interrupt")
@@ -114,57 +109,14 @@ impl ThreadView {
                         .on_click(cx.listener(|this, _, window, cx| this.stop(&Stop, window, cx))),
                 )
             })
-            .child(super::layout::panel_toggles(cx))
+            .child(
+                h_flex()
+                    .flex_shrink_0()
+                    .gap_0p5()
+                    .child(self.render_details_toggle(cx))
+                    .child(super::layout::panel_toggles(cx)),
+            )
             .into_any_element()
-    }
-
-    /// The threads this one's agent delegated, each a link.
-    fn render_children(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if self.children.is_empty() {
-            return None;
-        }
-        let theme = cx.theme();
-        Some(
-            h_flex()
-                .flex_wrap()
-                .px_4()
-                .py_1()
-                .gap_1()
-                .border_b_1()
-                .border_color(theme.border)
-                .text_xs()
-                .child(
-                    div()
-                        .text_color(theme.muted_foreground)
-                        .child(format!("Delegated threads ({})", self.children.len())),
-                )
-                .children(self.children.iter().map(|c| {
-                    thread_link(
-                        SharedString::from(format!("child-{}", c.id)),
-                        c.id,
-                        c.title.clone(),
-                    )
-                }))
-                .into_any_element(),
-        )
-    }
-
-    fn render_pr_link(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let url = self.thread.as_ref()?.pr_url.clone()?;
-        let label = url.trim_start_matches("https://").to_string();
-        Some(
-            Button::new("pr-link")
-                .outline()
-                .xsmall()
-                .label(format!("PR · {label}"))
-                .tooltip(url.clone())
-                .on_click(cx.listener(move |_, _, _, cx| {
-                    if opens_in_browser(&url) {
-                        cx.open_url(&url);
-                    }
-                }))
-                .into_any_element(),
-        )
     }
 
     fn render_cta(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -398,7 +350,6 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 impl Render for ThreadView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let header = self.render_header(cx);
-        let children = self.render_children(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);
         let bypass_confirm = self.render_bypass_confirm(cx);
@@ -464,6 +415,7 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(Self::toggle_worktree))
             .on_action(cx.listener(Self::open_changes))
+            .on_action(cx.listener(Self::toggle_details))
             .on_action(cx.listener(Self::open_worktree_terminal))
             .on_action(cx.listener(Self::discard_worktree))
             .on_action(cx.listener(Self::confirm_discard))
@@ -471,7 +423,6 @@ impl Render for ThreadView {
             .size_full()
             .bg(theme.background)
             .child(header)
-            .children(children)
             .child(body)
             .child(
                 v_flex()

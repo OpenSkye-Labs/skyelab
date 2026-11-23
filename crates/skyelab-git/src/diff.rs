@@ -66,7 +66,10 @@ pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
         .filter_map(|l| {
             let mut cols = l.split('\t');
             // Binary files show "-" for both counts.
-            Some((cols.next()?.parse::<u64>().ok()?, cols.next()?.parse::<u64>().ok()?))
+            Some((
+                cols.next()?.parse::<u64>().ok()?,
+                cols.next()?.parse::<u64>().ok()?,
+            ))
         })
         .fold((0, 0), |(a, r), (x, y)| (a + x, r + y)))
 }

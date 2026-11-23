@@ -41,6 +41,7 @@ mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
 pub(crate) mod thread_checkpoints;
+mod thread_details;
 mod thread_items;
 mod thread_list;
 mod thread_model;
@@ -382,6 +383,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
+            .on_action(cx.listener(Self::toggle_thread_details))
+            .on_action(cx.listener(Self::open_in_editor_with))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
@@ -565,6 +568,8 @@ mod terminal_link_test;
 
 #[cfg(test)]
 mod delegation_test;
+#[cfg(test)]
+mod thread_details_test;
 
 #[cfg(all(test, unix))]
 mod delegation_idempotent_test;

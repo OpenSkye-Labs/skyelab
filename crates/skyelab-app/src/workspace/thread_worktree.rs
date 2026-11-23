@@ -162,45 +162,6 @@ impl ThreadView {
         )
     }
 
-    pub(super) fn render_worktree_actions(&self, cx: &mut Context<Self>) -> AnyElement {
-        let has_worktree = self
-            .thread
-            .as_ref()
-            .is_some_and(|t| t.worktree_path.is_some());
-        h_flex()
-            .gap_2()
-            .child(
-                Button::new("open-changes")
-                    .ghost()
-                    .xsmall()
-                    .label("Changes")
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.open_changes(&OpenChanges, window, cx)
-                    })),
-            )
-            .when(has_worktree, |this| {
-                this.child(
-                    Button::new("worktree-terminal")
-                        .ghost()
-                        .xsmall()
-                        .label("Open terminal here")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.open_worktree_terminal(&OpenWorktreeTerminal, window, cx)
-                        })),
-                )
-                .child(
-                    Button::new("discard-worktree")
-                        .ghost()
-                        .xsmall()
-                        .label("Discard worktree")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.discard_worktree(&DiscardWorktree, window, cx)
-                        })),
-                )
-            })
-            .into_any_element()
-    }
-
     /// The confirm row for a dirty worktree, naming what would be lost.
     pub(super) fn render_discard_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let st = self.wt.discard_pending.as_ref()?;

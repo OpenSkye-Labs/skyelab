@@ -242,8 +242,23 @@ impl Workspace {
         }
     }
 
-    /// Opens the shown thread's folder (its worktree, if it has one), else the project's, in the user's editor.
     fn open_in_editor(&mut self, _: &OpenInEditor, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_editor(None, window, cx);
+    }
+
+    /// Opens in the editor the details card's chooser picked, and keeps it as the `editor` setting.
+    pub(super) fn open_in_editor_with(
+        &mut self,
+        a: &super::thread_details::OpenInEditorWith,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_editor(Some(a.editor.clone()), window, cx);
+    }
+
+    /// Opens the shown thread's folder (its worktree, if it has one), else the project's, in the user's editor
+    /// (`pick`, saved to settings first, else the configured one).
+    fn open_editor(&mut self, pick: Option<String>, window: &mut Window, cx: &mut Context<Self>) {
         if self.is_remote() {
             return; // the folder is on another machine
         }
@@ -256,9 +271,14 @@ impl Workspace {
         };
         let settings = self.layout.path.clone();
         let task = cx.background_spawn(async move {
-            let setting = settings
-                .and_then(|p| skyelab_core::AppSettings::load(&p).ok())
-                .and_then(|s| s.editor);
+            if let (Some(pick), Some(path)) = (&pick, &settings) {
+                skyelab_core::AppSettings::update(path, |s| s.editor = Some(pick.clone()))?;
+            }
+            let setting = pick.or_else(|| {
+                settings
+                    .and_then(|p| skyelab_core::AppSettings::load(&p).ok())
+                    .and_then(|s| s.editor)
+            });
             let argv = skyelab_core::editor_argv(
                 setting.as_deref(),
                 |k| std::env::var(k).ok(),

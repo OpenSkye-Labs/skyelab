@@ -93,6 +93,12 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
   separator in `icon-muted` (`chat/ChatHeader.tsx:254-414`, `W/components/WorkspaceBreadcrumb.tsx:14,27-58`).
 - Right: ghost 28 px icon toggles for panels (`chat/PanelLayoutControls.tsx:63-174`). Branch and environment live in the
   composer's context strip, not the header.
+- Thread details card (`chat/ThreadDetailsPanel.tsx`, `threadDetailsPanelStyles.ts`): a popover from the square-menu
+  toggle left of the panel toggles. Rows 32 tall, `px-2.5`, `gap-2.5`, radius 8, 13 px `font-medium` at 80% foreground,
+  16 px muted icons, hover black 3.5% / white 8%. Sections (workspace, version control, lineage, usage) split by a
+  hairline. SkyeLab: `workspace/thread_details.rs`, 320 wide, radius 16; pickers open as pages inside the card.
+- Modal backdrop (`ui/dialog.tsx`, `ui/sheet.tsx`): `bg-background/60 backdrop-blur`. GPUI has no in-window blur, so
+  SkyeLab's `overlay` theme token is the canvas at 75%, painted by every gpui-component `Dialog`.
 - No app-wide status bar.
 
 ## 6. Primitives

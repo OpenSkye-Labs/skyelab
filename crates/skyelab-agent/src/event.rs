@@ -143,6 +143,7 @@ impl Event {
             _ => return None,
         };
         let used = info["utilization"].as_f64()?;
-        used.is_finite().then(|| (label, used.clamp(0.0, 1.0) as f32))
+        used.is_finite()
+            .then(|| (label, used.clamp(0.0, 1.0) as f32))
     }
 }
