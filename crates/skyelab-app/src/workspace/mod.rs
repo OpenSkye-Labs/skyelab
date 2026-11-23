@@ -415,6 +415,8 @@ mod changes_model_test;
 mod changes_selection_test;
 #[cfg(test)]
 mod changes_tree_test;
+#[cfg(test)]
+mod changes_whitespace_test;
 #[cfg(all(test, unix))]
 mod checkpoint_midturn_test;
 #[cfg(test)]

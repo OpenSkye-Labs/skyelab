@@ -291,7 +291,8 @@ impl Render for ChangesView {
                     .gap_2()
                     .child(
                         div()
-                            .flex_shrink_0()
+                            .min_w_0()
+                            .truncate()
                             .text_size(ui::BODY)
                             .font_weight(FontWeight::MEDIUM)
                             .child(self.title()),
@@ -305,7 +306,7 @@ impl Render for ChangesView {
                             .child(ui::short_path(&self.dir, dirs::home_dir().as_deref())),
                     ),
             )
-            .child(toggles)
+            .child(div().flex_none().child(toggles))
             .child(
                 Button::new("refresh-changes")
                     .ghost()

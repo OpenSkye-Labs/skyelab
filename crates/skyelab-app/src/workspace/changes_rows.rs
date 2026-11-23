@@ -60,7 +60,7 @@ impl ChangesView {
                             }) => Some((*old, *new, *kind, text.clone())),
                             _ => None,
                         });
-                        let el = div().flex_1().min_w_0().h_full().flex();
+                        let el = div().flex_1().min_w_0().h_full().flex().overflow_hidden();
                         match line {
                             Some((old, new, kind, text)) => {
                                 let n = if left { old } else { new };

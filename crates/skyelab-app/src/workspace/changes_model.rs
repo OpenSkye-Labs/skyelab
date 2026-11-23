@@ -95,19 +95,11 @@ pub fn load_scope(
         Scope::SinceStart => {
             let now = skyelab_git::snapshot_tree(dir)?;
             let from = tree_of(0)?;
-            from_diffs(skyelab_git::diff_with(
-                dir,
-                Against::Trees(&from, &now),
-                ignore_ws,
-            )?)
+            from_diffs(diff_ws(dir, Against::Trees(&from, &now), ignore_ws)?)
         }
         Scope::Turn(n) => {
             let (from, to) = (tree_of(n.saturating_sub(1))?, tree_of(n)?);
-            from_diffs(skyelab_git::diff_with(
-                dir,
-                Against::Trees(&from, &to),
-                ignore_ws,
-            )?)
+            from_diffs(diff_ws(dir, Against::Trees(&from, &to), ignore_ws)?)
         }
     };
     changes.checkpoints = checkpoints;
@@ -175,7 +167,7 @@ fn load_with(dir: &Path, base: Option<&str>, ignore_ws: bool) -> Result<Changes>
     // What is left of the diff's line cap for untracked files, after the tracked ones.
     let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let diffs = match base {
-        Some(base) => skyelab_git::diff_with(dir, Against::MergeBase(base), ignore_ws)?,
+        Some(base) => diff_ws(dir, Against::MergeBase(base), ignore_ws)?,
         None => diff_head(dir, ignore_ws)?,
     };
     let mut entries = diff_entries(diffs, &mut lines_left);
@@ -231,7 +223,9 @@ fn diff_entries(
             rows.push(Row::TooLarge(n));
         }
         if rows.is_empty() && d.hunks.is_empty() && d.kind == ChangeKind::Modified {
-            rows.push(Row::Placeholder("Only whitespace or mode changed"));
+            rows.push(Row::Placeholder(
+                "No lines to show: only whitespace or the file mode changed",
+            ));
         }
         for h in &d.hunks {
             *lines_left = lines_left.saturating_sub(h.lines.len());
@@ -266,17 +260,43 @@ fn diff_entries(
     entries
 }
 
+/// [`skyelab_git::diff_with`], except that hiding whitespace never hides a file: `git diff -w` drops a file whose
+/// only change is whitespace, but Commit still takes it, so it stays listed with no lines.
+fn diff_ws(
+    dir: &Path,
+    against: Against,
+    ignore_ws: bool,
+) -> std::result::Result<Vec<skyelab_git::FileDiff>, skyelab_git::Error> {
+    let all = skyelab_git::diff_with(dir, against, false)?;
+    if !ignore_ws {
+        return Ok(all);
+    }
+    let quiet = skyelab_git::diff_with(dir, against, true)?;
+    Ok(all
+        .into_iter()
+        .map(|f| {
+            let same = |q: &&skyelab_git::FileDiff| {
+                (&q.old_path, &q.new_path) == (&f.old_path, &f.new_path)
+            };
+            match quiet.iter().find(same) {
+                Some(q) => q.clone(),
+                None => skyelab_git::FileDiff {
+                    hunks: Vec::new(),
+                    too_large: None,
+                    ..f
+                },
+            }
+        })
+        .collect())
+}
+
 /// `diff HEAD`, or against the empty tree while the repo has no commit to compare with.
 fn diff_head(dir: &Path, ignore_ws: bool) -> Result<Vec<skyelab_git::FileDiff>> {
-    match skyelab_git::diff_with(dir, Against::Rev("HEAD"), ignore_ws) {
+    match diff_ws(dir, Against::Rev("HEAD"), ignore_ws) {
         Err(skyelab_git::Error::Git { stderr, .. })
             if stderr.contains("bad revision") || stderr.contains("unknown revision") =>
         {
-            Ok(skyelab_git::diff_with(
-                dir,
-                Against::Rev(EMPTY_TREE),
-                ignore_ws,
-            )?)
+            Ok(diff_ws(dir, Against::Rev(EMPTY_TREE), ignore_ws)?)
         }
         other => Ok(other?),
     }
