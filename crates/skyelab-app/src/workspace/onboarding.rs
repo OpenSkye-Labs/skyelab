@@ -19,7 +19,7 @@ pub enum OnboardingEvent {
     Close,
 }
 
-/// A found config dir, and its label field once ticked.
+/// A found config dir, and its name field once the user chose to rename it.
 pub(super) struct Found {
     pub found: FoundAccount,
     pub label: Option<Entity<InputState>>,
@@ -53,6 +53,8 @@ pub struct Onboarding {
     /// The project folder picked, and the account chosen for it. Never defaulted except with exactly one account.
     pub(super) folder: Option<PathBuf>,
     pub(super) account: Option<String>,
+    /// `account` was picked by `preselect`, not the user.
+    auto_account: bool,
     pub error: Option<String>,
     _detect: Option<Task<()>>,
     _pick: Option<Task<()>>,
@@ -74,6 +76,7 @@ impl Onboarding {
             repos: Vec::new(),
             folder: None,
             account: None,
+            auto_account: false,
             error: None,
             _detect: None,
             _pick: None,
@@ -165,47 +168,41 @@ impl Onboarding {
         }));
     }
 
-    /// Ticks or unticks a found dir; a ticked one gets its label field.
-    pub(super) fn toggle(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(row) = self.found.get_mut(ix) else {
+    /// Turns a found dir's name into a field, so it can be renamed before it is added.
+    pub(super) fn rename(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(row) = self.found.get_mut(ix).filter(|r| r.label.is_none()) else {
             return;
         };
-        row.label = match row.label.take() {
-            Some(_) => None,
-            None => {
-                let label = row.found.label.clone();
-                Some(cx.new(|cx| InputState::new(window, cx).default_value(label)))
-            }
-        };
+        let label = row.found.label.clone();
+        let input = cx.new(|cx| InputState::new(window, cx).default_value(label));
+        input.update(cx, |s, cx| s.focus(window, cx));
+        row.label = Some(input);
         cx.notify();
     }
 
-    /// The ticked dirs as accounts, with the labels typed (the suggestion when left empty).
-    pub(super) fn picked(&self, cx: &App) -> Vec<Account> {
-        self.found
-            .iter()
-            .filter_map(|f| {
-                let typed = f.label.as_ref()?.read(cx).value().trim().to_string();
-                Some(Account {
-                    id: f.found.id.clone(),
-                    label: if typed.is_empty() {
-                        f.found.label.clone()
-                    } else {
-                        typed
-                    },
-                    provider: f.found.provider,
-                    config_dir: f.found.config_dir.clone(),
-                    gh_config_dir: None,
-                    ssh_agent: false,
-                })
-            })
-            .collect()
+    /// Found dir `ix` as an account, with the name typed (the suggestion when left empty).
+    pub(super) fn account(&self, ix: usize, cx: &App) -> Option<Account> {
+        let f = self.found.get(ix)?;
+        let typed = f
+            .label
+            .as_ref()
+            .map(|l| l.read(cx).value().trim().to_string());
+        Some(Account {
+            id: f.found.id.clone(),
+            label: typed
+                .filter(|t| !t.is_empty())
+                .unwrap_or_else(|| f.found.label.clone()),
+            provider: f.found.provider,
+            config_dir: f.found.config_dir.clone(),
+            gh_config_dir: None,
+            ssh_agent: false,
+        })
     }
 
-    pub(super) fn add_accounts(&mut self, cx: &mut Context<Self>) {
-        let picked = self.picked(cx);
-        if !picked.is_empty() {
-            cx.emit(OnboardingEvent::AddAccounts(picked));
+    /// The user clicked Add on found dir `ix`: the only way an account gets written from here.
+    pub(super) fn add_account(&mut self, ix: usize, cx: &mut Context<Self>) {
+        if let Some(account) = self.account(ix, cx) {
+            cx.emit(OnboardingEvent::AddAccounts(vec![account]));
         }
     }
 
@@ -238,10 +235,17 @@ impl Onboarding {
         }));
     }
 
-    /// With exactly one account it is chosen for the user, who still has to click to bind.
+    /// With exactly one account it is chosen for the user, who still has to click to bind. That pick is dropped once
+    /// a second account exists; a pick the user made stays.
     fn preselect(&mut self) {
-        if let ([only], None) = (self.config.accounts.as_slice(), &self.account) {
-            self.account = Some(only.id.clone());
+        match self.config.accounts.as_slice() {
+            [only] if self.account.is_none() => {
+                self.account = Some(only.id.clone());
+                self.auto_account = true;
+            }
+            [_] => {}
+            _ if self.auto_account => (self.account, self.auto_account) = (None, false),
+            _ => {}
         }
     }
 

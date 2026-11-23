@@ -92,20 +92,29 @@ impl Rig {
         AccountsConfig::load(&self.accounts).expect("load")
     }
 
-    fn tick(&self, ix: usize, label: Option<&str>, cx: &mut VisualTestContext) {
-        let setup = self.setup.clone();
+    fn ix(&self, id: &str, cx: &mut VisualTestContext) -> usize {
+        self.setup.read_with(cx, |o, _| {
+            o.found
+                .iter()
+                .position(|f| f.found.id == id)
+                .expect("found dir offered")
+        })
+    }
+
+    fn rename(&self, id: &str, label: &str, cx: &mut VisualTestContext) {
+        let (setup, ix) = (self.setup.clone(), self.ix(id, cx));
         cx.update(|window, cx| {
             setup.update(cx, |o, cx| {
-                o.toggle(ix, window, cx);
-                if let (Some(label), Some(input)) = (label, o.found[ix].label.clone()) {
-                    input.update(cx, |s, cx| s.set_value(label, window, cx));
-                }
+                o.rename(ix, window, cx);
+                let input = o.found[ix].label.clone().expect("name field");
+                input.update(cx, |s, cx| s.set_value(label, window, cx));
             })
         });
     }
 
-    fn add_accounts(&self, cx: &mut VisualTestContext) {
-        self.setup.update(cx, |o, cx| o.add_accounts(cx));
+    fn add(&self, id: &str, cx: &mut VisualTestContext) {
+        let ix = self.ix(id, cx);
+        self.setup.update(cx, |o, cx| o.add_account(ix, cx));
         cx.run_until_parked();
     }
 }
@@ -136,13 +145,16 @@ fn onboarding_shows_on_a_fresh_install_with_agents_and_found_dirs(cx: &mut TestA
 #[gpui::test]
 fn onboarding_writes_nothing_before_confirm(cx: &mut TestAppContext) {
     let (rig, cx) = rig(cx);
-    rig.tick(1, Some("Work"), cx);
-    rig.tick(2, None, cx);
-    rig.tick(2, None, cx); // unticked again
-    assert!(!rig.accounts.exists(), "ticking and typing write nothing");
-    rig.add_accounts(cx);
+    rig.rename("claude-work", "Work", cx);
+    rig.rename("codex", "Mine", cx);
+    assert!(!rig.accounts.exists(), "renaming writes nothing");
+    rig.add("claude-work", cx);
     let saved = rig.saved();
-    assert_eq!(saved.accounts.len(), 1, "only the ticked dir");
+    assert_eq!(
+        saved.accounts.len(),
+        1,
+        "only the dir whose Add was clicked"
+    );
     let a = &saved.accounts[0];
     assert_eq!((a.id.as_str(), a.label.as_str()), ("claude-work", "Work"));
     assert_eq!(a.config_dir, rig.home.join(".claude-work"));
@@ -155,9 +167,8 @@ fn onboarding_writes_nothing_before_confirm(cx: &mut TestAppContext) {
 #[gpui::test]
 fn onboarding_bind_needs_a_picked_account(cx: &mut TestAppContext) {
     let (rig, cx) = rig(cx);
-    rig.tick(0, None, cx);
-    rig.tick(1, None, cx);
-    rig.add_accounts(cx);
+    rig.add("claude", cx);
+    rig.add("claude-work", cx);
     let repo = rig.home.join("code/app");
     rig.setup.update(cx, |o, cx| {
         o.set_folder(repo.clone(), cx);
@@ -190,8 +201,7 @@ fn onboarding_bind_needs_a_picked_account(cx: &mut TestAppContext) {
 #[gpui::test]
 fn onboarding_preselects_a_single_account_but_waits_for_the_click(cx: &mut TestAppContext) {
     let (rig, cx) = rig(cx);
-    rig.tick(2, None, cx);
-    rig.add_accounts(cx);
+    rig.add("codex", cx);
     rig.setup.update(cx, |o, cx| {
         o.set_folder(rig.home.join("code/app"), cx);
         assert_eq!(o.account.as_deref(), Some("codex"));

@@ -10,7 +10,6 @@ use gpui::{
 use gpui_component::{
     ActiveTheme as _, Disableable as _, Icon, IconName, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
     h_flex,
     input::Input,
     v_flex,
@@ -131,6 +130,7 @@ impl Onboarding {
 
     fn accounts_band(&self, cx: &mut Context<Self>) -> Div {
         let home = self.home.clone();
+        let theme_muted = cx.theme().muted_foreground;
         let mut body = v_flex();
         for a in &self.config.accounts {
             let detail = format!(
@@ -150,21 +150,44 @@ impl Onboarding {
             ));
         }
         for (ix, f) in self.found.iter().enumerate() {
-            let tick = Checkbox::new(("found", ix))
-                .checked(f.label.is_some())
-                .on_click(cx.listener(move |this, _, window, cx| this.toggle(ix, window, cx)));
             let name: AnyElement = match &f.label {
                 Some(input) => div()
                     .max_w(px(280.))
                     .child(Input::new(input).small())
                     .into_any_element(),
-                None => div().child(f.found.label.clone()).into_any_element(),
+                None => h_flex()
+                    .gap_1()
+                    .child(f.found.label.clone())
+                    .child(
+                        Button::new(("setup-rename", ix))
+                            .ghost()
+                            .xsmall()
+                            .icon(Icon::new(Lucide::PenLine))
+                            .tooltip("Rename before adding")
+                            .on_click(
+                                cx.listener(move |this, _, window, cx| this.rename(ix, window, cx)),
+                            ),
+                    )
+                    .into_any_element(),
             };
-            let path = home_relative(&f.found.config_dir, home.as_deref());
-            let provider = ui::Pill::new(f.found.provider.label());
-            body = body.child(row(tick, name, Some(path), provider, cx));
+            let detail = format!(
+                "{} · {}",
+                f.found.provider.label(),
+                home_relative(&f.found.config_dir, home.as_deref())
+            );
+            let add = Button::new(("setup-add", ix))
+                .outline()
+                .small()
+                .icon(Icon::new(IconName::Plus))
+                .label("Add")
+                .on_click(cx.listener(move |this, _, _, cx| this.add_account(ix, cx)));
+            let mark = div()
+                .size_2()
+                .rounded_full()
+                .border_1()
+                .border_color(theme_muted);
+            body = body.child(row(mark, name, Some(detail.into()), add, cx));
         }
-        let ticked = self.found.iter().filter(|f| f.label.is_some()).count();
         if self.found.is_empty() && self.config.accounts.is_empty() {
             body = body.child(row(
                 icon(Icon::new(IconName::CircleUser), cx),
@@ -181,22 +204,6 @@ impl Onboarding {
                     }),
                 cx,
             ));
-        }
-        if !self.found.is_empty() {
-            let label = match ticked {
-                0 | 1 => "Add account".to_string(),
-                n => format!("Add {n} accounts"),
-            };
-            body = body.child(
-                h_flex().pt_2().pl_8().child(
-                    Button::new("setup-add-accounts")
-                        .primary()
-                        .small()
-                        .label(label)
-                        .disabled(ticked == 0)
-                        .on_click(cx.listener(|this, _, _, cx| this.add_accounts(cx))),
-                ),
-            );
         }
         band("Accounts", body, cx)
     }
@@ -301,7 +308,7 @@ impl Onboarding {
                         .selected(self.account.as_deref() == Some(a.id.as_str()))
                         .child(ui::AccountBadge::of(a))
                         .on_click(cx.listener(move |this, _, _, cx| {
-                            this.account = Some(id.clone());
+                            (this.account, this.auto_account) = (Some(id.clone()), false);
                             cx.notify();
                         })),
                 );
