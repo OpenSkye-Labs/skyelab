@@ -95,8 +95,34 @@ fn real_dir(dir: &Path) -> Option<std::fs::ReadDir> {
         .and_then(|_| std::fs::read_dir(dir).ok())
 }
 
+/// Whether `path` is in `home` with every folder between them a real one, not a link (nor `..`).
+fn under_real_dirs(home: &Path, path: &Path) -> bool {
+    use std::path::Component;
+    let Ok(rel) = path.strip_prefix(home) else {
+        return false;
+    };
+    let mut at = home.to_path_buf();
+    let mut parts = rel.components().peekable();
+    while let Some(c) = parts.next() {
+        let Component::Normal(name) = c else {
+            return false;
+        };
+        at.push(name);
+        let last = parts.peek().is_none();
+        // The file itself is checked as it opens (`regular_file`).
+        if !last && !std::fs::symlink_metadata(&at).is_ok_and(|m| m.is_dir()) {
+            return false;
+        }
+    }
+    true
+}
+
 /// Reads one transcript, up to `cap` bytes. `None` when it can't be opened or names no session or folder.
 pub fn read(provider: Provider, home: &Path, path: &Path, cap: u64) -> Option<Transcript> {
+    // Listed earlier: a folder on the way may have become a link since.
+    if !under_real_dirs(home, path) {
+        return None;
+    }
     let mut t = read_file(provider, path, cap)?;
     if provider == Provider::Codex
         && let Some(name) = codex::names(home).remove(&t.id)
