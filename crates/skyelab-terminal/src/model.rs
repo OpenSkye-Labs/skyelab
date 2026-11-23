@@ -213,19 +213,25 @@ impl Terminal {
         let mut cells = Vec::new();
         let grid = term.grid();
         let mut p = first;
-        while p <= last {
+        loop {
             let cell = &grid[p];
             if !cell
                 .flags
                 .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
             {
-                text.push(cell.c);
+                // Concealed text can't be a link: the user can't see what they'd click.
+                text.push(if cell.flags.contains(Flags::HIDDEN) {
+                    ' '
+                } else {
+                    cell.c
+                });
                 cells.push(p);
             }
-            p = p.add(&*term, alacritty_terminal::index::Boundary::Grid, 1);
-            if p == first {
+            // `add` clamps at the grid's last cell instead of moving past it.
+            if p == last {
                 break;
             }
+            p = p.add(&*term, alacritty_terminal::index::Boundary::Grid, 1);
         }
         let here = cells.iter().rposition(|c| *c <= at)?;
         let link = find_links(&text)

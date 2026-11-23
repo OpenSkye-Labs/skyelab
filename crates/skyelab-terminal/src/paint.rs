@@ -1,6 +1,7 @@
 //! Drawing the grid: one frame's rects, cursor and shaped text runs, in the app theme's colours.
 
 use alacritty_terminal::{
+    grid::Dimensions,
     term::{cell::Flags, color::Colors},
     vte::ansi::{Color, CursorShape, NamedColor, Rgb},
 };
@@ -178,7 +179,9 @@ pub(crate) fn layout(
         }
     }
 
-    let cursor = (content.cursor.shape != CursorShape::Hidden).then(|| {
+    // Scrolled far enough up, the cursor's row is below the view: draw none.
+    let on_screen = cursor_at.0 < term.screen_lines();
+    let cursor = (content.cursor.shape != CursorShape::Hidden && on_screen).then(|| {
         let (row, col) = cursor_at;
         let full = size(cell_width * cursor_cells as f32, line_height);
         let size = match content.cursor.shape {

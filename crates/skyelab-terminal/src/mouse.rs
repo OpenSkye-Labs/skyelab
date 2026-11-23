@@ -28,7 +28,7 @@ pub struct MouseMods {
 }
 
 /// The report for one mouse event at a 0-based viewport cell, or `None` when the program didn't ask for it.
-/// SGR (mode 1006) when on, else the legacy encoding, which can't name cells past column or row 222.
+/// SGR (mode 1006) when on, else the legacy encoding, which can't name cells past column or row 223 (1-based).
 pub fn mouse_report(
     action: MouseAction,
     button: MouseButton,
@@ -76,6 +76,6 @@ pub fn mouse_report(
         };
         return Some(format!("\x1b[<{code};{x};{y}{end}").into_bytes());
     }
-    let byte = |v: usize| u8::try_from(v + 32).ok().filter(|&b| b < 255);
+    let byte = |v: usize| u8::try_from(v + 32).ok();
     Some(vec![0x1b, b'[', b'M', 32 + code, byte(x)?, byte(y)?])
 }

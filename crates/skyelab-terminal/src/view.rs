@@ -95,6 +95,8 @@ impl TerminalView {
                     for ev in &batch {
                         this.terminal.handle_event(ev);
                     }
+                    // Output may have scrolled the hovered link away; the next mouse move finds it again.
+                    this.hovered = None;
                     cx.notify();
                 });
                 if applied.is_err() {
@@ -313,10 +315,15 @@ impl TerminalView {
                 // shortcut: relative paths resolve against the folder the terminal started in, not the shell's
                 // current one (we don't track `cd`); upgrade with OSC 7 cwd reports.
                 let path = self.terminal.cwd().join(path_target(&link.text));
-                let path = path
-                    .components()
-                    .filter(|c| *c != Component::CurDir)
-                    .collect();
+                let mut normal = PathBuf::new();
+                for c in path.components() {
+                    match c {
+                        Component::CurDir => {}
+                        Component::ParentDir => _ = normal.pop(),
+                        c => normal.push(c),
+                    }
+                }
+                let path = normal;
                 cx.emit(TerminalEvent::OpenPath(path));
             }
         }

@@ -122,7 +122,11 @@ impl ChangesView {
 
     /// Scrolls the diff to `path` (absolute) when this tab lists it; `false` when it doesn't.
     pub(super) fn reveal(&mut self, path: &std::path::Path, cx: &mut Context<Self>) -> bool {
-        let Ok(rel) = path.strip_prefix(&self.dir) else {
+        // The listed paths are relative to the repo root, which can be above the project folder.
+        let Some(root) = self.dir.ancestors().find(|a| a.join(".git").exists()) else {
+            return false;
+        };
+        let Ok(rel) = path.strip_prefix(root) else {
             return false;
         };
         let Some(f) = self

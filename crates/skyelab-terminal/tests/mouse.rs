@@ -40,7 +40,11 @@ fn normal_encoding() {
         mouse_report(MouseAction::Release, MouseButton::Left, 4, 2, NONE, mode),
         Some(vec![0x1b, b'[', b'M', 32 + 3, 32 + 5, 32 + 3])
     );
-    // Past column 222 the byte would overflow; nothing is sent.
+    // Column 223 (1-based) is the last one a byte can name; past it nothing is sent.
+    assert_eq!(
+        mouse_report(MouseAction::Press, MouseButton::Left, 222, 0, NONE, mode),
+        Some(vec![0x1b, b'[', b'M', 32, 255, 33])
+    );
     assert_eq!(
         mouse_report(MouseAction::Press, MouseButton::Left, 300, 2, NONE, mode),
         None

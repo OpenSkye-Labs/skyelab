@@ -248,7 +248,7 @@ fn shift_drag_selects_in_mouse_mode(cx: &mut TestAppContext) {
 fn cmd_click_opens_only_http(cx: &mut TestAppContext) {
     let (view, cx) = open(
         cx,
-        "printf 'https://a.test file:///etc/passwd ssh://h/x ./x.rs:3\\n'; sleep 30",
+        "printf 'https://a.test file:///etc/passwd ssh://h/x ./x.rs:3 sub/../y.rs\\n'; sleep 30",
     );
     wait(cx, "output", |cx| text(&view, cx).contains("x.rs"));
     let events = Rc::new(RefCell::new(Vec::new()));
@@ -275,9 +275,35 @@ fn cmd_click_opens_only_http(cx: &mut TestAppContext) {
     assert_eq!(cx.opened_url().as_deref(), Some("https://a.test"));
     let path = cell(&view, cx, 0, 46);
     click(cx, path, secondary, 1);
+    let parent = cell(&view, cx, 0, 56);
+    click(cx, parent, secondary, 1);
     cx.run_until_parked();
     assert_eq!(
         *events.borrow(),
-        [TerminalEvent::OpenPath(std::env::temp_dir().join("x.rs"))]
+        [
+            TerminalEvent::OpenPath(std::env::temp_dir().join("x.rs")),
+            TerminalEvent::OpenPath(std::env::temp_dir().join("y.rs")),
+        ]
     );
+}
+
+#[gpui::test]
+fn paste_is_bracketed_and_stripped(cx: &mut TestAppContext) {
+    let (view, cx) = open(
+        cx,
+        "stty raw -echo; printf '\\033[?2004hREADY'; exec cat -v",
+    );
+    wait(cx, "bracketed paste mode", |cx| {
+        text(&view, cx).contains("READY")
+    });
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("a\x1b[201~b".into()));
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-v"
+    } else {
+        "ctrl-shift-v"
+    });
+    wait(cx, "paste", |cx| text(&view, cx).contains("b^[[201~"));
+    let shown = text(&view, cx);
+    assert!(shown.contains("^[[200~a[201~b^[[201~"), "{shown}");
+    assert_eq!(shown.matches("^[[201~").count(), 1, "{shown}");
 }
