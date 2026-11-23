@@ -31,6 +31,10 @@ fn triggers_open_on_the_word_before_the_cursor() {
     assert_eq!(trigger("see a/b", 7), None);
     // The cursor past the word (a space typed) closes it.
     assert_eq!(trigger("@src ", 5), None);
+    // `#` opens the threads menu, but `#12` is an issue number.
+    assert_eq!(trigger("#", 1), t(MenuKind::Context, 0, ""));
+    assert_eq!(trigger("see #fix", 8), t(MenuKind::Context, 4, "fix"));
+    assert_eq!(trigger("see #12", 7), None);
     assert_eq!(trigger("mail me@x", 9), None);
     // Multi-byte text before the token.
     assert_eq!(
@@ -46,6 +50,7 @@ fn item(label: &str) -> MenuItem {
         label: label.into(),
         detail: String::new(),
         insert: label.into(),
+        ..Default::default()
     }
 }
 

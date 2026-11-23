@@ -31,6 +31,8 @@ mod setup_flow;
 mod terminal_launch;
 mod terminal_panel;
 mod terminals;
+pub(crate) mod usage_page;
+mod usage_page_render;
 use terminal_launch::{terminal_env, unbound_root};
 mod accounts_file;
 pub(crate) mod github;
@@ -110,7 +112,8 @@ actions!(
         ShowAllProjects,
         GoBack,
         GoForward,
-        SetUpAccounts
+        SetUpAccounts,
+        OpenUsage
     ]
 );
 

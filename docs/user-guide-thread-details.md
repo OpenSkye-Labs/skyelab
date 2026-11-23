@@ -55,3 +55,17 @@ With no thread on screen, the tab shows only Usage.
 
 Dialogs (the palette, Add project, Rename) dim the window behind them. GPUI can't blur the window's own content, so
 the backdrop is the window's background color at 75%.
+
+## Usage page
+
+**Settings → Usage** (also **Usage** in the sidebar footer, or **Open Usage** in the palette) puts every account in
+accounts.toml side by side. Pick **Today**, **7 days** or **30 days**, and **Cost** or **Tokens**:
+
+- the total, then one line per account with its turns, its share of the total, its newest 5h and weekly readings and
+  **Limited · resets in …** while it is limited;
+- **Daily cost** (or tokens) for the last 30 days, one stacked bar per day in each account's color;
+- **Projects**: each project's cost, tokens and turns per account, highest first.
+
+The numbers are what this machine's agents reported at the end of each turn (Claude reports a cost, Codex only
+tokens); SkyeLab never asks an account. Imported session history isn't counted, and a deleted thread's turns still
+are. Claude's reported cost is summed per turn as it arrives, so treat it as an estimate.

@@ -322,7 +322,7 @@ fn render_usage(usage: &[AccountUsage], theme: &Theme, cx: &App) -> AnyElement {
 
 /// "5h ▬▬▭ 62% 3m": the window, a 40 px track filled to its use, the percentage and how old its reading is. A
 /// window past its reset is dimmed and says "reset" instead: its percentage no longer holds.
-fn usage_bar(w: &UsageWindow, now_ms: i64, theme: &Theme) -> AnyElement {
+pub(super) fn usage_bar(w: &UsageWindow, now_ms: i64, theme: &Theme) -> AnyElement {
     const TRACK: f32 = 40.;
     let reset = w.is_reset(now_ms / 1000);
     let color = if reset {

@@ -114,6 +114,8 @@ pub struct Settings {
     threads_error: Option<String>,
     /// The Sharing section's content; `None` without a tailnet hook.
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
+    /// The Usage section's content; the workspace sets it and reads the store for it.
+    pub usage: Option<Entity<crate::workspace::usage_page::UsagePage>>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -196,6 +198,7 @@ impl Settings {
             account_select,
             section: Section::default(),
             remote: None,
+            usage: None,
             focus: cx.focus_handle(),
             _pick: None,
             _subs: subs,

@@ -7,6 +7,8 @@
 mod composer_attach;
 #[path = "composer_context.rs"]
 pub(crate) mod composer_context;
+#[path = "composer_context_pick.rs"]
+mod composer_context_pick;
 #[path = "composer_draft.rs"]
 mod composer_draft;
 #[path = "composer_footer.rs"]
@@ -38,6 +40,9 @@ mod composer_review_test;
 mod composer_send;
 #[path = "composer_state.rs"]
 mod composer_state;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "context_chips_test.rs"]
+mod context_chips_test;
 pub(in crate::workspace) use composer_machine::machine_name;
 
 #[cfg(test)]
@@ -227,7 +232,7 @@ impl ThreadView {
         let running = self.turn_running();
         let empty = self.prompt.read(cx).value().trim().is_empty()
             && self.composer.attachments.is_empty()
-            && self.composer.terminal_contexts.is_empty();
+            && self.composer.contexts.is_empty();
         let round = ButtonRounded::Size(px(16.));
         let mut out = Vec::new();
         if running && self.composer.stalled {
@@ -352,13 +357,17 @@ impl ThreadView {
         )
     }
 
-    /// The `@` / `/` / `$` menu, floating above the card.
+    /// The `@` / `/` / `$` / `#` menu, floating above the card.
     fn render_menu(&self, menu: &Menu, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let (title, empty) = match menu.kind {
             MenuKind::Files => ("Files", "No tracked file matches"),
             MenuKind::Commands => ("Commands", "No command matches"),
             MenuKind::Skills => ("Skills", "No skill in this account"),
+            MenuKind::Context => (
+                "Threads and pull requests",
+                "No other thread of this account in this project",
+            ),
         };
         let rows = menu.items.as_ref().map(|items| {
             menu.rows

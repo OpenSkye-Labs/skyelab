@@ -55,6 +55,8 @@ and how Zed uses it, not blog posts or memory.
   stretches across the footer. Use a plain `Button` whose `on_click` calls `window.close_dialog(cx)`.
 - A click on a gpui-component `Checkbox` also reaches a clickable row around it, so handlers on both toggle twice
   (no change). Put the handler on the row only and leave the checkbox as its picture.
+- `items_baseline()` puts a box with no text (a status dot) on the line's baseline, so it sits below the text's
+  middle. A row that mixes a dot or icon with text uses `items_center()`; keep baseline for text-only rows.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
 - `img()` takes its height from its width and the image's aspect ratio, even with `.h(..)` set: a wide box draws a
   square image as tall as the box is wide. Cap it with `.max_h(..)` (the image viewer does), and check a fit in a live

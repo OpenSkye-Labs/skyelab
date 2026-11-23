@@ -399,18 +399,33 @@ impl Render for Sidebar {
                 .min_h_0()
                 .w_full(),
             )
-            // T3's footer: Settings, always in reach.
+            // T3's footer: Settings and Usage, always in reach.
             .child(
-                h_flex().flex_shrink_0().px_2().py_2().child(
-                    Button::new("sidebar-settings")
-                        .ghost()
-                        .small()
-                        .icon(IconName::Settings)
-                        .label("Settings")
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(super::super::OpenSettings), cx)
-                        }),
-                ),
+                h_flex()
+                    .flex_shrink_0()
+                    .px_2()
+                    .py_2()
+                    .gap_1()
+                    .child(
+                        Button::new("sidebar-settings")
+                            .ghost()
+                            .small()
+                            .icon(IconName::Settings)
+                            .label("Settings")
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(super::super::OpenSettings), cx)
+                            }),
+                    )
+                    .child(
+                        Button::new("sidebar-usage")
+                            .ghost()
+                            .small()
+                            .icon(IconName::ChartPie)
+                            .label("Usage")
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(Box::new(super::super::OpenUsage), cx)
+                            }),
+                    ),
             )
     }
 }

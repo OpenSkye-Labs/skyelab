@@ -25,6 +25,28 @@ impl Workspace {
         self.show(Page::Settings(section), window, cx);
     }
 
+    /// Settings → Usage, read from the store again each time it opens (T3's Usage entry).
+    pub(super) fn open_usage(
+        &mut self,
+        _: &OpenUsage,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.show(Page::Settings(crate::settings::Section::Usage), window, cx);
+    }
+
+    /// Re-reads the Usage page's numbers; called whenever Settings → Usage is shown.
+    pub(super) fn reload_usage(&mut self, cx: &mut Context<Self>) {
+        let page = self
+            .settings
+            .as_ref()
+            .and_then(|s| s.read(cx).usage.clone());
+        if let Some(page) = page {
+            let (store, config) = (self.backend.store.clone(), self.config.clone());
+            page.update(cx, |p, cx| p.reload(store, &config, cx));
+        }
+    }
+
     /// The Settings view, created on first use with the accounts as they are on disk now.
     pub(super) fn ensure_settings(
         &mut self,
@@ -42,9 +64,11 @@ impl Workspace {
             self.load_error.clone(),
         );
         let remote = self.remote_panel(cx);
+        let usage = cx.new(usage_page::UsagePage::new);
         let settings = cx.new(|cx| {
             let mut s = Settings::new(path, config, error, window, cx);
             s.remote = remote;
+            s.usage = Some(usage);
             s
         });
         // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.

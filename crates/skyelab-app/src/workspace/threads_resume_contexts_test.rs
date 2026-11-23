@@ -4,7 +4,7 @@ use super::resume::{rebind, reopen, send_text, stopped_thread};
 use super::*;
 
 #[gpui::test]
-fn refused_resume_keeps_terminal_contexts(cx: &mut TestAppContext) {
+fn refused_resume_keeps_contexts(cx: &mut TestAppContext) {
     setup(cx);
     let f = fixture(true);
     let (row, _ws, cx) = stopped_thread(&f, cx);
@@ -17,6 +17,6 @@ fn refused_resume_keeps_terminal_contexts(cx: &mut TestAppContext) {
     view.read_with(cx, |t, _| {
         assert!(t.resume_refused.is_some(), "resume refused");
         assert!(t.session.is_none(), "nothing started");
-        assert_eq!(t.composer.terminal_contexts.len(), 1, "terminal chip kept");
+        assert_eq!(t.composer.contexts.len(), 1, "terminal chip kept");
     });
 }

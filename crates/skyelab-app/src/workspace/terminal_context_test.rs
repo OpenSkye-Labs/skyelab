@@ -22,7 +22,7 @@ fn add_to_prompt_sends_fenced_block(cx: &mut gpui::TestAppContext) {
         ))
     });
     cx.run_until_parked();
-    let chips = thread.read_with(cx, |t, _| t.composer.terminal_contexts.clone());
+    let chips = thread.read_with(cx, |t, _| t.composer.contexts.clone());
     assert_eq!(chips.len(), 1);
     assert_eq!(chips[0].label.as_ref(), "Terminal 1");
     assert_eq!(chips[0].text, "error: boom\nat line 3");
@@ -32,10 +32,7 @@ fn add_to_prompt_sends_fenced_block(cx: &mut gpui::TestAppContext) {
         cx.emit(TerminalEvent::AddToPrompt("\n\n".into()))
     });
     cx.run_until_parked();
-    assert_eq!(
-        thread.read_with(cx, |t, _| t.composer.terminal_contexts.len()),
-        1
-    );
+    assert_eq!(thread.read_with(cx, |t, _| t.composer.contexts.len()), 1);
 
     send(cx);
     wait_until(cx, "the prompt", |cx| {
@@ -54,7 +51,7 @@ fn add_to_prompt_sends_fenced_block(cx: &mut gpui::TestAppContext) {
         Some("fix it\n\nTerminal 1 output:\n```text\nerror: boom\nat line 3\n```")
     );
     assert!(
-        thread.read_with(cx, |t, _| t.composer.terminal_contexts.is_empty()),
+        thread.read_with(cx, |t, _| t.composer.contexts.is_empty()),
         "the chip is sent"
     );
 }

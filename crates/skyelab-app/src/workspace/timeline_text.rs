@@ -30,7 +30,7 @@ pub(super) fn divider_text(verb: &str, secs: f64, usage: Option<Usage>, cost: f6
 }
 
 /// A token count as T3 writes it: 175, 12.3k, 1.2M.
-fn count(n: u64) -> String {
+pub(in crate::workspace) fn count(n: u64) -> String {
     match n {
         0..1_000 => n.to_string(),
         1_000..999_950 => format!("{:.1}k", n as f64 / 1e3),

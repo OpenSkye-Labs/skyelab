@@ -186,4 +186,45 @@ ALTER TABLE threads ADD COLUMN imported_session TEXT;
     // Version 15: the linked pull request's last read state ('open', 'draft', 'merged', 'closed'), so an ended PR
     // isn't read again after a restart.
     "ALTER TABLE threads ADD COLUMN pr_state TEXT;",
+    // Version 16: each turn's cost and tokens (a stored `Result` event), with the account and project of its thread
+    // when it ran, for the Usage page. No foreign key: spend outlives a purged thread. History an imported thread
+    // (dated at its import) or a fork (copied with its old times) starts with is not new spend, so it is left out;
+    // turns after the thread was made count.
+    "
+CREATE TABLE turn_usage (
+    thread_id     INTEGER NOT NULL,
+    seq           INTEGER NOT NULL,
+    account_id    TEXT NOT NULL,
+    project_id    INTEGER NOT NULL,
+    cost_usd      REAL NOT NULL,
+    input_tokens  INTEGER NOT NULL,
+    output_tokens INTEGER NOT NULL,
+    created_at    INTEGER NOT NULL,
+    PRIMARY KEY (thread_id, seq)
+) WITHOUT ROWID;
+CREATE INDEX turn_usage_by_time ON turn_usage(created_at);
+CREATE TRIGGER turn_usage_insert AFTER INSERT ON events
+WHEN NEW.kind = 'agent' AND instr(NEW.payload_json, '\"Result\"') > 0 AND json_valid(NEW.payload_json)
+     AND json_type(NEW.payload_json, '$.Result') = 'object'
+BEGIN
+    INSERT OR REPLACE INTO turn_usage
+        SELECT NEW.thread_id, NEW.seq, t.account_id, t.project_id,
+               COALESCE(json_extract(NEW.payload_json, '$.Result.total_cost_usd'), 0),
+               COALESCE(json_extract(NEW.payload_json, '$.Result.usage.input'), 0),
+               COALESCE(json_extract(NEW.payload_json, '$.Result.usage.output'), 0),
+               NEW.created_at
+        FROM threads t WHERE t.id = NEW.thread_id
+          AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR NEW.created_at > t.created_at);
+END;
+INSERT OR REPLACE INTO turn_usage
+    SELECT e.thread_id, e.seq, t.account_id, t.project_id,
+           COALESCE(json_extract(e.payload_json, '$.Result.total_cost_usd'), 0),
+           COALESCE(json_extract(e.payload_json, '$.Result.usage.input'), 0),
+           COALESCE(json_extract(e.payload_json, '$.Result.usage.output'), 0),
+           e.created_at
+    FROM events e JOIN threads t ON t.id = e.thread_id
+    WHERE e.kind = 'agent' AND instr(e.payload_json, '\"Result\"') > 0 AND json_valid(e.payload_json)
+      AND json_type(e.payload_json, '$.Result') = 'object'
+      AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR e.created_at > t.created_at);
+",
 ];
