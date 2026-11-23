@@ -3,6 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(any(test, feature = "test-support"))]
 use skyelab_protocol::Version;
 
 #[derive(Debug, Clone)]
