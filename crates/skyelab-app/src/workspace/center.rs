@@ -102,8 +102,10 @@ impl Workspace {
 
     fn alive(&self, page: &Page, cx: &App) -> bool {
         match page {
-            // The GitHub pages are made on demand, so they can always show.
-            Page::Welcome | Page::Github(_) => true,
+            Page::Welcome => true,
+            // Made on demand, so they can always show; but they list this machine's projects, never while another
+            // machine is shown (Back, Forward, a restore).
+            Page::Github(_) => !self.is_remote(),
             Page::Thread(view) => view
                 .upgrade()
                 .is_some_and(|v| self.open_threads.contains(&v)),

@@ -225,9 +225,9 @@ impl GhPage {
         );
         let (tx, rx) = flume::unbounded();
         cx.background_spawn(async move {
-            // accounts.toml as saved now: a rebind since the page opened decides.
-            let config = super::accounts_now(file.as_deref(), &config);
             for (key, read, path) in jobs {
+                // accounts.toml as saved now, per project: a rebind during a slow earlier read decides too.
+                let config = super::accounts_now(file.as_deref(), &config);
                 if tx
                     .send((key, read, read_group(&config, &path, &gh, key.1)))
                     .is_err()
@@ -316,11 +316,12 @@ pub(crate) fn browser_url(url: &str) -> Option<&str> {
 }
 
 /// The prompt a "Review PR" thread starts with: the number and link only, since the title is the PR author's text
-/// and would read as the user's own instruction.
+/// and would read as the user's own instruction. gh gets the link, not the number: in a fork, gh's default repo can
+/// be the upstream one.
 pub(crate) fn review_prompt(number: u64, url: &str) -> String {
     format!(
-        "Review pull request #{number}: {url}\n\nRead its description and diff (gh pr view {number} \
-         --comments, gh pr diff {number}), then list bugs, risks and missing tests, most important first. Don't \
+        "Review pull request #{number}: {url}\n\nRead its description and diff (gh pr view {url} \
+         --comments, gh pr diff {url}), then list bugs, risks and missing tests, most important first. Don't \
          push, merge or comment on GitHub."
     )
 }
@@ -379,6 +380,15 @@ impl Workspace {
             }
             page
         });
+        let (sources, inputs) = self.gh_sources(cx);
+        page.update(cx, |p, cx| p.set_sources(sources, inputs, cx));
+        let focus = page.read(cx).focus.clone();
+        focus.focus(window, cx);
+        page
+    }
+
+    /// The projects a GitHub page lists, and the accounts it reads them with, as they are now.
+    fn gh_sources(&self, cx: &gpui::App) -> (Vec<Source>, Inputs) {
         // A project known to be unbound is left out; the read checks the rest again.
         let sources = self
             .projects
@@ -395,10 +405,21 @@ impl Workspace {
             accounts_file: cx.try_global::<super::AccountsFile>().map(|f| f.0.clone()),
             config: self.config.clone(),
         };
-        page.update(cx, |p, cx| p.set_sources(sources, inputs, cx));
-        let focus = page.read(cx).focus.clone();
-        focus.focus(window, cx);
-        page
+        (sources, inputs)
+    }
+
+    /// The shown GitHub page follows the projects and accounts once they load or change (a page restored at start
+    /// opens before the projects do; a rebind in Settings drops what the old binding read).
+    pub(super) fn sync_gh_sources(&mut self, cx: &mut Context<Self>) {
+        let page = match self.page {
+            Page::Github(Kind::Prs) => self.gh_pages.prs.clone(),
+            Page::Github(Kind::Issues) => self.gh_pages.issues.clone(),
+            _ => None,
+        };
+        if let Some(page) = page {
+            let (sources, inputs) = self.gh_sources(cx);
+            page.update(cx, |p, cx| p.set_sources(sources, inputs, cx));
+        }
     }
 
     fn gh_event(&mut self, e: &GhEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -465,6 +486,9 @@ impl Workspace {
     }
 }
 
+#[cfg(test)]
+#[path = "gh_pages_review_test.rs"]
+mod review_tests;
 #[cfg(test)]
 #[path = "gh_pages_test.rs"]
 mod tests;
