@@ -1,5 +1,6 @@
 //! What the command palette lists for this workspace: actions, projects, threads and open tabs.
 
+use super::env_mode::{OpenRemoteThread, SelectRemoteProject};
 use super::{OpenThread, SelectProject, Workspace};
 use crate::palette::{self, Entry, Kind, OpenCommandPalette};
 use gpui::{Action, App, Context, Entity, FocusHandle, Focusable, SharedString, Window};
@@ -52,8 +53,22 @@ impl Workspace {
         actions.sort_by(|a, b| a.label.cmp(&b.label));
 
         let mut out = actions;
-        // shortcut: remote projects and threads aren't listed, add them once the switcher exposes them here.
-        if !self.is_remote() {
+        // Another machine shown: its projects and the selected one's threads, as the switcher lists them.
+        if let Some(env) = self.remote_env() {
+            let env = env.read(cx);
+            out.extend(env.projects.iter().map(|p| {
+                let label = format!("Switch to project: {}", p.name);
+                dispatch(
+                    label,
+                    Kind::Project,
+                    Box::new(SelectRemoteProject { id: p.id }),
+                )
+            }));
+            out.extend(env.threads.iter().map(|t| {
+                let label = format!("Open thread: {}", t.title);
+                dispatch(label, Kind::Thread, Box::new(OpenRemoteThread { id: t.id }))
+            }));
+        } else {
             out.extend(self.projects.iter().map(|p| {
                 let label = format!("Switch to project: {}", p.name);
                 dispatch(label, Kind::Project, Box::new(SelectProject { id: p.id }))

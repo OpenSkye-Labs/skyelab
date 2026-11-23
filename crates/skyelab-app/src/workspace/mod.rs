@@ -511,6 +511,8 @@ mod delegation_turns_test;
 mod env_approval_test;
 #[cfg(test)]
 mod env_queue_test;
+#[cfg(test)]
+mod palette_remote_test;
 
 #[cfg(test)]
 mod long_thread_test;
