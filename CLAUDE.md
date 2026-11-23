@@ -47,7 +47,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
   project; a prompt starting `usage` reports 5h and weekly rate limits), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
-  when the account's GitHub dir has a `fake-login` file). Never verify against the real `gh`. All of these are debug builds only.
+  when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
+  and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed). Never verify against the real `gh`. All of these are debug builds only.
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
   (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.

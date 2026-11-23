@@ -37,6 +37,9 @@ Defaults for new threads. A thread's own choice always wins.
   ([how they work](user-guide-accounts.md)).
 - **Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
 - **New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
+- **Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
+  its branch's upstream in the background under the thread's account's own GitHub login (the same rules as Push:
+  https remotes only), so Details can say how far behind it is. Saved as `fetch_minutes`.
 - **Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
   thread in a project that hasn't picked a model yet (the last model picked in a project stays its default).
 

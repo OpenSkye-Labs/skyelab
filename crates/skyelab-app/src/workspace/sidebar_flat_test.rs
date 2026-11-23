@@ -148,7 +148,7 @@ fn rows_show_the_last_reply_branch_and_pull_request_under_date_sections(cx: &mut
         let marks = &s.marks[&SharedString::from(format!("thread-{t}"))];
         assert_eq!(marks.preview.as_deref(), Some("Done The parser is fixed."));
         assert_eq!(marks.branch.as_deref(), Some("skyelab/fix-parser"));
-        assert_eq!(marks.pr.as_deref(), Some("#24"));
+        assert_eq!(marks.pr.as_ref().map(|p| p.label.as_ref()), Some("#24"));
         let titles: Vec<&str> = s.sections.iter().map(|s| s.title.as_ref()).collect();
         assert_eq!(
             titles,

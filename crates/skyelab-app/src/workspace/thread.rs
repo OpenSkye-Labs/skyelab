@@ -14,7 +14,7 @@ use gpui::{
 use gpui_component::input::{InputEvent, TextareaState};
 use skyelab_agent::{Mode, Session};
 use skyelab_core::AccountsConfig;
-use skyelab_store::{Store, Thread};
+use skyelab_store::Thread;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -129,11 +129,6 @@ pub struct ThreadView {
 }
 
 impl EventEmitter<ThreadViewEvent> for ThreadView {}
-
-fn append(store: &mut Store, thread_id: i64, record: &Record) -> Result<()> {
-    let (kind, payload) = record.to_row();
-    store.append_event(thread_id, kind, &payload).map(|_| ())
-}
 
 impl ThreadView {
     pub fn new(
@@ -359,6 +354,7 @@ impl ThreadView {
     pub fn set_pr_url(&mut self, url: Option<String>, cx: &mut Context<Self>) {
         if let Some(t) = self.thread.as_mut() {
             t.pr_url = url;
+            t.pr_state = None; // the store clears it with the link
             cx.notify();
         }
     }

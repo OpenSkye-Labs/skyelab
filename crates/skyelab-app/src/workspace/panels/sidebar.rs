@@ -56,8 +56,7 @@ pub struct RowMarks {
     pub preview: Option<SharedString>,
     /// The thread's worktree branch, else its project folder's.
     pub branch: Option<SharedString>,
-    /// The pull request opened from the thread: "#24".
-    pub pr: Option<SharedString>,
+    pub pr: Option<crate::workspace::pr_watch::PrBadge>,
     /// When the working turn started (ms since the epoch): the row reads "Working 1m 12s", ticking.
     pub started_ms: Option<i64>,
     /// What the row's hover card shows.
