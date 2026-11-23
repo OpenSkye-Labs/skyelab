@@ -47,6 +47,8 @@ pub enum ProjectOp {
     OpenFolder,
     /// Settings, where folders are bound to accounts.
     Accounts,
+    /// Its existing Claude Code or Codex sessions, as threads.
+    ImportSessions,
     Remove,
 }
 
@@ -546,6 +548,7 @@ pub(super) fn project_menu(id: i64) -> Vec<(SharedString, Box<dyn Action>)> {
         ("Rename", ProjectOp::Rename),
         ("Open in editor", ProjectOp::OpenFolder),
         ("Account bindings…", ProjectOp::Accounts),
+        ("Import sessions…", ProjectOp::ImportSessions),
         ("Remove from SkyeLab", ProjectOp::Remove),
     ]
     .into_iter()

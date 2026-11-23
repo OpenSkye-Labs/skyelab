@@ -23,6 +23,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
             .on_action(cx.listener(Self::new_thread_in))
+            .on_action(cx.listener(Self::import_sessions))
             .on_action(cx.listener(Self::toggle_project_scope))
             .on_action(cx.listener(Self::show_all_projects))
             .on_action(cx.listener(Self::open_thread))
