@@ -20,6 +20,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[cfg(test)]
+#[path = "../preview_image_cache_test.rs"]
+mod image_cache_test;
+#[cfg(test)]
 #[path = "../preview_image_test.rs"]
 mod image_test;
 
@@ -68,7 +71,10 @@ impl PreviewPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.body = Body::Loading;
+        // GPUI keeps every decoded image until told: the one this replaces goes.
+        if let Body::Image(old) = std::mem::replace(&mut self.body, Body::Loading) {
+            old.remove_asset(cx);
+        }
         self.root = root.clone();
         self.path = path.clone();
         let read = cx.background_spawn(async move {
@@ -129,27 +135,10 @@ impl PreviewPanel {
     }
 }
 
-/// The highlighter's language for a file: its extension, or its name for `Makefile`, `Dockerfile` and the like.
-/// The image file `full` (already checked by `read_preview`: inside the folder, at most its size cap), read once.
+/// The image file `full` (already checked by `read_preview`: inside the folder, at most its size cap), read once. Its
+/// format comes from its bytes, as GPUI's path loader did, and is one of `read_preview`'s rasters: never SVG (it can
+/// load files from its hrefs).
 pub(in crate::workspace) fn image(full: &Path) -> anyhow::Result<Arc<gpui::Image>> {
-    let ext = full
-        .extension()
-        .map(|e| e.to_string_lossy().to_ascii_lowercase());
-    let format = ext
-        .as_deref()
-        .and_then(|e| {
-            use gpui::ImageFormat as F;
-            // `read_preview`'s raster list; never SVG (it can load files from its hrefs).
-            Some(match e {
-                "png" => F::Png,
-                "jpg" | "jpeg" => F::Jpeg,
-                "gif" => F::Gif,
-                "webp" => F::Webp,
-                "bmp" => F::Bmp,
-                _ => return None,
-            })
-        })
-        .ok_or_else(|| anyhow::anyhow!("Not an image this preview draws."))?;
     // The cap again: the file may have grown since it was checked.
     let mut bytes = Vec::new();
     std::io::Read::read_to_end(
@@ -163,9 +152,33 @@ pub(in crate::workspace) fn image(full: &Path) -> anyhow::Result<Arc<gpui::Image
     if bytes.len() as u64 > skyelab_core::files::MAX_IMAGE_BYTES {
         anyhow::bail!("This file is too large to preview.");
     }
+    use gpui::ImageFormat as F;
+    let format = match bytes.as_slice() {
+        [0x89, b'P', b'N', b'G', ..] => F::Png,
+        [0xFF, 0xD8, 0xFF, ..] => F::Jpeg,
+        [b'G', b'I', b'F', b'8', ..] => F::Gif,
+        [
+            b'R',
+            b'I',
+            b'F',
+            b'F',
+            _,
+            _,
+            _,
+            _,
+            b'W',
+            b'E',
+            b'B',
+            b'P',
+            ..,
+        ] => F::Webp,
+        [b'B', b'M', ..] => F::Bmp,
+        _ => anyhow::bail!("This file isn't an image this preview draws."),
+    };
     Ok(Arc::new(gpui::Image::from_bytes(format, bytes)))
 }
 
+/// The highlighter's language for a file: its extension, or its name for `Makefile`, `Dockerfile` and the like.
 fn language(path: &Path) -> String {
     path.extension()
         .or_else(|| path.file_name())
