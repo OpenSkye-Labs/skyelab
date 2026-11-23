@@ -324,7 +324,15 @@ impl ThreadView {
                 })
                 .await;
             if let Some(reply) = on_sent {
-                let _ = reply.send(sent.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
+                // Only a limit or an ended agent is the caller's business; store details stay in the tab.
+                let _ = reply.send(sent.as_ref().map(|_| ()).map_err(|e| {
+                    let why = format!("{e:#}");
+                    if why.contains("running children") || why.contains("has ended") {
+                        why
+                    } else {
+                        "the message couldn't be sent; the thread's tab says why".to_owned()
+                    }
+                }));
             }
             if let Err(e) = sent {
                 let _ = this.update(cx, |this, cx| this.show_error(e, cx));
