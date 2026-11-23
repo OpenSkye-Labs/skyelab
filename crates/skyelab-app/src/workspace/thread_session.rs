@@ -115,8 +115,8 @@ impl ThreadView {
         if launch != self.launches {
             return; // a stopped session's stream; Stop already recorded it
         }
-        // Stopped (or gone) mid-turn: that turn's end is still a checkpoint, so it can be reviewed and rewound.
-        if self.turns.load(Ordering::SeqCst) > 0 {
+        // Gone mid-turn: that turn's end is still a checkpoint, so it can be reviewed and rewound.
+        if self.turns.swap(0, Ordering::SeqCst) > 0 {
             self.checkpoint_turn_end(cx);
         }
         let Some(thread) = &self.thread else {
@@ -190,6 +190,10 @@ impl ThreadView {
                     return this.show_error(e, cx);
                 }
                 this.session = None; // killed and reaped, so dropping it doesn't wait
+                // Stopped mid-turn: its end checkpoint is queued now, before a resume can start the next turn.
+                if this.turns.swap(0, Ordering::SeqCst) > 0 {
+                    this.checkpoint_turn_end(cx);
+                }
                 this.finish(cx);
             });
         }));

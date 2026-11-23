@@ -144,10 +144,7 @@ pub fn plan_rewind(dir: &Path, to: &str) -> Result<RewindPlan> {
         return Err(Error::Invalid(format!("`{to}` is not a tree id")));
     }
     let root = repo_root(dir)?;
-    let scope = std::fs::canonicalize(dir)?
-        .strip_prefix(std::fs::canonicalize(&root)?)
-        .map(Path::to_owned)
-        .unwrap_or_default();
+    let scope = scope(dir, &root)?;
     let now = snapshot_tree(&root)?;
     let out = git(
         &root,
@@ -192,7 +189,7 @@ pub fn plan_rewind(dir: &Path, to: &str) -> Result<RewindPlan> {
             _ => plan.restore.push(path),
         }
     }
-    let removed = Removed::new(&plan.remove);
+    let removed = Removed::new(&root, &plan.remove);
     for path in added {
         if blocked(&root, &path, &removed) {
             plan.ignored.push(path);
@@ -203,22 +200,62 @@ pub fn plan_rewind(dir: &Path, to: &str) -> Result<RewindPlan> {
     Ok(plan)
 }
 
-/// The paths a rewind deletes, compared without case: on a case-insensitive file system `Readme.md` and `README.md`
-/// are one file.
-struct Removed(std::collections::HashSet<String>);
+/// `dir` relative to its repo's `root` (empty for the root itself).
+fn scope(dir: &Path, root: &Path) -> Result<PathBuf> {
+    std::fs::canonicalize(dir)?
+        .strip_prefix(std::fs::canonicalize(root)?)
+        .map(Path::to_owned)
+        .map_err(|_| {
+            Error::Invalid(format!(
+                "{} is not inside its repo {}",
+                dir.display(),
+                root.display()
+            ))
+        })
+}
+
+/// The paths a rewind deletes. A name that differs only in case counts when it is the same file on disk (a
+/// case-insensitive file system, where `Readme.md` and `README.md` are one file).
+struct Removed {
+    root: PathBuf,
+    /// Lowercased path → the path as listed.
+    paths: std::collections::HashMap<String, PathBuf>,
+}
 
 impl Removed {
-    fn new(paths: &[PathBuf]) -> Self {
-        Self(paths.iter().map(|p| key(p)).collect())
+    fn new(root: &Path, paths: &[PathBuf]) -> Self {
+        let paths = paths
+            .iter()
+            .map(|p| (p.to_string_lossy().to_lowercase(), p.clone()))
+            .collect();
+        Self {
+            root: root.to_owned(),
+            paths,
+        }
     }
 
     fn has(&self, path: &Path) -> bool {
-        self.0.contains(&key(path))
+        match self.paths.get(&path.to_string_lossy().to_lowercase()) {
+            Some(listed) if listed == path => true,
+            Some(listed) => same_entry(&self.root.join(listed), &self.root.join(path)),
+            None => false,
+        }
     }
 }
 
-fn key(path: &Path) -> String {
-    path.to_string_lossy().to_lowercase()
+#[cfg(unix)]
+fn same_entry(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt as _;
+    match (std::fs::symlink_metadata(a), std::fs::symlink_metadata(b)) {
+        (Ok(a), Ok(b)) => (a.dev(), a.ino()) == (b.dev(), b.ino()),
+        _ => false,
+    }
+}
+
+/// Windows file systems ignore case.
+#[cfg(not(unix))]
+fn same_entry(_: &Path, _: &Path) -> bool {
+    true
 }
 
 /// Whether writing checkpoint file `path` would replace something git doesn't record: a file or symlink (not one
@@ -267,27 +304,30 @@ pub fn rewind(dir: &Path, plan: &RewindPlan, overwrite_ignored: bool) -> Result<
         return Err(Error::Invalid(format!("`{}` is not a tree id", plan.to)));
     }
     let root = repo_root(dir)?;
-    if snapshot_tree(&root)? != plan.now {
+    // The plan again, now: different files (or an ignored file that appeared in the way) mean the user confirmed
+    // something else, so nothing is changed.
+    if plan_rewind(dir, &plan.to)? != *plan {
         return Err(Error::Invalid(
             "the files changed since the rewind was shown; nothing was changed. Look again, then rewind".into(),
         ));
     }
+    let top = root.join(scope(dir, &root)?);
     let mut write: Vec<&PathBuf> = plan.restore.iter().collect();
     if overwrite_ignored {
         write.extend(&plan.ignored);
     }
     // Every path is checked before anything changes, so a refused rewind changes nothing. A link the rewind deletes
     // first doesn't count; the writes are checked again once it is gone.
-    let removed = Removed::new(&plan.remove);
+    let removed = Removed::new(&root, &plan.remove);
     for path in plan.remove.iter().chain(write.iter().copied()) {
         inside(&root, path, &removed)?;
     }
-    let none = Removed::new(&[]);
+    let none = Removed::new(&root, &[]);
     for path in &plan.remove {
         let full = inside(&root, path, &none)?;
         match std::fs::remove_file(&full) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
-            _ => prune_empty(&root, &full),
+            _ => prune_empty(&top, &full),
         }
     }
     if write.is_empty() {
@@ -352,7 +392,7 @@ fn inside(root: &Path, path: &Path, removed: &Removed) -> Result<PathBuf> {
     Ok(at)
 }
 
-/// Removes the folders above `file` that its deletion left empty, up to (never including) `root`.
+/// Removes the folders above `file` that its deletion left empty, up to (never including) `root` (the thread's folder).
 fn prune_empty(root: &Path, file: &Path) {
     let mut dir = file.parent();
     while let Some(d) = dir.filter(|d| *d != root && d.starts_with(root)) {
