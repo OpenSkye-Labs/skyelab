@@ -262,7 +262,7 @@ fn the_view_is_saved_and_restored(cx: &mut TestAppContext) {
     wait_until(cx, "the saved view", |_| {
         skyelab_core::AppSettings::load(&path)
             .ok()
-            .and_then(|s| s.window)
+            .and_then(|s| s.saved_windows().into_iter().next())
             .is_some_and(|w| w.view == "settings:accounts")
     });
 

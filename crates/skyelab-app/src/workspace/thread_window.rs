@@ -86,6 +86,7 @@ impl Lists {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::workspace) fn len(&self) -> usize {
         self.0.len()
     }
