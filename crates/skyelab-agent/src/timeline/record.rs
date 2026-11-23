@@ -1,8 +1,8 @@
 //! A stored thread event, as the store keeps it: `(kind, payload_json)`.
 
+use crate::Event;
 use anyhow::{Context as _, Result};
 use serde_json::Value;
-use skyelab_agent::Event;
 
 /// One stored thread event. The store's `kind` column says which.
 #[derive(Debug, Clone, PartialEq)]

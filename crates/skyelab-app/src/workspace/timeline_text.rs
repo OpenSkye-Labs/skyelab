@@ -8,60 +8,7 @@ use super::thread_render::opens_in_browser;
 use super::tool_cards;
 use gpui::{Context, SharedString, div, prelude::*};
 use gpui_component::text::TextView;
-use skyelab_agent::Usage;
-
-/// The turn divider's text: "Worked for 4.2s · 12.3k in · 175 out · $0.0421".
-/// A turn that recorded nothing (an imported session's) reads "Worked", not "Worked for 0.0s".
-pub(super) fn divider_text(verb: &str, secs: f64, usage: Option<Usage>, cost: f64) -> String {
-    if secs <= 0.0 && usage.is_none() && cost <= 0.0 {
-        return verb
-            .trim_end_matches(" for")
-            .trim_end_matches(" after")
-            .to_owned();
-    }
-    let tokens = usage
-        .map(|u| format!(" · {} in · {} out", count(u.input), count(u.output)))
-        .unwrap_or_default();
-    let cost = if cost > 0.0 {
-        format!(" · ${cost:.4}")
-    } else {
-        String::new()
-    };
-    format!("{verb} {secs:.1}s{tokens}{cost}")
-}
-
-/// A token count as T3 writes it: 175, 12.3k, 1.2M.
-pub(in crate::workspace) fn count(n: u64) -> String {
-    match n {
-        0..1_000 => n.to_string(),
-        1_000..999_950 => format!("{:.1}k", n as f64 / 1e3),
-        _ => format!("{:.1}M", n as f64 / 1e6),
-    }
-}
-
-/// "Limited until …": how long until the limit resets (the reset is in Unix seconds), when known.
-pub(super) fn limited_text(resets_at: Option<i64>, now: i64) -> String {
-    match resets_at.map(|r| r - now) {
-        Some(left) if left > 0 => {
-            format!(
-                "Usage limit reached. Limited until it resets in {}.",
-                wait(left)
-            )
-        }
-        Some(_) => "Usage limit reached. It should have reset; send again to retry.".into(),
-        None => "Usage limit reached. Limited until it resets.".into(),
-    }
-}
-
-/// `left` seconds as "2h 14m", rounded up to the minute.
-pub(in crate::workspace) fn wait(left: i64) -> String {
-    let minutes = (left + 59) / 60;
-    match (minutes / 60, minutes % 60) {
-        (0, m) => format!("{m}m"),
-        (h, 0) => format!("{h}h"),
-        (h, m) => format!("{h}h {m}m"),
-    }
-}
+pub(crate) use skyelab_agent::timeline::cards::{count, divider_text, limited_text, wait};
 
 /// Agent markdown: selectable, a copy button on each code block, web links open in the browser and file links in
 /// the Preview tab (agent text is untrusted, so nothing else opens). Paths in `root` become links, file links outside

@@ -23,12 +23,7 @@ pub struct ChangedFile {
     pub first_row: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineKind {
-    Context,
-    Added,
-    Removed,
-}
+pub use skyelab_agent::timeline::cards::LineKind;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Row {

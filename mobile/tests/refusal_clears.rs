@@ -45,8 +45,6 @@ fn a_refusal_empties_the_lists_and_leaves_the_thread(cx: &mut TestAppContext) {
             std::thread::sleep(Duration::from_millis(20));
         }
     };
-    wait(cx, "projects", &|a| !a.projects().is_empty());
-    app.update(cx, |a, cx| a.open_project(env.project_id, cx));
     wait(cx, "threads", &|a| !a.threads().is_empty());
     app.update_in(cx, |a, window, cx| a.open_thread(env.thread_id, window, cx));
     wait(cx, "stored events", &|a| a.events().len() == 2);
@@ -58,13 +56,11 @@ fn a_refusal_empties_the_lists_and_leaves_the_thread(cx: &mut TestAppContext) {
         a.connection() == Some(Connection::Refused)
     });
     app.read_with(cx, |a, _| {
-        assert_eq!(a.screen, Screen::Projects, "back off the thread");
+        assert_eq!(a.screen, Screen::Threads, "back off the thread");
         assert!(a.projects().is_empty(), "no projects left");
         assert!(a.events().is_empty());
     });
-    // The open project's threads are gone too.
-    app.update(cx, |a, cx| a.open_project(env.project_id, cx));
-    cx.run_until_parked();
+    // The threads are gone too.
     app.read_with(cx, |a, _| {
         assert!(a.threads().is_empty(), "no threads left")
     });

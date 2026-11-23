@@ -1,122 +1,15 @@
-//! A finished turn's fold, T3's and Synara's "Worked for 4m 20s ›": the turn's work rows (tools, thinking, output,
-//! todos, the text between them) fold behind one header drawn above the first of them. The final reply, questions,
-//! approvals and notes stay. A running turn has no fold yet; one that ends in an error result, or with no result
-//! (stopped, crashed), never folds.
+//! A finished turn's fold header, "Worked for 4m 20s ›". The rules (which rows fold, where the header goes) are
+//! shared with the phone in `skyelab_agent::timeline::fold`.
 
 use super::thread_items::ItemsView;
-use super::thread_model::{Item, Items};
+use super::thread_model::Item;
 use super::timeline_text::divider_text;
 use crate::ui;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
 use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
-use std::ops::Range;
-
-/// The expanded-set key of the turn whose divider is row `done`, by the divider's row key so it stays with the turn
-/// when rows go in above it. No agent id has this shape.
-pub(super) fn fold_key(items: &Items, done: usize) -> String {
-    format!("fold:{}", items.key(done))
-}
-
-/// The expanded-set key of the changed-files card under the divider at row `done`, by its row key like `fold_key`.
-pub(super) fn files_key(items: &Items, done: usize) -> String {
-    format!("files:{}", items.key(done))
-}
-
-/// The rows a key's toggle changes: a turn's whole fold, or the one row that expands.
-pub(super) fn rows_of(items: &Items, key: &str) -> Option<Range<usize>> {
-    let row = |k: &str| k.parse().ok().and_then(|k| items.position(k));
-    if let Some(done) = key.strip_prefix("files:") {
-        return row(done).map(|done| done..done + 1);
-    }
-    match key.strip_prefix("fold:").and_then(row) {
-        Some(done) => Some(turn_start(items, done)..done + 1),
-        None => items
-            .iter()
-            .position(|i| i.expand_id() == Some(key))
-            .map(|ix| ix..ix + 1),
-    }
-}
-
-/// Where the fold of the turn ending at row `done` starts: after the last prompt or divider before it. A turn that was
-/// stopped or crashed has no divider, so its rows end at the next prompt and never fold into the turn after it. A
-/// steered message is part of the turn, so the fold reaches past it.
-pub(super) fn turn_start(items: &[Item], done: usize) -> usize {
-    items[..done]
-        .iter()
-        .rposition(|i| matches!(i, Item::Done { .. } | Item::Prompt(_)))
-        .map_or(0, |p| p + 1)
-}
-
-/// The rows a fold can hide.
-fn work(item: &Item) -> bool {
-    matches!(
-        item,
-        Item::Tool(_)
-            | Item::Subagent(_)
-            | Item::Thinking { .. }
-            | Item::Output { .. }
-            | Item::Todo(_)
-            | Item::Text(_)
-    )
-}
-
-/// The turn's reply: its last text, which the fold never hides.
-fn reply(items: &[Item], start: usize, done: usize) -> Option<usize> {
-    items[start..done]
-        .iter()
-        .rposition(|i| matches!(i, Item::Text(_)))
-        .map(|r| start + r)
-}
-
-/// The finished turn's divider row that folds row `ix`, if one does.
-// shortcut: walks the turn on each drawn row (only visible rows are drawn); cache the folds per turn if very long
-// turns ever scroll slowly.
-pub(super) fn folded_by(items: &[Item], ix: usize) -> Option<usize> {
-    if !work(items.get(ix)?) {
-        return None;
-    }
-    let done = ix
-        + 1
-        + items[ix + 1..]
-            .iter()
-            .position(|i| matches!(i, Item::Done { .. }))?;
-    let Item::Done {
-        is_error: false, ..
-    } = items[done]
-    else {
-        return None;
-    };
-    let start = turn_start(items, done);
-    (ix >= start && reply(items, start, done) != Some(ix)).then_some(done)
-}
-
-/// The first row the turn ending at `done` folds: its header is drawn above it. `None` when nothing folds.
-pub(super) fn fold_head(items: &[Item], done: usize) -> Option<usize> {
-    let Some(Item::Done {
-        is_error: false, ..
-    }) = items.get(done)
-    else {
-        return None;
-    };
-    let start = turn_start(items, done);
-    let reply = reply(items, start, done);
-    (start..done).find(|&j| work(&items[j]) && Some(j) != reply)
-}
-
-/// The divider of the finished turn whose reply is row `ix`, if it is one: its actions row shows the turn's time.
-pub(super) fn reply_of(items: &[Item], ix: usize) -> Option<usize> {
-    if !matches!(items.get(ix)?, Item::Text(_)) {
-        return None;
-    }
-    for (j, item) in items.iter().enumerate().skip(ix + 1) {
-        match item {
-            Item::Done { .. } => return Some(j),
-            Item::Text(_) | Item::Live { .. } => return None,
-            _ => {}
-        }
-    }
-    None
-}
+pub(super) use skyelab_agent::timeline::fold::{
+    files_key, fold_head, fold_key, folded_by, reply_of, rows_of,
+};
 
 /// Row `ix` as its turn's fold shows it: hidden while folded, under the "Worked for …" header when it is the first
 /// folded row, as drawn by `row` otherwise.

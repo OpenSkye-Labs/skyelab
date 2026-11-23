@@ -8,12 +8,14 @@ use super::panels::{
 use super::thread_rows::row_state;
 use super::{AddProject, OpenThread, ShowAllProjects, Workspace, lock};
 use gpui::{Action, AppContext as _, Context, SharedString, Window};
+use skyelab_agent::thread_list::{DAYS, day_starts};
+pub(super) use skyelab_agent::thread_list::{day_bucket, preview_text};
 use skyelab_store::Thread;
 use std::collections::HashMap;
 
 #[path = "row_text.rs"]
 mod row_text;
-pub(super) use row_text::{pr_label, preview_text};
+pub(super) use row_text::pr_label;
 #[path = "shelves.rs"]
 mod shelves;
 pub(super) use shelves::*;
@@ -443,30 +445,4 @@ pub(super) fn flat_sections(
             ..plain_section(title, items)
         })
         .collect()
-}
-
-/// The date sections under Pinned and Working, T3's and Synara's: indexes [`day_bucket`] returns.
-const DAYS: [&str; 4] = ["Today", "Yesterday", "Previous 7 days", "Older"];
-
-/// Which of [`DAYS`] a thread last changed in, given where today, yesterday and the 7-day window start (local
-/// midnights, ms since the epoch; see [`day_starts`]).
-pub(super) fn day_bucket(starts: [i64; 3], updated_ms: i64) -> usize {
-    starts
-        .iter()
-        .position(|&start| updated_ms >= start)
-        .unwrap_or(3)
-}
-
-/// Local midnight today, yesterday and six days before today, in ms since the epoch: each its own local midnight, so
-/// a daylight-saving change doesn't shift a section by an hour.
-fn day_starts() -> [i64; 3] {
-    use chrono::{Days, Local, TimeZone as _};
-    let today = Local::now().date_naive();
-    [0, 1, 6].map(|back| {
-        today
-            .checked_sub_days(Days::new(back))
-            .and_then(|d| d.and_hms_opt(0, 0, 0))
-            .and_then(|m| Local.from_local_datetime(&m).earliest())
-            .map_or(i64::MIN, |m| m.timestamp_millis())
-    })
 }

@@ -210,6 +210,8 @@ and how Zed uses it, not blog posts or memory.
   (`gh_pages_test.rs`).
 - Pointer tests: give the target `.debug_selector(..)`, get it drawn (`cx.notify()` after changing state directly,
   then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
+  `debug_selector` records only with debug assertions on: `mobile/` turns them off in dev (Android emulator), so its
+  `[profile.test]` turns them back on, or every `debug_bounds` is `None`.
 - Visual or behavior check of the real app: `/loop-verify-ui`.
 
 ## Platform notes

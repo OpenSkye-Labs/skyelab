@@ -190,6 +190,32 @@ Each step goes through `/loop`.
      `SkyeLab.app` 9.2 MiB (9.1 MiB executable). Clean release builds take about 3 min (Android) and 1.5 min (iOS)
      on an M-series Mac.
    - **Limits:** no splash screen; Android is arm64 only; iOS is iPhone only.
-7. **Verify.** Logic is tested in `skyelab-client`. Views get `#[gpui::test]`s. Android is driven with `agent-device`.
+7. **Protocol parity (2026-11-24).** The phone shows what protocol 1.4 sends, read by the desktop's own code: the
+   timeline model, subagent model, fold rules, card text and the flat list's day sections and preview line moved from
+   skyelab-app into `skyelab_agent::{timeline, thread_list}` (the app's modules re-export them).
+   - **Threads** is the first screen after connecting: every project's threads (listed again on connect, on Back and after
+     a send, stop or answer) in Pinned, Working (starting or running), Today, Yesterday,
+     Previous 7 days and Older, newest first. A row is the title with a status dot, then project · account label (else
+     id) · status, then the preview as one plain line. No projects screen.
+   - **Timeline**: the desktop's items as compact rows (`src/timeline_rows.rs`). Thinking and agent
+     output are one closed line until tapped; a todo list is one row of ✓ ◐ ○; a shell call is `$ command · exit N`
+     with up to 20 output lines when open; an edit is `Edit <file> +N −N` with its first 12 changed lines; another
+     tool is its name and what it touched (its result when open, image placeholders always); a subagent card is its
+     type, description, status, time, activity and call count (its calls and report when open). A finished turn's work
+     rows fold under one "Worked for 4.2s · …" row; the reply stays. Lines are clipped (2000 chars,
+     500 lines) so a huge event can't stall a frame. Text is plain, not markdown.
+   - **Answers** sit above the composer in a box that scrolls: an AskUserQuestion's options (tap to pick; Submit
+     sends `answer_questions`, only to a 1.4 machine, else it says to answer there), a plan's Approve
+     (`answer_permission` AllowOnce) and Keep planning (Deny), and a permission's Allow once / Allow for this thread /
+     Deny. The question card has no "Other" field on the phone. Every call waits on the client's hold, so nothing is
+     sent before the device and node checks pass.
+   - **Usage**: the thread header says "account · status · Limited · 5h 61% · 7d 20%" from the thread's own
+     `RateLimit` events (Limited until a turn succeeds), and the limit is a row in the timeline. The thread list can't
+     show Limited: `Thread.status` doesn't carry it.
+   - **Touch**: rows, fold headers and buttons are at least 44 pt (`app::TAP`; `tests/touch_targets.rs` measures them
+     with `debug_selector`, which is why `[profile.test]` turns debug assertions back on). The theme follows the
+     phone's appearance; debug builds take `SKYELAB_VERIFY_THEME=dark|light`.
+   - The `demo` build's first thread has every row kind and a waiting question, plan and permission (`src/demo.rs`).
+8. **Verify.** Logic is tested in `skyelab-client`. Views get `#[gpui::test]`s. Android is driven with `agent-device`.
    iOS can't be driven past taps until `gpui_ios` exposes accessibility, so confirm iOS typing by hand on the first build
    and track upstream accessibility work.

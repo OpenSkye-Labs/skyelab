@@ -76,6 +76,10 @@ so and nothing is sent to it. If the machine claims to be a different node than 
 so and nothing is listed or sent after the handshake. After a reconnect nothing is asked of the machine until it is
 checked again, and a refusal clears its projects and threads from the window.
 
+On the phone, the first screen after connecting is the same flat thread list, and a thread shows the same timeline in
+compact rows: tap a "Worked for …" line, a shell command or a subagent card to open it. Questions, plans and
+permission requests wait above the message box with buttons big enough for a thumb.
+
 The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
 you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:
 that catches a reused name or a replaced machine, but not a machine that lies about its id.

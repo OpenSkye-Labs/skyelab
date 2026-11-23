@@ -6,61 +6,7 @@ use super::tool_cards::chevron;
 use crate::ui;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
-
-/// How a finished command ended: `exit N` when the output says (unconfirmed: Claude's failed Bash results start
-/// "Exit code N"), `failed` for another error, `None` for success or while it runs.
-pub(super) fn exit_status(tool: &ToolItem) -> Option<String> {
-    let result = tool.result.as_deref()?;
-    let code = result
-        .strip_prefix("Exit code ")
-        .and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next())
-        .filter(|c| !c.is_empty());
-    match (code, tool.is_error) {
-        (Some(code), _) => Some(format!("exit {code}")),
-        (None, true) => Some("failed".into()),
-        (None, false) => None,
-    }
-}
-
-/// Command output as a terminal would leave it: escape sequences dropped, a carriage return overwriting its line.
-pub(super) fn plain_output(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    let mut line = String::new();
-    while let Some(c) = chars.next() {
-        match c {
-            '\u{1b}' => {
-                // CSI: ESC [ params… final byte (@ to ~). OSC (titles, links): ESC ] … BEL or ESC \\. Any other
-                // escape: drop the next char.
-                if chars.next_if_eq(&'[').is_some() {
-                    for n in chars.by_ref() {
-                        if ('@'..='~').contains(&n) {
-                            break;
-                        }
-                    }
-                } else if chars.next_if_eq(&']').is_some() {
-                    while let Some(n) = chars.next() {
-                        if n == '\u{7}' || (n == '\u{1b}' && chars.next_if_eq(&'\\').is_some()) {
-                            break;
-                        }
-                    }
-                } else {
-                    chars.next();
-                }
-            }
-            '\r' if chars.peek() != Some(&'\n') => line.clear(),
-            '\r' => {}
-            '\n' => {
-                out.push_str(&line);
-                out.push('\n');
-                line.clear();
-            }
-            c => line.push(c),
-        }
-    }
-    out.push_str(&line);
-    out
-}
+pub(super) use skyelab_agent::timeline::cards::{exit_status, plain_output};
 
 /// A shell command, T3's command block: `$ command` in mono with how it ended; opened, its output in a scroll box.
 pub(super) fn render_bash<V: ItemsView>(

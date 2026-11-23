@@ -1,5 +1,5 @@
 //! Acceptance: the environment name is validated and remembered, and the screens walk
-//! picker → projects → threads → thread, where send appends and stop interrupts.
+//! picker → threads → thread, where send appends and stop interrupts.
 
 use gpui::TestAppContext;
 use gpui_component::input::InputState;
@@ -83,33 +83,16 @@ fn walks_picker_to_thread_then_sends_and_stops(cx: &mut TestAppContext) {
         cx,
     );
     app.update_in(cx, |a, window, cx| a.connect(window, cx));
-    app.read_with(cx, |a, _| assert_eq!(a.screen, Screen::Projects));
+    app.read_with(cx, |a, _| assert_eq!(a.screen, Screen::Threads));
     assert_eq!(
         env_store::load(&data).as_deref(),
         Some("laptop.tail1234.ts.net")
     );
 
-    let project = app.read_with(cx, |a, _| a.projects()[0].id);
-    app.update(cx, |a, cx| a.open_project(project, cx));
-    app.read_with(cx, |a, _| {
-        assert_eq!(
-            a.screen,
-            Screen::Threads {
-                project_id: project
-            }
-        )
-    });
-
     let thread = app.read_with(cx, |a, _| a.threads()[0].id);
     app.update_in(cx, |a, window, cx| a.open_thread(thread, window, cx));
     app.read_with(cx, |a, _| {
-        assert_eq!(
-            a.screen,
-            Screen::Thread {
-                project_id: project,
-                thread_id: thread
-            }
-        )
+        assert_eq!(a.screen, Screen::Thread { thread_id: thread })
     });
     let before = app.read_with(cx, |a, _| a.events().len());
 
@@ -144,14 +127,7 @@ fn walks_picker_to_thread_then_sends_and_stops(cx: &mut TestAppContext) {
     });
 
     // Back walks up one level at a time, and stops at the picker.
-    for expected in [
-        Screen::Threads {
-            project_id: project,
-        },
-        Screen::Projects,
-        Screen::Picker,
-        Screen::Picker,
-    ] {
+    for expected in [Screen::Threads, Screen::Picker, Screen::Picker] {
         app.update(cx, |a, cx| a.back(cx));
         app.read_with(cx, |a, _| assert_eq!(a.screen, expected));
     }
