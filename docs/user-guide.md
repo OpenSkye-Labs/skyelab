@@ -133,10 +133,19 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
   worktree can't be deleted until you discard the worktree.
 - **Manage a project** from the project filter: **Manage projects**, then the project, then **Rename**,
-  **Open in editor**, **Account bindings…** (opens Settings) or **Remove from SkyeLab**. **Switch to project** in the
+  **Open in editor**, **Account bindings…** (opens Settings), **Import sessions…** or **Remove from SkyeLab**. **Switch to project** in the
   palette narrows the list to that project. Removing never touches the folder or its
   files, and keeps the threads' history: add the same folder again and the project comes back with its threads. If
   agents are running in it, SkyeLab asks first, and removing stops them.
+- **Import sessions.** Bring Claude Code or Codex sessions you ran outside SkyeLab into a project: **Import
+  sessions…** in the project's menu, or **Import Sessions** in the palette for the selected project. SkyeLab reads
+  only the account the folder is bound to (its `CLAUDE_CONFIG_DIR/projects`, or `CODEX_HOME/sessions`), lists the
+  sessions run in the folder or a folder under it with their title, age and message count, and imports the ones you
+  tick as threads. Sessions in a subfolder bound to another account are left out. A Claude session's timeline shows
+  your prompts, the agent's replies, thinking and tool calls; a Codex session shows prompts and replies only (the
+  agent still has its full history). Sending in an imported thread continues the same session. Sessions already in
+  a thread are marked **Imported** and can't be picked again. The account's files are only read, never changed; each
+  session is read up to 32 MB, and lines that don't parse are skipped (the notice says how many).
 - **Unread.** When a turn finishes in a thread you aren't looking at, or a thread starts in the background
   (delegated, or from another device), the thread's title turns bold and its row says **Done** until you open it. You
   also get a notice: a toast in the window if SkyeLab is in front, or a system notification if it
