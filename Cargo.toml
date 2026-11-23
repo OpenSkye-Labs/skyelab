@@ -38,7 +38,9 @@ rustix-openpty = "0.2"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent"] }
 futures = "0.3"
 # waitid(WNOWAIT): see an agent exit before reaping it, while its group id is still its own.
-rustix = { version = "1.1", features = ["process"] }
+rustix = { version = "1.1", features = ["process", "termios"] }
+# A terminal's foreground command and working folder (tab titles, the close check, restore).
+sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
 # Windows Job Objects (kill an agent with its whole process tree), a safe API.
 win32job = "2.1"
 # The MCP pipe's security descriptor (skyelab-pipe-sys).
