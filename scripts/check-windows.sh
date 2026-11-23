@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-llvm_bin="$(brew --prefix llvm 2>/dev/null)/bin"
+llvm_bin="$(brew --prefix llvm 2>/dev/null || true)/bin"
 # llvm is keg-only; gpui's build script needs llvm-rc and the C deps need clang-cl.
 [[ -x "$llvm_bin/llvm-rc" ]] || { echo "llvm-rc not found: brew install llvm" >&2; exit 1; }
 command -v cargo-xwin >/dev/null || { echo "cargo-xwin not found: cargo install cargo-xwin --locked" >&2; exit 1; }
