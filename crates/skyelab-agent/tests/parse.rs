@@ -69,3 +69,13 @@ fn events_round_trip_through_json() {
         );
     }
 }
+
+/// Rows stored before `prompts` existed (and remote clients built before it) still load: they answered one prompt.
+#[test]
+fn a_stored_result_without_prompts_answered_one() {
+    let old: Event = serde_json::from_str(
+        r#"{"Result":{"is_error":false,"duration_ms":5,"total_cost_usd":0.0,"result":"All done"}}"#,
+    )
+    .expect("an old row parses");
+    assert!(matches!(old, Event::Result { prompts: 1, .. }), "{old:?}");
+}
