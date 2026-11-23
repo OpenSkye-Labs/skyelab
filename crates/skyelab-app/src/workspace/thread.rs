@@ -457,6 +457,9 @@ impl ThreadView {
     }
 
     fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
+        if let Record::Agent(skyelab_agent::Event::RateLimit { .. }) = record {
+            cx.emit(ThreadViewEvent::UsageReported);
+        }
         let limited = limit_after(self.limited, record);
         if limited != self.limited {
             self.limited = limited;

@@ -8,6 +8,8 @@ pub enum ThreadViewEvent {
     Started(Box<Thread>),
     /// The agent's Result event arrived: its changes may be on disk now.
     TurnDone,
+    /// The agent reported its account's usage limits (stored): the Details tab reads them again.
+    UsageReported,
     OpenChanges,
     /// The Details tab's Commit & push menu: run it in this thread's Changes tab.
     Git(GitAction),

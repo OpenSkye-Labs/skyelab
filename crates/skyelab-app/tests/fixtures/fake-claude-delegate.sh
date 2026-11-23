@@ -2,7 +2,7 @@
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
-# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open and `title` for a browser_eval of document.title; `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); any other prompt gets a short answer. Never contacts a real account.
+# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open and `title` for a browser_eval of document.title; `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
@@ -41,6 +41,12 @@ while IFS= read -r line; do
   case $line in *'"type":"user"'*) ;; *) continue ;; esac
   # A JSON string value: ([^"\\]|\\.)* stops at its closing quote, whatever key comes next.
   case $line in *'"content":"hold"'*) continue ;; esac # stays mid-turn
+  case $line in *'"content":"limit"'*)
+    # Claude's order: the refused turn's result first, then the rejected limit.
+    done_turn "limit"
+    printf '{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","rateLimitType":"five_hour","resetsAt":%s}}\n' "$(( $(date +%s) + 8040 ))"
+    continue ;;
+  esac
   case $line in *'"content":"usage"'*)
     printf '%s\n' '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","rateLimitType":"seven_day","utilization":0.62}}' \
       '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed_warning","rateLimitType":"five_hour","utilization":0.91}}'

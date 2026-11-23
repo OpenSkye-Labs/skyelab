@@ -36,6 +36,16 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
             usage.iter().any(|a| a.id == "work" && a.windows.len() == 2)
         })
     });
+    // A limit reported after the turn's result still reaches the tab, its percentages kept.
+    send(&parent, "limit", cx);
+    wait_until(cx, "the work account shown limited", |cx| {
+        ws.read_with(cx, |ws, cx| {
+            let usage = &ws.details.read(cx).usage;
+            usage
+                .iter()
+                .any(|a| a.id == "work" && matches!(a.limited, Some(Some(_))))
+        })
+    });
     ws.read_with(cx, |ws, cx| {
         let usage = &ws.details.read(cx).usage;
         let work = usage.iter().find(|a| a.id == "work").expect("work listed");

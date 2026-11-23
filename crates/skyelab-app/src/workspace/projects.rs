@@ -350,6 +350,7 @@ impl Workspace {
                     this.turn_done(view, window, cx);
                 }
                 ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
+                ThreadViewEvent::UsageReported => this.refresh_usage(cx),
                 ThreadViewEvent::RunScript(script) => {
                     let v = view.read(cx);
                     let account = v.thread.as_ref().map(|t| t.account_id.clone());

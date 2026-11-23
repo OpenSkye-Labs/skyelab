@@ -179,6 +179,11 @@ impl Workspace {
             view.update(cx, |v, cx| v.load_details(cx));
         }
         self.details.update(cx, |d, cx| d.set_thread(view, cx));
+        self.refresh_usage(cx);
+    }
+
+    /// Every account's newest usage readings, read off the UI thread; a newer read replaces an older one.
+    pub(super) fn refresh_usage(&mut self, cx: &mut Context<Self>) {
         let (store, accounts) = (self.backend.store.clone(), self.config.accounts.clone());
         let task = cx.background_spawn(async move {
             let store = super::lock(&store)?;
