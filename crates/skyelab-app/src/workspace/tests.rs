@@ -133,10 +133,10 @@ fn shell_keys_reach_a_focused_terminal(cx: &mut TestAppContext) {
     });
 }
 
-/// Inside the Settings modal the sidebar key does nothing (the modal covers the window) and never runs Bind folder,
-/// which has its own key.
+/// Inside the Settings modal the sidebar key still toggles the sidebar behind it and never runs Bind folder, which has
+/// its own key.
 #[gpui::test]
-fn cmd_b_inside_settings_never_binds(cx: &mut TestAppContext) {
+fn cmd_b_toggles_sidebar_inside_settings(cx: &mut TestAppContext) {
     setup(cx);
     let home = tempfile::tempdir().expect("tempdir");
     let folder = home.path().to_path_buf();
@@ -171,7 +171,10 @@ fn cmd_b_inside_settings_never_binds(cx: &mut TestAppContext) {
     };
     assert!(sidebar(cx));
     cx.simulate_keystrokes(TOGGLE_SIDEBAR_KEY);
+    assert!(!sidebar(cx), "the sidebar key toggles from inside Settings");
     assert!(!bind_ran(cx), "the sidebar key doesn't run Bind folder");
+    cx.simulate_keystrokes(TOGGLE_SIDEBAR_KEY);
+    assert!(sidebar(cx));
     cx.simulate_keystrokes(if cfg!(target_os = "macos") {
         "cmd-shift-b"
     } else {

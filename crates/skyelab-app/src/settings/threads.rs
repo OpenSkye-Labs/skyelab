@@ -25,7 +25,7 @@ const MODES: [(Mode, &str); 3] = [
 /// Codex's reasoning efforts (its models list theirs; these are the common ones).
 const CODEX_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 
-/// Settings → Threads' fetch intervals, in minutes.
+/// Settings → Diffs & pull requests' fetch intervals, in minutes.
 const FETCH_CHOICES: [(u32, &str); 5] = [
     (0, "Off"),
     (1, "Every minute"),
@@ -50,7 +50,7 @@ fn title_case(s: &str) -> String {
 }
 
 impl Settings {
-    /// Applies `change` to Settings → Threads and saves it; a failed save shows on the page.
+    /// Applies `change` to the new-thread settings (Chat, Diffs, Worktrees) and saves it; a failed save shows on the page.
     pub(super) fn set_threads(
         &mut self,
         change: impl FnOnce(&mut ThreadSettings),
@@ -63,7 +63,7 @@ impl Settings {
             let failed = save
                 .await
                 .err()
-                .map(|e| format!("Saving Settings → Threads failed: {e:#}"));
+                .map(|e| format!("Saving the thread settings failed: {e:#}"));
             let _ = this.update(cx, |this, cx| {
                 this.threads_error = failed;
                 cx.notify();
@@ -185,7 +185,12 @@ impl Settings {
                 defaults,
                 cx,
             ))
-            .child(section("Titles", "", titles, cx))
+            .child(section(
+                "Titles",
+                "How threads get their names.",
+                titles,
+                cx,
+            ))
             .into_any_element()
     }
 
@@ -285,11 +290,16 @@ impl Settings {
                 view,
                 cx,
             ))
-            .child(section("Commits & pull requests", "", git, cx))
+            .child(section(
+                "Commits & pull requests",
+                "Keeping branches current, and help writing commits.",
+                git,
+                cx,
+            ))
             .into_any_element()
     }
 
-    /// A dropdown of `options` (value, label) setting one field of Settings → Threads.
+    /// A dropdown of `options` (value, label) setting one field of the new-thread settings.
     fn choice(
         &self,
         id: &'static str,

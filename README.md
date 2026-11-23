@@ -70,7 +70,7 @@ What's built today:
 - **Scratch threads.** **New Scratch Thread** asks for an account and runs a quick question in that account's own
   scratch folder, bound to it on first use and listed as **Scratch · <account>**. No default account, even here.
 - **Titles, drafts, history and forks.** After the first reply, the thread's own account names it (off in Settings →
-  Chat, which also holds the defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
+  Chat, next to the model and permission defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
   recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
   ([guide](docs/user-guide-threads.md)).
 - **Side chats.** `/side <question>` (or `/btw`) asks it in a small chat beside the thread, in the same folder under
@@ -151,7 +151,7 @@ CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
 CLAUDE_CONFIG_DIR=~/.claude claude auth login
 ```
 
-For a Codex account, add it in Settings with **Codex** picked and press **Log in to Codex**, or run
+For a Codex account, add it in Settings with **Codex** picked and press **Log in** on its card, or run
 `CODEX_HOME=~/.codex-work codex login` yourself.
 
 Then start SkyeLab. On first run the Welcome page lists the config folders it found (`~/.claude`, `~/.claude-*`,

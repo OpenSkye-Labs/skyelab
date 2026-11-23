@@ -1,4 +1,4 @@
-//! Settings → Keyboard shortcuts (T3's Keybindings page): every SkyeLab action with the keys that run it now,
+//! Settings → Keybindings (T3's Keybindings page): every SkyeLab action with the keys that run it now,
 //! searchable, and the button that opens keybindings.toml. Editing happens in the file; this page reads it back.
 
 use super::{Settings, SettingsEvent, widgets};

@@ -75,8 +75,8 @@ impl Workspace {
         cx.notify();
     }
 
-    /// The modal: the dimmed backdrop over the whole window, and Settings centered on it (T3: up to 1280 × 960 with
-    /// 40 px of window around it, radius 16). Drawn inside the workspace's tree, not as a gpui-component `Dialog`, so
+    /// The modal: the dimmed backdrop over the whole window, and Settings centered on it, up to 1180 × 900 with 40 px
+    /// of window around it, radius 16 (T3's is up to 1280 × 960). Drawn inside the workspace's tree, not as a gpui-component `Dialog`, so
     /// actions a section dispatches (Sharing's Allow, a scheduled task's thread link) still reach the workspace.
     pub(super) fn settings_modal(
         &self,

@@ -94,12 +94,12 @@ pub(super) fn open_workspace<'a>(
     (ws, cx)
 }
 
-/// A workspace window wrapped in gpui-component's `Root`, as the app's windows are (dialogs such as the Settings
-/// modal need it), with the workspace focused.
-pub(super) fn add_rooted<'a>(
-    cx: &'a mut TestAppContext,
+/// A workspace window wrapped in gpui-component's `Root`, as the app's windows are (dialogs and toasts need it), with
+/// the workspace focused.
+pub(super) fn add_rooted(
+    cx: &mut TestAppContext,
     build: impl FnOnce(&mut Window, &mut Context<Workspace>) -> Workspace,
-) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+) -> (Entity<Workspace>, &mut VisualTestContext) {
     let mut ws = None;
     let window = cx.add_window(|window, cx| {
         let view = cx.new(|cx| build(window, cx));

@@ -48,7 +48,7 @@ impl Settings {
             .gap_8()
             .child(section(
                 "Editor",
-                "",
+                "Where \"Open in editor\" sends a folder.",
                 [setting(
                     true,
                     "Open in editor",
@@ -61,7 +61,7 @@ impl Settings {
             ))
             .child(section(
                 "Updates",
-                "",
+                "SkyeLab only looks; it never installs anything itself.",
                 [setting(
                     true,
                     "Check for updates",

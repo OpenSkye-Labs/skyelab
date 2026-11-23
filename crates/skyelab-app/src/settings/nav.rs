@@ -114,7 +114,7 @@ pub(super) fn search(query: &str) -> Vec<(Section, &'static str)> {
 }
 
 impl Settings {
-    /// `/` focuses the search, unless a field has the focus (then it types a `/`).
+    /// `/` focuses the search while Settings itself has the focus; anywhere else (a field) the key goes on and types a `/`.
     pub(super) fn focus_search(
         &mut self,
         _: &FocusSearch,

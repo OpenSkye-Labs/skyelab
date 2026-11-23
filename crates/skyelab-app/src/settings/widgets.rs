@@ -1,4 +1,4 @@
-//! Layout pieces every settings section uses (T3's settings layout): a section's bold title and one-line
+//! Layout pieces every settings section uses (T3's settings layout): a section's semibold title and one-line
 //! description over one rounded card, rows with a label, a muted description and the control on the right, paths
 //! truncated in the middle with a copy button, and short errors with details on demand.
 
@@ -16,7 +16,7 @@ use std::path::Path;
 /// A row description's size: 13 px at the default text size.
 pub(super) const DESC: gpui::Rems = rems(13. / 14.);
 
-/// A section's heading: bold title, then a muted line saying what it is for.
+/// A section's heading: semibold title, then a muted line saying what it is for.
 pub(super) fn heading(title: &str, about: &str, cx: &App) -> gpui::Div {
     let theme = cx.theme();
     v_flex()
@@ -127,8 +127,8 @@ pub(super) fn path_line(id: String, path: &Path, cx: &App) -> gpui::Div {
         )
 }
 
-/// What an error banner shows first: the first sentence, with paths shortened to their last folder, at most ~120
-/// characters. The full text is behind "Details".
+/// What an error banner shows first: the first line up to its first `": "`, long paths cut to their last part, at most
+/// 120 characters, capitalized. The full text is behind "Details".
 pub(super) fn short_error(full: &str) -> String {
     let first = full.split(['\n']).next().unwrap_or(full);
     let first = first.split(": ").next().unwrap_or(first);

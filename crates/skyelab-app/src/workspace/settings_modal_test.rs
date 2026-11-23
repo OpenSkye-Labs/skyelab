@@ -1,6 +1,6 @@
 //! Acceptance: every way into Settings opens it as a modal over the window; the page under it never changes.
-#![cfg(unix)]
 
+#[cfg(unix)] // unix-only as it was before it moved under this module
 #[path = "settings_reopen_stale_test.rs"]
 mod reopen_stale;
 #[path = "settings_modal_windows_test.rs"]

@@ -41,7 +41,7 @@ pub enum SettingsEvent {
     CodexLogin { dir: PathBuf },
     /// Open keybindings.toml in the user's editor, writing the commented template first if it doesn't exist.
     OpenKeysFile { path: PathBuf },
-    /// Close the modal (the header's ×, or Esc with nothing to cancel).
+    /// Close the modal (the header's ×, Esc with nothing to cancel, or the focus leaving it).
     Closed,
 }
 
@@ -118,15 +118,15 @@ pub struct Settings {
     pub(super) stale: Vec<(PathBuf, Option<PathBuf>)>,
     pub(super) account_select: Entity<AccountSelect>,
     pub section: Section,
-    /// Settings → Threads' Codex model field, and why its last save failed.
+    /// Settings → Chat's Codex model field, and why its last Chat or Diffs save failed.
     pub(super) codex_model_input: Entity<InputState>,
     pub(super) threads_error: Option<String>,
-    /// Settings → Keyboard shortcuts' search, and the rows it leaves.
+    /// Settings → Keybindings' search, and the rows it leaves.
     pub(super) keys_search: Entity<InputState>,
     /// Where the focus was when the modal opened; it goes back there on close.
     pub return_focus: Option<FocusHandle>,
     /// The nav's search field.
-    pub(super) search_input: Entity<InputState>,
+    pub(crate) search_input: Entity<InputState>,
     /// Settings → General's editor command.
     pub(super) editor_input: Entity<InputState>,
     keys: Vec<keys::KeyRow>,
@@ -170,6 +170,7 @@ impl Settings {
         let ids = account_ids(&config);
         let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
         let account_select = cx.new(|cx| SelectState::new(ids, selected, window, cx));
+        let focus = cx.focus_handle();
         let subs = vec![
             cx.subscribe(&test_input, |this, _, e: &InputEvent, cx| {
                 if matches!(e, InputEvent::Change) {
@@ -183,6 +184,14 @@ impl Settings {
                 }
             }),
             cx.observe_global::<crate::keymap::Keymap>(Self::refresh_keys),
+            // The modal has no focus trap of its own: anything that takes the focus away (F6, the palette, a new
+            // terminal) closes it, so nothing opens hidden under it. Not the window going inactive (another app,
+            // the folder picker): GPUI reports that as a focus-out too.
+            cx.on_focus_out(&focus, window, |_, _, window, cx| {
+                if window.is_window_active() {
+                    cx.emit(SettingsEvent::Closed)
+                }
+            }),
             cx.subscribe(&search_input, |_, _, e: &InputEvent, cx| {
                 if matches!(e, InputEvent::Change) {
                     cx.notify();
@@ -239,7 +248,7 @@ impl Settings {
             remote: None,
             usage: None,
             scheduled: None,
-            focus: cx.focus_handle(),
+            focus,
             _pick: None,
             _subs: subs,
         };

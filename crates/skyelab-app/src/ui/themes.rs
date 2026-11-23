@@ -149,7 +149,7 @@ pub fn load(path: Option<PathBuf>, cx: &mut App) {
     let settings = path
         .as_deref()
         .and_then(|p| AppSettings::load(p).ok())
-        .map(|s| s.appearance)
+        .map(|s| s.appearance.clamped())
         .unwrap_or_default();
     cx.set_global(Appearance { path, settings });
     apply(cx);

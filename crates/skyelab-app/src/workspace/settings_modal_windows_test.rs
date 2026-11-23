@@ -109,3 +109,43 @@ fn each_window_has_its_own_modal(cx: &mut TestAppContext) {
     let open = cx.update(|_, cx| (a.read(cx).settings_open, b.read(cx).settings_open));
     assert_eq!(open, (true, false), "B's modal closed, A's stays");
 }
+
+#[gpui::test]
+fn focus_leaving_the_modal_closes_it(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    cx.update(|window, _| window.activate_window()); // GPUI reports focus changes only in the active window
+    cx.dispatch_action(OpenSettingsSection {
+        section: Section::Appearance,
+    });
+    cx.run_until_parked();
+    assert_eq!(open(&ws, cx), (true, true));
+    // F6 moves the focus to an area of the window behind the modal: the modal goes, nothing is left hidden under it.
+    cx.simulate_keystrokes("f6");
+    cx.run_until_parked();
+    assert_eq!(
+        open(&ws, cx),
+        (false, false),
+        "F6 left the modal, so it closed"
+    );
+
+    // A field inside it keeps it open.
+    cx.dispatch_action(OpenSettingsSection {
+        section: Section::General,
+    });
+    cx.run_until_parked();
+    let search = ws.read_with(cx, |ws, cx| {
+        ws.settings
+            .as_ref()
+            .map(|s| s.read(cx).search_input.clone())
+    });
+    let search = search.expect("settings");
+    search.update_in(cx, |s, window, cx| s.focus(window, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        open(&ws, cx),
+        (true, true),
+        "focus inside the modal keeps it"
+    );
+}

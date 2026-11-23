@@ -75,3 +75,43 @@ fn switching_applies_family_mode_accent_sizes_and_density(cx: &mut TestAppContex
     });
     assert_eq!(ACCENTS.len(), 6);
 }
+
+#[gpui::test]
+fn the_choice_is_read_from_and_saved_to_settings_toml(cx: &mut TestAppContext) {
+    setup(cx);
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("settings.toml");
+    std::fs::write(
+        &path,
+        "[appearance]\ntheme = \"grove\"\nui_font_size = 40\n",
+    )
+    .expect("write");
+    cx.update(|cx| themes::load(Some(path.clone()), cx));
+    cx.update(|cx| {
+        assert_eq!(
+            cx.theme().light_theme.name,
+            "Grove Light",
+            "loaded at start"
+        );
+        assert_eq!(
+            themes::get(cx).ui_font_size,
+            18,
+            "a hand-edited size is clamped on load"
+        );
+    });
+    cx.update(|cx| {
+        let s = AppearanceSettings {
+            accent: Some("violet".into()),
+            ..themes::get(cx)
+        };
+        themes::set(s, cx).detach();
+    });
+    cx.run_until_parked();
+    let saved = skyelab_core::AppSettings::load(&path)
+        .expect("load")
+        .appearance;
+    assert_eq!(
+        (saved.theme.as_str(), saved.accent.as_deref()),
+        ("grove", Some("violet"))
+    );
+}

@@ -98,7 +98,7 @@ impl Settings {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.editing.is_none() && !self.adding {
+        if self.section != Section::Accounts || (self.editing.is_none() && !self.adding) {
             return cx.emit(SettingsEvent::Closed);
         }
         self.reset_form(window, cx);
@@ -186,12 +186,7 @@ impl Settings {
         }));
     }
 
-    pub(super) fn render_accounts(
-        &self,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> gpui::AnyElement {
-        let _ = window;
+    pub(super) fn render_accounts(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let cards: Vec<_> = self
             .config
             .accounts
@@ -338,6 +333,7 @@ impl Settings {
                 cx,
             ))
             .on_click(cx.listener(|this, _, window, cx| {
+                this.reset_form(window, cx); // an open edit must not take what is typed for the new account
                 this.adding = true;
                 this.label_input.update(cx, |s, cx| s.focus(window, cx));
                 cx.notify();

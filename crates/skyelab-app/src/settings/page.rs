@@ -150,6 +150,7 @@ impl Settings {
         if self.section != section {
             self.section = section;
             self.error = self.locked.clone();
+            self.threads_error = None;
             self.error_open = false;
         }
         cx.notify();
@@ -200,7 +201,7 @@ impl Settings {
             .into_any_element()
     }
 
-    fn render_section(&self, window: &mut Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn render_section(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let body = match self.section {
             Section::Sharing => {
                 return match &self.remote {
@@ -216,7 +217,7 @@ impl Settings {
             Section::Chat => self.render_chat(cx),
             Section::Diffs => self.render_diffs(cx),
             Section::Keys => self.render_keys(cx).into_any_element(),
-            Section::Accounts => self.render_accounts(window, cx),
+            Section::Accounts => self.render_accounts(cx),
             Section::Usage => div().children(self.usage.clone()).into_any_element(),
             Section::Scheduled => div().children(self.scheduled.clone()).into_any_element(),
             Section::Projects => self.render_projects(cx),
@@ -230,7 +231,7 @@ impl Settings {
             .min_h_0()
             .overflow_y_scroll()
             .child(
-                // T3's settings column: centered, about 768 wide.
+                // T3's settings column: centered, 780 wide.
                 v_flex()
                     .w_full()
                     .max_w(gpui::px(780.))
@@ -257,11 +258,11 @@ impl Settings {
 }
 
 impl Render for Settings {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::debug_renders::count("Settings");
         let nav = self.render_nav(cx);
         let header = self.render_header(cx);
-        let section = self.render_section(window, cx);
+        let section = self.render_section(cx);
         let (bg, fg) = (cx.theme().background, cx.theme().foreground);
         div()
             .id("settings")

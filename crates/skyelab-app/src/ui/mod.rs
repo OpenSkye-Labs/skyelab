@@ -66,7 +66,7 @@ pub const RADIUS_LG: Pixels = px(12.);
 pub const RADIUS_XL: Pixels = px(16.);
 
 /// Type scale (§2): `META` for times, paths, labels and section captions, `BODY` for rows and prose, `CODE` for mono, `SECTION` for a settings section title, `PAGE` for a page title.
-/// Weights: titles semibold, labels and selected rows medium, nothing heavier. In rems of the theme's font size
+/// Weights: titles semibold, labels and selected rows medium. In rems of the theme's font size
 /// (gpui-component's `Root` sets the rem to it), so Settings → Appearance's text size scales every view; at the
 /// default 14 they are 12, 14, 13, 16 and 20 px.
 pub const META: Rems = rems(12. / 14.);

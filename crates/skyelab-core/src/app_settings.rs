@@ -24,11 +24,11 @@ pub struct AppSettings {
     /// "Open in editor": the command to run, split on whitespace (no shell), the folder appended. Unset: `$VISUAL`,
     /// `$EDITOR`, then `code` or `zed` from PATH.
     pub editor: Option<String>,
-    /// Settings → Threads: what new threads start with.
+    /// What new threads start with (Settings → Chat, Diffs & pull requests, Worktrees).
     pub threads: ThreadSettings,
     /// The Changes tab's view toggles.
     pub diff: DiffSettings,
-    /// Settings → About: the update check.
+    /// Settings → General: the update check.
     pub updates: crate::update::UpdateSettings,
     /// Settings → Appearance: theme, accent, density and text sizes.
     pub appearance: AppearanceSettings,

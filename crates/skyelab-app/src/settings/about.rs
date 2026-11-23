@@ -41,6 +41,12 @@ impl Settings {
                 cx,
             ))
             .into_any_element();
-        widgets::section("About", "", [version, brand], cx).into_any_element()
+        widgets::section(
+            "About",
+            "This build, and where releases come from.",
+            [version, brand],
+            cx,
+        )
+        .into_any_element()
     }
 }

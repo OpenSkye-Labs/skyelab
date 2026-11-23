@@ -130,8 +130,18 @@ impl Settings {
                     ))
                     .child(h_flex().items_start().gap_2().children(cards)),
             )
-            .child(section("Display", "", display, cx))
-            .child(section("Text", "", text, cx))
+            .child(section(
+                "Display",
+                "Light or dark, the accent color, and how dense lists are.",
+                display,
+                cx,
+            ))
+            .child(section(
+                "Text",
+                "Sizes in points; every window changes at once.",
+                text,
+                cx,
+            ))
             .into_any_element()
     }
 
@@ -273,7 +283,7 @@ impl Settings {
                 .map(|(key, label, fill)| {
                     let on = current.as_deref() == key;
                     let theme = cx.theme();
-                    // The theme's own accent: drawn from the family, half filled to tell it from a preset.
+                    // The theme's own accent (no preset): an outlined, lightly filled swatch, so it reads apart from the presets.
                     let swatch = match fill {
                         Some(c) => div().size_full().rounded_full().bg(c),
                         None => div()
