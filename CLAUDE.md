@@ -39,6 +39,9 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   project), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file). Never verify against the real `gh`. All of these are debug builds only.
+- A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
+  keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
+  (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo test --workspace`.
 - Commit small, on a branch, conventional-ish messages (`feat(core): …`). Don't push to `main` directly once CI exists.
