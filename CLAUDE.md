@@ -31,11 +31,11 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
   (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point (`hover:x;y` only moves the mouse there),
-  measured from below the title bar, so subtract its 32 pt from a window screenshot's y at 1x; `drag:x;y;x2;y2` drags,
+  at the window screenshot's own x and y at 1x (no title-bar offset: the window has no separate title strip); `drag:x;y;x2;y2` drags,
   `scroll:x;y;lines` turns the wheel, positive up). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
-  delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`
-  and `title` evaluates `document.title` in that tab; `delegate <project id> hold` starts a child that keeps working,
+  delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
+  `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the Details tab and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, a

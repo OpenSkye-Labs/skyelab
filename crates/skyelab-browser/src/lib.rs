@@ -20,12 +20,14 @@
 //!   `http://localhost`. Only that input is checked. wry's
 //!   navigation handler also fires for iframes, so filtering there would break `about:`, `data:`
 //!   and `blob:` frames that real web apps use; links and scripts in the page go unfiltered.
-//! - No screenshot API: wry has none, and WKWebView's snapshot is an `unsafe` call. Capture the window instead.
+//! - Screenshots (`screenshot`, the agent path's rules) are macOS only: WKWebView's snapshot through
+//!   `skyelab-webkit-sys`, since wry has no API and the call is `unsafe`. WebKitGTK and WebView2 say "not supported yet".
 //! - [`Engine`] is the seam under the agent path: [`BrowserView::with_engine`] runs it on a test's fake page.
 
 mod agent;
 mod engine;
 mod js;
+mod shot;
 mod url;
 mod view;
 
@@ -59,7 +61,8 @@ pub fn agent_data_dir() -> std::io::Result<tempfile::TempDir> {
 }
 
 pub use agent::parse_agent_url;
-pub use engine::{Engine, EvalDone};
+pub use engine::{Engine, EvalDone, SnapshotDone};
 pub use js::MAX_EVAL_OUTPUT;
+pub use shot::{MAX_SHOT_BYTES, MAX_SHOT_WIDTH, Shot, encode_png};
 pub use url::parse_url;
 pub use view::BrowserView;

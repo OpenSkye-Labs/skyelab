@@ -46,6 +46,10 @@ impl Workspace {
                 Ok(tab) => return eval(tab, thread_id, &expression, reply, cx),
                 Err(e) => Err(e),
             },
+            BrowserTool::Screenshot => match tab {
+                Ok(tab) => return screenshot(tab, thread_id, reply, cx),
+                Err(e) => Err(e),
+            },
         };
         let _ = reply.send(result);
     }
@@ -177,6 +181,41 @@ fn eval(
             r = eval.fuse() => r.map_err(|e| cut(format!("{e:#}"))).and_then(refuse_oversized),
             () = timeout.fuse() => Err(format!(
                 "the script did not finish in {}s", BROWSER_TIMEOUT.as_secs()
+            )),
+        };
+        let _ = reply.send(still_owned(&tab, thread_id, cx).and(result));
+    })
+    .detach();
+}
+
+/// A PNG of the tab's page, under skyelab-browser's size caps, as `{image: {data, mimeType}, width, height, bytes}`
+/// (the MCP server makes `image` an image block). The timeout covers the capture and the encoding.
+fn screenshot(tab: Entity<BrowserPanel>, thread_id: i64, reply: Reply<Value>, cx: &mut App) {
+    let shot = skyelab_browser::BrowserView::screenshot(&tab.read(cx).browser.clone(), cx);
+    let background = cx.background_executor().clone();
+    let timeout = background.timer(BROWSER_TIMEOUT);
+    let tab = tab.downgrade();
+    cx.spawn(async move |cx| {
+        let work = async move {
+            let raw = shot.await?;
+            let shot = background
+                .spawn(async move { skyelab_browser::encode_png(&raw) })
+                .await?;
+            use base64::Engine as _;
+            anyhow::Ok(json!({
+                "image": {
+                    "data": base64::engine::general_purpose::STANDARD.encode(&shot.png),
+                    "mimeType": "image/png",
+                },
+                "width": shot.width,
+                "height": shot.height,
+                "bytes": shot.png.len(),
+            }))
+        };
+        let result = futures::select! {
+            r = work.fuse() => r.map_err(|e| format!("{e:#}")),
+            () = timeout.fuse() => Err(format!(
+                "the screenshot did not finish in {}s", BROWSER_TIMEOUT.as_secs()
             )),
         };
         let _ = reply.send(still_owned(&tab, thread_id, cx).and(result));

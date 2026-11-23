@@ -22,9 +22,11 @@ pub enum BrowserTool {
     Eval {
         expression: String,
     },
+    /// A PNG of the tab's page, answered as an MCP image block.
+    Screenshot,
 }
 
-pub(super) fn list() -> [Value; 4] {
+pub(super) fn list() -> [Value; 5] {
     let url = json!({"type": "string", "minLength": 1, "maxLength": MAX_URL, "description": "An http or https URL."});
     [
         json!({
@@ -53,6 +55,12 @@ pub(super) fn list() -> [Value; 4] {
                 "required": ["expression"],
             },
         }),
+        json!({
+            "name": "browser_screenshot",
+            "description": "A PNG of what your browser tab's page shows now (the visible part, at most 1600 px wide), \
+                to check how what you built looks.",
+            "inputSchema": {"type": "object", "properties": {}},
+        }),
     ]
 }
 
@@ -63,6 +71,7 @@ pub(super) fn parse(name: &str, args: &Map<String, Value>) -> Option<Result<Brow
             bounded(args, "url", MAX_URL).map(|url| BrowserTool::Navigate { url })
         }
         "browser_url" => Ok(BrowserTool::Url),
+        "browser_screenshot" => Ok(BrowserTool::Screenshot),
         "browser_eval" => bounded(args, "expression", MAX_EXPRESSION)
             .map(|expression| BrowserTool::Eval { expression }),
         _ => return None,

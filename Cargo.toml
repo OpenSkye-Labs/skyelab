@@ -42,6 +42,12 @@ base64 = "0.23"
 # Webview: no `gpui-fast` feature (that is a second GPUI). wry must match the version gpui-webview uses.
 gpui-webview = "0.10.0"
 wry = { package = "lb-wry", version = "0.53.3" }
+# The WKWebView snapshot (skyelab-webkit-sys); same majors as lb-wry, so one copy in the tree.
+objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "objc2-app-kit", "block2", "WKWebView", "WKSnapshotConfiguration"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSError", "NSString"] }
+block2 = "0.6.2"
+# Decodes the snapshot, scales it and writes the PNG; already in the tree through gpui.
+image = { version = "0.25.10", default-features = false, features = ["png", "tiff"] }
 url = "2.5.9"
 tokio = { version = "1.54", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
 tokio-tungstenite = "0.30"
@@ -59,6 +65,7 @@ security-framework = "3.7"
 tungstenite = "0.30"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-browser = { path = "crates/skyelab-browser" }
+skyelab-webkit-sys = { path = "crates/skyelab-webkit-sys" }
 skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }
 skyelab-client = { path = "crates/skyelab-client" }

@@ -4,7 +4,7 @@ Part of [architecture.md](architecture.md).
 
 An agent can delegate work to other threads through SkyeLab's own MCP tools: `list_projects`, `start_thread`,
 `thread_status`, `read_thread`, `send_message` and `wait_thread`. It can also drive a browser tab of its own with
-`browser_open`, `browser_navigate`, `browser_url` and `browser_eval`.
+`browser_open`, `browser_navigate`, `browser_url`, `browser_eval` and `browser_screenshot`.
 
 - **Account rule.** A delegated thread runs under its target project's bound account, through the normal launch
   path, pinned to the account the start was approved for. An agent under account A can only list and start in
@@ -55,7 +55,12 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI
   thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page
   guard. Limits: one tab per thread (`browser_open` reuses it), URL 2048 chars, expression 32 000 chars, eval 10 s,
-  result 64 KiB (a bigger one is an error, never cut JSON; a thrown message is cut). Each agent tab has its own
+  result 64 KiB (a bigger one is an error, never cut JSON; a thrown message is cut). A screenshot follows eval's
+  page rules (it runs the in-page guard first, since the engine URL can name a pending load while a local file page
+  is still painted, and drops an image taken while a new page committed) and its 10 s timeout, which covers the PNG
+  encoding too. It captures only the web view (WKWebView's own snapshot, macOS only; elsewhere an error) and comes
+  back as an MCP image block plus `{width, height, bytes}`: a PNG at most 1600 px wide, halved until it is under
+  1 MiB. Like any screenshot it shows cross-origin iframes, which eval can't read. Each agent tab has its own
   non-persistent WebKit data store (`with_incognito`), so it shares no cookies or storage with the user's tabs (on the
   default persistent store) or other threads' tabs. Open and navigate answer once the new page commits. Take over
   reloads the page, ending the agent's scripts, and an eval still running answers with an error.

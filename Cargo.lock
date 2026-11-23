@@ -7516,6 +7516,7 @@ name = "skyelab-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.23.1",
  "chrono",
  "dirs 7.0.0",
  "flume 0.12.0",
@@ -7524,6 +7525,7 @@ dependencies = [
  "gpui-kit-assets",
  "gpui-pre",
  "gpui-pre-platform",
+ "image",
  "rusqlite",
  "rustls",
  "serde_json",
@@ -7553,8 +7555,10 @@ dependencies = [
  "gpui-pre",
  "gpui-pre-platform",
  "gpui-webview",
+ "image",
  "lb-wry",
  "serde_json",
+ "skyelab-webkit-sys",
  "tempfile",
  "url",
 ]
@@ -7681,6 +7685,16 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "rustix-openpty",
  "skyelab-core",
+]
+
+[[package]]
+name = "skyelab-webkit-sys"
+version = "0.1.0"
+dependencies = [
+ "block2 0.6.2",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "objc2-web-kit",
 ]
 
 [[package]]

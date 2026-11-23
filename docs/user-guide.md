@@ -180,8 +180,8 @@ Relative paths are read from the folder the terminal started in.
 ### Agent browser tabs
 
 An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read
-`browser_url` and run `browser_eval` (a JavaScript expression; the JSON result comes back, up to 64 KiB, within 10
-seconds). Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
+`browser_url`, run `browser_eval` (a JavaScript expression; the JSON result comes back, up to 64 KiB, within 10
+seconds) and take a `browser_screenshot` (a PNG of the visible page, at most 1600 px wide and 1 MiB; macOS only). Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
 local file page. Each thread has one tab, titled **Agent browser**, with a bar saying the agent controls it:
 
 - **Take over** makes it your tab. The agent can't reach it any more; its next `browser_open` opens a new tab.
@@ -190,7 +190,7 @@ local file page. Each thread has one tab, titled **Agent browser**, with a bar s
 An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or another thread's tab. Its tab has private,
 in-memory cookies and storage, so it is not signed in to anything you are, and nothing it sets reaches your tabs.
 Take over reloads the page, which stops any script the agent left running. While the agent still has the tab,
-don't sign in to anything in it: the agent can read that page. macOS and Linux only. There is no screenshot tool yet.
+don't sign in to anything in it: the agent can read that page. macOS and Linux only.
 
 ### Delegated threads
 

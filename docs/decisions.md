@@ -8,9 +8,11 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
 - **Browser, localhost for agents:** allowed. `parse_agent_url` takes `http://localhost` and loopback IPs, since a
   dev server is the point of the preview, and the agent process can already reach those over the network itself.
   (2026-11-23)
-- **Browser, no screenshot tool:** wry has no snapshot API; WKWebView's `takeSnapshotWithConfiguration` is an
-  `unsafe fn` in objc2-web-kit (it would need a `-sys` crate); a window capture needs Screen Recording permission and
-  shows whatever is drawn in the tab's rect, which can be the user's content. (2026-11-23)
+- **Browser screenshots: the web view's own snapshot, macOS only.** wry has no snapshot API, so
+  `skyelab-webkit-sys` holds the one `unsafe` WKWebView `takeSnapshotWithConfiguration` call (nil configuration: the
+  view's own bounds). Never a window capture: that needs Screen Recording permission and shows whatever is drawn in
+  the tab's rect, which can be the user's content. Linux (webkit2gtk's snapshot returns a cairo surface) and Windows
+  (WebView2 `CapturePreview`, COM) answer "not supported yet". (2026-11-23)
 - **Minimum macOS: 14.** wry crashes on macOS < 14 for URLs with unusual characters. (2026-11-23)
 - **Agent env:** parent env is cleared, then an allowlist passes through. Network and session plumbing (proxy, CA certs,
   TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)

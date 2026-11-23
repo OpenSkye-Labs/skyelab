@@ -53,9 +53,10 @@ What's built today:
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder.
 - **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
-  URL and evaluate JavaScript in it (http and https only, localhost included). The tab says an agent controls it;
+  URL, evaluate JavaScript in it and take a screenshot of it (http and https only, localhost included; screenshots
+  on macOS only). The tab says an agent controls it;
   **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
-  its own cookies and storage. macOS and Linux only (like delegation). No screenshots yet.
+  its own cookies and storage. macOS and Linux only (like delegation).
 - **Device hub.** Lists iOS Simulators and Android emulators. Boot, shut down, take screenshots, open URLs and
   install apps.
 - **Share a machine over your tailnet.** Off by default. When on, the app serves this machine over `wss://` with its

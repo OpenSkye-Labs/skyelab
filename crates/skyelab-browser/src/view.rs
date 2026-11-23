@@ -267,6 +267,40 @@ impl BrowserView {
         }
     }
 
+    /// What the page shows now, as the engine's encoded image (see [`crate::encode_png`] for the PNG the agent
+    /// gets). Refused before the first load and unless the painted document itself is http or https and parsed:
+    /// the engine URL can name a pending load while the old page, maybe a local file, is still on screen. An image
+    /// taken while a new page committed is dropped.
+    pub fn screenshot(
+        this: &Entity<Self>,
+        cx: &mut gpui::App,
+    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + use<> {
+        let this = this.clone();
+        let cx = cx.to_async();
+        async move {
+            // The in-page guard of eval_js checks `location` in the document that is actually there.
+            let (state, before) = cx.read_entity(&this, |b, cx| {
+                (b.eval_js("document.readyState", cx), b.loads)
+            });
+            if state.await? == "loading" {
+                anyhow::bail!("the page is still loading; try again in a moment");
+            }
+            let (tx, rx) = oneshot::channel();
+            cx.read_entity(&this, |b, cx| {
+                let (page, _) = b.agent_page(cx)?;
+                page.snapshot(Box::new(move |r| _ = tx.send(r)), cx)
+            })?;
+            let raw = rx
+                .await
+                .context("the webview dropped the snapshot")?
+                .map_err(|e| anyhow::anyhow!("snapshot failed: {e}"))?;
+            if cx.read_entity(&this, |b, _| b.loads) != before {
+                anyhow::bail!("a new page loaded while the screenshot was taken; try again");
+            }
+            Ok(raw)
+        }
+    }
+
     fn back(&mut self, cx: &mut Context<Self>) {
         let result = self
             .page(cx)
