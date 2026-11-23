@@ -13,7 +13,7 @@ use std::time::Duration;
 
 /// How often a running session checks whether its agent exited.
 const WATCH_EXIT: Duration = Duration::from_secs(1);
-/// After the exit, how long the pump keeps storing what the agent printed before the session counts as ended.
+/// After the exit, how long the pump keeps storing what is still coming before the session counts as ended.
 const DRAIN: Duration = Duration::from_secs(2);
 
 impl ThreadView {
@@ -28,7 +28,7 @@ impl ThreadView {
     ) {
         let events = session.events().clone();
         let session = Arc::new(Mutex::new(session));
-        let watched = session.clone();
+        let watched = Arc::downgrade(&session);
         self.session = Some(session);
         // The launch sent one prompt.
         let turns = Arc::new(AtomicUsize::new(1));
@@ -42,24 +42,28 @@ impl ThreadView {
         let unsaved = self.unsaved.clone();
         self._pump = Some(cx.spawn(async move |this, cx| {
             let mut exited = false;
+            // stdout can outlive the agent (a tool it started holds it), so its exit is watched too, on a timer that
+            // events don't restart.
+            let mut tick = cx.background_executor().timer(WATCH_EXIT);
             loop {
-                // stdout can outlive the agent (a tool it started holds it), so its exit is watched too.
-                let tick = cx
-                    .background_executor()
-                    .timer(if exited { DRAIN } else { WATCH_EXIT });
-                let event = match futures::future::select(events.recv_async(), tick).await {
+                let event = match futures::future::select(events.recv_async(), &mut tick).await {
                     Either::Left((Ok(event), _)) => event,
-                    Either::Left((Err(_), _)) => break, // stdout closed
-                    Either::Right(_) if exited => break, // nothing more since it exited
+                    Either::Left((Err(_), _)) => break,
+                    Either::Right(_) if exited => break, // DRAIN passed since the exit
                     Either::Right(_) => {
                         let s = watched.clone();
                         exited = cx
                             .background_spawn(async move {
-                                lock(&s)
-                                    .and_then(|mut s| s.try_wait())
-                                    .is_ok_and(|st| st.is_some())
+                                s.upgrade().is_none_or(|s| {
+                                    lock(&s)
+                                        .and_then(|mut s| s.try_wait())
+                                        .is_ok_and(|st| st.is_some())
+                                })
                             })
                             .await;
+                        tick =
+                            cx.background_executor()
+                                .timer(if exited { DRAIN } else { WATCH_EXIT });
                         continue;
                     }
                 };
