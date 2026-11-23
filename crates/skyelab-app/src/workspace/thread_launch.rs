@@ -90,6 +90,9 @@ impl ThreadView {
         let use_worktree = resume.is_none() && self.wt.use_worktree;
         let parent = self.parent.as_ref().map(|p| p.0);
         let tools = crate::workspace::orchestrate::Tools::get(cx);
+        let accounts_file = cx
+            .try_global::<crate::workspace::AccountsFile>()
+            .map(|f| f.0.clone());
         let is_new = resume.is_none();
         let pump_store = store.clone();
         // The row reaches the view as soon as it is saved, before the agent is up: a delegated start answers then.
@@ -168,7 +171,13 @@ impl ThreadView {
                             prompt: &text,
                             mcp_config: grant.as_ref().map(|g| g.config_path()),
                         };
-                        let session = skyelab_agent::start_with_bin(&bin, &config, &launch);
+                        // The binding as saved right now: a rebind may have landed while this launch ran. An
+                        // unreadable file binds nothing, so the check below refuses.
+                        let current = accounts_file.as_deref().map_or_else(
+                            || config.clone(),
+                            |p| skyelab_core::AccountsConfig::load(p).unwrap_or_default(),
+                        );
+                        let session = skyelab_agent::start_with_bin(&bin, &current, &launch);
                         let status = if session.is_ok() { "running" } else { "failed" };
                         lock(&store)?.set_thread_status(thread.id, status)?;
                         // From here on, a closed tab can't leave the row running with nothing behind it.

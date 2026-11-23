@@ -243,6 +243,9 @@ fn main() {
             cfg!(debug_assertions),
             "codex",
         )));
+        if let Some(path) = &path {
+            cx.set_global(workspace::AccountsFile(path.clone()));
+        }
         // Home until a project is selected.
         let folder = dirs::home_dir().unwrap_or_default();
         let (mut store, store_error) = open_store();
