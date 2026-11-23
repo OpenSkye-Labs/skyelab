@@ -22,6 +22,10 @@ const MAX_READ: usize = 64 << 10;
 /// A parent chain longer than this is broken data; it counts as too deep.
 const MAX_CHAIN: u32 = 16;
 
+/// The answer to a call from a thread whose agent was stopped or whose tab closed.
+pub(super) const CALLER_GONE: &str =
+    "this thread isn't running here any more (it was stopped, or its tab closed); nothing was done";
+
 pub type Reply<T> = flume::Sender<Result<T, String>>;
 
 /// A delegated start, checked on the UI thread before it launches.
@@ -315,6 +319,13 @@ impl Host for AppHost {
             } => {
                 let deadline = Instant::now() + Duration::from_secs(timeout_s);
                 loop {
+                    // A stopped caller's agent is gone: nobody is waiting for the answer any more.
+                    let me = lock(&self.store)
+                        .and_then(|s| s.thread(caller.thread_id))
+                        .map_err(|e| format!("{e:#}"))?;
+                    if !me.is_some_and(|t| skyelab_core::delegation::is_live(&t.status)) {
+                        return Err(CALLER_GONE.into());
+                    }
                     let t = self.drivable(caller, thread_id)?;
                     let done = !busy(&t.status);
                     if done || Instant::now() >= deadline {

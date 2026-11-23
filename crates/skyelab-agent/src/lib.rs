@@ -76,7 +76,12 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
     let dir = &std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
     match config.resolve(dir) {
-        Some(now) if now == account => {}
+        Some(now) if now.same_login(account) => {}
+        Some(now) if now.id == account.id => bail!(
+            "account '{}' changed since this launch was prepared (its config dir, gh login or ssh setting); \
+             nothing was started",
+            now.id
+        ),
         Some(now) => bail!(
             "{} is now bound to '{}', not '{}'; nothing was started",
             dir.display(),

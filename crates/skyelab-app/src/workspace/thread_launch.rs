@@ -300,7 +300,7 @@ impl ThreadView {
                         let store = lock(&store)?;
                         let was = store.thread(id)?.map(|t| t.status).unwrap_or_default();
                         // Stop or an exit got here first: writing "running" would hold a slot with no process.
-                        if !matches!(was.as_str(), "idle" | "running" | "starting") {
+                        if !skyelab_core::delegation::is_live(&was) {
                             anyhow::bail!("the agent has ended; send again to resume it");
                         }
                         if let Some(parent) = parent
