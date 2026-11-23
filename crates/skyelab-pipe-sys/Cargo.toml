@@ -1,0 +1,19 @@
+[package]
+name = "skyelab-pipe-sys"
+description = "The Windows calls SkyeLab's MCP named pipe needs that have no safe binding: a user-only DACL and a pid check."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+tokio.workspace = true
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Threading",
+] }
+
+[lints]
+workspace = true

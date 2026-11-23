@@ -20,6 +20,8 @@ rustix.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 win32job.workspace = true
+tokio.workspace = true
+skyelab-pipe-sys.workspace = true
 
 [lints]
 workspace = true

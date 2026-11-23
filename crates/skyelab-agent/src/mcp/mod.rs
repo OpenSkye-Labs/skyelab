@@ -1,16 +1,16 @@
 //! SkyeLab's own MCP server, so an agent can delegate to other threads and drive its own browser tab.
 //!
 //! `claude` spawns the proxy (`skyelab --mcp-proxy`) from the `--mcp-config` file a [`Grant`] writes. The proxy
-//! connects to the app's unix socket in a private (0700) dir, sends its one-use token, then pipes stdio both
-//! ways. The server speaks just enough MCP (JSON-RPC 2.0, one message per line) for tools: `initialize`, `ping`,
-//! `tools/list` and `tools/call`. Every tool input is validated here; the [`Host`] (the app) decides the rest.
-//!
-//! unix only: std has no named pipes.
+//! connects to the app (a unix socket in a private (0700) dir, or on Windows a per-run named pipe only this user can
+//! open), sends its one-use token, then pipes stdio both ways. The server speaks just enough MCP (JSON-RPC 2.0, one
+//! message per line) for tools: `initialize`, `ping`, `tools/list` and `tools/call`. Every tool input is validated
+//! here; the [`Host`] (the app) decides the rest.
 
 mod browser;
 mod proxy;
 mod server;
 mod tools;
+mod transport;
 
 pub use browser::BrowserTool;
 pub use proxy::{proxy_main, run_proxy};
@@ -20,7 +20,7 @@ pub use tools::Tool;
 use serde_json::Value;
 use std::path::PathBuf;
 
-/// The proxy's env: where the app listens, and its one-use token.
+/// The proxy's env: where the app listens (a socket path, or a pipe name on Windows), and its one-use token.
 pub const SOCKET_ENV: &str = "SKYELAB_MCP_SOCKET";
 pub const TOKEN_ENV: &str = "SKYELAB_MCP_TOKEN";
 
