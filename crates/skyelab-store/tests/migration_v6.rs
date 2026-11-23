@@ -24,9 +24,10 @@ fn old_threads_read_default_and_the_mode_persists() {
     drop(store);
     // Back to v5, as an older build left it.
     let conn = Connection::open(&path).expect("raw");
-    // Undo v9 (model pick), v8 (project scripts), then v7 (search table, pin/archive/unread/delete columns), then v6.
+    // Undo v10 (usage readings), v9 (model pick), v8 (project scripts), then v7 (search table, pin/archive/unread/delete columns), then v6.
     conn.execute_batch(
-        "ALTER TABLE threads DROP COLUMN model; ALTER TABLE threads DROP COLUMN effort;
+        "DROP TRIGGER usage_reading_insert; DROP TABLE usage_readings;
+         ALTER TABLE threads DROP COLUMN model; ALTER TABLE threads DROP COLUMN effort;
          ALTER TABLE projects DROP COLUMN default_model; ALTER TABLE projects DROP COLUMN default_effort;
          DROP TABLE project_scripts;
          DROP TRIGGER event_text_insert; DROP TRIGGER event_text_thread_delete; DROP TABLE event_text;
