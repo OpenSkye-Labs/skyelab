@@ -24,6 +24,8 @@ pub struct SidebarItem {
     pub updated_ms: Option<i64>,
     /// Project rows: the account the folder runs on.
     pub account: Option<RowAccount>,
+    /// Thread rows: it started in the background (delegated, or from another device) and wasn't opened yet.
+    pub unread: bool,
 }
 
 /// One titled group in the sidebar, with what to show while it is empty.
@@ -57,7 +59,7 @@ impl Sidebar {
 }
 
 // The sidebar draws its own header.
-panel!(Sidebar, "Sidebar", closable: false, title_bar: false, toggles: false, |_this| "Sidebar");
+panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
 
 fn section_button(s: &SidebarSection) -> Option<Button> {
     s.button.as_ref().map(|(label, action)| {
@@ -107,6 +109,14 @@ fn sidebar_row(
             };
             Some(div().flex_shrink_0().max_w(gpui::px(104.)).child(badge))
         }))
+        .when(item.unread, |this| {
+            this.child(
+                div()
+                    .id(SharedString::from(format!("{}-unread", item.id)))
+                    .flex_shrink_0()
+                    .child(ui::StatusDot::new(theme.primary)),
+            )
+        })
         .children(match item.status.and_then(ui::Status::badge) {
             Some((icon, word)) => {
                 let color = item

@@ -1,15 +1,16 @@
-//! The window's layout: the right tool dock (Changes, Browser, Devices), the dock toggles at the end of the center
-//! tab bar, and saving the window frame and right dock to settings.toml.
+//! The window's layout: the right tool dock (Changes, Browser, Devices), the page header with the dock toggles, and
+//! saving the window frame, right dock and current page to settings.toml.
 
 use super::{CONTEXT, ToggleBottomPanel, ToggleSidebar, Workspace};
 use gpui::{
-    App, AppContext as _, Context, Entity, Global, KeyBinding, NoAction, Pixels, Task, Window,
-    actions, px,
+    App, AppContext as _, Context, Div, Entity, Global, IntoElement, KeyBinding, NoAction, Pixels,
+    Task, Window, actions, prelude::*, px,
 };
 use gpui_component::{
-    IconName, Sizable as _,
+    ActiveTheme as _, IconName, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{DockEvent, DockPlacement, Panel, panel_handle},
+    h_flex,
 };
 use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
@@ -53,8 +54,25 @@ pub struct DockToggles {
 
 impl Global for DockToggles {}
 
-/// The three toggles at the end of the center tab bar: sidebar, bottom drawer, right panel.
-pub(crate) fn dock_toggles(cx: &App) -> Vec<Button> {
+/// The page's top row (T3's WorkspacePageHeader): 52 px, beside the sidebar's first row. With the sidebar hidden on
+/// macOS the traffic lights sit over its start, so it leaves them room.
+pub(crate) fn page_header(cx: &App) -> Div {
+    let open = cx.try_global::<DockToggles>().copied().unwrap_or_default();
+    crate::ui::header(cx.theme()).when(super::MAC && !open.left, |h| {
+        h.pl(crate::ui::TRAFFIC_LIGHTS_W)
+    })
+}
+
+/// The three dock toggles, for the end of a page header.
+pub(crate) fn panel_toggles(cx: &App) -> impl IntoElement {
+    h_flex()
+        .flex_shrink_0()
+        .gap_0p5()
+        .children(dock_toggles(cx))
+}
+
+/// The three dock toggles: sidebar, bottom drawer, right panel.
+fn dock_toggles(cx: &App) -> Vec<Button> {
     let open = cx.try_global::<DockToggles>().copied().unwrap_or_default();
     // The tooltip shows the action's key binding for this OS.
     let toggle = |id: &'static str,
@@ -201,6 +219,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Some(saved) = saved {
+            self.restore_page(&saved.view, window, cx);
             self.dock.update(cx, |dock, cx| {
                 if saved.right_panel_width > 0 {
                     let w = px(saved.right_panel_width as f32);
@@ -227,17 +246,20 @@ impl Workspace {
         self.sync_toggles(cx);
     }
 
-    fn schedule_layout_save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn schedule_layout_save(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(path) = self.layout.path.clone() else {
             return;
         };
         let dock = self.dock.read(cx);
-        let layout = crate::window_layout::to_layout(
-            window.window_bounds().get_bounds(),
-            dock.is_dock_open(DockPlacement::Right),
-            dock.dock_size(DockPlacement::Right)
-                .unwrap_or(RIGHT_DEFAULT_W),
-        );
+        let layout = skyelab_core::WindowLayout {
+            view: self.page.key(cx),
+            ..crate::window_layout::to_layout(
+                window.window_bounds().get_bounds(),
+                dock.is_dock_open(DockPlacement::Right),
+                dock.dock_size(DockPlacement::Right)
+                    .unwrap_or(RIGHT_DEFAULT_W),
+            )
+        };
         self.layout.pending = Some(layout.clone());
         // A newer change replaces (cancels) the pending save: only the settled layout is written.
         self.layout.save = Some(cx.spawn(async move |this, cx| {

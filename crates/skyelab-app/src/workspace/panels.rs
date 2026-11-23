@@ -1,6 +1,5 @@
 //! The workspace's dock panels and the dock traits each one needs.
 
-use crate::settings::Settings;
 use crate::ui;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
@@ -17,16 +16,12 @@ use gpui_component::{
 use skyelab_browser::BrowserView;
 use skyelab_terminal::TerminalView;
 
-/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar. `center` panels
-/// carry the dock toggles at the end of their tab bar.
+/// The dock traits every panel needs: its `panel_name` id, tab title, closability and title bar.
 macro_rules! panel {
     ($ty:ty, $name:literal, closable: $closable:literal, |$this:ident| $title:expr) => {
-        panel!($ty, $name, closable: $closable, title_bar: true, toggles: false, |$this| $title);
+        panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
     };
-    ($ty:ty, $name:literal, closable: $closable:literal, center, |$this:ident| $title:expr) => {
-        panel!($ty, $name, closable: $closable, title_bar: true, toggles: true, |$this| $title);
-    };
-    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, toggles: $toggles:literal, $(removed: $removed:ident,)? |$this:ident| $title:expr) => {
+    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, |$this:ident| $title:expr) => {
         impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
@@ -38,11 +33,6 @@ macro_rules! panel {
             fn zoomable(&self, _: &App) -> bool {
                 false
             }
-            $(
-                fn on_removed(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-                    self.$removed(cx);
-                }
-            )?
         }
         impl Panel for $ty {
             fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -55,21 +45,17 @@ macro_rules! panel {
             fn title_bar(&self, _: &App) -> bool {
                 $title_bar
             }
-            fn toolbar_buttons(
-                &mut self,
-                _: &mut Window,
-                cx: &mut Context<Self>,
-            ) -> Option<Vec<gpui_component::button::Button>> {
-                $toggles.then(|| crate::workspace::layout::dock_toggles(cx))
-            }
         }
     };
 }
 
+// The page draws its own header, which carries the dock toggles.
+panel!(super::center::Center, "Center", closable: false, title_bar: false, |_this| "Center");
+
 mod sidebar;
 pub use sidebar::{RowAccount, Sidebar, SidebarItem, SidebarSection};
 
-/// The center's first tab: what SkyeLab is and the keys that do things today.
+/// The page with no thread open: what SkyeLab is and the keys that do things today.
 pub struct Welcome {
     focus: FocusHandle,
 }
@@ -81,8 +67,6 @@ impl Welcome {
         }
     }
 }
-
-panel!(Welcome, "Welcome", closable: false, center, |_this| "Welcome");
 
 impl Render for Welcome {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -99,13 +83,11 @@ impl Render for Welcome {
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
                 .child(ui::KeyHint::new(label, key))
         };
-        v_flex()
-            .id("welcome")
-            .track_focus(&self.focus)
-            .size_full()
+        let body = div()
+            .flex_1()
+            .flex()
             .items_center()
             .justify_center()
-            .bg(theme.background)
             .child(
                 v_flex()
                     .w(gpui::px(384.))
@@ -144,7 +126,24 @@ impl Render for Welcome {
                                 Box::new(super::OpenSettings),
                             )),
                     ),
+            );
+        // T3's empty thread state: a quiet "No active thread" in the header.
+        let header = super::layout::page_header(cx)
+            .child(
+                div()
+                    .flex_1()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground.opacity(0.5))
+                    .child("No active thread"),
             )
+            .child(super::layout::panel_toggles(cx));
+        v_flex()
+            .id("welcome")
+            .track_focus(&self.focus)
+            .size_full()
+            .bg(theme.background)
+            .child(header)
+            .child(body)
     }
 }
 
@@ -227,11 +226,6 @@ impl Render for TerminalPanel {
         div().size_full().child(self.view.clone())
     }
 }
-
-panel!(Settings, "Settings", closable: true, center, |_this| "Settings");
-panel!(super::thread::ThreadView, "Thread", closable: true, center, |this| this.title());
-panel!(crate::remote::RemotePanel, "Remote", closable: true, center, |_this| "Remote");
-panel!(super::remote_thread::RemoteThreadView, "RemoteThread", closable: true, title_bar: true, toggles: true, removed: closed, |this| this.title());
 
 /// The right dock's content while no tool is open in it.
 pub struct RightEmpty {

@@ -11,9 +11,7 @@ fn changes_tab_refreshes_for_a_folder_thread_that_never_opened_it(cx: &mut gpui:
     cx.dispatch_action(super::NewThread);
     cx.run_until_parked();
     let second = ws
-        .read_with(&*cx, |ws, _| {
-            ws.open_threads.last().and_then(|t| t.upgrade())
-        })
+        .read_with(&*cx, |ws, _| ws.open_threads.last().cloned())
         .expect("second thread tab");
     assert_ne!(first, second);
 

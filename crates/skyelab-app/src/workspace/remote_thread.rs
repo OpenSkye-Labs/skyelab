@@ -130,10 +130,6 @@ impl RemoteThreadView {
         self.thread_id
     }
 
-    pub fn title(&self) -> SharedString {
-        self.title.clone()
-    }
-
     pub fn env_badge(&self) -> String {
         format!("Remote · {}", self.host)
     }
@@ -279,12 +275,7 @@ impl RemoteThreadView {
                 .child(div().size(px(6.)).rounded_full().bg(dot))
                 .child(child)
         };
-        h_flex()
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(theme.border)
+        super::layout::page_header(cx)
             .child(
                 div()
                     .flex_1()
@@ -308,6 +299,7 @@ impl RemoteThreadView {
                         ),
                 )
             })
+            .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
 }
@@ -349,7 +341,7 @@ impl Focusable for RemoteThreadView {
 }
 
 impl RemoteThreadView {
-    /// The tab left the dock: stop following the thread, so the client stops fetching its events.
+    /// The machine changed: stop following the thread, so the client stops fetching its events.
     pub(super) fn closed(&mut self, _: &mut Context<Self>) {
         self.closed = true;
         if let Some(watch) = self.watch.take() {
@@ -359,7 +351,7 @@ impl RemoteThreadView {
 }
 
 impl Drop for RemoteThreadView {
-    /// Backstop for a view dropped without leaving the dock (the window closing).
+    /// Backstop for a view dropped without `closed` (the window closing).
     fn drop(&mut self) {
         if let Some(watch) = self.watch.take() {
             self.client.unwatch(watch);

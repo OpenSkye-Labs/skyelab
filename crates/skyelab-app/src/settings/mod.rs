@@ -1,4 +1,5 @@
-//! Accounts and folder-bindings settings. Thin: every rule lives in `skyelab_core::AccountsConfig`.
+//! The Settings page: a section nav (accounts and bindings, GitHub, sharing, appearance) and the chosen section.
+//! Thin: every account rule lives in `skyelab_core::AccountsConfig`.
 
 use anyhow::{Context as _, Result};
 use gpui::{
@@ -107,6 +108,10 @@ pub struct Settings {
     /// Stale bindings' paths and where each resolves now (`None`: can't be resolved).
     stale: Vec<(PathBuf, Option<PathBuf>)>,
     account_select: Entity<AccountSelect>,
+    /// The section the page shows; the workspace sets it when it navigates.
+    pub section: Section,
+    /// The Sharing section's content; `None` when this window doesn't share (tests).
+    pub remote: Option<Entity<crate::remote::RemotePanel>>,
     focus: FocusHandle,
     _pick: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -173,6 +178,8 @@ impl Settings {
             _gh_check: None,
             test_result: None,
             account_select,
+            section: Section::default(),
+            remote: None,
             focus: cx.focus_handle(),
             _pick: None,
             _subs: subs,
@@ -469,70 +476,8 @@ impl Focusable for Settings {
     }
 }
 
-impl Render for Settings {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
-        div()
-            .id("settings")
-            .key_context(CONTEXT)
-            .track_focus(&self.focus)
-            .on_action(cx.listener(Self::save_account))
-            .on_action(cx.listener(Self::cancel_edit))
-            .on_action(cx.listener(Self::bind_folder))
-            .on_action(cx.listener(Self::edit_account))
-            .on_action(cx.listener(Self::remove_account))
-            .on_action(cx.listener(Self::gh_log_in))
-            .on_action(cx.listener(Self::remove_binding))
-            .on_action(cx.listener(Self::reconfirm_binding))
-            .size_full()
-            .overflow_y_scroll()
-            .bg(theme.background)
-            .text_color(theme.foreground)
-            .child(
-                // T3's settings page: 896 wide, 24 padding, 32 between sections.
-                div()
-                    .w_full()
-                    .max_w(crate::ui::PAGE_MAX_W)
-                    .mx_auto()
-                    .px_6()
-                    .pt_6()
-                    .pb_12()
-                    .flex()
-                    .flex_col()
-                    .gap_8()
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(crate::ui::page_title("Settings", theme))
-                            .child(
-                                div()
-                                    .text_size(crate::ui::BODY)
-                                    .text_color(theme.muted_foreground)
-                                    .child("Every folder runs on the account it is bound to. SkyeLab never picks one for you."),
-                            ),
-                    )
-                    .children(self.error.clone().map(|e| {
-                        div()
-                            .id("settings-error")
-                            .px_4()
-                            .py_3()
-                            .rounded(crate::ui::RADIUS_LG)
-                            .bg(theme.danger.opacity(0.1))
-                            .border_1()
-                            .border_color(theme.danger.opacity(0.35))
-                            .text_size(crate::ui::BODY)
-                            .text_color(crate::ui::ink(theme, theme.danger))
-                            .child(e)
-                    }))
-                    .child(self.render_accounts(cx))
-                    .child(self.render_bindings(cx))
-                    .child(self.render_test(cx)),
-            )
-    }
-}
-
+mod page;
+pub use page::Section;
 mod render;
 mod widgets;
 

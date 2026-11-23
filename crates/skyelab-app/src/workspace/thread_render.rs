@@ -1,4 +1,4 @@
-//! How a thread tab looks. State and behavior live in `thread.rs`.
+//! How a thread page looks. State and behavior live in `thread.rs`.
 
 use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
 use super::thread_items::render_item;
@@ -47,7 +47,9 @@ impl ThreadView {
             |n| n.to_string_lossy().into_owned(),
         );
         let path = ui::short_path(&self.cwd, dirs::home_dir().as_deref());
-        ui::header(theme)
+        // The window's top row: breadcrumb, then the thread's actions (other features add theirs here), then the
+        // dock toggles last.
+        super::layout::page_header(cx)
             .child(
                 h_flex()
                     .id("thread-breadcrumb")
@@ -110,6 +112,7 @@ impl ThreadView {
                         .on_click(cx.listener(|this, _, window, cx| this.stop(&Stop, window, cx))),
                 )
             })
+            .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
 

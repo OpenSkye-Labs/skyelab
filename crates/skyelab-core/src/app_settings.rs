@@ -21,7 +21,7 @@ pub struct AppSettings {
     pub window: Option<WindowLayout>,
 }
 
-/// Where the main window was and how its right panel was set, in logical points.
+/// Where the main window was, how its right panel was set (logical points), and which page it showed.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct WindowLayout {
@@ -31,6 +31,8 @@ pub struct WindowLayout {
     pub height: i32,
     pub right_panel_open: bool,
     pub right_panel_width: i32,
+    /// The page the center showed: `thread:<id>`, `settings:<section>` or `welcome` (empty in older files).
+    pub view: String,
 }
 
 /// One device the user allowed in the Remote tab.

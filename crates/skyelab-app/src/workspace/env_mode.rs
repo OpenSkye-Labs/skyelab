@@ -4,18 +4,18 @@
 //! every remote tab and drops the client.
 
 use super::Workspace;
+use super::center::Page;
 use super::env_picker::{ConnectTyped, EnvPicker, ToggleEnvironments};
 use super::panels::{SidebarItem, SidebarSection};
 use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
 use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use gpui::{
     Action, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement, SharedString,
-    Stateful, Subscription, Task, WeakEntity, Window, actions, div, prelude::*, px,
+    Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
-    dock::{DockPlacement, panel_handle},
     h_flex,
 };
 use skyelab_client::{Options, is_magicdns_name};
@@ -56,8 +56,9 @@ pub struct OpenRemoteThread {
 pub(super) struct EnvMode {
     picker: Option<Entity<EnvPicker>>,
     remote: Option<Entity<RemoteEnv>>,
-    /// Each remote tab with its subscription, which goes when the tab does.
-    tabs: Vec<(WeakEntity<RemoteThreadView>, Subscription)>,
+    /// Each remote thread view opened on this machine, with its subscription. Kept (and watching) while another page
+    /// shows; dropped when the machine changes.
+    pub(super) tabs: Vec<(Entity<RemoteThreadView>, Subscription)>,
     settings_path: Option<PathBuf>,
     options: Options,
     subs: Vec<Subscription>,
@@ -132,11 +133,7 @@ impl Workspace {
     }
 
     pub(crate) fn remote_tabs(&self) -> Vec<Entity<RemoteThreadView>> {
-        self.env
-            .tabs
-            .iter()
-            .filter_map(|(t, _)| t.upgrade())
-            .collect()
+        self.env.tabs.iter().map(|(t, _)| t.clone()).collect()
     }
 
     fn toggle_environments(
@@ -222,9 +219,6 @@ impl Workspace {
                 Err(e) => error = Some(format!("can't start the connection: {e}").into()),
             }
         }
-        if self.env.remote.is_none() {
-            self.show_queued_tabs(window, cx);
-        }
         let current = self.env.remote.as_ref().map(|e| e.read(cx).host.clone());
         if let Some(picker) = &self.env.picker {
             picker.update(cx, |p, cx| {
@@ -239,11 +233,13 @@ impl Workspace {
     }
 
     fn close_remote_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        for tab in self.remote_tabs() {
-            self.dock
-                .update(cx, |dock, cx| dock.remove_panel(tab, window, cx));
+        for (tab, _) in std::mem::take(&mut self.env.tabs) {
+            tab.update(cx, |t, cx| t.closed(cx));
         }
-        self.env.tabs.clear();
+        if matches!(self.page, Page::RemoteThread(_)) {
+            self.page = Page::Welcome;
+            self.apply_page(window, cx);
+        }
     }
 
     pub(super) fn trust_remote_node(
@@ -305,6 +301,7 @@ impl Workspace {
                 updated_ms: None,
                 // A project row; its binding lives on the other machine, so no badge.
                 account: Some(super::panels::RowAccount::Hidden),
+                unread: false,
             })
             .collect();
         let threads = env
@@ -318,6 +315,7 @@ impl Workspace {
                 status: Some(crate::ui::Status::parse(&t.status)),
                 updated_ms: Some(t.updated_at),
                 account: None,
+                unread: false,
             })
             .collect();
         let connected = env.state == ConnState::Connected;
@@ -333,7 +331,7 @@ impl Workspace {
         };
         let has_project = env.project.is_some();
         // Threads that opened on this machine meanwhile (delegated, or started from another device).
-        let waiting = self.queued_tabs.len();
+        let waiting = self.unseen.len();
         let here = (waiting > 0).then(|| SidebarSection {
             title: super::env_picker::THIS_MAC.into(),
             items: vec![SidebarItem {
@@ -347,6 +345,7 @@ impl Workspace {
                 status: None,
                 updated_ms: None,
                 account: None,
+                unread: false,
             }],
             empty_title: SharedString::default(),
             empty_hint: SharedString::default(),
@@ -419,10 +418,7 @@ impl Workspace {
             .into_iter()
             .find(|t| t.read(cx).thread_id() == Some(a.id) && !t.read(cx).closed)
         {
-            let id = tab.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            return;
+            return self.show(Page::RemoteThread(tab.downgrade()), window, cx);
         }
         let Some(thread) = env.read(cx).threads.iter().find(|t| t.id == a.id).cloned() else {
             return;
@@ -468,21 +464,8 @@ impl Workspace {
                 }
             }
         });
-        self.env
-            .tabs
-            .retain(|(t, _)| t.upgrade().is_some_and(|t| !t.read(cx).closed));
-        self.env.tabs.push((view.downgrade(), sub));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(view.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-        view.update(cx, |v, cx| v.focus_prompt(window, cx));
-        cx.notify();
+        self.env.tabs.push((view.clone(), sub));
+        self.show(Page::RemoteThread(view.downgrade()), window, cx);
     }
 
     /// "host · state" for the status bar; `None` on this machine.

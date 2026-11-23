@@ -1,20 +1,19 @@
-//! The Workspace side of sharing: the Remote tab, the status-bar item, and running remote agent calls through
+//! The Workspace side of sharing: the Sharing section of Settings, the status-bar item, and running remote agent calls through
 //! the same `ThreadView` path a local prompt takes.
 
 use super::Workspace;
+use super::center::Page;
 use super::thread::{Interrupt, SendPrompt, ThreadView};
 use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel,
     RevokeDevice, ToggleSharing,
 };
 use gpui::{
-    AppContext as _, Context, Entity, Focusable as _, IntoElement, Subscription, Task, WeakEntity,
-    Window, div, prelude::*, px,
+    AppContext as _, Context, Entity, IntoElement, Subscription, Task, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
-    dock::{DockPlacement, panel_handle},
     h_flex,
 };
 use skyelab_protocol::{ErrorCode, RpcError};
@@ -22,7 +21,7 @@ use std::time::Duration;
 
 pub(super) struct RemoteHook {
     remote: Entity<Remote>,
-    panel: Option<WeakEntity<RemotePanel>>,
+    panel: Option<Entity<RemotePanel>>,
     _calls: Task<()>,
     _observe: Subscription,
 }
@@ -67,7 +66,7 @@ fn refused(message: impl Into<String>) -> RpcError {
 fn not_open(thread_id: i64) -> RpcError {
     RpcError::new(
         ErrorCode::NotFound,
-        format!("thread {thread_id} isn't running here (it ended, or its tab was closed)"),
+        format!("thread {thread_id} isn't running here (it ended, or it was closed)"),
     )
 }
 
@@ -96,37 +95,36 @@ impl Workspace {
             panel: None,
             _calls,
         });
+        if let Some(settings) = self.settings.clone() {
+            let panel = self.remote_panel(cx);
+            settings.update(cx, |s, _| s.remote = panel);
+        }
         cx.notify();
     }
 
+    /// The Sharing section of the Settings page.
     pub(super) fn open_remote(
         &mut self,
         _: &OpenRemote,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(hook) = &mut self.remote else {
-            return;
-        };
-        if let Some(panel) = hook.panel.as_ref().and_then(|p| p.upgrade()) {
-            let id = panel.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            return;
-        }
+        self.show(
+            Page::Settings(crate::settings::Section::Sharing),
+            window,
+            cx,
+        );
+    }
+
+    /// What the Sharing section shows; `None` when this window doesn't share (tests).
+    pub(super) fn remote_panel(&mut self, cx: &mut Context<Self>) -> Option<Entity<RemotePanel>> {
+        let hook = self.remote.as_mut()?;
         let remote = hook.remote.clone();
-        let panel = cx.new(|cx| RemotePanel::new(remote, cx));
-        hook.panel = Some(panel.downgrade());
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(panel.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
-        });
-        panel.read(cx).focus_handle(cx).focus(window, cx);
+        Some(
+            hook.panel
+                .get_or_insert_with(|| cx.new(|cx| RemotePanel::new(remote, cx)))
+                .clone(),
+        )
     }
 
     pub(super) fn toggle_sharing(
@@ -184,8 +182,8 @@ impl Workspace {
     pub(super) fn open_view(&self, thread_id: i64, cx: &gpui::App) -> Option<Entity<ThreadView>> {
         self.open_threads
             .iter()
-            .filter_map(|t| t.upgrade())
             .find(|t| t.read(cx).thread.as_ref().map(|t| t.id) == Some(thread_id))
+            .cloned()
     }
 
     fn remote_call(&mut self, call: RemoteCall, window: &mut Window, cx: &mut Context<Self>) {
@@ -414,7 +412,6 @@ impl Workspace {
     pub(crate) fn open_thread_ids(&self, cx: &gpui::App) -> Vec<i64> {
         self.open_threads
             .iter()
-            .filter_map(|t| t.upgrade())
             .filter_map(|t| t.read(cx).thread.as_ref().map(|t| t.id))
             .collect()
     }

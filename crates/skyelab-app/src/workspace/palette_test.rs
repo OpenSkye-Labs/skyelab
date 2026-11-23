@@ -68,7 +68,7 @@ fn labels(entries: &[Entry]) -> Vec<String> {
 }
 
 fn settings_focused(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> bool {
-    let settings = ws.read_with(cx, |ws, _| ws.settings.as_ref().and_then(|s| s.upgrade()));
+    let settings = ws.read_with(cx, |ws, _| ws.settings.clone());
     let settings = settings.expect("the settings tab opened");
     cx.update(|window, cx| {
         settings
@@ -170,18 +170,21 @@ fn projects_threads_and_tabs_are_listed_and_run(cx: &mut TestAppContext) {
     let opened = ws.read_with(cx, |ws, cx| {
         ws.open_threads
             .iter()
-            .filter_map(|t| t.upgrade())
             .any(|t| t.read(cx).thread.as_ref().map(|t| t.id) == Some(thread_id))
     });
-    assert!(opened, "the thread entry opens its tab");
+    assert!(opened, "the thread entry opens its page");
 
+    // Settings is a page, not a tab: no "Go to tab" entry, and its own entry shows and focuses it again.
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
     choose("open settings", cx);
     ws.update_in(cx, |ws, window, cx| ws.focus.focus(window, cx));
-    assert!(labels(&entries(&ws, cx)).contains(&"Go to tab: Settings".to_owned()));
+    assert!(!labels(&entries(&ws, cx)).contains(&"Go to tab: Settings".to_owned()));
     assert!(!settings_focused(&ws, cx));
-    choose("tab settings", cx);
-    assert!(settings_focused(&ws, cx), "the tab entry focuses that tab");
+    choose("open settings", cx);
+    assert!(
+        settings_focused(&ws, cx),
+        "the Settings entry focuses the page"
+    );
 }
 
 #[gpui::test]

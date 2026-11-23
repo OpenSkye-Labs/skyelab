@@ -1,16 +1,18 @@
-//! A local thread tab that opens on its own (a delegated child, or a start from another device) while the window
-//! shows another machine waits instead: the window stays remote, the sidebar says a tab is waiting here, and
-//! switching back to this machine shows it.
+//! A local thread that starts on its own (a delegated child, or a start from another device) never takes the page:
+//! while the window shows another machine, the sidebar says a thread is waiting here, and switching back to this
+//! machine lists it unread, still without taking the page.
 
 use super::env_harness::*;
 use super::thread::ThreadView;
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
 
-fn in_dock(ws: &Entity<Workspace>, view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> bool {
-    ws.read_with(cx, |ws, cx| {
-        ws.dock.read(cx).panel(view.entity_id().into()).is_some()
-    })
+fn shown(ws: &Entity<Workspace>, view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> bool {
+    ws.read_with(cx, |ws, _| ws.current_thread().as_ref() == Some(view))
+}
+
+fn unread(ws: &Entity<Workspace>, view: &Entity<ThreadView>, cx: &mut VisualTestContext) -> bool {
+    ws.read_with(cx, |ws, _| ws.unseen.contains(&view.entity_id()))
 }
 
 fn background_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<ThreadView> {
@@ -29,7 +31,7 @@ fn background_tab(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<
 }
 
 #[gpui::test]
-fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext) {
+fn a_background_thread_waits_while_another_machine_is_shown(cx: &mut TestAppContext) {
     let remote = remote_side(FakeTailnet::default());
     let (ws, _, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     connect(&ws, &remote, cx);
@@ -40,10 +42,7 @@ fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext
         ws.read_with(cx, |ws, _| ws.is_remote()),
         "still on the remote machine"
     );
-    assert!(
-        !in_dock(&ws, &view, cx),
-        "no local tab among the remote ones"
-    );
+    assert!(!shown(&ws, &view, cx), "the page didn't change");
     let sections = sidebar(&ws, cx);
     let here = sections
         .iter()
@@ -55,7 +54,8 @@ fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext
     wait_until(cx, "back on this machine", |cx| {
         ws.read_with(cx, |ws, _| !ws.is_remote())
     });
-    assert!(in_dock(&ws, &view, cx), "the waiting tab is shown");
+    assert!(!shown(&ws, &view, cx), "still not the page");
+    assert!(unread(&ws, &view, cx), "listed unread until opened");
     assert!(
         !sidebar(&ws, cx)
             .iter()
@@ -65,10 +65,14 @@ fn a_background_tab_waits_while_another_machine_is_shown(cx: &mut TestAppContext
 }
 
 #[gpui::test]
-fn a_background_tab_on_this_machine_opens_at_once(cx: &mut TestAppContext) {
+fn a_background_thread_on_this_machine_keeps_the_page(cx: &mut TestAppContext) {
     let remote = remote_side(FakeTailnet::default());
     let (ws, _, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
     let view = background_tab(&ws, cx);
     cx.run_until_parked();
-    assert!(in_dock(&ws, &view, cx));
+    assert!(
+        !shown(&ws, &view, cx),
+        "a background start never takes the page"
+    );
+    assert!(unread(&ws, &view, cx));
 }

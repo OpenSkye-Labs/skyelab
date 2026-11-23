@@ -1,8 +1,9 @@
-//! The main window: sidebar, center tabs, bottom terminals and a status bar, on gpui-component's dock.
+//! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
 
 #[cfg(unix)]
 mod browser_agent;
 mod browser_tabs;
+mod center;
 mod changes;
 mod changes_model;
 mod changes_publish;
@@ -38,6 +39,7 @@ mod thread_worktree;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
+use center::{Center, Page};
 pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
@@ -66,9 +68,18 @@ actions!(
         OpenBrowser,
         AddProject,
         NewThread,
-        OpenDevices
+        OpenDevices,
+        GoBack,
+        GoForward
     ]
 );
+
+/// Shows a section of the Settings page.
+#[derive(Clone, PartialEq, Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct OpenSettingsSection {
+    pub section: crate::settings::Section,
+}
 
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
@@ -108,6 +119,8 @@ pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-al
 pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
 pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
 pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
+pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
+pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
 
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
@@ -118,12 +131,23 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
         KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
         KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
+        KeyBinding::new(GO_BACK_KEY, GoBack, Some(CONTEXT)),
+        KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
     ]);
     // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
     if !MAC {
         cx.bind_keys([
             KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
+            // alt-left/right move by word in a shell (text fields keep them through their own, deeper binding).
+            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
+            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
+        ]);
+    } else {
+        // A text field binds cmd-[ to Outdent; the prompt is focused on most pages, so history wins there.
+        cx.bind_keys([
+            KeyBinding::new(GO_BACK_KEY, GoBack, Some("Input")),
+            KeyBinding::new(GO_FORWARD_KEY, GoForward, Some("Input")),
         ]);
     }
     layout::bind_keys(cx);
@@ -161,7 +185,8 @@ pub struct Workspace {
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
     #[cfg(all(test, unix))]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
-    settings: Option<WeakEntity<Settings>>,
+    /// Created on first open, then kept, so its form and section survive switching pages.
+    settings: Option<Entity<Settings>>,
     backend: Backend,
     pub(crate) store_error: Option<SharedString>,
     sidebar: Entity<Sidebar>,
@@ -169,9 +194,18 @@ pub struct Workspace {
     project: Option<Project>,
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
-    open_threads: Vec<WeakEntity<ThreadView>>,
-    /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
-    queued_tabs: Vec<Entity<ThreadView>>,
+    /// Every thread view of this window, shown or not: a hidden one keeps its agent running.
+    // shortcut: views are only dropped by close_thread (package D's archive/delete), so a long session keeps every
+    // thread it opened in memory; evict idle hidden ones if that ever matters.
+    open_threads: Vec<Entity<ThreadView>>,
+    /// Views that started in the background (delegated, or from another device) and weren't shown yet.
+    unseen: std::collections::HashSet<gpui::EntityId>,
+    /// The dock's only center panel; it hosts `page`.
+    center: Entity<Center>,
+    welcome: Entity<Welcome>,
+    page: Page,
+    back: Vec<Page>,
+    forward: Vec<Page>,
     /// Delegated starts by request id: a retry gets the thread the first call started.
     #[cfg(unix)]
     delegated: std::collections::HashMap<orchestrate_ui::StartKey, orchestrate_ui::DelegatedStart>,
@@ -212,6 +246,7 @@ impl Workspace {
 
         let sidebar = cx.new(|cx| Sidebar::new(Vec::new(), cx));
         let welcome = cx.new(Welcome::new);
+        let center = cx.new(|cx| Center::new(welcome.clone().into(), cx));
         let terminals_empty = cx.new(TerminalsEmpty::new);
         let right_empty = cx.new(RightEmpty::new);
 
@@ -219,7 +254,7 @@ impl Workspace {
         skin.set_toggle_button_visible(false, cx);
         dock.update(cx, |dock, cx| {
             let tabs = |panel, cx: &App| DockLayout::tabs().panel_view(panel, cx);
-            dock.set_center(tabs(panel_handle(welcome), cx), window, cx);
+            dock.set_center(tabs(panel_handle(center.clone()), cx), window, cx);
             dock.set_dock(
                 DockPlacement::Left,
                 tabs(panel_handle(sidebar.clone()), cx),
@@ -281,7 +316,12 @@ impl Workspace {
             project: None,
             threads: Vec::new(),
             open_threads: Vec::new(),
-            queued_tabs: Vec::new(),
+            unseen: Default::default(),
+            center,
+            welcome,
+            page: Page::Welcome,
+            back: Vec::new(),
+            forward: Vec::new(),
             #[cfg(unix)]
             delegated: Default::default(),
             changes_views: Vec::new(),
@@ -332,9 +372,6 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // macOS: with the sidebar hidden, nothing holds room for the traffic lights, so give them a row of their own.
-        let lights_row =
-            cfg!(target_os = "macos") && !self.dock.read(cx).is_dock_open(DockPlacement::Left);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
@@ -358,19 +395,14 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::deny_device))
             .on_action(cx.listener(Self::revoke_device))
             .on_action(cx.listener(Self::open_palette))
+            .on_action(cx.listener(Self::go_back))
+            .on_action(cx.listener(Self::go_forward))
+            .on_action(cx.listener(Self::open_settings_section))
             .map(|el| self.env_actions(el, cx))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
             // Windows: the titlebar is transparent, so draw the window controls in theme colors.
-            .when(lights_row, |el| {
-                el.child(
-                    div()
-                        .flex_shrink_0()
-                        .h(crate::ui::TOP_ROW_H)
-                        .bg(theme.tab_bar),
-                )
-            })
             .when(cfg!(target_os = "windows"), |el| {
                 el.child(gpui_component::TitleBar::new().child("SkyeLab"))
             })
@@ -381,6 +413,9 @@ impl Render for Workspace {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, unix))]
+mod single_view_test;
 
 #[cfg(test)]
 mod stale_status_test;
