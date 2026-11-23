@@ -177,6 +177,11 @@ impl Workspace {
         }
     }
 
+    /// Whether sharing is switched on; `None` when this window has no sharing hook.
+    pub(super) fn sharing_enabled(&self, cx: &gpui::App) -> Option<bool> {
+        Some(self.remote.as_ref()?.remote.read(cx).enabled)
+    }
+
     fn sharing_session(&self, cx: &Context<Self>) -> Option<u64> {
         self.remote.as_ref()?.remote.read(cx).sharing_session()
     }

@@ -7,6 +7,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme as _, WindowExt as _,
+    checkbox::Checkbox,
     command::{Command, CommandItem, CommandState},
     h_flex,
     kbd::Kbd,
@@ -50,6 +51,8 @@ pub struct Entry {
     pub label: SharedString,
     pub kind: Kind,
     pub binding: Option<Kbd>,
+    /// A toggle's current state, shown as a checkbox and On/Off; `None` for anything else.
+    pub checked: Option<bool>,
     pub run: Run,
 }
 
@@ -229,6 +232,12 @@ fn row(entry: &Entry, cx: &App) -> gpui::Div {
             h_flex()
                 .gap_2()
                 .text_color(muted)
+                .children(entry.checked.map(|on| {
+                    h_flex().gap_1().child(if on { "On" } else { "Off" }).child(
+                        Checkbox::new(SharedString::from(format!("palette-check-{}", entry.label)))
+                            .checked(on),
+                    )
+                }))
                 .child(entry.kind.label())
                 .children(entry.binding.clone()),
         )

@@ -12,6 +12,7 @@ fn dispatch(label: String, kind: Kind, action: Box<dyn Action>) -> Entry {
         label: label.into(),
         kind,
         binding: None,
+        checked: None,
         run: Rc::new(move |window, cx| window.dispatch_action(action.boxed_clone(), cx)),
     }
 }
@@ -48,6 +49,10 @@ impl Workspace {
             let binding = Kbd::binding_for_action_in(action.as_ref(), prev, window);
             let mut entry = dispatch(palette::humanize(name), Kind::Action(name), action);
             entry.binding = binding;
+            // A toggle shows where it stands now, as T3's toggle rows do.
+            if name == "skyelab::ToggleSharing" {
+                entry.checked = self.sharing_enabled(cx);
+            }
             actions.push(entry);
         }
         actions.sort_by(|a, b| a.label.cmp(&b.label));
@@ -143,6 +148,7 @@ impl Workspace {
             label: format!("Go to tab: {title}").into(),
             kind: Kind::Tab,
             binding: None,
+            checked: None,
             run: Rc::new(move |window: &mut Window, cx: &mut App| {
                 _ = ws.update(cx, |ws, cx| {
                     ws.dock.update(cx, |dock, cx| {
