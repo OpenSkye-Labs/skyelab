@@ -222,6 +222,10 @@ impl Workspace {
             }
             None => self.scope.push(a.id),
         }
+        // Narrowed to one project: the workspace (status bar, terminals, project actions) follows it.
+        if let [id] = self.scope[..] {
+            return self.select(id, cx);
+        }
         self.refresh_sidebar(cx);
     }
 

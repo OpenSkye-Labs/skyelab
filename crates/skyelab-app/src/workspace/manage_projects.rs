@@ -120,6 +120,9 @@ impl Workspace {
                     ws.project = None;
                 }
                 ws.threads.retain(|t| t.project_id != id);
+                // Gone now, not at the reload: New thread must not pick it meanwhile.
+                ws.projects.retain(|p| p.id != id);
+                ws.scope.retain(|&s| s != id);
                 ws.load_projects(None, cx);
             },
             window,

@@ -63,7 +63,11 @@ impl Workspace {
         self._add = Some(cx.spawn(async move |this, cx| {
             let added = task.await;
             let _ = this.update(cx, |this, cx| match added {
-                Ok(id) => this.load_projects(Some(id), cx),
+                Ok(id) => {
+                    // The new project's threads must show, and New thread must not start in an older scope.
+                    this.scope.clear();
+                    this.load_projects(Some(id), cx)
+                }
                 Err(e) => {
                     this.store_error = Some(format!("{e:#}").into());
                     cx.notify();
@@ -103,7 +107,7 @@ impl Workspace {
         self.select(a.id, cx);
     }
 
-    fn select(&mut self, id: i64, cx: &mut Context<Self>) {
+    pub(super) fn select(&mut self, id: i64, cx: &mut Context<Self>) {
         let Some(project) = self.projects.iter().find(|p| p.id == id).cloned() else {
             return;
         };
@@ -270,6 +274,9 @@ impl Workspace {
                 .await;
             let _ = this.update_in(cx, |this, window, cx| match row {
                 Ok(Some(thread)) if this.open_view(id, cx).is_none() => {
+                    if this.project.as_ref().map(|p| p.id) != Some(thread.project_id) {
+                        this.select(thread.project_id, cx);
+                    }
                     this.open_stored(thread, window, cx)
                 }
                 Ok(_) => {}
