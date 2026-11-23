@@ -226,7 +226,11 @@ impl Workspace {
         let (left, right, bottom) = (
             size(DockPlacement::Left),
             size(DockPlacement::Right),
-            size(DockPlacement::Bottom),
+            // A closed bottom dock keeps its tab strip.
+            match size(DockPlacement::Bottom) {
+                h if h == px(0.) => gpui_component::dock::CLOSED_BOTTOM_STRIP,
+                h => h,
+            },
         );
         let ring = div().absolute().border_2().border_color(cx.theme().ring);
         Some(match area {

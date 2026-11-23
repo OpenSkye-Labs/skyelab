@@ -105,9 +105,11 @@ impl Settings {
         let theme = cx.theme();
         let muted = theme.muted_foreground;
         let toolbar = widgets::row(true, cx)
+            .flex_wrap()
             .child(
                 div()
                     .flex_1()
+                    .min_w(gpui::px(200.))
                     .child(Input::new(&self.keys_search).small().cleanable(true)),
             )
             .child(
