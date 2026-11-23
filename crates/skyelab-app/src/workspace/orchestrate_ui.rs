@@ -4,9 +4,18 @@
 use super::orchestrate::{OrchCall, Reply, StartRequest};
 use super::thread::{ChildLink, ThreadView};
 use super::{Workspace, lock};
-use gpui::{App, AppContext as _, Context, Entity, SharedString, Window};
+use gpui::{App, AppContext as _, Context, Entity, SharedString, WeakEntity, Window};
 use skyelab_agent::mcp::Caller;
-use skyelab_core::delegation::{check_children, check_limits, is_busy};
+use skyelab_core::delegation::check_limits;
+
+/// A delegated start, by (caller thread, its request id).
+pub(super) type StartKey = (i64, String);
+
+/// What a retry of a start gets: the thread's id once known, else its tab while it starts.
+pub(super) struct DelegatedStart {
+    view: WeakEntity<ThreadView>,
+    id: Option<i64>,
+}
 
 impl Workspace {
     /// Every delegated start and send on `calls` runs on this window.
@@ -50,10 +59,12 @@ impl Workspace {
                 if reply.is_disconnected() {
                     return;
                 }
-                let sent = self
-                    .caller_live(&caller, cx)
-                    .and_then(|()| self.delegated_send(&caller, thread_id, &text, window, cx));
-                let _ = reply.send(sent);
+                let sent = self.caller_live(&caller, cx).and_then(|()| {
+                    self.delegated_send(&caller, thread_id, &text, reply.clone(), window, cx)
+                });
+                if let Err(why) = sent {
+                    let _ = reply.send(Err(why));
+                }
             }
             OrchCall::Browser {
                 caller,
@@ -67,7 +78,6 @@ impl Workspace {
         }
     }
 
-    /// A call queued before its thread was stopped or closed still arrives: it must not start or drive anything.
     fn caller_live(&self, caller: &Caller, cx: &App) -> Result<(), String> {
         match self.open_view(caller.thread_id, cx) {
             Some(view) if view.read(cx).is_live() => Ok(()),
@@ -76,16 +86,6 @@ impl Workspace {
                     .into(),
             ),
         }
-    }
-
-    /// Busy children of `parent` other than `except`, from the store.
-    fn busy_children(&self, parent: i64, except: Option<i64>) -> Result<usize, String> {
-        let store = lock(&self.backend.store).map_err(|e| e.to_string())?;
-        let kids = store.child_threads(parent).map_err(|e| format!("{e:#}"))?;
-        Ok(kids
-            .iter()
-            .filter(|t| Some(t.id) != except && is_busy(&t.status))
-            .count())
     }
 
     fn delegate(
@@ -104,15 +104,20 @@ impl Workspace {
             request_id,
         } = request;
         let key = request_id.clone().map(|r| (caller.thread_id, r));
-        // A retry of a start that is still on its way, or that got its row: the same thread, not a second one.
-        if let Some(view) = key
-            .as_ref()
-            .and_then(|k| self.delegated.get(k))
-            .and_then(|v| v.upgrade())
-            .filter(|v| row_result(v.read(cx)).is_none_or(|r| r.is_ok()))
-        {
-            self.reply_when_row(&view, reply, cx);
-            return Ok(());
+        if let Some(start) = key.as_ref().and_then(|k| self.delegated.get(k)) {
+            if let Some(id) = start.id {
+                let _ = reply.send(Ok(id));
+                return Ok(());
+            }
+            // Still on its way: the same thread once it has its row. One that failed before its row starts afresh.
+            if let Some(view) = start
+                .view
+                .upgrade()
+                .filter(|v| row_result(v.read(cx)).is_none_or(|r| r.is_ok()))
+            {
+                self.reply_when_row(&view, key, reply, cx);
+                return Ok(());
+            }
         }
         let project = self
             .projects
@@ -125,8 +130,11 @@ impl Workspace {
             .delegation_account(&caller.account_id, &project.path)?
             .id
             .clone();
-        // Counted now, not when the call was queued. The claim inside the launch, under the store lock, decides.
-        check_limits(*depth, self.busy_children(caller.thread_id, None)?)?;
+        // Refused here so a full parent gets no tab; the claim inside the launch, under the store lock, decides.
+        let busy = lock(&self.backend.store)
+            .and_then(|s| super::child_slots::busy(&s, caller.thread_id, None))
+            .map_err(|e| format!("{e:#}"))?;
+        check_limits(*depth, busy)?;
         let parent_title: SharedString = self.open_view(caller.thread_id, cx).map_or_else(
             || format!("thread {}", caller.thread_id).into(),
             |v| v.read(cx).title(),
@@ -141,11 +149,19 @@ impl Workspace {
         });
         view.update(cx, |v, cx| v.submit_remote(prompt, window, cx))?;
         self.add_thread_tab(view.clone(), false, window, cx);
-        if let Some(key) = key {
-            self.delegated.retain(|_, v| v.upgrade().is_some());
-            self.delegated.insert(key, view.downgrade());
+        if let Some(key) = &key {
+            // Only a live caller can retry, so its entries are the only ones worth keeping.
+            let live: std::collections::HashSet<i64> = (self.delegated.keys().map(|k| k.0))
+                .filter(|c| self.open_view(*c, cx).is_some())
+                .collect();
+            self.delegated.retain(|k, _| live.contains(&k.0));
+            let start = DelegatedStart {
+                view: view.downgrade(),
+                id: None,
+            };
+            self.delegated.insert(key.clone(), start);
         }
-        self.reply_when_row(&view, reply, cx);
+        self.reply_when_row(&view, key, reply, cx);
         Ok(())
     }
 
@@ -154,20 +170,29 @@ impl Workspace {
     fn reply_when_row(
         &mut self,
         view: &Entity<ThreadView>,
+        key: Option<StartKey>,
         reply: Reply<i64>,
         cx: &mut Context<Self>,
     ) {
-        if let Some(result) = row_result(view.read(cx)) {
+        let answer = move |this: &mut Self, result: Result<i64, String>| {
+            if let (Ok(id), Some(start)) = (
+                &result,
+                key.as_ref().and_then(|k| this.delegated.get_mut(k)),
+            ) {
+                start.id = Some(*id); // a retry after the tab closed still names this thread
+            }
             let _ = reply.send(result);
-            return;
+        };
+        if let Some(result) = row_result(view.read(cx)) {
+            return answer(self, result);
         }
-        let mut reply = Some(reply);
+        let mut answer = Some(answer);
         self._thread_events
-            .push(cx.observe(view, move |_, view, cx| {
+            .push(cx.observe(view, move |this, view, cx| {
                 if let Some(result) = row_result(view.read(cx))
-                    && let Some(reply) = reply.take()
+                    && let Some(answer) = answer.take()
                 {
-                    let _ = reply.send(result);
+                    answer(this, result);
                 }
             }));
     }
@@ -177,34 +202,27 @@ impl Workspace {
         caller: &Caller,
         thread_id: i64,
         text: &str,
+        reply: Reply<()>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
         let view = self.open_view(thread_id, cx).ok_or_else(|| {
             format!("thread {thread_id} isn't running (it ended, or its tab was closed)")
         })?;
-        let (thread, running) = {
+        let (thread, starting, running) = {
             let v = view.read(cx);
-            (v.thread.clone(), v.session.is_some() && !v.starting)
+            (v.thread.clone(), v.starting, v.session.is_some())
         };
-        let thread = thread.ok_or("that thread is still starting")?;
+        let thread = thread.filter(|_| !starting).ok_or_else(|| {
+            format!(
+                "thread {thread_id} is still starting; wait for it (thread_status), then send again"
+            )
+        })?;
         // A message to an ended thread would resume it: past the children limit, and past the user's Stop.
         if !running {
             return Err(format!(
                 "thread {thread_id} isn't running (it ended or was stopped); start a new thread instead"
             ));
-        }
-        // A new turn for an idle child takes a slot. The launch claims it; this tells the caller when it can't.
-        if let Some(parent) = thread.parent_thread_id {
-            let status = lock(&self.backend.store)
-                .and_then(|s| s.thread(thread_id))
-                .map_err(|e| format!("{e:#}"))?
-                .map(|t| t.status)
-                .unwrap_or_default();
-            if !is_busy(&status) {
-                check_children(self.busy_children(parent, Some(thread_id))?)
-                    .map_err(|why| format!("thread {thread_id}'s parent: {why}"))?;
-            }
         }
         let project = self
             .projects
@@ -213,7 +231,16 @@ impl Workspace {
             .ok_or("that thread's project is gone")?;
         self.config
             .check_drive(&caller.account_id, &thread.account_id, &project.path)?;
-        view.update(cx, |v, cx| v.submit_remote(text, window, cx))
+        // The answer waits for the follow-up's store write, where an idle child's new turn claims its slot, so a
+        // send past the children limit is refused to the caller, not just in the child's tab.
+        view.update(cx, |v, cx| {
+            v.on_sent = Some(reply);
+            let taken = v.submit_remote(text, window, cx);
+            if let Some(reply) = v.on_sent.take() {
+                let _ = reply.send(taken); // no follow-up took it
+            }
+        });
+        Ok(())
     }
 
     /// A delegated thread got its row: the parent's tab lists it.
@@ -234,14 +261,15 @@ impl Workspace {
     }
 }
 
-/// `Some` once `view`'s start has an answer: its row's id, or why it got none.
+/// `Some` once `view`'s start has an answer: its row's id, or why it got none. Only a limit's reason goes to the
+/// agent; other details (paths, store errors) stay in the tab.
 fn row_result(view: &ThreadView) -> Option<Result<i64, String>> {
     match (&view.thread, view.starting) {
         (Some(t), _) => Some(Ok(t.id)),
-        (None, false) => Some(Err(view.error.as_ref().map_or_else(
-            || "the thread couldn't be created".to_owned(),
-            |e| e.to_string(),
-        ))),
+        (None, false) => Some(Err(match &view.error {
+            Some(e) if e.contains("running children") => e.to_string(),
+            _ => "the thread couldn't be created; its tab says why".to_owned(),
+        })),
         (None, true) => None,
     }
 }

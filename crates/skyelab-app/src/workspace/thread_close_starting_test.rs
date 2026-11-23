@@ -1,4 +1,4 @@
-//! Audit #6: a tab closed while its launch is still in progress leaves its row `stopped`, never `running` with
+//! A tab closed while its launch is still in progress leaves its row `stopped`, never `running` with
 //! no agent behind it. The agent is the fake claude.
 
 use super::thread::ThreadView;
@@ -61,7 +61,7 @@ pub(super) fn backend(r: &Rig) -> Backend {
     }
 }
 
-/// The project's only thread row, if it exists yet.
+/// The project's first thread row, if it exists yet.
 pub(super) fn row(r: &Rig) -> Option<skyelab_store::Thread> {
     r.store
         .lock()

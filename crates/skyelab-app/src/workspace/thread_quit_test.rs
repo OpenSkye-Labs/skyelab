@@ -1,4 +1,4 @@
-//! Audit #6: quitting the app ends every running agent and leaves its row `stopped`, so nothing reads as running
+//! Quitting the app ends every running agent and leaves its row `stopped`, so nothing reads as running
 //! once the app is gone.
 
 use super::thread::ThreadView;

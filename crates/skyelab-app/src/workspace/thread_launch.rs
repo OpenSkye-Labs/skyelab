@@ -97,6 +97,7 @@ impl ThreadView {
         let pump_store = store.clone();
         // The row reaches the view as soon as it is saved, before the agent is up: a delegated start answers then.
         let (saved_tx, saved_rx) = flume::bounded::<Thread>(1);
+        let saved_late = saved_rx.clone();
         cx.spawn(async move |this, cx| {
             if let Ok(thread) = saved_rx.recv_async().await {
                 // Once the launch has ended, its own result decides what the view keeps.
@@ -158,15 +159,16 @@ impl ThreadView {
                                 parent,
                             )?,
                         };
-                        if thread.parent_thread_id.is_some() {
+                        // A new row, or a child's slot: either must not stay busy if this launch fails.
+                        if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
                         }
+                        let _ = saved_tx.send(thread.clone());
                         append(
                             &mut *lock(&store)?,
                             thread.id,
                             &Record::Prompt(text.clone()),
                         )?;
-                        let _ = saved_tx.send(thread.clone());
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {
@@ -223,7 +225,11 @@ impl ThreadView {
                         }
                     }
                     Err(e) => {
-                        // The row came early but nothing runs on it: a resume or a remote reply must not wait.
+                        // A row saved before the failure belongs to this view even if its hand-off hasn't run.
+                        if let Ok(thread) = saved_late.try_recv() {
+                            this.row_saved(&thread, cx);
+                        }
+                        // Nothing runs on it: read-only now, so a remote start's reply doesn't wait for an agent.
                         if this.thread.is_some() {
                             this.finish(cx);
                         }
@@ -273,6 +279,7 @@ impl ThreadView {
             thread.parent_thread_id,
         );
         let turns = self.turns.clone();
+        let on_sent = self.on_sent.take();
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         let record = Record::Prompt(text.clone());
         self.push(&record, cx);
@@ -316,6 +323,9 @@ impl ThreadView {
                     append(&mut *lock(&store)?, id, &record)
                 })
                 .await;
+            if let Some(reply) = on_sent {
+                let _ = reply.send(sent.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
+            }
             if let Err(e) = sent {
                 let _ = this.update(cx, |this, cx| this.show_error(e, cx));
             }

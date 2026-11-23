@@ -1,4 +1,4 @@
-//! Audit #17: the launch checks the folder's binding as accounts.toml says right before it spawns, not as the
+//! The launch checks the folder's binding as accounts.toml says right before it spawns, not as the
 //! view's copy of the config said when the prompt was sent.
 
 use super::thread::ThreadView;

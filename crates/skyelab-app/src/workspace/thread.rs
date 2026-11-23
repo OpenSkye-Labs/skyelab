@@ -83,6 +83,8 @@ pub struct ThreadView {
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
     send_chain: Option<Task<()>>,
+    /// Answered with the next follow-up's result, once its store write (and slot claim) is done.
+    pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -235,15 +237,17 @@ impl ThreadView {
             children: Vec::new(),
             grant: None,
             send_chain: None,
+            on_sent: None,
             _pump: None,
             _task: None,
             _subs: subs,
         }
     }
 
-    /// Its agent is running and the user hasn't stopped it: only then may it start or drive other threads.
+    /// May start or drive other threads: its agent runs (or is starting) and the user hasn't stopped it.
+    #[cfg(unix)]
     pub(super) fn is_live(&self) -> bool {
-        self.session.is_some() && !self.stop_requested
+        (self.session.is_some() || self.starting) && !self.stop_requested
     }
 
     /// Accounts changed on disk (Settings saved). Used for the next start and the badge.

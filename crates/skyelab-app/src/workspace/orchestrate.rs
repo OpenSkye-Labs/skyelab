@@ -32,7 +32,6 @@ pub struct StartRequest {
     pub project_id: i64,
     pub prompt: String,
     pub worktree: bool,
-    /// The agent's name for this start; a retry with the same one gets the same thread.
     pub request_id: Option<String>,
 }
 
@@ -262,7 +261,7 @@ impl Host for AppHost {
             } => {
                 // The children count is taken on the UI thread, after a retry is matched to its first call.
                 let depth = self.depth(&me)?;
-                skyelab_core::delegation::check_limits(depth, 0)?; // depth only
+                skyelab_core::delegation::check_depth(depth)?;
                 let request = StartRequest {
                     caller: caller.clone(),
                     depth,

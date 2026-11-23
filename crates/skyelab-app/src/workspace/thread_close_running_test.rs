@@ -1,4 +1,4 @@
-//! Audit #6: closing the tab of a running thread ends its agent and leaves the row `stopped`.
+//! Closing the tab of a running thread ends its agent and leaves the row `stopped`.
 
 use super::thread::ThreadView;
 use super::thread_close_starting_test::{backend, rig, row, wait_until};

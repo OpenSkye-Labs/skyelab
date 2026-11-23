@@ -1,4 +1,4 @@
-//! Audit #4: a message that gives an idle child a new turn takes a child slot, and the parent's agent is told
+//! A message that gives an idle child a new turn takes a child slot, and the parent's agent is told
 //! when there is none: an error, not a quiet "ok".
 
 use super::delegation_test::{host_call, open, rig, start, statuses, thread_id, wait_until};

@@ -7,7 +7,6 @@ use serde_json::{Map, Value, json};
 const MAX_TEXT: usize = 100_000;
 /// `wait_thread` waits at most this long.
 const MAX_WAIT_S: u64 = 300;
-/// Longest `request_id`.
 const MAX_REQUEST_ID: usize = 128;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,7 +51,8 @@ pub(super) fn list() -> Value {
             "description": "Start a new agent thread in a project with a prompt. It runs under the project's \
                 bound account, which must be yours. Returns its thread_id as soon as the thread exists; its \
                 agent may still be starting (see thread_status). Pass a request_id of your own and use the same \
-                one if you retry, so a retry after a timeout returns the same thread instead of starting another.",
+                one if you retry, so a retry after a timeout returns the same thread instead of starting another (the \
+                first call's project and prompt win).",
             "inputSchema": {
                 "type": "object",
                 "properties": {

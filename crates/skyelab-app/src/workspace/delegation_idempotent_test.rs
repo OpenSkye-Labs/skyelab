@@ -1,4 +1,4 @@
-//! Audit #5: a `start_thread` retried with the same `request_id` (after a timeout, say) gets the child the first
+//! A `start_thread` retried with the same `request_id` (after a timeout, say) gets the child the first
 //! call started, never a second one.
 
 use super::delegation_test::{host_call, open, rig, start, thread_id, wait_until};
@@ -39,7 +39,7 @@ fn a_retry_with_the_same_request_id_returns_the_same_child(cx: &mut TestAppConte
     assert_eq!(first, again);
     assert_eq!(rows(), 1);
 
-    // A retry that arrives while the first is still on its way: both queued before the UI runs either.
+    // Two calls with one id at once, so the second can arrive while the first is still on its way.
     let host = cx.update(|_, cx| cx.global::<Orchestration>().host.clone());
     let calls: Vec<_> = (0..2)
         .map(|_| {

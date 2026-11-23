@@ -19,15 +19,17 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   the user). A child counts as busy until the result of its last queued prompt (follow-ups sent mid-turn are
   counted), not the first result after them. A refused resume leaves the child as it was and its tab says why (the
   refused prompt still shows in the tab, though it was never stored or sent); a Send from another device has
-  already been answered Ok by then, but a delegated `send_message` that would pass the cap is refused to the
-  parent. A row counts only while its agent is live: ending, Stop, a failed start, closing the tab (even while it
+  already been answered Ok by then, but a delegated `send_message` answers only after the child's slot is claimed,
+  so one that would pass the cap is refused to the parent. A row counts only while its agent is live: ending, Stop, a failed start, closing the tab (even while it
   starts) and quitting all write a non-busy status, and opening the store at app start marks rows the last run left
   `starting` or `running` as `interrupted`.
 - **Starts.** `start_thread` answers with the child's `thread_id` as soon as its row exists, before its agent is up
   (`thread_status` then says `starting`, `running` or `failed`), so a slow start (a big worktree) can't outlast the
   agent's 30 s wait and leave a child it never heard of. It takes an optional `request_id` (at most 128 chars): a
   retry with the same one from the same thread returns the same child, whether the first call is still starting or
-  done. The ids live in memory for the app's run.
+  done, and even after its tab closed; the first call's project and prompt win. The ids live in memory while the
+  calling thread is open. A start without one can still outlast the wait while a big worktree is checked out (the
+  row is saved after the checkout).
 - **Live parent.** Starts and sends run only while the calling thread's agent is live in this window: a parent the
   user stopped, or whose tab closed, is refused, even for a call it queued before.
 - **Current binding.** A launch re-reads accounts.toml right before it spawns the agent and checks the folder

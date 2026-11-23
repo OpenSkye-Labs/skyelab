@@ -1,4 +1,4 @@
-//! Audit #5: a child whose launch is still in progress (row `starting`) holds its slot like a running one.
+//! A child whose launch is still in progress (row `starting`) holds its slot like a running one.
 
 use super::delegation_test::{host_call, open, rig, start, thread_id};
 use gpui::TestAppContext;

@@ -56,12 +56,18 @@ pub fn is_busy(status: &str) -> bool {
 
 /// Refuses a start from a caller at `depth` that already has `live_children`.
 pub fn check_limits(depth: u32, live_children: usize) -> Result<(), String> {
+    check_depth(depth)?;
+    check_children(live_children)
+}
+
+/// Refuses a start from a caller at `depth`.
+pub fn check_depth(depth: u32) -> Result<(), String> {
     if depth >= MAX_DEPTH {
         return Err(format!(
             "delegation depth limit reached: this thread is {depth} levels down (max {MAX_DEPTH})"
         ));
     }
-    check_children(live_children)
+    Ok(())
 }
 
 /// Refuses starting or resuming one more child of a parent that already has `live_children` busy.

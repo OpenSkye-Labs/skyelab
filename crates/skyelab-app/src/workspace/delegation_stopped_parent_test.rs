@@ -1,4 +1,4 @@
-//! Audit #7: a parent whose agent was stopped, or that has no tab here any more, can't start or drive children,
+//! A parent whose agent was stopped, or that has no tab here any more, can't start or drive children,
 //! even with a call that was already on its way when it stopped.
 
 use super::delegation_test::{host_call, open, rig, start, thread_id, wait_until};

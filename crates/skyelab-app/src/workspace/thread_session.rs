@@ -178,8 +178,8 @@ impl ThreadView {
 }
 
 impl ThreadView {
-    /// The app is quitting: end the agent and record the thread stopped before the process goes.
     pub(super) fn quitting(&mut self) -> impl std::future::Future<Output = ()> + use<> {
+        self.stop_requested = true; // a late `ended` must not write exited over stopped
         let job = self.session.take().zip(self.thread.as_ref().map(|t| t.id));
         let store = self.backend.store.clone();
         async move {

@@ -94,8 +94,7 @@ pub struct Backend {
     pub claude_bin: PathBuf,
 }
 
-/// The accounts.toml this app reads. A launch re-reads it right before it spawns, so a rebind saved a moment
-/// earlier is seen even when the view's copy of the config isn't updated yet.
+/// The accounts.toml a launch re-reads right before it spawns.
 pub struct AccountsFile(pub PathBuf);
 
 impl gpui::Global for AccountsFile {}
@@ -179,8 +178,9 @@ pub struct Workspace {
     open_threads: Vec<WeakEntity<ThreadView>>,
     /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
     queued_tabs: Vec<Entity<ThreadView>>,
-    /// Delegated starts by (caller thread, its request id): a retry gets the thread the first call started.
-    delegated: std::collections::HashMap<(i64, String), gpui::WeakEntity<ThreadView>>,
+    /// Delegated starts by request id: a retry gets the thread the first call started.
+    #[cfg(unix)]
+    delegated: std::collections::HashMap<orchestrate_ui::StartKey, orchestrate_ui::DelegatedStart>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     _thread_events: Vec<Subscription>,
     _load: Option<Task<()>>,
@@ -268,6 +268,7 @@ impl Workspace {
             threads: Vec::new(),
             open_threads: Vec::new(),
             queued_tabs: Vec::new(),
+            #[cfg(unix)]
             delegated: Default::default(),
             changes_views: Vec::new(),
             _thread_events: Vec::new(),
@@ -576,18 +577,24 @@ mod delegation_idempotent_test;
 #[cfg(all(test, unix))]
 mod delegation_reply_on_row_test;
 #[cfg(all(test, unix))]
+mod delegation_retry_closed_test;
+#[cfg(all(test, unix))]
 mod delegation_send_cap_test;
+#[cfg(all(test, unix))]
+mod delegation_send_race_test;
+#[cfg(all(test, unix))]
+mod delegation_send_starting_test;
 #[cfg(all(test, unix))]
 mod delegation_starting_cap_test;
 #[cfg(all(test, unix))]
 mod delegation_stopped_parent_test;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod launch_rebind_test;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod thread_close_running_test;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod thread_close_starting_test;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod thread_quit_test;
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-//! Audit #5: `start_thread` answers with the child's id as soon as its row exists, not once its agent is up, so
+//! `start_thread` answers with the child's id as soon as its row exists, not once its agent is up, so
 //! a slow or failed spawn can't leave a child the parent never heard of.
 
 use super::delegation_test::{host_call, open, rig, start, thread_id};
