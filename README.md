@@ -27,8 +27,9 @@ What's built today:
   which project when it can't tell.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
-  commands with their output, a live todo list, answerable questions and plans), folds a finished turn's work under
-  **Worked for …**, and saves the conversation to a
+  commands with their output, a live todo list, answerable questions and plans, subagent cards), folds a finished
+  turn's work under **Worked for …**, lists the files each turn changed, shows a failed turn's error with Retry, finds
+  text with <kbd>⌘F</kbd>, and saves the conversation to a
   local SQLite database (complete messages; streamed partial text is shown, not saved).
   Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
