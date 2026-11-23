@@ -83,15 +83,6 @@ pub(super) fn editor_name(bin: &str) -> String {
     }
 }
 
-/// The host name without its domain (`studio.local` → `studio`).
-fn machine_name() -> SharedString {
-    let host = gethostname::gethostname().to_string_lossy().into_owned();
-    match host.split('.').next() {
-        Some(name) if !name.is_empty() => name.to_owned().into(),
-        _ => "This machine".into(),
-    }
-}
-
 fn editors() -> Editors {
     let on_path = |n: &str| skyelab_agent::resolve_bin(Path::new(n)).is_ok();
     let setting = skyelab_core::AppSettings::default_path()
@@ -149,14 +140,15 @@ impl ThreadView {
         let base = self.thread.as_ref().and_then(|t| t.worktree_base.clone());
         let task = cx.background_spawn(async move {
             let stat = skyelab_git::diff_stat(&cwd, base.as_deref()).ok();
-            (stat, editors(), machine_name())
+            let machine = super::thread::composer::machine_name().map(SharedString::from);
+            (stat, editors(), machine)
         });
         self.details._load = Some(cx.spawn(async move |this, cx| {
             let (stat, editors, machine) = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.details.stat = stat;
                 this.details.editors = Some(editors);
-                this.details.machine = Some(machine);
+                this.details.machine = machine;
                 cx.notify();
             });
         }));

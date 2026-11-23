@@ -26,6 +26,7 @@ mod composer_review_test;
 mod composer_send;
 #[path = "composer_state.rs"]
 mod composer_state;
+pub(in crate::workspace) use composer_state::machine_name;
 
 #[cfg(test)]
 use crate::workspace::*;

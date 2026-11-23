@@ -15,7 +15,6 @@ gpui.workspace = true
 gpui_platform.workspace = true
 gpui-component.workspace = true
 gpui-kit-assets.workspace = true
-gethostname.workspace = true
 anyhow.workspace = true
 skyelab-core.workspace = true
 skyelab-terminal.workspace = true
