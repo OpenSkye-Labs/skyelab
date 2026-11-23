@@ -2,11 +2,11 @@
 //! facts. How it looks is `composer.rs`; sending is `thread.rs` and `thread_session.rs`.
 
 use super::composer_menu::{self, MenuItem, MenuKind};
-use super::composer_queue::{self, Queue, SendMode};
+use super::composer_queue::Queue;
+use super::lock;
 use super::thread::ThreadView;
-use super::{lock, thread_model::Record};
 use gpui::{App, AppContext as _, Context, KeyBinding, SharedString, Window, actions};
-use skyelab_agent::{Attachment, ModelInfo};
+use skyelab_agent::{Attachment, AttachmentKind, CLAUDE_MODELS, ModelInfo};
 use skyelab_core::{Account, Provider};
 use skyelab_store::ModelChoice;
 use std::path::PathBuf;
@@ -23,6 +23,17 @@ actions!(
         AttachFiles
     ]
 );
+
+const INTERRUPT_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-."
+} else {
+    "ctrl-."
+};
+const STOP_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-alt-."
+} else {
+    "ctrl-alt-."
+};
 
 /// Set on the composer while a menu is open, so its keys reach the menu before the text field.
 pub(super) const MENU_CONTEXT: &str = "ComposerMenu";
@@ -42,6 +53,13 @@ pub(super) fn bind_keys(cx: &mut App) {
         KeyBinding::new("tab", MenuAccept, menu),
         KeyBinding::new("escape", MenuClose, menu),
         KeyBinding::new(STEER_KEY, SteerPrompt, Some(super::thread::CONTEXT)),
+        // Stop has no button (T3 has none either): the palette and this key.
+        KeyBinding::new(
+            INTERRUPT_KEY,
+            super::thread::Interrupt,
+            Some(super::thread::CONTEXT),
+        ),
+        KeyBinding::new(STOP_KEY, super::thread::Stop, Some(super::thread::CONTEXT)),
     ]);
 }
 
@@ -73,7 +91,7 @@ pub(crate) enum Submit {
     Send,
     /// ⌘⇧⏎: into the running turn.
     Steer,
-    /// From another device or an agent: the text alone, sent now, as before the queue existed.
+    /// From another device or an agent: the text alone, sent now.
     External,
 }
 
@@ -84,12 +102,19 @@ pub(crate) struct Composer {
     pub menu: Option<Menu>,
     pub picker_open: bool,
     pub pick: ModelChoice,
+    /// The user picked in this tab, so a late store read doesn't overwrite it.
+    pub picked: bool,
     /// Codex's models, once listed (or why they couldn't be).
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     pub footer: Footer,
     /// Why the last attach or send was refused.
     pub notice: Option<SharedString>,
-    files: Option<Arc<Vec<MenuItem>>>,
+    /// An interrupt was sent and the turn hasn't ended yet ("Stopping…"); its number, so a late timer can't clear a newer one.
+    pub interrupting: Option<u64>,
+    /// The last interrupt went unanswered for [`INTERRUPT_WAIT`]: Force stop shows.
+    pub stalled: bool,
+    /// A message the agent refused after it left the composer: put back once the composer is empty.
+    pub restore: Option<(String, Vec<Attachment>)>,
 }
 
 /// The text a prompt is stored and shown as: what the agent got, plus the names of its files.
@@ -104,6 +129,25 @@ pub(super) fn shown_prompt(text: &str, attachments: &[Attachment]) -> String {
     } else {
         format!("{text}\n\n{files}")
     }
+}
+
+/// Why `account`'s agent can't take these files, if it can't: Codex reads images and text, not PDFs.
+pub(super) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<String> {
+    let pdf = attachments
+        .iter()
+        .find(|a| account.provider == Provider::Codex && a.kind == AttachmentKind::Pdf)?;
+    Some(format!(
+        "Codex can't read PDFs ({}). Remove it, or attach an image or a text file.",
+        pdf.name
+    ))
+}
+
+/// A model pick `provider`'s CLI can take: Claude's aliases and `claude-…` ids for Claude, anything else for Codex.
+/// A project default saved under the other provider is dropped, not sent.
+pub(super) fn fits(provider: Provider, model: &str) -> bool {
+    let claude =
+        CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model) || model.starts_with("claude");
+    claude == (provider == Provider::Claude)
 }
 
 /// This machine's name as people know it (macOS's Computer Name), read once.
@@ -163,8 +207,18 @@ impl ThreadView {
             }
         });
         cx.spawn(async move |this, cx| {
-            if let Ok(pick) = task.await {
+            if let Ok(mut pick) = task.await {
                 let _ = this.update(cx, |this, cx| {
+                    // A pick made meanwhile wins; a default from the other provider is dropped.
+                    if this.composer.picked {
+                        return;
+                    }
+                    let provider = this.composer_account().map(|a| a.provider);
+                    if let (Some(p), Some(m)) = (provider, pick.model.as_deref())
+                        && !fits(p, m)
+                    {
+                        pick = ModelChoice::default();
+                    }
                     this.composer.pick = pick;
                     cx.notify();
                 });
@@ -207,94 +261,6 @@ impl ThreadView {
         .detach();
     }
 
-    /// A turn ended: refresh the footer, and when no turn is left, send the next queued message.
-    pub(super) fn after_turn(&mut self, cx: &mut Context<Self>) {
-        self.refresh_footer(cx);
-        if self.turn_running() || self.session.is_none() {
-            return;
-        }
-        let (Some(next), Some(account)) = (self.composer.queue.pop(), self.composer_account())
-        else {
-            return;
-        };
-        if !self.follow_up(
-            next.text.clone(),
-            next.attachments.clone(),
-            false,
-            &account,
-            cx,
-        ) {
-            self.composer.queue.put_back(next); // refused here (a rebound folder): it stays queued
-        }
-        cx.notify();
-    }
-
-    pub(super) fn turn_running(&self) -> bool {
-        self.session.is_some() && self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0
-    }
-
-    /// What a send of `text` does now.
-    pub(super) fn send_mode(&self, how: Submit, text: &str) -> SendMode {
-        match how {
-            Submit::External => SendMode::Now,
-            _ => composer_queue::mode(self.turn_running(), how == Submit::Steer, text),
-        }
-    }
-
-    /// Sends queued message `id` into the running turn now; with no turn running, sends it as a new one. With no agent
-    /// at all (it ended), the message goes back into an empty composer, where Send resumes the session.
-    pub(super) fn steer_queued(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
-        let account = self.composer_account();
-        if self.session.is_none() || account.is_none() {
-            let draft = !self.prompt.read(cx).value().trim().is_empty()
-                || !self.composer.attachments.is_empty();
-            if draft {
-                self.composer.notice =
-                    Some("Send or clear your draft first; the agent isn't running.".into());
-            } else if let Some(q) = self.composer.queue.take(id) {
-                self.prompt
-                    .update(cx, |p, cx| p.set_value(q.text.clone(), window, cx));
-                self.composer.attachments = q.attachments;
-            }
-            cx.notify();
-            return;
-        }
-        let (Some(q), Some(account)) = (self.composer.queue.take(id), account) else {
-            return;
-        };
-        let steer = self.turn_running() && !q.text.trim_start().starts_with('/');
-        if !self.follow_up(q.text.clone(), q.attachments.clone(), steer, &account, cx) {
-            self.composer.queue.put_back(q);
-        }
-        cx.notify();
-    }
-
-    pub(super) fn remove_queued(&mut self, id: u64, cx: &mut Context<Self>) {
-        self.composer.queue.take(id);
-        cx.notify();
-    }
-
-    /// Holds `text` and the attachments for after the running turn, shown in the queue above the composer.
-    pub(super) fn queue_prompt(
-        &mut self,
-        text: String,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let attachments = std::mem::take(&mut self.composer.attachments);
-        self.composer.queue.push(text, attachments);
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        // The queue takes room under the messages; keep the last one in view above it.
-        // The queue takes room under the messages: keep the end of the thread in view above it.
-        self.list.scroll_to_end();
-        cx.notify();
-    }
-
-    /// The record a prompt is stored as.
-    pub(super) fn prompt_record(text: &str, attachments: &[Attachment]) -> Record {
-        Record::Prompt(shown_prompt(text, attachments))
-    }
-
     // The model picker.
 
     pub(super) fn toggle_picker(&mut self, cx: &mut Context<Self>) {
@@ -334,6 +300,7 @@ impl ThreadView {
     /// handed to a running agent.
     pub(super) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
         self.composer.pick = pick.clone();
+        self.composer.picked = true;
         self.composer.picker_open = false;
         let (store, thread, project) = (
             self.backend.store.clone(),
@@ -365,10 +332,9 @@ impl ThreadView {
             let p = self.prompt.read(cx);
             (p.value(), p.cursor())
         };
+        cx.notify(); // Send turns into Interrupt and back as the prompt empties and fills
         let Some(t) = composer_menu::trigger(&text, cursor) else {
-            if self.composer.menu.take().is_some() {
-                cx.notify();
-            }
+            self.composer.menu = None;
             return;
         };
         if let Some(menu) = self
@@ -386,9 +352,6 @@ impl ThreadView {
             return;
         }
         self.composer.picker_open = false;
-        let cached = (t.kind == MenuKind::Files)
-            .then(|| self.composer.files.clone())
-            .flatten();
         self.composer.menu = Some(Menu {
             kind: t.kind,
             start: t.start,
@@ -397,10 +360,8 @@ impl ThreadView {
             selected: 0,
             items: None,
         });
-        match cached {
-            Some(items) => self.set_menu_items(t.kind, items, cx),
-            None => self.load_menu_items(t.kind, cx),
-        }
+        // Read each time a menu opens: the agent adds and removes files between turns.
+        self.load_menu_items(t.kind, cx);
         cx.notify();
     }
 
@@ -424,12 +385,7 @@ impl ThreadView {
         });
         cx.spawn(async move |this, cx| {
             let items = Arc::new(task.await);
-            let _ = this.update(cx, |this, cx| {
-                if kind == MenuKind::Files {
-                    this.composer.files = Some(items.clone());
-                }
-                this.set_menu_items(kind, items, cx);
-            });
+            let _ = this.update(cx, |this, cx| this.set_menu_items(kind, items, cx));
         })
         .detach();
     }
@@ -494,9 +450,17 @@ impl ThreadView {
             cx.notify();
             return;
         };
+        // The caret may have moved since the menu opened: replace only the token it is still in.
+        let (text, cursor) = {
+            let p = self.prompt.read(cx);
+            (p.value(), p.cursor())
+        };
+        if composer_menu::trigger(&text, cursor).is_none_or(|t| t.start != menu.start) {
+            cx.notify();
+            return;
+        }
         self.prompt.update(cx, |p, cx| {
-            let cursor = p.cursor();
-            p.set_selected_range(menu.start..cursor.max(menu.start), cx);
+            p.set_selected_range(menu.start..cursor, cx);
             p.replace(item.insert, window, cx);
         });
         self.focus_prompt(window, cx);

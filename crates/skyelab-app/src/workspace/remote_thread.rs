@@ -296,18 +296,6 @@ impl RemoteThreadView {
             )
             .child(pill(self.env_badge().into(), state.color(theme)))
             .children(account.map(|a| pill(a.into(), theme.success)))
-            .when(self.thread_id.is_some(), |this| {
-                this.child(
-                    Button::new("remote-stop")
-                        .danger()
-                        .xsmall()
-                        .label("Stop")
-                        .tooltip("Interrupt the agent on the other machine")
-                        .on_click(
-                            cx.listener(|this, _, window, cx| this.stop(&RemoteStop, window, cx)),
-                        ),
-                )
-            })
             .into_any_element()
     }
 }
@@ -418,6 +406,19 @@ impl Render for RemoteThreadView {
                     .gap_2()
                     .items_end()
                     .child(div().flex_1().child(Textarea::new(&self.prompt)))
+                    // Interrupt sits with the composer, as on a local thread; the header has no stop.
+                    .when(self.thread_id.is_some(), |this| {
+                        this.child(
+                            Button::new("remote-stop")
+                                .ghost()
+                                .small()
+                                .label("Interrupt")
+                                .tooltip("Interrupt the agent on the other machine")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.stop(&RemoteStop, window, cx)
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("remote-send")
                             .primary()

@@ -60,6 +60,13 @@ pub(crate) struct Pick {
     pub(crate) effort: Option<String>,
 }
 
+/// `initialize`'s params: who this client is.
+pub(crate) fn initialize_params() -> Value {
+    json!({ "clientInfo": {
+        "name": "skyelab", "title": "SkyeLab", "version": env!("CARGO_PKG_VERSION"),
+    }})
+}
+
 /// Client state for one app-server process.
 pub(crate) struct Codex {
     next_id: u64,
@@ -74,7 +81,7 @@ pub(crate) struct Codex {
     /// Each waiting prompt's `input` items, and whether a finished turn already answered it (a steer refused late).
     queue: VecDeque<(Value, bool)>,
     /// What the running turn's `turn/completed` answers: its own prompt (unless already answered) and the steers.
-    /// `None` for a turn this client didn't start, which answers one prompt, as before steering existed.
+    /// `None` for a turn this client didn't start, which answers one prompt.
     answers: Option<u32>,
     /// `turn/steer` requests not answered yet: (request id, turn it targeted, input).
     steers: Vec<(u64, String, Value)>,
@@ -108,12 +115,7 @@ impl Codex {
             last_text: None,
             closed: None,
         };
-        let init = c.request(
-            "initialize",
-            json!({ "clientInfo": {
-                "name": "skyelab", "title": "SkyeLab", "version": env!("CARGO_PKG_VERSION"),
-            }}),
-        );
+        let init = c.request("initialize", initialize_params());
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
         let mut params = json!({
             "cwd": dir,

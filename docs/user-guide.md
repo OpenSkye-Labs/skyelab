@@ -128,8 +128,10 @@ didn't review, the commit is undone and they stay staged. Push never pushes subm
   it before the first send to run in a new worktree), how many files changed (click it to open Changes, refreshed
   after each turn) and the current branch.
 
-The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
-current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
+The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. While a turn runs and the
+composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
+ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
+**Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
 another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
 event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
@@ -194,7 +196,7 @@ The thread header then has:
   A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one
   "Diff too large" row with the line count instead: open those in a terminal or your editor.
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.
-- **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
+- **Discard worktree** removes the worktree. Stop the agent first (**Stop Agent** in the command palette). If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.
 
 ## Sharing this machine over Tailscale

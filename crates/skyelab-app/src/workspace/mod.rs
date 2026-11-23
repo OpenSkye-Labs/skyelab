@@ -9,9 +9,11 @@ mod changes_publish;
 mod child_slots;
 mod composer;
 mod composer_attach;
+mod composer_footer;
 mod composer_menu;
 mod composer_picker;
 mod composer_queue;
+mod composer_send;
 mod composer_state;
 mod devices;
 mod env_mode;
@@ -394,6 +396,9 @@ mod composer_menu_test;
 
 #[cfg(test)]
 mod composer_queue_test;
+
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+mod composer_review_test;
 
 #[cfg(test)]
 mod stale_status_test;

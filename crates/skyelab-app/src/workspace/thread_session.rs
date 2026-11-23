@@ -139,6 +139,9 @@ impl ThreadView {
     ) {
         if let Some(session) = self.session.clone() {
             self.in_background(cx, move || lock(&session)?.interrupt());
+            if self.turn_running() {
+                self.interrupt_pending(cx);
+            }
         }
     }
 

@@ -25,6 +25,9 @@ impl ThreadView {
 
     /// Reads each file off the UI thread and adds it, or says why not. Over the cap, nothing is read.
     pub(super) fn attach_paths(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
+        if self.read_only {
+            return; // a drop on a thread that can't send
+        }
         let room = MAX_ATTACHMENTS.saturating_sub(self.composer.attachments.len());
         let task = cx.background_spawn(async move {
             let mut out = Vec::new();
@@ -45,7 +48,7 @@ impl ThreadView {
                 this.composer.notice = None;
                 for r in read {
                     match r {
-                        Ok(a) => this.composer.attachments.push(a),
+                        Ok(a) => this.add_attachment(a),
                         Err(e) => this.composer.notice = Some(e.into()),
                     }
                 }
@@ -68,14 +71,8 @@ impl ThreadView {
                     taken = true;
                     let n = self.composer.attachments.len() + 1;
                     let name = format!("pasted-{n}.{}", img.format.extension());
-                    if self.composer.attachments.len() >= MAX_ATTACHMENTS {
-                        self.composer.notice = Some(
-                            format!("a message can carry up to {MAX_ATTACHMENTS} files").into(),
-                        );
-                        continue;
-                    }
                     match Attachment::new(name, img.bytes.clone()) {
-                        Ok(a) => self.composer.attachments.push(a),
+                        Ok(a) => self.add_attachment(a),
                         Err(e) => self.composer.notice = Some(format!("{e:#}").into()),
                     }
                 }
@@ -88,6 +85,22 @@ impl ThreadView {
         }
         cx.notify();
         taken
+    }
+
+    /// Adds a read file, checked again here: reads finish in any order, and the account may not take its kind.
+    fn add_attachment(&mut self, a: Attachment) {
+        if self.composer.attachments.len() >= MAX_ATTACHMENTS {
+            self.composer.notice =
+                Some(format!("a message can carry up to {MAX_ATTACHMENTS} files").into());
+            return;
+        }
+        let unfit = self
+            .composer_account()
+            .and_then(|acct| super::composer_state::unfit(&acct, std::slice::from_ref(&a)));
+        match unfit {
+            Some(why) => self.composer.notice = Some(why.into()),
+            None => self.composer.attachments.push(a),
+        }
     }
 
     pub(super) fn remove_attachment(&mut self, ix: usize, cx: &mut Context<Self>) {
@@ -114,6 +127,14 @@ fn read_attachment(path: &std::path::Path) -> Result<Attachment, String> {
             MAX_ATTACHMENT_BYTES >> 20
         ));
     }
-    let data = std::fs::read(path).map_err(|e| format!("{name}: {e}"))?;
+    // Read no more than the cap allows: the file may have grown since the check above.
+    let mut data = Vec::new();
+    std::fs::File::open(path)
+        .and_then(|f| {
+            use std::io::Read as _;
+            f.take(MAX_ATTACHMENT_BYTES as u64 + 1)
+                .read_to_end(&mut data)
+        })
+        .map_err(|e| format!("{name}: {e}"))?;
     Attachment::new(name, data).map_err(|e| format!("{e:#}"))
 }

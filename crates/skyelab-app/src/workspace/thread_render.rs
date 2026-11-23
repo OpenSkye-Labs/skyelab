@@ -1,6 +1,6 @@
 //! How a thread tab looks. State and behavior live in `thread.rs`.
 
-use super::thread::{CONTEXT, Interrupt, Stop, ThreadView};
+use super::thread::{CONTEXT, ThreadView};
 use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
@@ -40,7 +40,6 @@ impl ThreadView {
 
     fn render_header(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        let running = self.session.is_some();
         let folder = self.cwd.file_name().map_or_else(
             || self.cwd.display().to_string(),
             |n| n.to_string_lossy().into_owned(),
@@ -91,24 +90,6 @@ impl ThreadView {
             )
             .children(self.render_pr_link(cx))
             .child(self.render_worktree_actions(cx))
-            .when(running, |this| {
-                this.child(
-                    Button::new("interrupt")
-                        .ghost()
-                        .xsmall()
-                        .label("Interrupt")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.interrupt(&Interrupt, window, cx)
-                        })),
-                )
-                .child(
-                    Button::new("stop")
-                        .danger()
-                        .xsmall()
-                        .label("Stop")
-                        .on_click(cx.listener(|this, _, window, cx| this.stop(&Stop, window, cx))),
-                )
-            })
             .into_any_element()
     }
 
@@ -247,7 +228,8 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 }
 
 impl Render for ThreadView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.restore_draft(window, cx);
         let header = self.render_header(cx);
         let children = self.render_children(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));

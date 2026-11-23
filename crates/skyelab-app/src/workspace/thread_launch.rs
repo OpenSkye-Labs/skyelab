@@ -1,6 +1,6 @@
 //! Starting `claude` for a thread: a new thread, a follow-up, or resuming an ended session.
 
-use super::{ThreadView, ThreadViewEvent, append};
+use super::{Record, ThreadView, ThreadViewEvent, append};
 use crate::workspace::lock;
 use anyhow::Context as _;
 use gpui::{AppContext as _, Context, Window};
@@ -78,7 +78,10 @@ impl ThreadView {
         self.stop_requested = false;
         self.launches += 1;
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        let record = Self::prompt_record(&text, &attachments);
+        let record = Record::Prompt(super::super::composer_state::shown_prompt(
+            &text,
+            &attachments,
+        ));
         self.push(&record, cx);
         let pick = self.composer.pick.clone();
 
@@ -261,8 +264,12 @@ impl ThreadView {
         if self.thread.as_ref().is_some_and(|t| t.id == thread.id) {
             return;
         }
+        let moved = self.cwd != thread.cwd; // into its new worktree
         self.cwd = thread.cwd.clone();
         self.thread = Some(thread.clone());
+        if moved {
+            self.refresh_footer(cx);
+        }
         cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
         cx.notify();
     }
@@ -298,8 +305,13 @@ impl ThreadView {
         let turns = self.turns.clone();
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
-        let record = Self::prompt_record(&text, &attachments);
+        let record = Record::Prompt(super::super::composer_state::shown_prompt(
+            &text,
+            &attachments,
+        ));
         self.push(&record, cx);
+        // Given back to the composer if the agent refuses it (lesson: a send must never lose what was typed).
+        let draft = (text.clone(), attachments.clone());
         // Chained, so quick follow-ups reach the store and claude in the order they were sent.
         let prev = self.send_chain.take();
         let write = cx.background_executor().clone();
@@ -362,7 +374,10 @@ impl ThreadView {
             }
             let _ = this.update(cx, |this, cx| match sent {
                 Ok(left) => this.saved(left, cx),
-                Err(e) => this.show_error(e, cx),
+                Err(e) => {
+                    this.composer.restore = Some(draft);
+                    this.show_error(e, cx)
+                }
             });
         }));
         true

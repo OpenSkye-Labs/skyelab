@@ -69,7 +69,6 @@ pub fn repo_root(path: &Path) -> Result<PathBuf> {
 /// The files git tracks under `dir`, relative to it: what the composer's `@` menu offers. Ignored and untracked
 /// files never show.
 pub fn tracked_files(dir: &Path) -> Result<Vec<String>> {
-    // quotePath off is moot with -z, but pinned so a user config can't change the format.
     let out = git(
         dir,
         &["-c", "core.quotePath=false", "ls-files", "-z", "--cached"],
@@ -81,18 +80,17 @@ pub fn tracked_files(dir: &Path) -> Result<Vec<String>> {
         .collect())
 }
 
-/// The branch checked out in `dir`, or `None` on a detached HEAD.
+/// The branch checked out in `dir`, or `None` on a detached HEAD. Not `--short`: with a tag of the same name it
+/// answers `heads/<branch>`.
 pub fn current_branch(dir: &Path) -> Result<Option<String>> {
-    let out = output(
-        Path::new("git"),
-        dir,
-        &["symbolic-ref", "--quiet", "--short", "HEAD"],
-    )?;
+    let args = ["symbolic-ref", "--quiet", "HEAD"];
+    let out = output(Path::new("git"), dir, &args)?;
     if out.status.code() == Some(1) && out.stderr.is_empty() {
-        return Ok(None); // detached
+        return Ok(None);
     }
-    let out = finish(dir, &["symbolic-ref", "--quiet", "--short", "HEAD"], out)?;
-    Ok(Some(lossy(&out).trim().to_owned()))
+    let out = finish(dir, &args, out)?;
+    let full = lossy(&out);
+    Ok(full.trim().strip_prefix("refs/heads/").map(str::to_owned))
 }
 
 /// The full SHA of commit-ish `rev` in the repo at `dir`.

@@ -1,4 +1,4 @@
-//! Helpers for the composer acceptance tests (model_effort.rs, attachments.rs).
+//! Helpers for the composer acceptance tests: a bound project, a recording `claude`, the codex fake.
 
 use serde_json::Value;
 use skyelab_agent::{Event, Launch, Session};

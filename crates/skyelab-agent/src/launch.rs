@@ -51,6 +51,19 @@ pub(crate) fn agent_command(
     Ok((cmd, bin, dir))
 }
 
+/// SIGKILL to process group `pid` (an agent started with `process_group(0)`, so the group id is its pid). `unsafe` is
+/// denied, so no libc::killpg: the kill binary signals the group instead.
+#[cfg(unix)]
+pub(crate) fn kill_group(pid: u32) {
+    let kill = resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
+    let _ = Command::new(kill)
+        .args(["-KILL", "--", &format!("-{pid}")])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
+
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
 /// A bare name is looked up through the parent PATH's absolute entries only.
 pub(crate) fn resolve_bin(bin: &Path) -> Result<PathBuf> {

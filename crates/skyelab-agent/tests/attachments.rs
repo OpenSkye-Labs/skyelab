@@ -92,3 +92,13 @@ fn caps_and_kinds_are_checked() {
         .collect();
     assert!(start_with_bin(&bin, &f.config, &launch(&f, None, None, &many)).is_err());
 }
+
+#[test]
+fn codex_refuses_a_pdf_before_starting() {
+    let f = bound(Provider::Codex);
+    let pdf = [Attachment::new("a.pdf", b"%PDF-1.7 x".to_vec()).expect("pdf")];
+    let err = start_with_bin(&codex_fake(), &f.config, &launch(&f, None, None, &pdf))
+        .err()
+        .expect("refused");
+    assert!(format!("{err:#}").contains("can't read PDFs"));
+}

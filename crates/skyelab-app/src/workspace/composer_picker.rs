@@ -26,6 +26,7 @@ impl ThreadView {
         let theme = cx.theme();
         let provider = self.composer_account().map(|a| a.provider);
         let pick = self.composer.pick.clone();
+        let claude_efforts: Vec<String> = CLAUDE_EFFORTS.iter().map(|e| (*e).to_owned()).collect();
         let (models, error): (Vec<PickerModel>, Option<SharedString>) = match provider {
             Some(Provider::Codex) => match &self.composer.codex_models {
                 Some(Ok(list)) => (
@@ -41,8 +42,11 @@ impl ThreadView {
                 CLAUDE_MODELS
                     .iter()
                     .map(|(id, label)| {
-                        let efforts = CLAUDE_EFFORTS.iter().map(|e| (*e).to_owned()).collect();
-                        ((*id).to_owned(), (*label).to_owned(), efforts)
+                        (
+                            (*id).to_owned(),
+                            (*label).to_owned(),
+                            claude_efforts.clone(),
+                        )
                     })
                     .collect(),
                 None,
@@ -55,9 +59,7 @@ impl ThreadView {
                 .map(|(.., e)| e.clone())
                 .unwrap_or_default(),
             // The account's default model: Claude takes any effort; Codex's are per model.
-            None if provider != Some(Provider::Codex) => {
-                CLAUDE_EFFORTS.iter().map(|e| (*e).to_owned()).collect()
-            }
+            None if provider != Some(Provider::Codex) => claude_efforts.clone(),
             None => Vec::new(),
         };
         let option = |id: String, label: String, on: bool, choice: ModelChoice| {
@@ -82,14 +84,14 @@ impl ThreadView {
             )
             .map(|(id, label)| {
                 let on = pick.model == id;
-                // A new model keeps the effort only if it takes it.
-                let keeps = |e: &String| {
-                    id.as_ref()
-                        .is_none_or(|id| models.iter().any(|(m, _, es)| m == id && es.contains(e)))
+                let model_takes_effort = |e: &String| match &id {
+                    Some(id) => models.iter().any(|(m, _, es)| m == id && es.contains(e)),
+                    // The account's default model: any Claude effort; Codex's default shows no effort choice.
+                    None => provider != Some(Provider::Codex),
                 };
                 let choice = ModelChoice {
                     model: id.clone(),
-                    effort: pick.effort.clone().filter(keeps),
+                    effort: pick.effort.clone().filter(model_takes_effort),
                 };
                 option(
                     format!("pick-model-{}", id.as_deref().unwrap_or("default")),

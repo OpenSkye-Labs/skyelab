@@ -433,23 +433,24 @@ impl ThreadView {
             cx.notify();
             return;
         }
-        let mode = self.send_mode(how, &text);
-        if mode == SendMode::Queue {
-            return self.queue_prompt(text, window, cx);
+        // Files the account's agent can't take stay in the composer, before anything is sent or cleared.
+        if !external
+            && let Some(why) = resolved
+                .as_ref()
+                .and_then(|a| super::composer_state::unfit(a, &self.composer.attachments))
+        {
+            self.composer.notice = Some(why.into());
+            cx.notify();
+            return;
         }
-        let attachments = if external {
-            Vec::new()
-        } else {
-            std::mem::take(&mut self.composer.attachments)
-        };
         self.composer.menu = None;
         if self.session.is_none()
             && let Some(thread) = self.thread.clone()
         {
+            let attachments = self.take_attachments(external);
             return self.resume(text, attachments, thread, resolved, window, cx);
         }
         let Some(account) = resolved else {
-            self.composer.attachments.extend(attachments); // kept for the send after binding
             self.needs_binding = true;
             cx.notify();
             return;
@@ -457,11 +458,23 @@ impl ThreadView {
         self.needs_binding = false;
         self.error = None;
         if self.session.is_some() {
+            // Checked before anything is queued or taken: a rebound folder needs a new thread.
+            if let Some(why) = self.rebound(&account) {
+                self.error = Some(why);
+                cx.notify();
+                return;
+            }
+            let mode = self.send_mode(how, &text);
+            if mode == SendMode::Queue {
+                return self.queue_prompt(text, window, cx);
+            }
+            let attachments = self.take_attachments(external);
             if self.follow_up(text, attachments, mode == SendMode::Steer, &account, cx) {
                 self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
             }
             return;
         }
+        let attachments = self.take_attachments(external);
         self.launch(text, attachments, account, None, window, cx);
     }
 }

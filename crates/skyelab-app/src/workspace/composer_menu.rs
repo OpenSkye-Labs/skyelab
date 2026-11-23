@@ -6,6 +6,8 @@ use std::path::Path;
 
 /// The most rows a menu shows.
 pub(crate) const MAX_ROWS: usize = 50;
+/// How much of a command or skill file is read for its description.
+const DESCRIPTION_BYTES: u64 = 4096;
 /// The most command or skill files read from one folder.
 const MAX_FILES: usize = 200;
 
@@ -138,21 +140,26 @@ pub(crate) fn command_items(
         detail: (*about).to_owned(),
         insert: format!("/{name} "),
     });
-    let account = markdown_commands(&account_dir.join("commands"), "");
-    let project = markdown_commands(&project.join(".claude").join("commands"), "project");
+    let account = markdown_commands(&account_dir.join("commands"), "", Links::Follow);
+    // The repo's folder is untrusted: a link there could point the menu at any file.
+    let project = markdown_commands(
+        &project.join(".claude").join("commands"),
+        "project",
+        Links::Skip,
+    );
     builtins.chain(account).chain(project).collect()
 }
 
 /// `name.md` files in `dir`, and `ns/name.md` one folder down (Claude names those `ns:name`).
-fn markdown_commands(dir: &Path, source: &str) -> Vec<MenuItem> {
+fn markdown_commands(dir: &Path, source: &str, links: Links) -> Vec<MenuItem> {
     let mut out = Vec::new();
-    for (prefix, file) in entries(dir).into_iter().flat_map(|e| {
+    for (prefix, file) in entries(dir, links).into_iter().flat_map(|e| {
         if e.is_dir() {
             let ns = e
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            entries(&e)
+            entries(&e, links)
                 .into_iter()
                 .map(|f| (format!("{ns}:"), f))
                 .collect()
@@ -188,7 +195,7 @@ fn markdown_commands(dir: &Path, source: &str) -> Vec<MenuItem> {
 /// The `$` rows: the account's skills, `skills/<name>/SKILL.md` in its config dir. Claude runs a skill as
 /// `/name`, Codex as `$name`.
 pub(crate) fn skill_items(provider: Provider, account_dir: &Path) -> Vec<MenuItem> {
-    entries(&account_dir.join("skills"))
+    entries(&account_dir.join("skills"), Links::Follow)
         .into_iter()
         .filter(|d| d.join("SKILL.md").is_file())
         .take(MAX_FILES)
@@ -207,23 +214,33 @@ pub(crate) fn skill_items(provider: Provider, account_dir: &Path) -> Vec<MenuIte
         .collect()
 }
 
-/// `dir`'s entries, sorted; none when it can't be read.
-fn entries(dir: &Path) -> Vec<std::path::PathBuf> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Links {
+    Follow,
+    Skip,
+}
+
+/// `dir`'s entries (at most a thousand), sorted; none when it can't be read. With [`Links::Skip`], symlinks are left out.
+fn entries(dir: &Path, links: Links) -> Vec<std::path::PathBuf> {
     let mut v: Vec<_> = std::fs::read_dir(dir)
         .into_iter()
         .flatten()
-        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter_map(Result::ok)
+        .filter(|e| links == Links::Follow || e.file_type().is_ok_and(|t| !t.is_symlink()))
+        .take(1000)
+        .map(|e| e.path())
         .collect();
     v.sort();
     v
 }
 
-/// The `description:` from a markdown file's front matter, or its first text line. Reads at most 4 KiB.
+/// The `description:` from a markdown file's front matter, or its first text line, from its first bytes only.
 fn description(file: &Path) -> String {
     use std::io::Read as _;
     let mut bytes = Vec::new();
     if file.is_file() {
-        let _ = std::fs::File::open(file).and_then(|f| f.take(4096).read_to_end(&mut bytes));
+        let _ = std::fs::File::open(file)
+            .and_then(|f| f.take(DESCRIPTION_BYTES).read_to_end(&mut bytes));
     }
     let head = String::from_utf8_lossy(&bytes);
     let mut lines = head.lines();
