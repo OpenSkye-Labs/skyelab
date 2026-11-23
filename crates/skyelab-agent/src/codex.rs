@@ -3,10 +3,10 @@
 //! [`Codex`] is the client's state; it maps the server's notifications onto [`Event`], so the rest of
 //! SkyeLab sees the same stream as from `claude`.
 
-use crate::{Block, Event};
+use crate::{Block, Decision, Event, Mode};
 use anyhow::{Context as _, Result};
 use serde_json::{Value, json};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -53,20 +53,6 @@ pub(crate) fn mcp_servers(grant: &Path) -> Result<Value> {
     Ok(json!({ "skyelab": { "command": s["command"], "args": s["args"], "env": s["env"] } }))
 }
 
-/// The model and effort every turn carries (`None`: Codex's default).
-#[derive(Debug, Clone, Default)]
-pub(crate) struct Pick {
-    pub(crate) model: Option<String>,
-    pub(crate) effort: Option<String>,
-}
-
-/// `initialize`'s params: who this client is.
-pub(crate) fn initialize_params() -> Value {
-    json!({ "clientInfo": {
-        "name": "skyelab", "title": "SkyeLab", "version": env!("CARGO_PKG_VERSION"),
-    }})
-}
-
 /// Client state for one app-server process.
 pub(crate) struct Codex {
     next_id: u64,
@@ -89,15 +75,43 @@ pub(crate) struct Codex {
     last_text: Option<String>,
     /// Why codex refused to open the thread. Every later prompt fails with it instead of waiting forever.
     closed: Option<String>,
+    /// Approval requests waiting for an answer: our id → codex's JSON-RPC request id.
+    asks: BTreeMap<String, Value>,
+    /// A mode picked after the thread opened, sent with the next `turn/start`.
+    mode_change: Option<Mode>,
+    /// The mode the `turn/start` in flight carries, put back if codex refuses that turn.
+    mode_sent: Option<Mode>,
+    /// Starts every ask id, new per process (see `claude::Book`).
+    pub(crate) nonce: String,
+}
+
+/// Codex's `approvalPolicy` and `sandbox` for a mode. Codex has no plan mode, so Plan is a read-only sandbox.
+pub(crate) fn policy(mode: Mode) -> (&'static str, &'static str) {
+    match mode {
+        // Edits inside the folder never ask under workspace-write, so Accept edits differs only for Claude.
+        Mode::Default | Mode::AcceptEdits => ("untrusted", "workspace-write"),
+        Mode::Plan => ("on-request", "read-only"),
+        Mode::Bypass => ("never", "danger-full-access"),
+    }
+}
+
+/// `turn/start`'s `sandboxPolicy` for the sandbox names `thread/start` takes.
+fn sandbox_policy(sandbox: &str) -> Value {
+    match sandbox {
+        "read-only" => json!({ "type": "readOnly" }),
+        "danger-full-access" => json!({ "type": "dangerFullAccess" }),
+        _ => json!({ "type": "workspaceWrite" }),
+    }
 }
 
 impl Codex {
     /// The state, and the lines that open the thread: `initialize`, then `thread/start` or `thread/resume`.
-    /// Approvals are off (SkyeLab has no approval UI) and writes stay inside the folder.
+    /// Approvals and the sandbox follow `mode`; an approval request arrives as [`Event::Permission`].
     pub(crate) fn new(
         dir: &Path,
         resume: Option<&str>,
         mcp: Option<Value>,
+        mode: Mode,
         pick: Pick,
     ) -> (Self, Vec<String>) {
         let mut c = Codex {
@@ -114,13 +128,18 @@ impl Codex {
             pick,
             last_text: None,
             closed: None,
+            asks: BTreeMap::new(),
+            mode_change: None,
+            mode_sent: None,
+            nonce: String::new(),
         };
         let init = c.request("initialize", initialize_params());
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
+        let (approval, sandbox) = policy(mode);
         let mut params = json!({
             "cwd": dir,
-            "approvalPolicy": "never",
-            "sandbox": "workspace-write",
+            "approvalPolicy": approval,
+            "sandbox": sandbox,
             "config": mcp.map(|m| json!({ "mcp_servers": m })),
         });
         if let Some(model) = &c.pick.model {
@@ -144,32 +163,6 @@ impl Codex {
         json!({ "id": id, "method": method, "params": params }).to_string()
     }
 
-    /// Queues a prompt behind the running turn, or with `steer` sends it into that turn (`turn/steer`) when one
-    /// runs and its id is known.
-    pub(crate) fn prompt(
-        &mut self,
-        text: &str,
-        attachments: &[crate::Attachment],
-        steer: bool,
-    ) -> Result<Vec<String>> {
-        if let Some(why) = &self.closed {
-            anyhow::bail!("codex couldn't open this thread ({why}); start a new thread");
-        }
-        let input = crate::attach::codex_input(text, attachments)?;
-        if steer && let (Some(thread), Some(turn)) = (self.thread_id.clone(), self.turn_id.clone())
-        {
-            self.answers = Some(self.answers.unwrap_or(1) + 1);
-            self.steers
-                .push((self.next_id, turn.clone(), input.clone()));
-            return Ok(vec![self.request(
-                "turn/steer",
-                json!({ "threadId": thread, "expectedTurnId": turn, "input": input }),
-            )]);
-        }
-        self.queue.push_back((input, false));
-        Ok(self.pump())
-    }
-
     /// Starts the next queued turn once the thread is open and no turn runs.
     fn pump(&mut self) -> Vec<String> {
         let (Some(thread), false) = (self.thread_id.clone(), self.busy) else {
@@ -188,7 +181,73 @@ impl Codex {
         if let Some(effort) = &self.pick.effort {
             params["effort"] = json!(effort);
         }
+        self.mode_sent = self.mode_change;
+        if let Some(mode) = self.mode_change.take() {
+            // Overrides stick for this turn and the ones after it.
+            let (approval, sandbox) = policy(mode);
+            params["approvalPolicy"] = json!(approval);
+            params["sandboxPolicy"] = sandbox_policy(sandbox);
+        }
         vec![self.request("turn/start", params)]
+    }
+
+    pub(crate) fn set_mode(&mut self, mode: Mode) {
+        self.mode_change = Some(mode);
+    }
+
+    /// The reply to approval request `id`, or `None` when it isn't waiting. It stays open until [`Self::forget`].
+    pub(crate) fn answer(&mut self, id: &str, decision: Decision) -> Option<String> {
+        let rpc = self.asks.get(id)?;
+        let decision = match decision {
+            Decision::AllowOnce => "accept",
+            Decision::AllowThread => "acceptForSession",
+            Decision::Deny | Decision::Withdrawn => "decline",
+        };
+        Some(json!({ "id": rpc, "result": { "decision": decision } }).to_string())
+    }
+
+    pub(crate) fn forget(&mut self, id: &str) {
+        self.asks.remove(id);
+    }
+
+    /// Every open request, withdrawn: its turn or its process is over.
+    pub(crate) fn withdraw_all(&mut self) -> Vec<Event> {
+        std::mem::take(&mut self.asks)
+            .into_keys()
+            .map(|id| Event::PermissionResolved {
+                id,
+                decision: Decision::Withdrawn,
+            })
+            .collect()
+    }
+
+    /// A server request: an approval waits for the user; anything else is answered now.
+    fn on_request(
+        &mut self,
+        method: &str,
+        rpc: Value,
+        params: &Value,
+    ) -> (Vec<Event>, Vec<String>) {
+        let (tool, keys): (_, &[&str]) = match method {
+            "item/commandExecution/requestApproval" => ("shell", &["command", "cwd", "reason"]),
+            "item/fileChange/requestApproval" => ("apply_patch", &["grantRoot", "reason"]),
+            _ => return (Vec::new(), vec![answer(method, rpc)]),
+        };
+        // Only the fields codex sent: an absent `grantRoot` must not show as null.
+        let input: serde_json::Map<String, Value> = keys
+            .iter()
+            .filter(|k| !params[**k].is_null())
+            .map(|k| ((*k).to_owned(), params[*k].clone()))
+            .collect();
+        let input = Value::Object(input);
+        let id = format!("{}codex-{}", self.nonce, rpc);
+        self.asks.insert(id.clone(), rpc);
+        let event = Event::Permission {
+            id,
+            tool: tool.to_owned(),
+            input,
+        };
+        (vec![event], Vec::new())
     }
 
     /// Stops the running turn; before its id is known, as soon as it is.
@@ -224,7 +283,7 @@ impl Codex {
     pub(crate) fn on_line(&mut self, v: Value) -> (Vec<Event>, Vec<String>) {
         let method = v["method"].as_str().map(str::to_owned);
         match (method, v.get("id").filter(|id| !id.is_null()).cloned()) {
-            (Some(method), Some(id)) => (Vec::new(), vec![answer(&method, id)]),
+            (Some(method), Some(id)) => self.on_request(&method, id, &v["params"]),
             (None, Some(id)) => self.on_response(id.as_u64(), &v),
             (Some(method), None) => self.on_notification(&method, v),
             (None, None) => (vec![Event::Unknown(v)], Vec::new()),
@@ -257,19 +316,8 @@ impl Codex {
                 }
             };
         }
-        if let Some(ix) = self.steers.iter().position(|(req, ..)| Some(*req) == id) {
-            let (_, turn, input) = self.steers.remove(ix);
-            if error.is_none() {
-                return (Vec::new(), Vec::new());
-            }
-            // Refused (the turn ended meanwhile): it runs as its own turn. If its turn still runs, that turn no
-            // longer answers it; if that turn already finished, it was counted there.
-            let still_running = self.turn_id.as_deref() == Some(turn.as_str());
-            if still_running {
-                self.answers = self.answers.map(|n| n.saturating_sub(1));
-            }
-            self.queue.push_back((input, !still_running));
-            return (Vec::new(), self.pump());
+        if let Some(reply) = self.on_steer_reply(id, error.is_some()) {
+            return reply;
         }
         if id.is_none() || id != self.turn_req {
             return (Vec::new(), Vec::new());
@@ -282,6 +330,8 @@ impl Codex {
             }
             Some(e) => {
                 self.end_turn();
+                // Refused, so its mode change never applied: the next turn carries it.
+                self.mode_change = self.mode_change.or(self.mode_sent.take());
                 let mut result = failed(e);
                 if let Event::Result { prompts, .. } = &mut result {
                     *prompts = self.answers.take().unwrap_or(1);
@@ -318,7 +368,17 @@ impl Codex {
                         }),
                 };
                 self.end_turn();
-                (vec![result], self.pump())
+                let mut events = self.withdraw_all();
+                events.push(result);
+                (events, self.pump())
+            }
+            "serverRequest/resolved" => {
+                let id = format!("{}codex-{}", self.nonce, p["requestId"]);
+                let events = self.asks.remove(&id).map(|_| Event::PermissionResolved {
+                    id,
+                    decision: Decision::Withdrawn,
+                });
+                (events.into_iter().collect(), Vec::new())
             }
             "item/started" => (started(&p["item"]).into_iter().collect(), Vec::new()),
             "item/completed" => {
@@ -345,15 +405,11 @@ const NOISE: &[&str] = &[
     "serverRequest/",
 ];
 
-/// Codex asks the client to approve or answer something. There is no one to ask, so the answer is no.
+/// A server request SkyeLab has no UI for (user input, MCP elicitation, old-style approvals): unsupported, so codex
+/// treats it as refused.
 fn answer(method: &str, id: Value) -> String {
-    match method {
-        "item/commandExecution/requestApproval" | "item/fileChange/requestApproval" => {
-            json!({ "id": id, "result": { "decision": "decline" } })
-        }
-        _ => json!({ "id": id, "error": { "code": -32601, "message": format!("SkyeLab doesn't handle {method}") } }),
-    }
-    .to_string()
+    json!({ "id": id, "error": { "code": -32601, "message": format!("SkyeLab doesn't handle {method}") } })
+        .to_string()
 }
 
 fn failed(message: String) -> Event {
@@ -435,6 +491,10 @@ fn completed(item: &Value, raw: &Value) -> Option<Event> {
         }],
     })
 }
+
+#[path = "codex_steer.rs"]
+mod steer;
+pub(crate) use steer::{Pick, initialize_params};
 
 #[cfg(test)]
 #[path = "codex_tests.rs"]

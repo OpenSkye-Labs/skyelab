@@ -12,7 +12,7 @@ use skyelab_core::Account;
 const INTERRUPT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 impl ThreadView {
     /// Why a send to the running agent must be refused: the folder no longer resolves to the thread's account.
-    pub(super) fn rebound(&self, now: &Account) -> Option<SharedString> {
+    pub(in crate::workspace) fn rebound(&self, now: &Account) -> Option<SharedString> {
         let thread = self.thread.as_ref()?;
         (thread.account_id != now.id).then(|| {
             format!(
@@ -24,7 +24,7 @@ impl ThreadView {
     }
 
     /// The account a queued message may go to now: the folder's, which must still be the thread's.
-    pub(super) fn send_account(&self) -> Result<Account, SharedString> {
+    pub(in crate::workspace) fn send_account(&self) -> Result<Account, SharedString> {
         let Some(now) = self.config.resolve(&self.cwd).cloned() else {
             return Err(
                 "This folder isn't bound to an account any more; the queued messages wait.".into(),
@@ -42,7 +42,7 @@ impl ThreadView {
     }
 
     /// The composer's files for a send; an outside sender's message never takes them.
-    pub(super) fn take_attachments(&mut self, external: bool) -> Vec<Attachment> {
+    pub(in crate::workspace) fn take_attachments(&mut self, external: bool) -> Vec<Attachment> {
         if external {
             Vec::new()
         } else {
@@ -52,7 +52,7 @@ impl ThreadView {
 
     /// An interrupt was sent (the composer's Interrupt, ⌘. or the palette): "Stopping…" shows until the turn ends, or
     /// for [`INTERRUPT_WAIT`], after which Interrupt works again and Force stop shows.
-    pub(super) fn interrupt_pending(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn interrupt_pending(&mut self, cx: &mut Context<Self>) {
         let n = self.composer.interrupting.map_or(1, |n| n + 1);
         self.composer.interrupting = Some(n);
         cx.spawn(async move |this, cx| {
@@ -70,7 +70,7 @@ impl ThreadView {
     }
 
     /// A turn ended: refresh the footer, and when no turn is left, send the next queued message.
-    pub(super) fn after_turn(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn after_turn(&mut self, cx: &mut Context<Self>) {
         self.refresh_footer(cx);
         if !self.turn_running() {
             self.composer.interrupting = None;
@@ -104,12 +104,12 @@ impl ThreadView {
         cx.notify();
     }
 
-    pub(super) fn turn_running(&self) -> bool {
+    pub(in crate::workspace) fn turn_running(&self) -> bool {
         self.session.is_some() && self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0
     }
 
     /// What a send of `text` does now.
-    pub(super) fn send_mode(&self, how: Submit, text: &str) -> SendMode {
+    pub(in crate::workspace) fn send_mode(&self, how: Submit, text: &str) -> SendMode {
         match how {
             Submit::External => SendMode::Now,
             _ => composer_queue::mode(self.turn_running(), how == Submit::Steer, text),
@@ -118,7 +118,12 @@ impl ThreadView {
 
     /// Sends queued message `id` into the running turn now; with no turn running, sends it as a new one. With no agent
     /// at all (it ended), the message goes back into an empty composer, where Send resumes the session.
-    pub(super) fn steer_queued(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn steer_queued(
+        &mut self,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.session.is_none() {
             let draft = !self.prompt.read(cx).value().trim().is_empty()
                 || !self.composer.attachments.is_empty();
@@ -164,13 +169,17 @@ impl ThreadView {
         cx.notify();
     }
 
-    pub(super) fn remove_queued(&mut self, id: u64, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn remove_queued(&mut self, id: u64, cx: &mut Context<Self>) {
         self.composer.queue.take(id);
         cx.notify();
     }
 
     /// Puts a message the agent refused back into the composer, once it is empty (the user may be typing anew).
-    pub(super) fn restore_draft(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn restore_draft(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.composer.restore.is_none()
             || !self.prompt.read(cx).value().is_empty()
             || !self.composer.attachments.is_empty()
@@ -185,7 +194,7 @@ impl ThreadView {
     }
 
     /// Holds `text` and the attachments for after the running turn, shown in the queue above the composer.
-    pub(super) fn queue_prompt(
+    pub(in crate::workspace) fn queue_prompt(
         &mut self,
         text: String,
         window: &mut Window,
@@ -197,5 +206,85 @@ impl ThreadView {
         // The queue takes room under the messages: keep the end of the thread in view above it.
         self.list.scroll_to_end();
         cx.notify();
+    }
+
+    /// Sends the prompt (and its attachments, unless `how` is external): starts or resumes the agent, or follows up
+    /// on a running one, where a send during a turn queues and a steer goes into it.
+    pub(in crate::workspace) fn submit(
+        &mut self,
+        how: super::composer_state::Submit,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        use super::composer_queue::SendMode;
+        let external = how == super::composer_state::Submit::External;
+        let text = self.prompt.read(cx).value().trim().to_string();
+        let has_files = !external && !self.composer.attachments.is_empty();
+        if (text.is_empty() && !has_files) || self.read_only || self.starting {
+            return;
+        }
+        // The folder decides the account. Unbound means ask the user, never pick one.
+        let resolved = self.config.resolve(&self.cwd).cloned();
+        if let (Some(want), Some(got)) = (&self.required_account, &resolved)
+            && got.id != *want
+        {
+            self.error =
+                Some(format!("This folder is now bound to {}, not {want}.", got.id).into());
+            cx.notify();
+            return;
+        }
+        // Files the account's agent can't take stay in the composer, before anything is sent or cleared.
+        if !external
+            && let Some(why) = resolved
+                .as_ref()
+                .and_then(|a| super::composer_state::unfit(a, &self.composer.attachments))
+        {
+            self.composer.notice = Some(why.into());
+            cx.notify();
+            return;
+        }
+        self.composer.menu = None;
+        if self.session.is_none()
+            && let Some(thread) = self.thread.clone()
+        {
+            let attachments = self.take_attachments(external);
+            return self.resume(text, attachments, thread, resolved, window, cx);
+        }
+        let Some(account) = resolved else {
+            self.needs_binding = true;
+            cx.notify();
+            return;
+        };
+        self.needs_binding = false;
+        self.error = None;
+        if self.session.is_some() {
+            // Checked before anything is queued or taken: a rebound folder needs a new thread.
+            if let Some(why) = self.rebound(&account) {
+                self.error = Some(why);
+                cx.notify();
+                return;
+            }
+            let mode = self.send_mode(how, &text);
+            if mode == SendMode::Queue {
+                return self.queue_prompt(text, window, cx);
+            }
+            let attachments = self.take_attachments(external);
+            if self.follow_up(text, attachments, mode == SendMode::Steer, &account, cx) {
+                self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+            }
+            return;
+        }
+        let attachments = self.take_attachments(external);
+        self.launch(text, attachments, account, None, window, cx);
+    }
+
+    /// A message from another device or an agent: sent now, as text only, never queued behind a turn and never with
+    /// this tab's own attachments.
+    pub(in crate::workspace) fn submit_external(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.submit(Submit::External, window, cx);
     }
 }

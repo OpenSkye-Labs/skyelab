@@ -1,7 +1,7 @@
 //! The composer's model and effort picker, a popover over the card's right side.
 
-use super::composer::{hint, popover};
 use super::thread::ThreadView;
+use super::{hint, popover};
 use crate::ui;
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, IconName, Sizable as _, h_flex, v_flex};
@@ -13,7 +13,7 @@ use skyelab_store::ModelChoice;
 type PickerModel = (String, String, Vec<String>);
 
 /// "high" → "High".
-pub(super) fn title_case(s: &str) -> String {
+pub(in crate::workspace) fn title_case(s: &str) -> String {
     let mut c = s.chars();
     c.next()
         .map(|f| f.to_uppercase().chain(c).collect())
@@ -22,7 +22,7 @@ pub(super) fn title_case(s: &str) -> String {
 
 impl ThreadView {
     /// The model and effort choices for the thread's provider.
-    pub(super) fn render_picker(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(in crate::workspace) fn render_picker(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let provider = self.composer_account().map(|a| a.provider);
         let pick = self.composer.pick.clone();

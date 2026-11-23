@@ -13,66 +13,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
-/// Index `i` upgrades the schema from `user_version` `i` to `i + 1`. Only append.
-const MIGRATIONS: &[&str] = &[
-    "
-CREATE TABLE projects (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT NOT NULL,
-    path       TEXT NOT NULL UNIQUE,
-    created_at INTEGER NOT NULL
-);
-CREATE TABLE threads (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id       INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
-    title            TEXT NOT NULL,
-    cwd              TEXT NOT NULL,
-    account_id       TEXT NOT NULL,
-    agent_session_id TEXT,
-    status           TEXT NOT NULL,
-    created_at       INTEGER NOT NULL,
-    updated_at       INTEGER NOT NULL
-);
-CREATE INDEX threads_by_project ON threads(project_id, updated_at DESC);
-CREATE TABLE events (
-    thread_id    INTEGER NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
-    seq          INTEGER NOT NULL,
-    kind         TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    created_at   INTEGER NOT NULL,
-    PRIMARY KEY (thread_id, seq)
-) WITHOUT ROWID;
-",
-    "
-ALTER TABLE threads ADD COLUMN worktree_path TEXT;
-ALTER TABLE threads ADD COLUMN worktree_branch TEXT;
-",
-    "
-ALTER TABLE threads ADD COLUMN worktree_base TEXT;
-",
-    "ALTER TABLE threads ADD COLUMN pr_url TEXT;",
-    "
-ALTER TABLE threads ADD COLUMN parent_thread_id INTEGER REFERENCES threads(id) ON DELETE SET NULL;
-CREATE INDEX threads_by_parent ON threads(parent_thread_id);
-",
-    // 6 to 8 are reserved for branches in flight (permissions, packages D and E); merging them replaces these.
-    "",
-    "",
-    "",
-    "
-ALTER TABLE threads ADD COLUMN model TEXT;
-ALTER TABLE threads ADD COLUMN effort TEXT;
-ALTER TABLE projects ADD COLUMN default_model TEXT;
-ALTER TABLE projects ADD COLUMN default_effort TEXT;
-",
-];
-
-/// A model and effort the composer picked. `None` leaves it to the agent's own default.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ModelChoice {
-    pub model: Option<String>,
-    pub effort: Option<String>,
-}
+mod manage;
+mod model;
+pub use model::ModelChoice;
+mod migrations;
+use migrations::MIGRATIONS;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {
@@ -105,6 +50,26 @@ pub struct Thread {
     pub pr_url: Option<String>,
     /// The thread whose agent delegated this one, if any.
     pub parent_thread_id: Option<i64>,
+    /// Which tool calls its agent may make without asking; the agent layer defines the values.
+    pub permission_mode: String,
+    /// When the user pinned it (pinned threads list first).
+    pub pinned_at: Option<i64>,
+    /// When the user archived it (listed apart, never notifies).
+    pub archived_at: Option<i64>,
+    /// A turn finished while the user wasn't looking at it.
+    pub unread: bool,
+}
+
+/// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
+/// Kept here, never in the repo, so an agent can't plant one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectScript {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+    pub command: String,
+    /// Run in every new worktree of the project (installing dependencies, say).
+    pub setup: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,10 +99,12 @@ type AppendHook = Box<dyn Fn(&Event) + Send>;
 pub struct Store {
     conn: Connection,
     on_append: Option<AppendHook>,
+    /// The threads [`Store::open`] purged, until [`Store::take_purged`] hands them over (their git checkpoints go too).
+    purged: Vec<Thread>,
 }
 
 const PROJECT_COLS: &str = "id, name, path, created_at";
-const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id";
+const THREAD_COLS: &str = "id, project_id, title, cwd, account_id, agent_session_id, status, created_at, updated_at, worktree_path, worktree_branch, worktree_base, pr_url, parent_thread_id, permission_mode, pinned_at, archived_at, unread";
 
 impl Store {
     /// Opens (creating if needed) a database file in WAL mode and migrates it. A thread the last run left
@@ -161,7 +128,25 @@ impl Store {
                 [],
             )
             .context("marking the last run's threads interrupted")?;
+        // A delete whose undo window the last run didn't see out is final now.
+        let mut store = store;
+        let sql = format!("SELECT {THREAD_COLS} FROM threads WHERE deleted_at IS NOT NULL");
+        store.purged = store
+            .conn
+            .prepare(&sql)?
+            .query_map([], thread_from_row)?
+            .collect::<rusqlite::Result<_>>()
+            .context("listing deleted threads")?;
+        store
+            .conn
+            .execute("DELETE FROM threads WHERE deleted_at IS NOT NULL", [])
+            .context("purging deleted threads")?;
         Ok(store)
+    }
+
+    /// The threads the last [`Store::open`] purged (once: later calls get none).
+    pub fn take_purged(&mut self) -> Vec<Thread> {
+        std::mem::take(&mut self.purged)
     }
 
     pub fn open_in_memory() -> Result<Self> {
@@ -187,6 +172,7 @@ impl Store {
         Ok(Self {
             conn,
             on_append: None,
+            purged: Vec::new(),
         })
     }
 
@@ -216,9 +202,11 @@ impl Store {
             .optional()?)
     }
 
-    /// Ordered by name.
+    /// Ordered by name. Removed projects are left out.
     pub fn list_projects(&self) -> Result<Vec<Project>> {
-        let sql = format!("SELECT {PROJECT_COLS} FROM projects ORDER BY name, id");
+        let sql = format!(
+            "SELECT {PROJECT_COLS} FROM projects WHERE removed_at IS NULL ORDER BY name, id"
+        );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], project_from_row)?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -239,6 +227,52 @@ impl Store {
             .execute("DELETE FROM projects WHERE id = ?1", [id])
             .with_context(|| format!("delete project {id} (refused while it has threads)"))?;
         expect_one(n, "project", id)
+    }
+
+    /// Oldest first.
+    pub fn project_scripts(&self, project_id: i64) -> Result<Vec<ProjectScript>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, project_id, name, command, setup FROM project_scripts WHERE project_id = ?1 ORDER BY id",
+        )?;
+        let rows = stmt.query_map([project_id], |r| {
+            Ok(ProjectScript {
+                id: r.get(0)?,
+                project_id: r.get(1)?,
+                name: r.get(2)?,
+                command: r.get(3)?,
+                setup: r.get(4)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    pub fn add_project_script(
+        &self,
+        project_id: i64,
+        name: &str,
+        command: &str,
+        setup: bool,
+    ) -> Result<ProjectScript> {
+        self.conn
+            .execute(
+                "INSERT INTO project_scripts (project_id, name, command, setup, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![project_id, name, command, setup, now_ms()],
+            )
+            .with_context(|| format!("add a script to project {project_id}"))?;
+        Ok(ProjectScript {
+            id: self.conn.last_insert_rowid(),
+            project_id,
+            name: name.to_owned(),
+            command: command.to_owned(),
+            setup,
+        })
+    }
+
+    pub fn delete_project_script(&self, id: i64) -> Result<()> {
+        let n = self
+            .conn
+            .execute("DELETE FROM project_scripts WHERE id = ?1", [id])?;
+        expect_one(n, "project script", id)
     }
 
     pub fn create_thread(&self, new: &NewThread) -> Result<Thread> {
@@ -272,6 +306,10 @@ impl Store {
             worktree_base: None,
             pr_url: None,
             parent_thread_id: None,
+            permission_mode: "default".to_owned(),
+            pinned_at: None,
+            archived_at: None,
+            unread: false,
         })
     }
 
@@ -283,10 +321,11 @@ impl Store {
             .optional()?)
     }
 
-    /// Most recently updated first.
+    /// Most recently updated first, archived ones included. Deleted ones (still in their undo window) are left out.
     pub fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>> {
         let sql = format!(
-            "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 ORDER BY updated_at DESC, id DESC"
+            "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 AND deleted_at IS NULL
+             ORDER BY updated_at DESC, id DESC"
         );
         let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([project_id], thread_from_row)?;
@@ -323,61 +362,12 @@ impl Store {
         self.update_thread(id, "worktree_base", base)
     }
 
+    pub fn set_thread_permission_mode(&self, id: i64, mode: &str) -> Result<()> {
+        self.update_thread(id, "permission_mode", mode)
+    }
+
     pub fn set_thread_pr_url(&self, id: i64, url: Option<&str>) -> Result<()> {
         self.update_thread(id, "pr_url", url)
-    }
-
-    /// The model and effort picked for thread `id` (both `None` when never picked).
-    pub fn thread_model(&self, id: i64) -> Result<ModelChoice> {
-        self.model_of("SELECT model, effort FROM threads WHERE id = ?1", id)
-    }
-
-    /// Stores thread `id`'s pick. Not a thread update the sidebar orders by, so `updated_at` stays.
-    pub fn set_thread_model(&self, id: i64, choice: &ModelChoice) -> Result<()> {
-        self.set_model_of(
-            "UPDATE threads SET model = ?2, effort = ?3 WHERE id = ?1",
-            id,
-            choice,
-        )
-    }
-
-    /// The model and effort new threads of project `id` start with.
-    pub fn project_model(&self, id: i64) -> Result<ModelChoice> {
-        self.model_of(
-            "SELECT default_model, default_effort FROM projects WHERE id = ?1",
-            id,
-        )
-    }
-
-    pub fn set_project_model(&self, id: i64, choice: &ModelChoice) -> Result<()> {
-        self.set_model_of(
-            "UPDATE projects SET default_model = ?2, default_effort = ?3 WHERE id = ?1",
-            id,
-            choice,
-        )
-    }
-
-    fn model_of(&self, sql: &str, id: i64) -> Result<ModelChoice> {
-        let row = self
-            .conn
-            .query_row(sql, [id], |r| {
-                Ok(ModelChoice {
-                    model: r.get(0)?,
-                    effort: r.get(1)?,
-                })
-            })
-            .optional()?;
-        Ok(row.unwrap_or_default())
-    }
-
-    fn set_model_of(&self, sql: &str, id: i64, choice: &ModelChoice) -> Result<()> {
-        let n = self
-            .conn
-            .execute(sql, params![id, choice.model, choice.effort])?;
-        if n == 0 {
-            bail!("no row {id} to store a model on");
-        }
-        Ok(())
     }
 
     fn update_thread(
@@ -503,6 +493,10 @@ fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         worktree_base: r.get(11)?,
         pr_url: r.get(12)?,
         parent_thread_id: r.get(13)?,
+        permission_mode: r.get(14)?,
+        pinned_at: r.get(15)?,
+        archived_at: r.get(16)?,
+        unread: r.get(17)?,
     })
 }
 

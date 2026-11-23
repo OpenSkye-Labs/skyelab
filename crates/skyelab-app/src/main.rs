@@ -315,6 +315,8 @@ fn main() {
         .with_assets(ui::AppAssets)
         .run(move |cx: &mut App| {
             gpui_component::init(cx);
+            // OS notifications need it (Windows' AppUserModelID); same id as the bundle's.
+            cx.set_app_identity("dev.openskye.skyelab", "SkyeLab");
             if let Err(e) = ui::install_theme(cx) {
                 eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
             }
@@ -336,6 +338,21 @@ fn main() {
             // Home until a project is selected.
             let folder = dirs::home_dir().unwrap_or_default();
             let (mut store, store_error) = open_store();
+            // Threads whose delete the last run didn't see out were purged on open: their checkpoints go too.
+            let purged: Vec<_> = store
+                .take_purged()
+                .into_iter()
+                .map(|t| {
+                    let project = store.project(t.project_id).ok().flatten().map(|p| p.path);
+                    (t, project)
+                })
+                .collect();
+            cx.background_spawn(async move {
+                for (thread, project) in purged {
+                    workspace::thread_checkpoints::forget(&thread, project.as_deref());
+                }
+            })
+            .detach();
             let slot = remote::DaemonSlot::default();
             remote::push_events(&mut store, slot.clone());
             let store = Arc::new(Mutex::new(store));

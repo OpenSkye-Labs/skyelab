@@ -64,6 +64,7 @@ fn start(f: &Fixture, bin: &Path, resume: Option<&str>, prompt: &str) -> Session
         model: None,
         effort: None,
         attachments: &[],
+        mode: Default::default(),
     };
     start_with_bin(bin, &f.config, &launch).expect("start")
 }

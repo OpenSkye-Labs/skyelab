@@ -2,11 +2,42 @@
 //! attachments, the prompt and a control row (attach; model and effort, the permission slot and Send), and a footer
 //! strip under it (machine, account, checkout, changes, branch). Behavior lives in `composer_state.rs`.
 
-use super::composer_menu::MenuKind;
-use super::composer_picker::title_case;
-use super::composer_state::{AttachFiles, MENU_CONTEXT, Menu};
-use super::thread::{SendPrompt, ThreadView};
+// The composer's parts. Their `super::` paths name the workspace's modules through the imports below.
+#[path = "composer_attach.rs"]
+mod composer_attach;
+#[path = "composer_footer.rs"]
+mod composer_footer;
+#[path = "composer_menu.rs"]
+mod composer_menu;
+#[cfg(test)]
+#[path = "composer_menu_test.rs"]
+mod composer_menu_test;
+#[path = "composer_picker.rs"]
+mod composer_picker;
+#[path = "composer_queue.rs"]
+mod composer_queue;
+#[cfg(test)]
+#[path = "composer_queue_test.rs"]
+mod composer_queue_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "composer_review_test.rs"]
+mod composer_review_test;
+#[path = "composer_send.rs"]
+mod composer_send;
+#[path = "composer_state.rs"]
+mod composer_state;
+
+#[cfg(test)]
+use crate::workspace::*;
+use crate::workspace::{github, lock, thread, thread_worktree};
+pub(in crate::workspace) use composer_state::{
+    Composer, SteerPrompt, Submit, bind_keys, shown_prompt,
+};
+
 use crate::ui;
+use composer_menu::MenuKind;
+use composer_picker::title_case;
+use composer_state::{AttachFiles, MENU_CONTEXT, Menu};
 use gpui::{
     AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
 };
@@ -19,6 +50,7 @@ use gpui_component::{
 };
 use gpui_kit_assets::IconName as Lucide;
 use skyelab_agent::{AttachmentKind, CLAUDE_MODELS};
+use thread::{SendPrompt, ThreadView};
 
 impl ThreadView {
     /// The model picker's button label: "Opus High", or "Default model".
@@ -42,7 +74,7 @@ impl ThreadView {
         }
     }
 
-    pub(super) fn render_composer(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(in crate::workspace) fn render_composer(&self, cx: &mut Context<Self>) -> AnyElement {
         let menu = self.composer.menu.as_ref();
         let menu_el = menu.map(|m| self.render_menu(m, cx));
         let picker = self.composer.picker_open.then(|| self.render_picker(cx));
@@ -126,8 +158,13 @@ impl ThreadView {
                     .tooltip("Model and effort")
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_picker(cx))),
             )
-            // The permission-mode picker's place.
-            .child(div().id("permission-slot"))
+            .child(
+                div()
+                    .id("permission-slot")
+                    .text_size(ui::META)
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.render_mode_picker(cx)),
+            )
             .child(h_flex().pl_2().gap_1().children(self.render_primary(cx)))
             .into_any_element()
     }
@@ -147,9 +184,9 @@ impl ThreadView {
                     .small()
                     .label("Force stop")
                     .tooltip("The agent isn't answering Interrupt: end it (⌥⌘.)")
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.stop(&super::thread::Stop, window, cx)
-                    }))
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.stop(&thread::Stop, window, cx)),
+                    )
                     .into_any_element(),
             );
         }
@@ -179,9 +216,11 @@ impl ThreadView {
                     gpui_component::tooltip::Tooltip::new("Interrupt (⌘.)").build(window, cx)
                 })
                 .child(div().size(px(12.)).rounded(px(3.)).bg(gpui::white()))
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.interrupt(&super::thread::Interrupt, window, cx)
-                }))
+                .on_click(
+                    cx.listener(|this, _, window, cx| {
+                        this.interrupt(&thread::Interrupt, window, cx)
+                    }),
+                )
                 .into_any_element()
         } else {
             Button::new("send")
@@ -323,7 +362,7 @@ impl ThreadView {
 }
 
 /// A floating panel above the composer card, T3's popup surface.
-pub(super) fn popover(cx: &gpui::App) -> gpui::Div {
+pub(in crate::workspace) fn popover(cx: &gpui::App) -> gpui::Div {
     let theme = cx.theme();
     v_flex()
         .absolute()
@@ -337,7 +376,7 @@ pub(super) fn popover(cx: &gpui::App) -> gpui::Div {
         .shadow_md()
 }
 
-pub(super) fn hint(text: impl Into<SharedString>, cx: &gpui::App) -> AnyElement {
+pub(in crate::workspace) fn hint(text: impl Into<SharedString>, cx: &gpui::App) -> AnyElement {
     div()
         .px_2()
         .py_1()

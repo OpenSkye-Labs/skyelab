@@ -67,7 +67,7 @@ fn thread_and_project_models_round_trip() {
 }
 
 #[test]
-fn a_version_5_database_migrates_to_9() {
+fn a_new_database_is_at_version_9() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("s.db");
     drop(Store::open(&path).expect("create"));

@@ -1,14 +1,21 @@
 //! How a thread's items look, shared by local (`ThreadView`) and remote (`RemoteThreadView`) thread tabs.
 
 use super::thread::ThreadView;
-use super::thread_model::{Item, ToolItem};
+use super::thread_model::{ApprovalItem, Item, ToolItem};
 use super::thread_render::opens_in_browser;
 use crate::ui;
 use gpui::{
-    AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
+    AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
     relative,
 };
-use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, text::TextView, v_flex};
+use gpui_component::{
+    ActiveTheme as _, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+    text::TextView,
+    v_flex,
+};
+use skyelab_agent::Decision;
 
 /// Longest tool input or result shown when a row is expanded; the store keeps the whole text.
 const TOOL_PREVIEW: usize = 4000;
@@ -36,6 +43,11 @@ pub(super) trait ItemsView: Sized + 'static {
     fn items(&self) -> &[Item];
     fn is_expanded(&self, tool_id: &str) -> bool;
     fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>);
+    /// Whether an agent is there to answer a pending permission request.
+    fn can_answer(&self, cx: &App) -> bool;
+    fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
+    /// Stops the running turn instead of answering (T3 keeps Interrupt beside a pending ask).
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>);
 }
 
 impl ItemsView for ThreadView {
@@ -47,6 +59,15 @@ impl ItemsView for ThreadView {
     }
     fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>) {
         ThreadView::toggle_tool(self, tool_id, cx)
+    }
+    fn can_answer(&self, _: &App) -> bool {
+        self.session.is_some()
+    }
+    fn answer(&mut self, id: &str, decision: Decision, _: &mut Window, cx: &mut Context<Self>) {
+        ThreadView::answer(self, id, decision, cx)
+    }
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.interrupt(&super::thread::Interrupt, window, cx)
     }
 }
 
@@ -113,6 +134,8 @@ pub(super) fn render_item<V: ItemsView>(
                 .into_any_element(),
         ),
         Item::Tool(tool) => tight(render_tool(this, tool, cx)),
+        Item::Approval(a) => column(render_approval(this, a, cx)),
+        Item::Output { id, text } => tight(render_output(this, id, text, cx)),
         Item::Done {
             is_error,
             duration_ms,
@@ -258,6 +281,238 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
                     .pb_2()
                     .child(block("Input", clip(&tool.input)))
                     .children(tool.result.as_deref().map(|r| block("Result", clip(r)))),
+            )
+        })
+        .into_any_element()
+}
+
+/// The label a decided request keeps.
+fn decided(d: Decision) -> &'static str {
+    match d {
+        Decision::AllowOnce => "Allowed once",
+        Decision::AllowThread => "Allowed for this thread",
+        Decision::Deny => "Denied",
+        Decision::Withdrawn => "Withdrawn",
+    }
+}
+
+/// A permission request, T3's pending-approval row: what the tool wants to do in mono, then the answers. Once
+/// decided it shrinks to one line saying what was decided.
+fn render_approval<V: ItemsView>(this: &V, a: &ApprovalItem, cx: &mut Context<V>) -> AnyElement {
+    let theme = cx.theme();
+    let summary = div()
+        .flex_1()
+        .min_w_0()
+        .truncate()
+        .font_family(theme.mono_font_family.clone())
+        .text_size(ui::META)
+        .text_color(theme.muted_foreground)
+        .child(a.summary.clone());
+    if let Some(d) = a.decision {
+        let (icon, color) = match d {
+            Decision::AllowOnce | Decision::AllowThread => {
+                (IconName::Check, theme.muted_foreground)
+            }
+            Decision::Deny => (IconName::CircleAlert, theme.danger),
+            Decision::Withdrawn => (IconName::CircleAlert, theme.muted_foreground),
+        };
+        return h_flex()
+            .min_h(px(28.))
+            .gap_1p5()
+            .px_1()
+            .text_size(ui::BODY)
+            .child(
+                div()
+                    .w(px(24.))
+                    .flex()
+                    .justify_center()
+                    .flex_shrink_0()
+                    .child(Icon::new(icon).size_4().text_color(color)),
+            )
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .font_weight(FontWeight::MEDIUM)
+                    .child(a.tool.clone()),
+            )
+            .child(summary)
+            .child(
+                div()
+                    .text_size(ui::META)
+                    .text_color(color)
+                    .child(decided(d)),
+            )
+            .into_any_element();
+    }
+    let answerable = this.can_answer(cx);
+    let theme = cx.theme();
+    let button = |label: &'static str, key: &str, decision: Decision| {
+        let id = a.id.clone();
+        Button::new(SharedString::from(format!("{key}-{}", a.id)))
+            .xsmall()
+            .label(label)
+            .on_click(
+                cx.listener(move |this, _, window, cx| this.answer(&id, decision, window, cx)),
+            )
+    };
+    let actions = if answerable {
+        h_flex()
+            .gap_2()
+            .child(button("Allow once", "allow-once", Decision::AllowOnce).primary())
+            .child(
+                button(
+                    "Allow for this thread",
+                    "allow-thread",
+                    Decision::AllowThread,
+                )
+                .outline(),
+            )
+            .child(button("Deny", "deny", Decision::Deny).ghost())
+            .child(
+                Button::new(SharedString::from(format!("interrupt-{}", a.id)))
+                    .xsmall()
+                    .ghost()
+                    .label("Interrupt")
+                    .tooltip("Stop this turn instead (⌘.)")
+                    .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx))),
+            )
+            .into_any_element()
+    } else {
+        div()
+            .text_size(ui::META)
+            .text_color(theme.muted_foreground)
+            .child(
+                "The agent isn't running, so this can't be answered. Send a message to continue.",
+            )
+            .into_any_element()
+    };
+    let theme = cx.theme();
+    v_flex()
+        .debug_selector(|| "pending-approval".into())
+        .w_full()
+        .gap_2()
+        .px_3()
+        .py_2p5()
+        .rounded(ui::RADIUS_LG)
+        .bg(theme.warning.opacity(0.08))
+        .border_1()
+        .border_color(theme.warning.opacity(0.35))
+        .child(
+            h_flex()
+                .gap_1p5()
+                .text_size(ui::BODY)
+                .child(
+                    Icon::new(IconName::TriangleAlert)
+                        .size_4()
+                        .text_color(ui::ink(theme, theme.warning)),
+                )
+                .child(div().font_weight(FontWeight::MEDIUM).child(a.tool.clone()))
+                .child(
+                    div()
+                        .text_size(ui::META)
+                        .text_color(ui::ink(theme, theme.warning))
+                        .child("Waiting for approval"),
+                ),
+        )
+        .child(
+            div()
+                .font_family(theme.mono_font_family.clone())
+                .text_size(ui::BODY)
+                .child(a.summary.clone()),
+        )
+        .child(
+            div()
+                .px_3()
+                .py_2()
+                .rounded(ui::RADIUS)
+                .bg(theme.muted)
+                .border_1()
+                .border_color(theme.border)
+                .font_family(theme.mono_font_family.clone())
+                .text_size(ui::META)
+                .child(clip(&a.input)),
+        )
+        .child(actions)
+        .into_any_element()
+}
+
+/// The agent's stderr, collapsed to one line until opened.
+fn render_output<V: ItemsView>(this: &V, id: &str, text: &str, cx: &mut Context<V>) -> AnyElement {
+    let theme = cx.theme();
+    let open = this.is_expanded(id);
+    let first = text
+        .lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or_default()
+        .to_owned();
+    let key = id.to_owned();
+    let header = h_flex()
+        .id(SharedString::from(id.to_owned()))
+        .min_h(px(28.))
+        .gap_1p5()
+        .px_1()
+        .rounded(ui::RADIUS_MD)
+        .cursor_pointer()
+        .text_size(ui::BODY)
+        .hover(|s| s.bg(theme.accent))
+        .on_click(cx.listener(move |this, _, _, cx| this.toggle_tool(&key, cx)))
+        .child(
+            div()
+                .w(px(24.))
+                .flex()
+                .justify_center()
+                .flex_shrink_0()
+                .child(
+                    Icon::new(IconName::CircleAlert)
+                        .size_4()
+                        .text_color(theme.danger),
+                ),
+        )
+        .child(
+            div()
+                .flex_shrink_0()
+                .font_weight(FontWeight::MEDIUM)
+                .child("Agent output"),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .font_family(theme.mono_font_family.clone())
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(first),
+        )
+        .child(
+            Icon::new(if open {
+                IconName::ChevronDown
+            } else {
+                IconName::ChevronRight
+            })
+            .size_3()
+            .text_color(theme.muted_foreground.opacity(0.7)),
+        );
+    v_flex()
+        .w_full()
+        .child(header)
+        .when(open, |this| {
+            this.child(
+                div()
+                    .ml_7()
+                    .mt_1()
+                    .mb_2()
+                    .px_3()
+                    .py_2()
+                    .rounded(ui::RADIUS)
+                    .bg(theme.muted)
+                    .border_1()
+                    .border_color(theme.border)
+                    .font_family(theme.mono_font_family.clone())
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(clip(text)),
             )
         })
         .into_any_element()

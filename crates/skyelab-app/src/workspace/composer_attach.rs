@@ -8,7 +8,12 @@ use skyelab_agent::{Attachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 use std::path::PathBuf;
 
 impl ThreadView {
-    pub(super) fn attach_files(&mut self, _: &AttachFiles, _: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn attach_files(
+        &mut self,
+        _: &AttachFiles,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let paths = cx.prompt_for_paths(gpui::PathPromptOptions {
             files: true,
             directories: false,
@@ -24,7 +29,11 @@ impl ThreadView {
     }
 
     /// Reads each file off the UI thread and adds it, or says why not. Over the cap, nothing is read.
-    pub(super) fn attach_paths(&mut self, paths: Vec<PathBuf>, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn attach_paths(
+        &mut self,
+        paths: Vec<PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
         if self.read_only {
             return; // a drop on a thread that can't send
         }
@@ -59,7 +68,7 @@ impl ThreadView {
     }
 
     /// A paste: images and copied files become attachments; text goes into the prompt as usual (`false`).
-    pub(super) fn attach_clipboard(
+    pub(in crate::workspace) fn attach_clipboard(
         &mut self,
         item: &ClipboardItem,
         cx: &mut Context<Self>,
@@ -103,7 +112,7 @@ impl ThreadView {
         }
     }
 
-    pub(super) fn remove_attachment(&mut self, ix: usize, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn remove_attachment(&mut self, ix: usize, cx: &mut Context<Self>) {
         if ix < self.composer.attachments.len() {
             self.composer.attachments.remove(ix);
         }

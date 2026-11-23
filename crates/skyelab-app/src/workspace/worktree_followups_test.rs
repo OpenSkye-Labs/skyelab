@@ -65,7 +65,7 @@ fn discard_asks_before_deleting_ignored_files() {
 #[test]
 fn failed_row_save_removes_the_new_worktree() {
     let f = super::worktree_thread_test::fixture();
-    let created = worktree::create(&f.config, &f.project, "acme", "doomed").expect("create");
+    let created = worktree::create(&f.config, &f.project, "acme", "doomed", None).expect("create");
     let path = created.path.clone();
     assert!(path.exists());
     // No project 999 in the store, so the row insert fails on its foreign key.

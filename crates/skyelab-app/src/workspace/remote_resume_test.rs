@@ -15,6 +15,9 @@ fn refused_with(to: Option<&str>, says: &str, cx: &mut TestAppContext) {
         .update_in(cx, |v, window, cx| v.submit_remote("again", window, cx))
         .expect_err("the resume is refused");
     assert!(why.contains(says), "{why}");
+    // This text goes to remote clients, which must never learn this machine's paths.
+    let folder = f.project_dir.display().to_string();
+    assert!(!why.contains(&folder) && !why.contains('/'), "{why}");
     assert!(!why.contains("still starting"), "{why}");
     view.read_with(cx, |v, _| assert!(v.session.is_none(), "nothing started"));
 }

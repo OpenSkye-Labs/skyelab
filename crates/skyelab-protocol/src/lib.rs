@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 2 };
+pub const VERSION: Version = Version { major: 1, minor: 3 };
 
 /// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7287;
@@ -143,6 +143,23 @@ pub enum Call {
     Interrupt {
         thread_id: i64,
     },
+    /// Answers a permission request the thread's agent is waiting on (1.3): `request_id` is the `id` of the
+    /// agent event `{"Permission": {"id", "tool", "input"}}`.
+    AnswerPermission {
+        thread_id: i64,
+        request_id: String,
+        decision: PermissionAnswer,
+    },
+}
+
+/// What a remote user may answer a permission request with (1.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionAnswer {
+    AllowOnce,
+    /// Allow it and its like while the agent runs.
+    AllowThread,
+    Deny,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,7 +196,7 @@ pub enum Reply {
     ThreadStarted {
         thread_id: i64,
     },
-    /// For calls with nothing to return (`send_message`, `interrupt`).
+    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`).
     Ok,
 }
 

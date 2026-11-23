@@ -84,6 +84,17 @@ fn downgraded(dir: &Path, version: i64) -> std::path::PathBuf {
          ALTER TABLE projects DROP COLUMN default_model; ALTER TABLE projects DROP COLUMN default_effort;",
     )
     .expect("drop v9");
+    conn.execute_batch("DROP TABLE project_scripts;")
+        .expect("drop the scripts step");
+    conn.execute_batch(
+        "DROP TRIGGER event_text_insert; DROP TRIGGER event_text_thread_delete; DROP TABLE event_text;
+         ALTER TABLE threads DROP COLUMN pinned_at; ALTER TABLE threads DROP COLUMN archived_at;
+         ALTER TABLE threads DROP COLUMN deleted_at; ALTER TABLE threads DROP COLUMN unread;
+         ALTER TABLE projects DROP COLUMN removed_at;",
+    )
+    .expect("drop v7");
+    conn.execute_batch("ALTER TABLE threads DROP COLUMN permission_mode;")
+        .expect("drop v6");
     conn.execute_batch(
         "DROP INDEX threads_by_parent; ALTER TABLE threads DROP COLUMN parent_thread_id;",
     )

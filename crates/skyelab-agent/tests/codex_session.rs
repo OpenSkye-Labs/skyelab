@@ -64,6 +64,7 @@ fn start(
         model: None,
         effort: None,
         attachments: &[],
+        mode: Default::default(),
     };
     start_with_bin(&fake(), &f.config, &launch)
 }
@@ -160,32 +161,12 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
     }
     let start = requests(&reports, "thread/start");
     assert_eq!(start.len(), 1);
-    assert_eq!(start[0]["params"]["approvalPolicy"], "never");
+    assert_eq!(start[0]["params"]["approvalPolicy"], "untrusted");
     assert_eq!(start[0]["params"]["sandbox"], "workspace-write");
     assert_eq!(start[0]["params"]["cwd"], f.dir.to_str().expect("utf-8"));
     let turns = requests(&reports, "turn/start");
     assert_eq!(turns[0]["params"]["threadId"], "thr_fake");
     assert_eq!(turns[0]["params"]["input"][0]["text"], "hi");
-}
-
-#[test]
-fn approval_requests_are_declined() {
-    let f = bound();
-    let session = start(&f, None, "approve this", None).expect("start");
-    let mut reports = Vec::new();
-    let events = turn(session.events(), &mut reports);
-    assert!(matches!(
-        events.last(),
-        Some(Event::Result {
-            is_error: false,
-            ..
-        })
-    ));
-    let reply = reports
-        .iter()
-        .find(|r| r["params"]["id"] == 99)
-        .expect("an answer to the approval request");
-    assert_eq!(reply["params"]["result"]["decision"], "decline");
 }
 
 #[test]
@@ -200,6 +181,7 @@ fn unbound_or_rebound_folder_starts_nothing() {
         model: None,
         effort: None,
         attachments: &[],
+        mode: Default::default(),
     };
     let err = start_with_bin(&fake(), &AccountsConfig::default(), &launch)
         .err()
@@ -242,7 +224,7 @@ fn resume_reopens_the_thread_with_the_same_hardening() {
     let resume = requests(&reports, "thread/resume");
     let p = &resume[0]["params"];
     assert_eq!(p["threadId"], "019a-old-thread");
-    assert_eq!(p["approvalPolicy"], "never");
+    assert_eq!(p["approvalPolicy"], "untrusted");
     assert_eq!(p["sandbox"], "workspace-write");
     assert_eq!(
         p["config"]["mcp_servers"]["skyelab"]["command"],

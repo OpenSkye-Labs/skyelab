@@ -54,8 +54,10 @@ the app only edits the list.
   hello was approved.
 - Revoke applies first, then saves (an off switch works even when saving fails): `set_approved` closes every open
   connection whose pair is gone. The hello check and the record of which pair a connection used happen under one
-  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A call that was
-  already running when the revoke came still finishes; a connection blocked writing to a client that stopped
+  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A revoke, a Disconnect
+  or the connection closing also cancels its `CallGate`: a call already read but not yet dispatched is refused, and an agent
+  call still waiting for the UI (`UiAgents`) is abandoned, so it never runs. A read the store is already serving
+  still finishes. A connection blocked writing to a client that stopped
   reading closes when that write times out.
 - The client maps the codes to `DisconnectKind::NotApproved` / `Denied` (additive kinds; match with `_`) and, while
   not approved, retries at least every 3 s, so an Allow takes effect within seconds. Desktop shows "Waiting for
@@ -99,7 +101,9 @@ a hostile network (a phone with the VPN off) from pointing the name at another s
 certificate check does.
 
 **What a connected device can do.** List projects and threads, read thread events, start a thread in an existing
-project, send follow-ups and interrupt. It can't add projects, change accounts or bindings, open terminals or run
+project, send follow-ups, interrupt, and answer a permission request the thread's agent waits on
+(`answer_permission`, 1.3: Allow once, Allow for this thread or Deny, exactly as a click in the thread there; the
+reply waits until the agent took it). It can't change a thread's permission mode, add projects, change accounts or bindings, open terminals or run
 anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread opens as a tab in the local window (without
@@ -165,4 +169,3 @@ them from reaching the port at all. A grant that lets only your own devices reac
 
 With the default "allow all" policy any tailnet member can open a TCP connection to the port; they are refused at
 whois, but replacing the default with grants like the one above is better.
-

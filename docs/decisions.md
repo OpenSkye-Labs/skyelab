@@ -128,3 +128,62 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   (2026-11-23)
 - **Repo instructions still load:** checked against the real CLI (2.1.330), `--setting-sources user --strict-mcp-config`
   still reads the project's `CLAUDE.md`, so blocking project *settings* does not drop project *instructions*. (2026-11-23)
+- **Agent permissions through the host.** Claude runs with `--permission-prompt-tool stdio` (the Agent SDK's switch),
+  so every permission ask reaches SkyeLab as a stream-json `can_use_tool` control request and the CLI waits for our
+  `control_response`; a `control_cancel_request` withdraws it. We picked this over `--permission-prompt-tool` with
+  our own MCP server because the ask, its answer and its withdrawal stay on the session's own pipes, ordered with
+  its events, and no token or socket is involved. "Allow for this thread" sends only the CLI's own
+  `addRules` allow suggestions with every destination forced to `session` (suggestions that change the mode, add
+  directories or replace rules are dropped); with none, a rule for that exact command, or for the tool when it has no
+  command. Nothing is written to the project's or the user's settings; it lasts while that process runs. Ask ids are
+  a per-process nonce plus the provider's id, and every ask still open when stdout ends is withdrawn, so a stored ask
+  never answers a later process's request. Codex's command and
+  file-change approvals go through the same `Event::Permission`, answered `accept` / `acceptForSession` /
+  `decline`. Asks and answers are stored as thread events (`Permission`, `PermissionResolved`), so remote viewers see
+  them through the pushes they already get, and answer with `answer_permission` (protocol 1.3), served only after
+  hello from an approved device. The answer's reply waits for the session's own check (the id must still be open).
+  Modes: Ask (`--permission-mode default`, always named so an account's `defaultMode` setting can't loosen it;
+  2.1.330 accepts `default` though `--help` lists `manual`; Codex `untrusted`), Plan (`plan`; Codex read-only), Accept
+  edits (`acceptEdits`; Codex `untrusted`, since workspace-write already lets it edit), Full access (`bypassPermissions` + `--allow-dangerously-skip-permissions`; Codex `never` +
+  `danger-full-access`), behind a confirm. Limits: checked against claude 2.1.330's `--help` and binary only (the
+  control protocol isn't in `--help`); a running Claude session takes Full access only if it started in it, so
+  `Session::set_mode` refuses that switch and the choice applies at the next start; `AskUserQuestion` has no answer UI. (2026-11-23)
+- **Agent stderr is captured.** The agent's stderr is a third streaming pipe (still copied to the app's stderr); a
+  thread keeps its newest 64 KiB per session. Nothing waits on its EOF. After a failed turn, or a nonzero exit that
+  wasn't a Stop, what is new is stored as an `Event::Stderr` row and shown as a collapsed **Agent output** row.
+  (2026-11-23)
+- **Browser eval reads its result back with a second script:** wry's macOS bridge aborts the app on a script value
+  it can't serialize (`NaN`), and an agent's expression can break out of any text wrapper. So the agent's script
+  runs with no result callback and leaves its answer in the page. A fixed script then hands it over as a
+  well-formed string, or refuses. Rejected: wry's IPC handler, because any page can post a lone surrogate and wry
+  passes the NULL from `UTF8String` to `CStr::from_ptr`. Also rejected: `eval` of the expression as a string,
+  because CSP without `unsafe-eval` blocks it. (2026-11-23)
+- **Remote errors carry no local paths:** the daemon replaces every word with a `/` or `\` in an error message
+  with `<local path>` just before it sends it, so no backend refusal can tell a client this machine's folders.
+  Errors the app knows may quote a folder (a refused resume) are written without it, since a path with spaces
+  keeps its slash-free words. Project listings still send project paths by design. (2026-11-23)
+- **Checkpoints and rewind (2026-11-23):** a checkpoint is a commit (fixed SkyeLab identity, signing off) of the
+  snapshot tree, at `refs/skyelab/checkpoints/<thread id>-<created at>/<n>`: `n` is rewritten right before turn
+  `n + 1` starts, and `n + 1` is taken when it ends, so Turn N diffs `n - 1` against `n`. The refs keep the snapshots
+  from `git gc` until the thread is purged (its delete outlives the undo window): then `delete_checkpoints` drops
+  them, off the UI thread. Archive and an undone delete keep them. A prompt queued behind a running turn takes no starting checkpoint, and a turn
+  stopped before its result still gets its end one. Rewind
+  deletes what was created since itself and writes the rest with `checkout-index` from a scratch index, so the
+  user's index stays; it refuses a path under a symlinked folder, skips submodules, overwrites an existing ignored
+  file only when the user ticks it (an unrecorded file or folder in the way of a checkpoint path counts as ignored),
+  checks every path before changing anything, stays inside the thread's folder (not the whole repo), and refuses if
+  the snapshot moved after the confirm. Filters run during the checkout, as for diff. Limit: the refs are in the repo,
+  so an agent could repoint one; the confirm lists paths, not contents. It is allowed on a project
+  folder (T3 refuses file restore outside an isolated worktree); the confirm lists every file instead. Limit: with a
+  prompt queued, the agent starts the next turn before the end checkpoint is taken, so it can include early edits
+  of that turn.
+- **Project scripts live in the store, not the repo (2026-11-23):** an agent can write the repo, and a script runs
+  in a terminal, which gets the user's `SSH_AUTH_SOCK` (agents don't). The command is typed into the folder's login
+  shell with a leading space; the env is the terminal's for the bound account plus `SKYELAB_PROJECT_ROOT` /
+  `SKYELAB_WORKTREE_PATH`. An unbound folder runs nothing. Setup scripts run only for worktree threads the user
+  starts, never for an agent's delegated one, and a command must be one line with no control characters. The table is schema version 8, a step that needs only
+  `projects`.
+- **Branch switch:** `git switch --no-overwrite-ignore` with hooks off (post-checkout hooks don't run), refused while the thread's agent
+  runs and, with changes, until the user picks stash (`--include-untracked`)
+  or carry (git refuses an overwrite). A failed switch applies back the stash it made, by id. The confirm is re-checked
+  against the status and snapshot it showed. (2026-11-23)

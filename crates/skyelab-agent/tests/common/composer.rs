@@ -81,6 +81,7 @@ pub fn launch<'a>(
         model,
         effort,
         attachments,
+        mode: Default::default(),
     }
 }
 

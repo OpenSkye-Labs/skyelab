@@ -30,13 +30,13 @@ fn migrates_empty_db() {
         .expect("test setup");
     assert_eq!(version, 9);
     let tables: Vec<String> = raw
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'event_text%' ORDER BY name")
         .expect("test setup")
         .query_map([], |r| r.get(0))
         .expect("test setup")
         .collect::<Result<_, _>>()
         .expect("test setup");
-    assert_eq!(tables, ["events", "projects", "threads"]);
+    assert_eq!(tables, ["events", "project_scripts", "projects", "threads"]);
     drop(raw);
 
     // Opening an already-migrated DB must not try to create the tables again.

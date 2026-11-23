@@ -22,6 +22,7 @@ pub fn start_in(
         model: None,
         effort: None,
         attachments: &[],
+        mode: Default::default(),
     };
     start_with_bin(bin, cfg, &launch)
 }

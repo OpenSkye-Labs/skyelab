@@ -12,6 +12,7 @@
 
 mod access;
 mod backend;
+mod gate;
 mod peers;
 mod serve;
 mod slots;
@@ -44,6 +45,7 @@ pub use access::{AccessRequest, Approval};
 pub use backend::{
     Agents, Backend, MAX_EVENTS_PER_REPLY, MAX_REPLY_BYTES, NotWired, StoreBackend, event,
 };
+pub use gate::CallGate;
 pub use peers::Peer;
 use peers::{Entry, Peers, Registered, lock_peers};
 use serve::serve;
@@ -252,6 +254,7 @@ impl Daemon {
     pub fn disconnect(&self, id: u64) -> bool {
         match lock_peers(&self.peers).get(&id) {
             Some(entry) => {
+                entry.gate.cancel();
                 // notify_one keeps the wakeup if the serve loop isn't waiting right now.
                 entry.kick.notify_one();
                 true
@@ -260,8 +263,8 @@ impl Daemon {
         }
     }
 
-    /// Replaces the approved devices. A connection whose approval is gone is closed at once; a call it already
-    /// started still finishes.
+    /// Replaces the approved devices. A connection whose approval is gone is closed at once, and the calls it
+    /// already made are cancelled ([`CallGate`]): one still waiting to dispatch is refused.
     pub fn set_approved(&self, approved: Vec<Approval>) {
         access::set_approved(&self.access, &self.peers, approved);
     }
@@ -371,6 +374,7 @@ async fn handle(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>, permit
     };
     let id = shared.next_peer.fetch_add(1, Ordering::Relaxed);
     let kick = Arc::new(Notify::new());
+    let gate = CallGate::default();
     let info = Peer {
         id,
         addr: peer,
@@ -383,12 +387,14 @@ async fn handle(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>, permit
         node_id: info.node_id.clone(),
         device: info.device.clone(),
         user: info.user.clone(),
+        gate: gate.clone(),
     };
     lock_peers(&shared.peers).insert(
         id,
         Entry {
             peer: info,
             kick: kick.clone(),
+            gate: gate.clone(),
             approval: None,
         },
     );

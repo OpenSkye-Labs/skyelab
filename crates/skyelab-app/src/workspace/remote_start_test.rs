@@ -30,7 +30,14 @@ fn remote_start_before_projects_load_waits_for_them(cx: &mut TestAppContext) {
     let (_ws, cx) = cx.add_window_view(|window, cx| {
         let mut ws = Workspace::new(folder, None, config, None, backend, window, cx);
         assert!(ws.project_ids().is_empty());
-        ws.remote_start(project_id, "hello", reply, window, cx);
+        ws.remote_start(
+            project_id,
+            "hello",
+            reply,
+            skyelab_daemon::CallGate::default(),
+            window,
+            cx,
+        );
         ws
     });
     wait_until(cx, "the remote start's answer", |_| !answer.is_empty());

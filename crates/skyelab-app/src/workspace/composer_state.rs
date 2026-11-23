@@ -36,7 +36,7 @@ const STOP_KEY: &str = if cfg!(target_os = "macos") {
 };
 
 /// Set on the composer while a menu is open, so its keys reach the menu before the text field.
-pub(super) const MENU_CONTEXT: &str = "ComposerMenu";
+pub(in crate::workspace) const MENU_CONTEXT: &str = "ComposerMenu";
 const STEER_KEY: &str = if cfg!(target_os = "macos") {
     "cmd-shift-enter"
 } else {
@@ -44,7 +44,7 @@ const STEER_KEY: &str = if cfg!(target_os = "macos") {
 };
 
 /// Binds the composer's keys. The menu's override the text field's own up/down/enter/tab/escape: same depth, bound later.
-pub(super) fn bind_keys(cx: &mut App) {
+pub(in crate::workspace) fn bind_keys(cx: &mut App) {
     let menu = Some("ComposerMenu > Input");
     cx.bind_keys([
         KeyBinding::new("up", MenuUp, menu),
@@ -118,7 +118,7 @@ pub(crate) struct Composer {
 }
 
 /// The text a prompt is stored and shown as: what the agent got, plus the names of its files.
-pub(super) fn shown_prompt(text: &str, attachments: &[Attachment]) -> String {
+pub(in crate::workspace) fn shown_prompt(text: &str, attachments: &[Attachment]) -> String {
     if attachments.is_empty() {
         return text.to_owned();
     }
@@ -132,7 +132,7 @@ pub(super) fn shown_prompt(text: &str, attachments: &[Attachment]) -> String {
 }
 
 /// Why `account`'s agent can't take these files, if it can't: Codex reads images and text, not PDFs.
-pub(super) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<String> {
+pub(in crate::workspace) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<String> {
     let pdf = attachments
         .iter()
         .find(|a| account.provider == Provider::Codex && a.kind == AttachmentKind::Pdf)?;
@@ -144,7 +144,7 @@ pub(super) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<Str
 
 /// A model pick `provider`'s CLI can take: Claude's aliases and `claude-…` ids for Claude, anything else for Codex.
 /// A project default saved under the other provider is dropped, not sent.
-pub(super) fn fits(provider: Provider, model: &str) -> bool {
+pub(in crate::workspace) fn fits(provider: Provider, model: &str) -> bool {
     let claude =
         CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model) || model.starts_with("claude");
     claude == (provider == Provider::Claude)
@@ -180,7 +180,7 @@ fn machine_name() -> Option<String> {
 
 impl ThreadView {
     /// The account the composer acts for: the thread's own, or for a new thread the folder's.
-    pub(super) fn composer_account(&self) -> Option<Account> {
+    pub(in crate::workspace) fn composer_account(&self) -> Option<Account> {
         match &self.thread {
             Some(t) => self
                 .config
@@ -193,7 +193,7 @@ impl ThreadView {
     }
 
     /// Loads the model pick (the thread's, else the project's default) and the footer's facts.
-    pub(super) fn load_composer(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn load_composer(&mut self, cx: &mut Context<Self>) {
         let (store, thread, project) = (
             self.backend.store.clone(),
             self.thread.as_ref().map(|t| t.id),
@@ -229,7 +229,7 @@ impl ThreadView {
     }
 
     /// Reads the branch, the changed-file count and the machine name again (after each turn).
-    pub(super) fn refresh_footer(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn refresh_footer(&mut self, cx: &mut Context<Self>) {
         let cwd = self.cwd.clone();
         let task = cx.background_spawn(async move {
             let changes = skyelab_git::status(&cwd).ok().map(|s| {
@@ -263,7 +263,7 @@ impl ThreadView {
 
     // The model picker.
 
-    pub(super) fn toggle_picker(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn toggle_picker(&mut self, cx: &mut Context<Self>) {
         self.composer.picker_open = !self.composer.picker_open;
         self.composer.menu = None;
         let codex = self
@@ -298,7 +298,7 @@ impl ThreadView {
 
     /// Picks a model and effort: kept on the thread, remembered as the project's default for new threads, and
     /// handed to a running agent.
-    pub(super) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
         self.composer.pick = pick.clone();
         self.composer.picked = true;
         self.composer.picker_open = false;
@@ -327,7 +327,7 @@ impl ThreadView {
     // The `@` `/` `$` menus.
 
     /// The prompt changed: open, narrow or close the menu its cursor's word asks for.
-    pub(super) fn prompt_changed(&mut self, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn prompt_changed(&mut self, cx: &mut Context<Self>) {
         let (text, cursor) = {
             let p = self.prompt.read(cx);
             (p.value(), p.cursor())
@@ -404,11 +404,21 @@ impl ThreadView {
         }
     }
 
-    pub(super) fn menu_up(&mut self, _: &MenuUp, _: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn menu_up(
+        &mut self,
+        _: &MenuUp,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.move_menu(-1, cx);
     }
 
-    pub(super) fn menu_down(&mut self, _: &MenuDown, _: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn menu_down(
+        &mut self,
+        _: &MenuDown,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.move_menu(1, cx);
     }
 
@@ -420,12 +430,17 @@ impl ThreadView {
         }
     }
 
-    pub(super) fn menu_close(&mut self, _: &MenuClose, _: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn menu_close(
+        &mut self,
+        _: &MenuClose,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.composer.menu = None;
         cx.notify();
     }
 
-    pub(super) fn menu_accept(
+    pub(in crate::workspace) fn menu_accept(
         &mut self,
         _: &MenuAccept,
         window: &mut Window,
@@ -438,7 +453,12 @@ impl ThreadView {
     }
 
     /// Replaces the typed token with row `ix`'s text.
-    pub(super) fn accept_row(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn accept_row(
+        &mut self,
+        ix: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(menu) = self.composer.menu.take() else {
             return;
         };

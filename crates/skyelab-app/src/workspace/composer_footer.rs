@@ -13,7 +13,7 @@ use gpui_kit_assets::IconName as Lucide;
 
 impl ThreadView {
     /// Messages waiting for the running turn: dashed, unfilled bubbles (a turn not sent yet), each with Steer and Remove.
-    pub(super) fn render_queue(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    pub(in crate::workspace) fn render_queue(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         if self.composer.queue.is_empty() {
             return None;
         }
@@ -78,7 +78,7 @@ impl ThreadView {
     }
 
     /// The strip under the card: where it runs (machine, account, checkout) on the left, the git state on the right.
-    pub(super) fn render_footer(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(in crate::workspace) fn render_footer(&self, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let fg = if theme.is_dark() {
             theme.muted_foreground

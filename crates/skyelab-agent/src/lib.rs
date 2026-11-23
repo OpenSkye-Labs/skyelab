@@ -6,26 +6,33 @@ mod claude;
 mod codex;
 mod event;
 mod launch;
+mod pipes;
+mod prompts;
+pub use launch::resolve_bin;
+use pipes::{read_events, read_stderr, write_lines};
 #[cfg(unix)]
 pub mod mcp;
 mod models;
+mod permission;
 
 pub use attach::{Attachment, Kind as AttachmentKind, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 pub use event::{Block, Event};
 pub use models::{CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, list_codex_models};
+pub use permission::{Decision, Mode, summary};
 
 use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
 use skyelab_core::{Account, AccountsConfig, Provider};
-use std::io::{BufRead as _, BufReader, Read, Write as _};
 use std::path::Path;
-use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 
 /// Longest stdout line kept whole; a longer one arrives as a truncated [`Event::Unknown`].
 const MAX_LINE: usize = 16 << 20;
 /// Stdin lines queued for the writer thread. A full queue means `claude` stopped reading.
 const STDIN_QUEUE: usize = 64;
+/// The most stderr kept per session: the newest bytes win.
+pub const STDERR_TAIL: usize = 64 << 10;
 
 /// A running agent process (`claude`, or `codex app-server`). Dropping it kills the process.
 ///
@@ -41,6 +48,13 @@ pub struct Session {
     /// Set for Codex: the protocol state the reader thread shares.
     codex: Option<Arc<Mutex<codex::Codex>>>,
     sent: claude::Sent,
+    asks: claude::Asks,
+    /// The mode it started in: Claude takes Full access later only if it started with it.
+    launched: Mode,
+    /// Where [`Session::answer`] reports its answer. Weak, so the channel still closes with the agent's stdout.
+    events_tx: flume::WeakSender<Event>,
+    /// stderr not yet taken by [`Session::take_stderr`], at most [`STDERR_TAIL`] bytes.
+    stderr: Arc<Mutex<Vec<u8>>>,
     /// Windows: the Job Object the agent runs in. Closing it ends the agent and every process it started (on
     /// Windows `Child::kill` ends only the `claude.cmd` shim's cmd.exe).
     #[cfg(windows)]
@@ -64,6 +78,8 @@ pub struct Launch<'a> {
     pub effort: Option<&'a str>,
     /// Files sent with the first prompt.
     pub attachments: &'a [Attachment],
+    /// Which tool calls go ahead without asking. An ask arrives as [`Event::Permission`].
+    pub mode: Mode,
 }
 
 /// Starts the account's agent (`claude` or `codex`) per `launch` and sends its prompt as the first turn.
@@ -91,6 +107,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         model,
         effort,
         attachments,
+        mode,
     } = launch;
     if let Some(id) = resume
         && !valid_session_id(id)
@@ -112,7 +129,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let dir = &dir;
     let codex = match account.provider {
         Provider::Claude => {
-            claude_args(&mut cmd, mcp_config, resume);
+            claude_args(&mut cmd, mcp_config, resume, mode);
             cmd.args(model.into_iter().flat_map(|m| ["--model", m]))
                 .args(effort.into_iter().flat_map(|e| ["--effort", e]));
             None
@@ -124,6 +141,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
                 dir,
                 resume,
                 mcp,
+                mode,
                 codex::Pick {
                     model: model.map(str::to_owned),
                     effort: effort.map(str::to_owned),
@@ -134,17 +152,22 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     cmd.current_dir(dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        // shortcut: stderr goes to ours, not to events; surface it once the UI shows launch failures.
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::piped());
     let mut child = cmd
         .spawn()
         .with_context(|| format!("starting {} in {}", bin.display(), dir.display()))?;
     let stdout = child.stdout.take().context("child stdout was piped")?;
     let stdin = child.stdin.take().context("child stdin was piped")?;
+    let stderr = child.stderr.take().context("child stderr was piped")?;
 
     let (tx, events) = flume::unbounded();
     let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
-    let codex = codex.map(|(state, opening)| (Arc::new(Mutex::new(state)), opening));
+    // Ask ids carry this, so one stored by an earlier process never names an ask of this one.
+    let nonce = format!("{}-", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+    let codex = codex.map(|(mut state, opening)| {
+        state.nonce = nonce.clone();
+        (Arc::new(Mutex::new(state)), opening)
+    });
     // Built before the threads spawn, so every error below still kills and reaps the child on drop.
     let mut session = Session {
         child,
@@ -154,6 +177,10 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         next_request: 0,
         codex: codex.as_ref().map(|(state, _)| state.clone()),
         sent: claude::Sent::default(),
+        asks: claude::Book::new(nonce),
+        launched: mode,
+        events_tx: tx.downgrade(),
+        stderr: Arc::default(),
         #[cfg(windows)]
         job: None,
     };
@@ -162,16 +189,22 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     {
         session.job = Some(job_for(&session.child).context("putting the agent in a Job Object")?);
     }
-    let parse: Box<Parse> = match codex {
+    // At stdout's end the agent is gone: nothing it still asks can be answered.
+    let (parse, eof): (Box<Parse>, Box<dyn FnOnce() -> Vec<Event> + Send>) = match codex {
         None => {
-            let sent = session.sent.clone();
-            Box::new(move |line| vec![claude::parse(line, &sent)])
+            let (sent, asks) = (session.sent.clone(), session.asks.clone());
+            let open = asks.clone();
+            (
+                Box::new(move |line| claude::parse(line, &sent, &asks)),
+                Box::new(move || claude::withdraw_all(&open)),
+            )
         }
         Some((state, opening)) => {
             for line in opening {
                 session.queue(line)?;
             }
-            Box::new(move |line| {
+            let open = state.clone();
+            let parse = Box::new(move |line: &str| {
                 let Ok(v) = serde_json::from_str::<Value>(line) else {
                     return vec![Event::Unknown(Value::String(line.to_owned()))];
                 };
@@ -180,13 +213,24 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
                     let _ = stdin_tx.try_send(reply); // a full queue: codex stopped reading, nothing to save
                 }
                 events
-            })
+            });
+            (parse, Box::new(move || lock(&open).withdraw_all()))
         }
     };
     std::thread::Builder::new()
         .name("skyelab-agent-reader".into())
-        .spawn(move || read_events(stdout, &tx, parse))
+        .spawn(move || {
+            read_events(stdout, &tx, parse);
+            for e in eof() {
+                let _ = tx.send(e);
+            }
+        })
         .context("spawning reader thread")?;
+    let tail = session.stderr.clone();
+    std::thread::Builder::new()
+        .name("skyelab-agent-stderr".into())
+        .spawn(move || read_stderr(stderr, &tail))
+        .context("spawning stderr thread")?;
     std::thread::Builder::new()
         .name("skyelab-agent-writer".into())
         .spawn(move || write_lines(stdin, &stdin_rx))
@@ -214,7 +258,7 @@ fn lock(state: &Mutex<codex::Codex>) -> std::sync::MutexGuard<'_, codex::Codex> 
     state.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str>) {
+fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str>, mode: Mode) {
     cmd.args([
         "-p",
         "--input-format",
@@ -226,7 +270,19 @@ fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str
         "--setting-sources",
         "user",
         "--strict-mcp-config",
+        // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
+        "--permission-prompt-tool",
+        "stdio",
     ])
+    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
+    .args(match mode {
+        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
+        Mode::Bypass => vec![
+            "--permission-mode",
+            mode.claude(),
+            "--allow-dangerously-skip-permissions",
+        ],
+    })
     // Our own server only (--strict-mcp-config keeps every other out); its tools enforce their own rules.
     .args(mcp_config.into_iter().flat_map(|path| {
         [
@@ -249,52 +305,6 @@ fn valid_session_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-// shortcut: a tool that left claude's process group and kept its stdin can block this thread after kill(); it leaks one thread, add a close handle if that shows up.
-fn write_lines(mut stdin: ChildStdin, lines: &flume::Receiver<String>) {
-    while let Ok(line) = lines.recv() {
-        if writeln!(stdin, "{line}")
-            .and_then(|()| stdin.flush())
-            .is_err()
-        {
-            break;
-        }
-    }
-}
-
-fn read_events(
-    stdout: impl Read,
-    tx: &flume::Sender<Event>,
-    mut parse: impl FnMut(&str) -> Vec<Event>,
-) {
-    let mut stdout = BufReader::new(stdout);
-    let mut buf = Vec::new();
-    loop {
-        buf.clear();
-        let limit = MAX_LINE as u64 + 1;
-        if !matches!((&mut stdout).take(limit).read_until(b'\n', &mut buf), Ok(n) if n > 0) {
-            break;
-        }
-        let event = if buf.len() > MAX_LINE && buf.last() != Some(&b'\n') {
-            buf.truncate(MAX_LINE);
-            let _ = stdout.skip_until(b'\n');
-            let mut line = String::from_utf8_lossy(&buf).into_owned();
-            while line.len() > MAX_LINE {
-                line.pop(); // a cut mid-character becomes a 3-byte U+FFFD
-            }
-            vec![Event::Unknown(Value::String(line))]
-        } else {
-            let line = String::from_utf8_lossy(&buf);
-            if line.trim().is_empty() {
-                continue;
-            }
-            parse(line.trim_end())
-        };
-        if event.into_iter().any(|e| tx.send(e).is_err()) {
-            break;
-        }
-    }
-}
-
 impl Session {
     /// Events in the order `claude` printed them.
     ///
@@ -306,55 +316,60 @@ impl Session {
         &self.events
     }
 
-    /// Sends a follow-up user turn. Codex queues it behind a running turn, as `claude` does.
-    pub fn send_user_message(&mut self, text: &str) -> Result<()> {
-        self.send_message(text, &[])
+    /// Answers the [`Event::Permission`] with this `id`; the agent was waiting for it. Then the session's events
+    /// carry [`Event::PermissionResolved`]. Fails, sending nothing, when `id` is no longer waiting (answered,
+    /// withdrawn, or never asked).
+    pub fn answer(&mut self, id: &str, decision: Decision) -> Result<()> {
+        if decision == Decision::Withdrawn {
+            bail!("an answer allows or denies");
+        }
+        let line = match &self.codex {
+            Some(state) => lock(state).answer(id, decision),
+            None => claude::answer(&self.asks, id, decision).map(|v| v.to_string()),
+        };
+        let Some(line) = line else {
+            bail!("the agent is no longer waiting for that answer");
+        };
+        // Forgotten only once queued: a full queue leaves it open, to be answered again.
+        self.queue(line)?;
+        match &self.codex {
+            Some(state) => lock(state).forget(id),
+            None => claude::forget(&self.asks, id),
+        }
+        if let Some(tx) = self.events_tx.upgrade() {
+            let _ = tx.send(Event::PermissionResolved {
+                id: id.to_owned(),
+                decision,
+            });
+        }
+        Ok(())
     }
 
-    /// [`send_user_message`](Self::send_user_message) with files attached.
-    pub fn send_message(&mut self, text: &str, attachments: &[Attachment]) -> Result<()> {
-        attach::check_count(attachments)?;
+    /// Changes the running agent's permission mode: Claude's at once, Codex's from its next turn. Claude takes Full
+    /// access only if it started in it; otherwise this fails and it keeps its mode until it starts again.
+    pub fn set_mode(&mut self, mode: Mode) -> Result<()> {
         if let Some(state) = &self.codex {
-            let lines = lock(state).prompt(text, attachments, false)?;
-            return lines.into_iter().try_for_each(|l| self.queue(l));
-        }
-        let message = claude::user_message(text, attachments, &self.sent);
-        self.write(&message)
-    }
-
-    /// Sends a message into the running turn instead of after it. Claude folds a message sent mid-turn into that
-    /// turn already; Codex gets `turn/steer` (or a new turn when none runs).
-    pub fn steer(&mut self, text: &str, attachments: &[Attachment]) -> Result<()> {
-        attach::check_count(attachments)?;
-        if let Some(state) = &self.codex {
-            let lines = lock(state).prompt(text, attachments, true)?;
-            return lines.into_iter().try_for_each(|l| self.queue(l));
-        }
-        self.send_message(text, attachments)
-    }
-
-    /// Switches the model for the next turns. Claude takes `set_model` (its effort is fixed at launch, so `effort`
-    /// applies from the next start); Codex sends both with every turn.
-    pub fn set_model(&mut self, model: Option<&str>, effort: Option<&str>) -> Result<()> {
-        for v in [model, effort].into_iter().flatten() {
-            if !models::valid_name(v) {
-                bail!("refusing model {v:?}");
-            }
-        }
-        if let Some(state) = &self.codex {
-            lock(state).pick = codex::Pick {
-                model: model.map(str::to_owned),
-                effort: effort.map(str::to_owned),
-            };
+            lock(state).set_mode(mode);
             return Ok(());
+        }
+        if mode == Mode::Bypass && self.launched != Mode::Bypass {
+            bail!(
+                "Full access applies when this agent starts again: stop it, then send a message to continue"
+            );
         }
         self.next_request += 1;
         let request_id = format!("skyelab-{}", self.next_request);
         self.write(&json!({
             "type": "control_request",
             "request_id": request_id,
-            "request": { "subtype": "set_model", "model": model },
+            "request": { "subtype": "set_permission_mode", "mode": mode.claude() },
         }))
+    }
+
+    /// What the agent wrote to stderr since the last call (the newest [`STDERR_TAIL`] bytes of it).
+    pub fn take_stderr(&self) -> String {
+        let bytes = std::mem::take(&mut *self.stderr.lock().unwrap_or_else(|e| e.into_inner()));
+        String::from_utf8_lossy(&bytes).into_owned()
     }
 
     /// Asks the agent to stop the current turn; the process stays alive for the next message.

@@ -11,7 +11,7 @@ use gpui::{
     ListState, SharedString, Subscription, Task, Window, actions, px,
 };
 use gpui_component::input::{InputEvent, TextareaState};
-use skyelab_agent::Session;
+use skyelab_agent::{Decision, Mode, Session};
 use skyelab_core::AccountsConfig;
 use skyelab_store::{Store, Thread};
 use std::collections::HashSet;
@@ -38,6 +38,11 @@ pub(super) fn accounts_now(
     )
 }
 
+/// The composer under the thread (`composer.rs` and its parts).
+#[path = "composer.rs"]
+pub(super) mod composer;
+#[path = "thread_follow_up.rs"]
+mod follow_up;
 #[path = "thread_launch.rs"]
 mod launch;
 #[path = "thread_saves.rs"]
@@ -45,18 +50,9 @@ mod saves;
 #[path = "thread_session.rs"]
 mod session;
 
-pub enum ThreadViewEvent {
-    /// The thread got its store row (the first prompt was sent).
-    Started(Box<Thread>),
-    /// The agent's Result event arrived: its changes may be on disk now.
-    TurnDone,
-    OpenChanges,
-    /// A terminal in the thread's worktree, under the thread's account.
-    OpenTerminal {
-        cwd: PathBuf,
-        account_id: String,
-    },
-}
+#[path = "thread_event.rs"]
+mod event;
+pub use event::ThreadViewEvent;
 
 /// A thread this one delegated, listed under its header.
 #[derive(Debug, Clone, PartialEq)]
@@ -93,6 +89,10 @@ pub struct ThreadView {
     /// thread's row is still loading.
     pub(super) read_only: bool,
     pub(super) wt: super::thread_worktree::WorktreeState,
+    /// The header's branch picker, on the folder this view opened on.
+    pub(super) branch_picker: Entity<super::branch_picker::BranchPicker>,
+    /// The header's Run menu: the project's scripts.
+    pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
@@ -104,13 +104,21 @@ pub struct ThreadView {
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
+    /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
+    pub(super) mode: Mode,
+    /// Full access was picked and waits for the user to confirm it.
+    pub(super) confirm_bypass: bool,
+    /// Mode writes (store row, running agent) run one at a time, each writing the newest pick, so two quick picks
+    /// can't land in the wrong order.
+    mode_writes: Arc<Mutex<()>>,
+    mode_now: Arc<std::sync::atomic::AtomicUsize>,
     /// This session's right to SkyeLab's MCP tools; dropped when the agent is gone.
     grant: Option<super::orchestrate::Grant>,
-    send_chain: Option<Task<()>>,
+    pub(super) send_chain: Option<Task<()>>,
     /// Answered with the next follow-up's result, once its store write (and slot claim) is done.
     pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
     /// Attachments, menus, the model pick, the queue and the footer (`composer_state.rs`).
-    pub(super) composer: super::composer_state::Composer,
+    pub(super) composer: composer::Composer,
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
     _subs: Vec<Subscription>,
@@ -194,6 +202,7 @@ impl ThreadView {
             let _ = this.update(cx, |this, cx| match loaded {
                 Ok((row, (parent, children), skipped, records)) => {
                     if let Some(row) = row {
+                        this.mode = Mode::parse(&row.permission_mode);
                         this.thread = Some(row);
                     }
                     this.parent = parent;
@@ -243,7 +252,16 @@ impl ThreadView {
             cx.on_app_quit(|this, _| this.quitting()),
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
+        let owner = cx.weak_entity();
+        let branch_picker = cx.new(|cx| {
+            super::branch_picker::BranchPicker::new(owner.clone(), cwd.clone(), window, cx)
+        });
+        let scripts = cx.new(|cx| {
+            super::scripts::ScriptMenu::new(owner, backend.store.clone(), project_id, window, cx)
+        });
         Self {
+            branch_picker,
+            scripts,
             folder_account: config.resolve(&cwd).cloned(),
             focus: cx.focus_handle(),
             project_id,
@@ -271,6 +289,10 @@ impl ThreadView {
             parent: None,
             required_account: None,
             children: Vec::new(),
+            mode: Mode::Default,
+            confirm_bypass: false,
+            mode_writes: Arc::default(),
+            mode_now: Arc::default(),
             grant: None,
             send_chain: None,
             on_sent: None,
@@ -370,11 +392,89 @@ impl ThreadView {
         if let Some(ix) = self
             .items
             .iter()
-            .position(|i| matches!(i, Item::Tool(t) if t.id == tool_id))
+            .position(|i| i.expand_id() == Some(tool_id))
         {
             self.list.splice(ix..ix + 1, 1);
         }
         cx.notify();
+    }
+
+    /// Answers the agent's permission request `id` (a click on its row).
+    pub fn answer(&mut self, id: &str, decision: Decision, cx: &mut Context<Self>) {
+        if let Err(e) = self.answer_then(id, decision, |_| {}, cx) {
+            self.show_error(anyhow::anyhow!(e), cx);
+        }
+    }
+
+    /// Sends the answer off the UI thread; `done` gets whether the agent took it (it can't once the request was
+    /// withdrawn). Refused at once when no agent runs.
+    pub(super) fn answer_then(
+        &mut self,
+        id: &str,
+        decision: Decision,
+        done: impl FnOnce(Result<(), String>) + Send + 'static,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let Some(session) = self.session.clone() else {
+            return Err("the agent isn't running".into());
+        };
+        let id = id.to_owned();
+        self.in_background(cx, move || {
+            let r = lock(&session).and_then(|mut s| s.answer(&id, decision));
+            done(r.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
+            r
+        });
+        Ok(())
+    }
+
+    /// Picks the thread's permission mode. Full access waits for [`Self::confirm_mode`].
+    pub fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        if mode == Mode::Bypass && self.mode != Mode::Bypass {
+            self.confirm_bypass = true;
+            return cx.notify();
+        }
+        self.apply_mode(mode, cx);
+    }
+
+    /// The user confirmed Full access (or turned it down).
+    pub fn confirm_mode(&mut self, yes: bool, cx: &mut Context<Self>) {
+        let asked = std::mem::take(&mut self.confirm_bypass);
+        if yes && asked {
+            self.apply_mode(Mode::Bypass, cx);
+        }
+        cx.notify();
+    }
+
+    fn apply_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        self.confirm_bypass = false;
+        if self.mode == mode {
+            return cx.notify();
+        }
+        self.mode = mode;
+        self.write_mode(cx);
+        cx.notify();
+    }
+
+    /// Sends the newest mode to the running agent, then to the store row.
+    pub(super) fn write_mode(&mut self, cx: &mut Context<Self>) {
+        let ix = Mode::ALL.iter().position(|m| *m == self.mode).unwrap_or(0);
+        self.mode_now.store(ix, std::sync::atomic::Ordering::SeqCst);
+        let row = self.thread.as_mut().map(|t| {
+            t.permission_mode = self.mode.as_str().to_owned();
+            t.id
+        });
+        let (store, session) = (self.backend.store.clone(), self.session.clone());
+        let (writes, now) = (self.mode_writes.clone(), self.mode_now.clone());
+        self.in_background(cx, move || {
+            let _one_at_a_time = lock(&writes)?;
+            let mode = Mode::ALL[now.load(std::sync::atomic::Ordering::SeqCst)];
+            // Each step runs even if the other fails, so a store error never leaves the agent on the old mode.
+            let live = session.map_or(Ok(()), |s| lock(&s)?.set_mode(mode));
+            let stored = row.map_or(Ok(()), |id| {
+                lock(&store)?.set_thread_permission_mode(id, mode.as_str())
+            });
+            live.and(stored)
+        });
     }
 
     fn show_error(&mut self, e: anyhow::Error, cx: &mut Context<Self>) {
@@ -390,92 +490,27 @@ impl ThreadView {
         }
     }
 
+    /// An agent is running or starting in this thread: its folder's files and checkout must not change under it.
+    pub(super) fn agent_running(&self) -> bool {
+        self.session.is_some() || self.starting
+    }
+
     pub(super) fn send_prompt(
         &mut self,
         _: &SendPrompt,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.submit(super::composer_state::Submit::Send, window, cx);
+        self.submit(composer::Submit::Send, window, cx);
     }
 
     pub(super) fn steer_prompt(
         &mut self,
-        _: &super::composer_state::SteerPrompt,
+        _: &composer::SteerPrompt,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.submit(super::composer_state::Submit::Steer, window, cx);
-    }
-
-    /// Sends the prompt (and its attachments, unless `how` is external): starts or resumes the agent, or follows up
-    /// on a running one, where a send during a turn queues and a steer goes into it.
-    pub(super) fn submit(
-        &mut self,
-        how: super::composer_state::Submit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        use super::composer_queue::SendMode;
-        let external = how == super::composer_state::Submit::External;
-        let text = self.prompt.read(cx).value().trim().to_string();
-        let has_files = !external && !self.composer.attachments.is_empty();
-        if (text.is_empty() && !has_files) || self.read_only || self.starting {
-            return;
-        }
-        // The folder decides the account. Unbound means ask the user, never pick one.
-        let resolved = self.config.resolve(&self.cwd).cloned();
-        if let (Some(want), Some(got)) = (&self.required_account, &resolved)
-            && got.id != *want
-        {
-            self.error =
-                Some(format!("This folder is now bound to {}, not {want}.", got.id).into());
-            cx.notify();
-            return;
-        }
-        // Files the account's agent can't take stay in the composer, before anything is sent or cleared.
-        if !external
-            && let Some(why) = resolved
-                .as_ref()
-                .and_then(|a| super::composer_state::unfit(a, &self.composer.attachments))
-        {
-            self.composer.notice = Some(why.into());
-            cx.notify();
-            return;
-        }
-        self.composer.menu = None;
-        if self.session.is_none()
-            && let Some(thread) = self.thread.clone()
-        {
-            let attachments = self.take_attachments(external);
-            return self.resume(text, attachments, thread, resolved, window, cx);
-        }
-        let Some(account) = resolved else {
-            self.needs_binding = true;
-            cx.notify();
-            return;
-        };
-        self.needs_binding = false;
-        self.error = None;
-        if self.session.is_some() {
-            // Checked before anything is queued or taken: a rebound folder needs a new thread.
-            if let Some(why) = self.rebound(&account) {
-                self.error = Some(why);
-                cx.notify();
-                return;
-            }
-            let mode = self.send_mode(how, &text);
-            if mode == SendMode::Queue {
-                return self.queue_prompt(text, window, cx);
-            }
-            let attachments = self.take_attachments(external);
-            if self.follow_up(text, attachments, mode == SendMode::Steer, &account, cx) {
-                self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-            }
-            return;
-        }
-        let attachments = self.take_attachments(external);
-        self.launch(text, attachments, account, None, window, cx);
+        self.submit(composer::Submit::Steer, window, cx);
     }
 }
 

@@ -44,6 +44,7 @@ sleep 5
         model: None,
         effort: None,
         attachments: &[],
+        mode: Default::default(),
     };
     let mut session = start_with_bin(&bin, &config, &launch).expect("start");
     let prompts = loop {

@@ -375,6 +375,9 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
 mod acks;
 mod approval;
 mod calls;
+#[cfg(unix)] // the fake agent is a shell script
+mod permissions;
+mod revoke_queued;
 mod revoke_while_starting;
 mod sharing_state;
 mod tls_tests;

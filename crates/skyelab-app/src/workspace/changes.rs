@@ -1,7 +1,7 @@
 //! The Changes tab: a folder's changed files and their unified diff against `HEAD`, or against
 //! the commit a worktree thread started from.
 
-use super::changes_model::{self, Changes, LineKind, Row};
+use super::changes_model::{self, Changes, LineKind, Row, Scope};
 use super::thread::ThreadView;
 use crate::ui;
 use gpui::{
@@ -50,6 +50,10 @@ pub struct ChangesView {
     /// A commit, push or PR is running; another click is ignored.
     pub(super) busy: bool,
     pub(super) _publish: Option<Task<()>>,
+    /// Working tree, the whole thread, or one turn.
+    pub(super) scope: Scope,
+    /// A rewind shown for confirming.
+    pub(super) rewind: Option<super::changes_turns::PendingRewind>,
     _load: Option<Task<()>>,
 }
 
@@ -90,6 +94,8 @@ impl ChangesView {
             publish_note: None,
             busy: false,
             _publish: None,
+            scope: Scope::Working,
+            rewind: None,
             _load: None,
         };
         this.refresh(cx);
@@ -102,15 +108,21 @@ impl ChangesView {
 
     /// Re-reads status and diff off the UI thread. A newer refresh drops the older one.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
-        let (dir, base) = (self.dir.clone(), self.base.clone());
-        let task = cx.background_spawn(async move { changes_model::load(&dir, base.as_deref()) });
+        let (dir, base, scope) = (self.dir.clone(), self.base.clone(), self.scope);
+        let key = self.checkpoint_key(cx);
+        let task = cx.background_spawn(async move {
+            changes_model::load_scope(&dir, base.as_deref(), scope, key.as_deref())
+        });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok(c) => {
-                        this.selected
-                            .retain(|p| c.files.iter().any(|f| &f.path == p));
+                        // Ticks are for the working tree's commit: a turn's list must not clear them.
+                        if this.scope == Scope::Working {
+                            this.selected
+                                .retain(|p| c.files.iter().any(|f| &f.path == p));
+                        }
                         (this.changes, this.error) = (Some(c), None);
                     }
                     Err(e) => this.error = Some(format!("{e:#}").into()),
@@ -393,10 +405,13 @@ impl Render for ChangesView {
                 .justify_center()
                 .child(
                     ui::EmptyState::new("Nothing to review")
-                        .hint(if self.base.is_some() {
-                            "No changes since this worktree was created."
-                        } else {
-                            "No changes against HEAD."
+                        .hint(match self.scope {
+                            Scope::Turn(_) => "This turn changed no files.",
+                            Scope::SinceStart => "No changes since the thread started.",
+                            Scope::Working if self.base.is_some() => {
+                                "No changes since this worktree was created."
+                            }
+                            Scope::Working => "No changes against HEAD.",
                         })
                         .page(),
                 )
@@ -427,7 +442,29 @@ impl Render for ChangesView {
             .size_full()
             .bg(theme.background)
             .child(header)
-            .child(self.render_publish(cx))
+            .children(self.render_scopes(cx))
+            .children(self.render_rewind_confirm(cx))
+            .when(self.scope == Scope::Working, |v| {
+                v.child(self.render_publish(cx))
+            })
+            .when(self.scope != Scope::Working, |v| {
+                v.children(self.publish_error.clone().map(|e| {
+                    div()
+                        .px_4()
+                        .py_1()
+                        .text_xs()
+                        .text_color(crate::ui::ink(cx.theme(), cx.theme().danger))
+                        .child(e)
+                }))
+                .children(self.publish_note.clone().map(|n| {
+                    div()
+                        .px_4()
+                        .py_1()
+                        .text_xs()
+                        .text_color(cx.theme().muted_foreground)
+                        .child(n)
+                }))
+            })
             .child(body)
     }
 }

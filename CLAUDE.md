@@ -35,7 +35,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `scroll:x;y;lines` turns the wheel, positive up). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`
-  and `title` evaluates `document.title` in that tab), Codex with
+  and `title` evaluates `document.title` in that tab; in `fake-claude.sh` a prompt starting `permit` asks to run
+  `make deploy` and waits for the answer, and one starting `crash` writes to stderr and exits 3), Codex with
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
   project), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in

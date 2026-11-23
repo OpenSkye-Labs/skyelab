@@ -31,6 +31,7 @@ fn args_for(mcp_config: Option<&Path>) -> String {
         model: None,
         effort: None,
         attachments: &[],
+        mode: Default::default(),
     };
     let session = start_with_bin(&bin, &config, &launch).expect("start");
     loop {

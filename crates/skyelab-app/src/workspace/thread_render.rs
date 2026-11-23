@@ -9,7 +9,7 @@ use gpui::{
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
+    ActiveTheme as _, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     tooltip::Tooltip,
@@ -88,6 +88,8 @@ impl ThreadView {
                     .id("provider-badge")
                     .child(self.account_badge().chip()),
             )
+            .children(self.render_branch(cx))
+            .child(self.render_run(cx))
             .children(self.render_pr_link(cx))
             .child(self.render_worktree_actions(cx))
             .into_any_element()
@@ -183,6 +185,84 @@ impl ThreadView {
     }
 }
 
+/// What each permission mode is called in the composer, and what it allows.
+pub(super) fn mode_label(mode: skyelab_agent::Mode) -> (&'static str, &'static str) {
+    use skyelab_agent::Mode;
+    match mode {
+        Mode::Default => (
+            "Ask",
+            "The agent asks before commands and edits its rules don't already allow",
+        ),
+        Mode::Plan => ("Plan", "Read and plan only: no edits, no commands"),
+        Mode::AcceptEdits => (
+            "Accept edits",
+            "File edits in this folder go ahead; anything else asks",
+        ),
+        Mode::Bypass => (
+            "Full access",
+            "Nothing asks: any command, any edit (Codex also leaves its sandbox)",
+        ),
+    }
+}
+
+impl ThreadView {
+    /// The thread's permission mode, T3's composer "Permissions" toggle: one small button per mode.
+    pub(super) fn render_mode_picker(&self, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        h_flex()
+            .flex_shrink_0()
+            .gap_0p5()
+            .child(div().pr_1().child("Permissions"))
+            .children(skyelab_agent::Mode::ALL.into_iter().map(|mode| {
+                let (label, tip) = mode_label(mode);
+                Button::new(SharedString::from(format!("mode-{}", mode.as_str())))
+                    .ghost()
+                    .xsmall()
+                    .label(label)
+                    .tooltip(tip)
+                    .selected(self.mode == mode)
+                    .when(
+                        mode == skyelab_agent::Mode::Bypass && self.mode == mode,
+                        |b| b.text_color(ui::ink(theme, theme.warning)),
+                    )
+                    .on_click(cx.listener(move |this, _, _, cx| this.set_mode(mode, cx)))
+            }))
+            .into_any_element()
+    }
+
+    /// Full access was picked: say what it allows and ask before turning it on.
+    fn render_bypass_confirm(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if !self.confirm_bypass {
+            return None;
+        }
+        let actions = h_flex()
+            .gap_2()
+            .child(
+                Button::new("confirm-bypass")
+                    .danger()
+                    .small()
+                    .label("Turn on Full access")
+                    .on_click(cx.listener(|this, _, _, cx| this.confirm_mode(true, cx))),
+            )
+            .child(
+                Button::new("cancel-bypass")
+                    .ghost()
+                    .small()
+                    .label("Keep asking")
+                    .on_click(cx.listener(|this, _, _, cx| this.confirm_mode(false, cx))),
+            );
+        Some(banner(
+            "Give this thread's agent full access?",
+            "It will run any command and change any file without asking, under this folder's account. A Codex \
+             agent also leaves its sandbox: it can write outside the folder and use the network.",
+            div()
+                .debug_selector(|| "bypass-confirm".into())
+                .child(actions),
+            cx,
+        ))
+    }
+}
+
 /// A warning banner over the composer (T3's composer banner): a tinted card with a title, why, and the next step.
 fn banner(
     title: &'static str,
@@ -234,6 +314,7 @@ impl Render for ThreadView {
         let children = self.render_children(cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);
+        let bypass_confirm = self.render_bypass_confirm(cx);
         let refused = self
             .resume_refused
             .clone()
@@ -319,6 +400,7 @@ impl Render for ThreadView {
                     .pb_4()
                     .children(cta)
                     .children(discard_confirm)
+                    .children(bypass_confirm)
                     .children(refused)
                     .children((self.unsaved_events > 0).then(|| {
                         line(

@@ -66,7 +66,7 @@ pub(crate) fn kill_group(pid: u32) {
 
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
 /// A bare name is looked up through the parent PATH's absolute entries only.
-pub(crate) fn resolve_bin(bin: &Path) -> Result<PathBuf> {
+pub fn resolve_bin(bin: &Path) -> Result<PathBuf> {
     if bin.is_absolute() {
         return Ok(bin.to_owned());
     }
