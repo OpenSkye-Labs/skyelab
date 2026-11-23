@@ -1,16 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <clipPath id="tile">
       <rect x="100" y="100" width="824" height="824" rx="185"/>
     </clipPath>
-  </defs>
-  <g clip-path="url(#tile)">
-    <rect x="100" y="100" width="824" height="824" fill="#101420"/>
-    <g fill="#FFFFFF" transform="translate(100 100) scale(.8046875)">
-    <!-- Cloud and face cutouts. The paw is a separate silhouette. -->
-    <path fill-rule="evenodd" d="M -20,734
+    <radialGradient id="navy" cx="7%" cy="0%" r="96%">
+      <stop stop-color="#3D4D68"/>
+      <stop offset=".25" stop-color="#222D42"/>
+      <stop offset=".64" stop-color="#121A2B"/>
+      <stop offset="1" stop-color="#0D1425"/>
+    </radialGradient>
+    <linearGradient id="rim" x2=".65" y2="1">
+      <stop stop-color="#B3C9EF" stop-opacity=".7"/>
+      <stop offset=".32" stop-color="#829EC8" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#071021" stop-opacity=".55"/>
+    </linearGradient>
+    <radialGradient id="porcelain" cx="39%" cy="25%" r="80%" gradientTransform="translate(0 -.04) scale(1 1.16)">
+      <stop stop-color="#FFFCF6"/>
+      <stop offset=".57" stop-color="#F3EBE1"/>
+      <stop offset=".83" stop-color="#D8CBC0"/>
+      <stop offset="1" stop-color="#968B85"/>
+    </radialGradient>
+    <linearGradient id="paw-light" x2=".24" y2="1">
+      <stop stop-color="#FFFDF8"/>
+      <stop offset=".55" stop-color="#F1E8DC"/>
+      <stop offset="1" stop-color="#B8ADA4"/>
+    </linearGradient>
+    <filter id="contact" x="-20%" y="-30%" width="150%" height="170%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <path id="cloud" fill-rule="evenodd" d="M -20,734
          C 39,757 88,730 99,684
-         C 150,662 141,602 66,560
+         C 158,663 145,596 66,552
          C 70,544 85,535 111,528
          C 102,421 225,330 332,376
          C 433,246 643,293 659,460
@@ -18,7 +39,7 @@
          C 883,811 792,1000 626,1024
          L 625,1050 H 460
          C 345,1034 241,1003 170,955
-         C 99,969 31,947 -20,875 Z
+         C 68,966 10,931 -20,875 Z
 
          M 332,631 a 58,59 0 1 0 -116,0 a 58,59 0 1 0 116,0 Z
          M 612,692 a 58,59 0 1 0 -116,0 a 58,59 0 1 0 116,0 Z
@@ -27,10 +48,19 @@
          C 379,753 414,760 431,740
          C 446,722 469,744 455,760
          C 425,800 354,787 340,734 Z"/>
-    <path d="M -20,566
-         C 38,556 108,600 114,633
-         C 120,657 98,672 77,661
-         C 83,702 47,731 -20,707 Z"/>
+    <path id="paw" d="M -20,560
+         C 39,550 113,597 120,633
+         C 126,660 103,678 80,664
+         C 87,708 46,735 -20,711 Z"/>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#navy)"/>
+    <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="url(#rim)" stroke-width="4"/>
+    <g transform="translate(100 100) scale(.8046875)">
+      <use xlink:href="#cloud" x="12" y="17" fill="#050914" opacity=".72" filter="url(#contact)"/>
+      <use xlink:href="#cloud" fill="url(#porcelain)" stroke="#FFF9F0" stroke-opacity=".23" stroke-width="3"/>
+      <use xlink:href="#paw" stroke="#101727" stroke-width="17" fill="url(#paw-light)"/>
+      <use xlink:href="#paw" fill="url(#paw-light)"/>
     </g>
   </g>
 </svg>
