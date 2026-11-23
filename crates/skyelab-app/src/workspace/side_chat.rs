@@ -23,6 +23,9 @@ use skyelab_core::AccountsConfig;
 use skyelab_store::{NewThread, Store, Thread};
 
 #[cfg(test)]
+#[path = "side_chat_allow_test.rs"]
+mod allow_test;
+#[cfg(test)]
 #[path = "side_chat_close_test.rs"]
 mod close_test;
 #[cfg(test)]

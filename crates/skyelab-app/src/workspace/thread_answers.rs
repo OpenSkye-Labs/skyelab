@@ -26,6 +26,10 @@ impl ThreadView {
         done: impl FnOnce(Result<(), String>) + Send + 'static,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
+        // A side chat's agent may only be told no (Codex's Plan sandbox lets it ask to run outside).
+        if self.is_side_chat() && !matches!(decision, Decision::Deny | Decision::Withdrawn) {
+            return Err(crate::workspace::side_chat::PLAN_ONLY.into());
+        }
         let Some(session) = self.session.clone() else {
             return Err("the agent isn't running".into());
         };
@@ -122,7 +126,7 @@ impl ThreadView {
             return self.answer_then(id, Decision::Deny, done, cx);
         }
         if self.is_side_chat() {
-            return Err(crate::workspace::side_chat::PLAN_ONLY.into()); // approving would leave Plan
+            return Err(crate::workspace::side_chat::PLAN_ONLY.into());
         }
         let Some(session) = self.session.clone() else {
             return Err("the agent isn't running".into());
