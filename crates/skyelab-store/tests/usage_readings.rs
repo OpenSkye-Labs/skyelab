@@ -1,6 +1,8 @@
 //! Acceptance: each account's newest usage reading per window is kept as events arrive (a trigger), so the Details
 //! tab reads a handful of rows instead of searching every event's text. Migration 10 backfills older databases.
 
+mod common;
+
 use rusqlite::Connection;
 use skyelab_store::{NewThread, Store};
 use std::path::Path;
@@ -95,13 +97,14 @@ fn migration_backfills_readings_from_stored_events() {
     }
     // Back to version 9: the table and trigger as they were before.
     let conn = Connection::open(&path).expect("raw");
+    conn.execute_batch(common::UNDO_V11).expect("drop v11");
     conn.execute_batch("DROP TRIGGER usage_reading_insert; DROP TABLE usage_readings;")
         .expect("drop v10");
     conn.pragma_update(None, "user_version", 9)
         .expect("set version");
     drop(conn);
 
-    let s = Store::open(&path).expect("migrates");
+    let mut s = Store::open(&path).expect("migrates");
     assert_eq!(
         readings(&s, "work"),
         vec![
@@ -109,4 +112,10 @@ fn migration_backfills_readings_from_stored_events() {
             ("seven_day".into(), limit("seven_day", Some(0.5), false)),
         ]
     );
+    // v11 ran after v10's backfill: a steered message is searchable.
+    let t = s.list_all_threads().expect("threads")[0].id;
+    s.append_event(t, "steer", "\"mind the zebra\"")
+        .expect("append");
+    let found = s.search_threads("zebra", None, 10).expect("search");
+    assert_eq!(found.iter().map(|f| f.id).collect::<Vec<_>>(), [t]);
 }

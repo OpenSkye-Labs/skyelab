@@ -36,8 +36,9 @@ pub(super) fn sidebar_row(
     } else {
         plain_row(item, marks, indent, now, theme)
     };
+    let card = marks.and_then(|m| m.card.clone());
     let Some(menu) = marks.filter(|m| !m.menu.is_empty()) else {
-        return row.into_any_element();
+        return super::sidebar_card::with_card(&item.id, row, card);
     };
     let entries: Vec<(SharedString, Box<dyn Action>)> = menu
         .menu
@@ -45,14 +46,14 @@ pub(super) fn sidebar_row(
         .map(|(l, a)| (l.clone(), a.boxed_clone()))
         .collect();
     let focus = focus.clone();
-    row.context_menu(move |mut menu, _, _| {
+    let row = row.context_menu(move |mut menu, _, _| {
         menu = menu.action_context(focus.clone());
         for (label, action) in &entries {
             menu = menu.menu(label.clone(), action.boxed_clone());
         }
         menu
-    })
-    .into_any_element()
+    });
+    super::sidebar_card::with_card(&item.id, row, card)
 }
 
 /// A flat list's thread row, after T3's and Synara's: the title with its status or time, the agent's last reply in two
@@ -70,15 +71,20 @@ fn thread_row(
     let (pinned, unread, approval) = (marks.pinned, marks.unread, marks.approval);
     let project = item.project.clone().unwrap_or_default();
     let status = if approval {
-        Some((IconName::TriangleAlert, "Approval", theme.warning))
+        Some((IconName::TriangleAlert, "Approval".into(), theme.warning))
     } else if let Some((icon, word)) = item.status.and_then(ui::Status::badge) {
         let color = item
             .status
             .map_or(theme.muted_foreground, |s| s.color(theme));
+        // T3's working timer: how long the turn has run.
+        let word: SharedString = match marks.started_ms {
+            Some(at) => format!("{word} {}", ui::elapsed(now - at)).into(),
+            None => word.into(),
+        };
         Some((icon, word, color))
     } else {
         // T3's "Done": a finished turn nobody has looked at yet.
-        unread.then_some((IconName::CircleCheck, "Done", theme.success))
+        unread.then_some((IconName::CircleCheck, "Done".into(), theme.success))
     };
     let right = match status {
         Some((icon, word, color)) => h_flex()

@@ -61,6 +61,27 @@ pub struct RowMarks {
     pub branch: Option<SharedString>,
     /// The pull request opened from the thread: "#24".
     pub pr: Option<SharedString>,
+    /// When the working turn started (ms since the epoch): the row reads "Working 1m 12s", ticking.
+    pub started_ms: Option<i64>,
+    /// What the row's hover card shows.
+    pub card: Option<std::rc::Rc<RowCard>>,
+}
+
+/// A thread row's hover card (T3's thread tooltip): where it runs and on which account.
+#[derive(Clone, Default)]
+pub struct RowCard {
+    pub title: SharedString,
+    /// The project folder, `~` for home.
+    pub path: SharedString,
+    pub worktree: Option<SharedString>,
+    pub branch: Option<SharedString>,
+    pub pr_url: Option<SharedString>,
+    /// The account the thread runs on.
+    pub account: Option<RowAccount>,
+    /// "Bound at ~/work" (the binding that picks it), or that the folder is bound elsewhere now.
+    pub binding: Option<SharedString>,
+    pub created_ms: i64,
+    pub updated_ms: i64,
 }
 
 /// The selected project's archived threads, listed apart under a toggle row.
@@ -107,6 +128,8 @@ pub struct Sidebar {
     pub scope: Option<ScopeMenu>,
     pub(super) focus: FocusHandle,
     _search: Subscription,
+    /// Redraws each second while a row shows a working timer.
+    _tick: Option<gpui::Task<()>>,
 }
 
 impl EventEmitter<SidebarSearch> for Sidebar {}
@@ -130,6 +153,25 @@ impl Sidebar {
             scope: None,
             focus: cx.focus_handle(),
             _search,
+            _tick: None,
+        }
+    }
+
+    /// Working rows read "Working 1m 12s": redraw each second while one does, and stop when none does.
+    pub fn sync_tick(&mut self, cx: &mut Context<Self>) {
+        if !self.marks.values().any(|m| m.started_ms.is_some()) {
+            self._tick = None;
+        } else if self._tick.is_none() {
+            self._tick = Some(cx.spawn(async move |this, cx| {
+                loop {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_secs(1))
+                        .await;
+                    if this.update(cx, |_, cx| cx.notify()).is_err() {
+                        return;
+                    }
+                }
+            }));
         }
     }
 }

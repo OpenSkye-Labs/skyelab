@@ -2,10 +2,11 @@
 //! project scope filter and the thread filter.
 
 use super::panels::{
-    ArchivedRows, RowAccount, RowMarks, ScopeMenu, ScopeProject, SidebarItem, SidebarSection,
+    ArchivedRows, RowAccount, RowCard, RowMarks, ScopeMenu, ScopeProject, SidebarItem,
+    SidebarSection,
 };
+use super::thread_rows::row_state;
 use super::{AddProject, OpenThread, ShowAllProjects, Workspace, lock};
-use crate::ui::Status;
 use gpui::{Action, AppContext as _, Context, SharedString, Window};
 use skyelab_store::Thread;
 use std::collections::HashMap;
@@ -33,6 +34,7 @@ impl Workspace {
                 sidebar.archived = None;
                 sidebar.searchable = false;
                 sidebar.scope = None;
+                sidebar.sync_tick(cx);
                 cx.notify();
             });
         }
@@ -44,37 +46,61 @@ impl Workspace {
                 row.pr_url.clone_from(&t.pr_url); // a PR opened or linked in the tab
             }
         }
-        let live: std::collections::HashMap<i64, (Status, bool)> = self
-            .open_threads
-            .iter()
-            .filter_map(|v| {
-                let v = v.read(cx);
-                Some((
-                    v.thread.as_ref()?.id,
-                    (v.live_status(), awaiting_approval(v)),
-                ))
-            })
-            .collect();
-        let names: std::collections::HashMap<i64, &str> = self
-            .projects
-            .iter()
-            .map(|p| (p.id, p.name.as_str()))
-            .collect();
+        let live = self.live_rows(cx);
+        let projects: HashMap<i64, &skyelab_store::Project> =
+            self.projects.iter().map(|p| (p.id, p)).collect();
+        let home = dirs::home_dir();
         let shown = self.shown_thread(cx);
         let previews = &self.previews;
         let mut marks = std::collections::HashMap::new();
         let mut item = |t: &Thread| {
             let id: SharedString = format!("thread-{}", t.id).into();
-            let (status, approval) = live
-                .get(&t.id)
-                .copied()
-                .unwrap_or_else(|| (Status::parse(&t.status), false));
+            let state = row_state(&live, t);
+            let branch = t
+                .worktree_branch
+                .clone()
+                .or_else(|| previews.branches.get(&t.project_id).cloned())
+                .map(SharedString::from);
+            let account = self.project_accounts.get(&t.project_id);
+            let card = RowCard {
+                title: t.title.clone().into(),
+                path: projects
+                    .get(&t.project_id)
+                    .map(|p| crate::ui::short_path(&p.path, home.as_deref()).into())
+                    .unwrap_or_default(),
+                worktree: t
+                    .worktree_path
+                    .as_deref()
+                    .map(|w| crate::ui::short_path(w, home.as_deref()).into()),
+                branch: branch.clone(),
+                pr_url: t.pr_url.clone().map(Into::into),
+                // The account the thread runs on, which a rebind since its start doesn't change.
+                account: self
+                    .config
+                    .accounts
+                    .iter()
+                    .find(|a| a.id == t.account_id)
+                    .map(|a| RowAccount::Bound(a.clone())),
+                binding: match account {
+                    Some(Some(a)) if a.id != t.account_id => {
+                        Some(format!("Folder now bound to {}", a.label).into())
+                    }
+                    Some(None) => Some("Folder no longer bound".into()),
+                    _ => previews.bindings.get(&t.project_id).map(|b| {
+                        format!("Bound at {}", crate::ui::short_path(b, home.as_deref())).into()
+                    }),
+                },
+                created_ms: t.created_at,
+                updated_ms: t.updated_at,
+            };
             marks.insert(
                 id.clone(),
                 RowMarks {
                     pinned: t.pinned_at.is_some(),
                     unread: t.unread,
-                    approval,
+                    approval: state.approval,
+                    started_ms: state.started_ms.filter(|_| state.running()),
+                    card: Some(std::rc::Rc::new(card)),
                     menu: super::manage::thread_menu(t),
                     preview: previews
                         .replies
@@ -82,11 +108,7 @@ impl Workspace {
                         .map(|r| preview_text(r))
                         .filter(|p| !p.is_empty())
                         .map(Into::into),
-                    branch: t
-                        .worktree_branch
-                        .clone()
-                        .or_else(|| previews.branches.get(&t.project_id).cloned())
-                        .map(Into::into),
+                    branch,
                     pr: t.pr_url.as_deref().map(|u| pr_label(u).into()),
                 },
             );
@@ -95,19 +117,18 @@ impl Workspace {
                 label: t.title.clone().into(),
                 selected: Some(t.id) == shown,
                 action: Box::new(OpenThread { id: t.id }),
-                status: Some(status),
+                status: Some(state.status),
                 updated_ms: Some(t.updated_at),
-                account: Some(match self.project_accounts.get(&t.project_id) {
+                account: Some(match account {
                     Some(Some(a)) => RowAccount::Bound(a.clone()),
                     Some(None) => RowAccount::Unbound,
                     None => RowAccount::Hidden,
                 }),
                 project: Some(
-                    names
+                    projects
                         .get(&t.project_id)
-                        .copied()
+                        .map(|p| p.name.clone())
                         .unwrap_or_default()
-                        .to_owned()
                         .into(),
                 ),
             }
@@ -196,6 +217,7 @@ impl Workspace {
             sidebar.searchable = true;
             sidebar.scope = Some(scope);
             sidebar.sections = sections;
+            sidebar.sync_tick(cx);
             cx.notify();
         });
     }
@@ -231,23 +253,15 @@ impl Workspace {
         }));
     }
 
-    /// The listed threads in the sidebar's three groups: pinned, working (running or starting), the rest. Each keeps
-    /// the newest-first order.
+    /// The listed threads in the sidebar's three groups: pinned, working (running, starting or waiting on an approval),
+    /// the rest. Each keeps the newest-first order.
     fn thread_groups(&self, cx: &gpui::App) -> [Vec<&Thread>; 3] {
-        let working: std::collections::HashSet<i64> = self
-            .open_threads
-            .iter()
-            .filter_map(|v| {
-                let v = v.read(cx);
-                matches!(v.live_status(), Status::Starting | Status::Running)
-                    .then(|| v.thread.as_ref().map(|t| t.id))?
-            })
-            .collect();
+        let live = self.live_rows(cx);
         let mut groups: [Vec<&Thread>; 3] = Default::default();
         for t in self.listed_threads().0 {
             let at = if t.pinned_at.is_some() {
                 0
-            } else if working.contains(&t.id) {
+            } else if row_state(&live, t).working() {
                 1
             } else {
                 2
@@ -358,18 +372,6 @@ impl Workspace {
     }
 }
 
-/// The thread's agent waits for a permission answer (T3's "Approval" in the sidebar).
-fn awaiting_approval(v: &super::thread::ThreadView) -> bool {
-    // shortcut: only the last 32 items are checked (a waiting agent adds nothing after its ask, so it is near the
-    // end); scan further if asks ever get buried.
-    v.session.is_some()
-        && v.items
-            .iter()
-            .rev()
-            .take(32)
-            .any(|i| matches!(i, super::thread_model::Item::Approval(a) if a.decision.is_none()))
-}
-
 /// What the sidebar's thread rows show besides the thread itself, loaded apart from the thread list.
 #[derive(Default)]
 pub(super) struct Previews {
@@ -377,6 +379,8 @@ pub(super) struct Previews {
     pub replies: HashMap<i64, String>,
     /// Project id → the branch its folder has checked out.
     pub branches: HashMap<i64, String>,
+    /// Project id → the bound folder that decides its account (resolved with the accounts).
+    pub bindings: HashMap<i64, std::path::PathBuf>,
     /// The running reload; a newer one replaces (cancels) it.
     _load: Option<gpui::Task<()>>,
 }

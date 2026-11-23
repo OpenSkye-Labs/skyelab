@@ -142,30 +142,6 @@ impl Workspace {
         }));
     }
 
-    /// Resolves each project's account in the background (it touches the disk), then redraws the sidebar. A newer
-    /// call replaces (cancels) an older one, so the latest config wins.
-    fn resolve_project_accounts(&mut self, cx: &mut Context<Self>) {
-        let config = self.config.clone();
-        let projects: Vec<(i64, PathBuf)> = self
-            .projects
-            .iter()
-            .map(|p| (p.id, p.path.clone()))
-            .collect();
-        let task = cx.background_spawn(async move {
-            projects
-                .into_iter()
-                .map(|(id, path)| (id, config.resolve(&path).cloned()))
-                .collect()
-        });
-        self._project_accounts = Some(cx.spawn(async move |this, cx| {
-            let resolved = task.await;
-            let _ = this.update(cx, |this, cx| {
-                this.project_accounts = resolved;
-                this.refresh_sidebar(cx);
-            });
-        }));
-    }
-
     pub(super) fn new_thread(
         &mut self,
         _: &NewThread,

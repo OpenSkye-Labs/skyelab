@@ -8,10 +8,13 @@ use skyelab_agent::{Block, Decision, DeltaKind, Event, Todo, Usage};
 #[derive(Debug, Clone, PartialEq)]
 pub enum Record {
     Prompt(String),
+    /// A message steered into the running turn: part of that turn, not the start of a new one.
+    Steer(String),
     Agent(Event),
 }
 
 const PROMPT: &str = "prompt";
+const STEER: &str = "steer";
 const AGENT: &str = "agent";
 
 impl Record {
@@ -19,6 +22,7 @@ impl Record {
     pub fn to_row(&self) -> (&'static str, String) {
         match self {
             Record::Prompt(text) => (PROMPT, Value::String(text.clone()).to_string()),
+            Record::Steer(text) => (STEER, Value::String(text.clone()).to_string()),
             Record::Agent(event) => (
                 AGENT,
                 serde_json::to_string(event)
@@ -31,6 +35,9 @@ impl Record {
         match kind {
             PROMPT => Ok(Record::Prompt(
                 serde_json::from_str(payload).context("stored prompt")?,
+            )),
+            STEER => Ok(Record::Steer(
+                serde_json::from_str(payload).context("stored steer")?,
             )),
             AGENT => Ok(Record::Agent(
                 serde_json::from_str(payload).context("stored agent event")?,
@@ -71,6 +78,8 @@ pub struct ApprovalItem {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Prompt(String),
+    /// A message steered into the running turn; drawn like a prompt, folded with its turn.
+    Steer(String),
     /// Assistant text, as markdown.
     Text(String),
     /// Text or thinking still streaming in; the complete block replaces it.
@@ -105,6 +114,8 @@ pub enum Item {
         explains_failure: bool,
     },
     Approval(ApprovalItem),
+    /// The note under a message its turn cut off (Stop, a crash): the text above is what had streamed.
+    Interrupted,
     /// What the agent wrote to stderr; `id` keys its expanded state.
     Output {
         id: String,
@@ -130,6 +141,7 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
     let mut first_changed = None;
     match record {
         Record::Prompt(text) => items.push(Item::Prompt(text.clone())),
+        Record::Steer(text) => items.push(Item::Steer(text.clone())),
         Record::Agent(Event::Delta { kind, text }) => match live(items, *kind) {
             Some(ix) => {
                 if let Item::Live { text: t, .. } = &mut items[ix] {
@@ -149,6 +161,15 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
                     Block::Thinking { thinking } => finish(items, DeltaKind::Thinking, thinking),
                     Block::ToolUse { name, input, .. } if name == skyelab_agent::TODO_TOOL => {
                         todo(items, skyelab_agent::todos(input))
+                    }
+                    // Right after the cut-off text, even if a steer was shown below it while it streamed.
+                    Block::Partial => {
+                        let at = items
+                            .iter()
+                            .rposition(|i| matches!(i, Item::Text(_)))
+                            .map_or(items.len(), |t| t + 1);
+                        items.insert(at, Item::Interrupted);
+                        Some(at)
                     }
                     Block::ToolUse { id, name, input } => {
                         items.push(Item::Tool(ToolItem {
@@ -311,6 +332,20 @@ pub fn settle_live(items: &mut [Item]) -> Option<usize> {
     first
 }
 
+/// The message a turn cut off before its final one (Stop, a crash, an interrupt): the text still streaming, as an
+/// assistant event marked [`Block::Partial`], so storing it keeps it. `None` when no text is streaming.
+pub fn partial(items: &[Item]) -> Option<Record> {
+    // The row `apply` settles, so storing it can't leave a second copy (callers store it before any stderr row).
+    let Item::Live { text, .. } = &items[live(items, DeltaKind::Text)?] else {
+        return None;
+    };
+    (!text.trim().is_empty()).then(|| {
+        Record::Agent(Event::Assistant {
+            content: vec![Block::Text { text: text.clone() }, Block::Partial],
+        })
+    })
+}
+
 /// The streaming row of `kind`, among the rows still streaming at the end. A prompt sent while it streams (a
 /// follow-up) doesn't end it.
 fn live(items: &[Item], kind: DeltaKind) -> Option<usize> {
@@ -318,7 +353,7 @@ fn live(items: &[Item], kind: DeltaKind) -> Option<usize> {
         .iter()
         .enumerate()
         .rev()
-        .take_while(|(_, i)| matches!(i, Item::Live { .. } | Item::Prompt(_)))
+        .take_while(|(_, i)| matches!(i, Item::Live { .. } | Item::Prompt(_) | Item::Steer(_)))
         .find(|(_, i)| matches!(i, Item::Live { kind: k, .. } if *k == kind))
         .map(|(ix, _)| ix)
 }

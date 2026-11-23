@@ -106,6 +106,8 @@ pub enum Block {
         #[serde(default)]
         is_error: bool,
     },
+    /// SkyeLab's mark on a message the turn cut off (Stop, a crash): its text is what had streamed by then.
+    Partial,
     /// Any block type added later (redacted thinking, images).
     #[serde(other)]
     Other,

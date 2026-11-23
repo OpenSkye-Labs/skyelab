@@ -17,13 +17,15 @@ threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** sh
 ## Layout
 
 The sidebar lists the threads of all your projects in one list: **Pinned** first, then **Working** (agents running
-now), then the rest by when they last changed: **Today**, **Yesterday**, **Previous 7 days** and **Older**. Each row
+now, or waiting for your answer, even on a page you're not looking at), then the rest by when they last changed: **Today**, **Yesterday**, **Previous 7 days** and **Older**. Each row
 shows the title, then the agent's last reply in two muted lines, then a line with the project, the account the
 project's folder is bound to (**No account** in the warning color if it has none), the pull request opened from the
 thread (**#24**) and the branch (the thread's worktree branch, else the branch the project folder has checked out).
-Beside the title is the thread's state (**Working**,
+Beside the title is the thread's state (**Working 1m 12s**, counting up while the turn runs,
 **Approval** while the agent waits for your answer, **Failed**, **Interrupted**, **Done** for a finished turn you
-haven't seen) or how long ago it last changed.
+haven't seen) or how long ago it last changed. Hold the pointer on a row for a moment to see its card: the project
+folder, the worktree and branch, the pull request (click to open it), the account with its provider, the bound folder
+that picks that account, and when the thread was created and last updated.
 
 Above the list are the search field, the project filter (the folder button) and **New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
@@ -76,7 +78,7 @@ Binding folders to accounts, and a GitHub login per account: see [user-guide-acc
   model from the next message; a new effort applies the next time it starts.
 - **While the agent works**, Send queues the message instead: it shows above the composer with **Sends when the
   agent finishes**, and goes as soon as the turn ends, in order. **Steer** on a queued message, or
-  <kbd>⇧⌘↩</kbd> while typing, sends it into the running turn now. A `/command` always waits for the turn to end.
+  <kbd>⇧⌘↩</kbd> while typing, sends it into the running turn now (it stays part of that turn, inside its fold). A `/command` always waits for the turn to end.
   Messages from another device or another agent are sent at once, as before.
 - **When the composer is narrow** (the right panel open), the permission chip shows only its icon and the model chip
   only the model.
@@ -85,7 +87,7 @@ Binding folders to accounts, and a GitHub login per account: see [user-guide-acc
   after each turn) and the current branch.
 
 The thread header is a breadcrumb (project / parent thread / title) with the provider (**Claude** or **Codex**) and
-the account it runs on. While a turn runs and the
+the account it runs on. While a turn runs, **Working for 1m 12s** above the composer counts how long, and while the
 composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
 ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
 **Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. Threads are saved, and opening an old one and sending a follow-up resumes the
@@ -110,7 +112,8 @@ first). Approvals, the agent's questions and plans show as cards in the thread. 
 ### What the timeline shows
 
 - Text and thinking stream in word by word as the agent writes. Thinking is a **Thought** row; click it to read it.
-  Only complete blocks are saved, so a reopened thread shows the finished text.
+  Complete blocks are saved. Text a turn cut off (Stop, Interrupt, a crash) is saved as far as it got and marked
+  **(interrupted)**, so a reopened thread still shows it.
 - The agent's todo list (Claude's `TodoWrite`, Codex's plan) is one checklist per turn that updates in place.
 - Edits (`Edit`, `Write`, `MultiEdit`) show their diff inline. Click the file name to open it in the Changes tab.
   File links in the agent's text (`[a.rs](src/a.rs)`) do the same; web links open in your browser, and nothing else opens.

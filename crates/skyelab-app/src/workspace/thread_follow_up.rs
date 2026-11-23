@@ -41,7 +41,15 @@ impl ThreadView {
         );
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
-        let record = Record::Prompt(super::composer::shown_prompt(&text, &attachments));
+        let shown = super::composer::shown_prompt(&text, &attachments);
+        // Claude folds any message sent into a running turn into that turn (one result answers both), so one sent
+        // from another device or agent mid-turn is a steer too.
+        let joins = self.turn_running() && account.provider == skyelab_core::Provider::Claude;
+        let record = if steer || joins {
+            Record::Steer(shown)
+        } else {
+            Record::Prompt(shown)
+        };
         self.push(&record, cx);
         // Given back to the composer if the agent refuses it (lesson: a send must never lose what was typed).
         let draft = (text.clone(), attachments.clone());
@@ -96,7 +104,10 @@ impl ThreadView {
                         return Err(e);
                     }
                     // Behind any held replies, and held itself if the store refuses it.
-                    Ok(unsaved.push_and_save(&store, id, Some(record), None).0)
+                    Ok((
+                        unsaved.push_and_save(&store, id, Some(record), None).0,
+                        idle,
+                    ))
                 })
                 .await;
             if let Some(reply) = on_sent {
@@ -111,7 +122,14 @@ impl ThreadView {
                 }));
             }
             let _ = this.update(cx, |this, cx| match sent {
-                Ok(left) => this.saved(left, cx),
+                Ok((left, idle)) => {
+                    // The turn ended before this got there, so it started a new one (a steer too): time that one.
+                    if idle {
+                        this.turn_started_ms = Some(crate::ui::now_ms());
+                        this.tick_while_working(cx);
+                    }
+                    this.saved(left, cx)
+                }
                 Err(e) => {
                     this.composer.restore = Some(draft);
                     this.show_error(e, cx)

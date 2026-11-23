@@ -132,4 +132,22 @@ INSERT OR REPLACE INTO usage_readings (account_id, window, payload_json, created
                              AND json_type(e.payload_json, '$.RateLimit.used') IN ('integer', 'real')))
     ORDER BY e.created_at, e.thread_id, e.seq;
 ",
+    // Version 11: a message steered into a running turn is stored as `steer` (its own kind, so the turn's fold can
+    // reach past it); search indexes its text like a prompt's.
+    "
+DROP TRIGGER event_text_insert;
+CREATE TRIGGER event_text_insert AFTER INSERT ON events BEGIN
+    INSERT INTO event_text (body, thread_id)
+    SELECT body, NEW.thread_id FROM (
+        SELECT CASE WHEN NEW.kind IN ('prompt', 'steer') AND json_valid(NEW.payload_json)
+                         AND json_type(NEW.payload_json) = 'text'
+                    THEN json_extract(NEW.payload_json, '$') END AS body
+        UNION ALL
+        SELECT json_extract(value, '$.text') FROM json_each(
+            CASE WHEN NEW.kind = 'agent' AND json_valid(NEW.payload_json) THEN NEW.payload_json ELSE '{}' END,
+            '$.Assistant.content')
+        WHERE json_extract(value, '$.type') = 'text'
+    ) WHERE body IS NOT NULL AND body <> '';
+END;
+",
 ];

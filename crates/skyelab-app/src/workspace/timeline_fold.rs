@@ -28,9 +28,8 @@ pub(super) fn rows_of(items: &[Item], key: &str) -> Option<Range<usize>> {
 }
 
 /// Where the fold of the turn ending at row `done` starts: after the last prompt or divider before it. A turn that was
-/// stopped or crashed has no divider, so its rows end at the next prompt and never fold into the turn after it.
-// shortcut: a follow-up steered into a running turn also starts the fold, so the work before it stays unfolded; give
-// steered prompts their own item if that gets noticed.
+/// stopped or crashed has no divider, so its rows end at the next prompt and never fold into the turn after it. A
+/// steered message is part of the turn, so the fold reaches past it.
 pub(super) fn turn_start(items: &[Item], done: usize) -> usize {
     items[..done]
         .iter()

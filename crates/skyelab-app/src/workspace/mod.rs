@@ -51,6 +51,7 @@ mod thread_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
+mod thread_rows;
 mod thread_worktree;
 mod timeline_fold;
 mod timeline_text;

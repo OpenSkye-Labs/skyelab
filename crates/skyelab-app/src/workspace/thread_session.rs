@@ -90,12 +90,25 @@ impl ThreadView {
                     }
                 };
                 // Streaming text is shown, never stored: the complete block that follows is.
+                // After Stop, what streamed is already kept as a partial message (`finish`), so a killed agent's
+                // last deltas aren't shown as a second one.
                 if matches!(event, Event::Delta { .. }) {
                     let record = Record::Agent(event);
-                    if this.update(cx, |this, cx| this.push(&record, cx)).is_err() {
+                    let shown = this.update(cx, |this, cx| {
+                        if !this.stop_requested && launch == this.launches {
+                            this.push(&record, cx)
+                        }
+                    });
+                    if shown.is_err() {
                         return;
                     }
                     continue;
+                }
+                // The turn ends: text it cut off is stored ahead of its result.
+                if matches!(event, Event::Result { .. })
+                    && this.update(cx, |this, cx| this.keep_partial(cx)).is_err()
+                {
+                    return;
                 }
                 let gone = skyelab_agent::session_gone(&event);
                 // An interrupt ends a Codex turn as an error too; the user asked for that one.
@@ -132,9 +145,16 @@ impl ThreadView {
                     output = stderr_of(&watched, false, cx).await;
                 }
             }
-            // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining.
+            // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining. Text the end cut
+            // off is stored first, so a reload shows it above that output.
             let stopped = this
-                .update(cx, |this, _| this.stop_requested || launch != this.launches)
+                .update(cx, |this, cx| {
+                    let stopped = this.stop_requested || launch != this.launches;
+                    if launch == this.launches {
+                        this.keep_partial(cx);
+                    }
+                    stopped
+                })
                 .unwrap_or(true);
             if !stopped && let Some(event) = stderr_of(&watched, true, cx).await {
                 let record = Record::Agent(event);
@@ -214,6 +234,7 @@ impl ThreadView {
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
         self.grant = None; // revokes the token and cuts the MCP connection
+        self.keep_partial(cx);
         if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
             let n = self.items.len();
             self.list.splice(first..n, n - first);

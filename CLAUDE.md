@@ -30,7 +30,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
-  (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point,
+  (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point (`hover:x;y` only moves the mouse there),
   measured from below the title bar, so subtract its 32 pt from a window screenshot's y at 1x; `drag:x;y;x2;y2` drags,
   `scroll:x;y;lines` turns the wheel, positive up). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
