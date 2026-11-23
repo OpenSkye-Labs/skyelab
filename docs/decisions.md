@@ -83,13 +83,19 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   before gh. (2026-11-23)
 - **Commit snapshot:** the Changes tab records the working tree's tree id (a scratch index in a fresh private temp
   dir, `add -A`, `write-tree`) before and after reading the diff, and keeps it only if both match. Commit refuses if
-  the tree id changed. Commit all then runs `add -A` and commits only if the staged tree equals the reviewed one
-  (so staged deletions and merges work); ticked files are staged by name (`--literal-pathspecs`, after `--`, skipping
-  paths already gone). After the commit, any path it changed outside the ticked files (or outside what changed
-  between `HEAD` and the reviewed tree) means a hook added it: the commit is undone (`reset --soft`). Hooks that
-  reformat a reviewed file still work. Limits: a ticked-files commit can race a write in the milliseconds between
-  check and `git add`; each snapshot writes blobs for changed and untracked files into the object store, which
-  `git gc` prunes. (2026-11-23)
+  the tree id changed. The commit is then built in a private index from the reviewed tree's blobs, never from the
+  files again, so a write after the check can't get in: commit all reads the whole reviewed tree (`read-tree -m`
+  on a copy of the real index, to keep its stat cache; staged deletions and a resolved merge work), ticked files are
+  HEAD plus those paths' reviewed entries (`--literal-pathspecs`), so the user's other staged files stay out of the
+  commit and staged. A ticked commit is refused during a merge, cherry-pick or revert, as git refuses a partial
+  commit then. Hooks see `GIT_INDEX_FILE` pointing at the private index, as with `git commit -- <paths>`. The real
+  index is reset to the commit (all of it, or just the ticked paths) only after the commit exists, so a failed
+  commit leaves the user's staging exactly as it was. After the commit, any path it changed outside the ticked files
+  (or outside what changed between `HEAD` and the reviewed tree) means a hook added it: the commit is undone
+  (`reset --soft`). Hooks that reformat a reviewed file still work. Commit and Push hooks get the bound account's git
+  credential binding (the agents' `GIT_CONFIG_*` env: helpers reset, only its gh answers, ssh off unless the account
+  allows it) and `GIT_TERMINAL_PROMPT=0`. Limit: each snapshot writes blobs for changed and untracked files into the
+  object store, which `git gc` prunes. (2026-11-23)
 - **MCP socket path:** `<data dir>/skyelab/run/<pid>/mcp.sock` can exceed sun_path (104 bytes on macOS) with a long
   HOME. Then the socket goes in a fresh dir under the temp dir (else `/tmp`), created exclusively with mode 0700 and
   checked to be a real dir owned like the run dir; grant files stay in the run dir. Removed when the server drops; a
@@ -100,3 +106,23 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   changes, never per frame, so it stays synchronous. Limit: a binding on an unmounted or hung network volume makes
   each `realpath` wait for the volume's timeout and the UI freezes for that long; move resolve off the UI thread if
   that shows up. (2026-11-23)
+- **Child output through temp files, not pipes.** On macOS std creates a pipe and sets close-on-exec in a second
+  step, so a process another thread spawns in between inherits the write end, and a read to EOF waits for that
+  process (a launch's `git config` once waited 22 minutes on a sibling agent). Every short-lived child SkyeLab reads
+  (git, gh, simctl/adb, tailscale) goes through `skyelab_core::process`: stdin, stdout and stderr are unnamed temp
+  files, read after the child exits. A test scans those crates for `.output()`, `wait_with_output` and
+  `Stdio::piped()`. The agent's own pipes stay (they stream); nothing decides on their EOF alone: the pump also
+  watches the agent's exit. The terminal env (which runs `git config` and reads accounts.toml) is built off the UI
+  thread. (2026-11-23)
+- **Accounts as saved, for every action.** Agent launches, terminals and the Changes tab's Commit, Push and Open PR
+  read accounts.toml when they act (an unreadable file binds nothing), not the window's copy. The launch re-check
+  compares the login (`Account::same_login`: id, provider, config dir, gh dir, ssh), not the label. (2026-11-23)
+- **Windows agent tabs and processes.** wry turns InPrivate on with no profile name, and WebView2 shares one
+  InPrivate session between the webviews of a user-data folder, so each agent tab gets its own private temp folder
+  (a `WebContext`), removed with the tab; with `WEBVIEW2_USER_DATA_FOLDER` set (which WebView2 may prefer) an agent
+  tab is refused instead. Each such folder is its own browser process group, which costs memory per agent tab. Agent
+  tabs only exist where orchestration runs (unix today), so this is in place for when Windows gets them. An agent runs in a kill-on-close Job Object (`win32job`), so Stop ends node and its tools, not only the
+  `claude.cmd` shim. Limits: compile-checked only (`scripts/check-windows.sh`), not run on Windows; a process the
+  shim starts before the job assignment (microseconds after spawn) is outside the job; a tab folder WebView2 still
+  holds when the tab closes stays in the temp dir (a registry policy that pins the folder isn't checked either).
+  (2026-11-23)

@@ -8,12 +8,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn head(root: &Path) -> String {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .expect("git");
+    let out = skyelab_core::process::output(
+        Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["rev-parse", "HEAD"]),
+        None,
+    )
+    .expect("git");
     String::from_utf8_lossy(&out.stdout).trim().to_owned()
 }
 
@@ -69,12 +71,14 @@ fn an_unchanged_tree_commits_exactly_the_listed_files() {
     std::fs::write(root.join("new.txt"), "n\n").expect("new");
     let (paths, tree) = listed(&root);
     skyelab_git::commit(&root, "c", &paths, &[], Some(&tree)).expect("commit");
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(&root)
-        .args(["show", "--name-only", "--format=", "HEAD"])
-        .output()
-        .expect("git");
+    let out = skyelab_core::process::output(
+        Command::new("git")
+            .arg("-C")
+            .arg(&root)
+            .args(["show", "--name-only", "--format=", "HEAD"]),
+        None,
+    )
+    .expect("git");
     assert_eq!(String::from_utf8_lossy(&out.stdout), "a.txt\nnew.txt\n");
 }
 

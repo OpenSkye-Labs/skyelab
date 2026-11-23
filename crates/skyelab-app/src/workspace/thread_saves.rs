@@ -114,8 +114,9 @@ fn save_in_order(store: &SharedStore, id: i64, inner: &mut Inner) -> Result<()> 
     Ok(())
 }
 
-/// Saves an agent event off the UI thread, retried with backoff when nothing was held before. A `Result` ends one
-/// of `turns` here, once, whether or not its row saves: the count follows the agent, the store catches up.
+/// Saves an agent event off the UI thread, retried with backoff when nothing was held before. A `Result` ends the
+/// turns of the prompts it answers (`prompts`: two for a folded follow-up, none for a background wake) here, once,
+/// whether or not its row saves: the count follows the agent, the store catches up.
 pub(super) async fn save(
     unsaved: &Unsaved,
     store: &SharedStore,
@@ -124,16 +125,18 @@ pub(super) async fn save(
     turns: &Turns,
     cx: &mut AsyncApp,
 ) -> usize {
-    let idle = matches!(record, Record::Agent(Event::Result { .. }))
-        .then(|| {
+    let idle = match &record {
+        Record::Agent(Event::Result { prompts, .. }) if *prompts > 0 => {
+            let answered = usize::try_from(*prompts).unwrap_or(usize::MAX);
             let before = turns
                 .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                    Some(n.saturating_sub(1))
+                    Some(n.saturating_sub(answered))
                 })
                 .unwrap_or_default();
-            (before <= 1).then(|| turns.clone())
-        })
-        .flatten();
+            (before <= answered).then(|| turns.clone())
+        }
+        _ => None,
+    };
     let (q, s) = (unsaved.clone(), store.clone());
     let (was_empty, (mut left, mut saved)) = cx
         .background_spawn(async move {

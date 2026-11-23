@@ -34,6 +34,7 @@ pub struct BrowserView {
     /// Pages committed so far, so a caller can wait for the next one.
     loads: u64,
     focus: FocusHandle,
+    _data_dir: Option<tempfile::TempDir>,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
 }
@@ -59,28 +60,52 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
-        let mut builder = wry::WebViewBuilder::new()
-            .with_incognito(private)
-            .with_on_page_load_handler(move |event, url| {
-                if matches!(event, wry::PageLoadEvent::Started) {
-                    let _ = loaded_tx.send(url);
-                }
+        let mut no_folder = None;
+        let override_env = std::env::var_os("WEBVIEW2_USER_DATA_FOLDER");
+        let data_dir = crate::webview_data_dir(cfg!(windows), private, override_env.as_deref())
+            .unwrap_or_else(|e| {
+                no_folder = Some(e.context("give the agent tab its own web data folder"));
+                None
             });
+        let mut context = data_dir
+            .as_ref()
+            .map(|d| wry::WebContext::new(Some(d.path().to_owned())));
+        let builder = match context.as_mut() {
+            Some(context) => wry::WebViewBuilder::new_with_web_context(context),
+            None => wry::WebViewBuilder::new(),
+        };
+        let mut builder =
+            builder
+                .with_incognito(private)
+                .with_on_page_load_handler(move |event, url| {
+                    if matches!(event, wry::PageLoadEvent::Started) {
+                        let _ = loaded_tx.send(url);
+                    }
+                });
         let mut error = None;
         match url.map(parse_url) {
             Some(Ok(url)) => builder = builder.with_url(url.as_str()),
             Some(Err(e)) => error = Some(e),
             None => {}
         }
-        let webview = match WebView::build(builder, window, cx).context("create the webview") {
-            Ok(webview) => Some(cx.new(|_| webview)),
-            Err(e) => {
+        // A private tab whose own folder couldn't be made gets no webview rather than a shared session.
+        let webview = match no_folder {
+            Some(e) => {
                 error = Some(e);
                 None
             }
+            None => match WebView::build(builder, window, cx).context("create the webview") {
+                Ok(webview) => Some(cx.new(|_| webview)),
+                Err(e) => {
+                    error = Some(e);
+                    None
+                }
+            },
         };
         let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
-        Self::build(webview, engine, loaded_rx, url, error, window, cx)
+        let mut view = Self::build(webview, engine, loaded_rx, url, error, window, cx);
+        view._data_dir = data_dir;
+        view
     }
 
     /// A pane on `engine` (a test's fake page). `loads` reports each page that commits, as wry's
@@ -140,6 +165,7 @@ impl BrowserView {
             loaded: false,
             loads: 0,
             focus: cx.focus_handle(),
+            _data_dir: None,
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
         }

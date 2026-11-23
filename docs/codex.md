@@ -22,6 +22,7 @@ Items map onto `skyelab_agent::Event`, so the thread view, store and remote prot
 | `item/started` commandExecution, fileChange, mcpToolCall, webSearch | `Assistant` `ToolUse` (`shell`, `apply_patch`, `mcp__<server>__<tool>`, `web_search`) |
 | `item/completed` for those | `User` `ToolResult` |
 | `turn/completed` | `Result` (error unless `completed`; result is the last agent text or the error) |
+| `thread/start` / `thread/resume` error | one failed `Result` answering every queued prompt; later prompts fail at once |
 | deltas, token usage, status notifications | dropped |
 | anything else | `Unknown` |
 

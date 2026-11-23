@@ -20,9 +20,18 @@ pub enum Event {
         duration_ms: u64,
         total_cost_usd: f64,
         result: Option<String>,
+        /// How many of the prompts sent to the agent this result answers: claude can fold a prompt sent mid-turn
+        /// into the running turn (two prompts, one result), and a background wake answers none. Rows stored
+        /// before this field answered one.
+        #[serde(default = "one")]
+        prompts: u32,
     },
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.
     Unknown(Value),
+}
+
+fn one() -> u32 {
+    1
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -96,6 +105,7 @@ impl Event {
                 duration_ms: o.duration_ms,
                 total_cost_usd: o.total_cost_usd,
                 result: o.result,
+                prompts: 1,
             }),
             _ => None,
         };

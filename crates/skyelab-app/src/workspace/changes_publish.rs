@@ -15,7 +15,8 @@ use gpui_component::{
 };
 use skyelab_core::AccountsConfig;
 use skyelab_git::GitHub;
-use std::path::PathBuf;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 /// What an action runs against, read from the thread at click time.
 struct Target {
@@ -29,7 +30,7 @@ struct Target {
 }
 
 impl ChangesView {
-    fn target(&self, github: bool, cx: &App) -> Result<Target> {
+    fn target(&self, cx: &App) -> Result<Target> {
         let view = self
             .thread
             .as_ref()
@@ -47,17 +48,14 @@ impl ChangesView {
                 row.cwd.display()
             );
         }
-        resolves_to(&view.config, &self.dir, &row.account_id)?;
-        let gh_dir = github
-            .then(|| view.config.github_config_dir(&self.dir))
-            .transpose()?;
+        // The account checks run when the action does, against accounts.toml as saved then (`run`).
         Ok(Target {
             dir: self.dir.clone(),
             config: view.config.clone(),
             account_id: row.account_id.clone(),
             thread_id: row.id,
             store: view.backend.store.clone(),
-            gh_dir,
+            gh_dir: None,
         })
     }
 
@@ -74,7 +72,7 @@ impl ChangesView {
             return;
         }
         self.publish_note = None;
-        let target = match self.target(github, cx) {
+        let target = match self.target(cx) {
             Ok(t) => t,
             Err(e) => {
                 self.publish_error = Some(format!("{e:#}").into());
@@ -83,10 +81,18 @@ impl ChangesView {
             }
         };
         let gh_bin = super::gh_bin(cx);
+        let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         self.busy = true;
         self.publish_error = None;
         cx.notify();
         let task = cx.background_spawn(async move {
+            let mut target = target;
+            // The binding as saved right now, like an agent launch: an outside edit may have moved the folder.
+            target.config = super::thread::accounts_now(accounts_file.as_deref(), &target.config);
+            resolves_to(&target.config, &target.dir, &target.account_id)?;
+            if github {
+                target.gh_dir = Some(target.config.github_config_dir(&target.dir)?);
+            }
             let gh = target.gh_dir.as_deref().map(|config_dir| GitHub {
                 gh: &gh_bin,
                 config_dir,
@@ -136,14 +142,7 @@ impl ChangesView {
                 let tree = tree.context(
                     "the files were changing while the Changes tab loaded; refresh it, then commit",
                 )?;
-                let mut env = t.config.launch_env(&t.dir)?;
-                // ssh commit signing needs the agent; only for accounts that let their agents use it too, since
-                // the repo's hooks (agent-writable) see the same env.
-                if t.config.resolve(&t.dir).is_some_and(|a| a.ssh_agent)
-                    && let Some(sock) = std::env::var_os("SSH_AUTH_SOCK")
-                {
-                    env.push(("SSH_AUTH_SOCK", sock.into()));
-                }
+                let env = hook_env(&t.config, &t.dir)?;
                 let sha = skyelab_git::commit(&t.dir, &message, &paths, &env, Some(&tree))?;
                 Ok(format!("Committed {}", sha.get(..8).unwrap_or(&sha)))
             },
@@ -162,7 +161,8 @@ impl ChangesView {
             window,
             cx,
             |t, gh| {
-                let to = skyelab_git::push(&t.dir, &gh.context("no GitHub login")?)?;
+                let env = hook_env(&t.config, &t.dir)?;
+                let to = skyelab_git::push_with(&t.dir, &gh.context("no GitHub login")?, &env)?;
                 Ok(format!("Pushed to {to}"))
             },
             |this, note, _, _| this.publish_note = Some(note.into()),
@@ -274,4 +274,27 @@ pub(super) fn commit_label(selected: usize, total: usize) -> String {
         0 => format!("Commit all {}", files(total)),
         n => format!("Commit {}", files(n)),
     }
+}
+
+/// The env the repo's hooks run with on Commit and Push: the bound account's launch env plus the git credential
+/// binding its agents get (only its gh answers https, ssh only if the account allows it), and no prompts.
+fn hook_env(config: &AccountsConfig, dir: &Path) -> Result<Vec<(OsString, OsString)>> {
+    let account = config
+        .resolve(dir)
+        .with_context(|| format!("{} isn't bound to an account", dir.display()))?;
+    let mut env: Vec<(OsString, OsString)> = account
+        .launch_env()?
+        .into_iter()
+        .map(|(k, v)| (k.into(), v.into()))
+        .collect();
+    let git = skyelab_core::env::account_git_env(account, dir);
+    env.extend(git.into_iter().map(|(k, v)| (k.into(), v.into())));
+    // ssh commit signing needs the agent; only for accounts that let their agents use it too, since the repo's
+    // hooks (agent-writable) see the same env.
+    if account.ssh_agent
+        && let Some(sock) = std::env::var_os("SSH_AUTH_SOCK")
+    {
+        env.push(("SSH_AUTH_SOCK".into(), sock));
+    }
+    Ok(env)
 }

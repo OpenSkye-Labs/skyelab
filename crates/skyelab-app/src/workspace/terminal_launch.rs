@@ -1,7 +1,10 @@
 //! What a project terminal launches with beyond skyelab-terminal's inherited allowlist: the folder's account.
 
+use super::Workspace;
 use anyhow::Context as _;
+use gpui::{App, AppContext as _, Context, Window};
 use skyelab_core::AccountsConfig;
+use skyelab_terminal::SpawnOptions;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -77,4 +80,62 @@ fn private_dir(dir: &Path) -> anyhow::Result<()> {
             .with_context(|| format!("making {} private", dir.display()))?;
     }
     Ok(())
+}
+
+impl Workspace {
+    /// What a new terminal runs with: the current folder, under its bound account or none. Blocking (it runs
+    /// `git config`), so the job runs off the UI thread.
+    pub(super) fn terminal_job(
+        &self,
+        cx: &App,
+    ) -> impl FnOnce() -> anyhow::Result<SpawnOptions> + Send + use<> {
+        let config = self.accounts_job(cx);
+        let folder = self.folder.clone();
+        move || {
+            let config = config();
+            Ok(SpawnOptions {
+                env: terminal_env(&config, &folder, &unbound_root()?)?,
+                cwd: folder,
+                command: None,
+                cols: 80,
+                lines: 24,
+            })
+        }
+    }
+
+    /// The accounts as accounts.toml says when the job runs (the window's copy without a file), like an agent
+    /// launch: an outside edit applies to the next terminal at once.
+    pub(super) fn accounts_job(&self, cx: &App) -> impl FnOnce() -> AccountsConfig + Send + use<> {
+        let file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
+        let config = self.config.clone();
+        move || super::thread::accounts_now(file.as_deref(), &config)
+    }
+
+    /// Builds a terminal's options with `job` in the background, then opens it here (or hands the error to `failed`),
+    /// unless the window moved on meanwhile: to another machine, or `wanted` says no.
+    pub(super) fn open_terminal(
+        &mut self,
+        job: impl FnOnce() -> anyhow::Result<SpawnOptions> + Send + 'static,
+        wanted: impl FnOnce(&Self, &SpawnOptions) -> bool + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        failed: impl FnOnce(&mut Self, anyhow::Error, &mut Context<Self>) + 'static,
+    ) {
+        let options = cx.background_spawn(async move { job() });
+        cx.spawn_in(window, async move |this, cx| {
+            let options = options.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                let opened = options.and_then(|o| {
+                    if this.is_remote() || !wanted(this, &o) {
+                        return Ok(());
+                    }
+                    this.add_terminal_with(o, window, cx)
+                });
+                if let Err(e) = opened {
+                    failed(this, e, cx);
+                }
+            });
+        })
+        .detach();
+    }
 }

@@ -3,6 +3,7 @@
 # protocol: answers initialize, thread/start and thread/resume, replays codex-turn.jsonl for each
 # turn/start, and ends a turn as interrupted on turn/interrupt. Every line it reads comes back as a
 # `fake/request` notification, and thread/start/resume also report the env and args as `fake/env`.
+# A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
 # A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval.
 here=$(dirname "$0")
 v() { eval "printf '%s' \"\${$1-<unset>}\""; }
@@ -12,6 +13,11 @@ while IFS= read -r line; do
   case "$line" in
     *'"method":"initialize"'*) printf '{"id":%s,"result":{"userAgent":"fake-codex/0"}}\n' "$id" ;;
     *'"method":"thread/start"'*|*'"method":"thread/resume"'*)
+      if [ -f .fake-codex-refuse-open ]; then
+        sleep 1
+        printf '{"id":%s,"error":{"code":-32600,"message":"no rollout found for thread"}}\n' "$id"
+        continue
+      fi
       thread=$(printf '%s' "$line" | sed -n 's/.*"threadId":"\([^"]*\)".*/\1/p')
       [ -n "$thread" ] || thread=thr_fake
       printf '{"method":"fake/env","params":{"codex_home":"%s","claude_config_dir":"%s","openai_api_key":"%s","openai_base_url":"%s","openai_org_id":"%s","codex_api_key":"%s","codex_access_token":"%s","cwd":"%s","args":"%s"}}\n' \

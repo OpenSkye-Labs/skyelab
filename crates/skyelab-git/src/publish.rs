@@ -1,8 +1,9 @@
 //! Push and open a pull request under one account's `gh` login.
 
-use std::io::{self, Write as _};
+use std::ffi::OsString;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 
 use crate::{Error, Result, git, git_succeeds, hooked_command, lossy, repo_root};
 
@@ -22,6 +23,11 @@ pub struct GitHub<'a> {
 /// Pushes the current branch to its upstream, or to `origin/<branch>` (and sets that as the upstream).
 /// Returns `<remote>/<branch>`. https credentials come only from `gh` (see [`credential_args`]).
 pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
+    push_with(dir, gh, &[])
+}
+
+/// [`push`], with `env` added for the repo's hooks (the bound account's git credential binding).
+pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Result<String> {
     let root = repo_root(dir)?;
     let branch = current_branch(&root)?;
     let config = |key: String| -> Result<Option<String>> {
@@ -58,6 +64,7 @@ pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
         .arg("--recurse-submodules=no")
         .args(set_upstream.then_some("--set-upstream"))
         .args([&remote, &refspec])
+        .envs(env.iter().map(|(k, v)| (k, v)))
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
     checked(cmd, "git push", None)?;
@@ -240,28 +247,10 @@ fn current_branch(root: &Path) -> Result<String> {
 
 /// Runs `cmd` with `input` on stdin; a non-zero exit is an error carrying stderr.
 pub(crate) fn checked(mut cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
-    cmd.stdin(if input.is_some() {
-        Stdio::piped()
-    } else {
-        Stdio::null()
-    })
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| match e.kind() {
+    let out = skyelab_core::process::output(&mut cmd, input).map_err(|e| match e.kind() {
         io::ErrorKind::NotFound if what.starts_with("gh") => Error::GhNotInstalled,
         io::ErrorKind::NotFound => Error::GitNotInstalled,
         _ => Error::Io(e),
-    })?;
-    let stdin = child.stdin.take();
-    let out = std::thread::scope(|s| {
-        if let (Some(mut stdin), Some(input)) = (stdin, input) {
-            // A child that exits without reading closes the pipe; its exit status tells what went wrong.
-            s.spawn(move || match stdin.write_all(input) {
-                Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(()),
-                other => other,
-            });
-        }
-        child.wait_with_output()
     })?;
     if out.status.success() {
         return Ok(out);

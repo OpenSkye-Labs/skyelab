@@ -29,6 +29,35 @@ mod js;
 mod url;
 mod view;
 
+/// The user-data folder a webview gets: none for the user's tabs and off Windows (macOS and Linux give each private
+/// webview its own in-memory store), a fresh private one for each agent tab on Windows, where WebView2 shares one
+/// InPrivate session between the webviews of a folder. `override_env` is `WEBVIEW2_USER_DATA_FOLDER`, which can
+/// make WebView2 ignore the folder: then an agent tab is refused rather than share a session.
+pub fn webview_data_dir(
+    windows: bool,
+    private: bool,
+    override_env: Option<&std::ffi::OsStr>,
+) -> anyhow::Result<Option<tempfile::TempDir>> {
+    if !(windows && private) {
+        return Ok(None);
+    }
+    if override_env.is_some_and(|v| !v.is_empty()) {
+        anyhow::bail!(
+            "WEBVIEW2_USER_DATA_FOLDER is set, so agent tabs can't get a web data folder of their own; unset it"
+        );
+    }
+    Ok(Some(agent_data_dir()?))
+}
+
+/// A fresh private folder for one agent tab's web data, removed when dropped.
+pub fn agent_data_dir() -> std::io::Result<tempfile::TempDir> {
+    let mut builder = tempfile::Builder::new();
+    builder.prefix("skyelab-agent-tab-");
+    #[cfg(unix)]
+    builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700));
+    builder.tempdir()
+}
+
 pub use agent::parse_agent_url;
 pub use engine::{Engine, EvalDone};
 pub use url::parse_url;

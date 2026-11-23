@@ -1,6 +1,7 @@
 //! Runs agent sessions (Claude Code, or Codex) under the account bound to their folder. No GPUI, no
 //! tokio: a std reader thread feeds a flume channel, which GPUI's executor can await.
 
+mod claude;
 mod codex;
 mod event;
 mod launch;
@@ -35,6 +36,11 @@ pub struct Session {
     next_request: u64,
     /// Set for Codex: the protocol state the reader thread shares.
     codex: Option<Arc<Mutex<codex::Codex>>>,
+    sent: claude::Sent,
+    /// Windows: the Job Object the agent runs in. Closing it ends the agent and every process it started (on
+    /// Windows `Child::kill` ends only the `claude.cmd` shim's cmd.exe).
+    #[cfg(windows)]
+    job: Option<win32job::Job>,
 }
 
 /// What to launch: the account the caller resolved for `dir` (and recorded), and optionally a
@@ -76,7 +82,12 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
     let dir = &std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
     match config.resolve(dir) {
-        Some(now) if now == account => {}
+        Some(now) if now.same_login(account) => {}
+        Some(now) if now.id == account.id => bail!(
+            "account '{}' changed since this launch was prepared (its config dir, gh login or ssh setting); \
+             nothing was started",
+            now.id
+        ),
         Some(now) => bail!(
             "{} is now bound to '{}', not '{}'; nothing was started",
             dir.display(),
@@ -102,16 +113,10 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let mut cmd = Command::new(&bin);
     // Never inherit the parent's account or credentials: start empty, add the allowlist, then the bound account,
     // and git's https credentials from that account's gh only (`git push` in the agent's own shell).
-    let git = skyelab_core::env::git_credential_env(
-        account.gh_config_dir.is_some(),
-        &skyelab_core::env::scoped_extra_headers(dir),
-        account.ssh_agent,
-    );
     cmd.env_clear()
         .envs(skyelab_core::env::inherited_agent_env(account.ssh_agent))
         .envs(env)
-        .envs(git)
-        .env("GIT_TERMINAL_PROMPT", "0");
+        .envs(skyelab_core::env::account_git_env(account, dir));
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
     let codex = match account.provider {
@@ -147,9 +152,20 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         events,
         next_request: 0,
         codex: codex.as_ref().map(|(state, _)| state.clone()),
+        sent: claude::Sent::default(),
+        #[cfg(windows)]
+        job: None,
     };
+    // shortcut: a process the shim starts before this assignment is outside the job (a microsecond window); spawn suspended if that shows up.
+    #[cfg(windows)]
+    {
+        session.job = Some(job_for(&session.child).context("putting the agent in a Job Object")?);
+    }
     let parse: Box<Parse> = match codex {
-        None => Box::new(|line| vec![Event::parse(line)]),
+        None => {
+            let sent = session.sent.clone();
+            Box::new(move |line| vec![claude::parse(line, &sent)])
+        }
         Some((state, opening)) => {
             for line in opening {
                 session.queue(line)?;
@@ -176,6 +192,17 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         .context("spawning writer thread")?;
     session.send_user_message(prompt)?;
     Ok(session)
+}
+
+/// A Job Object that ends every process in it when it closes, with `child` in it.
+#[cfg(windows)]
+fn job_for(child: &std::process::Child) -> Result<win32job::Job> {
+    use std::os::windows::io::AsRawHandle as _;
+    let mut limits = win32job::ExtendedLimitInfo::new();
+    limits.limit_kill_on_job_close();
+    let job = win32job::Job::create_with_limit_info(&limits)?;
+    job.assign_process(child.as_raw_handle() as isize)?;
+    Ok(job)
 }
 
 /// Turns one stdout line into events (and, for Codex, answers it).
@@ -284,12 +311,8 @@ impl Session {
             let lines = lock(state).prompt(text)?;
             return lines.into_iter().try_for_each(|l| self.queue(l));
         }
-        self.write(&json!({
-            "type": "user",
-            "message": { "role": "user", "content": text },
-            "parent_tool_use_id": null,
-            "session_id": "",
-        }))
+        let message = claude::user_message(text, &self.sent);
+        self.write(&message)
     }
 
     /// Asks the agent to stop the current turn; the process stays alive for the next message.
@@ -307,25 +330,65 @@ impl Session {
         }))
     }
 
-    /// The exit status once `claude` has exited (reaping it), or `None` while it runs.
+    /// The exit status once the agent has exited (reaping it), or `None` while it runs. Reaping it also ends what
+    /// is left of its process group (a tool it started that still holds its stdout).
     pub fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
-        if self.status.is_none() {
-            self.status = self
-                .child
-                .try_wait()
-                .context("checking whether claude exited")?;
+        if self.status.is_some() {
+            return Ok(self.status);
+        }
+        // Unix: signal the group while the unreaped leader still holds its pid and group id, so it can't reach
+        // anyone else's. Windows: the Job Object names the tree, so it closes after the reap.
+        #[cfg(unix)]
+        {
+            if !self.exited_unreaped()? {
+                return Ok(None);
+            }
+            self.kill_group();
+        }
+        self.status = self
+            .child
+            .try_wait()
+            .context("checking whether the agent exited")?;
+        #[cfg(not(unix))]
+        if self.status.is_some() {
+            self.kill_group();
         }
         Ok(self.status)
     }
 
     /// Kills the process (and on unix its whole process group) and waits for it. Does nothing
     /// once the process has been reaped, by an earlier `kill` or a `try_wait` that returned `Some`.
-    // shortcut: after try_wait reaped a self-exited claude, survivors in its group keep running; fine while claude cleans up its own tools.
     pub fn kill(&mut self) -> Result<()> {
         // Unreaped, even a zombie leader still holds its pid and process group id, so they are safe to signal.
         if self.status.is_some() {
             return Ok(());
         }
+        self.kill_group();
+        // An already-exited child makes kill() error; wait() still reaps it.
+        let _ = self.child.kill();
+        self.status = Some(self.child.wait().context("waiting for the agent to exit")?);
+        Ok(())
+    }
+
+    /// Whether the agent has exited, without reaping it.
+    #[cfg(unix)]
+    fn exited_unreaped(&self) -> Result<bool> {
+        use rustix::process::{Pid, WaitId, WaitIdOptions, waitid};
+        let pid = i32::try_from(self.child.id())
+            .ok()
+            .and_then(Pid::from_raw)
+            .context("the agent's pid")?;
+        let options = WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT;
+        Ok(waitid(WaitId::Pid(pid), options)
+            .context("checking whether the agent exited")?
+            .is_some())
+    }
+
+    /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing
+    /// its kill-on-close Job Object on Windows.
+    fn kill_group(&mut self) {
+        #[cfg(windows)]
+        drop(self.job.take());
         // `unsafe` is denied, so no libc::killpg: the kill binary signals the group instead.
         #[cfg(unix)]
         {
@@ -333,13 +396,11 @@ impl Session {
                 launch::resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
             let _ = Command::new(kill)
                 .args(["-KILL", "--", &format!("-{}", self.child.id())])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .status();
         }
-        // An already-exited child makes kill() error; wait() still reaps it.
-        let _ = self.child.kill();
-        self.status = Some(self.child.wait().context("waiting for claude to exit")?);
-        Ok(())
     }
 
     fn write(&mut self, msg: &serde_json::Value) -> Result<()> {

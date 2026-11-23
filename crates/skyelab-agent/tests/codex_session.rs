@@ -139,6 +139,7 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
                 duration_ms: 1530,
                 total_cost_usd: 0.0,
                 result: Some("Hello from fake codex.".into()),
+                prompts: 1,
             },
         ]
     );

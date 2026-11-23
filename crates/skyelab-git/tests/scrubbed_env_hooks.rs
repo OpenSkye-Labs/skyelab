@@ -135,7 +135,7 @@ fn scrubbed_in_child() {
     }
     assert_clean_env(&base.join("filter.env"));
 
-    let account = [("CLAUDE_CONFIG_DIR", PathBuf::from("/acct/claude"))];
+    let account = [("CLAUDE_CONFIG_DIR".into(), "/acct/claude".into())];
     skyelab_git::commit(&repo, "change", &[], &account, None).expect("commit");
     let hook_env = base.join("pre-commit.env");
     let text = fs::read_to_string(&hook_env).expect("pre-commit ran");

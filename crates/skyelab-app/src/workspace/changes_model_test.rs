@@ -7,14 +7,16 @@ use std::process::Command;
 
 /// Runs git for test setup with a fixed identity, so the user's config can't break commits.
 pub(super) fn git(dir: &Path, args: &[&str]) {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
-        .args(["-c", "commit.gpgsign=false"])
-        .args(args)
-        .output()
-        .expect("git runs");
+    let out = skyelab_core::process::output(
+        Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
+            .args(["-c", "commit.gpgsign=false"])
+            .args(args),
+        None,
+    )
+    .expect("git runs");
     assert!(
         out.status.success(),
         "git {args:?}: {}",

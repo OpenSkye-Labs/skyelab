@@ -2,12 +2,12 @@
 //!
 //! No GPUI here: the settings UI calls [`Tailnet`] and matches on [`Error`].
 
+use skyelab_core::process::Captured;
 use std::collections::BTreeMap;
-use std::io::{ErrorKind, Read};
+use std::io::ErrorKind;
 use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
-use std::sync::mpsc;
+use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Deserializer};
@@ -258,13 +258,7 @@ impl TailscaleCli {
         deadline: Instant,
     ) -> Result<Output, Error> {
         for bin in &self.binaries {
-            let spawned = Command::new(bin)
-                .arg(command)
-                .args(args)
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn();
+            let spawned = Captured::spawn(Command::new(bin).arg(command).args(args), None);
             match spawned {
                 Ok(child) => return self.wait(child, command, deadline),
                 Err(e) if e.kind() == ErrorKind::NotFound => continue,
@@ -277,7 +271,7 @@ impl TailscaleCli {
     /// A hung tailscaled must fail closed, not hang the caller.
     fn wait(
         &self,
-        mut child: Child,
+        mut run: Captured,
         command: &'static str,
         deadline: Instant,
     ) -> Result<Output, Error> {
@@ -285,34 +279,20 @@ impl TailscaleCli {
             command,
             after: self.timeout,
         };
-        // Drain both pipes on their own threads, or a chatty child blocks on a full pipe and looks hung.
-        let stdout = drain(child.stdout.take());
-        let stderr = drain(child.stderr.take());
         let status = loop {
-            let polled = child.try_wait();
+            let polled = run.child.try_wait();
             if let Ok(Some(status)) = polled {
                 break status;
             }
             if polled.is_err() || Instant::now() >= deadline {
                 // Best effort: it may have exited in between, and either way we fail closed.
-                let _ = child.kill();
-                let _ = child.wait();
+                let _ = run.child.kill();
+                let _ = run.child.wait();
                 return Err(polled.err().map_or(timeout, Error::Io));
             }
             std::thread::sleep(Duration::from_millis(10));
         };
-        // A grandchild that inherited the pipes could hold them open past the exit; still bounded by the deadline.
-        let collect = |rx: mpsc::Receiver<Vec<u8>>| {
-            rx.recv_timeout(deadline.saturating_duration_since(Instant::now()))
-        };
-        match (collect(stdout), collect(stderr)) {
-            (Ok(stdout), Ok(stderr)) => Ok(Output {
-                status,
-                stdout,
-                stderr,
-            }),
-            _ => Err(timeout),
-        }
+        Ok(run.output(status)?)
     }
 
     pub fn status(&self) -> Result<Status, Error> {
@@ -447,21 +427,6 @@ where
     T: Default + Deserialize<'de>,
 {
     Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
-}
-
-fn drain(pipe: Option<impl Read + Send + 'static>) -> mpsc::Receiver<Vec<u8>> {
-    let (tx, rx) = mpsc::channel();
-    if let Some(mut pipe) = pipe {
-        std::thread::spawn(move || {
-            let mut buf = Vec::new();
-            // A read error just ends the output early; the exit status still tells the caller what happened.
-            let _ = pipe.read_to_end(&mut buf);
-            let _ = tx.send(buf);
-        });
-    } else {
-        let _ = tx.send(Vec::new());
-    }
-    rx
 }
 
 #[cfg(test)]

@@ -71,8 +71,14 @@ impl Workspace {
                 tool,
                 reply,
             } => {
-                if !reply.is_disconnected() {
-                    self.browser_call(caller.thread_id, tool, reply, window, cx);
+                if reply.is_disconnected() {
+                    return;
+                }
+                match self.caller_live(&caller, cx) {
+                    Ok(()) => self.browser_call(caller.thread_id, tool, reply, window, cx),
+                    Err(why) => {
+                        let _ = reply.send(Err(why));
+                    }
                 }
             }
         }
@@ -81,10 +87,7 @@ impl Workspace {
     fn caller_live(&self, caller: &Caller, cx: &App) -> Result<(), String> {
         match self.open_view(caller.thread_id, cx) {
             Some(view) if view.read(cx).is_live() => Ok(()),
-            _ => Err(
-                "this thread isn't running here any more (it was stopped, or its tab closed); nothing was done"
-                    .into(),
-            ),
+            _ => Err(super::orchestrate::CALLER_GONE.into()),
         }
     }
 

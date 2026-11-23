@@ -54,6 +54,11 @@ pub fn is_busy(status: &str) -> bool {
     matches!(status, "starting" | "running")
 }
 
+/// A thread with this store status still has its agent process (between turns, or working on one).
+pub fn is_live(status: &str) -> bool {
+    status == "idle" || is_busy(status)
+}
+
 /// Refuses a start from a caller at `depth` that already has `live_children`.
 pub fn check_limits(depth: u32, live_children: usize) -> Result<(), String> {
     check_depth(depth)?;
