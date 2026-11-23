@@ -310,6 +310,7 @@ pub(super) fn render_questions<V: ItemsView>(
 pub(super) fn render_plan<V: ItemsView>(
     this: &V,
     a: &ApprovalItem,
+    window: &mut Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
     if let Some(d) = a.decision {
@@ -367,6 +368,7 @@ pub(super) fn render_plan<V: ItemsView>(
                     &plan,
                     false,
                     this.files_root(),
+                    window,
                     cx,
                 )),
         )

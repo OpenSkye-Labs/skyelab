@@ -5,7 +5,7 @@ use super::files::{lexically_inside, link_line, linkify};
 use super::thread_items::ItemsView;
 use super::thread_render::opens_in_browser;
 use super::tool_cards;
-use gpui::{Context, div, prelude::*};
+use gpui::{Context, SharedString, div, prelude::*};
 use gpui_component::text::TextView;
 use skyelab_agent::Usage;
 
@@ -63,10 +63,32 @@ pub(super) fn markdown<V: ItemsView>(
     text: &str,
     live: bool,
     root: Option<&std::path::Path>,
+    window: &mut gpui::Window,
     cx: &mut Context<V>,
 ) -> TextView {
+    let id = id.into();
     let view = cx.entity().downgrade();
-    let text = root.map_or_else(|| text.to_owned(), |root| linkify(text, root));
+    let text: SharedString = match root {
+        None => text.to_owned().into(),
+        // Linkified once per text, not on every frame: the element keeps the last result.
+        Some(root) => {
+            let cache = window.use_keyed_state(id.clone(), cx, |_, _| Linked::default());
+            let hit = cache.read(cx);
+            if hit.source == text && hit.root == root {
+                hit.linked.clone()
+            } else {
+                let linked: SharedString = linkify(text, root).into();
+                cache.update(cx, |c, _| {
+                    *c = Linked {
+                        source: text.to_owned(),
+                        root: root.to_path_buf(),
+                        linked: linked.clone(),
+                    }
+                });
+                linked
+            }
+        }
+    };
     let root = root.map(std::path::Path::to_path_buf);
     TextView::markdown(id, text)
         .selectable(true)
@@ -92,6 +114,14 @@ pub(super) fn markdown<V: ItemsView>(
                 let _ = view.update(cx, |v, cx| v.preview_path(&path, line, cx));
             }
         })
+}
+
+/// A markdown block's last linkified text, kept by its element.
+#[derive(Default)]
+struct Linked {
+    source: String,
+    root: std::path::PathBuf,
+    linked: SharedString,
 }
 
 /// A markdown link target that names a file (`src/a.rs`, `/abs/b.rs:12`), without its line suffix. Anything with a

@@ -150,10 +150,6 @@ fn render_row<V: ItemsView>(
     let files = super::turn_files::render(this, ix, cx);
     let theme = cx.theme();
     let muted = theme.muted_foreground;
-    let Some(item) = this.items().get(ix).cloned() else {
-        return div().into_any_element();
-    };
-    let item = &item;
     // T3's chat column: 736 wide, centered; rows 16 apart.
     let column = |child: AnyElement| {
         h_flex()
@@ -171,6 +167,17 @@ fn render_row<V: ItemsView>(
             .px_6()
             .child(div().w_full().max_w(ui::CHAT_MAX_W).py_0p5().child(child))
             .into_any_element()
+    };
+    // The questions card is the one row that needs the view mutably (its answer fields), so only it is cloned.
+    if let Some(Item::Approval(a)) = this.items().get(ix)
+        && a.tool == skyelab_agent::QUESTION_TOOL
+    {
+        let a = a.clone();
+        return column(ask_cards::render_questions(this, &a, window, cx));
+    }
+    let this: &V = this;
+    let Some(item) = this.items().get(ix) else {
+        return div().into_any_element();
     };
     match item {
         Item::Prompt(text) | Item::Steer(text) => column(
@@ -193,7 +200,14 @@ fn render_row<V: ItemsView>(
                 .px_1()
                 .gap_1()
                 .text_size(ui::BODY)
-                .child(markdown(("md", ix), text, false, root.as_deref(), cx))
+                .child(markdown(
+                    ("md", ix),
+                    text,
+                    false,
+                    root.as_deref(),
+                    window,
+                    cx,
+                ))
                 .child(
                     h_flex()
                         .debug_selector(|| "message-copy".into())
@@ -218,7 +232,14 @@ fn render_row<V: ItemsView>(
                 .debug_selector(|| "streaming-text".into())
                 .px_1()
                 .text_size(ui::BODY)
-                .child(markdown(("md", ix), text, true, root.as_deref(), cx))
+                .child(markdown(
+                    ("md", ix),
+                    text,
+                    true,
+                    root.as_deref(),
+                    window,
+                    cx,
+                ))
                 .into_any_element(),
         ),
         Item::Live {
@@ -245,11 +266,8 @@ fn render_row<V: ItemsView>(
         }
         Item::Tool(tool) => tight(render_tool(this, tool, cx)),
         Item::Subagent(s) => tight(super::subagent::render(this, s, cx)),
-        Item::Approval(a) if a.tool == skyelab_agent::QUESTION_TOOL => {
-            column(ask_cards::render_questions(this, a, window, cx))
-        }
         Item::Approval(a) if a.tool == skyelab_agent::PLAN_TOOL => {
-            column(ask_cards::render_plan(this, a, cx))
+            column(ask_cards::render_plan(this, a, window, cx))
         }
         Item::Approval(a) => column(ask_cards::render_approval(this, a, cx)),
         Item::Limit { resets_at } => column(
