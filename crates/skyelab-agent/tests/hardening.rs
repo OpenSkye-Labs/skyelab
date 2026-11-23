@@ -172,6 +172,9 @@ fn path_lookup_in_child() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let session = start(&cfg, &launch).expect("start");

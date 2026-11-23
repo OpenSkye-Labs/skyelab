@@ -94,12 +94,12 @@ fn session_rules(ask: &Ask) -> Vec<Value> {
 }
 
 /// The stream-json line for a user prompt, recorded in `pending`.
-pub(crate) fn user_message(text: &str, pending: &Sent) -> Value {
+pub(crate) fn user_message(text: &str, attachments: &[crate::Attachment], pending: &Sent) -> Value {
     let uuid = uuid::Uuid::new_v4().to_string();
     sent(pending).push_back(uuid.clone());
     json!({
         "type": "user",
-        "message": { "role": "user", "content": text },
+        "message": { "role": "user", "content": crate::attach::claude_content(text, attachments) },
         "parent_tool_use_id": null,
         "session_id": "",
         "uuid": uuid,
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn a_background_wake_keeps_the_turns_open_asks() {
         let (sent, open) = (Sent::default(), Asks::default());
-        user_message("hello", &sent);
+        user_message("hello", &[], &sent);
         let ask = r#"{"type":"control_request","request_id":"r","request":{"subtype":"can_use_tool","tool_name":"Read","input":{}}}"#;
         let id = match &parse(ask, &sent, &open)[..] {
             [Event::Permission { id, .. }] => id.clone(),

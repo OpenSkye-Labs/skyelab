@@ -91,4 +91,11 @@ CREATE TABLE project_scripts (
 );
 CREATE INDEX project_scripts_by_project ON project_scripts(project_id, id);
 ",
+    // Version 9: the composer's model and effort per thread, and each project's default for new threads.
+    "
+ALTER TABLE threads ADD COLUMN model TEXT;
+ALTER TABLE threads ADD COLUMN effort TEXT;
+ALTER TABLE projects ADD COLUMN default_model TEXT;
+ALTER TABLE projects ADD COLUMN default_effort TEXT;
+",
 ];

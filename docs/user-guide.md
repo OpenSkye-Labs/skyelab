@@ -37,76 +37,7 @@ no longer connected is ignored.
 
 ## Accounts and bindings
 
-SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
-A folder with no binding never runs an agent.
-
-### Add an account
-
-1. Sign in to the account in its own config folder:
-
-   ```sh
-   CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
-   ```
-
-2. Open Settings (<kbd>⌘,</kbd>). In **Accounts & bindings**, under **Add account**, pick **Claude** or **Codex**, enter an id (`work`), a label
-   (`Work (Team)`) and the absolute config folder (`/Users/you/.claude-work`), then click **Add**.
-
-For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). After adding it,
-press **Log in to Codex** on its row: that opens a terminal running `codex login` with `CODEX_HOME` set to that
-folder (SkyeLab creates the folder first, private to you). A config file written before Codex support has no
-`provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's
-sessions); to switch, add a new account and re-bind the folder.
-
-Codex threads run `codex app-server` in the `workspace-write` sandbox by default: Codex can edit files in the folder
-but not outside it, and has no network for its commands. When it wants to run a command it doesn't trust or step
-outside the sandbox, the thread asks you (see [Permissions](#permissions)). The repo's own `.codex/` config, hooks and rules never load; your account's own
-`CODEX_HOME/config.toml` (MCP servers, model) does.
-
-Accounts and bindings are saved in `accounts.toml` in the platform config folder:
-`~/Library/Application Support/skyelab/` on macOS, `~/.config/skyelab/` on Linux, `%APPDATA%\skyelab\` on Windows.
-
-### Bind a folder
-
-In Settings, under **Folder bindings**, pick the account and click **Bind folder…**. Everything under that folder
-now runs on that account. A deeper binding wins over a shallower one, so you can bind `~/work` to your work account
-and `~/work/oss-fork` to your personal one. Use **Test folder** to check which account a path resolves to.
-
-The status bar shows the account for the current folder, or **No account** in the warning color. If you send a prompt in an unbound
-folder, the thread asks you to bind it first and offers a **Bind this folder to an account** button.
-
-### Stale bindings and Re-confirm
-
-When you bind a folder, SkyeLab records the real folder the path pointed to at that moment. If the path later
-points somewhere else, the binding turns **stale**: it shows a yellow warning and no agent starts under it. This
-happens when:
-
-- the path became a symlink, or a symlink was pointed at another folder (**Not the folder you confirmed any more**),
-- the binding was written by an older SkyeLab that didn't record the folder (**Not confirmed yet**),
-- the path can't be resolved at all, for example a broken link (**Can't be resolved now**).
-
-The warning shows the folder the path points to now and the one you confirmed. If the new folder is right, click
-**Re-confirm**. If not, fix the folder on disk or **Remove** the binding.
-
-## GitHub per account
-
-Give an account its own GitHub login: in Settings → **Accounts & bindings**, set the account's GitHub config dir (an
-absolute path such as `/Users/me/.config/gh-work`), then in Settings → **GitHub** press **Log in to GitHub**. That
-opens a terminal running `gh auth login` with `GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. The
-**GitHub** section then shows which GitHub user is logged in.
-
-Agents, project terminals and the Changes tab's **Commit**, **Push** and **Open PR** use the folder's account's
-GitHub login. If the account has none, Push and Open PR refuse instead of using your global `gh` login. Push only
-works for https remotes without credentials in the URL, and checks every push URL of the remote; ssh remotes are
-refused, because an ssh key isn't tied to an account.
-
-An agent's own `git push` (in its shell) also asks only the account's `gh` for https credentials, never your
-keychain or a helper from `~/.gitconfig`. Agents don't get your ssh-agent, and git's ssh transport fails for them.
-To let one account's agents push over ssh anyway, add `ssh_agent = true` to that `[[account]]` in `accounts.toml`.
-
-**Commit** commits the ticked files, or with none ticked exactly the working tree the Changes tab shows (the
-button says how many files). If anything changed since the tab loaded, Commit refuses; refresh, look again, and
-commit. Repo hooks run on Commit and Push, with the same clean environment; if a commit hook adds files you
-didn't review, the commit is undone and they stay staged. Push never pushes submodules.
+Binding folders to accounts, and a GitHub login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 
 ## Threads
 
@@ -114,8 +45,34 @@ didn't review, the commit is undone and they stay staged. Push never pushes subm
 2. Select the project and click **New** under Threads.
 3. Type a prompt and press <kbd>⌘↩</kbd> (or click **Send**).
 
-The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
-current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
+### The composer
+
+- **Attach** (the paperclip), drag files onto the composer, or paste an image or copied files. Images (PNG, JPEG,
+  GIF, WebP), PDFs and text files work, up to 5 MB each and 10 per message; each shows as a chip you can remove.
+  Claude gets them as image and document blocks. Codex gets images and text files, not PDFs.
+- **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
+  then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it.
+- **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
+  account's `commands/` folder (in its config dir) and the project's `.claude/commands/`. SkyeLab starts Claude
+  with only your user settings, so a project command may not run. Codex has no slash commands.
+- **`$`** lists your account's skills (`skills/<name>/SKILL.md` in its config dir). Picking one inserts `/name` for
+  Claude and `$name` for Codex. Commands and skills come only from the account the folder is bound to.
+- **The model picker** (right of the composer, **Default model** until you pick) sets the model and effort for this
+  thread: Opus, Sonnet, Haiku or Fable with effort Low to Max for Claude, or the models Codex lists for your account.
+  A pick is kept on the thread and becomes the project's default for new threads. A running Claude agent switches
+  model from the next message; a new effort applies the next time it starts.
+- **While the agent works**, Send queues the message instead: it shows above the composer with **Sends when the
+  agent finishes**, and goes as soon as the turn ends, in order. **Steer** on a queued message, or
+  <kbd>⇧⌘↩</kbd> while typing, sends it into the running turn now. A `/command` always waits for the turn to end.
+  Messages from another device or another agent are sent at once, as before.
+- **The strip under the composer** shows this machine's name, the account, **Local checkout** or **Worktree** (click
+  it before the first send to run in a new worktree), how many files changed (click it to open Changes, refreshed
+  after each turn) and the current branch.
+
+The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. While a turn runs and the
+composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
+ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
+**Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
 another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
 event, and saves them in order once the store works again. Quitting before then loses them.
@@ -124,7 +81,7 @@ without stopping it (a crash, say) shows as **interrupted**; send a follow-up to
 
 ### Permissions
 
-Under the composer, **Permissions** picks what the thread's agent may do without asking:
+In the composer, next to the model picker, **Permissions** picks what the thread's agent may do without asking:
 
 - **Ask** (the default): it asks before anything its own rules don't already allow.
 - **Plan**: it reads and plans only, with no edits or commands (for Codex, a read-only sandbox).
@@ -135,12 +92,13 @@ Under the composer, **Permissions** picks what the thread's agent may do without
 
 The mode is saved with the thread and used every time its agent starts or resumes. Changing it while the agent runs
 applies at once for Claude and from the next turn for Codex. Claude takes Full access only when it starts: switching a
-running Claude thread to Full access saves the choice and says so; Stop it and send a message to continue in Full
-access.
+running Claude thread to Full access saves the choice and says so; stop it (**Stop Agent**) and send a message to
+continue in Full access.
 
 When the agent asks, the thread shows a **Waiting for approval** card with the tool and what it wants to do (the
 command, or the file), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
-for this call, or this exact command when it has none; while this agent runs; after a resume it asks again) or **Deny**. Afterwards the row says what was decided.
+for this call, or this exact command when it has none; while this agent runs; after a resume it asks again) or **Deny**,
+or **Interrupt** to stop the turn instead. Afterwards the row says what was decided.
 An ask the agent withdraws (an interrupt, its turn ended, or the agent stopped) shows **Withdrawn**. A request in a thread whose agent has
 stopped can't be answered; send a message to continue. Another machine viewing the thread, and the mobile app, show
 the same card and can answer it.
@@ -222,7 +180,7 @@ it had already sent. Codex threads get the same tools, with the same account rul
 
 ## Worktrees
 
-Tick **Run in a new worktree** in the composer before you send the first prompt. The thread then works in its own
+Click **Local checkout** under the composer (it turns into **New worktree**) before you send the first prompt. The thread then works in its own
 git worktree at `<project>/.skyelab/worktrees/<slug>` on a new branch `skyelab/<slug>`, started from the branch the
 header's picker shows as **From <branch>** (the current branch unless you pick another). The `.skyelab` folder is
 added to the repo's local `info/exclude`, so it never shows up in `git status`.
@@ -233,7 +191,7 @@ The thread header then has:
   A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one
   "Diff too large" row with the line count instead: open those in a terminal or your editor.
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.
-- **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
+- **Discard worktree** removes the worktree. Stop the agent first (**Stop Agent** in the command palette). If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.
 
 ## Branches, scripts and turns

@@ -5,7 +5,7 @@ use super::Workspace;
 use super::center::Page;
 pub(super) use super::remote_queue::StartQueue;
 use super::remote_queue::{FIRST_LOAD_WAIT, HeldStart, MAX_WAITING_STARTS};
-use super::thread::{SendPrompt, ThreadView};
+use super::thread::ThreadView;
 use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
     RevokeDevice, ToggleSharing,
@@ -480,8 +480,8 @@ impl ThreadView {
         let refused = self.resume_refused.take();
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
-        self.send_prompt(&SendPrompt, window, cx);
-        // send_prompt clears the prompt exactly when it took the text.
+        self.submit_external(window, cx);
+        // It clears the prompt exactly when it took the text.
         let taken = self.prompt.read(cx).value().is_empty();
         self.prompt
             .update(cx, |p, cx| p.set_value(draft, window, cx));

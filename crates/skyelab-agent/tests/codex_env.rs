@@ -45,6 +45,9 @@ fn env_check_in_child() {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let session = start_with_bin(&bin, &config, &launch).expect("start");

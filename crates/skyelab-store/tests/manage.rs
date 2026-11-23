@@ -66,7 +66,7 @@ fn v5_database_upgrades_to_v7_and_keeps_rows() {
     let found = store.search_threads("flamingo", None, 10).expect("search");
     assert_eq!(found.iter().map(|t| t.id).collect::<Vec<_>>(), [1]);
     drop(store);
-    assert_eq!(version(&path), 8, "and on through v8 (project scripts)");
+    assert_eq!(version(&path), 9, "and on through v9 (model pick)");
 }
 
 #[test]

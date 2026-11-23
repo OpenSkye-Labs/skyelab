@@ -36,6 +36,9 @@ fn rules_sent(request: &str) -> Vec<Value> {
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Mode::Default,
     };
     let mut s = start_with_bin(&bin, &cfg, &launch).expect("start");

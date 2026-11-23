@@ -24,6 +24,9 @@ fn start(saved: &Account, launched: &Account, dir: &Path) -> anyhow::Result<()> 
         resume: None,
         prompt: "hi",
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode: Default::default(),
     };
     let mut session = start_with_bin(&fake_bin(), &config(dir, saved.clone()), &launch)?;

@@ -270,3 +270,31 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
         None => path.display().to_string(),
     }
 }
+
+// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer and queue icons).
+gpui_kit_assets::icon_assets!(
+    ExtraIcons,
+    [
+        Paperclip, GitBranch, Laptop, Folder, FolderGit2, FileDiff, X, Clock, Square
+    ]
+);
+
+/// gpui-component's icons plus [`ExtraIcons`].
+pub struct AppAssets;
+
+impl gpui::AssetSource for AppAssets {
+    fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        match ExtraIcons.load(path)? {
+            Some(bytes) => Ok(Some(bytes)),
+            None => gpui_kit_assets::Assets.load(path),
+        }
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
+        let mut paths = gpui_kit_assets::Assets.list(path)?;
+        paths.extend(ExtraIcons.list(path)?);
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
+    }
+}

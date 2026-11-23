@@ -29,6 +29,7 @@ pub(super) const RIGHT_DEFAULT_W: Pixels = px(560.);
 const SAVE_AFTER: Duration = Duration::from_millis(600);
 
 pub(super) fn bind_keys(cx: &mut App) {
+    super::thread::composer::bind_keys(cx); // the thread composer's keys too: one call site in workspace::init
     cx.bind_keys([KeyBinding::new(
         TOGGLE_RIGHT_KEY,
         ToggleRightPanel,

@@ -1,4 +1,4 @@
-//! Starting `claude` for a thread: a new thread, a follow-up, or resuming an ended session.
+//! Starting `claude` for a thread: a new thread, or resuming an ended session. Follow-ups are `thread_follow_up.rs`.
 
 use super::{Record, ThreadView, ThreadViewEvent, append};
 use crate::workspace::lock;
@@ -21,9 +21,10 @@ fn title(prompt: &str) -> String {
 impl ThreadView {
     /// Continues an ended thread's `claude` session, only under the account on its row: the
     /// session's files live in that account's config dir.
-    pub(super) fn resume(
+    pub(in crate::workspace) fn resume(
         &mut self,
         text: String,
+        attachments: Vec<skyelab_agent::Attachment>,
         thread: Thread,
         resolved: Option<Account>,
         window: &mut Window,
@@ -33,9 +34,10 @@ impl ThreadView {
         match resolved {
             Some(account) if account.id == thread.account_id => {
                 self.resume_refused = None;
-                self.launch(text, account, Some(thread), window, cx);
+                self.launch(text, attachments, account, Some(thread), window, cx);
             }
             Some(other) => {
+                self.composer.attachments.extend(attachments); // kept with the unsent text
                 self.resume_refused = Some(
                     format!(
                         "This folder is now bound to {} ({}), but this thread ran under {}. \
@@ -47,6 +49,7 @@ impl ThreadView {
                 cx.notify();
             }
             None => {
+                self.composer.attachments.extend(attachments);
                 // No path: this text also goes to remote clients (submit_remote).
                 self.resume_refused = Some(
                     format!(
@@ -62,9 +65,10 @@ impl ThreadView {
     }
 
     /// Starts the account's agent (`claude` or `codex`) under `account`: a new thread row, or `resume`'s session.
-    pub(super) fn launch(
+    pub(in crate::workspace) fn launch(
         &mut self,
         text: String,
+        attachments: Vec<skyelab_agent::Attachment>,
         account: Account,
         resume: Option<Thread>,
         window: &mut Window,
@@ -74,7 +78,9 @@ impl ThreadView {
         self.stop_requested = false;
         self.launches += 1;
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        self.push(&Record::Prompt(text.clone()), cx);
+        let record = Record::Prompt(super::composer::shown_prompt(&text, &attachments));
+        self.push(&record, cx);
+        let pick = self.composer.pick.clone();
 
         let bin = match account.provider {
             Provider::Claude => self.backend.claude_bin.clone(),
@@ -159,7 +165,11 @@ impl ThreadView {
                                 &project,
                                 &NewThread {
                                     project_id,
-                                    title: &title(&text),
+                                    title: &title(if text.is_empty() {
+                                        "Attachment"
+                                    } else {
+                                        &text
+                                    }),
                                     cwd: &cwd,
                                     account_id: &account.id,
                                     status: "starting",
@@ -181,11 +191,10 @@ impl ThreadView {
                         unsaved
                             .flush(&store, thread.id)
                             .context("earlier events of this thread aren't saved yet")?;
-                        append(
-                            &mut *lock(&store)?,
-                            thread.id,
-                            &Record::Prompt(text.clone()),
-                        )?;
+                        append(&mut *lock(&store)?, thread.id, &record)?;
+                        if is_new {
+                            lock(&store)?.set_thread_model(thread.id, &pick)?;
+                        }
                         // Before the agent can touch anything: what "before this turn" rewinds to.
                         crate::workspace::thread_checkpoints::before_turn(
                             &cwd,
@@ -199,6 +208,9 @@ impl ThreadView {
                             resume: thread.agent_session_id.as_deref(), // a new row has none
                             prompt: &text,
                             mcp_config: grant.as_ref().map(|g| g.config_path()),
+                            model: pick.model.as_deref(),
+                            effort: pick.effort.as_deref(),
+                            attachments: &attachments,
                             mode,
                         };
                         // The binding as saved right now: a rebind may have landed while this launch ran. An
@@ -271,8 +283,12 @@ impl ThreadView {
         if self.thread.as_ref().is_some_and(|t| t.id == thread.id) {
             return;
         }
+        let moved = self.cwd != thread.cwd; // into its new worktree
         self.cwd = thread.cwd.clone();
         self.thread = Some(thread.clone());
+        if moved {
+            self.refresh_footer(cx);
+        }
         cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
         // Only for threads the user started: a setup script runs repo code in a terminal, which has the user's ssh
         // agent, so an agent's delegated thread must not trigger it.
@@ -285,105 +301,5 @@ impl ThreadView {
             cx.emit(ThreadViewEvent::WorktreeCreated { cwd, account_id });
         }
         cx.notify();
-    }
-
-    pub(super) fn follow_up(
-        &mut self,
-        text: String,
-        account: &Account,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let (Some(session), Some(thread)) = (self.session.clone(), &self.thread) else {
-            return;
-        };
-        // The running agent keeps the account it started with; a rebound folder needs a new thread.
-        if thread.account_id != account.id {
-            let msg = format!(
-                "This folder is now bound to {}. Start a new thread to run under it.",
-                account.label
-            );
-            self.error = Some(msg.into());
-            cx.notify();
-            return;
-        }
-        let (store, id, parent) = (
-            self.backend.store.clone(),
-            thread.id,
-            thread.parent_thread_id,
-        );
-        let turns = self.turns.clone();
-        let (cwd, key) = (
-            thread.cwd.clone(),
-            crate::workspace::thread_checkpoints::key(thread),
-        );
-        let on_sent = self.on_sent.take();
-        let unsaved = self.unsaved.clone();
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        let record = Record::Prompt(text.clone());
-        self.push(&record, cx);
-        // Chained, so quick follow-ups reach the store and claude in the order they were sent.
-        let prev = self.send_chain.take();
-        let write = cx.background_executor().clone();
-        self.send_chain = Some(cx.spawn(async move |this, cx| {
-            if let Some(prev) = prev {
-                prev.await;
-            }
-            let sent = write
-                .spawn(async move {
-                    // An idle child that gets a new turn takes a slot again: claimed with its status write.
-                    let (was, idle) = {
-                        let store = lock(&store)?;
-                        let was = store.thread(id)?.map(|t| t.status).unwrap_or_default();
-                        // Stop or an exit got here first: writing "running" would hold a slot with no process.
-                        if !skyelab_core::delegation::is_live(&was) {
-                            anyhow::bail!("the agent has ended; send again to resume it");
-                        }
-                        if let Some(parent) = parent
-                            && !skyelab_core::delegation::is_busy(&was)
-                        {
-                            crate::workspace::child_slots::claim(&store, parent, Some(id))?;
-                        }
-                        store.set_thread_status(id, "running")?;
-                        // Counted before it is sent, so a quick result can't find zero and mark the row idle early,
-                        // and under the store lock, so a held idle can't land between "running" and the count.
-                        let idle = turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0;
-                        (was, idle)
-                    };
-                    // Before the agent gets it: what "before this turn" rewinds to. A prompt queued behind a running
-                    // turn takes none, or it would overwrite that turn's own starting point.
-                    if idle {
-                        crate::workspace::thread_checkpoints::before_turn(&cwd, &key);
-                    }
-                    // Queued first, so a full queue stores no prompt claude never got.
-                    if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
-                        turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-                        // Only if nothing (a result, Stop) has written since.
-                        let _ = lock(&store).and_then(|s| match s.thread(id)? {
-                            Some(t) if t.status == "running" => s.set_thread_status(id, &was),
-                            _ => Ok(()),
-                        });
-                        return Err(e);
-                    }
-                    // Behind any held replies, and held itself if the store refuses it.
-                    Ok(unsaved.push_and_save(&store, id, Some(record), None).0)
-                })
-                .await;
-            if let Some(reply) = on_sent {
-                // Only a limit or an ended agent is the caller's business; store details stay in the tab.
-                let _ = reply.send(sent.as_ref().map(|_| ()).map_err(|e| {
-                    let why = format!("{e:#}");
-                    if why.contains("running children") || why.contains("has ended") {
-                        why
-                    } else {
-                        "the message couldn't be sent; the thread's tab says why".to_owned()
-                    }
-                }));
-            }
-            let _ = this.update(cx, |this, cx| match sent {
-                Ok(left) => this.saved(left, cx),
-                Err(e) => this.show_error(e, cx),
-            });
-        }));
     }
 }

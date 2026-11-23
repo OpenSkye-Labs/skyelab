@@ -108,6 +108,7 @@ impl ThreadView {
                     if matches!(record, Record::Agent(Event::Result { .. })) {
                         this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
+                        this.after_turn(cx);
                     }
                 });
                 if shown.is_err() {
@@ -200,6 +201,9 @@ impl ThreadView {
     ) {
         if let Some(session) = self.session.clone() {
             self.in_background(cx, move || lock(&session)?.interrupt());
+            if self.turn_running() {
+                self.interrupt_pending(cx);
+            }
         }
     }
 
@@ -240,7 +244,7 @@ impl ThreadView {
     }
 
     /// Runs blocking work on the background executor and shows its error, if any, inline.
-    pub(super) fn in_background(
+    pub(in crate::workspace) fn in_background(
         &mut self,
         cx: &mut Context<Self>,
         work: impl FnOnce() -> Result<()> + Send + 'static,

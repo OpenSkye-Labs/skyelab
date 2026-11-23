@@ -34,6 +34,9 @@ fn start(name: &str, prompt: &str, mode: Mode) -> (Session, tempfile::TempDir) {
         resume: None,
         prompt,
         mcp_config: None,
+        model: None,
+        effort: None,
+        attachments: &[],
         mode,
     };
     (
