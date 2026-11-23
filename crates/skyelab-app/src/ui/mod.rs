@@ -330,7 +330,8 @@ gpui_kit_assets::icon_assets!(
         Columns2,
         TextWrap,
         Pilcrow,
-        Terminal
+        Terminal,
+        Keyboard
     ]
 );
 

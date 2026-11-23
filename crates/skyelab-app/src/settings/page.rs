@@ -11,15 +11,17 @@ pub enum Section {
     GitHub,
     Sharing,
     Threads,
+    Keys,
     Appearance,
 }
 
 impl Section {
-    pub const ALL: [Section; 5] = [
+    pub const ALL: [Section; 6] = [
         Section::Accounts,
         Section::GitHub,
         Section::Sharing,
         Section::Threads,
+        Section::Keys,
         Section::Appearance,
     ];
 
@@ -29,6 +31,7 @@ impl Section {
             Section::GitHub => "GitHub",
             Section::Sharing => "Sharing",
             Section::Threads => "Threads",
+            Section::Keys => "Keyboard shortcuts",
             Section::Appearance => "Appearance",
         }
     }
@@ -40,6 +43,7 @@ impl Section {
             Section::GitHub => "github",
             Section::Sharing => "sharing",
             Section::Threads => "threads",
+            Section::Keys => "keys",
             Section::Appearance => "appearance",
         }
     }
@@ -48,14 +52,15 @@ impl Section {
         Self::ALL.into_iter().find(|s| s.key() == key)
     }
 
-    fn icon(self) -> IconName {
-        match self {
+    fn icon(self) -> Icon {
+        Icon::new(match self {
             Section::Accounts => IconName::CircleUser,
             Section::GitHub => IconName::Github,
             Section::Sharing => IconName::Globe,
             Section::Threads => IconName::Bot,
+            Section::Keys => return Icon::new(gpui_kit_assets::IconName::Keyboard),
             Section::Appearance => IconName::Palette,
-        }
+        })
     }
 }
 
@@ -69,11 +74,7 @@ impl Settings {
                 section == self.section,
                 theme,
             )
-            .child(
-                Icon::new(section.icon())
-                    .size_4()
-                    .text_color(theme.muted_foreground),
-            )
+            .child(section.icon().size_4().text_color(theme.muted_foreground))
             .child(div().flex_1().min_w_0().truncate().child(section.label()))
             .on_click(move |_, window, cx| {
                 window.dispatch_action(
@@ -153,6 +154,7 @@ impl Settings {
                 .child(self.render_test(cx)),
             Section::GitHub => div().child(self.render_github(cx)),
             Section::Threads => div().child(self.render_threads(cx)),
+            Section::Keys => div().child(self.render_keys(cx)),
             Section::Sharing => unreachable!("returned above"),
             Section::Appearance => div().child(widgets::section(
                 "Appearance",

@@ -20,9 +20,9 @@ mod env_picker;
 mod env_sidebar;
 mod files;
 mod focus_areas;
-mod keymap_notice;
 mod image_viewer;
 mod import_sessions;
+mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
 mod manage;
@@ -506,6 +506,8 @@ mod env_switch_test;
 mod env_whois_test;
 #[cfg(all(test, unix))]
 mod exit_holding_stdout_test;
+#[cfg(test)]
+mod focus_areas_test;
 #[cfg(all(test, unix))] // uses publish_test's fake-gh helpers
 mod generate_text_test;
 #[cfg(test)]
@@ -596,8 +598,6 @@ mod terminal_split_test;
 mod tests;
 #[cfg(all(test, unix))]
 mod thread_close_starting_test;
-#[cfg(test)]
-mod focus_areas_test;
 #[cfg(test)]
 mod thread_keys_test;
 #[cfg(test)]

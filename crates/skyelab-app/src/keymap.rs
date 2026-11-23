@@ -69,7 +69,10 @@ fn read(path: &Path, last: Option<Stamp>) -> (Stamp, Option<String>) {
     if last == Some(stamp) {
         return (stamp, None);
     }
-    (stamp, Some(std::fs::read_to_string(path).unwrap_or_default()))
+    (
+        stamp,
+        Some(std::fs::read_to_string(path).unwrap_or_default()),
+    )
 }
 
 async fn watch(path: PathBuf, mut stamp: Stamp, cx: &mut AsyncApp) {

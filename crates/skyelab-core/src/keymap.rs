@@ -93,7 +93,9 @@ fn rule(table: &toml::Table, line: usize) -> Result<Rule, String> {
         .keys()
         .find(|k| !["key", "action", "context"].contains(&k.as_str()))
     {
-        return Err(format!("unknown field `{extra}` (use key, action, context)"));
+        return Err(format!(
+            "unknown field `{extra}` (use key, action, context)"
+        ));
     }
     let field = |name: &str| match table.get(name) {
         None => Ok(None),
@@ -172,7 +174,11 @@ mod tests {
         assert_eq!(problems.len(), 1);
         assert_eq!(problems[0].line, 3);
         let (_, problems) = parse("[[bindings]]\nkey = \"a\"\n");
-        assert_eq!(problems.len(), 1, "a misspelled table is reported, not ignored");
+        assert_eq!(
+            problems.len(),
+            1,
+            "a misspelled table is reported, not ignored"
+        );
     }
 
     #[test]

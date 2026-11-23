@@ -64,7 +64,12 @@ pub fn composer_ringed(prompt: &FocusHandle, window: &Window, cx: &App) -> bool 
 
 impl Workspace {
     /// The active tab's focus in a dock, and whether any of its tabs holds focus now.
-    fn dock_focus(&self, at: DockPlacement, window: &Window, cx: &App) -> Option<(FocusHandle, bool)> {
+    fn dock_focus(
+        &self,
+        at: DockPlacement,
+        window: &Window,
+        cx: &App,
+    ) -> Option<(FocusHandle, bool)> {
         let dock = self.dock.read(cx);
         if !dock.is_dock_open(at) {
             return None;
@@ -120,7 +125,11 @@ impl Workspace {
                     (Page::Settings(_), Some(s)) => s.read(cx).focus_handle(cx),
                     _ => self.welcome.read(cx).focus_handle(cx),
                 };
-                let inside = self.center.read(cx).focus_handle(cx).contains_focused(window, cx)
+                let inside = self
+                    .center
+                    .read(cx)
+                    .focus_handle(cx)
+                    .contains_focused(window, cx)
                     || page.contains_focused(window, cx);
                 out.push((Area::Page, page, inside));
             }
@@ -140,7 +149,13 @@ impl Workspace {
         }
     }
 
-    fn ring(&mut self, area: Area, focus: FocusHandle, window: &mut Window, cx: &mut Context<Self>) {
+    fn ring(
+        &mut self,
+        area: Area,
+        focus: FocusHandle,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         focus.focus(window, cx);
         cx.set_global(FocusRing(Some((area, focus))));
         self.redraw_ring(cx);
@@ -154,7 +169,12 @@ impl Workspace {
         cx.notify();
     }
 
-    pub(super) fn focus_next_area(&mut self, _: &FocusNextArea, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn focus_next_area(
+        &mut self,
+        _: &FocusNextArea,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.step_area(false, window, cx);
     }
 
@@ -168,7 +188,12 @@ impl Workspace {
     }
 
     /// Esc outside a text field: back to the message input. Without one, Esc goes on to whoever else wants it.
-    pub(super) fn focus_composer(&mut self, _: &FocusComposer, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn focus_composer(
+        &mut self,
+        _: &FocusComposer,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let areas = self.areas(window, cx);
         match areas.into_iter().find(|(a, ..)| *a == Area::Composer) {
             Some((_, focus, false)) => self.ring(Area::Composer, focus, window, cx),
@@ -226,7 +251,10 @@ mod tests {
             at = step(&shown, at, false);
             seen.extend(at);
         }
-        assert_eq!(seen, [Sidebar, Timeline, Composer, Right, Terminal, Sidebar]);
+        assert_eq!(
+            seen,
+            [Sidebar, Timeline, Composer, Right, Terminal, Sidebar]
+        );
     }
 
     #[test]
@@ -235,8 +263,16 @@ mod tests {
         assert_eq!(step(&shown, Some(Sidebar), true), Some(Terminal));
         assert_eq!(step(&shown, Some(Terminal), true), Some(Page));
         assert_eq!(step(&shown, Some(Page), false), Some(Terminal));
-        assert_eq!(step(&shown, None, true), Some(Terminal), "from outside, back starts at the end");
-        assert_eq!(step(&shown, Some(Right), false), Some(Sidebar), "from a hidden area, start over");
+        assert_eq!(
+            step(&shown, None, true),
+            Some(Terminal),
+            "from outside, back starts at the end"
+        );
+        assert_eq!(
+            step(&shown, Some(Right), false),
+            Some(Sidebar),
+            "from a hidden area, start over"
+        );
         assert_eq!(step(&[], None, false), None);
         assert_eq!(step(&[Page], Some(Page), false), Some(Page));
     }

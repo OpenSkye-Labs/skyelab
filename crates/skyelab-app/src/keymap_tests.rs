@@ -1,7 +1,7 @@
 use super::*;
 use gpui::{
-    Context, FocusHandle, IntoElement, Render, TestAppContext, VisualTestContext,
-    Window, actions, div, prelude::*,
+    Context, FocusHandle, IntoElement, Render, TestAppContext, VisualTestContext, Window, actions,
+    div, prelude::*,
 };
 
 actions!(keymap_test, [Alpha, Beta]);
@@ -24,7 +24,10 @@ impl Render for Probe {
     }
 }
 
-fn setup(path: Option<PathBuf>, cx: &mut TestAppContext) -> (Entity<Probe>, &mut VisualTestContext) {
+fn setup(
+    path: Option<PathBuf>,
+    cx: &mut TestAppContext,
+) -> (Entity<Probe>, &mut VisualTestContext) {
     cx.update(|cx| {
         cx.bind_keys([
             KeyBinding::new("x", Alpha, Some("Workspace")),
@@ -66,7 +69,11 @@ fn a_rule_overrides_the_default_on_its_key(cx: &mut TestAppContext) {
     let (_dir, path) = file("[[binding]]\nkey = \"x\"\naction = \"keymap_test::Beta\"\n");
     let (probe, cx) = setup(Some(path), cx);
     cx.simulate_keystrokes("x");
-    assert_eq!(ran(&probe, cx), ["beta"], "the file's rule wins over the default");
+    assert_eq!(
+        ran(&probe, cx),
+        ["beta"],
+        "the file's rule wins over the default"
+    );
     cx.simulate_keystrokes("y");
     assert_eq!(ran(&probe, cx), ["beta"], "untouched defaults still work");
     assert!(problems(cx).is_empty());
@@ -86,7 +93,10 @@ fn a_rule_applies_only_in_its_context(cx: &mut TestAppContext) {
         file("[[binding]]\nkey = \"z\"\naction = \"keymap_test::Alpha\"\ncontext = \"Terminal\"\n");
     let (probe, cx) = setup(Some(path), cx);
     cx.simulate_keystrokes("z");
-    assert!(ran(&probe, cx).is_empty(), "outside a Terminal, z is unbound");
+    assert!(
+        ran(&probe, cx).is_empty(),
+        "outside a Terminal, z is unbound"
+    );
     probe.update_in(cx, |p, window, cx| p.inner.focus(window, cx));
     cx.simulate_keystrokes("z");
     assert_eq!(ran(&probe, cx), ["alpha"]);
@@ -106,7 +116,10 @@ fn bad_rules_are_reported_with_their_line_and_the_rest_load(cx: &mut TestAppCont
     assert_eq!(found[0], "line 1: unknown action `skyelab::Nope`");
     assert_eq!(found[1], "line 5: bad key `ctrl-foo-k`");
     assert!(found[2].starts_with("line 9: bad key `cmd+k`"), "{found:?}");
-    assert!(found[3].starts_with("line 13: bad context `(`"), "{found:?}");
+    assert!(
+        found[3].starts_with("line 13: bad context `(`"),
+        "{found:?}"
+    );
     cx.simulate_keystrokes("x");
     assert_eq!(ran(&probe, cx), ["beta"], "the good rule still loaded");
 }
@@ -119,19 +132,34 @@ fn the_file_is_reloaded_when_it_changes(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("x");
     assert_eq!(ran(&probe, cx), ["alpha"]);
 
-    std::fs::write(&path, "[[binding]]\nkey = \"x\"\naction = \"keymap_test::Beta\"\n")
-        .expect("rewrite");
+    std::fs::write(
+        &path,
+        "[[binding]]\nkey = \"x\"\naction = \"keymap_test::Beta\"\n",
+    )
+    .expect("rewrite");
     cx.executor().advance_clock(POLL * 2);
     cx.run_until_parked();
     cx.simulate_keystrokes("x");
-    assert_eq!(ran(&probe, cx), ["beta"], "the new rule applies without a restart");
+    assert_eq!(
+        ran(&probe, cx),
+        ["beta"],
+        "the new rule applies without a restart"
+    );
 
     std::fs::write(&path, "[[binding]]\nkey = \"x\"\naction = \"Gone\"\n").expect("break it");
     cx.executor().advance_clock(POLL * 2);
     cx.run_until_parked();
     assert_eq!(problems(cx), ["line 1: unknown action `skyelab::Gone`"]);
     let after = cx.update(|_, cx| cx.global::<Keymap>().generation);
-    assert_eq!(after, before + 2, "one load per change, none while it sat still");
+    assert_eq!(
+        after,
+        before + 2,
+        "one load per change, none while it sat still"
+    );
     cx.simulate_keystrokes("x");
-    assert_eq!(ran(&probe, cx), ["alpha"], "a broken rule falls back to the default");
+    assert_eq!(
+        ran(&probe, cx),
+        ["alpha"],
+        "a broken rule falls back to the default"
+    );
 }

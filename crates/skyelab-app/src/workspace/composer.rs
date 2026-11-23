@@ -95,7 +95,11 @@ impl ThreadView {
         }
     }
 
-    pub(in crate::workspace) fn render_composer(&self, window: &gpui::Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(in crate::workspace) fn render_composer(
+        &self,
+        window: &gpui::Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let menu = self.composer.menu.as_ref();
         let menu_el = menu.map(|m| self.render_menu(m, cx));
         let picker = self.composer.picker_open.then(|| self.render_picker(cx));

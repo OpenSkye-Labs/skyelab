@@ -3,8 +3,8 @@
 
 use super::{BODY, HEADER_H, META, PAGE, RADIUS_LG, RADIUS_MD, RADIUS_SM, ROW_H, SECTION};
 use gpui::{
-    AnyElement, App, Div, ElementId, FontWeight, Hsla, IntoElement, Keystroke, SharedString,
-    Stateful, Window, div, prelude::*, px,
+    AnyElement, App, Div, ElementId, FontWeight, Hsla, IntoElement, SharedString, Stateful, Window,
+    div, prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, Theme, h_flex, kbd::Kbd, v_flex};
 use skyelab_core::Provider;
@@ -249,20 +249,21 @@ impl RenderOnce for EmptyState {
 #[derive(IntoElement)]
 pub struct KeyHint {
     label: SharedString,
-    key: &'static str,
+    action: Box<dyn gpui::Action>,
 }
 
 impl KeyHint {
-    pub fn new(label: impl Into<SharedString>, key: &'static str) -> Self {
+    /// Shows the key that runs `action` in the workspace now (the user's keybindings.toml included).
+    pub fn new(label: impl Into<SharedString>, action: Box<dyn gpui::Action>) -> Self {
         Self {
             label: label.into(),
-            key,
+            action,
         }
     }
 }
 
 impl RenderOnce for KeyHint {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         h_flex()
             .w_full()
             .justify_between()
@@ -270,7 +271,11 @@ impl RenderOnce for KeyHint {
             .text_size(BODY)
             .text_color(cx.theme().foreground)
             .child(self.label)
-            .children(Keystroke::parse(self.key).ok().map(Kbd::new))
+            .children(Kbd::binding_for_action(
+                self.action.as_ref(),
+                Some("Workspace"),
+                window,
+            ))
     }
 }
 
