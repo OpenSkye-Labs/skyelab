@@ -38,7 +38,7 @@ pathlib.Path(out).write_bytes(header + entries + b"".join(blobs))
 PY
 # Mobile launchers apply their own masks. Render the tile bounds full bleed and remove the desktop corner radius.
 mobile="$(cd "$dir/../../../mobile" && pwd)"
-sed -e 's|viewBox="0 0 1024 1024"|viewBox="100 100 824 824"|' -e 's| rx="185"||' "$dir/icon.svg" > "$tmp/full.svg"
+sed -e 's|viewBox="0 0 1024 1024"|viewBox="100 100 824 824"|' -e 's| rx="185"||' -e '/stroke="url(#rim)"/d' "$dir/icon.svg" > "$tmp/full.svg"
 grep -q 'viewBox="100 100 824 824"' "$tmp/full.svg" || { echo "icon.svg changed: update the tile bounds in $0" >&2; exit 1; }
 # Android (minSdk 26, so adaptive icons only): the art is the 108 dp background layer at each density.
 for d in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
