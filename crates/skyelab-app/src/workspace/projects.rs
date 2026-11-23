@@ -242,7 +242,8 @@ impl Workspace {
                 .background_spawn(async move { lock(&store)?.listed_thread(id) })
                 .await;
             let _ = this.update_in(cx, |this, window, cx| match row {
-                Ok(Some(thread)) if this.open_view(id, cx).is_none() => {
+                // Shows another window's view if one opened it meanwhile (two windows restoring one thread).
+                Ok(Some(thread)) => {
                     if this.project.as_ref().map(|p| p.id) != Some(thread.project_id) {
                         this.select(thread.project_id, cx);
                     }

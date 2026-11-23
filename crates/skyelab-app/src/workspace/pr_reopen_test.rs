@@ -67,11 +67,30 @@ fn a_reopened_pr_is_read_again_on_open_and_focus_hourly(cx: &mut gpui::TestAppCo
     cx.run_until_parked();
     assert_eq!(calls(), 0, "a merged PR is never read again");
 
+    // A second window, whose sidebar must follow the read the first one makes.
+    cx.dispatch_action(super::NewWindow);
+    cx.run_until_parked();
+    let other = cx.update(|_, cx| super::windows::workspaces(cx)[1].clone());
+    let other_badge = |cx: &mut gpui::VisualTestContext| {
+        let sidebar = other.read_with(cx, |ws, _| ws.sidebar.clone());
+        sidebar.read_with(cx, |s, _| {
+            s.marks
+                .get(&SharedString::from(format!("thread-{closed}")))
+                .and_then(|m| m.pr.as_ref().and_then(|p| p.state))
+        })
+    };
+    assert_eq!(other_badge(cx), Some(PrState::Closed));
+
     // Opening the closed one reads it: it was reopened.
     r.open(closed, cx);
     wait_until(cx, "the reopened PR read", |cx| {
         badge(cx, closed) == Some(PrState::Open)
     });
+    assert_eq!(
+        other_badge(cx),
+        Some(PrState::Open),
+        "the other window's badge too"
+    );
     assert_eq!(calls(), 1);
     assert_eq!(
         r.row(closed).and_then(|t| t.pr_state).as_deref(),

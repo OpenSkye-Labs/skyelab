@@ -223,12 +223,10 @@ impl Workspace {
                 let now = crate::ui::now_ms();
                 let statuses = cx.default_global::<PrStatuses>();
                 let mut changed = false;
+                let mut states = Vec::new();
                 for (thread, url, view) in read {
-                    if let PrView::Status(s) = &view
-                        && let Some(row) = this.threads.iter_mut().find(|t| t.id == thread)
-                        && row.pr_url.as_deref() == Some(url.as_str())
-                    {
-                        row.pr_state = Some(s.state.as_str().to_owned());
+                    if let PrView::Status(s) = &view {
+                        states.push((thread, url.clone(), s.state));
                     }
                     let old = statuses.0.insert(
                         thread,
@@ -240,14 +238,27 @@ impl Workspace {
                     );
                     changed |= old.is_none_or(|o| o.url != url || o.view != view);
                 }
-                // Most reads find nothing new: redraw only for a change.
+                // Most reads find nothing new: redraw only for a change, in every window (they share the statuses).
                 if changed {
-                    this.refresh_sidebar(cx);
-                    this.details.update(cx, |_, cx| cx.notify());
+                    this.pr_states_read(&states, cx);
+                    this.each_other_window(cx, move |ws, cx| ws.pr_states_read(&states, cx));
                 }
             });
         })
         .detach(); // `this` is weak; a hung gh only holds its own thread
+    }
+
+    /// New PR reads landed: the rows keep their states, and the sidebar and Details redraw.
+    fn pr_states_read(&mut self, states: &[(i64, String, PrState)], cx: &mut Context<Self>) {
+        for (thread, url, state) in states {
+            if let Some(row) = self.threads.iter_mut().find(|t| t.id == *thread)
+                && row.pr_url.as_deref() == Some(url.as_str())
+            {
+                row.pr_state = Some(state.as_str().to_owned());
+            }
+        }
+        self.refresh_sidebar(cx);
+        self.details.update(cx, |_, cx| cx.notify());
     }
 
     /// Fetches the shown thread's folder when the setting's interval has passed since its last fetch.

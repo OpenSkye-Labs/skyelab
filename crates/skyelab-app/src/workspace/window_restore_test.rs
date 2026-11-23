@@ -87,6 +87,29 @@ fn every_window_is_saved_and_restored(cx: &mut TestAppContext) {
     });
     assert_eq!(xs, vec![px(10.), px(1200.)]);
 
+    // Two windows restoring a thread no window has open yet both show it (their reads race).
+    let fresh = {
+        let s = f.store.lock().expect("store");
+        let project = s.list_projects().expect("projects")[0].id;
+        s.create_thread(&skyelab_store::NewThread {
+            project_id: project,
+            title: "unopened",
+            cwd: &f.project_dir,
+            account_id: "acme",
+            status: "idle",
+        })
+        .expect("thread")
+        .id
+    };
+    let key = format!("thread:{fresh}");
+    let both = restore(&f, vec![layout(10, &key), layout(1200, &key)], screen, cx);
+    let pages: Vec<_> = cx.update(|cx| both.iter().map(|w| w.read(cx).page.key(cx)).collect());
+    assert_eq!(
+        pages,
+        vec![key.clone(), key],
+        "both windows show the restored thread"
+    );
+
     // An older settings.toml with the single slot only.
     let old_path = path.with_file_name("old-settings.toml");
     std::fs::write(
