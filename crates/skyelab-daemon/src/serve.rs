@@ -36,8 +36,9 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
             // A revoke or Disconnect wins over a request that is already waiting to be read.
             biased;
             () = kick.notified() => {
+                // No close handshake: a client that stopped reading would stall it, and dropping the socket closes it.
                 eprintln!("skyelab-daemon: closing {peer}: disconnected by the user");
-                Step::Close
+                break;
             }
             () = sleep_until(idle_at) => {
                 eprintln!("skyelab-daemon: closing {peer}: idle");
