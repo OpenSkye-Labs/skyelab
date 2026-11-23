@@ -105,32 +105,65 @@ pub fn commit(
     let sha = lossy(&git(&root, &["rev-parse", "HEAD"])?)
         .trim()
         .to_owned();
+    let undo = |why: String| -> Result<String> {
+        match &before {
+            Some(b) => git(&root, &["reset", "-q", "--soft", b])?,
+            None => git(&root, &["update-ref", "-d", "HEAD"])?,
+        };
+        Err(invalid(why))
+    };
+    // Built on `before`: a commit another client made in between would be reverted by ours.
+    let parent = crate::output(
+        Path::new("git"),
+        &root,
+        &["rev-parse", "-q", "--verify", &format!("{sha}^")],
+    )?;
+    let parent = parent
+        .status
+        .success()
+        .then(|| lossy(&parent.stdout).trim().to_owned());
+    if parent != before {
+        if let Some(parent) = &parent {
+            git(&root, &["reset", "-q", "--soft", parent])?;
+        }
+        return Err(invalid(
+            "another commit landed while this one was made; nothing was committed. Check the Changes tab again",
+        ));
+    }
     let extra: Vec<String> = changed_paths(&root, before.as_deref(), &sha)?
         .into_iter()
         .filter(|p| !allowed.contains(p))
         .collect();
     if !extra.is_empty() {
-        match &before {
-            Some(b) => git(&root, &["reset", "-q", "--soft", b])?,
-            None => git(&root, &["update-ref", "-d", "HEAD"])?,
-        };
-        return Err(invalid(format!(
+        return undo(format!(
             "a commit hook added files you didn't review ({}); the commit was undone",
             extra.join(", ")
-        )));
+        ));
     }
-    // The real index catches up with the commit: everything, or just the ticked paths.
+    // The real index catches up with the commit. The commit exists either way, so a failure here (an index.lock
+    // someone holds) is not a failed commit: the next status shows what is staged.
+    if let Err(e) = catch_up_index(&root, &names, paths.is_empty()) {
+        eprintln!("skyelab: committed {sha}, but the index wasn't updated: {e}");
+    }
+    Ok(sha)
+}
+
+/// Sets the real index to HEAD: all of it (`read-tree`, which keeps ORIG_HEAD, unlike `reset`), or the ticked paths.
+fn catch_up_index(root: &Path, names: &[String], all: bool) -> Result<()> {
+    if all {
+        if git(root, &["read-tree", "-m", "HEAD"]).is_err() {
+            git(root, &["read-tree", "HEAD"])?; // -m refuses an index with conflicts
+        }
+        return Ok(());
+    }
     let mut reset = vec![
         "--literal-pathspecs".to_owned(),
         "reset".into(),
         "-q".into(),
+        "--".into(),
     ];
-    if !paths.is_empty() {
-        reset.push("--".into());
-        reset.extend(names);
-    }
-    git(&root, &reset)?;
-    Ok(sha)
+    reset.extend(names.iter().cloned());
+    git(root, &reset).map(drop)
 }
 
 /// The operation a partial commit would break: git refuses `commit -- <paths>` during each of these.
