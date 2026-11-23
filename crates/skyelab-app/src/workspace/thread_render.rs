@@ -389,6 +389,7 @@ impl Render for ThreadView {
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::send_prompt))
+            .on_action(cx.listener(Self::schedule_prompt))
             .on_action(cx.listener(Self::steer_prompt))
             .on_action(cx.listener(Self::attach_files))
             .on_action(cx.listener(Self::history_up))

@@ -162,6 +162,7 @@ impl ThreadView {
             .try_global::<crate::workspace::AccountsFile>()
             .map(|f| f.0.clone());
         let is_new = resume.is_none();
+        let scheduled_task = self.scheduled_task.filter(|_| is_new);
         let mode = if side {
             skyelab_agent::Mode::Plan
         } else {
@@ -256,6 +257,10 @@ impl ThreadView {
                         if is_new && mode != skyelab_agent::Mode::Default {
                             lock(&store)?.set_thread_permission_mode(thread.id, mode.as_str())?;
                             thread.permission_mode = mode.as_str().to_owned();
+                        }
+                        if let Some(task) = scheduled_task {
+                            lock(&store)?.set_thread_scheduled_task(thread.id, task)?;
+                            thread.scheduled_task_id = Some(task);
                         }
                         let _ = saved_tx.send(thread.clone());
                         // A resumed thread's held events go first, or its prompt would be stored ahead of them.

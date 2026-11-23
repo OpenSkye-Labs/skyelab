@@ -53,6 +53,7 @@ mod remote_answers;
 mod remote_queue;
 mod remote_thread;
 mod render;
+pub(crate) mod scheduled;
 mod scratch;
 mod scripts;
 mod status_bar;

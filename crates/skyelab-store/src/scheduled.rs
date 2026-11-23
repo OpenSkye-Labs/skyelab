@@ -192,4 +192,15 @@ impl Store {
             |r| r.get(0),
         )?)
     }
+
+    /// Each task's newest thread that still exists, with its status: (task id, thread id, status).
+    pub fn last_scheduled_runs(&self) -> Result<Vec<(i64, i64, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT scheduled_task_id, id, status FROM threads WHERE id IN (
+                SELECT MAX(id) FROM threads WHERE scheduled_task_id IS NOT NULL AND deleted_at IS NULL
+                GROUP BY scheduled_task_id)",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
 }

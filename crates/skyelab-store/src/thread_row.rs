@@ -32,4 +32,3 @@ pub(crate) fn thread_from_row(r: &Row) -> rusqlite::Result<Thread> {
         scheduled_task_id: r.get(21)?,
     })
 }
-
