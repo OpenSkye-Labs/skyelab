@@ -38,7 +38,13 @@ fn migrates_empty_db() {
         .expect("test setup");
     assert_eq!(
         tables,
-        ["events", "project_scripts", "projects", "threads", "usage_readings"]
+        [
+            "events",
+            "project_scripts",
+            "projects",
+            "threads",
+            "usage_readings"
+        ]
     );
     drop(raw);
 
