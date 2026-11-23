@@ -426,9 +426,35 @@ pub(super) fn preview_text(markdown: &str) -> String {
         if !out.is_empty() {
             out.push(' ');
         }
-        out.extend(line.chars().filter(|c| !matches!(c, '*' | '`' | '|')));
+        out.extend(link_text(line).chars().filter(|c| !matches!(c, '*' | '`' | '|')));
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// `[text](url)` and `![alt](url)` as just their text; a `[` that isn't a link stays.
+fn link_text(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(open) = rest.find('[') {
+        let after = &rest[open + 1..];
+        let link = after.find("](").and_then(|close| {
+            let url = &after[close + 2..];
+            url.find(')').map(|end| (&after[..close], &url[end + 1..]))
+        });
+        match link {
+            Some((text, tail)) => {
+                out.push_str(rest[..open].strip_suffix('!').unwrap_or(&rest[..open]));
+                out.push_str(text);
+                rest = tail;
+            }
+            None => {
+                out.push_str(&rest[..=open]);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// "#24" for a pull request URL ending in its number, else "PR".

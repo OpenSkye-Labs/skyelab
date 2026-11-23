@@ -190,6 +190,11 @@ fn previews_are_plain_text_and_pr_labels_are_numbers() {
         "a number is not a heading"
     );
     assert_eq!(preview_text("---\n\n```\n```"), "", "nothing to show");
+    assert_eq!(
+        preview_text("See [event.rs](src/event.rs) and ![shot](a.png), [not a link"),
+        "See event.rs and shot, [not a link",
+        "links keep only their text"
+    );
     assert_eq!(pr_label("https://github.com/o/r/pull/2262"), "#2262");
     assert_eq!(pr_label("https://github.com/o/r/pull/7/"), "#7");
     assert_eq!(pr_label("https://example.com/merge"), "PR");
