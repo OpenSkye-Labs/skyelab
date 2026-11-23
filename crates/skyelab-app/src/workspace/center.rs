@@ -18,6 +18,8 @@ pub(crate) enum Page {
     Settings(Section),
     Thread(WeakEntity<ThreadView>),
     RemoteThread(WeakEntity<RemoteThreadView>),
+    /// A multi-model send's threads side by side, by comparison group.
+    Compare(i64),
     /// The Pull requests or Issues page.
     Github(super::gh_pages::Kind),
 }
@@ -38,7 +40,7 @@ impl Page {
                         .map(|t| format!("thread:{}", t.id))
                 })
                 .unwrap_or_else(|| "welcome".into()),
-            Page::Welcome | Page::RemoteThread(_) => "welcome".into(),
+            Page::Welcome | Page::RemoteThread(_) | Page::Compare(_) => "welcome".into(),
         }
     }
 }
@@ -99,7 +101,7 @@ impl Workspace {
         self.apply_page(window, cx);
     }
 
-    fn alive(&self, page: &Page) -> bool {
+    fn alive(&self, page: &Page, cx: &App) -> bool {
         match page {
             // Settings and the GitHub pages are made on demand, so they can always show.
             Page::Welcome | Page::Settings(_) | Page::Github(_) => true,
@@ -109,12 +111,13 @@ impl Workspace {
             Page::RemoteThread(view) => view
                 .upgrade()
                 .is_some_and(|v| self.env.tabs.iter().any(|(t, _)| *t == v)),
+            Page::Compare(group) => self.group_alive(*group, cx),
         }
     }
 
     pub(super) fn go_back(&mut self, _: &GoBack, window: &mut Window, cx: &mut Context<Self>) {
         while let Some(page) = self.back.pop() {
-            if self.alive(&page) {
+            if self.alive(&page, cx) {
                 self.forward.push(std::mem::replace(&mut self.page, page));
                 return self.apply_page(window, cx);
             }
@@ -128,7 +131,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         while let Some(page) = self.forward.pop() {
-            if self.alive(&page) {
+            if self.alive(&page, cx) {
                 self.back.push(std::mem::replace(&mut self.page, page));
                 return self.apply_page(window, cx);
             }
@@ -136,7 +139,7 @@ impl Workspace {
     }
 
     pub(super) fn apply_page(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.alive(&self.page) {
+        if !self.alive(&self.page, cx) {
             self.page = Page::Welcome;
         }
         let view: AnyView = match self.page.clone() {
@@ -175,6 +178,7 @@ impl Workspace {
                 view.update(cx, |v, cx| v.focus_prompt(window, cx));
                 view.into()
             }
+            Page::Compare(group) => self.compare_page(group, window, cx).into(),
         };
         self.sync_terminals(window, cx);
         self.refresh_details(cx);

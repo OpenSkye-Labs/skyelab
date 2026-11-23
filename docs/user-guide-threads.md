@@ -58,6 +58,21 @@ count again in the Usage page, and the fork's first turn counts its whole cost, 
 starts in the project's folder, not in the original's worktree, and copies no checkpoints. If the folder is no longer
 bound to the thread's account, nothing is forked.
 
+## Send to several models
+
+In a new thread, the model chip's menu has **Send to several models…**. Tick 2 to 4 models of the account the folder
+is bound to (Claude's Opus, Sonnet and Haiku, or the Codex account's models; never another account), and the chip
+reads "3 models". **In worktrees** (on by default in a git repo) gives each model its own worktree, so their edits
+don't collide; **One model** goes back. Send starts one thread per model, the new thread running the first, and opens
+the **Compare** page: a column per model with its status, cost, time, changed files and latest reply. Once every model
+has finished, the header shows the total cost (from each turn's stored cost), and **Keep this one** asks whether to
+archive the other threads or leave them; either way the kept thread opens. Each model runs at its default effort,
+from the same base branch. At most 4 compared threads can be working at once; a send that would pass that is refused
+with your prompt kept.
+
+In the sidebar the threads share one row with a **×3** badge: click the row for the Compare page, the badge to list
+the threads under it.
+
 ## Side chats
 
 Type `/side <question>` (or `/btw <question>`; both are listed in the composer's `/` menu) in the composer, or run

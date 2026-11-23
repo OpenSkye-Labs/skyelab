@@ -75,6 +75,9 @@ What's built today:
   Threads, which also holds the defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
   recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
   ([guide](docs/user-guide-threads.md)).
+- **Send to several models.** A new thread's prompt can go to 2–4 models of the folder's account at once, each its own
+  thread (in its own worktree if you like), compared side by side with cost, time and changed files; keep the best
+  ([guide](docs/user-guide-threads.md#send-to-several-models)).
 - **Side chats.** `/side <question>` (or `/btw`) asks it in a small chat beside the thread, in the same folder under
   the same account, without interrupting the thread's agent. It is read-only (Plan mode, no SkyeLab tools);
   **Bring back** adds its answer to the thread's composer.

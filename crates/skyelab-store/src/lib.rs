@@ -15,7 +15,7 @@ use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod events;
 mod extras;
-pub use extras::Draft;
+pub use extras::{Draft, ProjectScript};
 mod images;
 mod import;
 mod manage;
@@ -75,24 +75,14 @@ pub struct Thread {
     pub pr_state: Option<String>,
     /// The thread this one is a side chat of: hidden from the thread lists, listed under it.
     pub side_of: Option<i64>,
+    /// The multi-model send this thread is one model of: its siblings share the number.
+    pub compare_group: Option<i64>,
     /// The scheduled task that started it: the sidebar's "Scheduled" badge.
     pub scheduled_task_id: Option<i64>,
     /// When the user settled it (done: listed in the Settled shelf).
     pub settled_at: Option<i64>,
     /// Hidden until then; once passed it lists again as woke, until opened.
     pub snoozed_until: Option<i64>,
-}
-
-/// A command a project keeps for its terminals: a "Run" entry, and with `setup`, run in each new worktree.
-/// Kept here, never in the repo, so an agent can't plant one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectScript {
-    pub id: i64,
-    pub project_id: i64,
-    pub name: String,
-    pub command: String,
-    /// Run in every new worktree of the project (installing dependencies, say).
-    pub setup: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -345,6 +335,7 @@ impl Store {
             forked_from: None,
             pr_state: None,
             side_of: None,
+            compare_group: None,
             scheduled_task_id: None,
             settled_at: None,
             snoozed_until: None,

@@ -6,8 +6,9 @@ in a folder under the wrong Claude account.
 
 Read before working: [docs/architecture.md](docs/architecture.md) (what we're building, crate layout, roadmap; it links [remote.md](docs/remote.md), [orchestration.md](docs/orchestration.md) and [decisions.md](docs/decisions.md))
 and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, not suggestions.
-Every GPUI lesson (a bug, a redraw or perf trap, a pattern that worked) goes into docs/gpui.md in the same change
-that taught it, as a short rule with the why, so the next change starts from it.
+Every GPUI lesson (a bug, a redraw or perf trap, a pattern that worked) goes into docs/gpui.md or its topic files in
+docs/gpui/ (elements, redraw, windows, keyboard; add a file and link it from docs/gpui.md when none fits) in the same
+change that taught it, as a short rule with the why, so the next change starts from it.
 What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-guide.md); update them when a feature changes.
 
 ## T3 Code reference (always check it)

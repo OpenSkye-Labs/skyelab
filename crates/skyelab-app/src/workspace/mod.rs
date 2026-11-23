@@ -13,6 +13,9 @@ mod changes_publish;
 mod changes_tree;
 mod changes_turns;
 mod child_slots;
+mod compare;
+mod compare_sidebar;
+mod compare_view;
 mod details_panel;
 mod devices;
 mod diff_comments;
@@ -239,6 +242,7 @@ pub struct Workspace {
     starts: remote::StartQueue,
     /// Archived threads are listed under their toggle row.
     show_archived: bool,
+    compare: compare::State,
     /// A project whose removal waits for the user's OK (it has running agents).
     pending_removal: Option<i64>,
     _dialog_input: Option<Subscription>,
@@ -392,6 +396,7 @@ impl Workspace {
             env: Default::default(),
             starts: remote::StartQueue::new(),
             show_archived: false,
+            compare: Default::default(),
             pending_removal: None,
             _dialog_input: None,
             thread_search: None,
@@ -417,24 +422,6 @@ impl Workspace {
         this.load_projects(None, cx);
         this.register_window(window, cx);
         this
-    }
-
-    fn toggle(&mut self, at: DockPlacement, window: &mut Window, cx: &mut Context<Self>) {
-        self.dock
-            .update(cx, |dock, cx| dock.toggle_dock(at, window, cx));
-    }
-
-    fn toggle_sidebar(&mut self, _: &ToggleSidebar, window: &mut Window, cx: &mut Context<Self>) {
-        self.toggle(DockPlacement::Left, window, cx);
-    }
-
-    fn toggle_bottom(
-        &mut self,
-        _: &ToggleBottomPanel,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.toggle(DockPlacement::Bottom, window, cx);
     }
 }
 
@@ -480,6 +467,12 @@ mod codex_thread_test;
 mod commit_hook_env_test;
 #[cfg(test)]
 mod commit_snapshot_test;
+#[cfg(all(test, unix))]
+mod compare_base_test;
+#[cfg(all(test, unix))]
+mod compare_cap_test;
+#[cfg(all(test, unix))]
+mod compare_test;
 #[cfg(test)]
 mod delegation_test;
 #[cfg(test)]

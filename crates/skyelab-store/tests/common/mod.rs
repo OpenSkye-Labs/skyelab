@@ -25,6 +25,9 @@ ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN fo
 ALTER TABLE threads DROP COLUMN fork_context;
 ";
 
+/// Undoes migration 23: comparison groups.
+pub const UNDO_V23: &str =
+    "DROP INDEX threads_by_compare_group; ALTER TABLE threads DROP COLUMN compare_group;";
 /// Undoes migration 22: settled and snoozed threads.
 pub const UNDO_V22: &str =
     "ALTER TABLE threads DROP COLUMN settled_at; ALTER TABLE threads DROP COLUMN snoozed_until;";

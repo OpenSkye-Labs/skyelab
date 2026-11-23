@@ -79,20 +79,26 @@ pub(super) fn create(
             bail!("{} is not a plain folder; remove it first", dir.display());
         }
     }
+    // One at a time: a multi-model send makes several at once (the first live run lost one model's start), and two
+    // slugs of the same millisecond would collide.
+    static CREATING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one = CREATING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     std::fs::create_dir_all(&parent).with_context(|| format!("creating {}", parent.display()))?;
     skyelab_git::exclude_locally(&project, &format!("/{DIR}/"))?;
 
-    let slug = slug(title, now_ms());
+    let local = skyelab_git::branches(&project)?.local;
+    let now = now_ms();
+    let slug = (0..)
+        .map(|i| slug(title, now + i))
+        .find(|s| !parent.join(s).exists() && !local.contains(&format!("skyelab/{s}")))
+        .expect("an unbounded range finds a free name");
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
     let base = match base_branch {
         // Only a listed local branch, never a revision expression.
-        Some(b)
-            if skyelab_git::branches(&project)?
-                .local
-                .iter()
-                .any(|l| l == b) =>
-        {
+        Some(b) if local.iter().any(|l| l == b) => {
             skyelab_git::rev_parse(&project, &format!("refs/heads/{b}"))?
         }
         Some(b) => bail!("the base branch {b} is gone"),

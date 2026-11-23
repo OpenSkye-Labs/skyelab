@@ -11,6 +11,9 @@ impl ThreadView {
     /// leaves the effort out.
     pub(in crate::workspace) fn chip_label(&self, compact: bool) -> (String, bool) {
         let c = &self.composer;
+        if let Some(set) = c.compare.as_ref().filter(|s| s.models.len() > 1) {
+            return (format!("{} models", set.models.len()), false);
+        }
         let (model, default) = match c.pick.model.as_deref() {
             Some(id) => (self.pick_name(id), false),
             None => (self.default_model_name(), true),

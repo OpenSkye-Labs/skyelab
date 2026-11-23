@@ -135,6 +135,8 @@ impl Workspace {
                         .pr_url
                         .as_deref()
                         .map(|u| super::pr_watch::badge(t, u, cx)),
+                    group: None,
+                    nested: false,
                 },
             );
             SidebarItem {
@@ -172,11 +174,9 @@ impl Workspace {
                 paged,
             })
             .collect();
-        let (pinned, working): (Vec<_>, Vec<_>) = (
-            pinned.into_iter().map(&mut item).collect(),
-            working.into_iter().map(&mut item).collect(),
-        );
-        let rest: Vec<SidebarItem> = rest.into_iter().map(&mut item).collect();
+        let mut group_rows = Vec::new(); // a comparison group folds into one row (`compare_sidebar.rs`)
+        let mut fold = |ts| self.fold_section(ts, &mut item, &mut group_rows, cx);
+        let (pinned, working, rest) = (fold(pinned), fold(working), fold(rest));
         let empty = rest.is_empty() && !shelved;
         let archived = ArchivedRows {
             items: self.listed_threads().1.into_iter().map(&mut item).collect(),
@@ -194,6 +194,7 @@ impl Workspace {
                 })
                 .collect(),
         };
+        super::compare_sidebar::mark_groups(&mut marks, group_rows);
         let searching = self.thread_search.is_some();
         let no_projects = self.projects.is_empty();
         let section = plain_section;
@@ -291,6 +292,7 @@ impl Workspace {
             };
             groups[at].push(t);
         }
+        super::compare_sidebar::keep_groups_together(&mut groups);
         groups
     }
 

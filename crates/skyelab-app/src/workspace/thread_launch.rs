@@ -12,16 +12,6 @@ use skyelab_store::{NewThread, Thread};
 /// Why a resume is refused while another thread runs the same agent session (imported twice, or forked rows).
 pub(super) const BUSY_ELSEWHERE: &str = "Another thread is running this agent session right now. Stop it there first, then send this again.";
 
-/// The first line of the prompt, cut to a tab-sized title.
-fn title(prompt: &str) -> String {
-    let line = prompt.lines().next().unwrap_or_default().trim();
-    let mut t: String = line.chars().take(60).collect();
-    if line.chars().count() > 60 {
-        t.push('…');
-    }
-    t
-}
-
 impl ThreadView {
     /// Continues an ended thread's `claude` session, only under the account on its row: the
     /// session's files live in that account's config dir.
@@ -155,6 +145,7 @@ impl ThreadView {
         let use_worktree = resume.is_none() && self.wt.use_worktree;
         let base_branch = self.branch_picker.read(cx).base.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
+        let compare_group = self.compare_group.filter(|_| resume.is_none());
         // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
         let side = self.is_side_chat() || resume.as_ref().is_some_and(|t| t.side_of.is_some());
         let tools = crate::workspace::orchestrate::Tools::get(cx).filter(|_| !side);
@@ -243,11 +234,9 @@ impl ThreadView {
                                 &project,
                                 &NewThread {
                                     project_id,
-                                    title: &title(if text.is_empty() {
-                                        "Attachment"
-                                    } else {
-                                        &text
-                                    }),
+                                    title: &crate::workspace::thread_extras::title::from_prompt(
+                                        if text.is_empty() { "Attachment" } else { &text },
+                                    ),
                                     cwd: &cwd,
                                     account_id: &account.id,
                                     status: "starting",
@@ -259,6 +248,11 @@ impl ThreadView {
                         // A new row, or a child's slot: either must not stay busy if this launch fails.
                         if is_new || thread.parent_thread_id.is_some() {
                             claimed = Some(thread.id);
+                        }
+                        // Grouped before the row is announced, so the sidebar folds it in at once.
+                        if let Some(group) = compare_group {
+                            lock(&store)?.set_thread_compare_group(thread.id, group)?;
+                            thread.compare_group = Some(group);
                         }
                         // Best effort: a link that can't be saved doesn't stop the review.
                         if let Some(url) = &link_pr {

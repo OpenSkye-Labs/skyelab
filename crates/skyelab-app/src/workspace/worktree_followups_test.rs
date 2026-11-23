@@ -188,3 +188,19 @@ fn changes_tab_refreshes_for_every_thread_of_its_folder(cx: &mut gpui::TestAppCo
         })
     });
 }
+
+#[test]
+fn worktrees_made_at_once_with_one_title_all_get_their_own() {
+    // A multi-model send makes one per model in the same moment, from the same prompt.
+    let f = super::worktree_thread_test::fixture();
+    let made: Vec<PathBuf> = std::thread::scope(|s| {
+        let jobs: Vec<_> = (0..4)
+            .map(|_| s.spawn(|| worktree::create(&f.config, &f.project, "acme", "same", None)))
+            .collect();
+        jobs.into_iter()
+            .map(|j| j.join().expect("thread").expect("create").path)
+            .collect()
+    });
+    let unique: std::collections::HashSet<_> = made.iter().collect();
+    assert_eq!(unique.len(), 4, "{made:?}");
+}

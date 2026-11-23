@@ -51,6 +51,29 @@ impl Store {
         self.mark_thread(id, DELETED, deleted)
     }
 
+    /// Puts the thread in a multi-model send's comparison group.
+    pub fn set_thread_compare_group(&self, id: i64, group: i64) -> Result<()> {
+        let n = self.conn.execute(
+            "UPDATE threads SET compare_group = ?2 WHERE id = ?1",
+            params![id, group],
+        )?;
+        expect_one(n, "thread", id)
+    }
+
+    /// What each thread's turns cost, from the per-turn usage rows. A thread with no counted turn is left out.
+    pub fn thread_costs(&self, ids: &[i64]) -> Result<HashMap<i64, f64>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT SUM(cost_usd) FROM turn_usage WHERE thread_id = ?1 HAVING COUNT(*) > 0",
+        )?;
+        let mut out = HashMap::new();
+        for &id in ids {
+            if let Some(cost) = stmt.query_row([id], |r| r.get(0)).optional()? {
+                out.insert(id, cost);
+            }
+        }
+        Ok(out)
+    }
+
     pub fn set_thread_unread(&self, id: i64, unread: bool) -> Result<()> {
         let n = self.conn.execute(
             "UPDATE threads SET unread = ?2 WHERE id = ?1",
