@@ -6,6 +6,8 @@ use std::path::Path;
 
 /// The most rows a menu shows.
 pub(crate) const MAX_ROWS: usize = 50;
+/// How many tracked files the `@` menu ranks at most (the file picker's cap).
+const MAX_TRACKED: usize = 100_000;
 /// How much of a command or skill file is read for its description.
 const DESCRIPTION_BYTES: u64 = 4096;
 /// The most command or skill files read from one folder.
@@ -100,6 +102,7 @@ fn score(label: &str, q: &str) -> Option<u32> {
 pub(crate) fn file_items(files: &[String]) -> Vec<MenuItem> {
     files
         .iter()
+        .take(MAX_TRACKED)
         .map(|f| MenuItem {
             label: f.clone(),
             detail: String::new(),

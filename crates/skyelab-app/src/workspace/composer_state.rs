@@ -74,6 +74,8 @@ pub(crate) struct Menu {
     pub items: Option<Arc<Vec<MenuItem>>>,
     pub rows: Vec<usize>,
     pub selected: usize,
+    /// Ranks `items` for `query` off the UI thread; a newer query (or closing the menu) drops it.
+    pub _rank: Option<gpui::Task<()>>,
 }
 
 /// The footer strip's facts, read off the UI thread.
@@ -359,12 +361,7 @@ impl ThreadView {
             .filter(|m| m.kind == t.kind && m.start == t.start)
         {
             menu.query = t.query;
-            if let Some(items) = &menu.items {
-                menu.rows = composer_menu::rank(items, &menu.query);
-                menu.selected = 0;
-            }
-            cx.notify();
-            return;
+            return self.rank_menu(cx);
         }
         self.composer.picker_open = false;
         self.composer.menu = Some(Menu {
@@ -374,6 +371,7 @@ impl ThreadView {
             rows: Vec::new(),
             selected: 0,
             items: None,
+            _rank: None,
         });
         // Read each time a menu opens: the agent adds and removes files between turns.
         self.load_menu_items(t.kind, cx);
@@ -412,11 +410,37 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         if let Some(menu) = self.composer.menu.as_mut().filter(|m| m.kind == kind) {
-            menu.rows = composer_menu::rank(&items, &menu.query);
             menu.items = Some(items);
-            menu.selected = 0;
-            cx.notify();
+            self.rank_menu(cx);
         }
+    }
+
+    /// Ranks the open menu's items for its query on the background executor (a repo can track 100k files).
+    fn rank_menu(&mut self, cx: &mut Context<Self>) {
+        let Some(menu) = self.composer.menu.as_mut() else {
+            return;
+        };
+        let Some(items) = menu.items.clone() else {
+            return;
+        };
+        let (kind, start, query) = (menu.kind, menu.start, menu.query.clone());
+        let ranked = cx.background_spawn({
+            let query = query.clone();
+            async move { composer_menu::rank(&items, &query) }
+        });
+        menu._rank = Some(cx.spawn(async move |this, cx| {
+            let rows = ranked.await;
+            let _ = this.update(cx, |this, cx| {
+                let shown = this.composer.menu.as_mut();
+                if let Some(menu) =
+                    shown.filter(|m| m.kind == kind && m.start == start && m.query == query)
+                {
+                    menu.rows = rows;
+                    menu.selected = 0;
+                    cx.notify();
+                }
+            });
+        }));
     }
 
     pub(in crate::workspace) fn menu_up(
