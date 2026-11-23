@@ -117,6 +117,12 @@ pub(crate) struct Composer {
     pub picked: bool,
     /// Codex's models, once listed (or why they couldn't be).
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
+    /// The model this thread's agent last reported running (its init line).
+    pub reported_model: Option<String>,
+    /// The pick the run that reported it had (`None` inside: the account's default); `None`: replayed, unknown.
+    pub reported_pick: Option<Option<String>>,
+    /// The account's own default model, from its config dir.
+    pub account_model: Option<String>,
     pub footer: Footer,
     /// Why the last attach or send was refused.
     pub notice: Option<SharedString>,
@@ -222,6 +228,7 @@ impl ThreadView {
             }
         })
         .detach();
+        self.load_account_model(cx);
         self.refresh_footer(cx);
     }
 
@@ -263,32 +270,8 @@ impl ThreadView {
     pub(in crate::workspace) fn toggle_picker(&mut self, cx: &mut Context<Self>) {
         self.composer.picker_open = !self.composer.picker_open;
         self.composer.menu = None;
-        let codex = self
-            .composer_account()
-            .filter(|a| a.provider == Provider::Codex);
-        if let (true, None, Some(account)) = (
-            self.composer.picker_open,
-            &self.composer.codex_models,
-            codex,
-        ) {
-            self.composer.codex_models = Some(Ok(Vec::new())); // loading; listed once per tab
-            let (bin, config, cwd) = (
-                super::github::codex_bin(cx),
-                self.config.clone(),
-                self.cwd.clone(),
-            );
-            let task = cx.background_spawn(async move {
-                skyelab_agent::list_codex_models(&bin, &config, &account, &cwd)
-                    .map_err(|e| SharedString::from(format!("{e:#}")))
-            });
-            cx.spawn(async move |this, cx| {
-                let listed = task.await;
-                let _ = this.update(cx, |this, cx| {
-                    this.composer.codex_models = Some(listed);
-                    cx.notify();
-                });
-            })
-            .detach();
+        if self.composer.picker_open {
+            self.list_codex_models(cx);
         }
         cx.notify();
     }

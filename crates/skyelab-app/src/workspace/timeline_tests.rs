@@ -38,6 +38,18 @@ mod delta_store_test;
 mod rate_limit_state_test;
 
 #[cfg(unix)] // the fake agent is a shell script
+#[path = "one_limit_notice_test.rs"]
+mod one_limit_notice_test;
+
+#[cfg(unix)] // the fake agents are shell scripts
+#[path = "effective_model_test.rs"]
+mod effective_model_test;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "default_after_pick_reopen_test.rs"]
+mod default_after_pick_reopen_test;
+
+#[cfg(unix)] // the fake agent is a shell script
 #[path = "streaming_queue_test.rs"]
 mod streaming_queue_test;
 
