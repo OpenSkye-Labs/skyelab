@@ -238,7 +238,7 @@ impl Event {
             return None;
         };
         let label = match window.as_str() {
-            "five_hour" => "Session",
+            "five_hour" => "5h",
             "seven_day" => "Weekly",
             "seven_day_opus" => "Weekly · Opus",
             "seven_day_sonnet" => "Weekly · Sonnet",

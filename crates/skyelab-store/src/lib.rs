@@ -19,6 +19,7 @@ pub use model::ModelChoice;
 mod migrations;
 mod usage;
 use migrations::MIGRATIONS;
+pub use usage::UsageReading;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Project {

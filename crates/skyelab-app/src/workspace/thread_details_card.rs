@@ -45,6 +45,16 @@ impl ThreadView {
                 .child(self.back_row("Open in", cx, |v, cx| v.details_page(Page::Main, cx)))
                 .children(self.render_editor_choices(cx))
                 .into_any_element(),
+            Page::Git => page
+                .child(self.back_row("Commit & push", cx, |v, cx| v.details_page(Page::Main, cx)))
+                .children(self.render_git_menu(cx))
+                .into_any_element(),
+            Page::LinkPr => page
+                .child(self.back_row("Link pull request", cx, |v, cx| {
+                    v.details_page(Page::Main, cx)
+                }))
+                .children(self.render_link_pr(cx))
+                .into_any_element(),
             Page::Previous => page
                 .child(self.back_row("Previous agents", cx, |v, cx| {
                     v.details_page(Page::Main, cx)

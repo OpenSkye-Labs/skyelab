@@ -2,12 +2,22 @@
 
 use super::super::OpenThread;
 use super::super::thread::{ChildLink, ThreadView};
+use super::super::thread::{GitAction, ThreadViewEvent};
 use super::super::thread_worktree::{DiscardWorktree, OpenChanges, OpenWorktreeTerminal};
 use super::card::{chevron, row};
 use super::{Page, is_running};
 use crate::ui::{self, Status};
-use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*};
-use gpui_component::{ActiveTheme as _, h_flex, v_flex};
+use gpui::Focusable as _;
+use gpui::{
+    AnyElement, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
+};
+use gpui_component::{
+    ActiveTheme as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+    input::{Input, InputEvent, InputState},
+    v_flex,
+};
 use gpui_kit_assets::IconName;
 
 impl ThreadView {
@@ -74,10 +84,8 @@ impl ThreadView {
                         "Commit & push",
                         &theme,
                     )
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.details_home(cx);
-                        this.open_changes(&OpenChanges, window, cx);
-                    })),
+                    .child(chevron(IconName::ChevronRight, &theme))
+                    .on_click(cx.listener(|this, _, _, cx| this.open_git_menu(cx))),
                 )
                 .child(
                     row(
@@ -161,10 +169,23 @@ impl ThreadView {
         Some((title, body.into_any_element()))
     }
 
-    /// The pull request opened from this thread, if any.
+    /// The thread's pull request (opened here or linked), else "Link pull request…". `None` before the thread has
+    /// a row to keep the link on.
     pub(super) fn render_pr(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let theme = cx.theme().clone();
-        let url = self.thread.as_ref()?.pr_url.clone()?;
+        let thread = self.thread.as_ref()?;
+        let Some(url) = thread.pr_url.clone() else {
+            return Some(
+                row(
+                    "details-link-pr",
+                    IconName::Plus,
+                    "Link pull request…",
+                    &theme,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.open_link_pr(window, cx)))
+                .into_any_element(),
+            );
+        };
         let label = url.trim_start_matches("https://").to_owned();
         Some(
             row("details-pr", IconName::GitPullRequest, label, &theme)
@@ -175,6 +196,186 @@ impl ThreadView {
                 })
                 .into_any_element(),
         )
+    }
+
+    /// The Commit & push menu, and who it pushes as (read from the account's `gh` now, off the UI thread).
+    fn open_git_menu(&mut self, cx: &mut Context<Self>) {
+        self.details.page = Page::Git;
+        self.details.gh_login = None;
+        let gh_dir = self.config.github_config_dir(&self.cwd);
+        let gh_bin = super::super::gh_bin(cx);
+        let task = cx.background_spawn(async move {
+            let dir = gh_dir.map_err(|e| format!("{e:#}"))?;
+            skyelab_git::gh_login(&skyelab_git::GitHub {
+                gh: &gh_bin,
+                config_dir: &dir,
+            })
+            .map_err(|e| format!("{e:#}"))
+        });
+        self.details._gh = Some(cx.spawn(async move |this, cx| {
+            let login = match task.await {
+                Ok(Some(login)) => format!("Pushes as @{login}"),
+                Ok(None) => "No GitHub login for this account; log in from Settings".into(),
+                Err(e) => e,
+            };
+            let _ = this.update(cx, |this, cx| {
+                this.details.gh_login = Some(login.into());
+                cx.notify();
+            });
+        }));
+        cx.notify();
+    }
+
+    /// T3's GitActionsControl as a page: Commit, Commit & push, Push, then Open PR (View PR once there is one). Each
+    /// runs in the Changes tab, where its message and result show.
+    pub(super) fn render_git_menu(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let theme = cx.theme().clone();
+        let login = self
+            .details
+            .gh_login
+            .clone()
+            .unwrap_or_else(|| "Checking the GitHub login…".into());
+        let action = |id: &'static str, icon: IconName, label: &'static str, a: GitAction| {
+            row(id, icon, label, &theme)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.details_home(cx);
+                    cx.emit(ThreadViewEvent::Git(a));
+                }))
+                .into_any_element()
+        };
+        let pr = match self.thread.as_ref().and_then(|t| t.pr_url.clone()) {
+            Some(url) => row(
+                "details-git-view-pr",
+                IconName::ExternalLink,
+                "View PR",
+                &theme,
+            )
+            .on_click(move |_, _, cx| {
+                if super::super::thread_render::opens_in_browser(&url) {
+                    cx.open_url(&url);
+                }
+            })
+            .into_any_element(),
+            None => action(
+                "details-git-open-pr",
+                IconName::GitPullRequest,
+                "Open PR",
+                GitAction::OpenPr,
+            ),
+        };
+        vec![
+            div()
+                .id("details-git-login")
+                .px_2p5()
+                .py_1()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(login)
+                .into_any_element(),
+            action(
+                "details-git-commit",
+                IconName::GitCommitVertical,
+                "Commit",
+                GitAction::Commit,
+            ),
+            action(
+                "details-git-commit-push",
+                IconName::CloudUpload,
+                "Commit & push",
+                GitAction::CommitPush,
+            ),
+            action(
+                "details-git-push",
+                IconName::ArrowUp,
+                "Push",
+                GitAction::Push,
+            ),
+            pr,
+        ]
+    }
+
+    pub(super) fn open_link_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let input = match &self.details.pr_input {
+            Some(input) => input.clone(),
+            None => {
+                let input = cx.new(|cx| {
+                    InputState::new(window, cx)
+                        .placeholder("https://github.com/owner/repo/pull/123")
+                });
+                cx.subscribe_in(&input, window, |this, _, e: &InputEvent, window, cx| {
+                    if let InputEvent::PressEnter { .. } = e {
+                        this.link_pr(window, cx);
+                    }
+                })
+                .detach();
+                self.details.pr_input = Some(input.clone());
+                input
+            }
+        };
+        self.details.pr_error = None;
+        self.details.page = Page::LinkPr;
+        input.read(cx).focus_handle(cx).focus(window, cx);
+        cx.notify();
+    }
+
+    /// Keeps the typed link as the thread's PR when it is a GitHub pull request URL.
+    pub(super) fn link_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let (Some(input), Some(id)) = (&self.details.pr_input, self.thread.as_ref().map(|t| t.id))
+        else {
+            return;
+        };
+        let typed = input.read(cx).value().to_string();
+        let Some(url) = skyelab_core::github_pr_url(&typed) else {
+            self.details.pr_error = Some(
+                "Paste a GitHub pull request link: https://github.com/owner/repo/pull/123".into(),
+            );
+            cx.notify();
+            return;
+        };
+        let saved = super::super::lock(&self.backend.store)
+            .and_then(|s| s.set_thread_pr_url(id, Some(&url)));
+        if let Err(e) = saved {
+            self.details.pr_error = Some(format!("Couldn't save the link: {e:#}").into());
+            cx.notify();
+            return;
+        }
+        input.update(cx, |s, cx| s.set_value("", window, cx));
+        self.set_pr_url(url, cx);
+        self.details_home(cx);
+    }
+
+    pub(super) fn render_link_pr(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let theme = cx.theme().clone();
+        let Some(input) = &self.details.pr_input else {
+            return Vec::new();
+        };
+        vec![
+            h_flex()
+                .px_2p5()
+                .py_1()
+                .gap_2()
+                .child(div().flex_1().min_w_0().child(Input::new(input).small()))
+                .child(
+                    Button::new("details-link-pr-save")
+                        .small()
+                        .primary()
+                        .label("Link")
+                        .on_click(cx.listener(|this, _, window, cx| this.link_pr(window, cx))),
+                )
+                .into_any_element(),
+        ]
+        .into_iter()
+        .chain(self.details.pr_error.clone().map(|e| {
+            div()
+                .id("details-link-pr-error")
+                .px_2p5()
+                .py_1()
+                .text_size(ui::META)
+                .text_color(ui::ink(&theme, theme.danger))
+                .child(e)
+                .into_any_element()
+        }))
+        .collect()
     }
 
     /// A delegated thread: its status dot, title, and how long it has run (or how it ended); opens it.

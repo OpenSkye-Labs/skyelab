@@ -55,7 +55,7 @@ mod session;
 #[path = "thread_event.rs"]
 mod event;
 pub use super::thread_details::ChildLink;
-pub use event::ThreadViewEvent;
+pub use event::{GitAction, ThreadViewEvent};
 
 pub struct ThreadView {
     pub(super) focus: FocusHandle,
@@ -462,10 +462,13 @@ impl ThreadView {
     }
 
     fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
-        // A prompt with no turn running starts one; a steer or a queued send joins the running one.
+        // A prompt with no turn running starts one (a steer or queued send joins it).
         if matches!(record, Record::Prompt(_)) && !self.turn_running() {
             self.turn_started_ms = Some(crate::ui::now_ms());
             self.tick_while_working(cx);
+        }
+        if let Record::Agent(skyelab_agent::Event::RateLimit { .. }) = record {
+            cx.emit(ThreadViewEvent::UsageReported);
         }
         let limited = limit_after(self.limited, record);
         if limited != self.limited {

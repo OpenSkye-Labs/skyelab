@@ -443,7 +443,7 @@ impl Codex {
             }
             "turn/plan/updated" => (plan(p).into_iter().collect(), Vec::new()),
             "account/rateLimits/updated" if p["rateLimits"].is_object() => {
-                (vec![rate_limit(&p["rateLimits"])], Vec::new())
+                (rate_limit(&p["rateLimits"]), Vec::new())
             }
             // Streaming deltas and status chatter: the completed items carry what matters.
             m if NOISE.iter().any(|n| m.starts_with(n)) => (Vec::new(), Vec::new()),

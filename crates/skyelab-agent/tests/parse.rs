@@ -96,7 +96,7 @@ fn rate_limit_events_name_their_window() {
     );
     assert_eq!(
         line("five_hour", r#","utilization":1.5"#).rate_limit(),
-        Some(("Session", 1.0))
+        Some(("5h", 1.0))
     );
     // Most events carry only a status; an unknown window is not guessed at.
     assert_eq!(line("seven_day", "").rate_limit(), None);

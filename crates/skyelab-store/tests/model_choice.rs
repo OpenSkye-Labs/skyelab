@@ -67,7 +67,7 @@ fn thread_and_project_models_round_trip() {
 }
 
 #[test]
-fn a_new_database_is_at_version_9() {
+fn a_new_database_is_at_the_latest_version() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("s.db");
     drop(Store::open(&path).expect("create"));
@@ -75,7 +75,7 @@ fn a_new_database_is_at_version_9() {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(v, 10);
+    assert_eq!(v, 11);
     drop(conn);
     let store = Store::open(&path).expect("reopen");
     let p = store

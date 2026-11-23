@@ -115,27 +115,70 @@ fn rate_limits_say_when_a_window_is_used_up() {
         json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":61,"windowDurationMins":300,"resetsAt":1777429830},"secondary":{"usedPercent":23,"windowDurationMins":10080,"resetsAt":1777959590},"rateLimitReachedType":null}}}),
     );
     assert_eq!(
-        ok,
-        vec![Event::RateLimit {
+        ok.last(),
+        Some(&Event::RateLimit {
             window: None,
             used: None,
             limited: false,
             resets_at: Some(1777429830)
-        }]
+        })
     );
     let full = events(
         &mut c,
         json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":100,"resetsAt":2000100000},"secondary":null,"rateLimitReachedType":null}}}),
     );
     assert_eq!(
-        full,
-        vec![Event::RateLimit {
+        full.last(),
+        Some(&Event::RateLimit {
             window: None,
             used: None,
             limited: true,
             resets_at: Some(2000100000)
-        }]
+        })
     );
+}
+
+#[test]
+fn codex_rate_limits_report_each_window() {
+    let mut c = open();
+    let reading = |window: &str, used: f32, resets_at: i64| Event::RateLimit {
+        limited: false,
+        resets_at: Some(resets_at),
+        window: Some(window.to_owned()),
+        used: Some(used),
+    };
+    // Recorded shape: 5h primary and weekly secondary, then the summary.
+    let ok = events(
+        &mut c,
+        json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":61,"windowDurationMins":300,"resetsAt":1777429830},"secondary":{"usedPercent":23,"windowDurationMins":10080,"resetsAt":1777959590},"rateLimitReachedType":null}}}),
+    );
+    assert_eq!(
+        ok[..2],
+        [
+            reading("five_hour", 0.61, 1777429830),
+            reading("seven_day", 0.23, 1777959590)
+        ]
+    );
+    assert_eq!(ok.len(), 3);
+    // No durations: primary is 5h, secondary weekly; over 100% reads as full.
+    let full = events(
+        &mut c,
+        json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":130,"resetsAt":5},"secondary":null}}}),
+    );
+    assert_eq!(full[..1], [reading("five_hour", 1.0, 5)]);
+    assert_eq!(full.len(), 2);
+    // A model-specific limit says nothing about the account, not even a summary; a monthly window isn't a reading,
+    // but its summary still comes.
+    let other = events(
+        &mut c,
+        json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"gpt-x","primary":{"usedPercent":10,"windowDurationMins":300}}}}),
+    );
+    assert_eq!(other.len(), 0);
+    let monthly = events(
+        &mut c,
+        json!({"method":"account/rateLimits/updated","params":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":43200}}}}),
+    );
+    assert_eq!(monthly.len(), 1);
 }
 
 #[test]
