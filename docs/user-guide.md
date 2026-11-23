@@ -46,9 +46,9 @@ folder (SkyeLab creates the folder first, private to you). A config file written
 `provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's
 sessions); to switch, add a new account and re-bind the folder.
 
-Codex threads run `codex app-server` with approvals off and the `workspace-write` sandbox: Codex can edit files in
-the folder but not outside it, and has no network for its commands. A request for more is declined, since SkyeLab
-has no approval prompt yet. The repo's own `.codex/` config, hooks and rules never load; your account's own
+Codex threads run `codex app-server` in the `workspace-write` sandbox by default: Codex can edit files in the folder
+but not outside it, and has no network for its commands. When it wants to run a command it doesn't trust or step
+outside the sandbox, the thread asks you (see [Permissions](#permissions)). The repo's own `.codex/` config, hooks and rules never load; your account's own
 `CODEX_HOME/config.toml` (MCP servers, model) does.
 
 Accounts and bindings are saved in `accounts.toml` in the platform config folder:
@@ -109,6 +109,30 @@ another SkyeLab on the same data), the thread still shows it and says how many e
 event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
 Closing a thread's tab or quitting SkyeLab stops its agent. A thread that was still running when SkyeLab last closed
 without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
+
+### Permissions
+
+Under the composer, **Permissions** picks what the thread's agent may do without asking:
+
+- **Ask** (the default): it asks before anything its own rules don't already allow.
+- **Plan**: it reads and plans only, with no edits or commands (for Codex, a read-only sandbox).
+- **Accept edits**: file edits in the folder go ahead; anything else asks.
+- **Full access**: nothing asks. SkyeLab asks you to confirm first. A Codex agent also leaves its sandbox, so it can
+  write outside the folder and use the network.
+
+The mode is saved with the thread and used every time its agent starts or resumes. Changing it while the agent runs
+applies at once for Claude and from the next turn for Codex.
+
+When the agent asks, the thread shows a **Waiting for approval** card with the tool and what it wants to do (the
+command, or the file), and the agent waits until you answer: **Allow once**, **Allow for this thread** (this call and
+its like, while this agent runs; after a resume it asks again) or **Deny**. Afterwards the row says what was decided.
+An ask the agent withdraws (an interrupt, or its turn ended) shows **Withdrawn**. A request in a thread whose agent has
+stopped can't be answered; send a message to continue. Another machine viewing the thread, and the mobile app, show
+the same card and can answer it.
+
+When a turn fails, or the agent exits with an error, what it wrote to stderr (the last 64 KiB) shows as an
+**Agent output** row; click it to open it. Claude's `AskUserQuestion` also arrives as a request: allowing it runs the
+tool, but SkyeLab has no way to answer its question yet.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
 as. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.

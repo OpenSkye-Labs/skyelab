@@ -36,9 +36,13 @@ own config. SkyeLab passes `-c projects={...}` marking the folder, every ancesto
 repo and that repo's ancestors untrusted. Codex merges `-c` overrides into the user's `projects` table, so naming only
 the folder isn't enough: a subfolder of a trusted repo still loaded the repo's layer in a spike against codex 0.171.
 
-There is no approval UI, so threads run with `approvalPolicy: "never"` and `sandbox: "workspace-write"` (writes stay
-in the folder, commands get no network). Any approval request that still arrives is declined; other server requests
-get a JSON-RPC error.
+The thread's permission mode picks `approvalPolicy` and `sandbox` for `thread/start`: **Ask** is `untrusted` +
+`workspace-write` (writes stay in the folder, commands get no network), **Accept edits** is `on-request` +
+`workspace-write`, **Plan** is `on-request` + `read-only` (Codex has no plan mode), and **Full access** is `never` +
+`danger-full-access`. A mode picked while the thread runs rides the next `turn/start` (`approvalPolicy`,
+`sandboxPolicy`). `item/commandExecution/requestApproval` and `item/fileChange/requestApproval` become a request in the
+thread; the answer is `accept`, `acceptForSession` or `decline`. `serverRequest/resolved` or the turn's end withdraws
+an unanswered one. Other server requests (user input, MCP elicitation, old-style approvals) get a JSON-RPC error.
 
 ## Orchestration
 

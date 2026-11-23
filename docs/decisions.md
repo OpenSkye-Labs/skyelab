@@ -126,3 +126,23 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   shim starts before the job assignment (microseconds after spawn) is outside the job; a tab folder WebView2 still
   holds when the tab closes stays in the temp dir (a registry policy that pins the folder isn't checked either).
   (2026-11-23)
+- **Agent permissions through the host.** Claude runs with `--permission-prompt-tool stdio` (the Agent SDK's switch),
+  so every permission ask reaches SkyeLab as a stream-json `can_use_tool` control request and the CLI waits for our
+  `control_response`; a `control_cancel_request` withdraws it. We picked this over `--permission-prompt-tool` with
+  our own MCP server because the ask, its answer and its withdrawal stay on the session's own pipes, ordered with
+  its events, and no token or socket is involved. "Allow for this thread" sends the CLI's own
+  `permission_suggestions` with every destination forced to `session` (or an `addRules` rule for the tool), so
+  nothing is written to the project's or the user's settings; it lasts while that process runs. Codex's command and
+  file-change approvals go through the same `Event::Permission`, answered `accept` / `acceptForSession` /
+  `decline`. Asks and answers are stored as thread events (`Permission`, `PermissionResolved`), so remote viewers see
+  them through the pushes they already get, and answer with `answer_permission` (protocol 1.3), served only after
+  hello from an approved device. The answer's reply waits for the session's own check (the id must still be open).
+  Modes: Ask (no flag; Codex `untrusted`), Plan (`plan`; Codex read-only), Accept edits (`acceptEdits`; Codex
+  `on-request`), Full access (`bypassPermissions` + `--allow-dangerously-skip-permissions`; Codex `never` +
+  `danger-full-access`), behind a confirm. Limits: checked against claude 2.1.330's `--help` and binary only (the
+  control protocol isn't in `--help`); switching a running Claude session into Full access needs it to have started
+  in Full access, otherwise the CLI keeps the stricter mode; `AskUserQuestion` has no answer UI. (2026-11-23)
+- **Agent stderr is captured.** The agent's stderr is a third streaming pipe (still copied to the app's stderr); a
+  thread keeps its newest 64 KiB per session. Nothing waits on its EOF. After a failed turn, or a nonzero exit that
+  wasn't a Stop, what is new is stored as an `Event::Stderr` row and shown as a collapsed **Agent output** row.
+  (2026-11-23)
