@@ -121,6 +121,9 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.items.is_empty() {
+            return; // nothing to find, and the bar only draws over a timeline
+        }
         let input = match &self.timeline.find.input {
             Some(input) => input.clone(),
             None => {
@@ -193,18 +196,33 @@ impl ThreadView {
 
     /// The next (or previous) match, wrapping around. Rows may have changed since the count, so it counts again.
     pub(super) fn find_step(&mut self, forward: bool, cx: &mut Context<Self>) {
-        let query = self.find_query(cx);
-        let now = matches(&self.items, &query);
+        self.find_rows_changed();
         let f = &mut self.timeline.find;
-        let n = now.len();
-        f.active = match (n, f.matches == now) {
-            (0, _) => 0,
-            (_, false) => 0,
-            (_, true) if forward => (f.active + 1) % n,
-            (_, true) => (f.active + n - 1) % n,
+        let n = f.matches.len();
+        f.active = match n {
+            0 => 0,
+            _ if forward => (f.active + 1) % n,
+            _ => (f.active + n - 1) % n,
         };
-        f.matches = now;
         self.reveal_match(cx);
+    }
+
+    /// Rows streamed in or changed while the bar is open: count again, keeping the place (the first match at or
+    /// after the current one's row).
+    pub(super) fn find_rows_changed(&mut self) {
+        let f = &mut self.timeline.find;
+        if f.input.is_none() {
+            return;
+        }
+        let now = matches(&self.items, &f.query);
+        if now == f.matches {
+            return;
+        }
+        let row = f.matches.get(f.active).copied();
+        f.active = row
+            .and_then(|r| now.iter().position(|&m| m >= r))
+            .unwrap_or(0);
+        f.matches = now;
     }
 
     /// Scrolls to the current match, opening the fold and the row it is in.

@@ -452,6 +452,7 @@ impl ThreadView {
         let old = self.items.len();
         if let Some(first) = apply(&mut self.items, record) {
             stamp_done(&mut self.items, crate::ui::now_ms());
+            self.find_rows_changed();
             self.list.splice(first..old, self.items.len() - first);
             cx.notify();
         }

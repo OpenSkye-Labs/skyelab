@@ -107,6 +107,15 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(state(cx).1, 2, "backwards");
 
+    // A reply streams in with another match: counted, and the place (row 2) is kept.
+    one.view.update(cx, |v, cx| {
+        v.items.push(Item::Text("one more needle".into()));
+        v.list.reset(v.items.len());
+        v.find_rows_changed();
+        cx.notify();
+    });
+    assert_eq!(state(cx), (vec![1, 2, 2, 4], 1));
+
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
     assert!(cx.debug_bounds("find-bar").is_none());
