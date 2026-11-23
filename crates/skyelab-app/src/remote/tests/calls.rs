@@ -3,12 +3,12 @@
 use super::*;
 
 pub(super) struct Fixture {
-    pub(super) _dir: tempfile::TempDir,
-    pub(super) project_dir: PathBuf,
-    pub(super) account_dir: PathBuf,
-    pub(super) store: workspace::SharedStore,
-    pub(super) ws: Entity<Workspace>,
-    pub(super) remote: Entity<Remote>,
+    pub _dir: tempfile::TempDir,
+    pub project_dir: PathBuf,
+    pub account_dir: PathBuf,
+    pub store: workspace::SharedStore,
+    pub ws: Entity<Workspace>,
+    pub remote: Entity<Remote>,
 }
 
 /// A workspace with one project (bound to "acme" or not), sharing on, its remote calls wired.

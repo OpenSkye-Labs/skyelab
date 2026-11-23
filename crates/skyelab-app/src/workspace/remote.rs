@@ -2,6 +2,8 @@
 //! the same `ThreadView` path a local prompt takes.
 
 use super::Workspace;
+pub(super) use super::remote_queue::StartQueue;
+use super::remote_queue::{FIRST_LOAD_WAIT, MAX_WAITING_STARTS};
 use super::thread::{SendPrompt, ThreadView};
 use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
@@ -25,39 +27,6 @@ pub(super) struct RemoteHook {
     panel: Option<WeakEntity<RemotePanel>>,
     _calls: Task<()>,
     _observe: Subscription,
-}
-
-/// How long a remote start waits for the first project load before it is resolved anyway.
-const FIRST_LOAD_WAIT: Duration = Duration::from_secs(10);
-/// Remote starts held while the first project load runs; more are refused.
-const MAX_WAITING_STARTS: usize = 16;
-
-/// Remote starts that arrived before the first project load finished.
-pub(super) struct StartQueue {
-    /// Dropped when the first load ends (or the wait times out), which wakes `wait`.
-    loading: Option<flume::Sender<()>>,
-    wait: flume::Receiver<()>,
-    /// Project, prompt, reply, and the sharing session it arrived in.
-    calls: Vec<(i64, String, crate::remote::Reply<i64>, Option<u64>)>,
-    _drain: Option<Task<()>>,
-    _timeout: Option<Task<()>>,
-}
-
-impl StartQueue {
-    pub(super) fn new() -> Self {
-        let (loading, wait) = flume::bounded(1);
-        Self {
-            loading: Some(loading),
-            wait,
-            calls: Vec::new(),
-            _drain: None,
-            _timeout: None,
-        }
-    }
-
-    pub(super) fn loaded(&mut self) {
-        self.loading = None;
-    }
 }
 
 /// How long a remote follow-up or interrupt waits to reach the agent; under the daemon's own 30 s wait, so the
@@ -84,6 +53,15 @@ fn answer_within(
 
 fn refused(message: impl Into<String>) -> RpcError {
     RpcError::new(ErrorCode::BadRequest, message.into())
+}
+
+pub(super) fn decision_of(a: skyelab_protocol::PermissionAnswer) -> skyelab_agent::Decision {
+    use skyelab_protocol::PermissionAnswer as A;
+    match a {
+        A::AllowOnce => skyelab_agent::Decision::AllowOnce,
+        A::AllowThread => skyelab_agent::Decision::AllowThread,
+        A::Deny => skyelab_agent::Decision::Deny,
+    }
 }
 
 fn not_open(thread_id: i64) -> RpcError {
@@ -236,6 +214,30 @@ impl Workspace {
             } => self.remote_send(thread_id, &text, reply, window, cx),
             RemoteCall::Interrupt { thread_id, reply } => {
                 self.remote_interrupt(thread_id, reply, cx)
+            }
+            RemoteCall::Answer {
+                thread_id,
+                request_id,
+                decision,
+                reply,
+            } => {
+                let Some(view) = self.open_view(thread_id, cx) else {
+                    let _ = reply.send(Err(not_open(thread_id)));
+                    return;
+                };
+                let late = reply.clone();
+                // Replied once the agent took the answer, or refused it (already answered or withdrawn).
+                let asked = view.update(cx, |v, cx| {
+                    v.answer_then(
+                        &request_id,
+                        decision_of(decision),
+                        move |r| _ = late.send(r.map_err(refused)),
+                        cx,
+                    )
+                });
+                if let Err(why) = asked {
+                    let _ = reply.send(Err(refused(why)));
+                }
             }
         }
     }

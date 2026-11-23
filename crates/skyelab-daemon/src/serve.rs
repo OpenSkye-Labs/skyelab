@@ -223,6 +223,13 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
             backend.send_message(thread_id, &text).map(|()| Reply::Ok)
         }
         Call::Interrupt { thread_id } => backend.interrupt(thread_id).map(|()| Reply::Ok),
+        Call::AnswerPermission {
+            thread_id,
+            request_id,
+            decision,
+        } => backend
+            .answer_permission(thread_id, &request_id, decision)
+            .map(|()| Reply::Ok),
     }
 }
 

@@ -2,7 +2,7 @@
 
 use anyhow::{Context as _, Result};
 use serde_json::Value;
-use skyelab_agent::{Block, Event};
+use skyelab_agent::{Block, Decision, Event};
 
 /// One stored thread event. The store's `kind` column says which.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +50,20 @@ pub struct ToolItem {
     pub is_error: bool,
 }
 
+/// A tool call the agent asked permission for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ApprovalItem {
+    /// The request id the answer names.
+    pub id: String,
+    pub tool: String,
+    /// One line: the command, or the file it touches.
+    pub summary: String,
+    /// The input as pretty JSON.
+    pub input: String,
+    /// `None` while the agent waits for an answer.
+    pub decision: Option<Decision>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Prompt(String),
@@ -61,6 +75,23 @@ pub enum Item {
         duration_ms: u64,
         cost_usd: f64,
     },
+    Approval(ApprovalItem),
+    /// What the agent wrote to stderr; `id` keys its expanded state.
+    Output {
+        id: String,
+        text: String,
+    },
+}
+
+impl Item {
+    /// The key a row's expanded state is kept under, for rows that expand.
+    pub fn expand_id(&self) -> Option<&str> {
+        match self {
+            Item::Tool(t) => Some(&t.id),
+            Item::Output { id, .. } => Some(id),
+            _ => None,
+        }
+    }
 }
 
 /// Applies one record. Returns the first index that changed (items from there on may be new or
@@ -122,6 +153,33 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
             is_error: *is_error,
             duration_ms: *duration_ms,
             cost_usd: *total_cost_usd,
+        }),
+        Record::Agent(Event::Permission { id, tool, input }) => {
+            items.push(Item::Approval(ApprovalItem {
+                id: id.clone(),
+                tool: tool.clone(),
+                summary: skyelab_agent::summary(input),
+                input: serde_json::to_string_pretty(input).unwrap_or_default(),
+                decision: None,
+            }))
+        }
+        Record::Agent(Event::PermissionResolved { id, decision }) => {
+            if let Some((ix, a)) = items
+                .iter_mut()
+                .enumerate()
+                .rev()
+                .find_map(|(ix, i)| match i {
+                    Item::Approval(a) if a.id == *id && a.decision.is_none() => Some((ix, a)),
+                    _ => None,
+                })
+            {
+                a.decision = Some(*decision);
+                first_changed = Some(ix);
+            }
+        }
+        Record::Agent(Event::Stderr { text }) => items.push(Item::Output {
+            id: format!("output-{before}"),
+            text: text.clone(),
         }),
         Record::Agent(Event::Init { .. } | Event::Unknown(_)) => {}
     }

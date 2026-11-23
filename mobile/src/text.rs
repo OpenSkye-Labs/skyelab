@@ -22,6 +22,18 @@ pub fn event_text(e: &ThreadEvent) -> String {
     if let Some(prompt) = v.as_str() {
         return prompt.to_owned();
     }
+    if let Some((tool, what)) = permission(&e.payload_json) {
+        return format!("Asks to use {tool}: {what}");
+    }
+    if let Some(decision) = v.get("decision").and_then(Value::as_str) {
+        return match decision {
+            "allow_once" => "Allowed once",
+            "allow_thread" => "Allowed for this thread",
+            "deny" => "Denied",
+            _ => "Withdrawn",
+        }
+        .to_owned();
+    }
     if let Some(blocks) = v.get("content").and_then(Value::as_array) {
         let parts: Vec<String> = blocks
             .iter()
@@ -42,10 +54,54 @@ pub fn event_text(e: &ThreadEvent) -> String {
             return parts.join("\n");
         }
     }
+    // `{"Stderr": {"text"}}`: the agent's own output after a failure.
+    if let Some(text) = v.get("text").and_then(Value::as_str) {
+        return text.to_owned();
+    }
     if let Some(result) = v.get("result").and_then(Value::as_str) {
         return result.to_owned();
     }
     e.payload_json.clone()
+}
+
+/// A `{"Permission": {..}}` agent row's tool and a one-line summary of what it wants to do.
+fn permission(payload: &str) -> Option<(String, String)> {
+    use serde_json::Value;
+    let v: Value = serde_json::from_str(payload).ok()?;
+    let p = v.get("Permission")?;
+    let tool = p.get("tool")?.as_str()?.to_owned();
+    let input = p.get("input").cloned().unwrap_or(Value::Null);
+    let what = ["command", "file_path", "path"]
+        .iter()
+        .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_owned))
+        .unwrap_or_else(|| input.to_string());
+    let what: String = what
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(200)
+        .collect();
+    Some((tool, what))
+}
+
+/// The permission requests in `events` nobody has answered yet: (request id, what it asks), oldest first.
+pub fn pending_permissions(events: &[ThreadEvent]) -> Vec<(String, String)> {
+    use serde_json::Value;
+    let mut pending: Vec<(String, String)> = Vec::new();
+    for e in events.iter().filter(|e| e.kind == "agent") {
+        let Ok(v) = serde_json::from_str::<Value>(&e.payload_json) else {
+            continue;
+        };
+        if let Some((tool, what)) = permission(&e.payload_json)
+            && let Some(id) = v.pointer("/Permission/id").and_then(Value::as_str)
+        {
+            pending.push((id.to_owned(), format!("{tool}: {what}")));
+        } else if let Some(id) = v.pointer("/PermissionResolved/id").and_then(Value::as_str) {
+            pending.retain(|(p, _)| p != id);
+        }
+    }
+    pending
 }
 
 /// The connection line under the title, and whether it is a problem.

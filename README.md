@@ -45,12 +45,18 @@ What's built today:
   start threads there and send follow-ups. Its agents run there, on its own accounts.
 - **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It connects to a
   shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
-  and sends or stops. Not packaged for distribution yet.
+  sends or stops, and answers the agent's permission requests. Not packaged for distribution yet.
 - **Agent orchestration.** An agent can start and drive other threads through SkyeLab's own MCP tools, only in
   projects bound to its own account. A child shows "Delegated by" its parent, and the parent lists its delegated
   threads. macOS and Linux only for now.
 
-Not built yet: agents beyond Claude Code and Codex, an approval UI for Codex, and delegation to other machines.
+- **Tool approvals in the thread.** When an agent needs permission for a tool (a command, an edit), the thread shows
+  what it wants to run and waits: **Allow once**, **Allow for this thread** or **Deny**. Each thread has a
+  permission mode (Ask, Plan, Accept edits, Full access, the last behind a confirm). Phones and other machines viewing
+  the thread can answer too. When a turn fails or the agent exits with an error, its stderr shows as an
+  **Agent output** row.
+
+Not built yet: agents beyond Claude Code and Codex, and delegation to other machines.
 
 | Changes tab | Accounts and bindings | Device hub |
 |---|---|---|
@@ -125,8 +131,11 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. Codex runs with the folder and
   every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and
-  `.rules` never load. Codex has no approval UI here yet: it runs with approvals off and the `workspace-write`
-  sandbox (writes stay in the folder, no network), and any approval request is declined.
+  `.rules` never load. Codex keeps its `workspace-write` sandbox (writes stay in the folder, no network) unless a
+  thread picks Plan (read-only) or Full access, and its approval requests come to the thread.
+- **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
+  a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
+  the project's or your Claude settings. Full access asks before it turns on.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the

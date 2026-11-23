@@ -155,6 +155,7 @@ pub enum Ran {
     Start(i64, String),
     Send(i64, String),
     Interrupt(i64),
+    Answer(i64, String, skyelab_protocol::PermissionAnswer),
 }
 
 /// The agent calls an [`Env`] saw. With `fail`, every call is still recorded, then fails like an unwired desktop.
@@ -210,6 +211,14 @@ impl Agents for RecordingAgents {
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
         self.record(Ran::Interrupt(thread_id))
     }
+    fn answer_permission(
+        &self,
+        thread_id: i64,
+        request_id: &str,
+        decision: skyelab_protocol::PermissionAnswer,
+    ) -> Result<(), RpcError> {
+        self.record(Ran::Answer(thread_id, request_id.into(), decision))
+    }
 }
 
 /// The store backend, except that the next `fail_lists` thread listings fail. Every call is logged in `asked`.
@@ -255,6 +264,16 @@ impl Backend for Flaky {
     fn interrupt(&self, thread_id: i64) -> Result<(), RpcError> {
         self.ask("interrupt");
         self.inner.interrupt(thread_id)
+    }
+    fn answer_permission(
+        &self,
+        thread_id: i64,
+        request_id: &str,
+        decision: skyelab_protocol::PermissionAnswer,
+    ) -> Result<(), RpcError> {
+        self.ask("answer_permission");
+        self.inner
+            .answer_permission(thread_id, request_id, decision)
     }
 }
 
