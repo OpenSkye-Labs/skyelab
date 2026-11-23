@@ -14,6 +14,8 @@ use anyhow::{Context, Result, bail};
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod manage;
+mod model;
+pub use model::ModelChoice;
 mod migrations;
 use migrations::MIGRATIONS;
 

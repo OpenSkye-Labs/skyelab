@@ -46,6 +46,8 @@ pub(super) trait ItemsView: Sized + 'static {
     /// Whether an agent is there to answer a pending permission request.
     fn can_answer(&self, cx: &App) -> bool;
     fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
+    /// Stops the running turn instead of answering (T3 keeps Interrupt beside a pending ask).
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>);
 }
 
 impl ItemsView for ThreadView {
@@ -63,6 +65,9 @@ impl ItemsView for ThreadView {
     }
     fn answer(&mut self, id: &str, decision: Decision, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::answer(self, id, decision, cx)
+    }
+    fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.interrupt(&super::thread::Interrupt, window, cx)
     }
 }
 
@@ -363,6 +368,14 @@ fn render_approval<V: ItemsView>(this: &V, a: &ApprovalItem, cx: &mut Context<V>
                 .outline(),
             )
             .child(button("Deny", "deny", Decision::Deny).ghost())
+            .child(
+                Button::new(SharedString::from(format!("interrupt-{}", a.id)))
+                    .xsmall()
+                    .ghost()
+                    .label("Interrupt")
+                    .tooltip("Stop this turn instead (⌘.)")
+                    .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx))),
+            )
             .into_any_element()
     } else {
         div()

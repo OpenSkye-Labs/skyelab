@@ -5,10 +5,13 @@
 use std::path::Path;
 
 /// (file, line) pairs allowed to pipe: the agent session's streaming stdin, stdout and stderr. Nothing waits on
-/// the stderr pipe's EOF: a thread keeps its tail, and the session ends on the agent's exit.
+/// the stderr pipe's EOF: a thread keeps its tail, and the session ends on the agent's exit. Codex's model list speaks
+/// the same app-server protocol, reads only up to its reply under a deadline, then kills the process.
 const STREAMING: &[(&str, &str)] = &[
     ("skyelab-agent/src/lib.rs", ".stdin(Stdio::piped())"),
     ("skyelab-agent/src/lib.rs", ".stdout(Stdio::piped())"),
+    ("skyelab-agent/src/models.rs", ".stdin(Stdio::piped())"),
+    ("skyelab-agent/src/models.rs", ".stdout(Stdio::piped())"),
     ("skyelab-agent/src/lib.rs", ".stderr(Stdio::piped());"),
 ];
 const PIPE_READS: &[&str] = &[".output()", "wait_with_output", "Stdio::piped()"];

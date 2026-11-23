@@ -1,4 +1,4 @@
-//! The Settings tab: opening it, and what its events do (login terminals, saved accounts).
+//! The Settings page: opening it, and what its events do (login terminals, saved accounts).
 
 use super::*;
 
@@ -9,13 +9,30 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(settings) = self.settings.as_ref().and_then(|s| s.upgrade()) {
-            settings.update(cx, |s, cx| s.check_gh_logins(cx)); // a login may have finished since
-            let id = settings.entity_id().into();
-            self.dock
-                .update(cx, |dock, cx| dock.select_panel(id, window, cx));
-            settings.read(cx).focus_handle(cx).focus(window, cx);
-            return;
+        let section = match &self.page {
+            Page::Settings(section) => *section,
+            _ => crate::settings::Section::Accounts,
+        };
+        if let Some(settings) = self.settings.clone() {
+            // The page lives all session: show the file as it is now (an edit elsewhere, a login since).
+            self.reload_accounts();
+            self.push_config(cx);
+            if self.load_error.is_none() {
+                let config = self.config.clone();
+                settings.update(cx, |s, cx| s.set_config(config, window, cx));
+            }
+        }
+        self.show(Page::Settings(section), window, cx);
+    }
+
+    /// The Settings view, created on first use with the accounts as they are on disk now.
+    pub(super) fn ensure_settings(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<Settings> {
+        if let Some(settings) = &self.settings {
+            return settings.clone();
         }
         self.reload_accounts();
         self.push_config(cx); // orchestration and open threads check against what's on disk now
@@ -24,17 +41,12 @@ impl Workspace {
             self.config.clone(),
             self.load_error.clone(),
         );
-        let settings = cx.new(|cx| Settings::new(path, config, error, window, cx));
-        self.dock.update(cx, |dock, cx| {
-            dock.add_panel_view(
-                panel_handle(settings.clone()),
-                DockPlacement::Center,
-                None,
-                window,
-                cx,
-            );
+        let remote = self.remote_panel(cx);
+        let settings = cx.new(|cx| {
+            let mut s = Settings::new(path, config, error, window, cx);
+            s.remote = remote;
+            s
         });
-        settings.read(cx).focus_handle(cx).focus(window, cx);
         // Settings keeps its own copy and saves to disk, so re-read the file whenever it changes.
         self._settings_saved = Some(cx.observe(&settings, |this, _, cx| {
             this.reload_accounts();
@@ -63,8 +75,8 @@ impl Workspace {
                 }
             },
         ));
-        self.settings = Some(settings.downgrade());
-        cx.notify();
+        self.settings = Some(settings.clone());
+        settings
     }
 
     pub(super) fn reload_accounts(&mut self) {

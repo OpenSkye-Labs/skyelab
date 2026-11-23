@@ -1,7 +1,68 @@
 //! Which binary a launched agent is. The env it inherits is `skyelab_core::env`'s rule.
 
-use anyhow::{Result, bail};
+use anyhow::{Context as _, Result, bail};
+use skyelab_core::{Account, AccountsConfig};
 use std::path::{Path, PathBuf};
+use std::process::Command;
+
+/// The agent's command for `account` in `dir`, checked and scrubbed: `dir` (canonicalized, returned) must still resolve
+/// to `account`, and the env is the allowlist plus the account's own, never the parent's.
+pub(crate) fn agent_command(
+    bin: &Path,
+    config: &AccountsConfig,
+    account: &Account,
+    dir: &Path,
+) -> Result<(Command, PathBuf, PathBuf)> {
+    // The child starts in the exact folder that was checked, even if a link in `dir` is retargeted.
+    let dir = std::fs::canonicalize(dir).with_context(|| format!("opening {}", dir.display()))?;
+    match config.resolve(&dir) {
+        Some(now) if now.same_login(account) => {}
+        Some(now) if now.id == account.id => bail!(
+            "account '{}' changed since this launch was prepared (its config dir, gh login or ssh setting); \
+             nothing was started",
+            now.id
+        ),
+        Some(now) => bail!(
+            "{} is now bound to '{}', not '{}'; nothing was started",
+            dir.display(),
+            now.id,
+            account.id
+        ),
+        None => bail!("{} is not bound to an account", dir.display()),
+    }
+    let env = account.launch_env()?;
+    // A relative dir would resolve inside the untrusted project, and an empty one means ~/.claude.
+    if let Some((var, v)) = env.iter().find(|(_, v)| !v.is_absolute()) {
+        bail!(
+            "{var} for {} must be an absolute path, got {v:?}",
+            dir.display()
+        );
+    }
+    let bin = resolve_bin(bin)?;
+    let mut cmd = Command::new(&bin);
+    // Never inherit the parent's account or credentials: start empty, add the allowlist, then the bound account,
+    // and git's https credentials from that account's gh only (`git push` in the agent's own shell).
+    cmd.env_clear()
+        .envs(skyelab_core::env::inherited_agent_env(account.ssh_agent))
+        .envs(env)
+        .envs(skyelab_core::env::account_git_env(account, &dir));
+    #[cfg(unix)]
+    std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
+    Ok((cmd, bin, dir))
+}
+
+/// SIGKILL to process group `pid` (an agent started with `process_group(0)`, so the group id is its pid). `unsafe` is
+/// denied, so no libc::killpg: the kill binary signals the group instead.
+#[cfg(unix)]
+pub(crate) fn kill_group(pid: u32) {
+    let kill = resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
+    let _ = Command::new(kill)
+        .args(["-KILL", "--", &format!("-{pid}")])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
 
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
 /// A bare name is looked up through the parent PATH's absolute entries only.

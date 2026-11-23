@@ -1,6 +1,7 @@
-//! The workspace's key bindings: per-OS keys and `init`, which binds them once at startup.
+//! The workspace's key bindings.
 
 use super::*;
+use gpui::{App, KeyBinding, NoAction};
 
 // `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
 pub(super) const MAC: bool = cfg!(target_os = "macos");
@@ -10,6 +11,8 @@ pub(crate) const NEW_TERMINAL_KEY: &str = if MAC { "cmd-alt-t" } else { "ctrl-al
 pub(crate) const OPEN_SETTINGS_KEY: &str = if MAC { "cmd-," } else { "ctrl-," };
 pub(crate) const OPEN_BROWSER_KEY: &str = if MAC { "cmd-alt-b" } else { "ctrl-alt-b" };
 pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-alt-d" };
+pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
+pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
 
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
@@ -20,12 +23,25 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(OPEN_SETTINGS_KEY, OpenSettings, Some(CONTEXT)),
         KeyBinding::new(OPEN_BROWSER_KEY, OpenBrowser, Some(CONTEXT)),
         KeyBinding::new(OPEN_DEVICES_KEY, OpenDevices, Some(CONTEXT)),
+        KeyBinding::new(GO_BACK_KEY, GoBack, Some(CONTEXT)),
+        KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
     ]);
     // Bindings run before a view sees the key, so off macOS ctrl-b/ctrl-j would never reach the shell.
     if !MAC {
         cx.bind_keys([
             KeyBinding::new(TOGGLE_SIDEBAR_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
+            // alt-left/right move by word in a shell; in a text field they would surprise more than help.
+            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
+            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
+            KeyBinding::new(GO_BACK_KEY, NoAction, Some("Input")),
+            KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Input")),
+        ]);
+    } else {
+        // A text field binds cmd-[ to Outdent; the prompt is focused on most pages, so history wins there.
+        cx.bind_keys([
+            KeyBinding::new(GO_BACK_KEY, GoBack, Some("Input")),
+            KeyBinding::new(GO_FORWARD_KEY, GoForward, Some("Input")),
         ]);
     }
     layout::bind_keys(cx);

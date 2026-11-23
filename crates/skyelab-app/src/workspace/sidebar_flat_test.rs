@@ -90,7 +90,6 @@ fn the_scope_filter_narrows_the_list_and_new_thread_uses_it(cx: &mut TestAppCont
     let started_in = r.ws.read_with(cx, |ws, cx| {
         ws.open_threads
             .iter()
-            .filter_map(|v| v.upgrade())
             .map(|v| v.read(cx).project_id)
             .collect::<Vec<_>>()
     });

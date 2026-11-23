@@ -84,7 +84,11 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
 ## 5. Thread header
 
 - 52 tall, `bg-background`, `px-5`, no bottom border in T3's chat (the timeline scrolls under a fade)
-  (`W/components/ChatView.tsx:3513-3527`).
+  (`W/components/ChatView.tsx:3513-3527`). It is the window's top row (`WorkspacePageHeader.tsx`): no tab strip above
+  it, and with the sidebar collapsed it leaves room for the window controls.
+- The center shows one page, chosen by route (`W/routes/_chat.*.tsx`): a thread, a draft, the empty state, or
+  settings (`_chat.settings.tsx`: a 240 px section nav on the sidebar surface, then a 48 px breadcrumb header). Tabs
+  exist only in the right panel (`RightPanelTabs.tsx`).
 - Breadcrumb: project (14 px favicon + name, muted) `/` thread title (`text-sm font-medium`, foreground), gap 12, the
   separator in `icon-muted` (`chat/ChatHeader.tsx:254-414`, `W/components/WorkspaceBreadcrumb.tsx:14,27-58`).
 - Right: ghost 28 px icon toggles for panels (`chat/PanelLayoutControls.tsx:63-174`). Branch and environment live in the
@@ -135,7 +139,7 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
   move to the next free slot in sorted-id order, so it is stable across sessions and distinct until there are more
   accounts than colors.
 - **Where SkyeLab differs on purpose:** a status bar stays (it carries the bound account and sharing state, which T3 has
-  no equivalent for); dock tabs stay (gpui-component's dock); the parent thread link stays in the header breadcrumb;
+  no equivalent for); the right and bottom docks keep gpui-component's tab bars (32 px, so they don't line up with the
+  52 px header row); the center has no tabs (`workspace/center.rs` hosts one page as the dock's only center panel); the parent thread link stays in the header breadcrumb;
   Interrupt and Stop stay in the header (a running session still takes follow-ups, so Send never turns into Stop).
-- **Not matched yet:** T3's transparent title bar (ours is the native one), the terminal's 12 px font (skyelab-terminal),
-  a collapsible PR form, and lifting the open thread's row in the sidebar.
+- **Not matched yet:** the terminal's 12 px font (skyelab-terminal) and a collapsible PR form.

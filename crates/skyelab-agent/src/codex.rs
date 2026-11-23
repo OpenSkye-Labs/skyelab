@@ -64,7 +64,14 @@ pub(crate) struct Codex {
     /// A turn was requested or runs: prompts queue behind it, like `claude`'s.
     busy: bool,
     interrupt_wanted: bool,
-    queue: VecDeque<String>,
+    /// Each waiting prompt's `input` items, and whether a finished turn already answered it (a steer refused late).
+    queue: VecDeque<(Value, bool)>,
+    /// What the running turn's `turn/completed` answers: its own prompt (unless already answered) and the steers.
+    /// `None` for a turn this client didn't start, which answers one prompt.
+    answers: Option<u32>,
+    /// `turn/steer` requests not answered yet: (request id, turn it targeted, input).
+    steers: Vec<(u64, String, Value)>,
+    pub(crate) pick: Pick,
     last_text: Option<String>,
     /// Why codex refused to open the thread. Every later prompt fails with it instead of waiting forever.
     closed: Option<String>,
@@ -105,6 +112,7 @@ impl Codex {
         resume: Option<&str>,
         mcp: Option<Value>,
         mode: Mode,
+        pick: Pick,
     ) -> (Self, Vec<String>) {
         let mut c = Codex {
             next_id: 0,
@@ -115,6 +123,9 @@ impl Codex {
             busy: false,
             interrupt_wanted: false,
             queue: VecDeque::new(),
+            answers: None,
+            steers: Vec::new(),
+            pick,
             last_text: None,
             closed: None,
             asks: BTreeMap::new(),
@@ -122,12 +133,7 @@ impl Codex {
             mode_sent: None,
             nonce: String::new(),
         };
-        let init = c.request(
-            "initialize",
-            json!({ "clientInfo": {
-                "name": "skyelab", "title": "SkyeLab", "version": env!("CARGO_PKG_VERSION"),
-            }}),
-        );
+        let init = c.request("initialize", initialize_params());
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
         let (approval, sandbox) = policy(mode);
         let mut params = json!({
@@ -136,6 +142,9 @@ impl Codex {
             "sandbox": sandbox,
             "config": mcp.map(|m| json!({ "mcp_servers": m })),
         });
+        if let Some(model) = &c.pick.model {
+            params["model"] = json!(model);
+        }
         let method = match resume {
             Some(id) => {
                 params["threadId"] = json!(id);
@@ -154,25 +163,24 @@ impl Codex {
         json!({ "id": id, "method": method, "params": params }).to_string()
     }
 
-    pub(crate) fn prompt(&mut self, text: &str) -> Result<Vec<String>> {
-        if let Some(why) = &self.closed {
-            anyhow::bail!("codex couldn't open this thread ({why}); start a new thread");
-        }
-        self.queue.push_back(text.to_owned());
-        Ok(self.pump())
-    }
-
     /// Starts the next queued turn once the thread is open and no turn runs.
     fn pump(&mut self) -> Vec<String> {
         let (Some(thread), false) = (self.thread_id.clone(), self.busy) else {
             return Vec::new();
         };
-        let Some(text) = self.queue.pop_front() else {
+        let Some((input, answered)) = self.queue.pop_front() else {
             return Vec::new();
         };
         self.busy = true;
+        self.answers = Some(u32::from(!answered));
         self.turn_req = Some(self.next_id);
-        let mut params = json!({ "threadId": thread, "input": [{ "type": "text", "text": text }] });
+        let mut params = json!({ "threadId": thread, "input": input });
+        if let Some(model) = &self.pick.model {
+            params["model"] = json!(model);
+        }
+        if let Some(effort) = &self.pick.effort {
+            params["effort"] = json!(effort);
+        }
         self.mode_sent = self.mode_change;
         if let Some(mode) = self.mode_change.take() {
             // Overrides stick for this turn and the ones after it.
@@ -308,6 +316,9 @@ impl Codex {
                 }
             };
         }
+        if let Some(reply) = self.on_steer_reply(id, error.is_some()) {
+            return reply;
+        }
         if id.is_none() || id != self.turn_req {
             return (Vec::new(), Vec::new());
         }
@@ -321,7 +332,11 @@ impl Codex {
                 self.end_turn();
                 // Refused, so its mode change never applied: the next turn carries it.
                 self.mode_change = self.mode_change.or(self.mode_sent.take());
-                (vec![failed(e)], self.pump())
+                let mut result = failed(e);
+                if let Event::Result { prompts, .. } = &mut result {
+                    *prompts = self.answers.take().unwrap_or(1);
+                }
+                (vec![result], self.pump())
             }
         }
     }
@@ -342,7 +357,7 @@ impl Codex {
                     is_error: !ok,
                     duration_ms: turn["durationMs"].as_u64().unwrap_or_default(),
                     total_cost_usd: 0.0,
-                    prompts: 1,
+                    prompts: self.answers.take().unwrap_or(1),
                     result: turn["error"]["message"]
                         .as_str()
                         .map(str::to_owned)
@@ -476,6 +491,10 @@ fn completed(item: &Value, raw: &Value) -> Option<Event> {
         }],
     })
 }
+
+#[path = "codex_steer.rs"]
+mod steer;
+pub(crate) use steer::{Pick, initialize_params};
 
 #[cfg(test)]
 #[path = "codex_tests.rs"]

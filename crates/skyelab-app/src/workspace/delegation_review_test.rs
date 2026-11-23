@@ -145,7 +145,7 @@ fn a_retry_after_the_child_tab_closed_returns_the_same_child(cx: &mut TestAppCon
         .expect("id");
     ws.update_in(cx, |w, win, cx| {
         let v = w.open_view(first, cx).expect("child tab");
-        w.dock.update(cx, |d, cx| d.remove_panel(v, win, cx));
+        w.close_thread(&v, win, cx);
     });
     cx.run_until_parked();
     let again = host_call(cx, caller(), call()).expect("retry")["thread_id"]

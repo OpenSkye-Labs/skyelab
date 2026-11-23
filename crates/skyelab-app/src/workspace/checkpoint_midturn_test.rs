@@ -22,9 +22,12 @@ fn a_mid_turn_prompt_keeps_the_baseline_and_a_stop_ends_the_turn(cx: &mut TestAp
     let row = thread.read_with(cx, |t, _| t.thread.clone().expect("row"));
     let list = || skyelab_git::checkpoints(&row.cwd, &key(&row)).expect("list");
 
-    // A follow-up while the turn runs: queued for the agent, no new baseline.
-    thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
-    send(cx);
+    // A follow-up steered into the running turn (a plain Send would wait in the composer's queue): no new baseline.
+    thread.update_in(cx, |t, window, cx| {
+        t.prompt
+            .update(cx, |p, cx| p.set_value("and this", window, cx));
+        t.steer_prompt(&super::thread::composer::SteerPrompt, window, cx);
+    });
     wait_until(cx, "the follow-up stored", |_| {
         let store = f.store.lock().expect("lock");
         store

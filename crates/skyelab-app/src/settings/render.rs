@@ -13,24 +13,6 @@ impl Settings {
         let accounts = self.config.accounts.iter().enumerate().map(|(i, a)| {
                 let edit = EditAccount { id: a.id.clone() };
                 let remove = RemoveAccount { id: a.id.clone() };
-                let github = a.gh_config_dir.as_ref().map(|dir| {
-                    let login = match (self.gh_logins.get(&a.id), self.gh_errors.get(&a.id)) {
-                        (Some(Some(login)), _) => format!("logged in as {login}"),
-                        (Some(None), _) => "not logged in".to_string(),
-                        (None, Some(e)) => format!("couldn't check: {e}"),
-                        (None, None) => "checking…".to_string(),
-                    };
-                    div()
-                        .flex()
-                        .gap_1()
-                        .text_size(ui::META)
-                        .text_color(theme.muted_foreground)
-                        .child(div().flex_shrink_0().child("GitHub:"))
-                        .child(path_text(format!("gh-{}", a.id), dir))
-                        .child(div().flex_shrink_0().child(format!("· {login}")))
-                });
-                let log_in = GhLogIn { id: a.id.clone() };
-                let has_gh = github.is_some();
                 let codex_id = (a.provider == Provider::Codex).then(|| a.id.clone());
                 row(i == 0, cx)
                     .child(
@@ -63,7 +45,6 @@ impl Settings {
                                     .text_size(ui::META)
                                     .text_color(theme.muted_foreground),
                             )
-                            .children(github),
                     )
                     .children(codex_id.map(|id| {
                         let selector = format!("codex-login-{id}");
@@ -77,19 +58,6 @@ impl Settings {
                             .on_click(cx.listener(move |this, _, _, cx| this.codex_log_in(&id, cx))),
                         )
                     }))
-                    .when(has_gh, |d| {
-                        d.child(
-                            Button::new(SharedString::from(format!("gh-login-{}", a.id)))
-                                .label("Log in to GitHub")
-                                .tooltip("Opens a terminal running gh auth login for this account")
-                                .flex_shrink_0()
-                                .small()
-                                .ghost()
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.gh_log_in(&log_in, window, cx)
-                                })),
-                        )
-                    })
                     .child(
                         Button::new(SharedString::from(format!("edit-{}", a.id)))
                             .label("Edit")
@@ -184,6 +152,68 @@ impl Settings {
                 .chain(std::iter::once(form)),
             cx,
         )
+    }
+
+    /// Each account's GitHub login (its own `GH_CONFIG_DIR`), used to push and open PRs from its folders.
+    pub(super) fn render_github(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let rows: Vec<_> = self
+            .config
+            .accounts
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                let status = match &a.gh_config_dir {
+                    None => div()
+                        .text_color(theme.muted_foreground)
+                        .child("No GitHub config dir. Edit the account to add one.")
+                        .into_any_element(),
+                    Some(dir) => {
+                        let login = match (self.gh_logins.get(&a.id), self.gh_errors.get(&a.id)) {
+                            (Some(Some(login)), _) => format!("logged in as {login}"),
+                            (Some(None), _) => "not logged in".to_string(),
+                            (None, Some(e)) => format!("couldn't check: {e}"),
+                            (None, None) => "checking…".to_string(),
+                        };
+                        div()
+                            .flex()
+                            .gap_1()
+                            .min_w_0()
+                            .text_color(theme.muted_foreground)
+                            .child(path_text(format!("gh-{}", a.id), dir))
+                            .child(div().flex_shrink_0().child(format!("· {login}")))
+                            .into_any_element()
+                    }
+                };
+                let log_in = GhLogIn { id: a.id.clone() };
+                row(i == 0, cx)
+                    .child(div().flex_shrink_0().child(ui::AccountBadge::of(a).chip()))
+                    .child(div().flex_1().min_w_0().text_size(ui::META).child(status))
+                    .when(a.gh_config_dir.is_some(), |d| {
+                        d.child(
+                            Button::new(SharedString::from(format!("gh-login-{}", a.id)))
+                                .label("Log in to GitHub")
+                                .tooltip("Opens a terminal running gh auth login for this account")
+                                .flex_shrink_0()
+                                .small()
+                                .ghost()
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.gh_log_in(&log_in, window, cx)
+                                })),
+                        )
+                    })
+                    .into_any_element()
+            })
+            .collect();
+        let empty = rows.is_empty().then(|| {
+            row(true, cx)
+                .child(
+                    ui::EmptyState::new("No accounts yet")
+                        .hint("Add an account first. Each one can have its own GitHub login."),
+                )
+                .into_any_element()
+        });
+        section("GitHub", rows.into_iter().chain(empty), cx)
     }
 
     pub(super) fn render_bindings(&self, cx: &mut Context<Self>) -> impl IntoElement {

@@ -85,6 +85,7 @@ pub fn to_layout(frame: Bounds<Pixels>, right_open: bool, right_width: Pixels) -
         height: n(frame.size.height),
         right_panel_open: right_open,
         right_panel_width: n(right_width),
+        ..Default::default()
     }
 }
 

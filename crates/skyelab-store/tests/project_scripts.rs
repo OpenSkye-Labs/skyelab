@@ -108,7 +108,11 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
     };
     // Back to v7: as a build with thread management but no scripts left it.
     let conn = Connection::open(&path).expect("raw");
-    conn.execute_batch("DROP TABLE project_scripts; PRAGMA user_version = 7;")
+    conn.execute_batch(
+        "ALTER TABLE threads DROP COLUMN model; ALTER TABLE threads DROP COLUMN effort;
+         ALTER TABLE projects DROP COLUMN default_model; ALTER TABLE projects DROP COLUMN default_effort;
+         DROP TABLE project_scripts; PRAGMA user_version = 7;",
+    )
         .expect("downgrade");
     drop(conn);
 
@@ -119,7 +123,7 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
         .expect("raw")
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 8);
+    assert_eq!(version, 9);
     let t = store.thread(pinned).expect("read").expect("kept");
     assert!(t.pinned_at.is_some() && t.unread);
     let a = store.thread(archived).expect("read").expect("kept");

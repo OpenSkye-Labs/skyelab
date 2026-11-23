@@ -49,7 +49,7 @@ fn purge_drops_checkpoints_undo_and_archive_keep_them(cx: &mut TestAppContext) {
     let (doomed, doomed_key) = checkpointed("doomed", cx);
 
     act(kept, ThreadOp::Delete, cx);
-    r.ws.update_in(cx, |ws, window, cx| ws.undelete_thread(kept, window, cx));
+    r.ws.update_in(cx, |ws, window, cx| ws.undo_delete(kept, false, window, cx));
     cx.run_until_parked();
     act(archived, ThreadOp::Archive, cx);
     act(doomed, ThreadOp::Delete, cx);

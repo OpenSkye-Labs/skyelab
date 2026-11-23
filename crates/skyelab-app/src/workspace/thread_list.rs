@@ -39,12 +39,11 @@ impl Workspace {
         let live: std::collections::HashMap<i64, (Status, bool)> = self
             .open_threads
             .iter()
-            .filter_map(|v| v.upgrade())
             .filter_map(|v| {
                 let v = v.read(cx);
                 Some((
                     v.thread.as_ref()?.id,
-                    (v.live_status(), v.awaiting_approval()),
+                    (v.live_status(), awaiting_approval(v)),
                 ))
             })
             .collect();
@@ -169,7 +168,6 @@ impl Workspace {
         let working: std::collections::HashSet<i64> = self
             .open_threads
             .iter()
-            .filter_map(|v| v.upgrade())
             .filter_map(|v| {
                 let v = v.read(cx);
                 matches!(v.live_status(), Status::Starting | Status::Running)
@@ -289,4 +287,16 @@ impl Workspace {
             });
         }));
     }
+}
+
+/// The thread's agent waits for a permission answer (T3's "Approval" in the sidebar).
+fn awaiting_approval(v: &super::thread::ThreadView) -> bool {
+    // shortcut: only the last 32 items are checked (a waiting agent adds nothing after its ask, so it is near the
+    // end); scan further if asks ever get buried.
+    v.session.is_some()
+        && v.items
+            .iter()
+            .rev()
+            .take(32)
+            .any(|i| matches!(i, super::thread_model::Item::Approval(a) if a.decision.is_none()))
 }
