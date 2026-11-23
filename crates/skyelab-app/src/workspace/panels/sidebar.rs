@@ -250,9 +250,7 @@ impl Render for Sidebar {
                     .flex()
                     .flex_col()
                     .justify_center()
-                    .when(cfg!(target_os = "macos"), |d| {
-                        d.pl(ui::TRAFFIC_LIGHTS_W - gpui::px(8.))
-                    })
+                    .when(cfg!(target_os = "macos"), |d| d.pl(ui::TRAFFIC_LIGHTS_W))
                     .child(match &self.picker {
                         Some(picker) => picker.clone().into_any_element(),
                         None => div()
