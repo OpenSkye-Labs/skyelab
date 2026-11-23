@@ -287,13 +287,8 @@ fn hook_env(config: &AccountsConfig, dir: &Path) -> Result<Vec<(OsString, OsStri
         .into_iter()
         .map(|(k, v)| (k.into(), v.into()))
         .collect();
-    let git = skyelab_core::env::git_credential_env(
-        account.gh_config_dir.is_some(),
-        &skyelab_core::env::scoped_extra_headers(dir),
-        account.ssh_agent,
-    );
+    let git = skyelab_core::env::account_git_env(account, dir);
     env.extend(git.into_iter().map(|(k, v)| (k.into(), v.into())));
-    env.push(("GIT_TERMINAL_PROMPT".into(), "0".into()));
     // ssh commit signing needs the agent; only for accounts that let their agents use it too, since the repo's
     // hooks (agent-writable) see the same env.
     if account.ssh_agent

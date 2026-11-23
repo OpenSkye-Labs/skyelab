@@ -223,6 +223,18 @@ pub fn git_credential_env(
     env
 }
 
+/// What git run for `account` in `dir` gets, by an agent or a repo's hooks: [`git_credential_env`] for the account's
+/// gh login and ssh setting, and no prompts.
+pub fn account_git_env(account: &crate::Account, dir: &Path) -> Vec<(String, String)> {
+    let mut env = git_credential_env(
+        account.gh_config_dir.is_some(),
+        &scoped_extra_headers(dir),
+        account.ssh_agent,
+    );
+    env.push(("GIT_TERMINAL_PROMPT".into(), "0".into()));
+    env
+}
+
 /// The URLs of every `http.<url>.extraHeader` the git config seen from `dir` sets (system, global, the repo's),
 /// so [`git_credential_env`] can reset each by name. Best effort: no git, or no such keys, is an empty list.
 pub fn scoped_extra_headers(dir: &Path) -> Vec<String> {

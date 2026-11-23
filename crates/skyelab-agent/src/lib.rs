@@ -113,16 +113,10 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let mut cmd = Command::new(&bin);
     // Never inherit the parent's account or credentials: start empty, add the allowlist, then the bound account,
     // and git's https credentials from that account's gh only (`git push` in the agent's own shell).
-    let git = skyelab_core::env::git_credential_env(
-        account.gh_config_dir.is_some(),
-        &skyelab_core::env::scoped_extra_headers(dir),
-        account.ssh_agent,
-    );
     cmd.env_clear()
         .envs(skyelab_core::env::inherited_agent_env(account.ssh_agent))
         .envs(env)
-        .envs(git)
-        .env("GIT_TERMINAL_PROMPT", "0");
+        .envs(skyelab_core::env::account_git_env(account, dir));
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
     let codex = match account.provider {
