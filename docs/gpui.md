@@ -83,7 +83,11 @@ and how Zed uses it, not blog posts or memory.
 - Something slow to derive that a frame needs (a drawn diagram) is a `gpui::Asset` read with `window.use_asset`: it
   starts once per source, is cached for the session and redraws the view when it lands. A render that must be
   capped in time runs on its own thread, raced against a `background_executor().timer`, so a runaway never holds a
-  pool thread. Never do that work in a markdown block parser: gpui-component parses small texts on the UI thread.
+  pool thread. The timeout only stops the wait, not the thread: gate those threads with a small semaphore and skip
+  the work when the receiver is already gone, or a reply full of diagrams starts one CPU-bound thread each
+  (`mermaid::Gate`). Never do that work in a markdown block parser: gpui-component parses small texts on the UI thread.
+- A poll that lands every few seconds (PR status) notifies its views only when what it read differs from what they
+  show; most polls find nothing new, and each notify rebuilds the sidebar.
 - Custom markdown blocks (the mermaid card) go through `TextView::markdown_block_parser` / `markdown_block_renderer`;
   equal parser counts keep the parsed document across frames. Match the plain code block by reading the same tokens:
   `theme.muted` background and `theme.semantic_tokens().radius.md`, not `theme.accent`.

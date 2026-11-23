@@ -53,7 +53,7 @@ pub(super) fn scan(
     let folder = project
         .path
         .canonicalize()
-        .unwrap_or_else(|_| project.path.clone());
+        .map_or_else(|_| project.path.clone(), |p| without_verbatim(&p));
     let rows = import::list(account.provider, &account.config_dir, &folder)
         .into_iter()
         // A subfolder bound to another account runs there: its sessions aren't this account's to continue.
@@ -65,6 +65,33 @@ pub(super) fn scan(
         })
         .collect();
     Ok(Scan { account, rows })
+}
+
+/// `C:\x` for Windows' canonical `\\?\C:\x`: agents record the plain form. Other paths (a UNC share, any Unix
+/// path) come back as they are.
+fn without_verbatim(path: &std::path::Path) -> std::path::PathBuf {
+    let plain = path
+        .to_str()
+        .and_then(|s| s.strip_prefix(r"\\?\"))
+        .filter(|rest| {
+            let b = rest.as_bytes();
+            b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':'
+        });
+    plain.map_or_else(|| path.to_owned(), std::path::PathBuf::from)
+}
+
+#[test]
+fn verbatim_drive_paths_lose_their_prefix_only() {
+    use std::path::Path;
+    assert_eq!(
+        without_verbatim(Path::new(r"\\?\C:\w\app")),
+        Path::new(r"C:\w\app")
+    );
+    assert_eq!(
+        without_verbatim(Path::new(r"\\?\UNC\host\share")),
+        Path::new(r"\\?\UNC\host\share")
+    );
+    assert_eq!(without_verbatim(Path::new("/w/app")), Path::new("/w/app"));
 }
 
 /// What an import did, for the notice.

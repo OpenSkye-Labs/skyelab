@@ -227,7 +227,7 @@ impl ThreadView {
             return;
         }
         // Over the provider's limit: refused here, with the text kept, rather than by the agent mid-turn.
-        if let Some(why) = skyelab_core::prompt::over_limit(&text) {
+        if let Some(why) = skyelab_core::prompt::over_limit(&self.with_contexts(&text, external)) {
             self.composer.notice = Some(why.into());
             cx.notify();
             return;

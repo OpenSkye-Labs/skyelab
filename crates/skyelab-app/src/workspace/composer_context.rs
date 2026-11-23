@@ -125,15 +125,25 @@ impl ThreadView {
     /// `text` with the composer's excerpts after it, as the agent gets it; the excerpts leave the composer. An
     /// outside sender's message (`external`) never takes them.
     pub(in crate::workspace) fn take_contexts(&mut self, text: String, external: bool) -> String {
-        if external || self.composer.contexts.is_empty() {
-            return text;
+        let full = self.with_contexts(&text, external);
+        if !external {
+            self.composer.contexts.clear();
         }
-        let mut contexts = std::mem::take(&mut self.composer.contexts);
+        full
+    }
+
+    /// [`Self::take_contexts`] without taking them: what would be sent, for the length check.
+    pub(in crate::workspace) fn with_contexts(&self, text: &str, external: bool) -> String {
+        if external || self.composer.contexts.is_empty() {
+            return text.to_owned();
+        }
         // A rebind since the pick: another account's thread never rides along.
-        contexts.retain(|c| self.chip_allowed(c.bound.as_ref()));
-        let headings: Vec<String> = contexts.iter().map(ContextChip::heading).collect();
+        let contexts: Vec<&ContextChip> = (self.composer.contexts.iter())
+            .filter(|c| self.chip_allowed(c.bound.as_ref()))
+            .collect();
+        let headings: Vec<String> = contexts.iter().map(|c| c.heading()).collect();
         terminal_context::with_contexts(
-            &text,
+            text,
             headings
                 .iter()
                 .zip(&contexts)

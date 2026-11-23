@@ -183,6 +183,7 @@ impl Workspace {
             return;
         }
         self.pr_watch.polling_since = Some(now);
+        let started = now;
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         let (config, store) = (self.config.clone(), self.backend.store.clone());
@@ -207,9 +208,13 @@ impl Workspace {
         cx.spawn(async move |this, cx| {
             let read = read.await;
             let _ = this.update(cx, |this, cx| {
-                this.pr_watch.polling_since = None;
+                // A batch taken as hung may end after a newer one started: that one's mark stays.
+                if this.pr_watch.polling_since == Some(started) {
+                    this.pr_watch.polling_since = None;
+                }
                 let now = crate::ui::now_ms();
                 let statuses = cx.default_global::<PrStatuses>();
+                let mut changed = false;
                 for (thread, url, view) in read {
                     if let PrView::Status(s) = &view
                         && let Some(row) = this.threads.iter_mut().find(|t| t.id == thread)
@@ -217,17 +222,21 @@ impl Workspace {
                     {
                         row.pr_state = Some(s.state.as_str().to_owned());
                     }
-                    statuses.0.insert(
+                    let old = statuses.0.insert(
                         thread,
                         PrEntry {
-                            url,
-                            view,
+                            url: url.clone(),
+                            view: view.clone(),
                             checked_ms: now,
                         },
                     );
+                    changed |= old.is_none_or(|o| o.url != url || o.view != view);
                 }
-                this.refresh_sidebar(cx);
-                this.details.update(cx, |_, cx| cx.notify());
+                // Most reads find nothing new: redraw only for a change.
+                if changed {
+                    this.refresh_sidebar(cx);
+                    this.details.update(cx, |_, cx| cx.notify());
+                }
             });
         })
         .detach(); // `this` is weak; a hung gh only holds its own thread
