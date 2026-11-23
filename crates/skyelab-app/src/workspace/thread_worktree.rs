@@ -7,7 +7,6 @@ use gpui::{AnyElement, Context, FontWeight, Window, actions, div, prelude::*};
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
     h_flex,
 };
 
@@ -143,23 +142,6 @@ impl ThreadView {
                 cx.notify();
             });
         }));
-    }
-
-    pub(super) fn render_worktree_option(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if self.thread.is_some() || self.read_only {
-            return None;
-        }
-        Some(
-            Checkbox::new("use-worktree")
-                .xsmall()
-                .label("Run in a new worktree")
-                .checked(self.wt.use_worktree)
-                .tooltip("A git worktree on a new skyelab/… branch, inside this project")
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.toggle_worktree(&ToggleWorktree, window, cx)
-                }))
-                .into_any_element(),
-        )
     }
 
     pub(super) fn render_worktree_actions(&self, cx: &mut Context<Self>) -> AnyElement {

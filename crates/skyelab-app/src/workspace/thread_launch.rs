@@ -1,6 +1,6 @@
 //! Starting `claude` for a thread: a new thread, a follow-up, or resuming an ended session.
 
-use super::{Record, ThreadView, ThreadViewEvent, append};
+use super::{ThreadView, ThreadViewEvent, append};
 use crate::workspace::lock;
 use anyhow::Context as _;
 use gpui::{AppContext as _, Context, Window};
@@ -24,6 +24,7 @@ impl ThreadView {
     pub(super) fn resume(
         &mut self,
         text: String,
+        attachments: Vec<skyelab_agent::Attachment>,
         thread: Thread,
         resolved: Option<Account>,
         window: &mut Window,
@@ -33,9 +34,10 @@ impl ThreadView {
         match resolved {
             Some(account) if account.id == thread.account_id => {
                 self.resume_refused = None;
-                self.launch(text, account, Some(thread), window, cx);
+                self.launch(text, attachments, account, Some(thread), window, cx);
             }
             Some(other) => {
+                self.composer.attachments.extend(attachments); // kept with the unsent text
                 self.resume_refused = Some(
                     format!(
                         "This folder is now bound to {} ({}), but this thread ran under {}. \
@@ -47,6 +49,7 @@ impl ThreadView {
                 cx.notify();
             }
             None => {
+                self.composer.attachments.extend(attachments);
                 self.resume_refused = Some(
                     format!(
                         "{} isn't bound to {} any more (unbound, or its binding needs \
@@ -65,6 +68,7 @@ impl ThreadView {
     pub(super) fn launch(
         &mut self,
         text: String,
+        attachments: Vec<skyelab_agent::Attachment>,
         account: Account,
         resume: Option<Thread>,
         window: &mut Window,
@@ -74,7 +78,9 @@ impl ThreadView {
         self.stop_requested = false;
         self.launches += 1;
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        self.push(&Record::Prompt(text.clone()), cx);
+        let record = Self::prompt_record(&text, &attachments);
+        self.push(&record, cx);
+        let pick = self.composer.pick.clone();
 
         let bin = match account.provider {
             Provider::Claude => self.backend.claude_bin.clone(),
@@ -151,7 +157,11 @@ impl ThreadView {
                                 &project,
                                 &NewThread {
                                     project_id,
-                                    title: &title(&text),
+                                    title: &title(if text.is_empty() {
+                                        "Attachment"
+                                    } else {
+                                        &text
+                                    }),
                                     cwd: &cwd,
                                     account_id: &account.id,
                                     status: "starting",
@@ -169,11 +179,10 @@ impl ThreadView {
                         unsaved
                             .flush(&store, thread.id)
                             .context("earlier events of this thread aren't saved yet")?;
-                        append(
-                            &mut *lock(&store)?,
-                            thread.id,
-                            &Record::Prompt(text.clone()),
-                        )?;
+                        append(&mut *lock(&store)?, thread.id, &record)?;
+                        if is_new {
+                            lock(&store)?.set_thread_model(thread.id, &pick)?;
+                        }
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {
@@ -182,6 +191,9 @@ impl ThreadView {
                             resume: thread.agent_session_id.as_deref(), // a new row has none
                             prompt: &text,
                             mcp_config: grant.as_ref().map(|g| g.config_path()),
+                            model: pick.model.as_deref(),
+                            effort: pick.effort.as_deref(),
+                            attachments: &attachments,
                         };
                         // The binding as saved right now: a rebind may have landed while this launch ran. An
                         // unreadable file binds nothing, so the check below refuses.
@@ -255,15 +267,18 @@ impl ThreadView {
         cx.notify();
     }
 
-    pub(super) fn follow_up(
+    /// Sends `text` to the running agent, into its turn with `steer`. `false` when it was refused here (the folder
+    /// was rebound); the caller then keeps the prompt.
+    pub(in crate::workspace) fn follow_up(
         &mut self,
         text: String,
+        attachments: Vec<skyelab_agent::Attachment>,
+        steer: bool,
         account: &Account,
-        window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         let (Some(session), Some(thread)) = (self.session.clone(), &self.thread) else {
-            return;
+            return false;
         };
         // The running agent keeps the account it started with; a rebound folder needs a new thread.
         if thread.account_id != account.id {
@@ -273,7 +288,7 @@ impl ThreadView {
             );
             self.error = Some(msg.into());
             cx.notify();
-            return;
+            return false;
         }
         let (store, id, parent) = (
             self.backend.store.clone(),
@@ -283,8 +298,7 @@ impl ThreadView {
         let turns = self.turns.clone();
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        let record = Record::Prompt(text.clone());
+        let record = Self::prompt_record(&text, &attachments);
         self.push(&record, cx);
         // Chained, so quick follow-ups reach the store and claude in the order they were sent.
         let prev = self.send_chain.take();
@@ -315,7 +329,14 @@ impl ThreadView {
                         was
                     };
                     // Queued first, so a full queue stores no prompt claude never got.
-                    if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
+                    let sent = lock(&session).and_then(|mut s| {
+                        if steer {
+                            s.steer(&text, &attachments)
+                        } else {
+                            s.send_message(&text, &attachments)
+                        }
+                    });
+                    if let Err(e) = sent {
                         turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
                         // Only if nothing (a result, Stop) has written since.
                         let _ = lock(&store).and_then(|s| match s.thread(id)? {
@@ -344,5 +365,6 @@ impl ThreadView {
                 Err(e) => this.show_error(e, cx),
             });
         }));
+        true
     }
 }

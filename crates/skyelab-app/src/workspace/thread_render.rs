@@ -1,6 +1,6 @@
 //! How a thread tab looks. State and behavior live in `thread.rs`.
 
-use super::thread::{CONTEXT, Interrupt, SendPrompt, Stop, ThreadView};
+use super::thread::{CONTEXT, Interrupt, Stop, ThreadView};
 use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
@@ -9,10 +9,9 @@ use gpui::{
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, IconName, Sizable as _,
-    button::{Button, ButtonRounded, ButtonVariants as _},
+    ActiveTheme as _, Sizable as _,
+    button::{Button, ButtonVariants as _},
     h_flex,
-    input::Textarea,
     tooltip::Tooltip,
     v_flex,
 };
@@ -201,70 +200,6 @@ impl ThreadView {
             cx,
         )
     }
-
-    /// The composer, T3 style: one rounded card holding the prompt, the account that will run it, and a round Send;
-    /// a context strip under it for the folder and the worktree choice.
-    fn render_composer(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
-        let card = v_flex()
-            .w_full()
-            .rounded(ui::RADIUS_XL)
-            .bg(theme.popover)
-            .border_1()
-            .border_color(theme.border)
-            .when(!theme.is_dark(), |this| this.shadow_xs())
-            .child(
-                div()
-                    .px_3()
-                    .pt_2()
-                    .text_size(ui::BODY)
-                    .child(Textarea::new(&self.prompt).appearance(false)),
-            )
-            .child(
-                h_flex()
-                    .px_3()
-                    .pb_2()
-                    .gap_2()
-                    .child(
-                        h_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .child(self.account_badge().chip()),
-                    )
-                    .child(
-                        Button::new("send")
-                            .primary()
-                            .icon(IconName::ArrowUp)
-                            .rounded(ButtonRounded::Size(px(16.)))
-                            .tooltip("Send (⌘↩)")
-                            .disabled(self.read_only || self.starting)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.send_prompt(&SendPrompt, window, cx)
-                            })),
-                    ),
-            );
-        let branch = self
-            .thread
-            .as_ref()
-            .and_then(|t| t.worktree_branch.clone())
-            .map(|b| format!("Worktree · {b}"));
-        let strip = h_flex()
-            .w_full()
-            .min_w_0()
-            .px_2()
-            .pt_2()
-            .gap_3()
-            .text_size(ui::META)
-            .text_color(theme.muted_foreground)
-            .children(self.render_worktree_option(cx))
-            .children(branch.map(|b| div().min_w_0().truncate().child(b)));
-        v_flex()
-            .w_full()
-            .max_w(ui::CHAT_MAX_W)
-            .child(card)
-            .child(strip)
-            .into_any_element()
-    }
 }
 
 /// A warning banner over the composer (T3's composer banner): a tinted card with a title, why, and the next step.
@@ -375,6 +310,12 @@ impl Render for ThreadView {
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::send_prompt))
+            .on_action(cx.listener(Self::steer_prompt))
+            .on_action(cx.listener(Self::attach_files))
+            .on_action(cx.listener(Self::menu_up))
+            .on_action(cx.listener(Self::menu_down))
+            .on_action(cx.listener(Self::menu_accept))
+            .on_action(cx.listener(Self::menu_close))
             .on_action(cx.listener(Self::interrupt))
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(Self::toggle_worktree))

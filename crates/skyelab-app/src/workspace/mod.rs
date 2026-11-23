@@ -7,6 +7,12 @@ mod changes;
 mod changes_model;
 mod changes_publish;
 mod child_slots;
+mod composer;
+mod composer_attach;
+mod composer_menu;
+mod composer_picker;
+mod composer_queue;
+mod composer_state;
 mod devices;
 mod env_mode;
 mod env_picker;
@@ -127,6 +133,7 @@ pub fn init(cx: &mut App) {
         ]);
     }
     layout::bind_keys(cx);
+    composer_state::bind_keys(cx);
     crate::palette::init(cx);
 }
 
@@ -381,6 +388,12 @@ impl Render for Workspace {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod composer_menu_test;
+
+#[cfg(test)]
+mod composer_queue_test;
 
 #[cfg(test)]
 mod stale_status_test;

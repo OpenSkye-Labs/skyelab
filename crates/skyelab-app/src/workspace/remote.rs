@@ -2,7 +2,7 @@
 //! the same `ThreadView` path a local prompt takes.
 
 use super::Workspace;
-use super::thread::{SendPrompt, ThreadView};
+use super::thread::ThreadView;
 use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
     RevokeDevice, ToggleSharing,
@@ -463,8 +463,9 @@ impl ThreadView {
         let refused = self.resume_refused.take();
         self.prompt
             .update(cx, |p, cx| p.set_value(text, window, cx));
-        self.send_prompt(&SendPrompt, window, cx);
-        // send_prompt clears the prompt exactly when it took the text.
+        // Sent now, as text only: never queued behind a turn, never with this tab's own attachments.
+        self.submit(super::composer_state::Submit::External, window, cx);
+        // submit clears the prompt exactly when it took the text.
         let taken = self.prompt.read(cx).value().is_empty();
         self.prompt
             .update(cx, |p, cx| p.set_value(draft, window, cx));
