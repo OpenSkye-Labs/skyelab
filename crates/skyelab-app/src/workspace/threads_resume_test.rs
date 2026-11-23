@@ -171,3 +171,28 @@ fn resume_refuses_unbound_folder(cx: &mut TestAppContext) {
     rebind(&f, None);
     assert_refused(&f, &row, cx, "isn't bound to acme");
 }
+
+#[gpui::test]
+fn resume_refuses_a_session_another_thread_runs(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (row, _ws, cx) = stopped_thread(&f, cx);
+    // Another row on the same session (say, imported into a nested project before the check existed), running.
+    {
+        let mut s = f.store.lock().expect("lock");
+        let new = skyelab_store::NewThread {
+            project_id: row.project_id,
+            title: "twin",
+            cwd: &f.project_dir,
+            account_id: "acme",
+            status: "running",
+        };
+        let twin = s
+            .import_thread(&new, "twin-sess", 1, &[])
+            .expect("stored")
+            .expect("new");
+        s.set_agent_session_id(twin.id, Some("fake-sess-1"))
+            .expect("stored");
+    }
+    assert_refused(&f, &row, cx, "Another thread is running this agent session");
+}

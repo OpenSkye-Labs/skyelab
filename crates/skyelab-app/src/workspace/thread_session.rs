@@ -145,6 +145,20 @@ impl ThreadView {
                 if failed {
                     output = stderr_of(&watched, false, cx).await;
                 }
+                // Codex stays up after refusing a gone thread: end it, so `ended` reruns the prompt in a new one.
+                if failed
+                    && this
+                        .read_with(cx, |t, _| t.rerun.is_some())
+                        .unwrap_or(false)
+                {
+                    let s = watched.clone();
+                    cx.background_spawn(async move {
+                        if let Some(s) = s.upgrade() {
+                            let _ = lock(&s).and_then(|mut s| s.kill());
+                        }
+                    })
+                    .await;
+                }
             }
             // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining. Text the end cut
             // off is stored first, so a reload shows it above that output.

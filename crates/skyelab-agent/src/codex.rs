@@ -78,6 +78,8 @@ pub(crate) struct Codex {
     last_text: Option<String>,
     /// Why codex refused to open the thread. Every later prompt fails with it instead of waiting forever.
     closed: Option<String>,
+    /// Opened with `thread/resume`: a refusal can mean the thread is gone.
+    resuming: bool,
     /// Approval requests waiting for an answer: our id → codex's JSON-RPC request id.
     asks: BTreeMap<String, Value>,
     /// The asks that are user-input requests: our id → the ids of their questions, in order.
@@ -100,15 +102,6 @@ pub(crate) fn policy(mode: Mode) -> (&'static str, &'static str) {
         Mode::Default | Mode::AcceptEdits => ("untrusted", "workspace-write"),
         Mode::Plan => ("on-request", "read-only"),
         Mode::Bypass => ("never", "danger-full-access"),
-    }
-}
-
-/// `turn/start`'s `sandboxPolicy` for the sandbox names `thread/start` takes.
-fn sandbox_policy(sandbox: &str) -> Value {
-    match sandbox {
-        "read-only" => json!({ "type": "readOnly" }),
-        "danger-full-access" => json!({ "type": "dangerFullAccess" }),
-        _ => json!({ "type": "workspaceWrite" }),
     }
 }
 
@@ -143,6 +136,7 @@ impl Codex {
             mode_change: None,
             mode_sent: None,
             nonce: String::new(),
+            resuming: resume.is_some(),
         };
         let init = c.request("initialize", initialize_params());
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
@@ -197,7 +191,7 @@ impl Codex {
             // Overrides stick for this turn and the ones after it.
             let (approval, sandbox) = policy(mode);
             params["approvalPolicy"] = json!(approval);
-            params["sandboxPolicy"] = sandbox_policy(sandbox);
+            params["sandboxPolicy"] = items::sandbox_policy(sandbox);
         }
         vec![self.request("turn/start", params)]
     }
@@ -331,11 +325,17 @@ impl Codex {
                     let waiting = self.queue.len().max(1); // the launch's own prompt, at least
                     self.queue.clear();
                     self.closed = Some(why.clone());
+                    let gone = self.resuming && crate::event::codex_thread_gone(&why);
                     let mut result = failed(why);
                     if let Event::Result { prompts, .. } = &mut result {
                         *prompts = u32::try_from(waiting).unwrap_or(u32::MAX);
                     }
-                    (vec![result], Vec::new())
+                    let events = if gone {
+                        vec![Event::SessionGone, result]
+                    } else {
+                        vec![result]
+                    };
+                    (events, Vec::new())
                 }
             };
         }

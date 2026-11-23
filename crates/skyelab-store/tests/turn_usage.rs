@@ -140,7 +140,7 @@ fn imported_history_is_left_out_but_later_turns_count() {
         status: "idle",
     };
     let t = s
-        .import_thread(&new, "sess", 1_000, &[("agent", result(9.0, 9, 9))])
+        .import_thread(&new, "sess", 1_000, &[("agent", result(9.0, 9, 9), 1_000)])
         .expect("import")
         .expect("new")
         .id;

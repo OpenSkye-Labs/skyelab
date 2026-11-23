@@ -44,6 +44,9 @@ pub struct Transcript {
     pub truncated: bool,
     /// The history, oldest first; empty in a [`list`].
     pub entries: Vec<Entry>,
+    /// When each entry happened, in Unix milliseconds (its line's `timestamp`, else the last one before it); 0 when no
+    /// line before it had one.
+    pub times: Vec<i64>,
 }
 
 /// Sessions in `home` (the account's `CLAUDE_CONFIG_DIR` or `CODEX_HOME`) that ran in `folder` or under it, newest
@@ -72,6 +75,7 @@ pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
                 t.title.clone_from(name);
             }
             t.entries = Vec::new();
+            t.times = Vec::new();
             t
         })
         .collect()
@@ -132,22 +136,52 @@ fn valid_id(id: &str) -> bool {
         && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-/// The name Claude Code gives a folder's dir under `projects/`: every character but ASCII letters and digits
-/// becomes `-`.
+/// The name Claude Code gives a folder's dir under `projects/`: every UTF-16 unit but ASCII letters and digits
+/// becomes `-`; a name over [`CLAUDE_DIR_NAME_MAX`] is cut there and gets `-` plus a hash of the folder path.
 pub fn claude_dir_name(folder: &Path) -> String {
-    folder
-        .to_string_lossy()
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect()
+    let path = folder.to_string_lossy();
+    let name: String = path
+        .encode_utf16()
+        .map(|u| match char::from_u32(u.into()) {
+            Some(c) if c.is_ascii_alphanumeric() => c,
+            _ => '-',
+        })
+        .collect();
+    if name.len() <= CLAUDE_DIR_NAME_MAX {
+        return name;
+    }
+    format!(
+        "{}-{}",
+        &name[..CLAUDE_DIR_NAME_MAX],
+        base36(java_hash(&path).unsigned_abs())
+    )
 }
 
 /// Claude Code cuts long dir names at this many characters (then adds a hash).
 const CLAUDE_DIR_NAME_MAX: usize = 200;
 
+/// JavaScript's `h = (h << 5) - h + charCodeAt(i) | 0` over the UTF-16 units of `s`.
+fn java_hash(s: &str) -> i32 {
+    s.encode_utf16()
+        .fold(0i32, |h, u| h.wrapping_mul(31).wrapping_add(i32::from(u)))
+}
+
+fn base36(mut n: u32) -> String {
+    let mut digits = Vec::new();
+    loop {
+        digits.push(char::from_digit(n % 36, 36).expect("n % 36 is a base-36 digit"));
+        n /= 36;
+        if n == 0 {
+            break;
+        }
+    }
+    digits.iter().rev().collect()
+}
+
 /// Transcripts in dirs named like `folder` or a folder under it. Their recorded cwd decides afterwards.
 fn claude_files(home: &Path, folder: &Path) -> Vec<PathBuf> {
     let name = claude_dir_name(folder);
+    // A subfolder's name starts with the folder's, up to the cut; a long folder's own dir is matched whole.
     let prefix = &name[..name.len().min(CLAUDE_DIR_NAME_MAX)];
     let Ok(dirs) = std::fs::read_dir(home.join("projects")) else {
         return Vec::new();
@@ -209,16 +243,36 @@ impl Iterator for Lines {
 #[derive(Default)]
 pub(crate) struct Timeline {
     pub(crate) entries: Vec<Entry>,
+    /// Each entry's time, as [`Transcript::times`].
+    pub(crate) times: Vec<i64>,
+    /// The time of the line being read (the last one seen); 0 before any.
+    at: i64,
     pub(crate) messages: usize,
     pub(crate) first_prompt: Option<String>,
     open: bool,
 }
 
 impl Timeline {
+    /// Reads line `v`'s `timestamp` (RFC 3339, as Claude Code and Codex write it): the time of what it adds. A line
+    /// without one keeps the last time seen, so the history stays in order.
+    pub(crate) fn line(&mut self, v: &Value) {
+        if let Some(t) = v["timestamp"]
+            .as_str()
+            .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
+        {
+            self.at = t.timestamp_millis();
+        }
+    }
+
+    fn push(&mut self, entry: Entry, at: i64) {
+        self.entries.push(entry);
+        self.times.push(at);
+    }
+
     pub(crate) fn prompt(&mut self, text: String) {
         self.end_turn();
         self.first_prompt.get_or_insert_with(|| text.clone());
-        self.entries.push(Entry::Prompt(text));
+        self.push(Entry::Prompt(text), self.at);
         self.messages += 1;
         self.open = true;
     }
@@ -237,19 +291,24 @@ impl Timeline {
         {
             self.messages += 1;
         }
-        self.entries.push(Entry::Agent(event));
+        self.push(Entry::Agent(event), self.at);
     }
 
     pub(crate) fn end_turn(&mut self) {
         if std::mem::take(&mut self.open) {
-            self.entries.push(Entry::Agent(Event::Result {
-                is_error: false,
-                duration_ms: 0,
-                total_cost_usd: 0.0,
-                result: None,
-                prompts: 1,
-                usage: None,
-            }));
+            // A turn ends with its last entry: the line that closes it may come much later (the next prompt).
+            let at = self.times.last().copied().unwrap_or(self.at);
+            self.push(
+                Entry::Agent(Event::Result {
+                    is_error: false,
+                    duration_ms: 0,
+                    total_cost_usd: 0.0,
+                    result: None,
+                    prompts: 1,
+                    usage: None,
+                }),
+                at,
+            );
         }
     }
 }
@@ -320,6 +379,7 @@ fn claude(path: &Path, lines: &mut Lines) -> Option<Transcript> {
     let mut tl = Timeline::default();
     let (mut cwd, mut custom, mut ai, mut summary) = (None, None, None, None);
     for v in lines {
+        tl.line(&v);
         let kind = v["type"].as_str().unwrap_or_default();
         match kind {
             "custom-title" => custom = v["customTitle"].as_str().and_then(title_of),
@@ -372,6 +432,7 @@ fn claude(path: &Path, lines: &mut Lines) -> Option<Transcript> {
         skipped: 0,
         truncated: false,
         entries: tl.entries,
+        times: tl.times,
     })
 }
 

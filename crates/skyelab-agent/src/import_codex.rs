@@ -70,6 +70,7 @@ pub(super) fn parse(lines: &mut Lines) -> Option<Transcript> {
     let mut tl = Timeline::default();
     let (mut id, mut cwd) = (None, None);
     for v in lines {
+        tl.line(&v);
         let p = &v["payload"];
         match (v["type"].as_str(), p["type"].as_str()) {
             (Some("session_meta"), _) => {
@@ -111,6 +112,7 @@ pub(super) fn parse(lines: &mut Lines) -> Option<Transcript> {
         skipped: 0,
         truncated: false,
         entries: tl.entries,
+        times: tl.times,
     })
 }
 

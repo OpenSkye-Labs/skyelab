@@ -446,6 +446,8 @@ mod close_tab_test;
 #[cfg(all(test, unix))]
 mod codex_open_failure_turns_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
+mod codex_session_gone_test;
+#[cfg(all(test, unix))] // the fake codex is a shell script
 mod codex_thread_test;
 #[cfg(all(test, unix))]
 mod commit_hook_env_test;

@@ -6,6 +6,7 @@
 # turn/start, and ends a turn as interrupted on turn/interrupt. Every line it reads comes back as a
 # `fake/request` notification, and thread/start/resume also report the env and args as `fake/env`.
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
+# A folder with a .fake-session-gone file has no rollouts: thread/resume is refused as real codex refuses it.
 # A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval;
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
@@ -48,6 +49,10 @@ while IFS= read -r line; do
         continue
       fi
       thread=$(printf '%s' "$line" | sed -n 's/.*"threadId":"\([^"]*\)".*/\1/p')
+      if [ -f .fake-session-gone ] && [ -n "$thread" ]; then
+        printf '{"id":%s,"error":{"code":-32600,"message":"no rollout found for thread id %s"}}\n' "$id" "$thread"
+        continue
+      fi
       [ -n "$thread" ] || thread=thr_fake
       printf '{"method":"fake/env","params":{"codex_home":"%s","claude_config_dir":"%s","openai_api_key":"%s","openai_base_url":"%s","openai_org_id":"%s","codex_api_key":"%s","codex_access_token":"%s","cwd":"%s","args":"%s"}}\n' \
         "$(v CODEX_HOME)" "$(v CLAUDE_CONFIG_DIR)" "$(v OPENAI_API_KEY)" "$(v OPENAI_BASE_URL)" "$(v OPENAI_ORG_ID)" \
