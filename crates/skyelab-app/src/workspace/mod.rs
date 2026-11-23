@@ -460,6 +460,10 @@ mod commit_hook_env_test;
 #[cfg(test)]
 mod commit_snapshot_test;
 #[cfg(all(test, unix))]
+mod compare_base_test;
+#[cfg(all(test, unix))]
+mod compare_cap_test;
+#[cfg(all(test, unix))]
 mod compare_test;
 #[cfg(all(test, unix))]
 mod delegation_after_stop_test;

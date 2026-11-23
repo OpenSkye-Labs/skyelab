@@ -156,7 +156,10 @@ impl Workspace {
             .iter()
             .filter(|v| {
                 let v = v.read(cx);
-                v.compare_group.is_some() && (v.starting || v.session.is_some())
+                let grouped = v
+                    .compare_group
+                    .or(v.thread.as_ref().and_then(|t| t.compare_group));
+                grouped.is_some() && v.working()
             })
             .count();
         if running + compare.models.len() > MAX_RUNNING {
@@ -168,7 +171,11 @@ impl Workspace {
                 cx,
             );
         }
-        let group = crate::ui::now_ms();
+        // The send's time, kept unique in this process (two windows can send in the same millisecond).
+        use std::sync::atomic::{AtomicI64, Ordering::Relaxed};
+        static LAST: AtomicI64 = AtomicI64::new(0);
+        let group = (LAST.load(Relaxed) + 1).max(crate::ui::now_ms());
+        LAST.store(group, Relaxed); // every window runs on the UI thread, so load and store can't interleave
         let pick = |model: &String| ModelChoice {
             model: Some(model.clone()),
             effort: None,
@@ -179,6 +186,7 @@ impl Workspace {
             let attachments = v.take_attachments(false);
             (v.take_contexts(raw, false), attachments)
         });
+        let base = view.read(cx).branch_picker.read(cx).base.clone();
         let launch = |v: &mut ThreadView,
                       model: &String,
                       window: &mut Window,
@@ -189,6 +197,7 @@ impl Workspace {
             v.composer.picked = true;
             v.composer.picker_open = false;
             v.wt.use_worktree = compare.worktrees;
+            v.branch_picker.update(cx, |b, _| b.base.clone_from(&base)); // every model from the same code
             v.required_account = Some(account.id.clone());
             v.mode = mode;
             v.launch(

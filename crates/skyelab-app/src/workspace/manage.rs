@@ -2,7 +2,6 @@
 //! rename and remove projects. Everything here is local: in remote mode the handlers do nothing.
 
 use super::{OpenThread, Workspace, lock};
-use crate::ui::Status;
 use gpui::{Action, AppContext as _, Context, SharedString, Window, actions};
 use gpui_component::{Sizable as _, WindowExt as _, button::Button, notification::Notification};
 use skyelab_store::Store;
@@ -92,8 +91,7 @@ impl Workspace {
 
     /// The thread's agent is mid-turn (or starting): archiving or deleting it would cut the work off.
     pub(super) fn working(&self, id: i64, cx: &Context<Self>) -> bool {
-        self.open_view(id, cx)
-            .is_some_and(|v| matches!(v.read(cx).live_status(), Status::Starting | Status::Running))
+        self.open_view(id, cx).is_some_and(|v| v.read(cx).working())
     }
 
     pub(super) fn say(

@@ -66,7 +66,9 @@ reads "3 models". **In worktrees** (on by default in a git repo) gives each mode
 don't collide; **One model** goes back. Send starts one thread per model, the new thread running the first, and opens
 the **Compare** page: a column per model with its status, cost, time, changed files and latest reply. Once every model
 has finished, the header shows the total cost (from each turn's stored cost), and **Keep this one** asks whether to
-archive the other threads or leave them; either way the kept thread opens. At most 4 compared threads run at once.
+archive the other threads or leave them; either way the kept thread opens. Each model runs at its default effort,
+from the same base branch. At most 4 compared threads can be working at once; a send that would pass that is refused
+with your prompt kept.
 
 In the sidebar the threads share one row with a **×3** badge: click the row for the Compare page, the badge to list
 the threads under it.

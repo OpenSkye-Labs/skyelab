@@ -34,6 +34,7 @@ struct Column {
     id: Option<i64>,
     model: SharedString,
     working: bool,
+    limited: bool,
     /// Why its start or turn failed.
     error: Option<SharedString>,
     turns: usize,
@@ -61,7 +62,8 @@ fn column(v: &ThreadView) -> Column {
     Column {
         id: v.thread.as_ref().map(|t| t.id),
         model: v.pick_label(false).into(),
-        working: v.starting || v.turn_running(),
+        working: v.working(),
+        limited: v.live_status() == crate::ui::Status::Limited,
         error: v.error.clone(),
         turns,
         ms,
@@ -172,6 +174,8 @@ impl Render for CompareView {
                 (theme.info, "Working")
             } else if c.error.is_some() {
                 (theme.danger, "Failed")
+            } else if c.limited {
+                (theme.warning, "Limited")
             } else if c.turns > 0 {
                 (theme.success, "Done")
             } else {

@@ -154,6 +154,14 @@ impl ThreadView {
         }
     }
 
+    /// Mid-turn or starting: what archiving, the compare cap and the Compare page all count as working.
+    pub(in crate::workspace) fn working(&self) -> bool {
+        matches!(
+            self.live_status(),
+            crate::ui::Status::Starting | crate::ui::Status::Running
+        )
+    }
+
     /// Back to the card's main page, its pickers closed.
     pub(super) fn details_home(&mut self, cx: &mut Context<Self>) {
         self.details.page = Page::Main;

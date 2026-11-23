@@ -79,8 +79,8 @@ pub(super) fn create(
             bail!("{} is not a plain folder; remove it first", dir.display());
         }
     }
-    // One at a time: a multi-model send makes several at once, and two `worktree add`s (or two slugs of the same
-    // millisecond) in one repo collide.
+    // One at a time: a multi-model send makes several at once (the first live run lost one model's start), and two
+    // slugs of the same millisecond would collide.
     static CREATING: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _one = CREATING
         .lock()

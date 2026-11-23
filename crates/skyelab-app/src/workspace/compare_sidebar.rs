@@ -108,7 +108,7 @@ fn section_items(
                 continue;
             }
             Entry::Group(g, mut members) => {
-                members.sort_by_key(|t| t.id); // in send order, under the newest-first list
+                members.sort_by_key(|t| t.id); // oldest row first, under the newest-first list
                 (g, members)
             }
         };

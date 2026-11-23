@@ -144,7 +144,7 @@ impl Workspace {
             }
         };
         let [pinned, working, rest] = self.thread_groups(cx);
-        let mut group_rows = Vec::new(); // a comparison group folds into one row (`compare.rs`)
+        let mut group_rows = Vec::new(); // a comparison group folds into one row (`compare_sidebar.rs`)
         let mut fold = |ts| self.fold_section(ts, &mut item, &mut group_rows, cx);
         let (pinned, working, rest) = (fold(pinned), fold(working), fold(rest));
         let empty = rest.is_empty();

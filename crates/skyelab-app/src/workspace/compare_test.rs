@@ -20,7 +20,7 @@ fn tick(view: &Entity<ThreadView>, models: &[&str], worktrees: bool, cx: &mut Vi
     });
 }
 
-/// The comparison's stored rows, oldest first, once both have one.
+/// The comparison's stored rows, oldest first, once all `n` have one.
 fn group_rows(store: &SharedStore, n: usize, cx: &mut VisualTestContext) -> Vec<Thread> {
     let rows = || {
         let s = store.lock().expect("lock");
