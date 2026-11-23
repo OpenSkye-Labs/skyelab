@@ -1,8 +1,6 @@
-//! A checkpoint around every agent turn (skyelab-git's hidden refs), so Changes can show what each turn did and
-//! rewind to before it. Checkpoint `n` is the tree right before turn `n + 1` started; after turn `n` it holds that
-//! turn's end until the next turn starts. Best effort: a folder that isn't a repo, or a failed snapshot, never
-//! stops a turn. Deleting a thread must also call `skyelab_git::delete_checkpoints(&thread.cwd, &key(&thread))`;
-//! the app has no thread delete yet.
+//! A checkpoint around every agent turn (skyelab-git's hidden refs; the scheme is in docs/decisions.md), so Changes
+//! can show what each turn did and rewind to before it. Best effort: a folder that isn't a repo, or a failed
+//! snapshot, never stops a turn.
 
 use skyelab_store::Thread;
 use std::path::Path;

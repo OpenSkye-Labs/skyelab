@@ -264,7 +264,13 @@ impl ThreadView {
         self.cwd = thread.cwd.clone();
         self.thread = Some(thread.clone());
         cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
-        if let Some(cwd) = thread.worktree_path.clone() {
+        // Only for threads the user started: a setup script runs repo code in a terminal, which has the user's ssh
+        // agent, so an agent's delegated thread must not trigger it.
+        if let Some(cwd) = thread
+            .worktree_path
+            .clone()
+            .filter(|_| thread.parent_thread_id.is_none())
+        {
             let account_id = thread.account_id.clone();
             cx.emit(ThreadViewEvent::WorktreeCreated { cwd, account_id });
         }

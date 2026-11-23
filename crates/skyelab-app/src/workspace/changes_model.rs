@@ -110,7 +110,7 @@ fn from_diffs(diffs: Vec<skyelab_git::FileDiff>) -> Changes {
     let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let mut entries = diff_entries(diffs, &mut lines_left);
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
-    assemble(entries, None) // nothing here is committable
+    assemble(entries, None)
 }
 
 /// The turns a thread has (turn `n` needs checkpoints `n - 1` and `n`).

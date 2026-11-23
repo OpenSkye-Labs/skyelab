@@ -175,7 +175,8 @@ agent first. With uncommitted changes, SkyeLab asks before switching:
 - **Take changes along** switches with the changes, as plain `git switch` does. If a change would be overwritten,
   git refuses and nothing moves.
 
-Ignored files are never touched. If the changes move on while the question is shown, SkyeLab asks again.
+Ignored files are never overwritten: if the other branch tracks a file you have as an ignored one, the switch is
+refused. If the changes move on while the question is shown, SkyeLab asks again.
 
 ## Project scripts
 
@@ -183,7 +184,7 @@ The header's **Run** menu holds a project's scripts: a name and a command, such 
 it in a new terminal tab in the thread's folder (or its worktree), on the folder's account, with the terminal's
 usual environment plus `SKYELAB_PROJECT_ROOT` and, in a worktree, `SKYELAB_WORKTREE_PATH`. A folder with no
 account bound runs nothing. Tick **Run in every new worktree** for setup scripts such as `pnpm install`: they run as
-soon as a worktree thread starts. The command palette lists every script as **Run script: <name>** (it runs in the
+soon as a worktree thread you start begins (not for threads an agent delegates). The command palette lists every script as **Run script: <name>** (it runs in the
 project folder). Scripts are kept in SkyeLab's own database, never in the repo, so an agent can't add one.
 
 ## Turns and rewind
@@ -199,9 +200,10 @@ first. Notes:
 
 - It rewinds files only, not the conversation, and leaves your staging (the index) as it is.
 - On a thread in the project folder (no worktree) it also undoes your own edits made since that turn started.
-- Ignored files are left alone. If the checkpoint has a file that is now ignored, the confirm names it, and it is
-  overwritten only if you tick **Overwrite ignored files**.
-- It never writes through a symlinked folder, so nothing outside the repo changes, and it skips submodules.
+- Ignored files are left alone. If an ignored file or folder stands where the checkpoint has a file, the confirm
+  names that file, and it is written (replacing what's in the way) only if you tick **Overwrite ignored files**.
+- It never writes through a symlinked folder, so nothing outside the repo changes; if it can't do every part, it
+  does none. It skips submodules, and only touches files inside the thread's folder.
 
 ## Sharing this machine over Tailscale
 

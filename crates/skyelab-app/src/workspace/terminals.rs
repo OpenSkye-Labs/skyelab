@@ -47,7 +47,7 @@ impl Workspace {
         let (terminal, events) = Terminal::spawn(options)?;
         let title = match tab {
             Some((title, input)) => {
-                terminal.write(input.into_bytes()); // the PTY holds it until the shell reads it
+                terminal.write(input.into_bytes()); // read once the shell starts (scripts_env_test)
                 title
             }
             None => format!("Terminal {}", self.terminals.len() + 1).into(),

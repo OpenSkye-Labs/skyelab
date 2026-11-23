@@ -1,7 +1,6 @@
-//! Project scripts (T3's project actions): commands a project keeps in SkyeLab's store, never in the repo (an
-//! agent can write the repo, and a terminal gets the user's ssh agent, which agents don't). Each runs in a new
-//! terminal tab on the folder's bound account, typed into the shell so the tab stays open. Setup scripts also run
-//! in every new worktree. The header's Run menu lists, runs, adds and removes them; the palette runs them.
+//! Project scripts (T3's project actions), kept in SkyeLab's store rather than the repo (docs/decisions.md says why).
+//! Each runs in a new terminal tab on the folder's bound account, typed into the shell so the tab stays open; setup
+//! scripts also run in every new worktree the user starts.
 
 use super::lock;
 use super::thread::{ThreadView, ThreadViewEvent};
@@ -73,9 +72,11 @@ pub(super) fn script_options(
     Ok((options, account))
 }
 
-/// What is typed into the shell: a leading space keeps it out of most shells' history, as T3 does.
+/// What is typed into the shell. The leading space (as T3 types it) keeps it out of the history of shells set to skip
+/// such lines (zsh `HIST_IGNORE_SPACE`, bash `HISTCONTROL=ignorespace`). One line only: a newline or a control
+/// character would type more than the command shown.
 pub(super) fn typed(command: &str) -> Result<String> {
-    if command.trim().is_empty() || command.contains('\0') {
+    if command.trim().is_empty() || command.chars().any(char::is_control) {
         bail!("a script needs a command");
     }
     Ok(format!(" {}\r", command.trim()))
@@ -128,7 +129,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if self.is_remote() {
-            return; // the project is on another machine
+            return;
         }
         let Some(script) = self.scripts.iter().find(|s| s.id == a.id).cloned() else {
             return;
@@ -231,24 +232,34 @@ impl ScriptMenu {
 
     fn reload(&mut self, cx: &mut Context<Self>) {
         let id = self.project_id;
-        self.store_job(move |s| s.project_scripts(id).map(Some), cx);
+        self.store_job(false, move |s| s.project_scripts(id), cx);
     }
 
-    /// Runs `job` on the store off the UI thread; `Some(list)` replaces the shown scripts. Edits tell the owner, so
-    /// the palette's list catches up.
+    /// Runs `job` on the store off the UI thread, after the jobs before it (chained, so none is dropped and edits land
+    /// in order); its list replaces the shown scripts. Once an `edit` is stored the owner hears of it, so the
+    /// palette's list catches up.
     fn store_job(
         &mut self,
-        job: impl FnOnce(&skyelab_store::Store) -> Result<Option<Vec<ProjectScript>>> + Send + 'static,
+        edit: bool,
+        job: impl FnOnce(&skyelab_store::Store) -> Result<Vec<ProjectScript>> + Send + 'static,
         cx: &mut Context<Self>,
     ) {
         let store = self.store.clone();
-        let task = cx.background_spawn(async move { job(&*lock(&store)?) });
+        let work = cx.background_executor().clone();
+        let prev = self._task.take();
         self._task = Some(cx.spawn(async move |this, cx| {
-            let done = task.await;
+            if let Some(prev) = prev {
+                prev.await;
+            }
+            let done = work.spawn(async move { job(&*lock(&store)?) }).await;
             let _ = this.update(cx, |this, cx| {
                 match done {
-                    Ok(Some(list)) => this.scripts = list,
-                    Ok(None) => {}
+                    Ok(list) => {
+                        this.scripts = list;
+                        if edit {
+                            this.changed(cx);
+                        }
+                    }
                     Err(e) => this.error = Some(format!("{e:#}").into()),
                 }
                 cx.notify();
@@ -269,25 +280,25 @@ impl ScriptMenu {
         }
         let (id, setup) = (self.project_id, std::mem::take(&mut self.setup));
         self.store_job(
+            true,
             move |s| {
                 s.add_project_script(id, &name, &command, setup)?;
-                s.project_scripts(id).map(Some)
+                s.project_scripts(id)
             },
             cx,
         );
-        self.changed(cx);
     }
 
     fn remove(&mut self, script: i64, cx: &mut Context<Self>) {
         let id = self.project_id;
         self.store_job(
+            true,
             move |s| {
                 s.delete_project_script(script)?;
-                s.project_scripts(id).map(Some)
+                s.project_scripts(id)
             },
             cx,
         );
-        self.changed(cx);
     }
 
     fn changed(&self, cx: &mut Context<Self>) {
@@ -408,7 +419,7 @@ impl Render for ScriptMenu {
 }
 
 impl ThreadView {
-    /// The header's Run menu; local projects only (a remote one's scripts would run here).
+    /// The header's Run menu.
     pub(super) fn render_run(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let open = self.scripts.read(cx).open;
         let (toggle, content) = (self.scripts.clone(), self.scripts.clone());

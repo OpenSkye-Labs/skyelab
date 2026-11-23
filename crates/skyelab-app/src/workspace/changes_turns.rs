@@ -40,7 +40,7 @@ impl ChangesView {
         self.thread
             .as_ref()
             .and_then(|t| t.upgrade())
-            .is_some_and(|t| t.read(cx).session.is_some() || t.read(cx).starting)
+            .is_some_and(|t| t.read(cx).agent_running())
     }
 
     /// Works out what rewinding to before `turn` changes, and shows it for confirming.
@@ -84,7 +84,7 @@ impl ChangesView {
         }));
     }
 
-    /// Rewinds exactly what the confirm showed; git refuses if the files changed since.
+    /// Rewinds exactly what the confirm showed; the rewind refuses if the files changed since.
     pub(super) fn confirm_rewind(&mut self, cx: &mut Context<Self>) {
         if self.busy || self.agent_running(cx) {
             return;
@@ -116,7 +116,7 @@ impl ChangesView {
         }));
     }
 
-    /// The scope chips, shown once the thread has a checkpointed turn.
+    /// The scope chips, shown once the thread has a checkpointed turn (or a turn scope is picked).
     pub(super) fn render_scopes(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let turns = changes_model::turns(&self.changes.as_ref()?.checkpoints);
         if turns.is_empty() && self.scope == Scope::Working {

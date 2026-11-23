@@ -86,12 +86,16 @@ pub(super) fn create(
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
     let base = match base_branch {
-        // A branch, never a revision expression an option could hide in.
-        Some(b) if !b.starts_with('-') => {
-            skyelab_git::rev_parse(&project, &format!("refs/heads/{b}"))
-                .with_context(|| format!("the base branch {b} is gone"))?
+        // Only a listed local branch, never a revision expression.
+        Some(b)
+            if skyelab_git::branches(&project)?
+                .local
+                .iter()
+                .any(|l| l == b) =>
+        {
+            skyelab_git::rev_parse(&project, &format!("refs/heads/{b}"))?
         }
-        Some(b) => bail!("`{b}` is not a branch"),
+        Some(b) => bail!("the base branch {b} is gone"),
         None => skyelab_git::rev_parse(&project, "HEAD")?,
     };
     let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;

@@ -405,6 +405,11 @@ impl ThreadView {
         }
     }
 
+    /// An agent is running or starting in this thread: its folder's files and checkout must not change under it.
+    pub(super) fn agent_running(&self) -> bool {
+        self.session.is_some() || self.starting
+    }
+
     pub(super) fn send_prompt(
         &mut self,
         _: &SendPrompt,

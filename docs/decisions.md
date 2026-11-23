@@ -131,18 +131,25 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
 - **Checkpoints and rewind (2026-11-23):** a checkpoint is a commit (fixed SkyeLab identity, signing off) of the
   snapshot tree, at `refs/skyelab/checkpoints/<thread id>-<created at>/<n>`: `n` is rewritten right before turn
   `n + 1` starts, and `n + 1` is taken when it ends, so Turn N diffs `n - 1` against `n`. The refs keep the snapshots
-  from `git gc`; deleting a thread must call `delete_checkpoints` (the app has no thread delete yet). Rewind
+  from `git gc`; deleting a thread must call `delete_checkpoints(&thread.cwd, &thread_checkpoints::key(&thread))`
+  (the app has no thread delete yet). A prompt queued behind a running turn takes no starting checkpoint, and a turn
+  stopped before its result still gets its end one. Rewind
   deletes what was created since itself and writes the rest with `checkout-index` from a scratch index, so the
   user's index stays; it refuses a path under a symlinked folder, skips submodules, overwrites an existing ignored
-  file only when the user ticks it, and refuses if the snapshot moved after the confirm. It is allowed on a project
+  file only when the user ticks it (an unrecorded file or folder in the way of a checkpoint path counts as ignored),
+  checks every path before changing anything, stays inside the thread's folder (not the whole repo), and refuses if
+  the snapshot moved after the confirm. Filters run during the checkout, as for diff. Limit: the refs are in the repo,
+  so an agent could repoint one; the confirm lists paths, not contents. It is allowed on a project
   folder (T3 refuses file restore outside an isolated worktree); the confirm lists every file instead. Limit: with a
   prompt queued, the agent starts the next turn before the end checkpoint is taken, so it can include early edits
   of that turn.
 - **Project scripts live in the store, not the repo (2026-11-23):** an agent can write the repo, and a script runs
   in a terminal, which gets the user's `SSH_AUTH_SOCK` (agents don't). The command is typed into the folder's login
   shell with a leading space; the env is the terminal's for the bound account plus `SKYELAB_PROJECT_ROOT` /
-  `SKYELAB_WORKTREE_PATH`. An unbound folder runs nothing. The table's migration is one step that needs only
+  `SKYELAB_WORKTREE_PATH`. An unbound folder runs nothing. Setup scripts run only for worktree threads the user
+  starts, never for an agent's delegated one, and a command must be one line with no control characters. The table's migration is one step that needs only
   `projects`, planned as schema version 8.
-- **Branch switch:** `git switch` with hooks off (post-checkout hooks don't run), refused while the thread's agent
-  runs and, with changes, until the user picks stash (`--include-untracked`, popped back if the switch then fails)
-  or carry (git refuses an overwrite). The confirm is re-checked against the status it showed. (2026-11-23)
+- **Branch switch:** `git switch --no-overwrite-ignore` with hooks off (post-checkout hooks don't run), refused while the thread's agent
+  runs and, with changes, until the user picks stash (`--include-untracked`)
+  or carry (git refuses an overwrite). A failed switch applies back the stash it made, by id. The confirm is re-checked
+  against the status and snapshot it showed. (2026-11-23)

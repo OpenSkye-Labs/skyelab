@@ -31,10 +31,21 @@ pub struct BranchPicker {
     pub(super) error: Option<SharedString>,
     /// A switch the uncommitted changes held back: the branch, and the status the user is asked about.
     pub(super) dirty: Option<(String, Status)>,
+    /// The working tree's snapshot when `dirty` was shown, so a confirm also catches edits to the same files.
+    shown_tree: Option<String>,
     /// The worktree base picked for a new thread (`None`: the current branch).
     pub(super) base: Option<String>,
     busy: bool,
-    _task: Option<Task<()>>,
+    _load: Option<Task<()>>,
+    /// A switch or create; apart from `_load`, so reopening the list never drops it.
+    _switch: Option<Task<()>>,
+}
+
+/// How a switch or create ended, when git didn't fail.
+enum Outcome {
+    Done,
+    /// Uncommitted changes held it back: the status and snapshot to ask about.
+    HeldBack(Status, Option<String>),
 }
 
 impl BranchPicker {
@@ -55,9 +66,11 @@ impl BranchPicker {
             query,
             error: None,
             dirty: None,
+            shown_tree: None,
             base: None,
             busy: false,
-            _task: None,
+            _load: None,
+            _switch: None,
         };
         this.reload(cx);
         this
@@ -96,14 +109,11 @@ impl BranchPicker {
     fn reload(&mut self, cx: &mut Context<Self>) {
         let dir = self.dir.clone();
         let task = cx.background_spawn(async move { skyelab_git::branches(&dir) });
-        self._task = Some(cx.spawn(async move |this, cx| {
+        self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
-                match loaded {
-                    Ok(b) => this.branches = b,
-                    // Not a repo: the header shows no picker.
-                    Err(_) => this.branches = Branches::default(),
-                }
+                // Unreadable (not a repo, say): an empty list, and the header shows no picker.
+                this.branches = loaded.unwrap_or_default();
                 cx.notify();
             });
         }));
@@ -114,7 +124,7 @@ impl BranchPicker {
         let running = self
             .owner
             .upgrade()
-            .is_some_and(|o| o.read(cx).session.is_some() || o.read(cx).starting);
+            .is_some_and(|o| o.read(cx).agent_running());
         if running {
             self.error = Some("Stop the agent before switching branches.".into());
             cx.notify();
@@ -136,7 +146,7 @@ impl BranchPicker {
     }
 
     /// Runs a switch. With `shown`, the status the user confirmed: the switch is refused, and asked again, if the
-    /// folder's changes are no longer exactly those.
+    /// folder's changes are no longer exactly those (the same files with the same content).
     pub(super) fn switch(
         &mut self,
         name: String,
@@ -150,16 +160,18 @@ impl BranchPicker {
         self.busy = true;
         let dir = self.dir.clone();
         let target = name.clone();
+        let shown_tree = self.shown_tree.clone();
         let task = cx.background_spawn(async move {
             let now = skyelab_git::status(&dir)?;
+            let tree = skyelab_git::snapshot_tree(&dir).ok();
             if let Some(shown) = shown
-                && shown != now
+                && (shown != now || shown_tree != tree)
             {
-                return Ok(Err(now)); // changed since the user looked
+                return Ok(Outcome::HeldBack(now, tree)); // changed since the user looked
             }
             match skyelab_git::switch_branch(&dir, &target, on_dirty) {
-                Err(skyelab_git::Error::Dirty(_)) => Ok(Err(now)),
-                other => other.map(Ok),
+                Err(skyelab_git::Error::Dirty(_)) => Ok(Outcome::HeldBack(now, tree)),
+                other => other.map(|()| Outcome::Done),
             }
         });
         self.finish(name, task, cx);
@@ -172,31 +184,33 @@ impl BranchPicker {
         self.busy = true;
         let dir = self.dir.clone();
         let target = name.clone();
-        let task =
-            cx.background_spawn(async move { skyelab_git::create_branch(&dir, &target).map(Ok) });
+        let task = cx.background_spawn(async move {
+            skyelab_git::create_branch(&dir, &target).map(|()| Outcome::Done)
+        });
         self.finish(name, task, cx);
     }
 
-    /// `Ok(Err(status))`: held back by these changes, so the user is asked.
     fn finish(
         &mut self,
         name: String,
-        task: Task<skyelab_git::Result<Result<(), Status>>>,
+        task: Task<skyelab_git::Result<Outcome>>,
         cx: &mut Context<Self>,
     ) {
-        self._task = Some(cx.spawn(async move |this, cx| {
+        self._switch = Some(cx.spawn(async move |this, cx| {
             let done = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.busy = false;
                 match done {
-                    Ok(Ok(())) => {
+                    Ok(Outcome::Done) => {
                         this.set_open(false, cx);
                         this.reload(cx);
                         if let Some(owner) = this.owner.upgrade() {
                             owner.update(cx, |_, cx| cx.emit(ThreadViewEvent::FilesChanged));
                         }
                     }
-                    Ok(Err(status)) => this.dirty = Some((name, status)),
+                    Ok(Outcome::HeldBack(status, tree)) => {
+                        (this.dirty, this.shown_tree) = (Some((name, status)), tree)
+                    }
                     Err(e) => this.error = Some(format!("{e:#}").into()),
                 }
                 cx.notify();
@@ -355,7 +369,7 @@ impl ThreadView {
         }
         let picker = self.branch_picker.read(cx);
         if picker.branches.local.is_empty() && picker.branches.current.is_none() {
-            return None; // not a repo (or no commit yet)
+            return None; // not a repo
         }
         let picks_base = self.thread.is_none() && self.wt.use_worktree;
         let (label, open) = (picker.label(picks_base), picker.open);

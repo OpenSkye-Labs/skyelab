@@ -115,8 +115,11 @@ impl ChangesView {
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok(c) => {
-                        this.selected
-                            .retain(|p| c.files.iter().any(|f| &f.path == p));
+                        // Ticks are for the working tree's commit: a turn's list must not clear them.
+                        if this.scope == Scope::Working {
+                            this.selected
+                                .retain(|p| c.files.iter().any(|f| &f.path == p));
+                        }
                         (this.changes, this.error) = (Some(c), None);
                     }
                     Err(e) => this.error = Some(format!("{e:#}").into()),
