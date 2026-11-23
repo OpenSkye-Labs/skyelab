@@ -130,18 +130,22 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   so every permission ask reaches SkyeLab as a stream-json `can_use_tool` control request and the CLI waits for our
   `control_response`; a `control_cancel_request` withdraws it. We picked this over `--permission-prompt-tool` with
   our own MCP server because the ask, its answer and its withdrawal stay on the session's own pipes, ordered with
-  its events, and no token or socket is involved. "Allow for this thread" sends the CLI's own
-  `permission_suggestions` with every destination forced to `session` (or an `addRules` rule for the tool), so
-  nothing is written to the project's or the user's settings; it lasts while that process runs. Codex's command and
+  its events, and no token or socket is involved. "Allow for this thread" sends only the CLI's own
+  `addRules` allow suggestions with every destination forced to `session` (suggestions that change the mode, add
+  directories or replace rules are dropped); with none, a rule for that exact command, or for the tool when it has no
+  command. Nothing is written to the project's or the user's settings; it lasts while that process runs. Ask ids are
+  a per-process nonce plus the provider's id, and every ask still open when stdout ends is withdrawn, so a stored ask
+  never answers a later process's request. Codex's command and
   file-change approvals go through the same `Event::Permission`, answered `accept` / `acceptForSession` /
   `decline`. Asks and answers are stored as thread events (`Permission`, `PermissionResolved`), so remote viewers see
   them through the pushes they already get, and answer with `answer_permission` (protocol 1.3), served only after
   hello from an approved device. The answer's reply waits for the session's own check (the id must still be open).
-  Modes: Ask (no flag; Codex `untrusted`), Plan (`plan`; Codex read-only), Accept edits (`acceptEdits`; Codex
-  `on-request`), Full access (`bypassPermissions` + `--allow-dangerously-skip-permissions`; Codex `never` +
+  Modes: Ask (`--permission-mode default`, always named so an account's `defaultMode` setting can't loosen it;
+  2.1.330 accepts `default` though `--help` lists `manual`; Codex `untrusted`), Plan (`plan`; Codex read-only), Accept
+  edits (`acceptEdits`; Codex `untrusted`, since workspace-write already lets it edit), Full access (`bypassPermissions` + `--allow-dangerously-skip-permissions`; Codex `never` +
   `danger-full-access`), behind a confirm. Limits: checked against claude 2.1.330's `--help` and binary only (the
-  control protocol isn't in `--help`); switching a running Claude session into Full access needs it to have started
-  in Full access, otherwise the CLI keeps the stricter mode; `AskUserQuestion` has no answer UI. (2026-11-23)
+  control protocol isn't in `--help`); a running Claude session takes Full access only if it started in it, so
+  `Session::set_mode` refuses that switch and the choice applies at the next start; `AskUserQuestion` has no answer UI. (2026-11-23)
 - **Agent stderr is captured.** The agent's stderr is a third streaming pipe (still copied to the app's stderr); a
   thread keeps its newest 64 KiB per session. Nothing waits on its EOF. After a failed turn, or a nonzero exit that
   wasn't a Stop, what is new is stored as an `Event::Stderr` row and shown as a collapsed **Agent output** row.

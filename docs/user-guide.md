@@ -116,17 +116,20 @@ Under the composer, **Permissions** picks what the thread's agent may do without
 
 - **Ask** (the default): it asks before anything its own rules don't already allow.
 - **Plan**: it reads and plans only, with no edits or commands (for Codex, a read-only sandbox).
-- **Accept edits**: file edits in the folder go ahead; anything else asks.
+- **Accept edits**: file edits in the folder go ahead; anything else asks. (For Codex this is the same as Ask: its
+  sandbox already lets it edit in the folder without asking.)
 - **Full access**: nothing asks. SkyeLab asks you to confirm first. A Codex agent also leaves its sandbox, so it can
   write outside the folder and use the network.
 
 The mode is saved with the thread and used every time its agent starts or resumes. Changing it while the agent runs
-applies at once for Claude and from the next turn for Codex.
+applies at once for Claude and from the next turn for Codex. Claude takes Full access only when it starts: switching a
+running Claude thread to Full access saves the choice and says so; Stop it and send a message to continue in Full
+access.
 
 When the agent asks, the thread shows a **Waiting for approval** card with the tool and what it wants to do (the
-command, or the file), and the agent waits until you answer: **Allow once**, **Allow for this thread** (this call and
-its like, while this agent runs; after a resume it asks again) or **Deny**. Afterwards the row says what was decided.
-An ask the agent withdraws (an interrupt, or its turn ended) shows **Withdrawn**. A request in a thread whose agent has
+command, or the file), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
+for this call, or this exact command when it has none; while this agent runs; after a resume it asks again) or **Deny**. Afterwards the row says what was decided.
+An ask the agent withdraws (an interrupt, its turn ended, or the agent stopped) shows **Withdrawn**. A request in a thread whose agent has
 stopped can't be answered; send a message to continue. Another machine viewing the thread, and the mobile app, show
 the same card and can answer it.
 
