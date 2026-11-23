@@ -18,7 +18,13 @@ fn rejected_connections_back_off() {
     };
     let client = Client::connect(HOST, opts).expect("client");
     std::thread::sleep(Duration::from_secs(2));
-    let attempts = tailnet.whois_calls();
+    // Each refused attempt reports one Disconnected. Counted here, not by the daemon's whois calls, which would
+    // also count strays (another test's client retrying a port this daemon now holds).
+    let attempts = client
+        .updates()
+        .try_iter()
+        .filter(|u| matches!(u, Update::Disconnected(_)))
+        .count();
     // 0, 0.25, 0.75, 1.75 s: four attempts; a missing delay would make hundreds.
     assert!((2..=5).contains(&attempts), "{attempts} attempts in 2 s");
     drop(client);

@@ -69,23 +69,31 @@ fn loopback_switch_adds_only_loopback() {
 
 #[test]
 fn refuses_a_loopback_name_before_connecting() {
-    let tailnet = Arc::new(FakeTailnet::default());
     let env = Env::new();
-    let daemon = start_daemon(tailnet.clone(), env.backend(), 0);
+    // A live daemon, so a guard that let the dial through would show up as a certificate error ("localhost" is
+    // not the name it serves), not as the guard's refusal.
+    let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let opts = Options {
         allow_loopback: false,
         ..options(port(&daemon))
     };
     let client = Client::connect("localhost", opts).expect("client");
-    match next(&client) {
-        Update::Disconnected(reason) => assert!(reason.message.contains("refusing"), "{reason}"),
-        other => panic!("expected a refusal, got {other:?}"),
+    // The first attempt and the retries after it: each one is the guard's refusal. Counting the daemon's whois
+    // calls instead would also count strays (another process's client retrying a port this daemon now holds).
+    let mut refusals = 0;
+    let until = std::time::Instant::now() + Duration::from_millis(500);
+    while let Ok(update) = client
+        .updates()
+        .recv_timeout(until.saturating_duration_since(std::time::Instant::now()))
+    {
+        match update {
+            Update::Disconnected(reason) => {
+                assert!(reason.message.contains("refusing"), "{reason}");
+                refusals += 1;
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
     }
-    std::thread::sleep(Duration::from_millis(300));
-    assert_eq!(
-        tailnet.whois_calls(),
-        0,
-        "no TCP connection reached the daemon"
-    );
+    assert!(refusals > 0, "no refusal");
     assert!(client.hello().is_none());
 }

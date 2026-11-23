@@ -9,9 +9,8 @@ use skyelab_protocol::{VERSION, Version};
 
 #[test]
 fn version_mismatch_is_fatal() {
-    let tailnet = Arc::new(FakeTailnet::default());
     let env = Env::new();
-    let daemon = start_daemon(tailnet.clone(), env.backend(), 0);
+    let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
     let opts = Options {
         protocol: Version {
             major: VERSION.major + 1,
@@ -20,16 +19,17 @@ fn version_mismatch_is_fatal() {
         ..options(port(&daemon))
     };
     let client = Client::connect(HOST, opts).expect("client");
+    // The first update: no attempt failed before this one.
     match next(&client) {
         Update::Fatal(Error::UnsupportedVersion(msg)) => {
             assert!(msg.contains("not supported"), "{msg}")
         }
         other => panic!("expected Fatal(UnsupportedVersion), got {other:?}"),
     }
-    // Several backoff periods (50 ms doubling) pass without another attempt.
-    std::thread::sleep(Duration::from_millis(800));
-    assert_eq!(tailnet.whois_calls(), 1);
+    // The connection task has ended, so nothing will retry. (The daemon's whois count can't show this: a stray
+    // client from another test or process may dial the same port.)
     assert_eq!(client.list_projects().recv(), Err(Error::Stopped));
+    quiet(&client, Duration::from_millis(300));
 }
 
 #[test]
