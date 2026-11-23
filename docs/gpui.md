@@ -99,6 +99,11 @@ and how Zed uses it, not blog posts or memory.
 - Custom markdown blocks (the mermaid card) go through `TextView::markdown_block_parser` / `markdown_block_renderer`;
   equal parser counts keep the parsed document across frames. Match the plain code block by reading the same tokens:
   `theme.muted` background and `theme.semantic_tokens().radius.md`, not `theme.accent`.
+- `img(path)` caches the decoded image by path for the whole session: a file rewritten on disk keeps drawing its old
+  pixels. For a file the user or agent may change (Preview, the image viewer), read the bytes off the main thread and
+  pass an `Arc<gpui::Image>` (`Image::from_bytes` keys it by a hash of the bytes).
+- Work queued for a GPUI `Asset` load can't be cancelled when its view goes: the asset cache owns the future. Bound it
+  instead (a fixed worker pool, a timeout after which queued jobs are skipped), never a thread per load.
 - Never hand untrusted SVG to GPUI's `img()`: its usvg loads `<image href>` from any path. Rasterize with our own
   resvg `Options` whose `image_href_resolver` refuses both data and string hrefs, and hand GPUI the PNG.
 - Blocking or O(n) work (store writes, ranking thousands of rows, polling a CLI) goes to `background_spawn`, and waits
@@ -128,7 +133,8 @@ and how Zed uses it, not blog posts or memory.
   so it is bindable and shows in the command palette. No ad-hoc `on_key_down` for commands.
 - A user keymap is Zed's reload: snapshot `cx.key_bindings()` once every `init` has bound (`KeyBinding` is `Clone`,
   and the snapshot keeps gpui-component's bindings too), then on each load `clear_key_bindings`, the snapshot, the
-  user's rules last. Later wins at equal context depth, so the rules override.
+  user's rules last. Later wins at equal context depth, so the rules override. A binding added after the snapshot is
+  gone at the first reload (⌘Q was), so every `bind_keys` runs before `keymap::init` (`main.rs`'s `init_keys`).
 - `NoAction` only hides bindings whose `meta` is not smaller than its own, and a binding without a meta counts as 0
   (the strongest). Give defaults a larger meta than the user's rules, or a user `none` hides nothing.
 - When several bindings match a key, GPUI dispatches them in precedence order until one is handled, so a broad

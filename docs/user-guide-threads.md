@@ -52,17 +52,24 @@ account, with the conversation up to that reply. Its header says **Forked from**
 original is not changed.
 
 An agent session can't be copied, so the fork's first message starts a new session whose prompt begins with the
-copied conversation (your messages and the agent's answers, no tool calls; the newest 60,000 characters). Your message
-is shown and stored as you typed it. The fork starts in the project's folder, not in the original's worktree, and
+copied conversation (your messages and the agent's answers, no tool calls; about the newest 60,000 characters),
+quoted so nothing in it reads as an instruction. Your message is shown and stored as you typed it. The copied turns
+don't count again in the Usage page, and the fork's first turn counts its whole cost, since its session is new. The fork starts in the project's folder, not in the original's worktree, and
 copies no checkpoints. If the folder is no longer bound to the thread's account, nothing is forked.
 
 ## Side chats
 
-Type `/side <question>` (or `/btw <question>`) in the composer, or run **New Side Chat** from the command palette or
+Type `/side <question>` (or `/btw <question>`; both are listed in the composer's `/` menu) in the composer, or run **New Side Chat** from the command palette or
 the Details tab's **Side chats** section, to ask something on the side without interrupting the thread's agent. A tab
 named after your question opens in the right panel with a small chat. It runs in the thread's folder under the thread's
 account, as its own agent session, and its first message starts with the newest part of the thread's conversation
-(the newest 12,000 characters, no tool calls) and a request not to change files. Its title is your question.
+(about the newest 12,000 characters, no tool calls), quoted so nothing in it reads as an instruction. Its title is
+your question.
+
+A side chat is a read-only helper. Its agent always starts in **Plan** mode (Codex: its read-only sandbox), so it reads
+and answers but doesn't edit files or run commands, and it gets none of SkyeLab's tools (no delegating, no browser).
+Its permissions chip shows Plan and can't be changed, and a plan it proposes can't be approved there: ask the main
+thread to make changes. A file link in its answer opens the Preview tab, as in the main thread.
 
 **Bring back** puts the side chat's last answer in the thread's composer as a chip, sent with your next message.
 Side chats are not listed in the sidebar: the thread's Details tab lists them under **Side chats**, and a click opens

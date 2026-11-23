@@ -67,7 +67,8 @@ What's built today:
   recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
   ([guide](docs/user-guide-threads.md)).
 - **Side chats.** `/side <question>` (or `/btw`) asks it in a small chat beside the thread, in the same folder under
-  the same account, without interrupting the thread's agent; **Bring back** adds its answer to the thread's composer.
+  the same account, without interrupting the thread's agent. It is read-only (Plan mode, no SkyeLab tools);
+  **Bring back** adds its answer to the thread's composer.
 - **Import sessions.** Existing Claude Code and Codex sessions of a project, read from the folder's own account
   only, become threads with their history; sending continues the same session.
 - **Worktrees and diff review.** Switch "Local checkout" to "New worktree" under the composer and the thread gets its own git worktree on a
