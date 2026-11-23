@@ -109,6 +109,7 @@ impl ThreadView {
             }
         })
         .detach();
+        let unsaved = self.unsaved.clone();
         self._task = Some(cx.spawn(async move |this, cx| {
             let started = cx
                 .background_spawn(async move {
@@ -164,6 +165,10 @@ impl ThreadView {
                             claimed = Some(thread.id);
                         }
                         let _ = saved_tx.send(thread.clone());
+                        // A resumed thread's held events go first, or its prompt would be stored ahead of them.
+                        unsaved
+                            .flush(&store, thread.id)
+                            .context("earlier events of this thread aren't saved yet")?;
                         append(
                             &mut *lock(&store)?,
                             thread.id,
@@ -280,6 +285,7 @@ impl ThreadView {
         );
         let turns = self.turns.clone();
         let on_sent = self.on_sent.take();
+        let unsaved = self.unsaved.clone();
         self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         let record = Record::Prompt(text.clone());
         self.push(&record, cx);
@@ -306,10 +312,11 @@ impl ThreadView {
                             crate::workspace::child_slots::claim(&store, parent, Some(id))?;
                         }
                         store.set_thread_status(id, "running")?;
+                        // Counted before it is sent, so a quick result can't find zero and mark the row idle early,
+                        // and under the store lock, so a held idle can't land between "running" and the count.
+                        turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         was
                     };
-                    // Counted before it is sent, so a quick result can't find zero and mark the row idle early.
-                    turns.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     // Queued first, so a full queue stores no prompt claude never got.
                     if let Err(e) = lock(&session).and_then(|mut s| s.send_user_message(&text)) {
                         turns.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
@@ -320,7 +327,8 @@ impl ThreadView {
                         });
                         return Err(e);
                     }
-                    append(&mut *lock(&store)?, id, &record)
+                    // Behind any held replies, and held itself if the store refuses it.
+                    Ok(unsaved.push_and_save(&store, id, Some(record), None).0)
                 })
                 .await;
             if let Some(reply) = on_sent {
@@ -334,9 +342,10 @@ impl ThreadView {
                     }
                 }));
             }
-            if let Err(e) = sent {
-                let _ = this.update(cx, |this, cx| this.show_error(e, cx));
-            }
+            let _ = this.update(cx, |this, cx| match sent {
+                Ok(left) => this.saved(left, cx),
+                Err(e) => this.show_error(e, cx),
+            });
         }));
     }
 }

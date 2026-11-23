@@ -48,3 +48,9 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   (2026-11-23)
 - **Codex provider:** `codex app-server` under `CODEX_HOME`, the folder's account picks the provider. Protocol,
   event mapping, hardening and limits: [codex.md](codex.md). (2026-11-23)
+- **`AccountsConfig::resolve` stays on the UI thread.** Measured on 2026-11-23 (Apple silicon, internal APFS, release
+  build, `crates/skyelab-core/tests/resolve_cost.rs`): resolve() cost with 20 bindings is about 245 µs per call for an
+  existing folder and 265 µs for a missing one. It runs on keystrokes in Settings' test field, on send and on folder
+  changes, never per frame, so it stays synchronous. Limit: a binding on an unmounted or hung network volume makes
+  each `realpath` wait for the volume's timeout and the UI freezes for that long; move resolve off the UI thread if
+  that shows up. (2026-11-23)

@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use skyelab_tailnet::{
@@ -178,11 +177,11 @@ fn cli_backend_through_trait() {
     let me = cli.self_node().expect("test setup");
     assert_eq!(me.hostname, "laptop");
     assert_eq!(cli.peers().expect("test setup").len(), 2);
-    let addr: SocketAddr = "100.64.0.2:4000".parse().expect("test setup");
+    let addr: std::net::SocketAddr = "100.64.0.2:4000".parse().expect("test setup");
     let w = cli.whois(addr).expect("test setup");
     assert!(is_own_device(&me, &w));
 
-    let unknown: SocketAddr = "100.64.0.9:4000".parse().expect("test setup");
+    let unknown: std::net::SocketAddr = "100.64.0.9:4000".parse().expect("test setup");
     assert!(matches!(cli.whois(unknown), Err(Error::Command { .. })));
     std::fs::remove_dir_all(dir).expect("test setup");
 }

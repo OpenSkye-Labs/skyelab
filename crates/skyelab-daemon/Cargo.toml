@@ -18,19 +18,18 @@ rustls.workspace = true
 tokio-rustls.workspace = true
 x509-parser.workspace = true
 rcgen = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
+serde_json.workspace = true
 tempfile = { workspace = true, optional = true }
 
 [features]
 # The shared remote-test harness (test CA, fake tailnet, served store) for this and other crates' tests.
 # Never in a shipped build.
-test-support = ["dep:rcgen", "dep:serde_json", "dep:tempfile"]
+test-support = ["dep:rcgen", "dep:tempfile"]
 
 [dev-dependencies]
 skyelab-daemon = { workspace = true, features = ["test-support"] }
 skyelab-client = { workspace = true, features = ["test-support"] }
 rustls.workspace = true
-serde_json.workspace = true
 tungstenite.workspace = true
 tempfile.workspace = true
 

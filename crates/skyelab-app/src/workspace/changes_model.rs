@@ -43,6 +43,8 @@ pub enum Row {
     },
     /// No lines to show (binary, too large, a symlink).
     Placeholder(&'static str),
+    /// A file with more diff lines than the caps allow; the count is in the row.
+    TooLarge(usize),
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -56,6 +58,8 @@ pub struct Changes {
 pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     let root = skyelab_git::repo_root(dir)?;
     let mut entries: Vec<(ChangedFile, Vec<Row>)> = Vec::new();
+    // What is left of the diff's line cap for untracked files, after the tracked ones.
+    let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let diffs = match base {
         Some(base) => skyelab_git::diff_merge_base(dir, base)?,
         None => diff_head(dir)?,
@@ -68,7 +72,11 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
         if d.binary {
             rows.push(Row::Placeholder("Binary file"));
         }
+        if let Some(n) = d.too_large {
+            rows.push(Row::TooLarge(n));
+        }
         for h in &d.hunks {
+            lines_left = lines_left.saturating_sub(h.lines.len());
             rows.push(Row::Hunk(format!(
                 "@@ -{},{} +{},{} @@ {}",
                 h.old_start, h.old_lines, h.new_start, h.new_lines, h.header
@@ -99,7 +107,13 @@ pub fn load(dir: &Path, base: Option<&str>) -> Result<Changes> {
     }
     let mut budget = MAX_UNTRACKED_TOTAL;
     for rel in skyelab_git::status(dir)?.untracked {
-        let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget);
+        let max_lines = skyelab_git::MAX_FILE_LINES.min(lines_left);
+        let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget, max_lines);
+        let shown = rows
+            .iter()
+            .filter(|r| matches!(r, Row::Line { .. }))
+            .count();
+        lines_left -= shown;
         entries.push((file(rel, None, ChangeKind::Added, binary), rows));
     }
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
@@ -155,7 +169,7 @@ fn line_row(old: Option<u32>, new: Option<u32>, kind: LineKind, text: &str) -> R
 
 /// An untracked file shown as all added lines. Never follows a link: it could point at any file
 /// on disk, another account's credentials included.
-fn untracked_rows(path: &Path, budget: &mut u64) -> (bool, Vec<Row>) {
+fn untracked_rows(path: &Path, budget: &mut u64, max_lines: usize) -> (bool, Vec<Row>) {
     let placeholder = |p| (false, vec![Row::Placeholder(p)]);
     let Ok(meta) = std::fs::symlink_metadata(path) else {
         return placeholder("Can't read this file");
@@ -186,6 +200,10 @@ fn untracked_rows(path: &Path, budget: &mut u64) -> (bool, Vec<Row>) {
         return (true, vec![Row::Placeholder("Binary file")]);
     }
     let text = String::from_utf8_lossy(&bytes);
+    let n = text.lines().count();
+    if n > max_lines {
+        return (false, vec![Row::TooLarge(n)]);
+    }
     let rows = text
         .lines()
         .enumerate()

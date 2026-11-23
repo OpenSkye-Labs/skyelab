@@ -81,9 +81,11 @@ an account.
 
 The thread header shows the provider (**Claude** or **Codex**) and the account it runs on. **Interrupt** stops the
 current turn. **Stop** ends the agent. Threads are saved, and opening an old one and sending a follow-up resumes the
-same session (Claude's `--resume`, or Codex's `thread/resume`). Closing a thread's tab or quitting SkyeLab stops its
-agent. A thread that was still running when SkyeLab last closed without stopping it (a crash, say) shows as
-**interrupted**; send a follow-up to resume it.
+same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
+another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
+event, and saves them in order once the store works again. Closing the tab or quitting before then loses them.
+Closing a thread's tab or quitting SkyeLab stops its agent. A thread that was still running when SkyeLab last closed
+without stopping it (a crash, say) shows as **interrupted**; send a follow-up to resume it.
 
 The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. <kbd>⌥⌘B</kbd> opens a browser
 tab for your dev server.
@@ -123,6 +125,8 @@ added to the repo's local `info/exclude`, so it never shows up in `git status`.
 The thread header then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not. **Refresh** reloads it.
+  A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one
+  "Diff too large" row with the line count instead: open those in a terminal or your editor.
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.
 - **Discard worktree** removes the worktree. Stop the agent first. If it has uncommitted changes, SkyeLab lists the
   files you would lose and asks you to confirm. The branch is kept.

@@ -12,8 +12,15 @@ pub struct FileDiff {
     pub kind: ChangeKind,
     /// Binary files carry no hunks.
     pub binary: bool,
+    /// Hunks are dropped (empty) when the file is too large to show: this many diff lines.
+    pub too_large: Option<usize>,
     pub hunks: Vec<Hunk>,
 }
+
+/// Diff lines (context included) kept for one file; past it the file is [`FileDiff::too_large`].
+pub const MAX_FILE_LINES: usize = 5_000;
+/// Diff lines kept across all files; the files past it are too large too.
+pub const MAX_TOTAL_LINES: usize = 50_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hunk {
@@ -74,15 +81,20 @@ fn parse(out: &[u8]) -> Vec<FileDiff> {
     // Header lines (---, rename from, …) only count before a file's first hunk: inside one,
     // "--- x" is a removed line whose text starts with "-- ".
     let mut in_hunk = false;
+    // Lines kept in finished files, and lines seen in the current one.
+    let (mut kept, mut lines) = (0, 0);
     for raw in out.split(|b| *b == b'\n') {
         let line = lossy(raw);
         if let Some(rest) = line.strip_prefix("diff --git ") {
+            finish(files.last_mut(), lines, &mut kept);
+            lines = 0;
             let (old, new) = header_paths(rest);
             files.push(FileDiff {
                 old_path: old,
                 new_path: new,
                 kind: ChangeKind::Modified,
                 binary: false,
+                too_large: None,
                 hunks: Vec::new(),
             });
             in_hunk = false;
@@ -92,9 +104,23 @@ fn parse(out: &[u8]) -> Vec<FileDiff> {
             continue;
         };
         if let Some(hunk) = parse_hunk_header(&line) {
-            file.hunks.push(hunk);
+            if file.too_large.is_none() {
+                file.hunks.push(hunk);
+            }
             in_hunk = true;
         } else if in_hunk {
+            if matches!(line.as_bytes().first(), Some(b' ' | b'+' | b'-')) {
+                lines += 1;
+                if file.too_large.is_none()
+                    && (lines > MAX_FILE_LINES || kept + lines > MAX_TOTAL_LINES)
+                {
+                    file.too_large = Some(0); // the count is set when the file ends
+                    file.hunks.clear();
+                }
+            }
+            if file.too_large.is_some() {
+                continue;
+            }
             let Some(hunk) = file.hunks.last_mut() else {
                 continue;
             };
@@ -128,7 +154,17 @@ fn parse(out: &[u8]) -> Vec<FileDiff> {
             file.binary = true;
         }
     }
+    finish(files.last_mut(), lines, &mut kept);
     files
+}
+
+/// A file's diff ended after `lines` lines: count them as kept, or record them as too many to show.
+fn finish(file: Option<&mut FileDiff>, lines: usize, kept: &mut usize) {
+    match file {
+        Some(f) if f.too_large.is_some() => f.too_large = Some(lines),
+        Some(_) => *kept += lines,
+        None => {}
+    }
 }
 
 /// Paths from `diff --git a/X b/Y`. Unambiguous only when X == Y, which is every case without a

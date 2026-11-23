@@ -207,11 +207,12 @@ fn relative_bin_with_dirs_is_rejected() {
         &dir,
         "hi",
     );
+    // Refused while resolving the binary, before any spawn, so nothing can have run.
+    let err = format!("{:#}", res.err().expect("a relative bin path is refused"));
     assert!(
-        res.is_err(),
-        "a relative bin path must not resolve inside the project"
+        err.contains("must be an absolute path or a bare name"),
+        "{err}"
     );
-    std::thread::sleep(Duration::from_millis(200));
     assert!(!dir.join("ran-relative").exists());
 }
 

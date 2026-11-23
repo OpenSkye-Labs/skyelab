@@ -14,6 +14,7 @@ mod access;
 mod backend;
 mod peers;
 mod serve;
+mod slots;
 #[cfg(feature = "test-support")]
 pub mod testing;
 mod tls;
@@ -28,7 +29,7 @@ use anyhow::{Context, Result, bail};
 use skyelab_protocol::ThreadEvent;
 use skyelab_tailnet::{Tailnet, WhoIs, is_own_device};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, broadcast, oneshot};
+use tokio::sync::{Notify, broadcast, oneshot};
 use tokio::time::timeout;
 use tokio_rustls::server::TlsStream;
 use tokio_tungstenite::WebSocketStream;
@@ -40,11 +41,14 @@ use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
 use access::SharedAccess;
 pub use access::{AccessRequest, Approval};
-pub use backend::{Agents, Backend, MAX_EVENTS_PER_REPLY, NotWired, StoreBackend, event};
+pub use backend::{
+    Agents, Backend, MAX_EVENTS_PER_REPLY, MAX_REPLY_BYTES, NotWired, StoreBackend, event,
+};
 pub use peers::Peer;
 use peers::{Entry, Peers, Registered, lock_peers};
 use serve::serve;
 pub use skyelab_tailnet::ADMIN_DNS_URL;
+use slots::{Slot, Slots};
 pub use tls::CertInfo;
 use tls::Tls;
 
@@ -66,6 +70,8 @@ pub struct Config {
     pub gate_timeout: Duration,
     /// Connections being gated at once; more are dropped, so a flood can't spawn unbounded whois calls.
     pub max_pending: usize,
+    /// Of those, at most this many from one address, so one tailnet member can't take every slot.
+    pub max_pending_per_peer: usize,
     /// How often `tailscale cert` runs again; it renews ahead of expiry, and the new cert is served at once.
     pub cert_check_every: Duration,
     /// After a failed renewal, the next try comes this soon (the current cert keeps being served).
@@ -83,6 +89,7 @@ impl Default for Config {
             idle_timeout: Duration::from_secs(300),
             gate_timeout: Duration::from_secs(10),
             max_pending: 16,
+            max_pending_per_peer: 4,
             cert_check_every: Duration::from_secs(24 * 3600),
             cert_retry: Duration::from_secs(3600),
             approved: Vec::new(),
@@ -108,7 +115,7 @@ struct Shared {
     tailnet: SharedTailnet,
     backend: Arc<dyn Backend>,
     events: broadcast::Sender<ThreadEvent>,
-    pending: Arc<Semaphore>,
+    pending: Arc<Slots>,
     peers: Peers,
     access: SharedAccess,
     next_peer: AtomicU64,
@@ -124,7 +131,11 @@ impl Daemon {
         tailnet: SharedTailnet,
         backend: Arc<dyn Backend>,
     ) -> Result<Self> {
-        if config.max_in_flight == 0 || config.max_pending == 0 || config.max_message_bytes == 0 {
+        if config.max_in_flight == 0
+            || config.max_pending == 0
+            || config.max_pending_per_peer == 0
+            || config.max_message_bytes == 0
+        {
             bail!("daemon limits must be at least 1: {config:?}");
         }
         if config.cert_check_every.is_zero() || config.cert_retry.is_zero() {
@@ -185,7 +196,7 @@ impl Daemon {
             peers: peers.clone(),
             access: access.clone(),
             next_peer: AtomicU64::new(1),
-            pending: Arc::new(Semaphore::new(config.max_pending)),
+            pending: Slots::new(config.max_pending, config.max_pending_per_peer),
             tls: tls.clone(),
             node_id: me.stable_id.clone(),
             config,
@@ -294,9 +305,12 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>) {
                 continue;
             }
         };
-        let Ok(permit) = shared.pending.clone().try_acquire_owned() else {
-            eprintln!("skyelab-daemon: rejected {peer}: too many connections waiting for whois");
-            continue;
+        let permit = match shared.pending.take(peer.ip(), std::time::Instant::now()) {
+            Ok(slot) => slot,
+            Err(why) => {
+                eprintln!("skyelab-daemon: rejected {peer}: {why}");
+                continue;
+            }
         };
         tokio::spawn(handle(stream, peer, shared.clone(), permit));
     }
@@ -335,12 +349,7 @@ async fn renew_loop(shared: Arc<Shared>) {
     }
 }
 
-async fn handle(
-    stream: TcpStream,
-    peer: SocketAddr,
-    shared: Arc<Shared>,
-    permit: OwnedSemaphorePermit,
-) {
+async fn handle(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>, permit: Slot) {
     let (ws, who) = match timeout(
         shared.config.gate_timeout,
         admit(stream, peer, &shared, permit),
@@ -395,12 +404,12 @@ async fn admit(
     stream: TcpStream,
     peer: SocketAddr,
     shared: &Shared,
-    permit: OwnedSemaphorePermit,
+    permit: Slot,
 ) -> Result<(Ws, WhoIs), String> {
     let tailnet = shared.tailnet.clone();
     // The permit lives in the blocking task: a gate timeout can't cancel whois, so the slot frees when whois ends.
     let checked = tokio::task::spawn_blocking(move || {
-        let _permit = permit;
+        let permit = permit;
         let me = tailnet
             .self_node()
             .map_err(|e| format!("tailnet unavailable: {e}"))?;
@@ -410,6 +419,7 @@ async fn admit(
         if is_own_device(&me, &who) {
             Ok(who)
         } else {
+            permit.refused(std::time::Instant::now());
             Err(format!(
                 "not one of your devices: node {:?} ({}), user {:?}, tags {:?}",
                 who.node.name, who.node.stable_id, who.user_profile.login_name, who.node.tags

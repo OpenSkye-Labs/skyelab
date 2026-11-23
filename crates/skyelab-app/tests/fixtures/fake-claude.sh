@@ -8,5 +8,5 @@ if [ -f .fake-agent-commits ]; then
   git -c user.name=fake -c user.email=fake@example.com -c commit.gpgsign=false commit -q -m "agent commit" -- agent-commit.txt >/dev/null 2>&1
 fi
 cat "$(dirname "$0")/session.jsonl"
-printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s"}\n' "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$*"
+printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s","pid":%s}\n' "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$*" "$$"
 while IFS= read -r line; do printf '%s\n' "$line"; done

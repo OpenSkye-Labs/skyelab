@@ -1,15 +1,17 @@
 //! A thread's agent session once started: the event pump that stores and shows each event,
 //! and stopping, interrupting and reaping the agent.
 
-use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, append, lock};
+use super::saves::save;
+use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, lock};
 use anyhow::{Context as _, Result};
 use gpui::{AppContext as _, Context, Window};
 use skyelab_agent::{Event, Session};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
 impl ThreadView {
-    /// Each event is stored before it is shown, so the store keeps stdout's order.
+    /// Each event is stored before it is shown, so the store keeps stdout's order. An event the store refuses is
+    /// still shown, and held with every later one in the view's queue until a retry saves them (`thread_saves`).
     pub(super) fn run(
         &mut self,
         session: Session,
@@ -22,44 +24,19 @@ impl ThreadView {
         // The launch sent one prompt.
         let turns = Arc::new(AtomicUsize::new(1));
         self.turns = turns.clone();
+        self.unsaved.set_session(&turns);
         let launch = self.launches;
         // A stopped session's pump keeps storing what it already printed.
         if let Some(old) = self._pump.take() {
             old.detach();
         }
+        let unsaved = self.unsaved.clone();
         self._pump = Some(cx.spawn(async move |this, cx| {
             while let Ok(event) = events.recv_async().await {
                 let record = Record::Agent(event);
-                let store = store.clone();
-                let saved_record = record.clone();
-                let turns = turns.clone();
-                let saved = cx
-                    .background_spawn(async move {
-                        let mut store = lock(&store)?;
-                        append(&mut store, id, &saved_record)?;
-                        match &saved_record {
-                            Record::Agent(Event::Init { session_id, .. }) => {
-                                store.set_agent_session_id(id, Some(session_id))?
-                            }
-                            Record::Agent(Event::Result { .. }) => {
-                                let before = turns
-                                    .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
-                                        Some(n.saturating_sub(1))
-                                    })
-                                    .unwrap_or_default();
-                                if before <= 1 {
-                                    store.set_thread_status(id, "idle")?
-                                }
-                            }
-                            _ => {}
-                        }
-                        anyhow::Ok(())
-                    })
-                    .await;
+                let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let shown = this.update(cx, |this, cx| {
-                    if let Err(e) = saved {
-                        this.show_error(e.context("saving an agent event"), cx);
-                    }
+                    this.saved(left, cx);
                     if let (Record::Agent(Event::Init { session_id, .. }), Some(t)) =
                         (&record, &mut this.thread)
                     {
@@ -239,9 +216,24 @@ impl Drop for NewSession {
 impl Drop for ThreadView {
     /// Closing the tab ends its agent. A launch still in progress ends its own (`NewSession`).
     fn drop(&mut self) {
-        let (Some(session), Some(thread)) = (self.session.take(), &self.thread) else {
+        let session = self.session.take();
+        let Some(thread) = &self.thread else {
             return;
         };
-        stop_in_background(session, self.backend.store.clone(), thread.id);
+        if session.is_none() && self.unsaved_events == 0 {
+            return;
+        }
+        let (store, id, unsaved) = (self.backend.store.clone(), thread.id, self.unsaved.clone());
+        let _ = std::thread::Builder::new()
+            .name("skyelab-agent-reaper".into())
+            .spawn(move || {
+                let stopped = session.is_some();
+                drop(session);
+                // A last try for held events; past this they are lost, as the warning said.
+                let _ = unsaved.flush(&store, id);
+                if stopped && let Ok(store) = lock(&store) {
+                    let _ = store.set_thread_status(id, "stopped");
+                }
+            });
     }
 }

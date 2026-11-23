@@ -25,6 +25,7 @@ mod remote;
 mod remote_thread;
 mod status_bar;
 mod thread;
+pub use thread::AccountsFile;
 mod thread_items;
 mod thread_model;
 mod thread_render;
@@ -94,11 +95,6 @@ pub struct Backend {
     pub claude_bin: PathBuf,
 }
 
-/// The accounts.toml a launch re-reads right before it spawns.
-pub struct AccountsFile(pub PathBuf);
-
-impl gpui::Global for AccountsFile {}
-
 const CONTEXT: &str = "Workspace";
 
 // `KeyBinding::new` can't resolve `secondary-`, so pick per OS.
@@ -165,7 +161,7 @@ pub struct Workspace {
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
     settings: Option<WeakEntity<Settings>>,
     backend: Backend,
@@ -257,7 +253,7 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
             browsers: Vec::new(),
-            #[cfg(test)]
+            #[cfg(all(test, unix))]
             browser_engine: None,
             settings: None,
             backend,
@@ -497,7 +493,7 @@ mod agent_bin_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
 mod codex_thread_test;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_second_row_test;
 
 #[cfg(test)]
@@ -524,7 +520,7 @@ mod worktree_discard_test;
 #[cfg(test)]
 mod worktree_review_test;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_cta_folder_test;
 
 #[cfg(test)]
@@ -577,13 +573,9 @@ mod delegation_idempotent_test;
 #[cfg(all(test, unix))]
 mod delegation_reply_on_row_test;
 #[cfg(all(test, unix))]
-mod delegation_retry_closed_test;
+mod delegation_review_test;
 #[cfg(all(test, unix))]
 mod delegation_send_cap_test;
-#[cfg(all(test, unix))]
-mod delegation_send_race_test;
-#[cfg(all(test, unix))]
-mod delegation_send_starting_test;
 #[cfg(all(test, unix))]
 mod delegation_starting_cap_test;
 #[cfg(all(test, unix))]
@@ -591,11 +583,7 @@ mod delegation_stopped_parent_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;
 #[cfg(all(test, unix))]
-mod thread_close_running_test;
-#[cfg(all(test, unix))]
 mod thread_close_starting_test;
-#[cfg(all(test, unix))]
-mod thread_quit_test;
 
 #[cfg(test)]
 mod delegation_cap_test;
@@ -622,3 +610,19 @@ mod browser_agent_cap_test;
 
 #[cfg(all(test, unix))]
 mod browser_agent_review_test;
+#[cfg(test)]
+mod changes_cap_test;
+#[cfg(test)]
+mod close_tab_test;
+#[cfg(test)]
+mod drive_rebound_test;
+#[cfg(test)]
+mod remote_resume_test;
+#[cfg(test)]
+mod save_retry_stop_test;
+#[cfg(test)]
+mod save_retry_test;
+#[cfg(test)]
+mod save_turns_test;
+#[cfg(test)]
+mod stale_idle_test;

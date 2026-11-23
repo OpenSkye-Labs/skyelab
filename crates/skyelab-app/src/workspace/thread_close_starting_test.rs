@@ -1,5 +1,5 @@
-//! A tab closed while its launch is still in progress leaves its row `stopped`, never `running` with
-//! no agent behind it. The agent is the fake claude.
+//! A thread's row ends `stopped` when its tab closes (while starting or running) or the app quits, never `running`
+//! with no agent behind it. The agent is the fake claude.
 
 use super::thread::ThreadView;
 use super::*;
@@ -112,4 +112,42 @@ fn a_tab_closed_while_starting_leaves_its_thread_stopped(cx: &mut TestAppContext
         row(&r).is_some_and(|t| t.status == "stopped")
     });
     assert!(weak.upgrade().is_none(), "the tab is gone");
+}
+
+/// Closing the tab of a running thread ends its agent and leaves the row `stopped`.
+#[gpui::test]
+fn a_tab_closed_while_running_leaves_its_thread_stopped(cx: &mut TestAppContext) {
+    let r = rig(cx);
+    let (config, backend, project) = (r.config.clone(), backend(&r), r.project.clone());
+    let (view, cx) =
+        cx.add_window_view(|window, cx| ThreadView::new(&project, config, backend, window, cx));
+    view.update_in(cx, |v, window, cx| v.submit_remote("hold", window, cx))
+        .expect("prompt taken");
+    wait_until(cx, "the agent to run", |cx| {
+        view.read_with(cx, |v, _| v.session.is_some())
+            && row(&r).is_some_and(|t| t.status == "running")
+    });
+    drop(view);
+    cx.update(|window, _| window.remove_window());
+    wait_until(cx, "the row to say stopped", |_| {
+        row(&r).is_some_and(|t| t.status == "stopped")
+    });
+}
+
+/// Quitting the app ends every running agent and leaves its row `stopped`, so nothing reads as running
+/// once the app is gone.
+#[gpui::test]
+fn quitting_leaves_running_threads_stopped(cx: &mut TestAppContext) {
+    let r = rig(cx);
+    let (config, backend, project) = (r.config.clone(), backend(&r), r.project.clone());
+    let (view, vcx) =
+        cx.add_window_view(|window, cx| ThreadView::new(&project, config, backend, window, cx));
+    view.update_in(vcx, |v, window, cx| v.submit_remote("hold", window, cx))
+        .expect("prompt taken");
+    wait_until(vcx, "the agent to run", |cx| {
+        view.read_with(cx, |v, _| v.session.is_some())
+            && row(&r).is_some_and(|t| t.status == "running")
+    });
+    cx.quit();
+    assert_eq!(row(&r).map(|t| t.status).as_deref(), Some("stopped"));
 }
