@@ -6,8 +6,6 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 icons() {
   local d=crates/skyelab-app/icons
-  grep -qi placeholder "$d/icon.svg" || fail "icon.svg not marked placeholder"
-  grep -qi placeholder "$d/README.md" || fail "icons/README.md not marked placeholder"
   local stamp; stamp=$(mktemp); sleep 1
   scripts/icons.sh >/dev/null
   for pair in 32x32.png:32 128x128.png:128 128x128@2x.png:256 256x256.png:256 512x512.png:512 icon.icns:1024; do

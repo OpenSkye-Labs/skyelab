@@ -328,11 +328,29 @@ gpui_kit_assets::icon_assets!(
     ]
 );
 
+const BRAND_MARK: &str = "icons/skyelab-mark.svg";
+
+pub fn brand_mark(size: Pixels, color: Hsla) -> gpui::Svg {
+    use gpui::Styled as _;
+
+    gpui::svg()
+        .path(BRAND_MARK)
+        .w(size)
+        .h(size)
+        .flex_shrink_0()
+        .text_color(color)
+}
+
 /// gpui-component's icons plus [`ExtraIcons`].
 pub struct AppAssets;
 
 impl gpui::AssetSource for AppAssets {
     fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        if path == BRAND_MARK {
+            return Ok(Some(std::borrow::Cow::Borrowed(include_bytes!(
+                "../../icons/mark.svg"
+            ))));
+        }
         match ExtraIcons.load(path)? {
             Some(bytes) => Ok(Some(bytes)),
             None => gpui_kit_assets::Assets.load(path),
@@ -342,6 +360,9 @@ impl gpui::AssetSource for AppAssets {
     fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
         let mut paths = gpui_kit_assets::Assets.list(path)?;
         paths.extend(ExtraIcons.list(path)?);
+        if BRAND_MARK.starts_with(path) {
+            paths.push(BRAND_MARK.into());
+        }
         paths.sort();
         paths.dedup();
         Ok(paths)
