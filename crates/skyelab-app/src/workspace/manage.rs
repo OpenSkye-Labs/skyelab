@@ -161,19 +161,28 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Err(e) = lock(&self.backend.store).and_then(|s| s.set_thread_pr_url(id, Some(&url)))
-        {
-            return self.say(
-                format!("Couldn't link the pull request again: {e:#}"),
-                window,
-                cx,
-            );
-        }
-        if let Some(view) = self.open_view(id, cx) {
-            let url = url.clone();
-            view.update(cx, |v, cx| v.set_pr_url(Some(url), cx));
-        }
-        self.update_row(id, |t| t.pr_url = Some(url), cx);
+        let (store, link) = (self.backend.store.clone(), url.clone());
+        let saved = cx.background_spawn(async move {
+            lock(&store).and_then(|s| s.set_thread_pr_url(id, Some(&link)))
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let saved = saved.await;
+            let _ = this.update_in(cx, |this, window, cx| {
+                if let Err(e) = saved {
+                    return this.say(
+                        format!("Couldn't link the pull request again: {e:#}"),
+                        window,
+                        cx,
+                    );
+                }
+                if let Some(view) = this.open_view(id, cx) {
+                    let url = url.clone();
+                    view.update(cx, |v, cx| v.set_pr_url(Some(url), cx));
+                }
+                this.update_row(id, |t| t.pr_url = Some(url), cx);
+            });
+        })
+        .detach(); // one short write; `this` is weak
     }
 
     pub(super) fn update_row(

@@ -209,15 +209,24 @@ impl ThreadView {
         let Some((id, Some(url))) = self.thread.as_ref().map(|t| (t.id, t.pr_url.clone())) else {
             return;
         };
-        let saved =
-            super::super::lock(&self.backend.store).and_then(|s| s.set_thread_pr_url(id, None));
-        if let Err(e) = saved {
-            self.error = Some(format!("Couldn't unlink the pull request: {e:#}").into());
-            cx.notify();
-            return;
-        }
-        self.set_pr_url(None, cx);
-        cx.emit(ThreadViewEvent::PrUnlinked(url));
+        let store = self.backend.store.clone();
+        let saved = cx.background_spawn(async move {
+            super::super::lock(&store).and_then(|s| s.set_thread_pr_url(id, None))
+        });
+        cx.spawn(async move |this, cx| {
+            let saved = saved.await;
+            let _ = this.update(cx, |this, cx| match saved {
+                Err(e) => {
+                    this.error = Some(format!("Couldn't unlink the pull request: {e:#}").into());
+                    cx.notify();
+                }
+                Ok(()) => {
+                    this.set_pr_url(None, cx);
+                    cx.emit(ThreadViewEvent::PrUnlinked(url));
+                }
+            });
+        })
+        .detach(); // one short write; `this` is weak
     }
 
     /// The Commit & push menu, and who it pushes as (read from the account's `gh` now, off the UI thread).
@@ -363,16 +372,27 @@ impl ThreadView {
             cx.notify();
             return;
         };
-        let saved = super::super::lock(&self.backend.store)
-            .and_then(|s| s.set_thread_pr_url(id, Some(&url)));
-        if let Err(e) = saved {
-            self.details.pr_error = Some(format!("Couldn't save the link: {e:#}").into());
-            cx.notify();
-            return;
-        }
-        input.update(cx, |s, cx| s.set_value("", window, cx));
-        self.set_pr_url(Some(url), cx);
-        self.details_home(cx);
+        let store = self.backend.store.clone();
+        let link = url.clone();
+        let saved = cx.background_spawn(async move {
+            super::super::lock(&store).and_then(|s| s.set_thread_pr_url(id, Some(&link)))
+        });
+        let input = input.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let saved = saved.await;
+            let _ = this.update_in(cx, |this, window, cx| match saved {
+                Err(e) => {
+                    this.details.pr_error = Some(format!("Couldn't save the link: {e:#}").into());
+                    cx.notify();
+                }
+                Ok(()) => {
+                    input.update(cx, |s, cx| s.set_value("", window, cx));
+                    this.set_pr_url(Some(url), cx);
+                    this.details_home(cx);
+                }
+            });
+        })
+        .detach(); // one short write; `this` is weak
     }
 
     pub(super) fn render_link_pr(&self, on: &On, cx: &App) -> Vec<AnyElement> {
