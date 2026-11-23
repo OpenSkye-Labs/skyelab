@@ -6,6 +6,7 @@ use super::*;
 use gpui::AnyElement;
 use gpui_component::Selectable as _;
 use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
+use gpui_kit_assets::IconName as Lucide;
 
 pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
     s.button.as_ref().map(|(label, action)| {
@@ -54,8 +55,9 @@ pub(super) fn sidebar_row(
     .into_any_element()
 }
 
-/// A flat list's thread row, T3's two lines plus SkyeLab's account: project and status or time, then the title, then
-/// the account the project's folder is bound to.
+/// A flat list's thread row, after T3's and Synara's: the title with its status or time, the agent's last reply in two
+/// muted lines, then a meta line with the project, the account its folder is bound to (SkyeLab's point), the pull
+/// request and the branch.
 fn thread_row(
     item: &SidebarItem,
     marks: Option<&RowMarks>,
@@ -63,8 +65,9 @@ fn thread_row(
     theme: &gpui_component::Theme,
 ) -> gpui::Stateful<gpui::Div> {
     let action = item.action.boxed_clone();
-    let (pinned, unread, approval) =
-        marks.map_or((false, false, false), |m| (m.pinned, m.unread, m.approval));
+    let empty = RowMarks::default();
+    let marks = marks.unwrap_or(&empty);
+    let (pinned, unread, approval) = (marks.pinned, marks.unread, marks.approval);
     let project = item.project.clone().unwrap_or_default();
     let status = if approval {
         Some((IconName::TriangleAlert, "Approval", theme.warning))
@@ -99,6 +102,7 @@ fn thread_row(
         Some(RowAccount::Unbound) => Some(ui::AccountBadge::unbound()),
         Some(RowAccount::Hidden) | None => None,
     };
+    let muted = theme.muted_foreground;
     ui::row_surface(v_flex(), item.id.clone(), item.selected, theme)
         .py_1p5()
         .gap_0p5()
@@ -108,41 +112,58 @@ fn thread_row(
             h_flex()
                 .h(gpui::px(20.))
                 .gap_1p5()
-                .text_size(ui::META)
-                .child(ui::Monogram::new(&project))
-                .when(pinned, |this| {
-                    this.child(
-                        Icon::new(IconName::Star)
-                            .size_3()
-                            .text_color(theme.muted_foreground),
-                    )
-                })
                 .child(
                     div()
                         .flex_1()
                         .min_w_0()
                         .truncate()
-                        .text_color(theme.muted_foreground)
-                        .child(project),
+                        .when(item.selected || unread, |d| {
+                            d.font_weight(gpui::FontWeight::MEDIUM)
+                        })
+                        .child(item.label.clone()),
                 )
-                .child(right),
-        )
-        .child(
-            div()
-                .min_w_0()
-                .truncate()
-                .when(item.selected || unread, |d| {
-                    d.font_weight(gpui::FontWeight::MEDIUM)
+                .when(pinned, |this| {
+                    this.child(Icon::new(IconName::Star).size_3().text_color(muted))
                 })
-                .child(item.label.clone()),
+                .child(div().text_size(ui::META).child(right)),
         )
-        .children(account.map(|badge| {
-            h_flex()
-                .h(gpui::px(16.))
-                .min_w_0()
+        .children(marks.preview.clone().map(|p| {
+            div()
+                .id("preview")
                 .text_size(ui::META)
-                .child(badge)
+                .line_height(gpui::px(16.))
+                .text_color(muted)
+                .line_clamp(2)
+                .child(p)
         }))
+        .child(
+            h_flex()
+                .h(gpui::px(18.))
+                .min_w_0()
+                .gap_1p5()
+                .text_size(ui::META)
+                .text_color(muted)
+                .child(ui::Monogram::new(&project))
+                .child(div().min_w_0().truncate().child(project))
+                .children(account.map(|badge| div().min_w_0().child(badge)))
+                .child(div().flex_1())
+                .children(marks.pr.clone().map(|pr| {
+                    h_flex()
+                        .flex_shrink_0()
+                        .gap_0p5()
+                        .text_color(ui::ink(theme, theme.success))
+                        .child(Icon::new(Lucide::GitPullRequest).size_3())
+                        .child(pr)
+                }))
+                .children(marks.branch.clone().map(|b| {
+                    h_flex()
+                        .min_w_0()
+                        .max_w(gpui::px(112.))
+                        .gap_0p5()
+                        .child(Icon::new(Lucide::GitBranch).size_3().flex_shrink_0())
+                        .child(div().min_w_0().truncate().child(b))
+                })),
+        )
 }
 
 fn plain_row(

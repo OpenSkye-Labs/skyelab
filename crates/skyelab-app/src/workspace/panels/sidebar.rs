@@ -55,6 +55,12 @@ pub struct RowMarks {
     pub approval: bool,
     /// The right-click menu: label and the action it dispatches.
     pub menu: Vec<(SharedString, Box<dyn Action>)>,
+    /// The agent's last reply as plain text, drawn muted under the title.
+    pub preview: Option<SharedString>,
+    /// The thread's worktree branch, else its project folder's.
+    pub branch: Option<SharedString>,
+    /// The pull request opened from the thread: "#24".
+    pub pr: Option<SharedString>,
 }
 
 /// The selected project's archived threads, listed apart under a toggle row.

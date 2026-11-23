@@ -47,7 +47,7 @@ pub(crate) mod thread_checkpoints;
 mod thread_details;
 mod thread_items;
 mod thread_list;
-use thread_list::{NewThreadIn, ToggleProjectScope};
+use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod thread_model;
 mod thread_render;
 mod thread_worktree;
@@ -171,6 +171,7 @@ pub struct Workspace {
     project: Option<Project>,
     /// Every listed project's threads, most recently updated first.
     threads: Vec<Thread>,
+    previews: Previews,
     /// The project's scripts, for the palette.
     scripts: Vec<skyelab_store::ProjectScript>,
     _scripts: Option<Task<()>>,
@@ -312,6 +313,7 @@ impl Workspace {
             projects: Vec::new(),
             project: None,
             threads: Vec::new(),
+            previews: Previews::default(),
             scripts: Vec::new(),
             _scripts: None,
             scope: Vec::new(),

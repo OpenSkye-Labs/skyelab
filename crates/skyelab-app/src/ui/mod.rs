@@ -274,7 +274,8 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
-// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer and queue icons).
+// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer, queue and
+// permission icons; the sidebar's branch and pull request).
 gpui_kit_assets::icon_assets!(
     ExtraIcons,
     [
@@ -291,7 +292,11 @@ gpui_kit_assets::icon_assets!(
         SquareCode,
         CloudUpload,
         Trash,
-        GitPullRequest
+        GitPullRequest,
+        Lock,
+        ClipboardList,
+        PenLine,
+        ShieldOff
     ]
 );
 

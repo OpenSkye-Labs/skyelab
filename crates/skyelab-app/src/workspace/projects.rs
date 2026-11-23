@@ -133,6 +133,7 @@ impl Workspace {
                     Ok(threads) => {
                         this.threads = threads;
                         this.rerun_search(cx);
+                        this.load_previews(cx);
                     }
                     Err(e) => this.store_error = Some(format!("{e:#}").into()),
                 }
@@ -342,6 +343,7 @@ impl Workspace {
                 ThreadViewEvent::TurnDone => {
                     this.refresh_changes(view, cx);
                     this.refresh_details(cx);
+                    this.load_previews(cx);
                     this.turn_done(view, window, cx);
                 }
                 ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
