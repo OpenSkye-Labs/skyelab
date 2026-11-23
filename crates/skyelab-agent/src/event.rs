@@ -173,9 +173,9 @@ pub fn todos(input: &Value) -> Vec<Todo> {
 const SESSION_GONE: &str = "No conversation found with session ID:";
 
 /// Whether Codex's refusal of `thread/resume` says the thread's rollout is gone (codex 0.171: "no rollout found for
-/// thread id <id>"; an unloaded thread answers "thread not found: <id>").
+/// thread id <id>"). Not "thread not found:", which codex says of an unloaded thread whose rollout may still exist.
 pub(crate) fn codex_thread_gone(error: &str) -> bool {
-    error.starts_with("no rollout found for") || error.starts_with("thread not found:")
+    error.starts_with("no rollout found for")
 }
 
 /// Whether `event` says the resumed session is gone: [`Event::SessionGone`], or stderr saying so.

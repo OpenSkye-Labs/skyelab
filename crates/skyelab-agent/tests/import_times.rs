@@ -74,6 +74,37 @@ fn codex_entries_carry_their_line_times() {
 }
 
 #[test]
+fn a_line_without_a_time_keeps_the_last_one() {
+    let home = tempfile::tempdir().expect("temp dir");
+    let folder = Path::new("/work/app");
+    let dir = home
+        .path()
+        .join("projects")
+        .join(import::claude_dir_name(folder));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let file = dir.join("5f1c2a3b-0000-4000-8000-00000000c1a2.jsonl");
+    let user = |text: &str, at: Option<&str>| {
+        let mut v = serde_json::json!({
+            "type": "user", "cwd": folder, "message": {"role": "user", "content": text}
+        });
+        if let Some(at) = at {
+            v["timestamp"] = at.into();
+        }
+        format!("{v}\n")
+    };
+    let text = user("one", Some("2026-11-20T10:00:01Z")) + &user("two", None);
+    std::fs::write(&file, text).expect("write");
+    let s =
+        import::read(Provider::Claude, home.path(), &file, MAX_TRANSCRIPT_BYTES).expect("reads");
+    let at = CLAUDE_DAY + 1_000;
+    assert_eq!(
+        s.times,
+        vec![at, at, at, at],
+        "two prompts, each closing a turn"
+    );
+}
+
+#[test]
 fn a_line_without_a_time_takes_none() {
     let home = tempfile::tempdir().expect("temp dir");
     let folder = Path::new("/work/app");

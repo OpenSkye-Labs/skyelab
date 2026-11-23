@@ -117,7 +117,7 @@ pub(super) fn import_picks(
             done.left += 1;
             continue;
         };
-        // Each entry at the session's own time; one without a time (an old or odd line) at the file's.
+        // Each entry at the session's own time; entries before the first timed line at the file's.
         let rows: Vec<(&str, String, i64)> = t
             .entries
             .into_iter()

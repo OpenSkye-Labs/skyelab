@@ -44,7 +44,8 @@ pub struct Transcript {
     pub truncated: bool,
     /// The history, oldest first; empty in a [`list`].
     pub entries: Vec<Entry>,
-    /// When each entry happened, in Unix milliseconds (its line's `timestamp`); 0 when the line had none.
+    /// When each entry happened, in Unix milliseconds (its line's `timestamp`, else the last one before it); 0 when no
+    /// line before it had one.
     pub times: Vec<i64>,
 }
 
@@ -244,7 +245,7 @@ pub(crate) struct Timeline {
     pub(crate) entries: Vec<Entry>,
     /// Each entry's time, as [`Transcript::times`].
     pub(crate) times: Vec<i64>,
-    /// The time of the line being read; 0 when it has none.
+    /// The time of the line being read (the last one seen); 0 before any.
     at: i64,
     pub(crate) messages: usize,
     pub(crate) first_prompt: Option<String>,
@@ -252,12 +253,15 @@ pub(crate) struct Timeline {
 }
 
 impl Timeline {
-    /// Reads line `v`'s `timestamp` (RFC 3339, as Claude Code and Codex write it): the time of what it adds.
+    /// Reads line `v`'s `timestamp` (RFC 3339, as Claude Code and Codex write it): the time of what it adds. A line
+    /// without one keeps the last time seen, so the history stays in order.
     pub(crate) fn line(&mut self, v: &Value) {
-        self.at = v["timestamp"]
+        if let Some(t) = v["timestamp"]
             .as_str()
             .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
-            .map_or(0, |t| t.timestamp_millis());
+        {
+            self.at = t.timestamp_millis();
+        }
     }
 
     fn push(&mut self, entry: Entry, at: i64) {
