@@ -146,3 +146,49 @@ fn a_ticked_commit_is_refused_during_a_merge() {
         "0"
     );
 }
+
+#[test]
+fn a_ticked_commit_is_refused_during_a_cherry_pick_revert_or_rebase() {
+    for op in ["cherry-pick", "revert", "rebase"] {
+        let r = rig();
+        let base = git(&r.repo, &["rev-parse", "HEAD"]).trim().to_owned();
+        git(&r.repo, &["checkout", "-q", "-b", "side"]);
+        std::fs::write(r.repo.join("a.txt"), "side\n").expect("w");
+        git(&r.repo, &["add", "a.txt"]);
+        git(&r.repo, &["commit", "-q", "-m", "side"]);
+        git(&r.repo, &["checkout", "-q", "main"]);
+        std::fs::write(r.repo.join("a.txt"), "main\n").expect("w");
+        git(&r.repo, &["add", "a.txt"]);
+        git(&r.repo, &["commit", "-q", "-m", "main"]);
+        // Each stops with a conflict on a.txt, so the operation stays in progress.
+        let args: Vec<&str> = match op {
+            "cherry-pick" => vec!["cherry-pick", "side"],
+            "revert" => vec!["revert", "--no-edit", "HEAD"],
+            _ => vec!["rebase", "side"],
+        };
+        let _ = Command::new("git")
+            .arg("-C")
+            .arg(&r.repo)
+            .args(&args)
+            .output();
+        if op == "revert" {
+            // Reverting "main" over its own parent is clean, so make it stop: revert the first commit instead.
+            let _ = Command::new("git")
+                .arg("-C")
+                .arg(&r.repo)
+                .args(["revert", "--abort"])
+                .output();
+            let _ = Command::new("git")
+                .arg("-C")
+                .arg(&r.repo)
+                .args(["revert", "--no-commit", &base])
+                .output();
+        }
+        std::fs::write(r.repo.join("a.txt"), "resolved\n").expect("w");
+        std::fs::write(r.repo.join("b.txt"), "b\n").expect("w");
+        let tree = skyelab_git::snapshot_tree(&r.repo).expect("snapshot");
+        let err = skyelab_git::commit(&r.repo, "part", &[PathBuf::from("b.txt")], &[], Some(&tree))
+            .expect_err(op);
+        assert!(format!("{err}").contains(op), "{op}: {err}");
+    }
+}

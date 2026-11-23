@@ -65,4 +65,9 @@ fn a_label_only_edit_still_launches_and_a_changed_login_does_not() {
         ..launched.clone()
     };
     assert!(start(&gh, &launched, &dir).is_err(), "another gh login");
+    let codex = Account {
+        provider: skyelab_core::Provider::Codex,
+        ..launched.clone()
+    };
+    assert!(start(&codex, &launched, &dir).is_err(), "another provider");
 }

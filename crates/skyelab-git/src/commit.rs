@@ -166,7 +166,8 @@ fn catch_up_index(root: &Path, names: &[String], all: bool) -> Result<()> {
     git(root, &reset).map(drop)
 }
 
-/// The operation a partial commit would break: git refuses `commit -- <paths>` during each of these.
+/// The operation a partial commit would break: git refuses `commit -- <paths>` during a merge, cherry-pick or rebase,
+/// and a revert in progress gets the same caution.
 fn in_progress(root: &Path) -> Result<Option<&'static str>> {
     for (head, op) in [
         ("MERGE_HEAD", "merge"),
@@ -175,6 +176,15 @@ fn in_progress(root: &Path) -> Result<Option<&'static str>> {
     ] {
         if git_succeeds(root, &["rev-parse", "-q", "--verify", head])? {
             return Ok(Some(op));
+        }
+    }
+    for dir in ["rebase-merge", "rebase-apply"] {
+        let path = lossy(&git(
+            root,
+            &["rev-parse", "--path-format=absolute", "--git-path", dir],
+        )?);
+        if Path::new(path.trim_end_matches('\n')).exists() {
+            return Ok(Some("rebase"));
         }
     }
     Ok(None)

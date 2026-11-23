@@ -62,3 +62,38 @@ fn a_failed_commit_all_restores_the_index_exactly() {
     assert_eq!(index(&repo), before, "the index is what the user staged");
     assert_eq!(git(&repo, &["rev-list", "--count", "HEAD"]).trim(), "1");
 }
+
+#[test]
+fn a_commit_all_refused_for_changed_files_leaves_the_index_exactly() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let repo = std::fs::canonicalize(tmp.path()).expect("canon");
+    git(&repo, &["init", "-q", "-b", "main"]);
+    for (k, v) in [
+        ("user.name", "t"),
+        ("user.email", "t@example.com"),
+        ("commit.gpgsign", "false"),
+    ] {
+        git(&repo, &["config", k, v]);
+    }
+    std::fs::write(repo.join("a.txt"), "one\n").expect("w");
+    git(&repo, &["add", "."]);
+    git(&repo, &["commit", "-q", "-m", "init"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("w");
+    git(&repo, &["add", "a.txt"]);
+    std::fs::write(repo.join("a.txt"), "three\n").expect("w");
+    let index = |repo: &Path| {
+        (
+            git(repo, &["ls-files", "--stage"]),
+            git(repo, &["diff", "--cached", "--name-status"]),
+        )
+    };
+    let before = index(&repo);
+    let reviewed = skyelab_git::snapshot_tree(&repo).expect("snapshot");
+    std::fs::write(repo.join("a.txt"), "four\n").expect("w");
+    let err = skyelab_git::commit(&repo, "all", &[], &[], Some(&reviewed)).expect_err("changed");
+    assert!(
+        format!("{err}").contains("changed since you looked"),
+        "{err}"
+    );
+    assert_eq!(index(&repo), before);
+}
