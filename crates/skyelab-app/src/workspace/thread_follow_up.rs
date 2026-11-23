@@ -41,7 +41,12 @@ impl ThreadView {
         );
         let on_sent = self.on_sent.take();
         let unsaved = self.unsaved.clone();
-        let record = Record::Prompt(super::composer::shown_prompt(&text, &attachments));
+        let shown = super::composer::shown_prompt(&text, &attachments);
+        let record = if steer {
+            Record::Steer(shown)
+        } else {
+            Record::Prompt(shown)
+        };
         self.push(&record, cx);
         // Given back to the composer if the agent refuses it (lesson: a send must never lose what was typed).
         let draft = (text.clone(), attachments.clone());

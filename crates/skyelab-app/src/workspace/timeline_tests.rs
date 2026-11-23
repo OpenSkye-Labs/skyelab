@@ -37,3 +37,10 @@ mod rate_limit_state_test;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "streaming_queue_test.rs"]
 mod streaming_queue_test;
+
+#[path = "steer_fold_test.rs"]
+mod steer_fold_test;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "partial_text_test.rs"]
+mod partial_text_test;

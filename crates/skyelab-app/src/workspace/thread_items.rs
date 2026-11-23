@@ -144,7 +144,7 @@ fn render_row<V: ItemsView>(
             .into_any_element()
     };
     match item {
-        Item::Prompt(text) => column(
+        Item::Prompt(text) | Item::Steer(text) => column(
             h_flex()
                 .w_full()
                 .justify_end()
@@ -249,6 +249,15 @@ fn render_row<V: ItemsView>(
                 .text_color(theme.muted_foreground)
                 .child(Icon::new(IconName::Info).size_3p5())
                 .child(text.clone())
+                .into_any_element(),
+        ),
+        Item::Interrupted => column(
+            div()
+                .debug_selector(|| "interrupted-note".into())
+                .px_1()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child("(interrupted)")
                 .into_any_element(),
         ),
         Item::Output { id, text } => tight(tool_cards::render_output(this, id, text, cx)),

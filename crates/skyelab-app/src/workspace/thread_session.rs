@@ -97,6 +97,12 @@ impl ThreadView {
                     }
                     continue;
                 }
+                // The turn ends: text it cut off is stored ahead of its result.
+                if matches!(event, Event::Result { .. })
+                    && this.update(cx, |this, cx| this.keep_partial(cx)).is_err()
+                {
+                    return;
+                }
                 let gone = skyelab_agent::session_gone(&event);
                 // An interrupt ends a Codex turn as an error too; the user asked for that one.
                 let failed = matches!(&event, Event::Result { is_error: true, result, .. }
@@ -132,9 +138,16 @@ impl ThreadView {
                     output = stderr_of(&watched, false, cx).await;
                 }
             }
-            // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining.
+            // A nonzero exit says why on stderr; one the user asked for (Stop) doesn't need explaining. Text the end cut
+            // off is stored first, so a reload shows it above that output.
             let stopped = this
-                .update(cx, |this, _| this.stop_requested || launch != this.launches)
+                .update(cx, |this, cx| {
+                    let stopped = this.stop_requested || launch != this.launches;
+                    if launch == this.launches {
+                        this.keep_partial(cx);
+                    }
+                    stopped
+                })
                 .unwrap_or(true);
             if !stopped && let Some(event) = stderr_of(&watched, true, cx).await {
                 let record = Record::Agent(event);
@@ -214,6 +227,7 @@ impl ThreadView {
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
         self.grant = None; // revokes the token and cuts the MCP connection
+        self.keep_partial(cx);
         if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
             let n = self.items.len();
             self.list.splice(first..n, n - first);

@@ -34,9 +34,9 @@ fn a_mid_turn_prompt_keeps_the_baseline_and_a_stop_ends_the_turn(cx: &mut TestAp
             .events_since(row.id, 0)
             .expect("events")
             .iter()
-            .filter(|e| e.kind == "prompt")
+            .filter(|e| e.kind == "steer")
             .count()
-            >= 2
+            == 1
     });
     let now = list();
     assert_eq!(now.len(), 1, "{now:?}");

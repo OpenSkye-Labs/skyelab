@@ -62,7 +62,7 @@ fn prompts(one: &One, text: &str, cx: &mut VisualTestContext) -> Option<usize> {
     one.view.read_with(cx, |v, _| {
         v.items
             .iter()
-            .position(|i| matches!(i, Item::Prompt(p) if p == text))
+            .position(|i| matches!(i, Item::Prompt(p) | Item::Steer(p) if p == text))
     })
 }
 

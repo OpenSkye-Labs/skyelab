@@ -68,6 +68,14 @@ impl Unsaved {
         (inner.queue.len() + usize::from(inner.idle.is_some()), saved)
     }
 
+    /// Queues `record` behind what is held without saving: the next save writes it first.
+    pub(super) fn hold(&self, record: Record) {
+        self.inner().queue.push_back(Held {
+            record,
+            row_stored: false,
+        });
+    }
+
     /// `run` started a session counting its turns in `turns`.
     pub(super) fn set_session(&self, turns: &Turns) {
         self.inner().current = Some(turns.clone());
@@ -163,6 +171,26 @@ pub(super) async fn save(
 }
 
 impl ThreadView {
+    /// Text still streaming when its turn ends without the final message (Stop, a crash, an interrupt) is stored as a
+    /// partial message, so a reload shows it. It is queued ahead of whatever is saved next (the turn's result).
+    pub(super) fn keep_partial(&mut self, cx: &mut Context<Self>) {
+        let Some(record) = crate::workspace::thread_model::partial(&self.items) else {
+            return;
+        };
+        self.push(&record, cx);
+        let Some(id) = self.thread.as_ref().map(|t| t.id) else {
+            return;
+        };
+        self.unsaved.hold(record);
+        let (q, s) = (self.unsaved.clone(), self.backend.store.clone());
+        let saving = cx.background_spawn(async move { q.push_and_save(&s, id, None, None).0 });
+        cx.spawn(async move |this, cx| {
+            let left = saving.await;
+            let _ = this.update(cx, |this, cx| this.saved(left, cx));
+        })
+        .detach();
+    }
+
     /// After a save: show how many are held, and keep retrying them on a timer until none are.
     pub(super) fn saved(&mut self, left: usize, cx: &mut Context<Self>) {
         if self.unsaved_events != left {

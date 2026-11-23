@@ -75,7 +75,7 @@ fn a_new_database_is_at_version_9() {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(v, 9);
+    assert_eq!(v, 10);
     drop(conn);
     let store = Store::open(&path).expect("reopen");
     let p = store

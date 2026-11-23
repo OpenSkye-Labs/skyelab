@@ -35,7 +35,7 @@ fn agent_records(f: &Fixture, thread: i64) -> Vec<Event> {
         .into_iter()
         .filter_map(|r| match r {
             Record::Agent(e) => Some(e),
-            Record::Prompt(_) => None,
+            Record::Prompt(_) | Record::Steer(_) => None,
         })
         .collect()
 }

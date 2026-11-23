@@ -2,7 +2,8 @@
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,
-# reports it as `fake_answer` and ends the turn; one starting "crash" writes to stderr and exits 3.
+# reports it as `fake_answer` and ends the turn; one starting "crash" writes to stderr and exits 3, and one starting
+# "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
 # plan and a question (left waiting). With a .fake-session-gone file in the folder, a --resume start fails the way
@@ -55,6 +56,13 @@ while IFS= read -r line; do
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
     *'"content":"timeline'*)
       sh "$(dirname "$0")/fake-timeline.sh" ;;
+    *'"content":"partial'*)
+      for w in "Half an" " answer"; do
+        printf '{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"%s"}},"parent_tool_use_id":null}\n' "$w"
+      done
+      sleep 0.3
+      printf 'fake-claude: lost the session\n' >&2
+      exit 3 ;;
     *'"content":"crash'*)
       printf 'fake-claude: lost the session\n' >&2
       exit 3 ;;
