@@ -146,8 +146,8 @@ When the agent asks you something (Claude's `AskUserQuestion`, Codex's user-inpu
 question card: each question with its options (one choice, or **Pick any** for several) and **Other** for a typed
 answer. **Submit answers** sends them all; **Skip** declines. In Plan mode, when the agent is ready it shows a
 **Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep
-planning** tells it to keep refining. Answering these from another machine's view isn't supported yet: the plan's
-buttons work there, the question card doesn't.
+planning** tells it to keep refining. From another machine's view the plan's buttons work but don't switch the
+thread's mode, and the question card can only be read.
 
 ### What the timeline shows
 
@@ -161,8 +161,8 @@ buttons work there, the question card doesn't.
 - The line after each turn says how long it took, its tokens in and out, and its cost.
 - When the account hits its usage limit, the thread says **Limited until it resets in …** above the composer and the
   sidebar shows **Limited**, until a turn succeeds again.
-- If a thread's earlier session can't be found when you continue it (its history was deleted, or it ran under another
-  config dir), the thread says so and runs your message in a new session.
+- If a Claude thread's earlier session can't be found when you continue it (its history was deleted, or it ran under
+  another config dir), the thread says so and runs your message in a new session. A Codex thread shows the failure.
 
 ### Finding and managing threads
 

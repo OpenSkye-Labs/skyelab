@@ -6,13 +6,14 @@ mod codex;
 mod event;
 mod launch;
 mod pipes;
+mod reap;
 pub use launch::resolve_bin;
 use pipes::{read_events, read_stderr, write_lines};
 #[cfg(unix)]
 pub mod mcp;
 mod permission;
 
-pub use claude::QUESTION_TOOL;
+pub use claude::{PLAN_TOOL, QUESTION_TOOL};
 pub use event::{Block, DeltaKind, Event, TODO_TOOL, Todo, TodoStatus, Usage, session_gone, todos};
 pub use permission::{Decision, Mode, summary};
 
@@ -114,7 +115,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         None => bail!("{} is not bound to an account", dir.display()),
     }
     if let Some(id) = resume
-        && !launch::valid_session_id(id)
+        && !valid_session_id(id)
     {
         bail!("refusing to resume session id {id:?}");
     }
@@ -138,7 +139,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0); // so kill() reaches its children too
     let codex = match account.provider {
         Provider::Claude => {
-            launch::claude_args(&mut cmd, mcp_config, resume, mode);
+            claude_args(&mut cmd, mcp_config, resume, mode);
             None
         }
         Provider::Codex => {
@@ -256,6 +257,55 @@ fn lock(state: &Mutex<codex::Codex>) -> std::sync::MutexGuard<'_, codex::Codex> 
     state.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str>, mode: Mode) {
+    cmd.args([
+        "-p",
+        "--input-format",
+        "stream-json",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        // Text and thinking as they stream, as `Event::Delta`.
+        "--include-partial-messages",
+        // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
+        "--setting-sources",
+        "user",
+        "--strict-mcp-config",
+        // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
+        "--permission-prompt-tool",
+        "stdio",
+    ])
+    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
+    .args(match mode {
+        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
+        Mode::Bypass => vec![
+            "--permission-mode",
+            mode.claude(),
+            "--allow-dangerously-skip-permissions",
+        ],
+    })
+    // Our own server only (--strict-mcp-config keeps every other out); its tools enforce their own rules.
+    .args(mcp_config.into_iter().flat_map(|path| {
+        [
+            "--mcp-config".as_ref(),
+            path.as_os_str(),
+            "--allowedTools".as_ref(),
+            "mcp__skyelab".as_ref(),
+        ]
+    }))
+    .args(resume.into_iter().flat_map(|id| ["--resume", id]));
+}
+
+/// Claude Code's session ids and Codex's thread ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
+fn valid_session_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && !id.starts_with('-')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 impl Session {
     /// Events in the order `claude` printed them.
     ///
@@ -371,79 +421,6 @@ impl Session {
             "request_id": request_id,
             "request": { "subtype": "interrupt" },
         }))
-    }
-
-    /// The exit status once the agent has exited (reaping it), or `None` while it runs. Reaping it also ends what
-    /// is left of its process group (a tool it started that still holds its stdout).
-    pub fn try_wait(&mut self) -> Result<Option<ExitStatus>> {
-        if self.status.is_some() {
-            return Ok(self.status);
-        }
-        // Unix: signal the group while the unreaped leader still holds its pid and group id, so it can't reach
-        // anyone else's. Windows: the Job Object names the tree, so it closes after the reap.
-        #[cfg(unix)]
-        {
-            if !self.exited_unreaped()? {
-                return Ok(None);
-            }
-            self.kill_group();
-        }
-        self.status = self
-            .child
-            .try_wait()
-            .context("checking whether the agent exited")?;
-        #[cfg(not(unix))]
-        if self.status.is_some() {
-            self.kill_group();
-        }
-        Ok(self.status)
-    }
-
-    /// Kills the process (and on unix its whole process group) and waits for it. Does nothing
-    /// once the process has been reaped, by an earlier `kill` or a `try_wait` that returned `Some`.
-    pub fn kill(&mut self) -> Result<()> {
-        // Unreaped, even a zombie leader still holds its pid and process group id, so they are safe to signal.
-        if self.status.is_some() {
-            return Ok(());
-        }
-        self.kill_group();
-        // An already-exited child makes kill() error; wait() still reaps it.
-        let _ = self.child.kill();
-        self.status = Some(self.child.wait().context("waiting for the agent to exit")?);
-        Ok(())
-    }
-
-    /// Whether the agent has exited, without reaping it.
-    #[cfg(unix)]
-    fn exited_unreaped(&self) -> Result<bool> {
-        use rustix::process::{Pid, WaitId, WaitIdOptions, waitid};
-        let pid = i32::try_from(self.child.id())
-            .ok()
-            .and_then(Pid::from_raw)
-            .context("the agent's pid")?;
-        let options = WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT;
-        Ok(waitid(WaitId::Pid(pid), options)
-            .context("checking whether the agent exited")?
-            .is_some())
-    }
-
-    /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing
-    /// its kill-on-close Job Object on Windows.
-    fn kill_group(&mut self) {
-        #[cfg(windows)]
-        drop(self.job.take());
-        // `unsafe` is denied, so no libc::killpg: the kill binary signals the group instead.
-        #[cfg(unix)]
-        {
-            let kill =
-                launch::resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
-            let _ = Command::new(kill)
-                .args(["-KILL", "--", &format!("-{}", self.child.id())])
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
     }
 
     fn write(&mut self, msg: &serde_json::Value) -> Result<()> {

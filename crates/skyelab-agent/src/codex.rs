@@ -202,7 +202,6 @@ impl Codex {
     pub(crate) fn answer(&mut self, id: &str, decision: Decision) -> Option<String> {
         let rpc = self.asks.get(id)?;
         if self.questions.contains_key(id) {
-            // Declined: no answers.
             return Some(json!({ "id": rpc, "result": { "answers": {} } }).to_string());
         }
         let decision = match decision {
@@ -253,7 +252,11 @@ impl Codex {
         rpc: Value,
         params: &Value,
     ) -> (Vec<Event>, Vec<String>) {
-        if method == "item/tool/requestUserInput" && params["questions"].is_array() {
+        // A secret answer would be typed into a plain field, so those stay unsupported.
+        let secret = params["questions"]
+            .as_array()
+            .is_some_and(|qs| qs.iter().any(|q| q["isSecret"] == true));
+        if method == "item/tool/requestUserInput" && params["questions"].is_array() && !secret {
             return self.on_question(rpc, params);
         }
         let (tool, keys): (_, &[&str]) = match method {
@@ -274,34 +277,6 @@ impl Codex {
             id,
             tool: tool.to_owned(),
             input,
-        };
-        (vec![event], Vec::new())
-    }
-
-    /// A user-input request, shown as an AskUserQuestion ask (Codex questions are single-choice, with free text).
-    fn on_question(&mut self, rpc: Value, params: &Value) -> (Vec<Event>, Vec<String>) {
-        let mut ids = Vec::new();
-        let questions: Vec<Value> = params["questions"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .map(|q| {
-                ids.push(q["id"].as_str().unwrap_or_default().to_owned());
-                json!({
-                    "question": q["question"],
-                    "header": q["header"],
-                    "options": q["options"],
-                    "multiSelect": false,
-                })
-            })
-            .collect();
-        let id = format!("{}codex-{}", self.nonce, rpc);
-        self.asks.insert(id.clone(), rpc);
-        self.questions.insert(id.clone(), ids);
-        let event = Event::Permission {
-            id,
-            tool: crate::QUESTION_TOOL.to_owned(),
-            input: json!({ "questions": questions }),
         };
         (vec![event], Vec::new())
     }
@@ -430,6 +405,7 @@ impl Codex {
             }
             "serverRequest/resolved" => {
                 let id = format!("{}codex-{}", self.nonce, p["requestId"]);
+                self.questions.remove(&id);
                 let events = self.asks.remove(&id).map(|_| Event::PermissionResolved {
                     id,
                     decision: Decision::Withdrawn,
@@ -443,6 +419,17 @@ impl Codex {
                     self.last_text = item["text"].as_str().map(str::to_owned);
                 }
                 (completed(item, &v).into_iter().collect(), Vec::new())
+            }
+            // A subagent's thread streams and counts on its own; only this thread's go to this timeline.
+            "item/agentMessage/delta"
+            | "item/reasoning/summaryTextDelta"
+            | "thread/tokenUsage/updated"
+            | "turn/plan/updated"
+                if p["threadId"]
+                    .as_str()
+                    .is_some_and(|t| Some(t) != self.thread_id.as_deref()) =>
+            {
+                (Vec::new(), Vec::new())
             }
             "item/agentMessage/delta" => (delta(DeltaKind::Text, p), Vec::new()),
             "item/reasoning/summaryTextDelta" => (delta(DeltaKind::Thinking, p), Vec::new()),

@@ -219,13 +219,16 @@ impl Event {
     }
 }
 
-/// Whether a result line says the resumed session is gone (in `errors`, or as its text).
+/// Whether a failed result line says the resumed session is gone, in its `errors`. A successful result's text is
+/// the model's own words, which may quote anything.
 pub(crate) fn names_gone_session(v: &Value) -> bool {
-    let errors = v["errors"].as_array().into_iter().flatten();
-    errors
-        .chain(std::iter::once(&v["result"]))
-        .filter_map(Value::as_str)
-        .any(|e| e.contains(SESSION_GONE))
+    v["is_error"] == true
+        && v["errors"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .any(|e| e.starts_with(SESSION_GONE))
 }
 
 /// A partial-message frame: the root agent's text and thinking deltas. A subagent's (it has a parent tool use)

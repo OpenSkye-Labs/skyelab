@@ -364,16 +364,15 @@ impl ThreadView {
     /// may still say running from before).
     pub(super) fn live_status(&self) -> crate::ui::Status {
         use crate::ui::Status;
+        let running = self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0;
         if self.starting {
             Status::Starting
+        } else if self.session.is_some() && running {
+            Status::Running // still working, so closing it would cut the work off
         } else if self.limited.is_some() {
             Status::Limited
         } else if self.session.is_some() {
-            if self.turns.load(std::sync::atomic::Ordering::SeqCst) > 0 {
-                Status::Running
-            } else {
-                Status::Idle
-            }
+            Status::Idle
         } else {
             match self.thread.as_ref().map(|t| Status::parse(&t.status)) {
                 Some(Status::Starting | Status::Running) | None => Status::Stopped,

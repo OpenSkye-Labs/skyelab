@@ -362,11 +362,16 @@ impl Workspace {
     ) {
         self.open_changes(view, window, cx);
         let dir = view.read(cx).cwd.clone();
+        let base = view
+            .read(cx)
+            .thread
+            .as_ref()
+            .and_then(|t| t.worktree_base.clone());
         let tab = self
             .changes_views
             .iter()
             .filter_map(|c| c.upgrade())
-            .find(|c| c.read(cx).dir == dir);
+            .find(|c| c.read(cx).dir == dir && c.read(cx).base == base);
         if let Some(changes) = tab {
             let path = path.to_owned();
             changes.update(cx, |c, cx| {

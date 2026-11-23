@@ -183,6 +183,9 @@ pub(crate) fn answer_questions(open: &Asks, id: &str, answers: &[Vec<String>]) -
     }))
 }
 
+/// The tool Claude proposes a plan with, in plan mode.
+pub const PLAN_TOOL: &str = "ExitPlanMode";
+
 /// The tool Claude asks the user questions with; Codex's user-input requests arrive under the same name.
 pub const QUESTION_TOOL: &str = "AskUserQuestion";
 

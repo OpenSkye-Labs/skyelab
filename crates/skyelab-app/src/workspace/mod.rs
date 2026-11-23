@@ -36,6 +36,7 @@ mod status_bar;
 mod thread;
 pub use thread::AccountsFile;
 mod ask_cards;
+mod shell_card;
 mod thread_items;
 mod thread_list;
 mod thread_model;
@@ -454,6 +455,9 @@ mod tool_cards_test;
 
 #[cfg(test)]
 mod card_path_test;
+
+#[cfg(test)]
+mod review_proofs_test;
 
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod ask_question_e2e_test;

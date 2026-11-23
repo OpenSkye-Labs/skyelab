@@ -119,7 +119,10 @@ impl ChangesView {
                             this.reveal(&path, cx);
                         }
                     }
-                    Err(e) => this.error = Some(format!("{e:#}").into()),
+                    Err(e) => {
+                        this.reveal_after_load = None;
+                        this.error = Some(format!("{e:#}").into());
+                    }
                 }
                 cx.notify();
             });

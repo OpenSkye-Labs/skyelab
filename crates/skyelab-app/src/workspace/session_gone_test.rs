@@ -43,7 +43,7 @@ fn a_gone_session_continues_in_a_new_one(cx: &mut TestAppContext) {
         assert!(
             t.items
                 .iter()
-                .any(|i| matches!(i, Item::Notice(n) if n == SESSION_GONE_NOTE)),
+                .any(|i| matches!(i, Item::Notice { text, .. } if text == SESSION_GONE_NOTE)),
             "the thread says it continued in a new session"
         );
         assert!(t.session.is_some(), "the new session runs");

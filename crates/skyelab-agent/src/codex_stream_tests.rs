@@ -20,7 +20,7 @@ fn agent_and_reasoning_deltas_stream() {
     assert_eq!(
         events(
             &mut c,
-            json!({"method":"item/agentMessage/delta","params":{"threadId":"t","turnId":"u","itemId":"msg_1","delta":"ste"}})
+            json!({"method":"item/agentMessage/delta","params":{"threadId":"thr","turnId":"u","itemId":"msg_1","delta":"ste"}})
         ),
         vec![Event::Delta {
             kind: DeltaKind::Text,
@@ -173,5 +173,28 @@ fn a_declined_question_answers_nothing() {
     assert_eq!(
         serde_json::from_str::<Value>(&reply).expect("json"),
         json!({"id":4,"result":{"answers":{}}})
+    );
+}
+
+#[test]
+fn a_secret_question_is_refused_and_a_childs_deltas_are_dropped() {
+    let mut c = open();
+    let (asked, writes) = c.on_line(json!({"method":"item/tool/requestUserInput","id":5,"params":{"questions":[{"id":"k","question":"API key?","isSecret":true,"options":[]}]}}));
+    assert!(asked.is_empty(), "{asked:?}");
+    assert!(serde_json::from_str::<Value>(&writes[0]).expect("json")["error"].is_object());
+    assert!(
+        events(
+            &mut c,
+            json!({"method":"item/agentMessage/delta","params":{"threadId":"child","delta":"x"}})
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        events(
+            &mut c,
+            json!({"method":"item/agentMessage/delta","params":{"threadId":"thr","delta":"x"}})
+        )
+        .len(),
+        1
     );
 }

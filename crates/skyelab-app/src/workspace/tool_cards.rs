@@ -1,5 +1,6 @@
-//! The timeline's richer rows, after T3's work log: thinking, the todo checklist, edit diffs, shell commands, the
-//! AskUserQuestion and ExitPlanMode cards. Plain data in, elements out; state lives in the thread view.
+//! The timeline's richer rows, after T3's work log: thinking, the todo checklist, edit diffs, shell commands and
+//! agent output. The question and plan cards are in `ask_cards.rs`. Plain data in, elements out; state lives in the
+//! thread view.
 
 use super::changes::diff_line;
 use super::changes_model::LineKind;
@@ -22,7 +23,7 @@ pub(super) fn slot(icon: IconName, color: gpui::Hsla) -> impl IntoElement {
         .child(Icon::new(icon).size_4().text_color(color))
 }
 
-fn chevron(open: bool, cx: &gpui::App) -> impl IntoElement {
+pub(super) fn chevron(open: bool, cx: &gpui::App) -> impl IntoElement {
     Icon::new(if open {
         IconName::ChevronDown
     } else {
@@ -179,146 +180,6 @@ pub(super) fn is_edit(name: &str) -> bool {
     matches!(name, "Edit" | "Write" | "MultiEdit")
 }
 
-/// How a finished command ended: `exit N` when the output says (unconfirmed: Claude's failed Bash results start
-/// "Exit code N"), `failed` for another error, `None` for success or while it runs.
-pub(super) fn exit_status(tool: &ToolItem) -> Option<String> {
-    let result = tool.result.as_deref()?;
-    let code = result
-        .strip_prefix("Exit code ")
-        .and_then(|r| r.split(|c: char| !c.is_ascii_digit()).next())
-        .filter(|c| !c.is_empty());
-    match (code, tool.is_error) {
-        (Some(code), _) => Some(format!("exit {code}")),
-        (None, true) => Some("failed".into()),
-        (None, false) => None,
-    }
-}
-
-/// Command output as a terminal would leave it: escape sequences dropped, a carriage return overwriting its line.
-pub(super) fn plain_output(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut chars = text.chars().peekable();
-    let mut line = String::new();
-    while let Some(c) = chars.next() {
-        match c {
-            '\u{1b}' => {
-                // CSI: ESC [ params… final byte (@ to ~); any other escape: drop the next char.
-                if chars.next_if_eq(&'[').is_some() {
-                    for n in chars.by_ref() {
-                        if ('@'..='~').contains(&n) {
-                            break;
-                        }
-                    }
-                } else {
-                    chars.next();
-                }
-            }
-            '\r' if chars.peek() != Some(&'\n') => line.clear(),
-            '\r' => {}
-            '\n' => {
-                out.push_str(&line);
-                out.push('\n');
-                line.clear();
-            }
-            c => line.push(c),
-        }
-    }
-    out.push_str(&line);
-    out
-}
-
-/// A shell command, T3's command block: `$ command` in mono with how it ended; opened, its output in a scroll box.
-pub(super) fn render_bash<V: ItemsView>(
-    this: &V,
-    tool: &ToolItem,
-    cx: &mut Context<V>,
-) -> AnyElement {
-    let open = this.is_expanded(&tool.id);
-    let theme = cx.theme();
-    let command = tool.raw["command"]
-        .as_str()
-        .map(str::to_owned)
-        .unwrap_or_else(|| tool.raw["command"].to_string());
-    let status = exit_status(tool);
-    let (icon, color) = match (&tool.result, &status) {
-        (None, _) => (IconName::LoaderCircle, theme.info),
-        (Some(_), Some(_)) => (IconName::CircleAlert, theme.danger),
-        (Some(_), None) => (IconName::SquareTerminal, theme.muted_foreground),
-    };
-    let key = tool.id.clone();
-    let line = h_flex()
-        .id(SharedString::from(format!("bash-{}", tool.id)))
-        .gap_2()
-        .px_3()
-        .py_2()
-        .cursor_pointer()
-        .hover(|s| s.bg(theme.accent))
-        .on_click(cx.listener(move |this, _, _, cx| this.toggle_tool(&key, cx)))
-        .child(Icon::new(icon).size_3p5().text_color(color))
-        .child(
-            div()
-                .flex_shrink_0()
-                .text_color(theme.muted_foreground)
-                .child("$"),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .truncate()
-                .text_color(theme.foreground.opacity(0.85))
-                .child(command),
-        )
-        .children(status.map(|s| {
-            div()
-                .flex_shrink_0()
-                .text_color(ui::ink(theme, theme.danger))
-                .child(s)
-        }))
-        .when(tool.result.is_none(), |d| {
-            d.child(
-                div()
-                    .flex_shrink_0()
-                    .text_color(theme.info)
-                    .child("running"),
-            )
-        })
-        .child(chevron(open, cx));
-    let theme = cx.theme();
-    let output = tool.result.as_deref().filter(|_| open).map(|r| {
-        let text = plain_output(r);
-        div()
-            .id(SharedString::from(format!("bash-output-{}", tool.id)))
-            .debug_selector(|| "bash-output".into())
-            .max_h(px(256.))
-            .overflow_y_scroll()
-            .px_3()
-            .py_2()
-            .border_t_1()
-            .border_color(theme.border)
-            .text_color(theme.muted_foreground)
-            .child(if text.trim().is_empty() {
-                "(no output)".to_owned()
-            } else {
-                clip(text.trim_end())
-            })
-    });
-    v_flex()
-        .debug_selector(|| "bash-card".into())
-        .w_full()
-        .my_1()
-        .rounded(ui::RADIUS)
-        .border_1()
-        .border_color(theme.border)
-        .bg(theme.muted.opacity(0.5))
-        .overflow_hidden()
-        .font_family(theme.mono_font_family.clone())
-        .text_size(ui::META)
-        .child(line)
-        .children(output)
-        .into_any_element()
-}
-
 /// A line diff of `old` → `new`: the lines both share at the start and end are context, the rest removed then added.
 /// Numbers count from 1 within the snippet.
 ///
@@ -357,7 +218,12 @@ pub(super) fn edit_lines(tool: &ToolItem) -> Vec<(Option<u32>, Option<u32>, Line
     let raw = &tool.raw;
     let s = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
     match tool.name.as_str() {
-        "Write" => line_diff("", &s(&raw["content"])),
+        // Only what the card can draw: a huge file is never split up every frame.
+        "Write" => {
+            let content = s(&raw["content"]);
+            let head: Vec<&str> = content.lines().take(DIFF_LINES + 1).collect();
+            line_diff("", &head.join("\n"))
+        }
         "MultiEdit" => raw["edits"]
             .as_array()
             .into_iter()
@@ -431,7 +297,7 @@ pub(super) fn render_edit<V: ItemsView>(tool: &ToolItem, cx: &mut Context<V>) ->
                         .child(format!("−{removed}")),
                 ),
         );
-    let shown = lines.len().min(DIFF_LINES);
+    let (total, shown) = (lines.len(), lines.len().min(DIFF_LINES));
     let rows = lines
         .into_iter()
         .take(DIFF_LINES)
@@ -446,7 +312,7 @@ pub(super) fn render_edit<V: ItemsView>(tool: &ToolItem, cx: &mut Context<V>) ->
                 .text_xs();
             diff_line(base, o, n, k, t.into(), theme)
         });
-    let more = (added + removed > shown).then(|| {
+    let more = (total > shown).then(|| {
         div()
             .px_3()
             .py_1()
@@ -464,6 +330,14 @@ pub(super) fn render_edit<V: ItemsView>(tool: &ToolItem, cx: &mut Context<V>) ->
         .border_color(theme.border)
         .overflow_hidden()
         .child(head)
+        .children(tool.result.as_deref().filter(|_| tool.is_error).map(|why| {
+            div()
+                .px_3()
+                .py_1p5()
+                .text_size(ui::META)
+                .text_color(ui::ink(theme, theme.danger))
+                .child(clip(why))
+        }))
         .child(
             v_flex()
                 .id(SharedString::from(format!("edit-{}", tool.id)))

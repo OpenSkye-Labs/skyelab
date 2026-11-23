@@ -116,7 +116,7 @@ impl ThreadView {
                     if gone {
                         this.rerun = this.resumed_prompt.clone();
                     } else if matches!(record, Record::Agent(Event::Init { .. })) {
-                        this.resumed_prompt = None; // the session answered: it exists
+                        this.resumed_prompt = None;
                     }
                     this.push(&record, cx);
                     if matches!(record, Record::Agent(Event::Result { .. })) {
@@ -168,12 +168,16 @@ impl ThreadView {
         self.finish(cx);
         if let Some(text) = self.rerun.take().filter(|_| !self.stop_requested) {
             self.resumed_prompt = None;
-            // The old process is gone; reap it off the UI thread, then start the prompt in a new session.
-            self.in_background(cx, move || {
-                drop(session);
-                Ok(())
-            });
-            return self.start_fresh(text, cx);
+            match self.start_fresh(text, cx) {
+                Ok(()) => {
+                    self.in_background(cx, move || {
+                        drop(session);
+                        Ok(())
+                    });
+                    return;
+                }
+                Err(why) => self.error = Some(why.into()),
+            }
         }
         // Reaping the child waits, so it happens off the UI thread, after the status is written
         // (so a quick resume's "running" can't be overwritten by it).
@@ -187,6 +191,10 @@ impl ThreadView {
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
         self.grant = None; // revokes the token and cuts the MCP connection
+        if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
+            let n = self.items.len();
+            self.list.splice(first..n, n - first);
+        }
         self.read_only = self
             .thread
             .as_ref()

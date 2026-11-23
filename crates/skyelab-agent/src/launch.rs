@@ -1,9 +1,7 @@
 //! Which binary a launched agent is. The env it inherits is `skyelab_core::env`'s rule.
 
-use crate::Mode;
 use anyhow::{Result, bail};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
 /// A bare name is looked up through the parent PATH's absolute entries only.
@@ -57,60 +55,6 @@ fn is_executable(p: &Path) -> bool {
 #[cfg(windows)]
 fn is_executable(p: &Path) -> bool {
     p.is_file()
-}
-
-pub(crate) fn claude_args(
-    cmd: &mut Command,
-    mcp_config: Option<&Path>,
-    resume: Option<&str>,
-    mode: Mode,
-) {
-    cmd.args([
-        "-p",
-        "--input-format",
-        "stream-json",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        // Text and thinking as they stream, as `Event::Delta`.
-        "--include-partial-messages",
-        // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
-        "--setting-sources",
-        "user",
-        "--strict-mcp-config",
-        // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
-        "--permission-prompt-tool",
-        "stdio",
-    ])
-    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
-    .args(match mode {
-        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
-        Mode::Bypass => vec![
-            "--permission-mode",
-            mode.claude(),
-            "--allow-dangerously-skip-permissions",
-        ],
-    })
-    // Our own server only (--strict-mcp-config keeps every other out); its tools enforce their own rules.
-    .args(mcp_config.into_iter().flat_map(|path| {
-        [
-            "--mcp-config".as_ref(),
-            path.as_os_str(),
-            "--allowedTools".as_ref(),
-            "mcp__skyelab".as_ref(),
-        ]
-    }))
-    .args(resume.into_iter().flat_map(|id| ["--resume", id]));
-}
-
-/// Claude Code's session ids and Codex's thread ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.
-pub(crate) fn valid_session_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 128
-        && !id.starts_with('-')
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 #[cfg(test)]

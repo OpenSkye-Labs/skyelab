@@ -23,8 +23,8 @@ What's built today:
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
-  commands with their output, a live todo list, answerable questions and plans), and saves everything to a local
-  SQLite database.
+  commands with their output, a live todo list, answerable questions and plans), and saves the conversation to a
+  local SQLite database (complete messages; streamed partial text is shown, not saved).
   Reopening a thread resumes the same session. The thread header names the provider. Rename, pin, archive or delete
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and

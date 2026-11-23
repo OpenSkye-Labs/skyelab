@@ -25,7 +25,7 @@ pub(super) fn divider_text(verb: &str, secs: f64, usage: Option<Usage>, cost: f6
 fn count(n: u64) -> String {
     match n {
         0..1_000 => n.to_string(),
-        1_000..1_000_000 => format!("{:.1}k", n as f64 / 1e3),
+        1_000..999_950 => format!("{:.1}k", n as f64 / 1e3),
         _ => format!("{:.1}M", n as f64 / 1e6),
     }
 }
@@ -34,7 +34,8 @@ fn count(n: u64) -> String {
 pub(super) fn limited_text(resets_at: Option<i64>, now: i64) -> String {
     match resets_at.map(|r| r - now) {
         Some(left) if left > 0 => {
-            let (h, m) = (left / 3600, (left % 3600 + 59) / 60);
+            let minutes = (left + 59) / 60;
+            let (h, m) = (minutes / 60, minutes % 60);
             let wait = match (h, m) {
                 (0, m) => format!("{m}m"),
                 (h, 0) => format!("{h}h"),
@@ -50,13 +51,13 @@ pub(super) fn limited_text(resets_at: Option<i64>, now: i64) -> String {
 /// Agent markdown: selectable, a copy button on each code block, web links open in the browser and file links in
 /// Changes (agent text is untrusted, so nothing else opens). `live` fades streamed words in.
 pub(super) fn markdown<V: ItemsView>(
-    ix: usize,
+    id: impl Into<gpui::ElementId>,
     text: &str,
     live: bool,
     cx: &mut Context<V>,
 ) -> TextView {
     let view = cx.entity().downgrade();
-    TextView::markdown(("md", ix), text.to_owned())
+    TextView::markdown(id, text.to_owned())
         .selectable(true)
         .stream_fade(live)
         .code_block_actions(move |block, _, _| {
@@ -87,6 +88,8 @@ pub(super) fn file_link(url: &str) -> Option<String> {
             && s.chars()
                 .all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
             && !rest.starts_with(|c: char| c.is_ascii_digit())
+            // `C:/repo/a.rs` is a Windows path, not a scheme.
+            && !(s.len() == 1 && rest.starts_with(['/', '\\']))
     });
     if url.is_empty() || url.contains("://") || scheme || url.starts_with('#') {
         return None;

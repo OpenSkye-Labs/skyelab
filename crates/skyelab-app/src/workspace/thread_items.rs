@@ -47,7 +47,7 @@ pub(super) trait ItemsView: Sized + 'static {
     fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
     /// Shows `path` (a tool card's file, a markdown link) in the Changes tab. Remote tabs have no local files.
     fn open_path(&mut self, _path: &str, _cx: &mut Context<Self>) {}
-    /// Whether AskUserQuestion answers can be sent from here (remote tabs can't yet).
+    /// Whether AskUserQuestion answers can be sent from here.
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
     }
@@ -145,7 +145,7 @@ pub(super) fn render_item<V: ItemsView>(
                 .px_1()
                 .gap_1()
                 .text_size(ui::BODY)
-                .child(markdown(ix, text, false, cx))
+                .child(markdown(("md", ix), text, false, cx))
                 .child(
                     h_flex()
                         .debug_selector(|| "message-copy".into())
@@ -162,7 +162,7 @@ pub(super) fn render_item<V: ItemsView>(
                 .debug_selector(|| "streaming-text".into())
                 .px_1()
                 .text_size(ui::BODY)
-                .child(markdown(ix, text, true, cx))
+                .child(markdown(("md", ix), text, true, cx))
                 .into_any_element(),
         ),
         Item::Live {
@@ -180,7 +180,7 @@ pub(super) fn render_item<V: ItemsView>(
         }
         Item::Todo(todos) => column(tool_cards::render_todo(todos, cx)),
         Item::Tool(tool) if tool_cards::is_shell(&tool.name) => {
-            tight(tool_cards::render_bash(this, tool, cx))
+            tight(super::shell_card::render_bash(this, tool, cx))
         }
         Item::Tool(tool)
             if tool_cards::is_edit(&tool.name) && tool.raw["file_path"].is_string() =>
@@ -191,7 +191,7 @@ pub(super) fn render_item<V: ItemsView>(
         Item::Approval(a) if a.tool == skyelab_agent::QUESTION_TOOL => {
             column(ask_cards::render_questions(this, a, window, cx))
         }
-        Item::Approval(a) if a.tool == "ExitPlanMode" => {
+        Item::Approval(a) if a.tool == skyelab_agent::PLAN_TOOL => {
             column(ask_cards::render_plan(this, a, cx))
         }
         Item::Approval(a) => column(render_approval(this, a, cx)),
@@ -214,7 +214,7 @@ pub(super) fn render_item<V: ItemsView>(
                 .child(limited_text(*resets_at, ui::now_ms() / 1000))
                 .into_any_element(),
         ),
-        Item::Notice(text) => column(
+        Item::Notice { text, .. } => column(
             h_flex()
                 .debug_selector(|| "notice-row".into())
                 .gap_1p5()

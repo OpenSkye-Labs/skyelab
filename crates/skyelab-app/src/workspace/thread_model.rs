@@ -96,8 +96,12 @@ pub enum Item {
     Limit {
         resets_at: Option<i64>,
     },
-    /// Something SkyeLab did that the user should know about.
-    Notice(String),
+    /// Something SkyeLab did that the user should know about. `explains_failure`: the next failed turn is the one
+    /// this note explains, so it gets no divider of its own.
+    Notice {
+        text: String,
+        explains_failure: bool,
+    },
     Approval(ApprovalItem),
     /// What the agent wrote to stderr; `id` keys its expanded state.
     Output {
@@ -195,16 +199,17 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
             usage,
             ..
         }) => {
-            // A block that never completed (the turn was stopped) stays as it streamed.
-            for (ix, item) in items.iter_mut().enumerate() {
-                if let Item::Live { kind, text } = item {
-                    let done = settled(*kind, std::mem::take(text), ix);
-                    *item = done;
-                    first_changed = Some(first_changed.map_or(ix, |f: usize| f.min(ix)));
-                }
+            if let Some(ix) = settle_live(items) {
+                first_changed = Some(first_changed.map_or(ix, |f: usize| f.min(ix)));
             }
             // The failure that says a resumed session is gone is explained by the note just above it.
-            if !(*is_error && matches!(items.last(), Some(Item::Notice(_)))) {
+            let explained = match items.last_mut() {
+                Some(Item::Notice {
+                    explains_failure, ..
+                }) if *is_error => std::mem::take(explains_failure),
+                _ => false,
+            };
+            if !explained {
                 items.push(Item::Done {
                     is_error: *is_error,
                     duration_ms: *duration_ms,
@@ -240,8 +245,11 @@ pub fn apply(items: &mut Vec<Item>, record: &Record) -> Option<usize> {
         Record::Agent(e @ (Event::SessionGone | Event::Stderr { .. }))
             if skyelab_agent::session_gone(e) =>
         {
-            if !matches!(items.last(), Some(Item::Notice(_))) {
-                items.push(Item::Notice(SESSION_GONE_NOTE.into()));
+            if !matches!(items.last(), Some(Item::Notice { .. })) {
+                items.push(Item::Notice {
+                    text: SESSION_GONE_NOTE.into(),
+                    explains_failure: true,
+                });
             }
         }
         Record::Agent(Event::RateLimit {
@@ -280,13 +288,28 @@ pub fn limit_after(now: Option<Option<i64>>, record: &Record) -> Option<Option<i
     }
 }
 
-/// The streaming row of `kind`, among the rows still streaming at the end.
+/// Settles rows still streaming: a block that never completed (the turn failed or was stopped) stays as it
+/// streamed. Returns the first row that changed.
+pub fn settle_live(items: &mut [Item]) -> Option<usize> {
+    let mut first = None;
+    for (ix, item) in items.iter_mut().enumerate() {
+        if let Item::Live { kind, text } = item {
+            let done = settled(*kind, std::mem::take(text), ix);
+            *item = done;
+            first = first.or(Some(ix));
+        }
+    }
+    first
+}
+
+/// The streaming row of `kind`, among the rows still streaming at the end. A prompt sent while it streams (a
+/// follow-up) doesn't end it.
 fn live(items: &[Item], kind: DeltaKind) -> Option<usize> {
     items
         .iter()
         .enumerate()
         .rev()
-        .take_while(|(_, i)| matches!(i, Item::Live { .. }))
+        .take_while(|(_, i)| matches!(i, Item::Live { .. } | Item::Prompt(_)))
         .find(|(_, i)| matches!(i, Item::Live { kind: k, .. } if *k == kind))
         .map(|(ix, _)| ix)
 }
@@ -326,11 +349,12 @@ fn finish(items: &mut Vec<Item>, kind: DeltaKind, text: &str) -> Option<usize> {
     }
 }
 
-/// A TodoWrite: it updates the turn's todo row in place (returned as changed), or starts one.
+/// A TodoWrite: it updates the turn's todo row in place (returned as changed), or starts one. The turn runs from
+/// the last turn divider, so a follow-up prompt sent mid-turn doesn't start a second list.
 fn todo(items: &mut Vec<Item>, todos: Vec<Todo>) -> Option<usize> {
     let turn = items
         .iter()
-        .rposition(|i| matches!(i, Item::Prompt(_)))
+        .rposition(|i| matches!(i, Item::Done { .. }))
         .map_or(0, |p| p + 1);
     match items[turn..]
         .iter()

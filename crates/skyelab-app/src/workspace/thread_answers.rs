@@ -150,8 +150,21 @@ impl ThreadView {
         };
         self.error = None;
         let id = id.to_owned();
-        self.drafts.remove(&id);
-        self.in_background(cx, move || lock(&session)?.answer_questions(&id, &answers));
+        let sent = {
+            let id = id.clone();
+            cx.background_spawn(async move { lock(&session)?.answer_questions(&id, &answers) })
+        };
+        // The picks stay until the agent has them, so a refused send can be tried again.
+        cx.spawn(async move |this, cx| {
+            let sent = sent.await;
+            let _ = this.update(cx, |this, cx| match sent {
+                Ok(()) => {
+                    this.drafts.remove(&id);
+                }
+                Err(e) => this.show_error(e, cx),
+            });
+        })
+        .detach();
     }
 
     /// Approve lets the agent leave plan mode and start (the thread goes to Ask, so edits ask first); Keep planning
@@ -163,30 +176,20 @@ impl ThreadView {
         let Some(session) = self.session.clone() else {
             return self.show_error(anyhow::anyhow!("the agent isn't running"), cx);
         };
-        // shortcut: unconfirmed whether `-p` claude leaves plan mode by itself after an allowed ExitPlanMode, so the
-        // mode is set explicitly; drop this if a real run shows the CLI already does it.
-        let leave = self.mode == Mode::Plan;
-        let row = self.thread.as_mut().filter(|_| leave).map(|t| {
-            t.permission_mode = Mode::Default.as_str().to_owned();
-            t.id
-        });
-        if leave {
-            self.mode = Mode::Default;
-        }
-        let (id, store) = (id.to_owned(), self.backend.store.clone());
-        // One job, so the agent reads the approval before the mode change.
-        self.in_background(cx, move || {
-            let mut s = lock(&session)?;
-            s.answer(&id, Decision::AllowOnce)?;
-            if leave {
-                s.set_mode(Mode::Default)?;
-            }
-            drop(s);
-            row.map_or(Ok(()), |row| {
-                lock(&store)?.set_thread_permission_mode(row, Mode::Default.as_str())
-            })
-        });
-        cx.notify();
+        let id = id.to_owned();
+        let sent =
+            cx.background_spawn(async move { lock(&session)?.answer(&id, Decision::AllowOnce) });
+        cx.spawn(async move |this, cx| {
+            let sent = sent.await;
+            let _ = this.update(cx, |this, cx| match sent {
+                Err(e) => this.show_error(e, cx),
+                // Only once the agent has the approval, so it reads that before the mode change. Whether `-p` claude
+                // leaves plan mode by itself is unconfirmed, so the thread's mode moves explicitly.
+                Ok(()) if this.mode == Mode::Plan => this.set_mode(Mode::Default, cx),
+                Ok(()) => {}
+            });
+        })
+        .detach();
     }
 
     fn redraw(&mut self, id: &str, cx: &mut Context<Self>) {

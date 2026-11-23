@@ -76,21 +76,27 @@ impl ThreadView {
     }
 
     /// The resumed session was gone: start `text` again in a new session. Its prompt is already shown and stored.
-    pub(super) fn start_fresh(&mut self, text: String, cx: &mut Context<Self>) {
-        let Some(mut thread) = self.thread.clone() else {
-            return;
-        };
-        let Some(account) = self.config.resolve(&self.cwd).cloned() else {
-            return;
-        };
-        if account.id != thread.account_id {
-            return; // send_prompt's resume check explains a rebound folder on the next send
+    /// The row keeps the dead session id until the new session reports its own, so a failed start leaves the thread
+    /// able to send again. `Err` says why nothing started.
+    pub(super) fn start_fresh(
+        &mut self,
+        text: String,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let mut thread = self.thread.clone().ok_or("the thread has no row")?;
+        match self.config.resolve(&self.cwd).cloned() {
+            Some(account) if account.id == thread.account_id => {
+                thread.agent_session_id = None;
+                self.start_agent(text, account, Some(thread), true, cx);
+                Ok(())
+            }
+            _ => Err(format!(
+                "The agent's earlier session couldn't be found, and {} isn't bound to {} any more, so it can't \
+                 start a new one. Bind the folder again, then send a message.",
+                self.cwd.display(),
+                thread.account_id
+            )),
         }
-        thread.agent_session_id = None;
-        if let Some(t) = &mut self.thread {
-            t.agent_session_id = None;
-        }
-        self.start_agent(text, account, Some(thread), true, cx);
     }
 
     /// Starts the agent; `again` reruns a prompt that is already shown and stored (no second prompt row).
@@ -102,7 +108,7 @@ impl ThreadView {
         again: bool,
         cx: &mut Context<Self>,
     ) {
-        // A resume whose session turns out to be gone reruns this prompt (see `start_fresh`).
+        self.rerun = None;
         self.resumed_prompt = resume
             .as_ref()
             .filter(|t| t.agent_session_id.is_some())
@@ -209,10 +215,7 @@ impl ThreadView {
                         unsaved
                             .flush(&store, thread.id)
                             .context("earlier events of this thread aren't saved yet")?;
-                        if again {
-                            // The gone session's id must not be resumed again if this start fails too.
-                            lock(&store)?.set_agent_session_id(thread.id, None)?;
-                        } else {
+                        if !again {
                             append(
                                 &mut *lock(&store)?,
                                 thread.id,

@@ -148,8 +148,15 @@ fn todo_writes_in_one_turn_update_one_row_and_a_new_turn_starts_another() {
         }),
     );
     assert_eq!(none, None);
+    // A follow-up sent mid-turn keeps the list; the next turn starts a new one.
     apply(&mut items, &Record::Prompt("again".into()));
     apply(&mut items, &blocks(vec![todo_use("t3", "pending")]));
+    assert_eq!(
+        items.iter().filter(|i| matches!(i, Item::Todo(_))).count(),
+        1
+    );
+    apply(&mut items, &result(false, None));
+    apply(&mut items, &blocks(vec![todo_use("t4", "pending")]));
     assert_eq!(
         items.iter().filter(|i| matches!(i, Item::Todo(_))).count(),
         2
@@ -241,7 +248,10 @@ fn a_gone_session_adds_a_note_and_hides_its_failure() {
         items,
         vec![
             Item::Prompt("more".into()),
-            Item::Notice(SESSION_GONE_NOTE.into())
+            Item::Notice {
+                text: SESSION_GONE_NOTE.into(),
+                explains_failure: false,
+            }
         ]
     );
 }

@@ -5,9 +5,10 @@
 
 use super::changes_model::LineKind;
 use super::claude_folded_turns_test::{One, one_view};
+use super::shell_card::{exit_status, plain_output};
 use super::thread_model::{ApprovalItem, Item, ToolItem};
 use super::timeline_text::{divider_text, file_link, limited_text};
-use super::tool_cards::{exit_status, line_diff, plain_output};
+use super::tool_cards::line_diff;
 use gpui::{TestAppContext, VisualTestContext};
 use serde_json::json;
 use skyelab_agent::{DeltaKind, Todo, TodoStatus, Usage};
@@ -149,7 +150,10 @@ fn divider_limit_notice_question_and_plan_draw(cx: &mut TestAppContext) {
                 }),
             },
             Item::Limit { resets_at: Some(1) },
-            Item::Notice("note".into()),
+            Item::Notice {
+                text: "note".into(),
+                explains_failure: false,
+            },
             ask(
                 "q",
                 "AskUserQuestion",

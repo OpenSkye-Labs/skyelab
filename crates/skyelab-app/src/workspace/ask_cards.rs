@@ -13,7 +13,6 @@ use gpui_component::{
     button::{Button, ButtonVariants as _},
     h_flex,
     input::Input,
-    text::TextView,
     v_flex,
 };
 use skyelab_agent::Decision;
@@ -361,10 +360,12 @@ pub(super) fn render_plan<V: ItemsView>(
                 .max_h(px(416.))
                 .overflow_y_scroll()
                 .text_size(ui::BODY)
-                .child(
-                    TextView::markdown(SharedString::from(format!("plan-md-{}", a.id)), plan)
-                        .selectable(true),
-                ),
+                .child(super::timeline_text::markdown(
+                    SharedString::from(format!("plan-md-{}", a.id)),
+                    &plan,
+                    false,
+                    cx,
+                )),
         )
         .children(actions)
         .into_any_element()

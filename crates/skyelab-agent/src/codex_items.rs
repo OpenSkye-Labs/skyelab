@@ -1,6 +1,7 @@
 //! Codex's notifications and items, mapped onto [`Event`]s like Claude's: messages, tool calls and their results,
 //! streaming deltas, the turn's plan (as a TodoWrite list) and rate limits.
 
+use super::Codex;
 use crate::{Block, DeltaKind, Event};
 use serde_json::{Value, json};
 
@@ -14,7 +15,7 @@ pub(super) const NOISE: &[&str] = &[
     "serverRequest/",
 ];
 
-/// A server request SkyeLab has no UI for (user input, MCP elicitation, old-style approvals): unsupported, so codex
+/// A server request SkyeLab has no UI for (secret user input, MCP elicitation, old-style approvals): unsupported, so codex
 /// treats it as refused.
 pub(super) fn answer(method: &str, id: Value) -> String {
     json!({ "id": id, "error": { "code": -32601, "message": format!("SkyeLab doesn't handle {method}") } })
@@ -116,7 +117,6 @@ pub(super) fn completed(item: &Value, raw: &Value) -> Option<Event> {
                 }],
             });
         }
-        // Already shown: the prompt, and hidden reasoning.
         "reasoning" => {
             let summary: Vec<&str> = item["summary"]
                 .as_array()
@@ -129,6 +129,7 @@ pub(super) fn completed(item: &Value, raw: &Value) -> Option<Event> {
                 content: vec![Block::Thinking { thinking }],
             });
         }
+        // Already shown (the prompt), or nothing to show.
         "userMessage" | "contextCompaction" => return None,
         "commandExecution" => (
             item["aggregatedOutput"].clone(),
@@ -153,4 +154,34 @@ pub(super) fn completed(item: &Value, raw: &Value) -> Option<Event> {
             is_error,
         }],
     })
+}
+
+impl Codex {
+    /// A user-input request, shown as an AskUserQuestion ask, each question single-choice.
+    pub(super) fn on_question(&mut self, rpc: Value, params: &Value) -> (Vec<Event>, Vec<String>) {
+        let mut ids = Vec::new();
+        let questions: Vec<Value> = params["questions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|q| {
+                ids.push(q["id"].as_str().unwrap_or_default().to_owned());
+                json!({
+                    "question": q["question"],
+                    "header": q["header"],
+                    "options": q["options"],
+                    "multiSelect": false,
+                })
+            })
+            .collect();
+        let id = format!("{}codex-{}", self.nonce, rpc);
+        self.asks.insert(id.clone(), rpc);
+        self.questions.insert(id.clone(), ids);
+        let event = Event::Permission {
+            id,
+            tool: crate::QUESTION_TOOL.to_owned(),
+            input: json!({ "questions": questions }),
+        };
+        (vec![event], Vec::new())
+    }
 }
