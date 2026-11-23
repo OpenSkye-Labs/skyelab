@@ -43,13 +43,13 @@ pub enum Line {
 /// The working tree at `path` against `against` (a commit-ish such as `HEAD` or `main`), per file.
 /// Untracked files are not included; see [`crate::status`] for those.
 pub fn diff(path: &Path, against: &str) -> Result<Vec<FileDiff>> {
-    run(path, None, against)
+    diff_with(path, Against::Rev(against), false)
 }
 
 /// The working tree at `path` against the merge-base of `base` and `HEAD`: everything done since
 /// the branch left `base`, committed or not. Untracked files are not included.
 pub fn diff_merge_base(path: &Path, base: &str) -> Result<Vec<FileDiff>> {
-    run(path, Some("--merge-base"), base)
+    diff_with(path, Against::MergeBase(base), false)
 }
 
 /// Lines added and removed in the working tree since `base` (its merge-base with `HEAD`), or since `HEAD`
@@ -76,14 +76,35 @@ pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
 
 /// Tree (or commit) `from` against `to`, per file: a checkpoint turn, or a thread since its start.
 pub fn diff_trees(path: &Path, from: &str, to: &str) -> Result<Vec<FileDiff>> {
-    run_revs(path, None, &[from, to])
+    diff_with(path, Against::Trees(from, to), false)
 }
 
-fn run(path: &Path, mode: Option<&str>, rev: &str) -> Result<Vec<FileDiff>> {
-    run_revs(path, mode, &[rev])
+/// What [`diff_with`] compares: the working tree against a rev ([`diff`]) or a merge-base ([`diff_merge_base`]),
+/// or two trees ([`diff_trees`]).
+#[derive(Debug, Clone, Copy)]
+pub enum Against<'a> {
+    Rev(&'a str),
+    MergeBase(&'a str),
+    Trees(&'a str, &'a str),
 }
 
-fn run_revs(path: &Path, mode: Option<&str>, revs: &[&str]) -> Result<Vec<FileDiff>> {
+/// [`diff`], [`diff_merge_base`] or [`diff_trees`], optionally ignoring whitespace (`git diff -w`): a file whose
+/// only changes are whitespace is still listed, with no hunks.
+pub fn diff_with(path: &Path, against: Against, ignore_whitespace: bool) -> Result<Vec<FileDiff>> {
+    let (mode, revs) = match against {
+        Against::Rev(r) => (None, vec![r]),
+        Against::MergeBase(b) => (Some("--merge-base"), vec![b]),
+        Against::Trees(from, to) => (None, vec![from, to]),
+    };
+    let ws = ignore_whitespace.then_some("--ignore-all-space");
+    run_revs(
+        path,
+        &[mode, ws].into_iter().flatten().collect::<Vec<_>>(),
+        &revs,
+    )
+}
+
+fn run_revs(path: &Path, flags: &[&str], revs: &[&str]) -> Result<Vec<FileDiff>> {
     let args = [
         "-c",
         "core.quotePath=false",
@@ -104,14 +125,7 @@ fn run_revs(path: &Path, mode: Option<&str>, revs: &[&str]) -> Result<Vec<FileDi
     ];
     let out = git(
         path,
-        &[
-            &args[..],
-            mode.as_slice(),
-            &["--end-of-options"],
-            revs,
-            &["--"],
-        ]
-        .concat(),
+        &[&args[..], flags, &["--end-of-options"], revs, &["--"]].concat(),
     )?;
     Ok(parse(&out))
 }
