@@ -26,6 +26,8 @@ actions!(
 pub struct WorktreeState {
     /// "New worktree" (the checkout toggle under the composer); read when the first prompt starts the thread.
     pub use_worktree: bool,
+    /// A multi-model send's shared base commit, so every column's worktree starts from the same one.
+    pub(super) pin: Option<super::worktree::BasePin>,
     /// A dirty worktree's status the user was asked to confirm discarding.
     pub discard_pending: Option<skyelab_git::Status>,
     task: Option<gpui::Task<()>>,

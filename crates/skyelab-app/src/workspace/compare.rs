@@ -187,6 +187,8 @@ impl Workspace {
             (v.take_contexts(raw, false), attachments)
         });
         let base = view.read(cx).branch_picker.read(cx).base.clone();
+        // Resolved once, by the first column to make its worktree, so a branch that moves meanwhile can't split them.
+        let pin = super::worktree::BasePin::default();
         let launch = |v: &mut ThreadView,
                       model: &String,
                       window: &mut Window,
@@ -197,6 +199,7 @@ impl Workspace {
             v.composer.picked = true;
             v.composer.picker_open = false;
             v.wt.use_worktree = compare.worktrees;
+            v.wt.pin = Some(pin.clone());
             v.branch_picker.update(cx, |b, _| b.base.clone_from(&base)); // every model from the same code
             v.required_account = Some(account.id.clone());
             v.mode = mode;

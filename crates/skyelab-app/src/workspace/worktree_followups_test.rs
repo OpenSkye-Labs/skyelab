@@ -65,7 +65,8 @@ fn discard_asks_before_deleting_ignored_files() {
 #[test]
 fn failed_row_save_removes_the_new_worktree() {
     let f = super::worktree_thread_test::fixture();
-    let created = worktree::create(&f.config, &f.project, "acme", "doomed", None).expect("create");
+    let created =
+        worktree::create(&f.config, &f.project, "acme", "doomed", None, None).expect("create");
     let path = created.path.clone();
     assert!(path.exists());
     // No project 999 in the store, so the row insert fails on its foreign key.
@@ -195,7 +196,9 @@ fn worktrees_made_at_once_with_one_title_all_get_their_own() {
     let f = super::worktree_thread_test::fixture();
     let made: Vec<PathBuf> = std::thread::scope(|s| {
         let jobs: Vec<_> = (0..4)
-            .map(|_| s.spawn(|| worktree::create(&f.config, &f.project, "acme", "same", None)))
+            .map(|_| {
+                s.spawn(|| worktree::create(&f.config, &f.project, "acme", "same", None, None))
+            })
             .collect();
         jobs.into_iter()
             .map(|j| j.join().expect("thread").expect("create").path)
@@ -217,7 +220,7 @@ fn a_slow_checkout_in_one_repo_does_not_hold_up_another() {
     let (tx, rx) = std::sync::mpsc::channel();
     let (config, project) = (b.config.clone(), b.project.clone());
     std::thread::spawn(move || {
-        let made = worktree::create(&config, &project, "acme", "other repo", None);
+        let made = worktree::create(&config, &project, "acme", "other repo", None, None);
         let _ = tx.send(made.map(|m| m.path));
     });
     let made = rx.recv_timeout(std::time::Duration::from_secs(30));

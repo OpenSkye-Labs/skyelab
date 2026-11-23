@@ -473,6 +473,8 @@ mod commit_snapshot_test;
 mod compare_base_test;
 #[cfg(all(test, unix))]
 mod compare_cap_test;
+#[cfg(test)]
+mod compare_pin_test;
 #[cfg(all(test, unix))]
 mod compare_test;
 #[cfg(test)]
