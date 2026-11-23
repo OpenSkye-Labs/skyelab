@@ -216,7 +216,7 @@ impl ThreadView {
             let _ = this.update(cx, |this, cx| match loaded {
                 Ok((row, (parent, children, sides), skipped, records)) => {
                     if let Some(row) = row {
-                        this.mode = Mode::parse(&row.permission_mode);
+                        this.mode = super::side_chat::row_mode(&row);
                         this.thread = Some(row);
                     }
                     this.parent = parent;
@@ -382,6 +382,9 @@ impl ThreadView {
 
     /// Picks the thread's permission mode. Full access waits for [`Self::confirm_mode`].
     pub fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        if self.is_side_chat() && mode != Mode::Plan {
+            return cx.notify(); // read-only by construction (side_chat.rs)
+        }
         if mode == Mode::Bypass && self.mode != Mode::Bypass {
             self.confirm_bypass = true;
             return cx.notify();

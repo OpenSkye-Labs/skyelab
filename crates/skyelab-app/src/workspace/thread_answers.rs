@@ -121,6 +121,9 @@ impl ThreadView {
         if !approve {
             return self.answer_then(id, Decision::Deny, done, cx);
         }
+        if self.is_side_chat() {
+            return Err(crate::workspace::side_chat::PLAN_ONLY.into()); // approving would leave Plan
+        }
         let Some(session) = self.session.clone() else {
             return Err("the agent isn't running".into());
         };

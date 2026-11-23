@@ -11,7 +11,7 @@ use anyhow::{Result, bail};
 use gpui::Global;
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    SharedString, WeakEntity, Window, actions, div, prelude::*, px,
+    SharedString, Subscription, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Disableable as _, Sizable as _,
@@ -25,6 +25,9 @@ use skyelab_store::{NewThread, Store, Thread};
 #[cfg(test)]
 #[path = "side_chat_close_test.rs"]
 mod close_test;
+#[cfg(test)]
+#[path = "side_chat_readonly_test.rs"]
+mod readonly_test;
 #[cfg(test)]
 #[path = "side_chat_test.rs"]
 mod tests;
@@ -100,6 +103,19 @@ pub(super) fn create(
     store.create_side_chat(&new, parent.id, &context)
 }
 
+/// Why a side chat's mode can't change, and its plans can't be approved.
+pub(in crate::workspace) const PLAN_ONLY: &str = "A side chat stays in Plan mode: it answers questions and never \
+     changes files. Ask the main thread to make changes.";
+
+/// The mode a stored thread opens in: its own, or Plan for a side chat (rows stored before side chats were Plan-only
+/// say Ask).
+pub(in crate::workspace) fn row_mode(row: &Thread) -> skyelab_agent::Mode {
+    match row.side_of {
+        Some(_) => skyelab_agent::Mode::Plan,
+        None => skyelab_agent::Mode::parse(&row.permission_mode),
+    }
+}
+
 impl ThreadView {
     pub(in crate::workspace) fn is_side_chat(&self) -> bool {
         self.thread.as_ref().is_some_and(|t| t.side_of.is_some())
@@ -150,6 +166,8 @@ pub struct SideChatPanel {
     parent_id: i64,
     pub(super) parent: WeakEntity<ThreadView>,
     pub(super) view: Entity<ThreadView>,
+    /// The workspace's handler for what the chat asks of it (a file link opens the Preview tab).
+    _events: Subscription,
 }
 
 impl SideChatPanel {
@@ -350,12 +368,19 @@ impl Workspace {
                 let (config, backend) = (self.config.clone(), self.backend.clone());
                 let (id, parent_id) = (side.id, side.side_of.unwrap_or_default());
                 let view = cx.new(|cx| ThreadView::open(side, config, backend, window, cx));
+                let events = cx.subscribe_in(&view, window, |ws, view, e, window, cx| {
+                    if let ThreadViewEvent::Preview(path, line) = e {
+                        let root = view.read(cx).cwd.clone();
+                        ws.open_preview(root, path.clone(), *line, window, cx)
+                    }
+                });
                 let panel = cx.new(|cx| SideChatPanel {
                     focus: cx.focus_handle(),
                     id,
                     parent_id,
                     parent: parent.downgrade(),
                     view,
+                    _events: events,
                 });
                 self.side_chats.push(panel.clone());
                 panel
