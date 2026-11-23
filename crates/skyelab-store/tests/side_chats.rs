@@ -35,6 +35,15 @@ fn side_chats_are_hidden_from_thread_lists_and_listed_under_their_parent() {
         Some("context\n")
     );
     assert!(s.events_since(side.id, 0).expect("events").is_empty());
+    assert_eq!(
+        s.title_source(side.id).expect("src").as_deref(),
+        Some("side")
+    );
+    assert!(
+        !s.set_generated_title(side.id, "Generated", false)
+            .expect("title"),
+        "a generated title doesn't replace a side chat's"
+    );
 
     let ids = |v: Vec<skyelab_store::Thread>| v.into_iter().map(|t| t.id).collect::<Vec<_>>();
     assert_eq!(ids(s.list_threads(p.id).expect("list")), vec![parent.id]);

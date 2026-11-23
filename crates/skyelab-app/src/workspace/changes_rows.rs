@@ -135,7 +135,10 @@ impl ChangesView {
         );
         let row = row
             .when_some(mark_bg, |d, bg| d.bg(bg))
-            .when(picked, |d| d.bg(picked_bg))
+            // Over the row, so the added and removed tints still show under it.
+            .when(picked, |d| {
+                d.child(div().absolute().inset_0().bg(picked_bg))
+            })
             .children(unified_gutter)
             .when_some(moved, |d, row| {
                 d.on_mouse_move(

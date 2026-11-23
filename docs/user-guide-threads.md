@@ -55,3 +55,16 @@ An agent session can't be copied, so the fork's first message starts a new sessi
 copied conversation (your messages and the agent's answers, no tool calls; the newest 60,000 characters). Your message
 is shown and stored as you typed it. The fork starts in the project's folder, not in the original's worktree, and
 copies no checkpoints. If the folder is no longer bound to the thread's account, nothing is forked.
+
+## Side chats
+
+Type `/side <question>` (or `/btw <question>`) in the composer, or run **New Side Chat** from the command palette or
+the Details tab's **Side chats** section, to ask something on the side without interrupting the thread's agent. A
+**Side chat** tab opens in the right panel with a small chat. It runs in the thread's folder under the thread's
+account, as its own agent session, and its first message starts with a short summary of the thread's conversation
+(the newest 12,000 characters, no tool calls) and a request not to change files. Its title is your question.
+
+**Bring back** puts the side chat's last answer in the thread's composer as a chip, sent with your next message.
+Side chats are not listed in the sidebar: the thread's Details tab lists them under **Side chats**, and a click opens
+one again. Closing its tab keeps it (a running answer keeps going). If the folder is no longer bound to the thread's
+account, no side chat starts. A side chat can't open side chats of its own.

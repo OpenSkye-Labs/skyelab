@@ -415,7 +415,6 @@ impl Render for ChangesView {
             .child(header)
             .children(self.render_scopes(cx))
             .children(self.render_rewind_confirm(cx))
-            .children(self.render_comments_bar(cx))
             .when(self.scope == Scope::Working, |v| {
                 v.child(self.render_publish(cx))
             })
@@ -437,6 +436,7 @@ impl Render for ChangesView {
                         .child(n)
                 }))
             })
+            .children(self.render_comments_bar(cx))
             .child(body)
     }
 }
