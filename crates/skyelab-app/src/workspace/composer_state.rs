@@ -104,7 +104,7 @@ pub(crate) enum Submit {
 pub(crate) struct Composer {
     pub attachments: Vec<Attachment>,
     /// Terminal output added with "Add to prompt", sent after the text.
-    pub terminal_contexts: Vec<super::composer_context::TerminalContext>,
+    pub contexts: Vec<super::composer_context::ContextChip>,
     /// The next excerpt chip's id: never reused, so no chip inherits another's element state.
     pub next_context: u64,
     pub queue: Queue,
@@ -319,7 +319,7 @@ impl ThreadView {
         cx.notify();
     }
 
-    // The `@` `/` `$` menus.
+    // The `@` `/` `$` `#` menus.
 
     /// The prompt changed: open, narrow or close the menu its cursor's word asks for.
     pub(in crate::workspace) fn prompt_changed(&mut self, cx: &mut Context<Self>) {
@@ -360,8 +360,13 @@ impl ThreadView {
     fn load_menu_items(&mut self, kind: MenuKind, cx: &mut Context<Self>) {
         let cwd = self.cwd.clone();
         let account = self.composer_account();
+        let contexts = (kind == MenuKind::Context).then(|| self.context_menu_items());
         let task = cx.background_spawn(async move {
             match (kind, account) {
+                // Its own check: only threads of the composer's account (none when unbound).
+                (MenuKind::Context, _) => contexts
+                    .map_or(Ok(Vec::new()), |read| read())
+                    .unwrap_or_default(),
                 (MenuKind::Files, _) => skyelab_git::tracked_files(&cwd)
                     .map(|f| composer_menu::file_items(&f))
                     .unwrap_or_default(),
@@ -508,6 +513,9 @@ impl ThreadView {
             p.set_selected_range(menu.start..cursor, cx);
             p.replace(item.insert, window, cx);
         });
+        if let Some(pick) = item.context {
+            self.add_context_pick(pick, cx);
+        }
         self.focus_prompt(window, cx);
         cx.notify();
     }

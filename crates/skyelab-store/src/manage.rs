@@ -120,6 +120,28 @@ impl Store {
         Ok(out)
     }
 
+    /// `thread`'s latest assistant text, its first `max_chars` characters (the `#` chip's gist). One walk backwards
+    /// on the (thread_id, seq) key to the first agent event with text.
+    pub fn last_reply(&self, thread: i64, max_chars: usize) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT (SELECT substr(json_extract(b.value, '$.text'), 1, ?2)
+                         FROM json_each(
+                             CASE WHEN json_valid(e.payload_json) THEN e.payload_json ELSE '{}' END,
+                             '$.Assistant.content') b
+                         WHERE json_extract(b.value, '$.type') = 'text'
+                           AND trim(json_extract(b.value, '$.text')) <> ''
+                         ORDER BY b.key DESC LIMIT 1) AS reply
+                 FROM events e
+                 WHERE e.thread_id = ?1 AND e.kind = 'agent' AND reply IS NOT NULL
+                 ORDER BY e.seq DESC LIMIT 1",
+                params![thread, max_chars as i64],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
     /// Threads whose title or message text (prompts, assistant text) contains `query`, most recently updated
     /// first, in `project` or in every project. Deleted threads and removed projects are left out. Under three
     /// characters only titles are searched: the trigram index needs three.

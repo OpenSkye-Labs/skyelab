@@ -154,6 +154,36 @@ fn imported_history_is_left_out_but_later_turns_count() {
 }
 
 #[test]
+fn a_fork_does_not_count_its_sources_turns_again() {
+    let mut s = Store::open_in_memory().expect("store");
+    let p = s.create_project("p", Path::new("/p")).expect("p").id;
+    let new = NewThread {
+        project_id: p,
+        title: "t",
+        cwd: Path::new("/p"),
+        account_id: "a",
+        status: "idle",
+    };
+    let t = s.create_thread(&new).expect("thread").id;
+    s.append_event(t, "agent", &result(1.0, 1, 1)).expect("e");
+    let events = s.events_since(t, 0).expect("events");
+    std::thread::sleep(std::time::Duration::from_millis(2)); // the fork is made after its source's turns
+    let fork = s.create_fork(&new, t, "ctx", &events).expect("fork").id;
+    let turns = |s: &Store| {
+        s.usage_days(0)
+            .expect("rows")
+            .iter()
+            .map(|r| r.turns)
+            .sum::<u64>()
+    };
+    assert_eq!(turns(&s), 1, "the copied history isn't spend");
+    std::thread::sleep(std::time::Duration::from_millis(2));
+    s.append_event(fork, "agent", &result(1.0, 1, 1))
+        .expect("e");
+    assert_eq!(turns(&s), 2, "the fork's own turn is");
+}
+
+#[test]
 fn spend_outlives_a_purged_thread() {
     let s = Store::open_in_memory().expect("store");
     let p = s.create_project("p", Path::new("/p")).expect("p").id;

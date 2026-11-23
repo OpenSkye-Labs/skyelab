@@ -247,7 +247,7 @@ impl ThreadView {
         let prompt = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(2, 10)
-                .placeholder("Ask anything. @ files, $ skills, / commands")
+                .placeholder("Ask anything. @ files, $ skills, / commands, # threads")
         });
         let subs = vec![
             cx.subscribe_in(
@@ -344,6 +344,7 @@ impl ThreadView {
         self.config = config;
         self.folder_account = self.config.resolve(&self.cwd).cloned();
         self.resume_refused = None; // the next send checks the new bindings again
+        self.drop_unbound_chips();
         if self.needs_binding && self.config.resolve(&self.cwd).is_some() {
             self.needs_binding = false;
         }

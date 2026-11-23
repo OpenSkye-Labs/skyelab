@@ -187,8 +187,9 @@ ALTER TABLE threads ADD COLUMN imported_session TEXT;
     // isn't read again after a restart.
     "ALTER TABLE threads ADD COLUMN pr_state TEXT;",
     // Version 16: each turn's cost and tokens (a stored `Result` event), with the account and project of its thread
-    // when it ran, for the Usage page. No foreign key: spend outlives a purged thread. Imported history (dated at the
-    // thread's import time) is not new spend, so it is left out; later turns in an imported thread count.
+    // when it ran, for the Usage page. No foreign key: spend outlives a purged thread. History an imported thread
+    // (dated at its import) or a fork (copied with its old times) starts with is not new spend, so it is left out;
+    // turns after the thread was made count.
     "
 CREATE TABLE turn_usage (
     thread_id     INTEGER NOT NULL,
@@ -213,7 +214,7 @@ BEGIN
                COALESCE(json_extract(NEW.payload_json, '$.Result.usage.output'), 0),
                NEW.created_at
         FROM threads t WHERE t.id = NEW.thread_id
-          AND NOT (t.imported_session IS NOT NULL AND NEW.created_at = t.created_at);
+          AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR NEW.created_at > t.created_at);
 END;
 INSERT OR REPLACE INTO turn_usage
     SELECT e.thread_id, e.seq, t.account_id, t.project_id,
@@ -224,6 +225,6 @@ INSERT OR REPLACE INTO turn_usage
     FROM events e JOIN threads t ON t.id = e.thread_id
     WHERE e.kind = 'agent' AND instr(e.payload_json, '\"Result\"') > 0 AND json_valid(e.payload_json)
       AND json_type(e.payload_json, '$.Result') = 'object'
-      AND NOT (t.imported_session IS NOT NULL AND e.created_at = t.created_at);
+      AND ((t.imported_session IS NULL AND t.forked_from IS NULL) OR e.created_at > t.created_at);
 ",
 ];

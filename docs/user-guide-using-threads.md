@@ -30,6 +30,11 @@ to a default account: no pick, no thread. Remove the project or its binding like
   with only your user settings, so a project command may not run. Codex has no slash commands.
 - **`$`** lists your account's skills (`skills/<name>/SKILL.md` in its config dir). Picking one inserts `/name` for
   Claude and `$name` for Codex. Commands and skills come only from the account the folder is bound to.
+- **`#`** lists this project's other threads and the pull requests linked to them. Picking a thread adds a chip with
+  its title and last reply (up to 2,000 characters); picking a pull request adds a chip with its link and the title
+  of the thread it belongs to. Each chip is sent after your message as a code block, like a terminal excerpt; click
+  it to read the text, × to drop it. Only threads that ran on this composer's account, in a folder still bound to
+  it, are listed, so another account's work never ends up in this account's prompt.
 - **The model chip** (right of the composer: **Opus · High**, or **Default model** until you pick) sets the model and effort for this
   thread: Opus, Sonnet, Haiku or Fable with effort Low to Max for Claude, or the models Codex lists for your account.
   A pick is kept on the thread and becomes the project's default for new threads. A running Claude agent switches

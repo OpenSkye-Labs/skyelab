@@ -43,7 +43,7 @@ fn excerpt_chips_keep_their_ids_when_an_earlier_one_goes(cx: &mut TestAppContext
         }
     });
     let chips: Vec<(u64, String)> = thread.read_with(cx, |t, _| {
-        let contexts = &t.composer.terminal_contexts;
+        let contexts = &t.composer.contexts;
         contexts
             .iter()
             .map(|c| (c.id, c.label.to_string()))

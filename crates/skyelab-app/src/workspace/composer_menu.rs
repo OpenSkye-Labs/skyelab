@@ -1,4 +1,4 @@
-//! The composer's `@` files, `/` commands and `$` skills menus: when one opens, what it lists, and the order.
+//! The composer's `@` files, `/` commands, `$` skills and `#` threads-and-PRs menus: when one opens, what it lists, and the order.
 //! No GPUI here, so it is tested without a window.
 
 use skyelab_core::Provider;
@@ -18,6 +18,8 @@ pub(crate) enum MenuKind {
     Files,
     Commands,
     Skills,
+    /// This project's threads and their pull requests, picked as context chips.
+    Context,
 }
 
 /// A token being typed that opens a menu: its kind, where its trigger character sits (a byte offset) and the
@@ -29,8 +31,8 @@ pub(crate) struct Trigger {
     pub query: String,
 }
 
-/// The menu `text` opens with the cursor at byte `cursor`: the word before the cursor starting with `@` or `$`,
-/// or `/` as the first thing in the prompt.
+/// The menu `text` opens with the cursor at byte `cursor`: the word before the cursor starting with `@`, `$` or
+/// `#`, or `/` as the first thing in the prompt.
 pub(crate) fn trigger(text: &str, cursor: usize) -> Option<Trigger> {
     let before = text.get(..cursor)?;
     let start = before
@@ -42,6 +44,10 @@ pub(crate) fn trigger(text: &str, cursor: usize) -> Option<Trigger> {
     let kind = match word.chars().next()? {
         '@' => MenuKind::Files,
         '$' => MenuKind::Skills,
+        // `#12` is an issue or PR number in prose, not a pick.
+        '#' if word.len() == 1 || !word[1..].bytes().all(|b| b.is_ascii_digit()) => {
+            MenuKind::Context
+        }
         '/' if before[..start].trim().is_empty() => MenuKind::Commands,
         _ => return None,
     };
@@ -53,11 +59,20 @@ pub(crate) fn trigger(text: &str, cursor: usize) -> Option<Trigger> {
 }
 
 /// One row: what it shows, and the text that replaces the typed token.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct MenuItem {
     pub label: String,
     pub detail: String,
     pub insert: String,
+    /// A `#` row: the chip picking it adds.
+    pub context: Option<ContextPick>,
+}
+
+/// What a `#` row adds: a thread's gist, or the pull request linked to a thread (both by thread id).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ContextPick {
+    Thread(i64),
+    Pr(i64),
 }
 
 /// The rows matching `query`, best first, at most [`MAX_ROWS`]. A match is the query's characters in order
@@ -107,6 +122,7 @@ pub(crate) fn file_items(files: &[String]) -> Vec<MenuItem> {
             label: f.clone(),
             detail: String::new(),
             insert: format!("@{f} "),
+            ..Default::default()
         })
         .collect()
 }
@@ -142,6 +158,7 @@ pub(crate) fn command_items(
         label: format!("/{name}"),
         detail: (*about).to_owned(),
         insert: format!("/{name} "),
+        ..Default::default()
     });
     let account = markdown_commands(&account_dir.join("commands"), "", Links::Follow);
     // The repo's folder is untrusted: a link there could point the menu at any file.
@@ -190,6 +207,7 @@ fn markdown_commands(dir: &Path, source: &str, links: Links) -> Vec<MenuItem> {
                 (false, false) => format!("{about} ({source})"),
             },
             insert: format!("/{name} "),
+            ..Default::default()
         });
     }
     out
@@ -212,6 +230,7 @@ pub(crate) fn skill_items(provider: Provider, account_dir: &Path) -> Vec<MenuIte
                 label: format!("${name}"),
                 detail: description(&d.join("SKILL.md")),
                 insert,
+                ..Default::default()
             })
         })
         .collect()
