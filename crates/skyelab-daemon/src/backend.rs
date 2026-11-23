@@ -138,10 +138,12 @@ impl<A: Agents> Backend for StoreBackend<A> {
     }
 
     fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>, RpcError> {
-        // shortcut: every listing reads every thread's last reply (one query); fine for a sidebar's worth of threads,
-        // a per-project query is the upgrade if listings get slow.
-        let (threads, mut previews) =
-            self.with_store(|s| Ok((s.list_threads(project_id)?, s.last_replies()?)))?;
+        let (threads, mut previews) = self.with_store(|s| {
+            Ok((
+                s.list_threads(project_id)?,
+                s.last_replies(Some(project_id))?,
+            ))
+        })?;
         let accounts = self.accounts();
         let label = |id: &str| {
             accounts
