@@ -135,7 +135,7 @@ impl Workspace {
         super::manage::push_note(window, note, cx);
     }
 
-    /// The Details tab unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
+    /// The details card unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
     pub(super) fn pr_unlinked(
         &mut self,
         id: i64,

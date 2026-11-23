@@ -64,7 +64,7 @@ pub struct ThreadView {
     pub(super) turns: Arc<std::sync::atomic::AtomicUsize>,
     /// The folder was unbound at send time; the view shows the bind call to action.
     pub(super) needs_binding: bool,
-    pub(super) items: Vec<Item>,
+    pub(super) items: super::thread_model::Items,
     /// `Some(resets_at)` while the account's usage limit holds the agent back.
     pub(super) limited: Option<Option<i64>>,
     /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
@@ -111,7 +111,7 @@ pub struct ThreadView {
     /// A delegated start runs only under the account its delegation was approved for.
     pub(super) required_account: Option<String>,
     pub(super) children: Vec<ChildLink>,
-    /// The Details tab's state for this thread.
+    /// The details card's state for this thread.
     pub(super) details: super::thread_details::Details,
     /// Which tool calls the agent makes without asking. Stored on the row, used at every launch.
     pub(super) mode: Mode,
@@ -286,7 +286,7 @@ impl ThreadView {
             thread: None,
             session: None,
             needs_binding: false,
-            items: Vec::new(),
+            items: Default::default(),
             limited: None,
             lists,
             expanded: HashSet::new(),

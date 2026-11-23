@@ -1,8 +1,8 @@
 use super::thread_model::{Item, Record, apply};
 use skyelab_agent::Event;
 
-fn replay(lines: &str) -> Vec<Item> {
-    let mut items = Vec::new();
+fn replay(lines: &str) -> crate::workspace::thread_model::Items {
+    let mut items = crate::workspace::thread_model::Items::default();
     for line in lines.lines() {
         apply(&mut items, &Record::Agent(Event::parse(line)));
     }
@@ -62,7 +62,7 @@ fn assistant_text_tool_calls_and_result_map_to_items() {
 
 #[test]
 fn a_tool_result_updates_the_row_it_belongs_to() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     let use_line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}},{"type":"tool_use","id":"t2","name":"Read","input":{}}]}}"#;
     apply(&mut items, &Record::Agent(Event::parse(use_line)));
     let result = r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":"ok","is_error":true}]}}"#;
@@ -81,7 +81,7 @@ fn a_tool_result_updates_the_row_it_belongs_to() {
 
 #[test]
 fn prompts_show_and_unknown_lines_do_not() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     assert_eq!(
         apply(&mut items, &Record::Prompt("hi\nthere".into())),
         Some(0)
@@ -202,7 +202,7 @@ fn a_resumed_imported_sessions_restored_total_is_not_its_first_turns_cost() {
             r#"{{"type":"result","is_error":false,"duration_ms":5,"total_cost_usd":{total},"result":"x"}}"#
         )))
     };
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     let mut store = skyelab_store::Store::open_in_memory().expect("store");
     let p = store
         .create_project("p", std::path::Path::new("/p"))

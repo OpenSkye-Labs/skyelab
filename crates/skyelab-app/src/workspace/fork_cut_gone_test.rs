@@ -34,7 +34,7 @@ fn fork_after_a_gone_session_keeps_the_picked_reply() {
         say("second answer"),
         res(false),
     ];
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for r in &records {
         apply(&mut items, r);
     }

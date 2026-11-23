@@ -24,7 +24,7 @@ pub(super) const CLOSED_RECHECK_MS: i64 = 60 * 60_000;
 const TICK: Duration = Duration::from_secs(30);
 const HUNG_MS: i64 = 10 * 60_000;
 
-/// What the Details tab and the sidebar show for a thread's PR.
+/// What the details card and the sidebar show for a thread's PR.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PrView {
     Status(PrStatus),

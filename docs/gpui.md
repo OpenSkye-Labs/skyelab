@@ -69,6 +69,21 @@ and how Zed uses it, not blog posts or memory.
 - `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
   diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
   row) whenever that set changes (`ChangesView::comments_changed`).
+- A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
+  `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after
+  and over the dock. Not `anchored()`: that snaps to the window, while this one must sit under a button another view
+  draws and beside a dock whose width changes.
+- A floating card is an entity drawn as `AnyView::from(e).cached(style)`, or every render of its parent (each streamed
+  delta in the thread) renders it too. A cached view can't size to its content: give the outer box a fixed size
+  (`top`/`bottom`/`right`/`w`) and let the card inside take `max_h_full()` and scroll. The empty space under it stays
+  click-through because only the card has handlers.
+- The card itself `occlude()`s, so a click or wheel on it never reaches the chat under it. Outside presses come from
+  its `on_mouse_down_out`, emitted as an event the owner decides on: the owner knows whether the card covers the
+  chat (T3's popover mode) and skips the press that lands on the page header, where the toggle's own click closes it.
+  Closing on the down and reopening on the toggle's click would otherwise flicker it open again.
+- A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
+  `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight
+  to the workspace's actions and fire only while it has focus.
 - A hit target over part of a row (the diff gutter) is an `absolute` child with its own id and mouse handlers. A plain
   `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
   row's own colors still show under it.
@@ -108,6 +123,17 @@ and how Zed uses it, not blog posts or memory.
   resvg `Options` whose `image_href_resolver` refuses both data and string hrefs, and hand GPUI the PNG.
 - Blocking or O(n) work (store writes, ranking thousands of rows, polling a CLI) goes to `background_spawn`, and waits
   use `background_executor().timer`, never `std::thread::sleep` on the pool.
+- A view drawn from another entity (the thread details card reads the thread view) observes it but compares a signature
+  of what it draws (`DetailsSig`: every field `render_details` reads, plus the minute for "3m" labels) and notifies
+  only when it differs. GPUI coalesces notifies per flush, so the observer runs once per frame at most.
+- Element ids and keyed element state of list rows use a key the row keeps (`thread_model::Items` gives each row one
+  from a global counter), never the row's index: the timeline is spliced, and an index id hands a row's markdown
+  cache, selection or open fold to its neighbour. A list built again gets new keys, so stale state never attaches.
+- Measure redraws with `SKYELAB_DEBUG_RENDERS=1` (debug builds): every view's `render` calls
+  `crate::debug_renders::count("Name")`, and stderr gets `renders/s Workspace=17 ThreadView=16 timeline row=144 …`
+  once a second. `Workspace` is the frame count per window. A new view adds the call as its render's first line.
+  Measured: the focused composer's caret blink re-renders `ThreadView` (and rebuilds its visible timeline rows)
+  twice a second while idle; only moving the timeline into its own cached view would stop that.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 

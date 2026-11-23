@@ -43,8 +43,8 @@ fn todo_use(id: &str, first: &str) -> Block {
     }
 }
 
-fn run(records: &[Record]) -> Vec<Item> {
-    let mut items = Vec::new();
+fn run(records: &[Record]) -> crate::workspace::thread_model::Items {
+    let mut items = crate::workspace::thread_model::Items::default();
     for r in records {
         apply(&mut items, r);
     }
@@ -53,7 +53,7 @@ fn run(records: &[Record]) -> Vec<Item> {
 
 #[test]
 fn deltas_grow_one_row_that_the_complete_block_replaces() {
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     apply(&mut items, &Record::Prompt("hi".into()));
     assert_eq!(
         apply(&mut items, &delta(DeltaKind::Thinking, "Let me")),

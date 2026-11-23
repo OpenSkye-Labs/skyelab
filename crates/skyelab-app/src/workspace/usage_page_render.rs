@@ -246,6 +246,7 @@ fn chart(view: &UsageView, colors: &[Hsla], theme: &Theme) -> AnyElement {
 
 impl Render for UsagePage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("UsagePage");
         let (range, metric) = (self.range, self.metric);
         let toggles = h_flex()
             .gap_2()

@@ -1,4 +1,4 @@
-//! The Details tab's Commit & push page says who it pushes as only while the folder still resolves to the thread's
+//! The details card's Commit & push page says who it pushes as only while the folder still resolves to the thread's
 //! account in accounts.toml as saved now; after a rebind it shows the refusal Push itself gives.
 
 use super::publish_test::thread_and_changes;

@@ -11,7 +11,7 @@ use crate::workspace::thread_model::Item;
 use gpui::{App, Context, Entity, ListState, Window};
 
 impl ItemsView for RemoteThreadView {
-    fn items(&self) -> &[Item] {
+    fn items(&self) -> &crate::workspace::thread_model::Items {
         &self.items
     }
     fn is_expanded(&self, tool_id: &str) -> bool {

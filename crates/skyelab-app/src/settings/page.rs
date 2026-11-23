@@ -200,6 +200,7 @@ impl Settings {
 
 impl Render for Settings {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Settings");
         let theme = cx.theme();
         let header = crate::ui::header(theme)
             .child(

@@ -190,7 +190,7 @@ impl ThreadView {
 }
 
 impl ItemsView for ThreadView {
-    fn items(&self) -> &[super::Item] {
+    fn items(&self) -> &super::super::thread_model::Items {
         &self.items
     }
     fn sent_images(&self, text: &str) -> Option<&crate::workspace::image_viewer::Sent> {
