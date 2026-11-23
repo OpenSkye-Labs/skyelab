@@ -152,3 +152,13 @@ Part of [architecture.md](architecture.md). Each entry is dated; newest at the b
   thread keeps its newest 64 KiB per session. Nothing waits on its EOF. After a failed turn, or a nonzero exit that
   wasn't a Stop, what is new is stored as an `Event::Stderr` row and shown as a collapsed **Agent output** row.
   (2026-11-23)
+- **Browser eval reads its result back with a second script:** wry's macOS bridge aborts the app on a script value
+  it can't serialize (`NaN`), and an agent's expression can break out of any text wrapper. So the agent's script
+  runs with no result callback and leaves its answer in the page. A fixed script then hands it over as a
+  well-formed string, or refuses. Rejected: wry's IPC handler, because any page can post a lone surrogate and wry
+  passes the NULL from `UTF8String` to `CStr::from_ptr`. Also rejected: `eval` of the expression as a string,
+  because CSP without `unsafe-eval` blocks it. (2026-11-23)
+- **Remote errors carry no local paths:** the daemon replaces every word with a `/` or `\` in an error message
+  with `<local path>` just before it sends it, so no backend refusal can tell a client this machine's folders.
+  Errors the app knows may quote a folder (a refused resume) are written without it, since a path with spaces
+  keeps its slash-free words. Project listings still send project paths by design. (2026-11-23)

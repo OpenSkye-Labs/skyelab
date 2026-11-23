@@ -7549,6 +7549,7 @@ dependencies = [
  "futures",
  "gpui-component",
  "gpui-pre",
+ "gpui-pre-platform",
  "gpui-webview",
  "lb-wry",
  "serde_json",
@@ -7596,6 +7597,7 @@ name = "skyelab-daemon"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "flume 0.12.0",
  "futures",
  "rcgen",
  "rustls",

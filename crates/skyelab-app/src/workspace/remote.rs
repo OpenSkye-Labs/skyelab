@@ -3,7 +3,7 @@
 
 use super::Workspace;
 pub(super) use super::remote_queue::StartQueue;
-use super::remote_queue::{FIRST_LOAD_WAIT, MAX_WAITING_STARTS};
+use super::remote_queue::{FIRST_LOAD_WAIT, HeldStart, MAX_WAITING_STARTS};
 use super::thread::{SendPrompt, ThreadView};
 use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
@@ -206,20 +206,23 @@ impl Workspace {
                 project_id,
                 prompt,
                 reply,
-            } => self.remote_start(project_id, &prompt, reply, window, cx),
+                gate,
+            } => self.remote_start(project_id, &prompt, reply, gate, window, cx),
             RemoteCall::Send {
                 thread_id,
                 text,
                 reply,
+                ..
             } => self.remote_send(thread_id, &text, reply, window, cx),
-            RemoteCall::Interrupt { thread_id, reply } => {
-                self.remote_interrupt(thread_id, reply, cx)
-            }
+            RemoteCall::Interrupt {
+                thread_id, reply, ..
+            } => self.remote_interrupt(thread_id, reply, cx),
             RemoteCall::Answer {
                 thread_id,
                 request_id,
                 decision,
                 reply,
+                ..
             } => {
                 let Some(view) = self.open_view(thread_id, cx) else {
                     let _ = reply.send(Err(not_open(thread_id)));
@@ -326,11 +329,12 @@ impl Workspace {
         project_id: i64,
         prompt: &str,
         reply: crate::remote::Reply<i64>,
+        gate: skyelab_daemon::CallGate,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self.starts.loading.is_some() {
-            return self.queue_start(project_id, prompt, reply, window, cx);
+            return self.queue_start(project_id, prompt, reply, gate, window, cx);
         }
         let Some(project) = self.projects.iter().find(|p| p.id == project_id).cloned() else {
             let _ = reply.send(Err(RpcError::new(ErrorCode::NotFound, "no such project")));
@@ -386,16 +390,23 @@ impl Workspace {
         project_id: i64,
         prompt: &str,
         reply: crate::remote::Reply<i64>,
+        gate: skyelab_daemon::CallGate,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.starts.calls.retain(|c| !c.2.is_disconnected());
+        self.starts.calls.retain(|c| !c.abandoned());
         if self.starts.calls.len() >= MAX_WAITING_STARTS {
             let _ = reply.send(Err(refused("this machine is still starting; try again")));
             return;
         }
         let session = self.sharing_session(cx);
-        let call = (project_id, prompt.to_owned(), reply, session);
+        let call = HeldStart {
+            project_id,
+            prompt: prompt.to_owned(),
+            reply,
+            session,
+            gate,
+        };
         self.starts.calls.push(call);
         if self.starts._drain.is_some() {
             return;
@@ -409,16 +420,23 @@ impl Workspace {
         self.starts._drain = Some(cx.spawn_in(window, async move |this, cx| {
             let _ = wait.recv_async().await; // Err once the load ended: the sender is gone
             let _ = this.update_in(cx, |this, window, cx| {
-                for (id, prompt, reply, session) in std::mem::take(&mut this.starts.calls) {
-                    if reply.is_disconnected() {
+                for held in std::mem::take(&mut this.starts.calls) {
+                    if held.abandoned() {
                         continue;
                     }
+                    let HeldStart {
+                        project_id: id,
+                        prompt,
+                        reply,
+                        session,
+                        gate,
+                    } = held;
                     // Sharing turned off (or off and on again) while it waited: that access was revoked.
                     if this.sharing_session(cx) != session {
                         let _ = reply.send(Err(refused("sharing was turned off on this machine")));
                         continue;
                     }
-                    this.remote_start(id, &prompt, reply, window, cx);
+                    this.remote_start(id, &prompt, reply, gate, window, cx);
                 }
             });
         }));

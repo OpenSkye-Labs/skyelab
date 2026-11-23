@@ -83,6 +83,7 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
         // A client that stops reading would block the send forever, and the idle timer can't fire meanwhile.
         // A revoke or Disconnect cuts a stalled write (or close) short: dropping the socket closes it at once.
         if let Some(msg) = msg {
+            let msg = without_paths(msg);
             let sent = tokio::select! {
                 biased;
                 () = kick.notified() => {
@@ -161,19 +162,27 @@ fn on_text(
             };
             let backend = shared.backend.clone();
             let replies = replies.clone();
+            let gate = who.gate.clone();
             running.spawn(async move {
-                let reply =
-                    match tokio::task::spawn_blocking(move || dispatch(&*backend, call)).await {
-                        Ok(Ok(result)) => ServerMessage::Response { id, result },
-                        Ok(Err(error)) => ServerMessage::Error {
-                            id: Some(id),
-                            error,
-                        },
-                        Err(_) => ServerMessage::Error {
-                            id: Some(id),
-                            error: RpcError::new(ErrorCode::Internal, "request failed"),
-                        },
-                    };
+                // The call can wait for a blocking thread while its device is revoked.
+                let run = move || match gate.cancelled() {
+                    true => Err(RpcError::new(
+                        ErrorCode::NotApproved,
+                        "this device was cut off",
+                    )),
+                    false => gate.run(|| dispatch(&*backend, call)),
+                };
+                let reply = match tokio::task::spawn_blocking(run).await {
+                    Ok(Ok(result)) => ServerMessage::Response { id, result },
+                    Ok(Err(error)) => ServerMessage::Error {
+                        id: Some(id),
+                        error,
+                    },
+                    Err(_) => ServerMessage::Error {
+                        id: Some(id),
+                        error: RpcError::new(ErrorCode::Internal, "request failed"),
+                    },
+                };
                 // Waits only while `serve` is busy writing; it drains this channel every turn.
                 let _ = replies.send(reply).await;
                 drop(permit);
@@ -231,6 +240,29 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
             .answer_permission(thread_id, &request_id, decision)
             .map(|()| Reply::Ok),
     }
+}
+
+/// Error text can name this machine's folders (a refusal that quotes one). The app's refusals are written
+/// without paths; this catches the rest.
+fn without_paths(mut msg: ServerMessage) -> ServerMessage {
+    if let ServerMessage::Error { error, .. } = &mut msg {
+        error.message = redact_paths(&error.message);
+    }
+    msg
+}
+
+/// Every space-separated word with a `/` or `\` in it becomes `<local path>`.
+// shortcut: a path with spaces keeps its slash-free words ("North" in "/work/Project North"); errors that may
+// quote a path must be written without it at the source (workspace/remote.rs), as the known ones are.
+fn redact_paths(message: &str) -> String {
+    message
+        .split(' ')
+        .map(|word| match word.contains(['/', '\\']) {
+            true => "<local path>",
+            false => word,
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// The next pushed event; `None` if this connection fell behind and missed some. Pends forever before hello.
