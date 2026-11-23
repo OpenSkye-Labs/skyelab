@@ -23,6 +23,7 @@ fn done(is_error: bool) -> Item {
         cost_usd: 0.0,
         usage: None,
         at_ms: Some(1),
+        error: None,
     }
 }
 

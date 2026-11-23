@@ -44,6 +44,7 @@ fn steer_stays_in_the_turns_fold() {
             cost_usd: 0.0,
             usage: None,
             at_ms: Some(1),
+            error: None,
         },
     ];
     assert_eq!(folded_by(&items, 1), Some(5), "work before the steer folds");

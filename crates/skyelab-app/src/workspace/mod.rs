@@ -50,6 +50,9 @@ mod thread_details;
 mod thread_items;
 mod thread_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
+mod subagent;
+mod thread_failure;
+mod thread_find;
 mod thread_model;
 mod thread_render;
 mod thread_rows;
@@ -57,6 +60,7 @@ mod thread_worktree;
 mod timeline_fold;
 mod timeline_text;
 mod tool_cards;
+mod turn_files;
 mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
@@ -224,7 +228,7 @@ pub struct Workspace {
     purges: std::collections::HashMap<i64, Task<()>>,
     /// The last unread-mark write; each new one waits for it.
     _unread_write: Option<Task<()>>,
-    /// Every notice shown (warnings, undo notices, thread notifications), for tests: the toast list is private.
+    /// Every notice shown (warnings, undo, thread notifications), for tests: the toast list is private.
     #[cfg(test)]
     notices: Vec<SharedString>,
 }
@@ -435,157 +439,56 @@ impl Render for Workspace {
     }
 }
 
-#[cfg(test)]
-mod tests;
-
 #[cfg(all(test, unix))]
-mod single_view_test;
-
-#[cfg(test)]
-mod manage_harness;
-#[cfg(test)]
-mod manage_projects_test;
-#[cfg(test)]
-mod manage_threads_test;
-#[cfg(test)]
-mod palette_search_test;
-#[cfg(test)]
-mod review_fixes_tests;
-#[cfg(test)]
-mod thread_keys_test;
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod unread_test;
-
-#[cfg(test)]
-mod stale_status_test;
-
-#[cfg(test)]
-mod browser_tests;
-
-#[cfg(test)]
-mod thread_model_test;
-
-#[cfg(test)]
-mod sidebar_tests;
-#[cfg(test)]
-mod timeline_tests;
-
-#[cfg(test)]
-mod threads_test;
-
-#[cfg(test)]
-mod layout_test;
-
+mod accounts_file_reread_test;
 #[cfg(test)]
 mod agent_bin_test;
-
-#[cfg(all(test, unix))] // the fake codex is a shell script
-mod codex_thread_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod review_second_row_test;
-
-#[cfg(test)]
-mod review_stale_config_test;
-
-#[cfg(test)]
-mod devices_tests;
-
-#[cfg(test)]
-mod devices_review_tests;
-
-#[cfg(test)]
-mod changes_model_test;
-
-#[cfg(test)]
-mod worktree_thread_test;
-
 #[cfg(all(test, unix))]
-mod checkpoint_turns_test;
-
+mod browser_agent_cap_test;
 #[cfg(all(test, unix))]
-mod checkpoint_midturn_test;
-
-#[cfg(test)]
-mod checkpoint_purge_test;
-
+mod browser_agent_review_test;
 #[cfg(all(test, unix))]
-mod changes_selection_test;
-
-#[cfg(all(test, unix))]
-mod worktree_base_test;
-
-#[cfg(all(test, unix))]
-mod scripts_env_test;
-
+mod browser_agent_test;
 #[cfg(test)]
-mod scripts_palette_test;
-
+mod browser_tests;
 #[cfg(test)]
-mod worktree_guard_test;
-
-#[cfg(test)]
-mod worktree_discard_test;
-
-#[cfg(test)]
-mod worktree_review_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod review_cta_folder_test;
-
-#[cfg(test)]
-mod env_harness;
-
-#[cfg(test)]
-mod palette_test;
-
-#[cfg(all(test, unix))] // the fake gh is a shell script
-mod publish_test;
-
-#[cfg(test)]
-mod env_switch_test;
-
-#[cfg(test)]
-mod env_states_test;
-
-#[cfg(test)]
-mod env_picker_test;
-
-#[cfg(test)]
-mod env_prompt_loss_test;
-
-#[cfg(test)]
-mod env_followups_test;
-
-#[cfg(test)]
-mod env_pin_test;
-
-#[cfg(test)]
-mod env_whois_test;
-
-#[cfg(test)]
-mod env_identity_gate_test;
-
-#[cfg(test)]
-mod worktree_followups_test;
-
-#[cfg(test)]
-mod remote_start_test;
-
+mod changes_cap_test;
 #[cfg(test)]
 mod changes_follow_folder_test;
 #[cfg(test)]
-mod terminal_link_subdir_test;
+mod changes_long_test;
 #[cfg(test)]
-mod terminal_link_test;
-
+mod changes_model_test;
+#[cfg(all(test, unix))]
+mod changes_selection_test;
+#[cfg(all(test, unix))]
+mod checkpoint_midturn_test;
 #[cfg(test)]
-mod delegation_test;
-
+mod checkpoint_purge_test;
+#[cfg(all(test, unix))]
+mod checkpoint_turns_test;
+#[cfg(all(test, unix))]
+mod claude_folded_turns_test;
+#[cfg(test)]
+mod close_tab_test;
+#[cfg(all(test, unix))]
+mod codex_open_failure_turns_test;
+#[cfg(all(test, unix))] // the fake codex is a shell script
+mod codex_thread_test;
+#[cfg(all(test, unix))]
+mod commit_hook_env_test;
+#[cfg(test)]
+mod commit_snapshot_test;
+#[cfg(all(test, unix))]
+mod delegation_after_stop_test;
+#[cfg(test)]
+mod delegation_cap_test;
 #[cfg(all(test, unix))]
 mod delegation_idempotent_test;
 #[cfg(all(test, unix))]
 mod delegation_reply_on_row_test;
+#[cfg(test)]
+mod delegation_resume_test;
 #[cfg(all(test, unix))]
 mod delegation_review_test;
 #[cfg(all(test, unix))]
@@ -594,89 +497,133 @@ mod delegation_send_cap_test;
 mod delegation_starting_cap_test;
 #[cfg(all(test, unix))]
 mod delegation_stopped_parent_test;
-#[cfg(all(test, unix))]
-mod launch_rebind_test;
-#[cfg(all(test, unix))]
-mod thread_close_starting_test;
-
 #[cfg(test)]
-mod delegation_cap_test;
-#[cfg(test)]
-mod delegation_resume_test;
+mod delegation_test;
 #[cfg(test)]
 mod delegation_turns_test;
 #[cfg(test)]
-mod env_approval_test;
+mod devices_review_tests;
 #[cfg(test)]
-mod env_queue_test;
-#[cfg(test)]
-mod palette_remote_test;
-#[cfg(test)]
-mod remote_resume_reply_test;
-
-#[cfg(test)]
-mod long_thread_test;
-
-#[cfg(test)]
-mod changes_long_test;
-
-#[cfg(all(test, unix))]
-mod browser_agent_test;
-
-#[cfg(all(test, unix))]
-mod browser_agent_cap_test;
-
-#[cfg(all(test, unix))]
-mod browser_agent_review_test;
-
-#[cfg(test)]
-mod terminal_env_test;
-
-#[cfg(test)]
-mod commit_snapshot_test;
-
-#[cfg(test)]
-mod changes_cap_test;
-#[cfg(test)]
-mod close_tab_test;
+mod devices_tests;
 #[cfg(test)]
 mod drive_rebound_test;
 #[cfg(test)]
+mod env_approval_test;
+#[cfg(test)]
+mod env_followups_test;
+#[cfg(test)]
+mod env_harness;
+#[cfg(test)]
+mod env_identity_gate_test;
+#[cfg(test)]
+mod env_picker_test;
+#[cfg(test)]
+mod env_pin_test;
+#[cfg(test)]
+mod env_prompt_loss_test;
+#[cfg(test)]
+mod env_queue_test;
+#[cfg(test)]
+mod env_states_test;
+#[cfg(test)]
+mod env_switch_test;
+#[cfg(test)]
+mod env_whois_test;
+#[cfg(all(test, unix))]
+mod exit_holding_stdout_test;
+#[cfg(all(test, unix))]
+mod launch_rebind_test;
+#[cfg(test)]
+mod layout_test;
+#[cfg(test)]
+mod long_thread_test;
+#[cfg(test)]
+mod manage_harness;
+#[cfg(test)]
+mod manage_projects_test;
+#[cfg(test)]
+mod manage_threads_test;
+#[cfg(test)]
+mod palette_remote_test;
+#[cfg(test)]
+mod palette_search_test;
+#[cfg(test)]
+mod palette_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_mode_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod permission_thread_test;
+#[cfg(all(test, unix))]
+mod project_unread_restart_test;
+#[cfg(all(test, unix))] // the fake gh is a shell script
+mod publish_test;
+#[cfg(test)]
+mod remote_resume_reply_test;
+#[cfg(test)]
 mod remote_resume_test;
+#[cfg(test)]
+mod remote_start_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod review_cta_folder_test;
+#[cfg(test)]
+mod review_fixes_tests;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod review_second_row_test;
+#[cfg(test)]
+mod review_stale_config_test;
 #[cfg(test)]
 mod save_retry_stop_test;
 #[cfg(test)]
 mod save_retry_test;
 #[cfg(test)]
 mod save_turns_test;
-#[cfg(test)]
-mod stale_idle_test;
-
-#[cfg(all(test, unix))]
-mod accounts_file_reread_test;
-#[cfg(all(test, unix))]
-mod claude_folded_turns_test;
-#[cfg(all(test, unix))]
-mod codex_open_failure_turns_test;
-#[cfg(all(test, unix))]
-mod commit_hook_env_test;
-#[cfg(all(test, unix))]
-mod delegation_after_stop_test;
-#[cfg(all(test, unix))]
-mod exit_holding_stdout_test;
-
 #[cfg(all(test, unix))]
 mod saved_view_draft_test;
 #[cfg(all(test, unix))]
-mod settings_reopen_stale_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod permission_thread_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod permission_mode_test;
-
+mod scripts_env_test;
+#[cfg(test)]
+mod scripts_palette_test;
 #[cfg(all(test, unix))]
-mod project_unread_restart_test;
+mod settings_reopen_stale_test;
+#[cfg(test)]
+mod sidebar_tests;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod single_view_merge_test;
+#[cfg(all(test, unix))]
+mod single_view_test;
+#[cfg(test)]
+mod stale_idle_test;
+#[cfg(test)]
+mod stale_status_test;
+#[cfg(test)]
+mod terminal_env_test;
+#[cfg(test)]
+mod terminal_link_subdir_test;
+#[cfg(test)]
+mod terminal_link_test;
+#[cfg(test)]
+mod tests;
+#[cfg(all(test, unix))]
+mod thread_close_starting_test;
+#[cfg(test)]
+mod thread_keys_test;
+#[cfg(test)]
+mod thread_model_test;
+#[cfg(test)]
+mod threads_test;
+#[cfg(test)]
+mod timeline_tests;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod unread_test;
+#[cfg(all(test, unix))]
+mod worktree_base_test;
+#[cfg(test)]
+mod worktree_discard_test;
+#[cfg(test)]
+mod worktree_followups_test;
+#[cfg(test)]
+mod worktree_guard_test;
+#[cfg(test)]
+mod worktree_review_test;
+#[cfg(test)]
+mod worktree_thread_test;

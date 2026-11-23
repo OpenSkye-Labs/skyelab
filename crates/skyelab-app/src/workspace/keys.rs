@@ -45,6 +45,7 @@ pub fn init(cx: &mut App) {
         ]);
     }
     layout::bind_keys(cx);
+    thread_find::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
 }

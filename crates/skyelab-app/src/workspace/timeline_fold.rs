@@ -18,6 +18,12 @@ pub(super) fn fold_key(done: usize) -> String {
 
 /// The rows a key's toggle changes: a turn's whole fold, or the one row that expands.
 pub(super) fn rows_of(items: &[Item], key: &str) -> Option<Range<usize>> {
+    if let Some(done) = key
+        .strip_prefix("files:")
+        .and_then(|d| d.parse::<usize>().ok())
+    {
+        return (done < items.len()).then_some(done..done + 1);
+    }
     match key.strip_prefix("fold:").and_then(|d| d.parse().ok()) {
         Some(done) if done < items.len() => Some(turn_start(items, done)..done + 1),
         _ => items
@@ -41,7 +47,12 @@ pub(super) fn turn_start(items: &[Item], done: usize) -> usize {
 fn work(item: &Item) -> bool {
     matches!(
         item,
-        Item::Tool(_) | Item::Thinking { .. } | Item::Output { .. } | Item::Todo(_) | Item::Text(_)
+        Item::Tool(_)
+            | Item::Subagent(_)
+            | Item::Thinking { .. }
+            | Item::Output { .. }
+            | Item::Todo(_)
+            | Item::Text(_)
     )
 }
 

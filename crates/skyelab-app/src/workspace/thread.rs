@@ -64,6 +64,8 @@ pub struct ThreadView {
     pub(super) limited: Option<Option<i64>>,
     pub(super) list: ListState,
     expanded: HashSet<String>,
+    /// Turn files, the find bar, a closed failure banner.
+    pub(super) timeline: super::turn_files::Timeline,
     /// Unsent AskUserQuestion picks, by ask id.
     pub(super) drafts: std::collections::HashMap<String, super::ask_cards::QuestionDraft>,
     pub(super) error: Option<SharedString>,
@@ -219,6 +221,7 @@ impl ThreadView {
                         this.limited = limit_after(this.limited, r);
                     }
                     this.list.reset(this.items.len());
+                    this.load_turn_files(cx);
                     if skipped > 0 {
                         this.error =
                             Some(format!("{skipped} stored events couldn't be read").into());
@@ -288,6 +291,7 @@ impl ThreadView {
             limited: None,
             list,
             expanded: HashSet::new(),
+            timeline: Default::default(),
             drafts: Default::default(),
             error: None,
             starting: false,
@@ -357,28 +361,6 @@ impl ThreadView {
             Some(t) => t.title.clone().into(),
             None => "New thread".into(),
         }
-    }
-
-    /// "Label · id" of the account the thread was started with, from its store row.
-    #[cfg(all(test, unix))] // only the unix-only thread tests read it
-    pub fn badge(&self) -> Option<SharedString> {
-        let id = &self.thread.as_ref()?.account_id;
-        let label = self
-            .config
-            .accounts
-            .iter()
-            .find(|a| &a.id == id)
-            .map_or("Unknown account", |a| a.label.as_str());
-        Some(format!("{label} · {id}").into())
-    }
-
-    /// The provider of the account the thread was started with (`None` before the thread has a row,
-    /// or when that account is gone).
-    #[cfg(all(test, unix))]
-    pub fn provider(&self) -> Option<skyelab_core::Provider> {
-        let id = &self.thread.as_ref()?.account_id;
-        let account = self.config.accounts.iter().find(|a| &a.id == id)?;
-        Some(account.provider)
     }
 
     /// What the sidebar shows for this thread: its live session's state, or with no session, stopped (the stored row

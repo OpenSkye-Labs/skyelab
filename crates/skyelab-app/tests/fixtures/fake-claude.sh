@@ -6,7 +6,8 @@
 # "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
-# plan and a question (left waiting). With a .fake-session-gone file in the folder, a --resume start fails the way
+# plan and a question (left waiting). "subagent" runs two subagents (fake-subagent.sh), and "login" fails the turn
+# the way a signed-out Claude Code does. With a .fake-session-gone file in the folder, a --resume start fails the way
 # Claude Code does for a session it doesn't have; a fresh start then reports session fake-sess-new.
 if [ -f .fake-session-gone ]; then
   case " $* " in
@@ -56,6 +57,10 @@ while IFS= read -r line; do
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
     *'"content":"timeline'*)
       sh "$(dirname "$0")/fake-timeline.sh" ;;
+    *'"content":"subagent'*)
+      sh "$(dirname "$0")/fake-subagent.sh" ;;
+    *'"content":"login'*)
+      printf '{"type":"result","subtype":"success","is_error":true,"duration_ms":40,"total_cost_usd":0,"result":"Not logged in \\u00b7 Please run /login"}\n' ;;
     *'"content":"partial'*)
       for w in "Half an" " answer"; do
         printf '{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"%s"}},"parent_tool_use_id":null}\n' "$w"

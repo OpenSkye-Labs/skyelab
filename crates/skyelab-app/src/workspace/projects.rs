@@ -303,6 +303,13 @@ impl Workspace {
                     tab.update(cx, |c, cx| c.run_git(*action, window, cx));
                 }
                 ThreadViewEvent::OpenPath(path) => this.open_path(view, path, window, cx),
+                ThreadViewEvent::OpenTurnPath(turn, path) => {
+                    let changes = this.open_changes(view, window, cx);
+                    changes.update(cx, |c, cx| {
+                        c.reveal_after_load = Some(path.clone());
+                        c.set_scope(super::changes_model::Scope::Turn(*turn), cx);
+                    });
+                }
                 ThreadViewEvent::OpenTerminal { cwd, account_id } => {
                     let (config, cwd, account_id) =
                         (this.accounts_job(cx), cwd.clone(), account_id.clone());
