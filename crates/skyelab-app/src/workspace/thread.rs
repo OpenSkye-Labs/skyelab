@@ -207,17 +207,21 @@ impl ThreadView {
                             ))
                         })
                         .collect();
-                    anyhow::Ok((row, (parent, children), rows.len() - records.len(), records))
+                    let sides = lock(&store)?.side_chats(id)?;
+                    let sides = sides.into_iter().map(|t| (t.id, t.title.into())).collect();
+                    let lineage = (parent, children, sides);
+                    anyhow::Ok((row, lineage, rows.len() - records.len(), records))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok((row, (parent, children), skipped, records)) => {
+                Ok((row, (parent, children, sides), skipped, records)) => {
                     if let Some(row) = row {
                         this.mode = Mode::parse(&row.permission_mode);
                         this.thread = Some(row);
                     }
                     this.parent = parent;
                     this.children = children;
+                    this.details.side_chats = sides;
                     this.finish(cx);
                     for (r, at) in &records {
                         apply(&mut this.items, r);

@@ -393,12 +393,13 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::confirm_discard))
             .on_action(cx.listener(Self::cancel_discard))
             .on_action(cx.listener(Self::find_in_thread))
+            .on_action(cx.listener(Self::new_side_chat))
             .on_action(cx.listener(Self::find_next))
             .on_action(cx.listener(Self::find_previous))
             .on_action(cx.listener(Self::close_find))
             .size_full()
             .bg(theme.background)
-            .child(header)
+            .when(!self.is_side_chat(), |v| v.child(header)) // its pane has its own
             .child(body)
             .child(
                 v_flex()

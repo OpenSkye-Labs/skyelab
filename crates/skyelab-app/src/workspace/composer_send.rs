@@ -226,6 +226,18 @@ impl ThreadView {
         if (text.is_empty() && !has_files) || self.read_only || self.starting {
             return;
         }
+        // `/side <question>` (or `/btw`) asks it in a side chat instead (not from a side chat itself).
+        if let Some(question) = crate::workspace::side_chat::side_question(&text)
+            && !external
+            && !self.is_side_chat()
+        {
+            self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+            self.restore_draft(window, cx); // set_value emits no Change
+            use crate::workspace::side_chat::SideAsk;
+            return cx.emit(crate::workspace::thread::ThreadViewEvent::Side(
+                SideAsk::New(question),
+            ));
+        }
         // Over the provider's limit: refused here, with the text kept, rather than by the agent mid-turn.
         if let Some(why) = skyelab_core::prompt::over_limit(&text) {
             self.composer.notice = Some(why.into());

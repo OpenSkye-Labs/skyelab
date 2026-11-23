@@ -268,8 +268,11 @@ impl ThreadView {
                             &crate::workspace::thread_checkpoints::key(&thread),
                         );
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
-                        // A fork's first session gets the copied history ahead of the message (stored as typed).
-                        let context = match (thread.forked_from, &thread.agent_session_id) {
+                        // A fork's (or side chat's) first session gets its context ahead of the message (stored as typed).
+                        let context = match (
+                            thread.forked_from.or(thread.side_of),
+                            &thread.agent_session_id,
+                        ) {
                             (Some(_), None) => lock(&store)?.fork_context(thread.id)?,
                             _ => None,
                         };

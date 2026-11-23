@@ -62,6 +62,8 @@ pub struct Details {
     /// Lines added and removed in the thread's folder since its base (`None` until loaded, or not a repo).
     stat: Option<(u64, u64)>,
     editors: Option<Editors>,
+    /// This thread's side chats (id, title), newest first.
+    pub(in crate::workspace) side_chats: Vec<(i64, SharedString)>,
     /// Who the Commit & push menu pushes as: the account's GitHub login, or why there is none.
     pub(in crate::workspace) gh_login: Option<SharedString>,
     /// The "Link pull request…" field and what was wrong with the last link.

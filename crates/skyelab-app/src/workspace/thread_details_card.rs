@@ -75,6 +75,7 @@ impl ThreadView {
                     Some(("Environment".into(), self.render_environment(on, cx))),
                     Some(("Actions".into(), self.render_actions(on, cx))),
                     lineage,
+                    self.render_side_chats(on, cx),
                     Some(("Usage".into(), usage)),
                     self.render_pr(on, cx).map(|pr| ("Pull request".into(), pr)),
                     Some(("Editor".into(), self.render_editor(on, cx))),
@@ -116,6 +117,34 @@ impl ThreadView {
             )
             .children(self.render_git_rows(on, cx))
             .into_any_element()
+    }
+
+    /// "Side chats": each one reopens its pane, and "New side chat" starts one. Only on a stored local thread that
+    /// isn't a side chat itself.
+    fn render_side_chats(&self, on: &On, cx: &App) -> Option<(SharedString, AnyElement)> {
+        use crate::workspace::side_chat::SideAsk;
+        use crate::workspace::thread::ThreadViewEvent;
+        self.thread.as_ref().filter(|t| t.side_of.is_none())?;
+        let theme = cx.theme();
+        let chats = self.details.side_chats.iter().map(|(id, title)| {
+            let id = *id;
+            row(
+                ("details-side-chat", id as u64),
+                IconName::MessagesSquare,
+                title.clone(),
+                theme,
+            )
+            .on_click(on.click(move |_, _, cx| cx.emit(ThreadViewEvent::Side(SideAsk::Open(id)))))
+        });
+        let new = row(
+            "details-new-side-chat",
+            IconName::Plus,
+            "New side chat",
+            theme,
+        )
+        .on_click(on.click(|_, _, cx| cx.emit(ThreadViewEvent::Side(SideAsk::New(None)))));
+        let body = v_flex().children(chats).child(new).into_any_element();
+        Some(("Side chats".into(), body))
     }
 
     fn render_actions(&self, on: &On, cx: &App) -> AnyElement {

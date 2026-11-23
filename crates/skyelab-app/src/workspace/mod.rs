@@ -33,6 +33,7 @@ mod mermaid_block;
 mod onboarding;
 mod settings_tab;
 mod setup_flow;
+mod side_chat;
 mod terminal_launch;
 mod terminal_panel;
 mod terminals;
@@ -204,6 +205,8 @@ pub struct Workspace {
     /// Delegated starts by request id: a retry gets the thread the first call started.
     delegated: std::collections::HashMap<orchestrate_ui::StartKey, orchestrate_ui::DelegatedStart>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
+    /// Side chat panes, kept when closed (their agents keep running).
+    side_chats: Vec<Entity<side_chat::SideChatPanel>>,
     /// Each open thread view's subscriptions and the row state the sidebar last drew; dropped in `close_thread`.
     thread_subs: std::collections::HashMap<gpui::EntityId, thread_rows::ThreadSubs>,
     /// One-shot waits on a thread view, by key; each removes itself once it fires, or goes when its view closes.
@@ -353,6 +356,7 @@ impl Workspace {
             forward: Vec::new(),
             delegated: Default::default(),
             changes_views: Vec::new(),
+            side_chats: Vec::new(),
             thread_subs: Default::default(),
             waiters: Default::default(),
             next_waiter: 0,

@@ -73,4 +73,14 @@ impl Workspace {
             });
         }
     }
+
+    /// A thread's turn ended: every Changes tab on its folder may be out of date.
+    pub(super) fn refresh_changes(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
+        let dir = view.read(cx).cwd.clone();
+        for changes in self.changes_views.iter().filter_map(|c| c.upgrade()) {
+            if changes.read(cx).dir == dir {
+                changes.update(cx, |c, cx| c.refresh(cx));
+            }
+        }
+    }
 }

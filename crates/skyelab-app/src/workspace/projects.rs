@@ -344,6 +344,7 @@ impl Workspace {
                 ThreadViewEvent::UsageReported => this.refresh_usage(cx),
                 ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
                 _ if !view.read(cx).owned_by(window) => {}
+                ThreadViewEvent::Side(ask) => this.side_chat(view, ask.clone(), window, cx),
                 ThreadViewEvent::OpenChanges => _ = this.open_changes(view, window, cx),
                 ThreadViewEvent::Git(action) => {
                     let tab = this.open_changes(view, window, cx);
@@ -410,16 +411,6 @@ impl Workspace {
         };
         self.thread_subs.insert(view.entity_id(), subs);
         self.open_threads.push(view.clone());
-    }
-
-    /// A thread's turn ended: every Changes tab on its folder may be out of date.
-    fn refresh_changes(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
-        let dir = view.read(cx).cwd.clone();
-        for changes in self.changes_views.iter().filter_map(|c| c.upgrade()) {
-            if changes.read(cx).dir == dir {
-                changes.update(cx, |c, cx| c.refresh(cx));
-            }
-        }
     }
 
     pub(super) fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
