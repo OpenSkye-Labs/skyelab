@@ -4,30 +4,16 @@
 use super::thread::ThreadView;
 use super::thread_model::{Item, Record};
 use super::*;
-use gpui::{TestAppContext, VisualTestContext};
+use gpui::TestAppContext;
 use skyelab_core::{Account, Binding, Provider};
 use skyelab_store::Store;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 fn fake_codex() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-agent/tests/fixtures/fake-codex.sh")
 }
 
-fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_until;
 
 #[gpui::test]
 fn a_codex_bound_project_runs_codex_and_says_so(cx: &mut TestAppContext) {

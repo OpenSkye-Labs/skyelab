@@ -92,21 +92,7 @@ fn host(
     (host, calls)
 }
 
-/// Pumps the app until `done`, giving the daemon thread and the fake agent real time.
-fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_until;
 
 fn sharing_port(remote: &Entity<Remote>, cx: &mut TestAppContext) -> Option<u16> {
     remote.read_with(cx, |r, _| match &r.status {

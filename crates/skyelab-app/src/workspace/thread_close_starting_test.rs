@@ -3,7 +3,7 @@
 
 use super::thread::ThreadView;
 use super::*;
-use gpui::{TestAppContext, VisualTestContext};
+use gpui::TestAppContext;
 use skyelab_core::{Account, Binding};
 use std::time::Duration;
 
@@ -73,20 +73,7 @@ pub(super) fn row(r: &Rig) -> Option<skyelab_store::Thread> {
         .next()
 }
 
-pub(super) fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+pub(super) use crate::test_wait::wait_until;
 
 #[gpui::test]
 fn a_tab_closed_while_starting_leaves_its_thread_stopped(cx: &mut TestAppContext) {

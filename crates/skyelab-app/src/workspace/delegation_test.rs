@@ -10,7 +10,6 @@ use skyelab_agent::mcp::{Caller, Host as _, Proxy, Tool};
 use skyelab_agent::{Block, Event};
 use skyelab_core::{Account, Binding};
 use skyelab_store::NewThread;
-use std::time::Duration;
 
 /// The proxy claude spawns. Here it is this test binary re-run on [`mcp_proxy_child`].
 #[test]
@@ -145,20 +144,7 @@ pub(super) fn open<'a>(
     (ws, cx)
 }
 
-pub(super) fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1500 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+pub(super) use crate::test_wait::wait_until;
 
 /// A thread tab in `project`, with `prompt` sent from it.
 pub(super) fn start(

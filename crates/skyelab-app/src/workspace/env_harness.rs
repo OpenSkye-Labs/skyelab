@@ -5,7 +5,6 @@ use super::*;
 use gpui::{TestAppContext, VisualTestContext};
 pub(super) use skyelab_daemon::testing::{Env as RemoteSide, FakeTailnet, ME, Peer, Ran, node};
 use skyelab_daemon::testing::{NODE_NAME, ca};
-use std::time::Duration;
 
 /// The other machine (the shared harness `Env`): one project "app" at /remote/app with one thread on account
 /// "work", served on a fixed loopback port.
@@ -90,21 +89,7 @@ pub(super) fn local_workspace(
     (ws, store, cx)
 }
 
-/// Pumps the app until `done`, giving the client and daemon threads real time.
-pub(super) fn wait_until(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..800 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+pub(super) use crate::test_wait::wait_until;
 
 pub(super) fn switch(ws: &Entity<Workspace>, host: Option<&str>, cx: &mut VisualTestContext) {
     let action = env_mode::SwitchEnvironment {
