@@ -96,11 +96,14 @@ impl Store {
         let mut stmt = self.conn.prepare(
             "SELECT t.id, (
                 SELECT (SELECT substr(json_extract(b.value, '$.text'), 1, 400)
-                        FROM json_each(e.payload_json, '$.Assistant.content') b
-                        WHERE json_extract(b.value, '$.type') = 'text' AND json_extract(b.value, '$.text') <> ''
+                        FROM json_each(
+                            CASE WHEN json_valid(e.payload_json) THEN e.payload_json ELSE '{}' END,
+                            '$.Assistant.content') b
+                        WHERE json_extract(b.value, '$.type') = 'text'
+                          AND trim(json_extract(b.value, '$.text')) <> ''
                         ORDER BY b.key DESC LIMIT 1) AS reply
                 FROM events e
-                WHERE e.thread_id = t.id AND e.kind = 'agent' AND json_valid(e.payload_json) AND reply IS NOT NULL
+                WHERE e.thread_id = t.id AND e.kind = 'agent' AND reply IS NOT NULL
                 ORDER BY e.seq DESC LIMIT 1)
              FROM threads t WHERE t.deleted_at IS NULL",
         )?;

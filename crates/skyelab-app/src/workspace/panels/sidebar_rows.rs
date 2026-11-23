@@ -1,4 +1,4 @@
-//! The sidebar's rows: a flat list's two-line thread row, the plain row (remote projects and their threads), and the
+//! The sidebar's rows: a flat list's thread row (title, reply preview, meta line), the plain row (remote projects and their threads), and the
 //! project scope button.
 
 use super::sidebar::{RowAccount, RowMarks, ScopeMenu, SidebarItem, SidebarSection};
@@ -98,7 +98,7 @@ fn thread_row(
             .into_any_element(),
     };
     let account = match &item.account {
-        // The label alone: the meta line is narrow, and the label names the login.
+        // Without the provider: the meta line is narrow, and the label names the login.
         Some(RowAccount::Bound(acc)) => {
             Some(ui::AccountBadge::new(acc.id.clone(), acc.label.clone()))
         }

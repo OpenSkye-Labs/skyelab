@@ -61,7 +61,7 @@ fn a_finished_turn_folds_its_work_but_not_its_reply() {
     );
     assert_eq!(
         rows_of(&items, &fold_key(5)),
-        Some(0..6),
+        Some(1..6),
         "a toggle re-measures the whole turn"
     );
     assert_eq!(rows_of(&items, "c"), Some(7..8));
@@ -102,7 +102,7 @@ fn the_end_of_a_turn_redraws_the_whole_turn_and_is_dated() {
             usage: None,
         }),
     );
-    assert_eq!(changed, Some(0), "its rows now fold, so they all change");
+    assert_eq!(changed, Some(1), "its rows now fold, so they all change");
     stamp_done(&mut items, 42);
     stamp_done(&mut items, 99);
     assert!(

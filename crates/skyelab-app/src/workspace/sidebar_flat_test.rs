@@ -128,13 +128,13 @@ fn rows_show_the_last_reply_branch_and_pull_request_under_date_sections(cx: &mut
     let t = thread_in(&r, r.project, "answered", cx);
     {
         let mut store = r.f.store.lock().expect("lock");
-        store
-            .append_event(
-                t,
-                "agent",
-                r###"{"Assistant":{"content":[{"type":"text","text":"## Done\n\nThe **parser** is `fixed`."}]}}"###,
-            )
-            .expect("append");
+        let (kind, payload) = thread_model::Record::Agent(skyelab_agent::Event::Assistant {
+            content: vec![skyelab_agent::Block::Text {
+                text: "## Done\n\nThe **parser** is `fixed`.".into(),
+            }],
+        })
+        .to_row();
+        store.append_event(t, kind, &payload).expect("append");
         store
             .set_thread_worktree(t, None, Some("skyelab/fix-parser"))
             .expect("worktree");
@@ -159,29 +159,20 @@ fn rows_show_the_last_reply_branch_and_pull_request_under_date_sections(cx: &mut
 }
 
 #[test]
-fn day_buckets_split_at_local_midnight() {
+fn day_buckets_split_at_each_start() {
     use thread_list::day_bucket;
-    const H: i64 = 3_600_000;
-    let today = 1_000 * 24 * H;
-    assert_eq!(day_bucket(today, today + H), 0, "today");
-    assert_eq!(day_bucket(today, today), 0, "midnight is today");
+    let starts = [1_000, 900, 300]; // today, yesterday, six days back
+    assert_eq!(day_bucket(starts, 1_500), 0, "today");
+    assert_eq!(day_bucket(starts, 1_000), 0, "midnight is today");
     assert_eq!(
-        day_bucket(today, today - 1),
+        day_bucket(starts, 999),
         1,
         "just before midnight is yesterday"
     );
-    assert_eq!(day_bucket(today, today - 24 * H), 1);
-    assert_eq!(
-        day_bucket(today, today - 24 * H - 1),
-        2,
-        "the day before yesterday"
-    );
-    assert_eq!(day_bucket(today, today - 6 * 24 * H), 2);
-    assert_eq!(
-        day_bucket(today, today - 7 * 24 * H),
-        3,
-        "a week back is older"
-    );
+    assert_eq!(day_bucket(starts, 900), 1);
+    assert_eq!(day_bucket(starts, 899), 2, "the day before yesterday");
+    assert_eq!(day_bucket(starts, 300), 2);
+    assert_eq!(day_bucket(starts, 299), 3, "older");
 }
 
 #[test]
@@ -193,6 +184,12 @@ fn previews_are_plain_text_and_pr_labels_are_numbers() {
         ),
         "Title one a_b quote let x = 1; a b"
     );
+    assert_eq!(
+        preview_text("#24 is merged"),
+        "#24 is merged",
+        "a number is not a heading"
+    );
+    assert_eq!(preview_text("---\n\n```\n```"), "", "nothing to show");
     assert_eq!(pr_label("https://github.com/o/r/pull/2262"), "#2262");
     assert_eq!(pr_label("https://github.com/o/r/pull/7/"), "#7");
     assert_eq!(pr_label("https://example.com/merge"), "PR");

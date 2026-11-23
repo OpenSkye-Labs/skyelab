@@ -136,7 +136,6 @@ impl ThreadView {
     }
 }
 
-/// What each permission mode is called in the composer, and what it allows.
 /// The mode's icon, T3's: a lock (asks), a clipboard (plans), a pen (edits go ahead), an open shield (nothing asks).
 fn mode_icon(mode: skyelab_agent::Mode) -> Lucide {
     use skyelab_agent::Mode;
@@ -148,6 +147,7 @@ fn mode_icon(mode: skyelab_agent::Mode) -> Lucide {
     }
 }
 
+/// What each permission mode is called in the composer, and what it allows.
 pub(super) fn mode_label(mode: skyelab_agent::Mode) -> (&'static str, &'static str) {
     use skyelab_agent::Mode;
     match mode {

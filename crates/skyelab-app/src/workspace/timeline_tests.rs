@@ -13,6 +13,9 @@ mod tool_cards_test;
 #[path = "timeline_fold_test.rs"]
 mod timeline_fold_test;
 
+#[path = "timeline_fold_stopped_test.rs"]
+mod timeline_fold_stopped_test;
+
 #[path = "card_path_test.rs"]
 mod card_path_test;
 

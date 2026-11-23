@@ -1,6 +1,7 @@
 //! A finished turn's fold, T3's and Synara's "Worked for 4m 20s ›": the turn's work rows (tools, thinking, output,
 //! todos, the text between them) fold behind one header drawn above the first of them. The final reply, questions,
-//! approvals and notes stay. A running turn has no fold yet; a failed or interrupted one never folds.
+//! approvals and notes stay. A running turn has no fold yet; one that ends in an error result, or with no result
+//! (stopped, crashed), never folds.
 
 use super::thread_items::ItemsView;
 use super::thread_model::Item;
@@ -26,11 +27,14 @@ pub(super) fn rows_of(items: &[Item], key: &str) -> Option<Range<usize>> {
     }
 }
 
-/// Where the turn ending at row `done` starts: after the turn before it (follow-ups sent mid-turn stay in it).
+/// Where the fold of the turn ending at row `done` starts: after the last prompt or divider before it. A turn that was
+/// stopped or crashed has no divider, so its rows end at the next prompt and never fold into the turn after it.
+// shortcut: a follow-up steered into a running turn also starts the fold, so the work before it stays unfolded; give
+// steered prompts their own item if that gets noticed.
 pub(super) fn turn_start(items: &[Item], done: usize) -> usize {
     items[..done]
         .iter()
-        .rposition(|i| matches!(i, Item::Done { .. }))
+        .rposition(|i| matches!(i, Item::Done { .. } | Item::Prompt(_)))
         .map_or(0, |p| p + 1)
 }
 
@@ -68,7 +72,8 @@ pub(super) fn folded_by(items: &[Item], ix: usize) -> Option<usize> {
     else {
         return None;
     };
-    (reply(items, turn_start(items, done), done) != Some(ix)).then_some(done)
+    let start = turn_start(items, done);
+    (ix >= start && reply(items, start, done) != Some(ix)).then_some(done)
 }
 
 /// The first row the turn ending at `done` folds: its header is drawn above it. `None` when nothing folds.

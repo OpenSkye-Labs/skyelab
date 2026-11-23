@@ -49,6 +49,10 @@ fn latest_assistant_text_per_thread() {
     store
         .append_event(answered, "agent", "not json")
         .expect("append");
+    // A blank text block is not a reply either: the one before it is kept.
+    store
+        .append_event(answered, "agent", &reply("   "))
+        .expect("append");
     store
         .append_event(silent, "prompt", "\"hello\"")
         .expect("append");

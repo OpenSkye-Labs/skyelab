@@ -69,7 +69,12 @@ impl Workspace {
                     unread: t.unread,
                     approval,
                     menu: super::manage::thread_menu(t),
-                    preview: previews.replies.get(&t.id).map(|r| preview_text(r).into()),
+                    preview: previews
+                        .replies
+                        .get(&t.id)
+                        .map(|r| preview_text(r))
+                        .filter(|p| !p.is_empty())
+                        .map(Into::into),
                     branch: t
                         .worktree_branch
                         .clone()
@@ -101,17 +106,15 @@ impl Workspace {
             }
         };
         let groups = self.thread_groups(cx);
-        let today = today_start_ms();
-        let [pinned, working, rest] = groups.map(|g| {
-            g.into_iter()
-                .map(|t| (day_bucket(today, t.updated_at), item(t)))
-                .collect::<Vec<_>>()
-        });
-        let [pinned, working]: [Vec<SidebarItem>; 2] =
-            [pinned, working].map(|g| g.into_iter().map(|(_, i)| i).collect());
+        let [pinned, working, rest] = groups;
+        let (pinned, working): (Vec<_>, Vec<_>) = (
+            pinned.into_iter().map(&mut item).collect(),
+            working.into_iter().map(&mut item).collect(),
+        );
+        let starts = day_starts();
         let mut days: [Vec<SidebarItem>; 4] = Default::default();
-        for (day, i) in rest {
-            days[day].push(i);
+        for t in rest {
+            days[day_bucket(starts, t.updated_at)].push(item(t));
         }
         let archived = ArchivedRows {
             items: self.listed_threads().1.into_iter().map(&mut item).collect(),
@@ -374,27 +377,27 @@ pub(super) struct Previews {
 /// The date sections under Pinned and Working, T3's and Synara's: indexes [`day_bucket`] returns.
 const DAYS: [&str; 4] = ["Today", "Yesterday", "Previous 7 days", "Older"];
 
-/// Which of [`DAYS`] a thread last changed in, `today` being local midnight (ms since the epoch).
-pub(super) fn day_bucket(today: i64, updated_ms: i64) -> usize {
-    const DAY: i64 = 86_400_000;
-    // shortcut: a day is 24 h back from midnight, so on a DST change a thread an hour either side of the line can
-    // land one section off; compute each midnight with chrono if that is ever noticed.
-    match today - updated_ms {
-        ..=0 => 0,
-        1..=DAY => 1,
-        _ if updated_ms > today - 7 * DAY => 2,
-        _ => 3,
-    }
+/// Which of [`DAYS`] a thread last changed in, given where today, yesterday and the 7-day window start (local
+/// midnights, ms since the epoch; see [`day_starts`]).
+pub(super) fn day_bucket(starts: [i64; 3], updated_ms: i64) -> usize {
+    starts
+        .iter()
+        .position(|&start| updated_ms >= start)
+        .unwrap_or(3)
 }
 
-/// Local midnight today, in ms since the epoch.
-fn today_start_ms() -> i64 {
-    use chrono::{Local, TimeZone as _};
-    let now = Local::now();
-    now.date_naive()
-        .and_hms_opt(0, 0, 0)
-        .and_then(|midnight| Local.from_local_datetime(&midnight).earliest())
-        .map_or_else(|| now.timestamp_millis(), |m| m.timestamp_millis())
+/// Local midnight today, yesterday and six days before today, in ms since the epoch: each its own local midnight, so
+/// a daylight-saving change doesn't shift a section by an hour.
+fn day_starts() -> [i64; 3] {
+    use chrono::{Days, Local, TimeZone as _};
+    let today = Local::now().date_naive();
+    [0, 1, 6].map(|back| {
+        today
+            .checked_sub_days(Days::new(back))
+            .and_then(|d| d.and_hms_opt(0, 0, 0))
+            .and_then(|m| Local.from_local_datetime(&m).earliest())
+            .map_or(i64::MIN, |m| m.timestamp_millis())
+    })
 }
 
 /// A reply as one plain line for the sidebar: markdown marks dropped, whitespace collapsed.
@@ -410,7 +413,12 @@ pub(super) fn preview_text(markdown: &str) -> String {
         {
             continue;
         }
-        let line = line.trim_start_matches(['#', '>', ' ']);
+        // A heading's marks ("## "), a quote's ("> "); "#24 merged" keeps its number.
+        let line = line.trim_start_matches(['>', ' ']);
+        let line = match line.trim_start_matches('#') {
+            rest if rest.starts_with(' ') => rest.trim_start(),
+            _ => line,
+        };
         let line = line
             .strip_prefix("- ")
             .or_else(|| line.strip_prefix("* "))

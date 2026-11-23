@@ -56,6 +56,11 @@ use thread::{SendPrompt, ThreadView};
 /// Under this card width the control row goes compact (T3 collapses its chips the same way).
 const COMPACT_BELOW: gpui::Pixels = px(560.);
 
+/// Whether a card this wide (0: not measured yet) gets the compact control row.
+fn compact(width: gpui::Pixels) -> bool {
+    width > px(0.) && width < COMPACT_BELOW
+}
+
 impl ThreadView {
     /// The model chip's label: "Opus · High", or "Default model". `compact` leaves the effort out.
     fn pick_label(&self, compact: bool) -> String {
@@ -92,7 +97,7 @@ impl ThreadView {
         let measure = gpui::canvas(
             move |bounds, _, cx| {
                 let old = width.replace(bounds.size.width);
-                if (old < COMPACT_BELOW) != (bounds.size.width < COMPACT_BELOW) {
+                if compact(old) != compact(bounds.size.width) {
                     cx.notify(view_id);
                 }
             },
@@ -153,7 +158,7 @@ impl ThreadView {
     /// and Send on the right. A narrow card (a right panel open) keeps only the chips' icons and the model's name.
     fn render_controls(&self, cx: &mut Context<Self>) -> AnyElement {
         let width = self.composer.width.get();
-        let compact = width > px(0.) && width < COMPACT_BELOW;
+        let compact = compact(width);
         h_flex()
             .px_2()
             .pb_2()
