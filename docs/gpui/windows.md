@@ -35,3 +35,5 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   focus back when the window activates.
 - `on_reopen` (the Dock icon with no window open) is on `Application`, before `run`, not on `App`. The last-window
   rule is GPUI's own `QuitMode::Default`: quit off macOS, keep running on macOS; don't add a hook for it.
+- An `observe` that must act in a window (a notice when an observed view starts waiting on the user) uses
+  `cx.observe_in(&view, window, ..)`: plain `observe` gets no `Window`, and `notify_attention` needs one.

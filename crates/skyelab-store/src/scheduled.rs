@@ -103,9 +103,12 @@ impl Store {
         if t.id == 0 {
             self.conn
                 .execute(
-                    "INSERT INTO scheduled_tasks (project_id, title, prompt, schedule, worktree, permission_mode,
+                    // A deleted task's threads keep its id: a new task never takes that id over (and their runs).
+                    "INSERT INTO scheduled_tasks (id, project_id, title, prompt, schedule, worktree, permission_mode,
                         bypass_confirmed, model, effort, account_id, enabled, next_run_at, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                     VALUES ((SELECT MAX(COALESCE((SELECT MAX(id) FROM scheduled_tasks), 0),
+                                         COALESCE((SELECT MAX(scheduled_task_id) FROM threads), 0)) + 1),
+                        ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                     rusqlite::params_from_iter(p.iter().copied().chain([&now_ms() as _])),
                 )
                 .context("save a scheduled task")?;
@@ -114,7 +117,7 @@ impl Store {
         let n = self.conn.execute(
             "UPDATE scheduled_tasks SET project_id = ?1, title = ?2, prompt = ?3, schedule = ?4, worktree = ?5,
                 permission_mode = ?6, bypass_confirmed = ?7, model = ?8, effort = ?9, account_id = ?10,
-                enabled = ?11, next_run_at = ?12
+                next_run_at = ?12
              WHERE id = ?13",
             rusqlite::params_from_iter(p.iter().copied().chain([&t.id as _])),
         )?;
