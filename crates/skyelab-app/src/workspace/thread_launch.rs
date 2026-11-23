@@ -92,6 +92,14 @@ impl ThreadView {
         let tools = crate::workspace::orchestrate::Tools::get(cx);
         let is_new = resume.is_none();
         let pump_store = store.clone();
+        // The row reaches the view as soon as it is saved, before the agent is up: a delegated start answers then.
+        let (saved_tx, saved_rx) = flume::bounded::<Thread>(1);
+        cx.spawn(async move |this, cx| {
+            if let Ok(thread) = saved_rx.recv_async().await {
+                let _ = this.update(cx, |this, cx| this.row_saved(&thread, cx));
+            }
+        })
+        .detach();
         self._task = Some(cx.spawn(async move |this, cx| {
             let started = cx
                 .background_spawn(async move {
@@ -150,6 +158,7 @@ impl ThreadView {
                             thread.id,
                             &Record::Prompt(text.clone()),
                         )?;
+                        let _ = saved_tx.send(thread.clone());
                         let grant = tools.and_then(|t| t.grant(thread.id, &account.id));
                         // skyelab-agent re-checks `account` against the folder at spawn and aborts if it moved.
                         let launch = Launch {
@@ -162,6 +171,9 @@ impl ThreadView {
                         let session = skyelab_agent::start_with_bin(&bin, &config, &launch);
                         let status = if session.is_ok() { "running" } else { "failed" };
                         lock(&store)?.set_thread_status(thread.id, status)?;
+                        // From here on, a closed tab can't leave the row running with nothing behind it.
+                        let session = session
+                            .map(|s| super::session::NewSession::new(s, store.clone(), thread.id));
                         anyhow::Ok((thread, session, grant))
                     })();
                     // A slot is never held by a thread that isn't running.
@@ -175,22 +187,21 @@ impl ThreadView {
                 this.starting = false;
                 match started {
                     Ok((thread, session, grant)) => {
-                        this.cwd = thread.cwd.clone();
+                        this.row_saved(&thread, cx);
                         this.thread = Some(thread.clone());
-                        if is_new {
-                            cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
-                        } else {
+                        if !is_new {
                             this.read_only = false;
                             this.prompt.update(cx, |p, cx| p.set_disabled(false, cx));
                         }
-                        match session {
-                            Ok(session) => {
+                        match session.map(|s| s.take()) {
+                            Ok(Some(session)) => {
                                 this.grant = grant;
                                 this.run(session, pump_store, thread.id, cx);
                                 if this.stop_requested {
                                     this.kill(cx);
                                 }
                             }
+                            Ok(None) => {}
                             Err(e) => {
                                 this.finish(cx);
                                 this.show_error(e.context("starting the agent"), cx);
@@ -202,6 +213,18 @@ impl ThreadView {
                 cx.notify();
             });
         }));
+    }
+
+    /// The launch saved `thread`'s row: the view (and the sidebar, through `Started`) has it from now on, even
+    /// while the agent is still starting. A resumed thread already had it.
+    fn row_saved(&mut self, thread: &Thread, cx: &mut Context<Self>) {
+        if self.thread.as_ref().is_some_and(|t| t.id == thread.id) {
+            return;
+        }
+        self.cwd = thread.cwd.clone();
+        self.thread = Some(thread.clone());
+        cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));
+        cx.notify();
     }
 
     pub(super) fn follow_up(

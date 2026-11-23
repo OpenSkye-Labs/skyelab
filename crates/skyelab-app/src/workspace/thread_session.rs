@@ -177,20 +177,71 @@ impl ThreadView {
     }
 }
 
+impl ThreadView {
+    /// The app is quitting: end the agent and record the thread stopped before the process goes.
+    pub(super) fn quitting(&mut self) -> impl std::future::Future<Output = ()> + use<> {
+        let job = self.session.take().zip(self.thread.as_ref().map(|t| t.id));
+        let store = self.backend.store.clone();
+        async move {
+            let Some((session, id)) = job else { return };
+            if let Ok(store) = lock(&store) {
+                let _ = store.set_thread_status(id, "stopped");
+            }
+            if let Ok(mut session) = lock(&session) {
+                let _ = session.kill();
+            }
+        }
+    }
+}
+
+/// Drops `session` (which kills and reaps its agent, and waits) off the UI thread, then records `id` stopped.
+fn stop_in_background(session: impl Send + 'static, store: SharedStore, id: i64) {
+    let _ = std::thread::Builder::new()
+        .name("skyelab-agent-reaper".into())
+        .spawn(move || {
+            drop(session);
+            if let Ok(store) = lock(&store) {
+                let _ = store.set_thread_status(id, "stopped");
+            }
+        });
+}
+
+/// A launch's new agent until its view takes it. Dropped untaken (the tab closed while it started), it ends the
+/// agent and records the thread stopped, so the row never says running with nothing behind it.
+pub(super) struct NewSession {
+    session: Option<Session>,
+    store: SharedStore,
+    id: i64,
+}
+
+impl NewSession {
+    pub(super) fn new(session: Session, store: SharedStore, id: i64) -> Self {
+        Self {
+            session: Some(session),
+            store,
+            id,
+        }
+    }
+
+    pub(super) fn take(mut self) -> Option<Session> {
+        self.session.take()
+    }
+}
+
+impl Drop for NewSession {
+    fn drop(&mut self) {
+        if let Some(session) = self.session.take() {
+            stop_in_background(session, self.store.clone(), self.id);
+        }
+    }
+}
+
 impl Drop for ThreadView {
-    /// Closing the tab ends its agent. Killing and reaping waits, so it happens off the UI thread.
+    /// Closing the tab ends its agent. A launch still in progress ends its own (`NewSession`).
     fn drop(&mut self) {
         let (Some(session), Some(thread)) = (self.session.take(), &self.thread) else {
             return;
         };
-        let (store, id) = (self.backend.store.clone(), thread.id);
-        let _ = std::thread::Builder::new()
-            .name("skyelab-agent-reaper".into())
-            .spawn(move || {
-                drop(session);
-                if let Ok(store) = lock(&store) {
-                    let _ = store.set_thread_status(id, "stopped");
-                }
-            });
+        stop_in_background(session, self.backend.store.clone(), thread.id);
     }
 }

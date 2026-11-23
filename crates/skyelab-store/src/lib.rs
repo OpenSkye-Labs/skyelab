@@ -133,7 +133,8 @@ impl Store {
         if mode != "wal" {
             bail!("store at {} refused WAL mode (got {mode})", path.display());
         }
-        let store = Self::init(conn).with_context(|| format!("init store at {}", path.display()))?;
+        let store =
+            Self::init(conn).with_context(|| format!("init store at {}", path.display()))?;
         // shortcut: assumes one app per store; a second instance on the same data dir would interrupt the first
         // one's live threads. Upgrade with an owner pid per row or an instance lock if that becomes real.
         store

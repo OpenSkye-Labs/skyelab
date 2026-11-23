@@ -206,6 +206,7 @@ impl ThreadView {
                     this.send_prompt(&SendPrompt, window, cx);
                 }
             }),
+            cx.on_app_quit(|this, _| this.quitting()),
         ];
         let list = ListState::new(0, ListAlignment::Top, px(600.));
         Self {
@@ -238,6 +239,11 @@ impl ThreadView {
             _task: None,
             _subs: subs,
         }
+    }
+
+    /// Its agent is running and the user hasn't stopped it: only then may it start or drive other threads.
+    pub(super) fn is_live(&self) -> bool {
+        self.session.is_some() && !self.stop_requested
     }
 
     /// Accounts changed on disk (Settings saved). Used for the next start and the badge.
