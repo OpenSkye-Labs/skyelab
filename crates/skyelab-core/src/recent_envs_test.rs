@@ -93,6 +93,7 @@ fn window_layout_round_trips_and_older_files_still_load() {
         height: 1000,
         right_panel_open: true,
         right_panel_width: 480,
+        view: "thread:7".into(),
     };
     AppSettings::update(&path, |s| s.window = Some(layout.clone())).expect("save");
     let loaded = AppSettings::load(&path).expect("load");

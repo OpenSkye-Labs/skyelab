@@ -1,4 +1,5 @@
-//! Closing a local thread's tab ends its agent and records the thread as stopped.
+//! Closing a local thread's view (archive or delete, through `Workspace::close_thread`) ends its agent and records
+//! the thread as stopped.
 #![cfg(unix)] // the fake agent is a shell script
 
 use super::threads_test::resume::env_reports;
@@ -36,9 +37,7 @@ fn closing_a_thread_tab_kills_its_agent_and_marks_it_stopped(cx: &mut TestAppCon
     );
 
     ws.update_in(cx, |ws, window, cx| {
-        let tab = thread.clone();
-        ws.dock
-            .update(cx, |dock, cx| dock.remove_panel(tab, window, cx));
+        ws.close_thread(&thread, window, cx);
     });
     drop(thread);
     wait_until(cx, "the agent gone and the row stopped", |_| {

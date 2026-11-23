@@ -1,10 +1,9 @@
 //! Thread and project management, as T3's thread menu has it: rename, pin, archive and delete (both undoable),
 //! rename and remove projects. Everything here is local: in remote mode the handlers do nothing.
 
-use super::thread::ThreadView;
-use super::{Workspace, lock};
+use super::{OpenThread, Workspace, lock};
 use crate::ui::Status;
-use gpui::{Action, AppContext as _, Context, Entity, SharedString, Window, actions};
+use gpui::{Action, AppContext as _, Context, SharedString, Window, actions};
 use gpui_component::{Sizable as _, WindowExt as _, button::Button, notification::Notification};
 use skyelab_store::Store;
 use std::time::Duration;
@@ -88,17 +87,6 @@ impl Workspace {
     fn working(&self, id: i64, cx: &Context<Self>) -> bool {
         self.open_view(id, cx)
             .is_some_and(|v| matches!(v.read(cx).live_status(), Status::Starting | Status::Running))
-    }
-
-    /// Closes the thread's tab if it has one; closing ends its agent.
-    pub(super) fn close_thread_tab(
-        &mut self,
-        view: Entity<ThreadView>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.dock
-            .update(cx, |dock, cx| dock.remove_panel(view, window, cx));
     }
 
     fn say(&mut self, text: impl Into<SharedString>, window: &mut Window, cx: &mut Context<Self>) {
@@ -233,6 +221,18 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.archive_and_show(id, on, false, window, cx);
+    }
+
+    /// Archives or unarchives; with `reshow`, shows the thread again once the store has it (an undo).
+    fn archive_and_show(
+        &mut self,
+        id: i64,
+        on: bool,
+        reshow: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if on && self.working(id, cx) {
             return self.say(
                 "This thread is working. Stop it before archiving.",
@@ -240,19 +240,29 @@ impl Workspace {
                 cx,
             );
         }
+        let shown = on && self.shown_thread(cx) == Some(id);
         if on && let Some(view) = self.open_view(id, cx) {
-            self.close_thread_tab(view, window, cx);
+            self.close_thread(&view, window, cx);
         }
         let title = self.thread_title(id, cx).unwrap_or_default();
         let job: Job = Box::new(move |s| s.set_thread_archived(id, on));
         self.store_then(
             job,
             move |ws, window, cx| {
-                ws.update_row(id, |t| t.archived_at = on.then(crate::ui::now_ms), cx);
+                let at = on.then(crate::ui::now_ms);
+                ws.update_row(id, |t| t.archived_at = at, cx);
+                if let Some(view) = ws.open_view(id, cx) {
+                    view.update(cx, |v, _| {
+                        v.thread.iter_mut().for_each(|t| t.archived_at = at)
+                    });
+                }
+                if reshow && !ws.is_remote() {
+                    ws.open_thread(&OpenThread { id }, window, cx);
+                }
                 if on {
                     ws.undo_notice(
                         format!("Archived “{title}”"),
-                        move |ws, window, cx| ws.archive_thread(id, false, window, cx),
+                        move |ws, window, cx| ws.undo_archive(id, shown, window, cx),
                         window,
                         cx,
                     );
@@ -290,8 +300,9 @@ impl Workspace {
                 cx,
             );
         }
+        let shown = self.shown_thread(cx) == Some(id);
         if let Some(view) = self.open_view(id, cx) {
-            self.close_thread_tab(view, window, cx);
+            self.close_thread(&view, window, cx);
         }
         let title = self.thread_title(id, cx).unwrap_or_default();
         let job: Job = Box::new(move |s| s.set_thread_deleted(id, true));
@@ -302,7 +313,7 @@ impl Workspace {
                 ws.refresh_sidebar(cx);
                 ws.undo_notice(
                     format!("Deleted “{title}”"),
-                    move |ws, window, cx| ws.undelete_thread(id, window, cx),
+                    move |ws, window, cx| ws.undo_delete(id, shown, window, cx),
                     window,
                     cx,
                 );
@@ -329,11 +340,35 @@ impl Workspace {
         );
     }
 
-    /// Undo for a delete: the thread is listed again (once purged, the store says there is no such thread).
-    pub(super) fn undelete_thread(&mut self, id: i64, window: &mut Window, cx: &mut Context<Self>) {
+    /// Undo for an archive; a thread that was on screen is shown again.
+    pub(super) fn undo_archive(
+        &mut self,
+        id: i64,
+        shown: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.archive_and_show(id, false, shown, window, cx);
+    }
+
+    /// Undo for a delete: the thread is listed again (once purged, the store says there is no such thread), and one
+    /// that was on screen is shown again once the store lists it.
+    pub(super) fn undo_delete(
+        &mut self,
+        id: i64,
+        shown: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.purges.remove(&id);
         let job: Job = Box::new(move |s| s.set_thread_deleted(id, false));
-        self.store_then(job, |ws, _, cx| ws.load_threads(cx), window, cx);
+        let then = move |ws: &mut Self, window: &mut Window, cx: &mut Context<Self>| {
+            ws.load_threads(cx);
+            if shown && !ws.is_remote() {
+                ws.open_thread(&OpenThread { id }, window, cx);
+            }
+        };
+        self.store_then(job, then, window, cx);
     }
 
     /// The thread shown in the center, for the unit actions (Rename Thread…).

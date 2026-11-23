@@ -122,7 +122,7 @@ fn a_resumed_session_still_gets_the_orchestration_tools(cx: &mut TestAppContext)
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
     let view = ws
-        .read_with(cx, |ws, _| ws.open_threads.last().and_then(|t| t.upgrade()))
+        .read_with(cx, |ws, _| ws.open_threads.last().cloned())
         .expect("tab opened");
 
     send(&view, "mcp:list_projects:{}", cx);

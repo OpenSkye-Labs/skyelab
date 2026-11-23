@@ -176,7 +176,7 @@ pub(super) fn start(
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
     let view = ws
-        .read_with(cx, |ws, _| ws.open_threads.last().and_then(|t| t.upgrade()))
+        .read_with(cx, |ws, _| ws.open_threads.last().cloned())
         .expect("tab opened");
     send(&view, prompt, cx);
     view

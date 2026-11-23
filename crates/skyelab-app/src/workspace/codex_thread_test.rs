@@ -89,7 +89,7 @@ fn a_codex_bound_project_runs_codex_and_says_so(cx: &mut TestAppContext) {
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
     let thread: Entity<ThreadView> = ws
-        .read_with(cx, |ws, _| ws.open_threads.last().and_then(|t| t.upgrade()))
+        .read_with(cx, |ws, _| ws.open_threads.last().cloned())
         .expect("thread tab");
     thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
     cx.simulate_keystrokes("h i");

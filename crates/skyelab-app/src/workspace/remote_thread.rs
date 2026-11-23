@@ -37,10 +37,8 @@ pub struct RemoteThreadView {
     host: SharedString,
     project_id: i64,
     thread_id: Option<i64>,
-    /// This view's own watch, so closing it never ends a reopened tab's watch on the same thread.
+    /// This view's own watch, so closing it never ends another view's watch on the same thread.
     watch: Option<WatchId>,
-    /// Out of the dock. The entity can outlive its tab for a moment, and must not be picked again as the tab.
-    pub(super) closed: bool,
     title: SharedString,
     account: Option<String>,
     pub(super) items: Vec<Item>,
@@ -111,7 +109,6 @@ impl RemoteThreadView {
             project_id,
             thread_id,
             watch,
-            closed: false,
             title,
             account,
             items: Vec::new(),
@@ -128,10 +125,6 @@ impl RemoteThreadView {
 
     pub fn thread_id(&self) -> Option<i64> {
         self.thread_id
-    }
-
-    pub fn title(&self) -> SharedString {
-        self.title.clone()
     }
 
     pub fn env_badge(&self) -> String {
@@ -279,12 +272,7 @@ impl RemoteThreadView {
                 .child(div().size(px(6.)).rounded_full().bg(dot))
                 .child(child)
         };
-        h_flex()
-            .px_4()
-            .py_2()
-            .gap_3()
-            .border_b_1()
-            .border_color(theme.border)
+        super::layout::page_header(cx)
             .child(
                 div()
                     .flex_1()
@@ -308,6 +296,7 @@ impl RemoteThreadView {
                         ),
                 )
             })
+            .child(super::layout::panel_toggles(cx))
             .into_any_element()
     }
 }
@@ -378,9 +367,8 @@ impl Focusable for RemoteThreadView {
 }
 
 impl RemoteThreadView {
-    /// The tab left the dock: stop following the thread, so the client stops fetching its events.
+    /// The machine changed: stop following the thread, so the client stops fetching its events.
     pub(super) fn closed(&mut self, _: &mut Context<Self>) {
-        self.closed = true;
         if let Some(watch) = self.watch.take() {
             self.client.unwatch(watch);
         }
@@ -388,7 +376,7 @@ impl RemoteThreadView {
 }
 
 impl Drop for RemoteThreadView {
-    /// Backstop for a view dropped without leaving the dock (the window closing).
+    /// Backstop for a view dropped without `closed` (the window closing).
     fn drop(&mut self) {
         if let Some(watch) = self.watch.take() {
             self.client.unwatch(watch);

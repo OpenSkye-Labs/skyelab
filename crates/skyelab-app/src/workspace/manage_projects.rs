@@ -89,12 +89,12 @@ impl Workspace {
         }
     }
 
-    /// Open tabs of the project's threads.
+    /// Open views of the project's threads.
     fn project_views(&self, project_id: i64, cx: &Context<Self>) -> Vec<Entity<ThreadView>> {
         self.open_threads
             .iter()
-            .filter_map(|v| v.upgrade())
             .filter(|v| v.read(cx).project_id == project_id)
+            .cloned()
             .collect()
     }
 
@@ -112,7 +112,7 @@ impl Workspace {
             // Stored first: if that fails, the project stays and so do its agents.
             move |ws, window, cx| {
                 for view in ws.project_views(id, cx) {
-                    ws.close_thread_tab(view, window, cx);
+                    ws.close_thread(&view, window, cx);
                 }
                 if ws.project.as_ref().is_some_and(|p| p.id == id) {
                     ws.project = None;

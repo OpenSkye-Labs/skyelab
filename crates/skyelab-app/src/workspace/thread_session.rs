@@ -355,9 +355,12 @@ impl Drop for NewSession {
     }
 }
 
-impl Drop for ThreadView {
-    /// Closing the tab ends its agent. A launch still in progress ends its own (`NewSession`).
-    fn drop(&mut self) {
+impl ThreadView {
+    /// Ends the agent and makes a last try for held events, off the UI thread. `Workspace::close_thread` calls it, as
+    /// the view may outlive the close by a frame; dropping the view runs it too, and a second run does nothing. A
+    /// launch still in progress sees `stop_requested` and ends its own agent.
+    pub(in crate::workspace) fn close(&mut self) {
+        self.stop_requested = true;
         let session = self.session.take();
         let Some(thread) = &self.thread else {
             return;
@@ -365,6 +368,7 @@ impl Drop for ThreadView {
         if session.is_none() && self.unsaved_events == 0 {
             return;
         }
+        self.unsaved_events = 0;
         let (store, id, unsaved) = (self.backend.store.clone(), thread.id, self.unsaved.clone());
         let _ = std::thread::Builder::new()
             .name("skyelab-agent-reaper".into())
@@ -377,5 +381,12 @@ impl Drop for ThreadView {
                     let _ = store.set_thread_status(id, "stopped");
                 }
             });
+    }
+}
+
+impl Drop for ThreadView {
+    /// Closing the thread ends its agent. A launch still in progress ends its own (`NewSession`).
+    fn drop(&mut self) {
+        self.close();
     }
 }

@@ -33,7 +33,8 @@ What's built today:
 - **Worktrees and diff review.** Tick "Run in a new worktree" and the thread gets its own git worktree on a
   `skyelab/<slug>` branch. The Changes tab, in the right panel beside the thread, shows a coloured diff of what the agent did, and you can discard the worktree.
 - **Command palette.** <kbd>⌘K</kbd> / <kbd>⇧⌘P</kbd> (<kbd>Ctrl</kbd> on Linux and Windows) finds and runs any action,
-  switches project, opens a thread (also found by its messages, in any project) or goes to an open tab.
+  switches project, opens a thread (also found by its messages, in any project) or goes to a terminal, Changes or
+  browser tab.
 - **Branches, checkpoints and scripts.** A branch picker in the thread header (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts with a Run menu, palette entries and setup scripts for new worktrees.

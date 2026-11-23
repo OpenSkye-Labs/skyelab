@@ -101,7 +101,7 @@ impl Sidebar {
 }
 
 // The sidebar draws its own header.
-panel!(Sidebar, "Sidebar", closable: false, title_bar: false, toggles: false, |_this| "Sidebar");
+panel!(Sidebar, "Sidebar", closable: false, title_bar: false, |_this| "Sidebar");
 
 fn section_button(s: &SidebarSection) -> Option<Button> {
     s.button.as_ref().map(|(label, action)| {

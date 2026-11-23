@@ -18,17 +18,28 @@ impl Workspace {
                 cx.notify();
             });
         }
+        let current = self.project.as_ref().map(|p| p.id);
+        // A project that isn't selected shows its unread threads on its row: the stored ones as of the last thread
+        // load, and the open views marked since.
+        let unread_projects: std::collections::HashSet<i64> = self
+            .open_threads
+            .iter()
+            .filter_map(|v| v.read(cx).thread.as_ref().filter(|t| t.unread))
+            .map(|t| t.project_id)
+            .chain(self.unread_projects.iter().copied())
+            .filter(|&p| Some(p) != current)
+            .collect();
         let mut marks = std::collections::HashMap::new();
         for p in &self.projects {
             marks.insert(
                 SharedString::from(format!("project-{}", p.id)),
                 RowMarks {
+                    unread: unread_projects.contains(&p.id),
                     menu: super::manage::project_menu(p.id),
                     ..Default::default()
                 },
             );
         }
-        let current = self.project.as_ref().map(|p| p.id);
         let projects = self
             .projects
             .iter()
@@ -50,7 +61,6 @@ impl Workspace {
         let live: std::collections::HashMap<i64, Status> = self
             .open_threads
             .iter()
-            .filter_map(|v| v.upgrade())
             .filter_map(|v| {
                 let v = v.read(cx);
                 Some((v.thread.as_ref()?.id, v.live_status()))

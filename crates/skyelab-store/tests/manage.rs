@@ -159,3 +159,30 @@ fn removed_projects_hide_keep_threads_and_come_back() {
             .is_none()
     );
 }
+
+#[test]
+fn unread_projects_skip_archived_and_deleted_threads() {
+    let store = Store::open_in_memory().expect("store");
+    let p = store
+        .create_project("demo", Path::new("/work/demo"))
+        .expect("project");
+    let q = store
+        .create_project("other", Path::new("/work/other"))
+        .expect("project");
+    let a = store.create_thread(&new_thread(p.id, "a")).expect("thread");
+    let b = store.create_thread(&new_thread(q.id, "b")).expect("thread");
+    assert!(store.unread_project_ids().expect("query").is_empty());
+    store.set_thread_unread(a.id, true).expect("unread");
+    store.set_thread_unread(b.id, true).expect("unread");
+    let mut ids = store.unread_project_ids().expect("query");
+    ids.sort();
+    assert_eq!(ids, [p.id, q.id]);
+    store.set_thread_archived(a.id, true).expect("archive");
+    store.set_thread_deleted(b.id, true).expect("delete");
+    assert!(store.unread_project_ids().expect("query").is_empty());
+    // A deleted thread can't be opened while its delete can still be undone; an archived one can.
+    assert!(store.listed_thread(b.id).expect("read").is_none());
+    assert!(store.listed_thread(a.id).expect("read").is_some());
+    store.set_thread_deleted(b.id, false).expect("undelete");
+    assert!(store.listed_thread(b.id).expect("read").is_some());
+}

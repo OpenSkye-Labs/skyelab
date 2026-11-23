@@ -109,9 +109,7 @@ fn a_held_idle_does_not_overwrite_a_closed_or_quit_thread(cx: &mut gpui::TestApp
     let closed_id = thread_id(&closed, vcx);
     tick(vcx, "result shown, idle held", |cx| held(&closed, cx));
     ws.update_in(vcx, |ws, window, cx| {
-        let tab = closed.clone();
-        ws.dock
-            .update(cx, |dock, cx| dock.remove_panel(tab, window, cx));
+        ws.close_thread(&closed, window, cx);
     });
     drop(closed);
     tick(vcx, "the closed thread stopped", |_| {
