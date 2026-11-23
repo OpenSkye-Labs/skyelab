@@ -318,10 +318,12 @@ impl Render for Sidebar {
                     .when(cfg!(target_os = "macos"), |d| d.pl(ui::TRAFFIC_LIGHTS_W))
                     .child(match &self.picker {
                         Some(picker) => picker.clone().into_any_element(),
-                        None => div()
+                        None => h_flex()
+                            .gap_1p5()
                             .px_2p5()
                             .text_size(ui::BODY)
                             .font_weight(gpui::FontWeight::MEDIUM)
+                            .child(ui::brand_mark(gpui::px(16.), theme.sidebar_foreground))
                             .child("SkyeLab")
                             .into_any_element(),
                     }),
