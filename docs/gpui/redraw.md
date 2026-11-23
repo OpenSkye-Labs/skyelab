@@ -61,3 +61,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `cx.emit` delivers in `flush_effects`, after the emitting `update` returns, so a view that asks its parent to
   decide (the composer's multi-model send) must leave its draft untouched when it emits: the parent takes the text
   and files only once it accepts, and a refusal leaves the composer as it was (`compare::compare_send`).
+
+- The caret blink alone kept an idle window redrawing twice a second (the center panel plus ~17 timeline rows each time).
+  `ui::CURSOR_BLINK` stops blinking after 5 s idle (`CursorBlink::with_idle_timeout`); measured with
+  `SKYELAB_DEBUG_RENDERS=1`, idle redraws drop to zero.

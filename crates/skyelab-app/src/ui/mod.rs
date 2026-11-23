@@ -28,8 +28,15 @@ use std::path::Path;
 pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
     themes::register(cx)?;
     themes::apply(cx);
+    gpui_component::Theme::global_mut(cx).cursor_blink = CURSOR_BLINK;
     Ok(())
 }
+
+/// The caret blinks while you type, then holds still: each blink re-renders the dock's center panel and every timeline
+/// row in it (docs/gpui/redraw.md), so an idle window should not redraw twice a second forever.
+pub const CURSOR_BLINK: gpui_component::input::CursorBlink =
+    gpui_component::input::CursorBlink::blinking(std::time::Duration::from_millis(500))
+        .with_idle_timeout(std::time::Duration::from_secs(5));
 
 /// Follows the Appearance setting (System follows the window's appearance). Debug builds only:
 /// `SKYELAB_VERIFY_THEME=dark|light` forces one, so `/loop-verify-ui` can capture both without changing the system.
