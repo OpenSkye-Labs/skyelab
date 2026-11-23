@@ -18,8 +18,8 @@ pub mod process;
 pub mod prompt;
 pub mod scratch;
 pub use app_settings::{
-    AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ThreadSettings,
-    WindowLayout,
+    AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
+    MAX_RECENT_ENVIRONMENTS, ThreadSettings, WindowLayout,
 };
 pub mod terminal_context;
 pub mod update;

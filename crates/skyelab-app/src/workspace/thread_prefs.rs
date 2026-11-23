@@ -27,6 +27,11 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
     });
 }
 
+/// The settings.toml every preference saves to (`None` in tests and on an OS with no config dir).
+pub(crate) fn path(cx: &App) -> Option<PathBuf> {
+    cx.try_global::<ThreadPrefs>().and_then(|p| p.path.clone())
+}
+
 /// The settings now. With none installed (a test window), titles are off: no setting turned them on.
 pub(crate) fn get(cx: &App) -> ThreadSettings {
     cx.try_global::<ThreadPrefs>().map_or_else(

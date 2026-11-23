@@ -1,11 +1,10 @@
-//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), Settings, or a
-//! remote thread. Opening a thread switches the page; it never adds a tab. Thread views stay alive while another page
+//! The center shows one page at a time, like T3's routes: Welcome, a thread (or a new-thread draft), or a remote
+//! thread. Settings is a modal over it (`settings_tab.rs`). Opening a thread switches the page; it never adds a tab. Thread views stay alive while another page
 //! shows, so a running agent keeps running.
 
 use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
 use super::{GoBack, GoForward, OpenSettingsSection, OpenThread, Workspace};
-use crate::settings::Section;
 use gpui::{
     AnyView, App, Context, Entity, FocusHandle, Focusable, IntoElement, MouseButton,
     NavigationDirection, WeakEntity, Window, div, prelude::*,
@@ -15,7 +14,6 @@ use gpui::{
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Page {
     Welcome,
-    Settings(Section),
     Thread(WeakEntity<ThreadView>),
     RemoteThread(WeakEntity<RemoteThreadView>),
 }
@@ -25,7 +23,6 @@ impl Page {
     /// and a remote thread (another machine's id) come back as Welcome.
     pub(crate) fn key(&self, cx: &App) -> String {
         match self {
-            Page::Settings(section) => format!("settings:{}", section.key()),
             Page::Thread(view) => view
                 .upgrade()
                 .and_then(|v| {
@@ -97,8 +94,7 @@ impl Workspace {
 
     fn alive(&self, page: &Page) -> bool {
         match page {
-            // Settings is made on demand, so it can always show.
-            Page::Welcome | Page::Settings(_) => true,
+            Page::Welcome => true,
             Page::Thread(view) => view
                 .upgrade()
                 .is_some_and(|v| self.open_threads.contains(&v)),
@@ -139,18 +135,6 @@ impl Workspace {
             Page::Welcome => {
                 self.welcome.read(cx).focus_handle(cx).focus(window, cx);
                 self.welcome.clone().into()
-            }
-            Page::Settings(section) => {
-                let settings = self.ensure_settings(window, cx);
-                settings.update(cx, |s, cx| {
-                    s.section = section;
-                    cx.notify();
-                });
-                if section == crate::settings::Section::Usage {
-                    self.reload_usage(cx);
-                }
-                settings.read(cx).focus_handle(cx).focus(window, cx);
-                settings.into()
             }
             Page::Thread(view) => {
                 let view = view.upgrade().expect("alive() checked it");
@@ -217,14 +201,13 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.show(Page::Settings(a.section), window, cx);
+        self.open_settings_at(a.section, window, cx);
     }
 
     pub(super) fn restore_page(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = key.strip_prefix("thread:").and_then(|id| id.parse().ok()) {
             self.open_thread(&OpenThread { id }, window, cx);
-        } else if let Some(section) = key.strip_prefix("settings:").and_then(Section::parse) {
-            self.show(Page::Settings(section), window, cx);
         }
+        // An older file's `settings:<section>`: Settings is a modal now, so the window opens on Welcome.
     }
 }

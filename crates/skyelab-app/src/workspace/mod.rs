@@ -179,6 +179,7 @@ pub struct Workspace {
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
     /// Created on first open, then kept, so its form and section survive switching pages.
     settings: Option<Entity<Settings>>,
+    pub(crate) settings_open: bool,
     backend: Backend,
     pub(crate) store_error: Option<SharedString>,
     /// Where scratch threads' per-account folders go (`<data dir>/skyelab/scratch`).
@@ -336,6 +337,7 @@ impl Workspace {
             #[cfg(test)]
             browser_engine: None,
             settings: None,
+            settings_open: false,
             backend,
             store_error: None,
             scratch_root: dirs::data_dir().map(|d| d.join("skyelab").join("scratch")),
@@ -606,8 +608,8 @@ mod scratch_test;
 mod scripts_env_test;
 #[cfg(test)]
 mod scripts_palette_test;
-#[cfg(all(test, unix))]
-mod settings_reopen_stale_test;
+#[cfg(test)]
+mod settings_modal_test;
 #[cfg(test)]
 mod sidebar_tests;
 #[cfg(all(test, unix))] // the fake agent is a shell script

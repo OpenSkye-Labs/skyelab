@@ -1,11 +1,11 @@
-//! Settings → Threads: what new threads start with (T3's Threads settings). A thread's own pick still wins.
+//! Settings → Chat (what new threads start with) and Diffs & pull requests. A thread's own pick still wins.
 
-use super::{Settings, widgets};
-use crate::ui;
+use super::Settings;
+use super::widgets::{section, setting};
 use crate::workspace::thread_extras::prefs;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
+    Sizable as _,
     button::Button,
     h_flex,
     input::Input,
@@ -14,7 +14,7 @@ use gpui_component::{
     v_flex,
 };
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS, Mode};
-use skyelab_core::ThreadSettings;
+use skyelab_core::{DiffSettings, ThreadSettings};
 
 /// The permission modes a new thread may start in. Full access is confirmed per thread, never a default.
 const MODES: [(Mode, &str); 3] = [
@@ -86,49 +86,13 @@ impl Settings {
         }
     }
 
-    pub(super) fn render_threads(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn render_chat(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = prefs::get(cx);
-        let theme = cx.theme();
-        let (muted, danger) = (theme.muted_foreground, ui::ink(theme, theme.danger));
-        let row =
-            |first: bool, title: &str, about: &str, control: AnyElement, cx: &Context<Self>| {
-                widgets::row(first, cx)
-                    .flex()
-                    .items_center()
-                    .gap_4()
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .gap_0p5()
-                            .child(
-                                div()
-                                    .text_size(ui::BODY)
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .child(title.to_owned()),
-                            )
-                            .child(
-                                div()
-                                    .text_size(ui::META)
-                                    .text_color(muted)
-                                    .child(about.to_owned()),
-                            ),
-                    )
-                    .child(control)
-                    .into_any_element()
-            };
         let mode = Mode::parse(t.permission_mode.as_deref().unwrap_or_default());
         let modes = MODES
             .iter()
             .map(|(m, l)| (Some(m.as_str().to_owned()), (*l).to_owned()))
             .collect();
-        let mode_menu = self.choice(
-            "threads-mode",
-            &Some(mode.as_str().to_owned()),
-            modes,
-            |t, v| t.permission_mode = v,
-            cx,
-        );
         let claude_models: Vec<(Option<String>, String)> =
             std::iter::once((None, "Default".to_owned()))
                 .chain(
@@ -142,76 +106,21 @@ impl Settings {
                 .chain(list.iter().map(|e| (Some((*e).to_owned()), title_case(e))))
                 .collect()
         };
-        let rows = [
-            row(
+        let defaults = [
+            setting(
                 true,
-                "Generate thread titles",
-                "After a thread's first reply, its own account's agent names it in a few words. Rename or \
-                 \"Regenerate title\" from the thread menu any time.",
-                Switch::new("threads-titles")
-                    .checked(t.generate_titles)
-                    .accessibility_label("Generate thread titles")
-                    .on_click(cx.listener(|this, on: &bool, _, cx| {
-                        let on = *on;
-                        this.set_threads(|t| t.generate_titles = on, cx)
-                    }))
-                    .into_any_element(),
-                cx,
-            ),
-            row(
-                false,
-                "Generate commit messages and PRs",
-                "A sparkle button in the Changes tab asks the thread's own account's agent for a commit message, \
-                 or a pull request title and description, from the diff. It only fills the field.",
-                Switch::new("threads-git-text")
-                    .checked(t.generate_git_text)
-                    .accessibility_label("Generate commit messages and PRs")
-                    .on_click(cx.listener(|this, on: &bool, _, cx| {
-                        let on = *on;
-                        this.set_threads(|t| t.generate_git_text = on, cx)
-                    }))
-                    .into_any_element(),
-                cx,
-            ),
-            row(
-                false,
                 "Default permissions",
-                "What a new thread's agent may do without asking. Full access is picked per thread.",
-                mode_menu,
-                cx,
-            ),
-            row(
-                false,
-                "New threads start in a worktree",
-                "Turns on \"New worktree\" under a new thread's composer, so its agent works on its own branch.",
-                Switch::new("threads-worktree")
-                    .checked(t.new_worktree)
-                    .accessibility_label("New threads start in a worktree")
-                    .on_click(cx.listener(|this, on: &bool, _, cx| {
-                        let on = *on;
-                        this.set_threads(|t| t.new_worktree = on, cx)
-                    }))
-                    .into_any_element(),
-                cx,
-            ),
-            row(
-                false,
-                "Fetch remote",
-                "While a thread is shown, its folder fetches its branch's upstream in the background, as its own \
-                 account, so Details can show how far behind it is.",
+                "What a new thread's agent may do without asking. Full access is picked per thread, never here.",
                 self.choice(
-                    "threads-fetch",
-                    &Some(t.fetch_minutes.to_string()),
-                    FETCH_CHOICES
-                        .iter()
-                        .map(|(m, l)| (Some(m.to_string()), (*l).to_owned()))
-                        .collect(),
-                    |t, v| t.fetch_minutes = v.and_then(|v| v.parse().ok()).unwrap_or(5),
+                    "threads-mode",
+                    &Some(mode.as_str().to_owned()),
+                    modes,
+                    |t, v| t.permission_mode = v,
                     cx,
                 ),
                 cx,
             ),
-            row(
+            setting(
                 false,
                 "Claude model",
                 "For new Claude threads in a project that hasn't picked one yet.",
@@ -230,19 +139,18 @@ impl Settings {
                         efforts(CLAUDE_EFFORTS),
                         |t, v| t.claude_effort = v,
                         cx,
-                    ))
-                    .into_any_element(),
+                    )),
                 cx,
             ),
-            row(
+            setting(
                 false,
                 "Codex model",
-                "A Codex model id (empty: the account's default), and its effort.",
+                "A Codex model id (empty: the account's default), and its reasoning effort.",
                 h_flex()
                     .gap_2()
                     .child(
                         div()
-                            .w(gpui::px(180.))
+                            .w(gpui::px(160.))
                             .child(Input::new(&self.codex_model_input).small()),
                     )
                     .child(self.choice(
@@ -251,21 +159,133 @@ impl Settings {
                         efforts(&CODEX_EFFORTS),
                         |t, v| t.codex_effort = v,
                         cx,
-                    ))
-                    .into_any_element(),
+                    )),
+                cx,
+            ),
+        ];
+        let titles = [setting(
+            true,
+            "Generate thread titles",
+            "After a thread's first reply, its own account's agent names it in a few words. Rename or \
+             regenerate from the thread menu any time.",
+            Switch::new("threads-titles")
+                .checked(t.generate_titles)
+                .accessibility_label("Generate thread titles")
+                .on_click(cx.listener(|this, on: &bool, _, cx| {
+                    let on = *on;
+                    this.set_threads(|t| t.generate_titles = on, cx)
+                })),
+            cx,
+        )];
+        v_flex()
+            .gap_8()
+            .child(section(
+                "New threads",
+                "What a new thread starts with. A thread's own pick always wins.",
+                defaults,
+                cx,
+            ))
+            .child(section("Titles", "", titles, cx))
+            .into_any_element()
+    }
+
+    pub(super) fn render_diffs(&self, cx: &mut Context<Self>) -> AnyElement {
+        let t = prefs::get(cx);
+        let d = prefs::get_diff(cx);
+        let toggle = |id: &'static str,
+                      title: &'static str,
+                      about: &'static str,
+                      on: bool,
+                      set: fn(&mut DiffSettings, bool),
+                      first: bool,
+                      cx: &mut Context<Self>| {
+            setting(
+                first,
+                title,
+                about,
+                Switch::new(id)
+                    .checked(on)
+                    .accessibility_label(title)
+                    .on_click(cx.listener(move |_, on: &bool, _, cx| {
+                        let mut d = prefs::get_diff(cx);
+                        set(&mut d, *on);
+                        prefs::save_diff(d, cx).detach_and_log_err(cx);
+                        cx.notify();
+                    })),
+                cx,
+            )
+        };
+        let view = [
+            toggle(
+                "diff-split",
+                "Side by side",
+                "Old and new next to each other; off shows one column.",
+                d.split,
+                |d, v| d.split = v,
+                true,
+                cx,
+            ),
+            toggle(
+                "diff-wrap",
+                "Wrap long lines",
+                "Long lines wrap instead of running off the edge.",
+                d.wrap,
+                |d, v| d.wrap = v,
+                false,
+                cx,
+            ),
+            toggle(
+                "diff-ws",
+                "Ignore whitespace",
+                "Hide changes that only touch spaces and tabs.",
+                d.ignore_whitespace,
+                |d, v| d.ignore_whitespace = v,
+                false,
+                cx,
+            ),
+        ];
+        let git = [
+            setting(
+                true,
+                "Fetch remote",
+                "While a thread is shown, its folder fetches its upstream in the background, as its own account, so \
+                 Details can show how far behind it is.",
+                self.choice(
+                    "threads-fetch",
+                    &Some(t.fetch_minutes.to_string()),
+                    FETCH_CHOICES
+                        .iter()
+                        .map(|(m, l)| (Some(m.to_string()), (*l).to_owned()))
+                        .collect(),
+                    |t, v| t.fetch_minutes = v.and_then(|v| v.parse().ok()).unwrap_or(5),
+                    cx,
+                ),
+                cx,
+            ),
+            setting(
+                false,
+                "Generate commit messages and PRs",
+                "A sparkle button in the Changes tab asks the thread's own account's agent for a commit message or a \
+                 pull request title and description. It only fills the field.",
+                Switch::new("threads-git-text")
+                    .checked(t.generate_git_text)
+                    .accessibility_label("Generate commit messages and PRs")
+                    .on_click(cx.listener(|this, on: &bool, _, cx| {
+                        let on = *on;
+                        this.set_threads(|t| t.generate_git_text = on, cx)
+                    })),
                 cx,
             ),
         ];
         v_flex()
-            .gap_4()
-            .children(self.threads_error.clone().map(|e| {
-                div()
-                    .id("threads-error")
-                    .text_size(ui::BODY)
-                    .text_color(danger)
-                    .child(e)
-            }))
-            .child(widgets::section("New threads", rows, cx))
+            .gap_8()
+            .child(section(
+                "Diff view",
+                "How a new Changes tab draws a diff. Its header toggles change the same setting.",
+                view,
+                cx,
+            ))
+            .child(section("Commits & pull requests", "", git, cx))
             .into_any_element()
     }
 

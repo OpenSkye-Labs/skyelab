@@ -92,7 +92,7 @@ impl ThreadView {
                 )
                 .child(chevron(IconName::ChevronRight, theme))
                 .on_click(|_, window, cx| {
-                    let section = crate::settings::Section::GitHub;
+                    let section = crate::settings::Section::SourceControl;
                     window.dispatch_action(Box::new(OpenSettingsSection { section }), cx);
                 })
                 .into_any_element(),

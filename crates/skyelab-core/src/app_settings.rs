@@ -30,6 +30,64 @@ pub struct AppSettings {
     pub diff: DiffSettings,
     /// Settings → About: the update check.
     pub updates: crate::update::UpdateSettings,
+    /// Settings → Appearance: theme, accent, density and text sizes.
+    pub appearance: AppearanceSettings,
+}
+
+/// Light, dark, or whatever the system shows.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ColorMode {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// Settings → Appearance. Names are the app's theme and accent keys; an unknown one falls back to the default.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AppearanceSettings {
+    pub mode: ColorMode,
+    /// The theme family (`skyelab`, `skye`, …).
+    pub theme: String,
+    /// An accent preset key; unset is the theme's own.
+    pub accent: Option<String>,
+    /// Tighter rows and cards.
+    pub compact: bool,
+    /// Interface text size in points.
+    pub ui_font_size: u8,
+    /// Code and terminal text size in points.
+    pub code_font_size: u8,
+}
+
+impl AppearanceSettings {
+    pub const UI_SIZES: std::ops::RangeInclusive<u8> = 12..=18;
+    pub const CODE_SIZES: std::ops::RangeInclusive<u8> = 11..=18;
+
+    /// The sizes clamped to what the UI offers, so a hand-edited file can't make text vanish.
+    pub fn clamped(mut self) -> Self {
+        self.ui_font_size = self
+            .ui_font_size
+            .clamp(*Self::UI_SIZES.start(), *Self::UI_SIZES.end());
+        self.code_font_size = self
+            .code_font_size
+            .clamp(*Self::CODE_SIZES.start(), *Self::CODE_SIZES.end());
+        self
+    }
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            mode: ColorMode::System,
+            theme: "skyelab".into(),
+            accent: None,
+            compact: false,
+            ui_font_size: 14,
+            code_font_size: 13,
+        }
+    }
 }
 
 /// How the Changes tab draws a diff (T3's diff layout, word wrap and whitespace settings).

@@ -65,3 +65,29 @@ fn thread_defaults_round_trip_and_titles_default_on() {
         (Some("haiku".into()), None)
     );
 }
+
+#[test]
+fn appearance_round_trips_and_clamps() {
+    use skyelab_core::{AppSettings, AppearanceSettings, ColorMode};
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("settings.toml");
+    std::fs::write(
+        &path,
+        "[appearance]\nmode = \"dark\"\ntheme = \"dawn\"\nui_font_size = 40\n",
+    )
+    .unwrap();
+    let s = AppSettings::load(&path).unwrap();
+    assert_eq!(s.appearance.mode, ColorMode::Dark);
+    assert_eq!(s.appearance.theme, "dawn");
+    assert_eq!(
+        s.appearance.code_font_size, 13,
+        "missing keys take the defaults"
+    );
+    assert_eq!(s.appearance.clone().clamped().ui_font_size, 18);
+    s.save(&path).unwrap();
+    assert_eq!(AppSettings::load(&path).unwrap().appearance, s.appearance);
+    assert_eq!(
+        AppSettings::default().appearance,
+        AppearanceSettings::default()
+    );
+}

@@ -6,53 +6,35 @@
 
 mod components;
 #[cfg(test)]
+mod contrast_test;
+#[cfg(test)]
 mod tests;
+pub mod themes;
+#[cfg(test)]
+mod themes_test;
 
 pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title,
 };
 
-use gpui::{Hsla, Pixels, px};
+use gpui::{Hsla, Pixels, Rems, px, rems};
 use gpui_component::Theme;
 use std::path::Path;
 
-/// SkyeLab's light and dark themes: T3 Code's zinc light and true-black dark tokens, in gpui-component's
-/// theme format (see docs/design/t3-reference.md). Views read colors only from the active theme.
-const THEMES: &str = include_str!("../../themes/skyelab.json");
-
-/// Registers SkyeLab's themes and makes them the light and dark themes. Call once, after `gpui_component::init`;
-/// the workspace then picks light or dark from the system appearance.
+/// Registers SkyeLab's theme families (T3 Code's zinc light and true-black dark tokens are the default, see
+/// docs/design/t3-reference.md) and applies the default appearance. Call once, after `gpui_component::init`; then
+/// [`themes::load`] applies the saved choice. Views read colors only from the active theme.
 pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
-    let registry = gpui_component::ThemeRegistry::global_mut(cx);
-    registry.load_themes_from_str(THEMES)?;
-    let find = |name: &str| {
-        registry
-            .themes()
-            .get(name)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("theme {name} is missing from skyelab.json"))
-    };
-    let (light, dark) = (find("SkyeLab Light")?, find("SkyeLab Dark")?);
-    let mode = cx.global::<Theme>().mode;
-    Theme::global_mut(cx).light_theme = light;
-    Theme::global_mut(cx).dark_theme = dark;
-    Theme::change(mode, None, cx);
+    themes::register(cx)?;
+    themes::apply(cx);
     Ok(())
 }
 
-/// Follows the system appearance. Debug builds only: `SKYELAB_VERIFY_THEME=dark|light` forces one, so
-/// `/loop-verify-ui` can capture both themes without changing the system setting.
+/// Follows the Appearance setting (System follows the window's appearance). Debug builds only:
+/// `SKYELAB_VERIFY_THEME=dark|light` forces one, so `/loop-verify-ui` can capture both without changing the system.
 pub fn sync_appearance(window: &mut gpui::Window, cx: &mut gpui::App) {
-    let forced = match std::env::var("SKYELAB_VERIFY_THEME").as_deref() {
-        Ok("dark") if cfg!(debug_assertions) => Some(gpui_component::ThemeMode::Dark),
-        Ok("light") if cfg!(debug_assertions) => Some(gpui_component::ThemeMode::Light),
-        _ => None,
-    };
-    match forced {
-        Some(mode) => Theme::change(mode, Some(window), cx),
-        None => Theme::sync_system_appearance(Some(window), cx),
-    }
+    themes::sync(window, cx);
 }
 
 /// The window's top row (T3's 52 px topbar): the sidebar's first row beside the page header ([`HEADER_H`]). There is
@@ -84,12 +66,14 @@ pub const RADIUS_LG: Pixels = px(12.);
 pub const RADIUS_XL: Pixels = px(16.);
 
 /// Type scale (§2): `META` for times, paths, labels and section captions, `BODY` for rows and prose, `CODE` for mono, `SECTION` for a settings section title, `PAGE` for a page title.
-/// Weights: titles semibold, labels and selected rows medium, nothing heavier.
-pub const META: Pixels = px(12.);
-pub const BODY: Pixels = px(14.);
-pub const CODE: Pixels = px(13.);
-pub const SECTION: Pixels = px(16.);
-pub const PAGE: Pixels = px(20.);
+/// Weights: titles semibold, labels and selected rows medium, nothing heavier. In rems of the theme's font size
+/// (gpui-component's `Root` sets the rem to it), so Settings → Appearance's text size scales every view; at the
+/// default 14 they are 12, 14, 13, 16 and 20 px.
+pub const META: Rems = rems(12. / 14.);
+pub const BODY: Rems = rems(1.);
+pub const CODE: Rems = rems(13. / 14.);
+pub const SECTION: Rems = rems(16. / 14.);
+pub const PAGE: Rems = rems(20. / 14.);
 
 /// Geometry (§3, §4): sidebar and list rows, a view header, the chat column's width, the settings page's width.
 pub const ROW_H: Pixels = px(32.);
