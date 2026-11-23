@@ -6,7 +6,6 @@ mod ui;
 mod window_layout;
 mod workspace;
 
-#[cfg(unix)]
 use anyhow::Context as _;
 use gpui::{
     App, AppContext as _, Bounds, Focusable as _, WindowBounds, WindowKind, WindowOptions, px, size,
@@ -279,9 +278,8 @@ fn open_store() -> (Store, Option<String>) {
     }
 }
 
-/// The app's MCP server for agent orchestration, on unix: `<data dir>/skyelab/run/<pid>`. `None` (with the reason
+/// The app's MCP server for agent orchestration: grants in `<data dir>/skyelab/run/<pid>`. `None` (with the reason
 /// on stderr) means threads run without them.
-#[cfg(unix)]
 fn orchestration(
     cx: &mut App,
     store: workspace::SharedStore,
@@ -306,11 +304,9 @@ fn orchestration(
 }
 
 /// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
-#[cfg(unix)]
 const MCP_PROXY_FLAG: &str = "--mcp-proxy";
 
 fn main() {
-    #[cfg(unix)]
     if std::env::args_os()
         .nth(1)
         .is_some_and(|a| a == MCP_PROXY_FLAG)
@@ -396,7 +392,6 @@ fn main() {
                     "claude",
                 ),
             };
-            #[cfg(unix)]
             let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
             // The last frame when it still shows on a connected display, else most of the primary display.
             workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
@@ -419,7 +414,6 @@ fn main() {
                     options.device_key = device_key.clone();
                     ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                     ws.restore_layout(AppSettings::default_path(), saved.as_ref(), window, cx);
-                    #[cfg(unix)]
                     if let Some(o) = orchestrate {
                         ws.set_orchestrator(o, window, cx);
                     }

@@ -265,7 +265,6 @@ pub struct BrowserPanel {
 }
 
 pub struct AgentOwner {
-    #[cfg(unix)] // read only by `browser_agent`, which is unix-only
     pub thread_id: i64,
     pub title: SharedString,
 }

@@ -392,7 +392,6 @@ impl Workspace {
     }
 
     pub(super) fn thread_started(&mut self, thread: &Thread, cx: &mut Context<Self>) {
-        #[cfg(unix)]
         self.child_started(thread, cx);
         if self.projects.iter().any(|p| p.id == thread.project_id) {
             // A reopened thread reports its start too: keep its one row where it is.

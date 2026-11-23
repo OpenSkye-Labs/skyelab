@@ -59,7 +59,7 @@ pub enum OrchCall {
     },
 }
 
-/// Present when orchestration is on (unix, and the socket could be bound).
+/// Present when orchestration is on (the socket or pipe could be bound).
 pub struct Orchestration {
     pub server: Arc<Server>,
     pub host: Arc<AppHost>,

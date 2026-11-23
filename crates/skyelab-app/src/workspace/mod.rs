@@ -2,7 +2,6 @@
 
 mod attention;
 mod branch_picker;
-#[cfg(unix)]
 mod browser_agent;
 mod browser_tabs;
 mod center;
@@ -31,12 +30,7 @@ mod terminals;
 use terminal_launch::{terminal_env, unbound_root};
 mod accounts_file;
 pub(crate) mod github;
-#[cfg(unix)]
 pub(crate) mod orchestrate;
-#[cfg(not(unix))]
-#[path = "orchestrate_stub.rs"]
-pub(crate) mod orchestrate;
-#[cfg(unix)]
 mod orchestrate_ui;
 mod palette_items;
 mod panels;
@@ -158,7 +152,7 @@ pub struct Workspace {
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
-    #[cfg(all(test, unix))]
+    #[cfg(test)]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
     /// Created on first open, then kept, so its form and section survive switching pages.
     settings: Option<Entity<Settings>>,
@@ -186,7 +180,6 @@ pub struct Workspace {
     back: Vec<Page>,
     forward: Vec<Page>,
     /// Delegated starts by request id: a retry gets the thread the first call started.
-    #[cfg(unix)]
     delegated: std::collections::HashMap<orchestrate_ui::StartKey, orchestrate_ui::DelegatedStart>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     _thread_events: Vec<Subscription>,
@@ -304,7 +297,7 @@ impl Workspace {
             _dock_events,
             terminals: Vec::new(),
             browsers: Vec::new(),
-            #[cfg(all(test, unix))]
+            #[cfg(test)]
             browser_engine: None,
             settings: None,
             backend,
@@ -324,7 +317,6 @@ impl Workspace {
             setup: Default::default(),
             back: Vec::new(),
             forward: Vec::new(),
-            #[cfg(unix)]
             delegated: Default::default(),
             changes_views: Vec::new(),
             _thread_events: Vec::new(),
