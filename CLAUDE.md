@@ -60,6 +60,11 @@ What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-g
 - Linux: `libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake libwebkit2gtk-4.1-dev libgtk-3-dev`
   (webkit/gtk: the browser pane links them).
 - Windows: MSVC toolchain, nothing else.
+- Windows from macOS (compile check only, tests can't run): `scripts/check-windows.sh` runs clippy for
+  `x86_64-` and `aarch64-pc-windows-msvc`. Setup once: `brew install llvm` (keg-only; the script puts its `bin` on PATH
+  for `llvm-rc`, which gpui's build script needs), `cargo install cargo-xwin --locked`, and
+  `rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc`. cargo-xwin downloads the MSVC CRT and Windows SDK
+  (~1.1 GB, `~/Library/Caches/cargo-xwin`) on first run. Run it after touching `cfg(windows)`/`cfg(unix)` code.
 
 ## Commands
 

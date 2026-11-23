@@ -1,6 +1,8 @@
 //! Regression tests for review findings on save and edits.
 
-use skyelab_core::{Account, AccountsConfig, Binding};
+#[cfg(unix)]
+use skyelab_core::Binding;
+use skyelab_core::{Account, AccountsConfig};
 use std::path::PathBuf;
 
 fn acct(id: &str, dir: &str) -> Account {
