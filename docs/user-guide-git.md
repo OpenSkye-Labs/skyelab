@@ -50,7 +50,8 @@ next message as a fenced block, and removes them from the diff. **Clear** drops 
 
 Each thread keeps its own comments, per diff (the working tree, or one turn). When the diff reloads (a turn ended, a
 commit), each comment finds its lines again, even if they moved; a comment whose lines are gone is dropped, and the
-strip says how many. Comments are kept in memory only: quitting SkyeLab loses unsent ones.
+strip says how many. A comment's message shows at most 30 of its lines. Comments are kept in memory only: closing the
+thread's tab or quitting SkyeLab loses unsent ones.
 
 ## Turns and rewind
 

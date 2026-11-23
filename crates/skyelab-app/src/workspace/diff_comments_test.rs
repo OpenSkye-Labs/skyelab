@@ -60,7 +60,7 @@ fn a_range_stays_in_its_file_and_the_chip_names_lines_excerpt_and_note() {
     let removed = c.items.iter().find(|i| i.id == id).expect("added");
     assert_eq!(removed.label(), "src/a.rs:11 (old)");
 
-    let text = c.chip_text(Scope::Working);
+    let text = c.chip_text(Scope::Working).expect("fits");
     assert!(
         text.contains(
             "src/a.rs:11-12\n-     old();\n+     new();\n  }\nComment: rename new() to run()"

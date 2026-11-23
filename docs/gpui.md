@@ -41,8 +41,7 @@ and how Zed uses it, not blog posts or memory.
 - A `Task` is cancelled when dropped. Store it in a field (`_task: Task<()>`) to tie its life to the view, or `.detach()`
   only for true fire-and-forget. Agent processes, PTYs and network streams belong to a stored task, never a detached one.
 - A callback that has no `Window` (an observer) but must call something that needs one (`submit_remote`): leave the
-  callback with `cx.defer`, then `window_handle.update(cx, |_, window, cx| ..)`. Updating the view inside the observer
-  would re-enter the update that notified it.
+  callback with `cx.defer`, then `window_handle.update(cx, |_, window, cx| ..)` (`side_chat::ask_when_ready`).
 - Don't use tokio inside GPUI views. GPUI has its own executor. If a crate needs tokio (e.g. a server), run it on its
   own runtime thread and talk to the UI through channels.
 

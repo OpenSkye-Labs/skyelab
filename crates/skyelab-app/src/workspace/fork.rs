@@ -104,7 +104,7 @@ pub(in crate::workspace) fn context_prompt(title: &str, events: &[skyelab_store:
     )
 }
 
-/// The prompt a side chat's first session starts with: a short summary of the main thread (its newest
+/// The prompt a side chat's first session starts with: the main thread's conversation (its newest
 /// [`MAX_SIDE_CONTEXT`] characters), and that it answers on the side without changing files.
 pub(in crate::workspace) fn side_prompt(title: &str, events: &[skyelab_store::Event]) -> String {
     format!(

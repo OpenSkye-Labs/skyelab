@@ -187,6 +187,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         view.update(cx, |v, _| v.close());
+        self.close_side_chats(view, window, cx);
         self.unshare_thread(view, cx);
         self.forget_thread(view, window, cx);
     }

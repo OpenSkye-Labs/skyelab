@@ -309,7 +309,12 @@ DELETE FROM turn_usage WHERE (thread_id, seq) IN (
       AND COALESCE(json_type(e.payload_json, '$.Result.result'), 'null') = 'null'
 );
 ",
-    // Version 19: side chats (T3's `/side`): a small thread beside `side_of`, in its folder under its account. Hidden
-    // from the thread lists and listed under its parent; its first session starts with `fork_context`.
-    "ALTER TABLE threads ADD COLUMN side_of INTEGER;",
+    // Version 19: side chats (T3's `/side`), each a thread with `side_of` set to its parent. They go when the parent is
+    // deleted (or purged): their first prompt holds a copy of its conversation.
+    "
+ALTER TABLE threads ADD COLUMN side_of INTEGER;
+CREATE TRIGGER side_chats_delete AFTER DELETE ON threads BEGIN
+    DELETE FROM threads WHERE side_of = OLD.id;
+END;
+",
 ];

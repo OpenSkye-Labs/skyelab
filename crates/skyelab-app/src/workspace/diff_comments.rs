@@ -6,6 +6,9 @@ use std::ops::Range;
 use std::path::PathBuf;
 
 #[cfg(test)]
+#[path = "diff_comments_clip_test.rs"]
+mod clip_test;
+#[cfg(test)]
 #[path = "diff_comments_test.rs"]
 mod tests;
 
@@ -29,6 +32,8 @@ pub(crate) struct DiffComment {
     pub note: String,
     /// The rows it covers in the diff shown now.
     pub rows: Range<usize>,
+    /// Where its first row sits in its file, so a reload that grows an earlier file doesn't move it.
+    offset: usize,
 }
 
 impl DiffComment {
@@ -49,13 +54,16 @@ impl DiffComment {
     }
 }
 
+/// A comment's excerpt shows at most this many lines in the chip, so its note always fits.
+const MAX_EXCERPT: usize = 30;
+
 /// A thread's diff comments.
 #[derive(Debug, Default)]
 pub(crate) struct DiffComments {
     pub items: Vec<DiffComment>,
     next: u64,
-    /// How many the last reload dropped, until the next change.
-    pub dropped: usize,
+    /// How many reloads dropped since the user last added or removed one.
+    dropped: usize,
 }
 
 /// The file `row` belongs to: its index in `changes.files` and its rows.
@@ -91,8 +99,8 @@ fn lines(changes: &Changes, rows: Range<usize>) -> Vec<(usize, Line)> {
 }
 
 impl DiffComments {
-    /// Comments `note` on the lines of rows `from..=to` (either order), cut at the end of `from`'s file. `None` when
-    /// they hold no lines.
+    /// Comments `note` on the lines of rows `from..=to` (either order), kept inside `from`'s file. `None` when they
+    /// hold no lines.
     pub(crate) fn add(
         &mut self,
         changes: &Changes,
@@ -101,9 +109,9 @@ impl DiffComments {
         to: usize,
         note: &str,
     ) -> Option<u64> {
-        let (start, end) = (from.min(to), from.max(to));
-        let (file, rows) = file_of(changes, start)?;
-        let picked = lines(changes, start..(end + 1).min(rows.end));
+        let (file, rows) = file_of(changes, from)?;
+        let (start, end) = (from.min(to).max(rows.start), from.max(to).min(rows.end - 1));
+        let picked = lines(changes, start..end + 1);
         let (first, last) = (picked.first()?.0, picked.last()?.0);
         let id = self.next;
         self.next += 1;
@@ -115,6 +123,7 @@ impl DiffComments {
             lines: picked.into_iter().map(|(_, l)| l).collect(),
             note: note.trim().to_owned(),
             rows: first..last + 1,
+            offset: first - rows.start,
         });
         Some(id)
     }
@@ -124,12 +133,18 @@ impl DiffComments {
         self.dropped = 0;
     }
 
+    /// Drops every `scope` comment (sent, or cleared).
+    pub(crate) fn clear(&mut self, scope: Scope) {
+        self.items.retain(|c| c.scope != scope);
+        self.dropped = 0;
+    }
+
     pub(crate) fn count(&self, scope: Scope) -> usize {
         self.items.iter().filter(|c| c.scope == scope).count()
     }
 
     /// Finds each `scope` comment's lines in a reloaded diff: the same file, the same kinds and texts in a row,
-    /// nearest to where they were. One whose lines are gone is dropped and counted.
+    /// nearest to where they were in that file. One whose lines are gone is dropped and counted.
     pub(crate) fn reanchor(&mut self, changes: &Changes, scope: Scope) {
         let before = self.items.len();
         self.items.retain_mut(|c| {
@@ -142,6 +157,7 @@ impl DiffComments {
             let Some((_, rows)) = file_of(changes, changes.files[file].first_row) else {
                 return false;
             };
+            let first_row = rows.start;
             let found = lines(changes, rows);
             let n = c.lines.len();
             if n == 0 {
@@ -152,21 +168,21 @@ impl DiffComments {
                     .zip(&c.lines)
                     .all(|((_, a), b)| a.kind == b.kind && a.text == b.text)
             };
-            let was = c.rows.start;
             let best = found
                 .windows(n)
                 .filter(|w| same(w))
-                .min_by_key(|w| w[0].0.abs_diff(was));
+                .min_by_key(|w| (w[0].0 - first_row).abs_diff(c.offset));
             match best {
                 Some(w) => {
                     c.rows = w[0].0..w[n - 1].0 + 1;
+                    c.offset = w[0].0 - first_row;
                     c.lines = w.iter().map(|(_, l)| l.clone()).collect();
                     true
                 }
                 None => false,
             }
         });
-        self.dropped = before - self.items.len();
+        self.dropped += before - self.items.len();
     }
 
     /// "2 comments were dropped: …" after a reload lost some.
@@ -180,14 +196,16 @@ impl DiffComments {
         }
     }
 
-    /// The chip's text: each `scope` comment's file and lines, the excerpt with its signs, and the note.
-    pub(crate) fn chip_text(&self, scope: Scope) -> String {
-        self.items
+    /// The chip's text: each `scope` comment's file and lines, the excerpt with its signs (its first [`MAX_EXCERPT`]
+    /// lines), and the note. `None` when it is too long for one chip, which would cut notes off.
+    pub(crate) fn chip_text(&self, scope: Scope) -> Option<String> {
+        let text = self
+            .items
             .iter()
             .filter(|c| c.scope == scope)
             .map(|c| {
                 let mut s = c.label();
-                for l in &c.lines {
+                for l in c.lines.iter().take(MAX_EXCERPT) {
                     let sign = match l.kind {
                         LineKind::Added => '+',
                         LineKind::Removed => '-',
@@ -195,10 +213,14 @@ impl DiffComments {
                     };
                     s.push_str(&format!("\n{sign} {}", l.text));
                 }
+                if let Some(more) = c.lines.len().checked_sub(MAX_EXCERPT).filter(|&n| n > 0) {
+                    s.push_str(&format!("\n… {more} more lines"));
+                }
                 s.push_str(&format!("\nComment: {}", c.note));
                 s
             })
             .collect::<Vec<_>>()
-            .join("\n\n")
+            .join("\n\n");
+        (text.chars().count() <= skyelab_core::terminal_context::MAX_CHARS).then_some(text)
     }
 }

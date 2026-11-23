@@ -30,6 +30,10 @@ impl Workspace {
             // Same folder, same bound account, and publishing re-checks the account anyway.
             let thread = view.downgrade();
             changes.update(cx, |c, cx| {
+                // A comment being written for another thread doesn't move to this one.
+                if c.thread.as_ref() != Some(&thread) {
+                    (c.draft, c.drag) = (None, None);
+                }
                 c.thread = Some(thread);
                 c.refresh(cx)
             });

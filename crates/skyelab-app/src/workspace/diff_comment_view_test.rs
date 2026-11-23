@@ -108,7 +108,7 @@ fn gutter_drag_comments_follow_reloads_and_send_as_one_chip(cx: &mut gpui::TestA
     // Split: the removed line's gutter is on the left half, the added one's on the right; a click on the right one
     // comments on that line alone. Escape drops the draft.
     view.update(cx, |v, cx| v.set_prefs(|p| p.split = true, cx));
-    let (left, right) = (gutter(cx, "diff-gutter-5"), gutter(cx, "diff-gutter-6"));
+    let (left, right) = (gutter(cx, "diff-gutter-l-5"), gutter(cx, "diff-gutter-6"));
     assert!(left.x < right.x, "{left:?} {right:?}");
     assert_eq!(left.y, right.y, "one split row");
     cx.simulate_mouse_down(right, MouseButton::Left, Modifiers::none());

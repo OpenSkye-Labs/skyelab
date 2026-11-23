@@ -11,6 +11,9 @@ use skyelab_git::ChangeKind;
 use std::ops::Range;
 
 const ROW_HEIGHT: f32 = 20.;
+/// A line number's column and the sign's: the gutter a click comments from spans them.
+const NUM_W: f32 = 44.;
+const SIGN_W: f32 = 14.;
 /// The file tree's rows, T3's 28.
 const FILE_ROW_HEIGHT: f32 = 28.;
 /// Indent per tree level.
@@ -27,7 +30,13 @@ impl ChangesView {
         let Some(changes) = &self.changes else {
             return div().into_any_element();
         };
-        // The unified rows this item shows: a drag over it reaches the last, and annotations ending there go under it.
+        // The unified rows this item shows (annotations ending there go under it), and its old and new side's rows.
+        let over = match self.split.get(ix) {
+            Some(SplitRow::Pair(l, r)) if self.prefs.split => Some((*l, *r)),
+            Some(SplitRow::Full(i)) if self.prefs.split => Some((Some(*i), Some(*i))),
+            _ if self.prefs.split => None,
+            _ => Some((Some(ix), Some(ix))),
+        };
         let (shown, halves): (Vec<usize>, Vec<(usize, bool)>) = match self.split.get(ix) {
             Some(SplitRow::Pair(l, r)) if self.prefs.split => {
                 let sides = [(*l, true), (*r, false)];
@@ -45,13 +54,12 @@ impl ChangesView {
         let unified_gutter = (halves.is_empty())
             .then(|| shown.first().copied().filter(|&i| is_line(i)))
             .flatten()
-            .map(|i| self.gutter(i, 102., cx));
+            .map(|i| self.gutter(i, 2. * NUM_W + SIGN_W, false, cx));
         let mut gutters: Vec<(bool, Option<AnyElement>)> = halves
             .iter()
-            .map(|&(i, left)| (left, Some(self.gutter(i, 58., cx))))
+            .map(|&(i, left)| (left, Some(self.gutter(i, NUM_W + SIGN_W, left, cx))))
             .collect();
         let picked = shown.iter().any(|&i| self.picked(i));
-        let moved = shown.last().copied();
         let notes = self.annotations(|i| shown.contains(&i), cx);
         let theme = cx.theme();
         let wrap = self.prefs.wrap;
@@ -140,9 +148,9 @@ impl ChangesView {
                 d.child(div().absolute().inset_0().bg(picked_bg))
             })
             .children(unified_gutter)
-            .when_some(moved, |d, row| {
+            .when_some(over, |d, rows| {
                 d.on_mouse_move(
-                    cx.listener(move |this, e, window, cx| this.drag_over(row, e, window, cx)),
+                    cx.listener(move |this, e, window, cx| this.drag_over(rows, e, window, cx)),
                 )
             });
         if notes.is_empty() {
@@ -366,7 +374,7 @@ fn line_parts<E: ParentElement + Styled>(
 ) -> E {
     let num = |n: Option<u32>| {
         div()
-            .w(px(44.))
+            .w(px(NUM_W))
             .flex_none()
             .text_right()
             .pr_2()
@@ -389,6 +397,6 @@ fn line_parts<E: ParentElement + Styled>(
     };
     base.child(num(first))
         .children(second.map(num))
-        .child(div().w(px(14.)).flex_none().child(sign))
+        .child(div().w(px(SIGN_W)).flex_none().child(sign))
         .child(text)
 }

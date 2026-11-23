@@ -438,6 +438,7 @@ impl Workspace {
         for view in &self.open_threads {
             view.update(cx, |t, cx| t.set_config(config.clone(), cx));
         }
+        self.push_side_config(cx);
         self.sync_setup(cx);
     }
 }

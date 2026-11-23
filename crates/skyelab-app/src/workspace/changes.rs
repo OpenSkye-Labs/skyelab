@@ -10,6 +10,9 @@ mod comments;
 mod find;
 #[path = "changes_rows.rs"]
 mod rows;
+#[cfg(test)]
+#[path = "diff_comment_split_click_test.rs"]
+mod split_click_test;
 
 use super::changes_model::{self, Changes, Scope};
 use super::changes_tree::{self, SplitRow, TreeRow};
@@ -82,8 +85,7 @@ pub struct ChangesView {
     pub(super) scope: Scope,
     /// A rewind shown for confirming.
     pub(super) rewind: Option<super::changes_turns::PendingRewind>,
-    /// Unified rows a gutter drag spans (where it started, where it is).
-    pub(super) drag: Option<(usize, usize)>,
+    pub(super) drag: Option<comments::Drag>,
     /// The comment being written (`changes_comments.rs`).
     pub(super) draft: Option<comments::Draft>,
     /// Comments or a draft show, so rows are measured.

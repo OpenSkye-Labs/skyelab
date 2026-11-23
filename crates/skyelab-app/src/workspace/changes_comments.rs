@@ -27,6 +27,15 @@ pub(in crate::workspace) struct Draft {
     _sub: Subscription,
 }
 
+/// A gutter drag in progress, in unified rows. `left`: it started on the split view's old-line gutter, so it stays
+/// on that side.
+#[derive(Clone, Copy)]
+pub(in crate::workspace) struct Drag {
+    start: usize,
+    end: usize,
+    left: bool,
+}
+
 impl Draft {
     /// The unified rows it covers.
     pub(in crate::workspace) fn rows(&self) -> std::ops::Range<usize> {
@@ -81,39 +90,41 @@ impl ChangesView {
         self.annotated = self.has_annotations(cx);
     }
 
-    /// A press on unified row `row`'s gutter starts picking lines.
-    pub(super) fn gutter_down(&mut self, row: usize, cx: &mut Context<Self>) {
+    /// A press on unified row `row`'s gutter (`left`: the split view's old side) starts picking lines.
+    pub(super) fn gutter_down(&mut self, row: usize, left: bool, cx: &mut Context<Self>) {
         if self.thread.is_some() {
-            self.drag = Some((row, row));
+            let (start, end) = (row, row);
+            self.drag = Some(Drag { start, end, left });
             cx.notify();
         }
     }
 
-    /// The pointer moved over unified row `row`: a held drag reaches it; a drag whose button was let go elsewhere
-    /// ends where it got to.
+    /// The pointer moved over an item showing unified rows `old` and `new` (the same row outside a split pair): a
+    /// held drag reaches the one on its side; a drag whose button was let go elsewhere ends where it got to.
     pub(super) fn drag_over(
         &mut self,
-        row: usize,
+        (old, new): (Option<usize>, Option<usize>),
         e: &MouseMoveEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some((from, to)) = self.drag else {
+        let Some(drag) = self.drag else {
             return;
         };
         if e.pressed_button != Some(MouseButton::Left) {
             return self.finish_drag(window, cx);
         }
-        if to != row {
-            self.drag = Some((from, row));
+        let row = if drag.left { old.or(new) } else { new.or(old) };
+        if let Some(row) = row.filter(|&r| r != drag.end) {
+            self.drag = Some(Drag { end: row, ..drag });
             cx.notify();
         }
     }
 
     /// The button came up: open a draft on the picked lines.
     pub(super) fn finish_drag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some((from, to)) = self.drag.take() {
-            self.open_draft(from, to, window, cx);
+        if let Some(d) = self.drag.take() {
+            self.open_draft(d.start, d.end, window, cx);
         }
     }
 
@@ -187,21 +198,30 @@ impl ChangesView {
             return;
         };
         let scope = self.scope;
-        let sent = thread.update(cx, |t, cx| {
+        let refused = thread.update(cx, |t, cx| {
             let n = t.composer.review.count(scope);
-            if n == 0 || t.read_only {
-                return false;
+            if n == 0 {
+                return None;
             }
-            let text = skyelab_core::terminal_context::clip(&t.composer.review.chip_text(scope));
+            if t.read_only {
+                return Some("This thread can't take a message right now.");
+            }
+            let Some(text) = t.composer.review.chip_text(scope) else {
+                return Some(
+                    "These comments are too long for one message: send or clear some first.",
+                );
+            };
             let label = match n {
                 1 => "1 diff comment".to_owned(),
                 n => format!("{n} diff comments"),
             };
             t.push_context(ChipKind::Review, label.into(), text, None, cx);
-            t.composer.review.items.retain(|c| c.scope != scope);
-            true
+            t.composer.review.clear(scope);
+            None
         });
-        self.publish_note = (!sent).then(|| "This thread can't take a message right now.".into());
+        if let Some(why) = refused {
+            self.publish_note = Some(why.into());
+        }
         self.comments_changed(cx);
     }
 
@@ -209,16 +229,24 @@ impl ChangesView {
     pub(super) fn picked(&self, row: usize) -> bool {
         let dragging = self
             .drag
-            .is_some_and(|(a, b)| (a.min(b)..=a.max(b)).contains(&row));
+            .is_some_and(|d| (d.start.min(d.end)..=d.start.max(d.end)).contains(&row));
         dragging || self.draft.as_ref().is_some_and(|d| d.rows().contains(&row))
     }
 
-    /// The clickable gutter over a line's numbers (`width` px from the left of its row or half).
-    pub(super) fn gutter(&self, row: usize, width: f32, cx: &mut Context<Self>) -> AnyElement {
+    /// The clickable gutter over a line's numbers (`width` px from the left of its row or half; `left`: the split
+    /// view's old side, whose context rows have a gutter on each side).
+    pub(super) fn gutter(
+        &self,
+        row: usize,
+        width: f32,
+        left: bool,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let hover = cx.theme().primary.opacity(0.14);
+        let id = if left { "diff-gutter-l" } else { "diff-gutter" };
         div()
-            .id(("diff-gutter", row))
-            .debug_selector(move || format!("diff-gutter-{row}"))
+            .id((id, row))
+            .debug_selector(move || format!("{id}-{row}"))
             .absolute()
             .top_0()
             .left_0()
@@ -231,7 +259,7 @@ impl ChangesView {
                         MouseButton::Left,
                         cx.listener(move |this, _, _, cx| {
                             cx.stop_propagation();
-                            this.gutter_down(row, cx);
+                            this.gutter_down(row, left, cx);
                         }),
                     )
             })
@@ -418,9 +446,7 @@ impl ChangesView {
                             .xsmall()
                             .label("Clear")
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                this.update_review(cx, |r| {
-                                    r.items.retain(|c| c.scope != scope);
-                                });
+                                this.update_review(cx, |r| r.clear(scope));
                                 this.comments_changed(cx);
                             })),
                     )

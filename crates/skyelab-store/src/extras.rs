@@ -150,7 +150,7 @@ impl Store {
 
 impl Store {
     /// A side chat of thread `parent`: a new row with `new`'s folder and account, no copied history, and `context` (a
-    /// summary of the parent) for its first session. Its title ("Side: <question>") is kept: no title is generated.
+    /// part of the parent's conversation) for its first session. Its title is kept: no title is generated for it.
     pub fn create_side_chat(
         &mut self,
         new: &NewThread,

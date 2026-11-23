@@ -172,7 +172,8 @@ impl Store {
             .join(", ");
         let sql = format!(
             "SELECT {cols} FROM threads t JOIN projects p ON p.id = t.project_id
-             WHERE t.deleted_at IS NULL AND p.removed_at IS NULL AND (?2 IS NULL OR t.project_id = ?2)
+             WHERE t.deleted_at IS NULL AND t.side_of IS NULL AND p.removed_at IS NULL
+               AND (?2 IS NULL OR t.project_id = ?2)
                AND (t.title LIKE ?1 ESCAPE '\\'
                     OR (?3 IS NOT NULL AND t.id IN (SELECT thread_id FROM event_text WHERE event_text MATCH ?3)))
              ORDER BY t.updated_at DESC, t.id DESC LIMIT ?4"

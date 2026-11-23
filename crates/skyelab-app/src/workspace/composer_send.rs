@@ -231,6 +231,10 @@ impl ThreadView {
             && !external
             && !self.is_side_chat()
         {
+            if let Some(why) = self.side_refusal() {
+                self.composer.notice = Some(why.into()); // the question stays in the composer
+                return cx.notify();
+            }
             self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
             self.restore_draft(window, cx); // set_value emits no Change
             use crate::workspace::side_chat::SideAsk;
