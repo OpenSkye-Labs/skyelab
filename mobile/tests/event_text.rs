@@ -1,12 +1,12 @@
 //! The thread screen reads events in the shape the desktop stores them: `prompt` rows hold a JSON string, `agent`
 //! rows hold `skyelab_agent::Event` serialized as serde's default externally tagged enum.
 
-use skyelab_agent::timeline::{Record, apply};
+use skyelab_agent::timeline::{Items, Record, apply};
 use skyelab_mobile::timeline_rows::row_lines;
 
 /// What the stored row draws as, open, on top of a Bash call `t1` (so a result has its call).
 fn event_text(kind: &str, payload: &str) -> String {
-    let mut items = Vec::new();
+    let mut items = Items::default();
     let call = r#"{"Assistant":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"cargo test"}}]}}"#;
     if payload.contains("tool_result") {
         apply(

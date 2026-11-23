@@ -24,7 +24,7 @@ pub(super) const CLOSED_RECHECK_MS: i64 = 60 * 60_000;
 const TICK: Duration = Duration::from_secs(30);
 const HUNG_MS: i64 = 10 * 60_000;
 
-/// What the Details tab and the sidebar show for a thread's PR.
+/// What the details card and the sidebar show for a thread's PR.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PrView {
     Status(PrStatus),
@@ -339,6 +339,28 @@ pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hs
             ui::ink(theme, theme.danger),
             "Checks failing",
         )),
+    }
+}
+
+/// The review decision's glyph and tone, `None` when there is none.
+pub(crate) fn review_look(
+    review: skyelab_git::Review,
+    theme: &Theme,
+) -> Option<(IconName, Hsla, &'static str)> {
+    use skyelab_git::Review;
+    match review {
+        Review::None => None,
+        Review::Approved => Some((
+            IconName::UserCheck,
+            ui::ink(theme, theme.success),
+            "Approved",
+        )),
+        Review::ChangesRequested => Some((
+            IconName::UserRoundX,
+            ui::ink(theme, theme.warning),
+            "Changes requested",
+        )),
+        Review::Required => Some((IconName::User, theme.muted_foreground, "Awaiting review")),
     }
 }
 

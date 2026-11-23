@@ -20,7 +20,7 @@ use gpui_component::{
     input::{Input, InputEvent, InputState},
     v_flex,
 };
-use skyelab_agent::timeline::Item;
+use skyelab_agent::timeline::{Item, Items};
 use skyelab_protocol::{PermissionAnswer, Project, Thread, ThreadEvent};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -77,7 +77,7 @@ pub struct MobileApp {
     /// The open thread's timeline rows, one per item. Only the visible ones are built each frame.
     pub events_list: ListState,
     /// The open thread's timeline: the desktop's model, built from its events.
-    items: Vec<Item>,
+    items: Items,
     /// What `items` was built from: (thread, events applied, last seq applied). `None` after a source change,
     /// since thread ids are per machine.
     shown: Option<(i64, usize, Option<i64>)>,
@@ -134,7 +134,7 @@ impl MobileApp {
             composer,
             error: None,
             events_list: ListState::new(0, ListAlignment::Top, px(600.)),
-            items: Vec::new(),
+            items: Items::default(),
             shown: None,
             usage: Usage::default(),
             expanded: HashSet::new(),
@@ -300,7 +300,7 @@ impl MobileApp {
     }
 
     /// The open thread's timeline, as of the last [`MobileApp::sync_items`] (every frame does one).
-    pub fn items(&self) -> &[Item] {
+    pub fn items(&self) -> &Items {
         &self.items
     }
 }

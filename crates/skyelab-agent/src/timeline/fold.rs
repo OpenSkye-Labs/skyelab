@@ -3,25 +3,29 @@
 //! approvals and notes stay. A running turn has no fold yet; one that ends in an error result, or with no result
 //! (stopped, crashed), never folds. These are the rules; each app draws the header.
 
-use super::Item;
+use super::{Item, Items};
 use std::ops::Range;
 
-/// The expanded-set key of the turn whose divider is row `done`. No agent id has this shape.
-pub fn fold_key(done: usize) -> String {
-    format!("fold:{done}")
+/// The expanded-set key of the turn whose divider is row `done`, by the divider's row key so it stays with the turn
+/// when rows go in above it. No agent id has this shape.
+pub fn fold_key(items: &Items, done: usize) -> String {
+    format!("fold:{}", items.key(done))
+}
+
+/// The expanded-set key of the changed-files card under the divider at row `done`, by its row key like `fold_key`.
+pub fn files_key(items: &Items, done: usize) -> String {
+    format!("files:{}", items.key(done))
 }
 
 /// The rows a key's toggle changes: a turn's whole fold, or the one row that expands.
-pub fn rows_of(items: &[Item], key: &str) -> Option<Range<usize>> {
-    if let Some(done) = key
-        .strip_prefix("files:")
-        .and_then(|d| d.parse::<usize>().ok())
-    {
-        return (done < items.len()).then_some(done..done + 1);
+pub fn rows_of(items: &Items, key: &str) -> Option<Range<usize>> {
+    let row = |k: &str| k.parse().ok().and_then(|k| items.position(k));
+    if let Some(done) = key.strip_prefix("files:") {
+        return row(done).map(|done| done..done + 1);
     }
-    match key.strip_prefix("fold:").and_then(|d| d.parse().ok()) {
-        Some(done) if done < items.len() => Some(turn_start(items, done)..done + 1),
-        _ => items
+    match key.strip_prefix("fold:").and_then(row) {
+        Some(done) => Some(turn_start(items, done)..done + 1),
+        None => items
             .iter()
             .position(|i| i.expand_id() == Some(key))
             .map(|ix| ix..ix + 1),

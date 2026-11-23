@@ -3,7 +3,7 @@
 
 use gpui::TestAppContext;
 use serde_json::json;
-use skyelab_agent::timeline::{Item, Record};
+use skyelab_agent::timeline::{Item, Items, Record};
 use skyelab_agent::{Block, Event};
 use skyelab_mobile::{
     app::{Connect, MobileApp},
@@ -179,7 +179,10 @@ fn a_finished_turn_folds_its_work(cx: &mut TestAppContext) {
             "prompt and reply stay"
         );
     });
-    app.update(cx, |a, cx| a.toggle("fold:7", cx));
+    app.update(cx, |a, cx| {
+        let key = skyelab_agent::timeline::fold::fold_key(a.items(), 7);
+        a.toggle(&key, cx)
+    });
     app.read_with(cx, |a, _| assert!(!a.row_hidden(3), "open after a tap"));
 }
 
@@ -195,7 +198,7 @@ fn a_running_turn_folds_nothing(cx: &mut TestAppContext) {
 
 #[test]
 fn rows_are_compact() {
-    let mut items = Vec::new();
+    let mut items = Items::default();
     for r in turn() {
         skyelab_agent::timeline::apply(&mut items, &r);
     }

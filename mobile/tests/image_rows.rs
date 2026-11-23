@@ -1,7 +1,7 @@
 //! A screenshot in a tool result, stored the way the desktop stores it (the store drops the bytes), reads as its
 //! size and "not kept" on the phone, as it does on the desktop.
 
-use skyelab_agent::timeline::{Record, apply};
+use skyelab_agent::timeline::{Items, Record, apply};
 use skyelab_agent::{Block, Event};
 use skyelab_mobile::timeline_rows::row_lines;
 use skyelab_store::{NewThread, Store};
@@ -41,7 +41,7 @@ fn a_dropped_image_reads_not_kept() {
         !row.payload_json.contains("BwcH"),
         "the store dropped the bytes"
     );
-    let mut items = Vec::new();
+    let mut items = Items::default();
     let call = Event::Assistant {
         content: vec![Block::ToolUse {
             id: "toolu_1".into(),

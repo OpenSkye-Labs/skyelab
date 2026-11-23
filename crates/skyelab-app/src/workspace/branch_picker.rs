@@ -224,6 +224,7 @@ impl BranchPicker {
 
 impl Render for BranchPicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("BranchPicker");
         let theme = cx.theme();
         let typed = self.query.read(cx).value().trim().to_owned();
         let picks_base = self.picks_base(cx);

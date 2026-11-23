@@ -7,21 +7,28 @@ use gpui::{
     Task, Window, actions, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, IconName, Sizable as _,
+    ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{DockEvent, DockPlacement, Panel, panel_handle},
     h_flex,
 };
+use gpui_kit_assets::IconName;
 use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
 use std::time::Duration;
 
-actions!(skyelab, [ToggleRightPanel]);
+actions!(skyelab, [ToggleRightPanel, ToggleThreadDetails]);
 
 pub(crate) const TOGGLE_RIGHT_KEY: &str = if super::MAC {
     "cmd-alt-r"
 } else {
     "ctrl-alt-r"
+};
+/// T3's thread details key.
+pub(crate) const TOGGLE_DETAILS_KEY: &str = if super::MAC {
+    "cmd-shift-b"
+} else {
+    "ctrl-shift-b"
 };
 /// The right dock's width until the user resizes it.
 pub(super) const RIGHT_DEFAULT_W: Pixels = px(560.);
@@ -48,6 +55,8 @@ pub(super) fn bind_keys(cx: &mut App) {
 /// Which docks are open, for the toggles' pressed state.
 #[derive(Default, Clone, Copy)]
 pub struct DockToggles {
+    /// The floating thread details card.
+    pub details: bool,
     pub left: bool,
     pub right: bool,
     pub bottom: bool,
@@ -105,6 +114,13 @@ fn dock_toggles(open: DockToggles) -> Vec<Button> {
     };
     vec![
         toggle(
+            "toggle-details",
+            IconName::SquareMenu,
+            open.details,
+            "Toggle thread details",
+            &ToggleThreadDetails,
+        ),
+        toggle(
             "toggle-sidebar",
             IconName::PanelLeft,
             open.left,
@@ -160,6 +176,43 @@ impl Workspace {
         self.toggle(DockPlacement::Right, window, cx);
     }
 
+    /// Opens or closes the floating thread details card (T3's ⌘⇧B). It stays open while you work, until toggled
+    /// or Esc; while it covers the chat column a click outside closes it too (`render::details_card`).
+    pub(super) fn toggle_details(
+        &mut self,
+        _: &ToggleThreadDetails,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.details_open {
+            self.close_details(window, cx);
+        } else {
+            self.set_details_open(true, cx);
+        }
+    }
+
+    /// Closes the card. Focus inside it (the pull request field) goes back to the workspace, or the window's keys
+    /// would reach nothing until a click.
+    pub(super) fn close_details(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use gpui::Focusable as _;
+        if self.details.focus_handle(cx).contains_focused(window, cx) {
+            self.focus.focus(window, cx);
+        }
+        self.set_details_open(false, cx);
+    }
+
+    pub(super) fn set_details_open(&mut self, open: bool, cx: &mut Context<Self>) {
+        if self.details_open != open {
+            self.details_open = open;
+            // The toggles are drawn by the page header, a view of their own.
+            self.sync_toggles(cx);
+            self.center.update(cx, |_, cx| cx.notify());
+            if let Some(view) = self.current_thread() {
+                view.update(cx, |_, cx| cx.notify());
+            }
+        }
+    }
+
     /// Adds a tool (Changes, a browser, Devices) to the right dock and opens the dock, so the thread keeps the center.
     pub(super) fn add_right_panel<P: Panel>(
         &mut self,
@@ -206,6 +259,7 @@ impl Workspace {
     pub(super) fn sync_toggles(&self, cx: &mut Context<Self>) {
         let dock = self.dock.read(cx);
         let open = DockToggles {
+            details: self.details_open,
             left: dock.is_dock_open(DockPlacement::Left),
             right: dock.is_dock_open(DockPlacement::Right),
             bottom: dock.is_dock_open(DockPlacement::Bottom),

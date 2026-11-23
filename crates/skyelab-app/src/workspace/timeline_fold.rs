@@ -7,7 +7,9 @@ use super::timeline_text::divider_text;
 use crate::ui;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
 use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
-pub(super) use skyelab_agent::timeline::fold::{fold_head, fold_key, folded_by, reply_of, rows_of};
+pub(super) use skyelab_agent::timeline::fold::{
+    files_key, fold_head, fold_key, folded_by, reply_of, rows_of,
+};
 
 /// Row `ix` as its turn's fold shows it: hidden while folded, under the "Worked for …" header when it is the first
 /// folded row, as drawn by `row` otherwise.
@@ -21,7 +23,7 @@ pub(super) fn fold_row<V: ItemsView>(
     let Some(done) = folded_by(items, ix) else {
         return row(this, cx);
     };
-    let key = fold_key(done);
+    let key = fold_key(items, done);
     let open = this.is_expanded(&key);
     let header = (fold_head(items, done) == Some(ix)).then(|| header(&items[done], open, key, cx));
     let body = open.then(|| row(this, cx));

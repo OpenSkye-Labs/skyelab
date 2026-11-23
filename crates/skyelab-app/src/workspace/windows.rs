@@ -70,6 +70,14 @@ pub fn set_hub(
     w.orchestrate = orchestrate;
 }
 
+/// The window that serves the app-wide work (the scheduler), else the first one open.
+pub(super) fn hub_workspace(cx: &App) -> Option<(AnyWindowHandle, Entity<Workspace>)> {
+    let reg = cx.try_global::<Windows>()?;
+    let pick = |r: &&Registered| reg.hub.is_none_or(|h| h == r.window);
+    let r = reg.workspaces.iter().find(pick)?;
+    Some((r.window, r.workspace.upgrade()?))
+}
+
 /// The workspace windows, in the order they opened.
 pub fn window_handles(cx: &App) -> Vec<AnyWindowHandle> {
     cx.try_global::<Windows>()
@@ -302,6 +310,7 @@ impl Workspace {
         if let Some(calls) = orchestrate {
             self.set_orchestrator(calls, window, cx);
         }
+        super::scheduled::start(cx);
     }
 
     /// Stops serving the call queues (its window closed); the next window claims them.

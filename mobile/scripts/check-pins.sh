@@ -2,8 +2,12 @@
 # Fails when mobile/ pins a different GPUI or gpui-component than the desktop (two GPUIs can't share views).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-pins() { grep -oE '^(gpui|gpui_platform) = \{ package = "[^"]+", version = "=[^"]+"|^gpui-component = "=[^"]+"' "$1" | sort; }
-if ! diff <(pins Cargo.toml) <(pins mobile/Cargo.toml); then
+# gpui-component's version, whether written `"=x"` or `{ version = "=x", features = [..] }` (features may differ).
+pins() {
+    grep -oE '^(gpui|gpui_platform) = \{ package = "[^"]+", version = "=[^"]+"' "$1"
+    grep -oE '^gpui-component = (\{ version = )?"=[^"]+"' "$1" | sed -E 's/^gpui-component = (\{ version = )?/gpui-component = /'
+}
+if ! diff <(pins Cargo.toml | sort) <(pins mobile/Cargo.toml | sort); then
     echo "mobile/Cargo.toml GPUI pins differ from the root Cargo.toml (< root, > mobile)" >&2
     exit 1
 fi

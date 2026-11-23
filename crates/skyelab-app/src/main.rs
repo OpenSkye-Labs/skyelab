@@ -1,3 +1,4 @@
+mod debug_renders;
 mod environment;
 mod keymap;
 mod palette;
@@ -270,6 +271,7 @@ fn main() {
         let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
         // The last frame when it still shows on a connected display, else most of the primary display.
         workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
+        workspace::scheduled::install(AppSettings::default_path(), cx);
         let saved = AppSettings::default_path()
             .and_then(|p| AppSettings::load(&p).ok())
             .map(|s| s.saved_windows())
@@ -346,6 +348,7 @@ fn main() {
             cx.quit();
         }
         verify_actions::dispatch_verify_actions(cx);
+        debug_renders::start();
         cx.activate(true);
     });
 }

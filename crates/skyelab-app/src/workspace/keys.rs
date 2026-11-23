@@ -48,6 +48,11 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
         KeyBinding::new(FILE_PICKER_KEY, files::OpenFilePicker, Some(CONTEXT)),
         KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some(CONTEXT)),
+        KeyBinding::new(
+            layout::TOGGLE_DETAILS_KEY,
+            layout::ToggleThreadDetails,
+            Some(CONTEXT),
+        ),
         KeyBinding::new("f6", focus_areas::FocusNextArea, Some(CONTEXT)),
         KeyBinding::new("shift-f6", focus_areas::FocusPreviousArea, Some(CONTEXT)),
         KeyBinding::new("escape", focus_areas::FocusComposer, Some(CONTEXT)),
@@ -77,6 +82,7 @@ pub fn init(cx: &mut App) {
         ]);
     }
     layout::bind_keys(cx);
+    surfaces::bind_keys(cx);
     files::bind_keys(cx);
     thread_find::bind_keys(cx);
     changes::bind_keys(cx);

@@ -4,6 +4,7 @@ use super::*;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Workspace");
         let ring = self.render_ring(window, cx);
         let theme = cx.theme();
         v_flex()
@@ -13,6 +14,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
+            .on_action(cx.listener(Self::toggle_details))
             .on_action(cx.listener(Self::open_in_editor_with))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::split_terminal))
@@ -21,6 +23,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::new_window))
             .on_action(|_: &crate::updates::CheckForUpdates, _, cx| crate::updates::check(true, cx))
             .on_action(cx.listener(Self::open_usage))
+            .on_action(cx.listener(Self::schedule_text))
+            .on_action(cx.listener(Self::open_pull_requests))
+            .on_action(cx.listener(Self::open_issues))
             .on_action(cx.listener(Self::set_up_accounts))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::pick_project))
@@ -51,6 +56,7 @@ impl Render for Workspace {
             .map(|el| self.attention_actions(el, cx))
             .map(|el| self.file_actions(el, cx))
             .map(|el| self.scratch_actions(el, cx))
+            .map(|el| self.surface_actions(el, cx))
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
@@ -64,8 +70,69 @@ impl Render for Workspace {
                     .min_h_0()
                     .relative()
                     .child(self.dock.clone())
+                    .children(self.details_card(cx))
                     .children(ring),
             )
             .child(self.render_status(cx))
+    }
+}
+
+/// The floating card's width (T3's details card).
+const CARD_W: f32 = 320.;
+/// Its gap from the page header's toggles and the chat area's right edge.
+const CARD_GAP: f32 = 12.;
+
+impl Workspace {
+    /// How much of the window an open dock takes (its width, or height for the bottom one); 0 when closed.
+    pub(super) fn dock_width(&self, p: DockPlacement, cx: &App) -> gpui::Pixels {
+        let dock = self.dock.read(cx);
+        dock.is_dock_open(p)
+            .then(|| dock.dock_size(p))
+            .flatten()
+            .unwrap_or_default()
+    }
+
+    /// T3's popover mode: the card would cover the chat column, so a click outside it closes it. Beside the column
+    /// it stays open while you work.
+    pub(super) fn card_covers_chat(&self, window: &Window, cx: &App) -> bool {
+        let center = window.viewport_size().width
+            - self.dock_width(DockPlacement::Left, cx)
+            - self.dock_width(DockPlacement::Right, cx);
+        (center - crate::ui::CHAT_MAX_W) / 2. < px(CARD_W + CARD_GAP)
+    }
+
+    /// The card asks to close on a press outside it: only in popover mode, and not on the page header, whose toggle
+    /// closes it on its own click.
+    pub(super) fn details_outside(
+        &mut self,
+        at: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.details_open && at.y > crate::ui::HEADER_H && self.card_covers_chat(window, cx) {
+            self.close_details(window, cx);
+        }
+    }
+
+    /// The thread details card, floating over the chat at the top right under the page header's toggles, left of the
+    /// right dock when it is open. A deferred layer, so it paints over the dock's content. The card is the
+    /// `DetailsPanel` entity drawn as a cached view: a streamed delta that redraws the thread doesn't redraw it.
+    fn details_card(&self, cx: &App) -> Option<impl IntoElement + use<>> {
+        if !self.details_open {
+            return None;
+        }
+        let right = self.dock_width(DockPlacement::Right, cx);
+        Some(gpui::deferred(
+            div()
+                .absolute()
+                .top(crate::ui::HEADER_H + px(4.))
+                .bottom(px(CARD_GAP))
+                .right(right + px(CARD_GAP))
+                .w(px(CARD_W))
+                .child(
+                    gpui::AnyView::from(self.details.clone())
+                        .cached(gpui::StyleRefinement::default().size_full()),
+                ),
+        ))
     }
 }

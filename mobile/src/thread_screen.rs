@@ -29,7 +29,7 @@ impl MobileApp {
             _ => None,
         };
         let from = applied.unwrap_or_else(|| {
-            self.items.clear();
+            self.items = Items::default();
             self.usage = Usage::default();
             self.expanded.clear();
             self.drafts.clear();
@@ -80,7 +80,8 @@ impl MobileApp {
 
     /// Whether row `ix` is folded away in its finished turn.
     pub fn row_hidden(&self, ix: usize) -> bool {
-        folded_by(&self.items, ix).is_some_and(|done| !self.expanded.contains(&fold_key(done)))
+        folded_by(&self.items, ix)
+            .is_some_and(|done| !self.expanded.contains(&fold_key(&self.items, done)))
     }
 
     /// The "Worked for …" header drawn above row `ix`, when it is the first row its turn folds.
@@ -96,7 +97,9 @@ impl MobileApp {
             return div().into_any_element();
         }
         let header = self.fold_header(ix).map(|text| {
-            let key = folded_by(&self.items, ix).map(fold_key).unwrap_or_default();
+            let key = folded_by(&self.items, ix)
+                .map(|done| fold_key(&self.items, done))
+                .unwrap_or_default();
             let open = self.expanded.contains(&key);
             div()
                 .id(SharedString::from(key.clone()))

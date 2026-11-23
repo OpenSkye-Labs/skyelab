@@ -2,7 +2,7 @@
 //! header until a turn succeeds; each window's latest usage reading shows on the header.
 
 use serde_json::json;
-use skyelab_agent::timeline::{Record, apply};
+use skyelab_agent::timeline::{Items, Record, apply};
 use skyelab_agent::{Block, Event};
 use skyelab_mobile::thread_rows::thread_status;
 use skyelab_mobile::timeline_rows::row_lines;
@@ -18,7 +18,7 @@ fn limit(limited: bool, window: Option<&str>, used: Option<f32>) -> Record {
 
 #[test]
 fn a_dropped_image_reads_not_kept() {
-    let mut items = Vec::new();
+    let mut items = Items::default();
     for r in [
         Record::Agent(Event::Assistant {
             content: vec![Block::ToolUse {
@@ -54,7 +54,7 @@ fn a_limit_shows_until_a_turn_succeeds() {
         limit(false, Some("seven_day"), Some(0.2)),
         limit(true, Some("five_hour"), Some(1.0)),
     ];
-    let mut items = Vec::new();
+    let mut items = Items::default();
     for r in &records {
         apply(&mut items, r);
     }

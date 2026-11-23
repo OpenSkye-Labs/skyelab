@@ -4,8 +4,11 @@
 #   fake-gh.args  one arg per line     fake-gh.env  its GH_/GITHUB_/GIT_ env     fake-gh.body  stdin of `pr create`
 #   fake-gh.fullenv  its whole env, from the last call
 #   fake-gh.prview  one line per `pr view` call (its args)
+#   fake-gh.list  one line per `pr list` / `issue list` call: its args, cwd, GH_CONFIG_DIR and whether GH_TOKEN was set
 # Logged in when "$GH_CONFIG_DIR/fake-login" exists (its content is the login). `pr view` prints
-# "$GH_CONFIG_DIR/fake-pr.json" when it exists, else an open PR whose one check passed.
+# "$GH_CONFIG_DIR/fake-pr.json" when it exists, else an open PR whose one check passed. `pr list` / `issue list`
+# print "$GH_CONFIG_DIR/fake-prs.json" / "fake-issues.json" when they exist, else a short default list; a
+# "$GH_CONFIG_DIR/fake-hold" file makes them hang for 30 s.
 dir="${GH_CONFIG_DIR:?fake gh: no GH_CONFIG_DIR}"
 env > "$dir/fake-gh.fullenv"
 case "$1 $2" in
@@ -31,6 +34,23 @@ case "$1 $2" in
     cat "$dir/fake-pr.json"
   else
     echo '{"state":"OPEN","isDraft":false,"mergedAt":null,"reviewDecision":"","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://github.com/acme/demo/actions/runs/1"}]}'
+  fi
+  ;;
+"pr list" | "issue list")
+  echo "$* cwd=$(pwd) cfg=$GH_CONFIG_DIR token=${GH_TOKEN:+set}" >> "$dir/fake-gh.list"
+  if [ ! -f "$dir/fake-login" ]; then
+    echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+    exit 4
+  fi
+  # A hung gh, for timeout tests.
+  [ -f "$dir/fake-hold" ] && sleep 30
+  if [ "$1" = pr ]; then fixture="$dir/fake-prs.json"; else fixture="$dir/fake-issues.json"; fi
+  if [ -f "$fixture" ]; then
+    cat "$fixture"
+  elif [ "$1" = pr ]; then
+    echo '[{"number":12,"title":"Add the release workflow","url":"https://github.com/acme/demo/pull/12","author":{"login":"ada"},"isDraft":false,"reviewDecision":"APPROVED","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS"}],"updatedAt":"2026-11-23T09:00:00Z"},{"number":15,"title":"Draft: rework the sidebar","url":"https://github.com/acme/demo/pull/15","author":{"login":"bob"},"isDraft":true,"reviewDecision":"","statusCheckRollup":[],"updatedAt":"2026-11-22T09:00:00Z"}]'
+  else
+    echo '[{"number":31,"title":"Crash when the folder is renamed","url":"https://github.com/acme/demo/issues/31","author":{"login":"bob"},"labels":[{"name":"bug"}],"assignees":[{"login":"ada"}],"updatedAt":"2026-11-23T08:00:00Z","body":"Steps: rename the folder while a thread runs."}]'
   fi
   ;;
 "pr create")

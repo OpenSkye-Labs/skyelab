@@ -44,7 +44,7 @@ fn partial_text_survives_reload(cx: &mut TestAppContext) {
         "the streamed text is stored, marked partial"
     );
     // A reload builds the thread from its stored rows: the text and its note come back.
-    let mut items = Vec::new();
+    let mut items = crate::workspace::thread_model::Items::default();
     for r in &records {
         apply(&mut items, r);
     }
@@ -80,14 +80,15 @@ fn wait_records(
 
 #[test]
 fn a_stored_partial_lands_after_its_text_even_behind_a_steer() {
-    let mut items = vec![
+    let mut items: crate::workspace::thread_model::Items = vec![
         Item::Prompt("go".into()),
         Item::Live {
             kind: skyelab_agent::DeltaKind::Text,
             text: "Half".into(),
         },
         Item::Steer("and tests".into()),
-    ];
+    ]
+    .into();
     apply(
         &mut items,
         &Record::Agent(Event::Assistant {

@@ -11,6 +11,7 @@ pub enum Section {
     GitHub,
     Sharing,
     Threads,
+    Scheduled,
     Usage,
     Keys,
     Appearance,
@@ -18,11 +19,12 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 8] = [
+    pub const ALL: [Section; 9] = [
         Section::Accounts,
         Section::GitHub,
         Section::Sharing,
         Section::Threads,
+        Section::Scheduled,
         Section::Usage,
         Section::Keys,
         Section::Appearance,
@@ -35,6 +37,7 @@ impl Section {
             Section::GitHub => "GitHub",
             Section::Sharing => "Sharing",
             Section::Threads => "Threads",
+            Section::Scheduled => "Scheduled tasks",
             Section::Usage => "Usage",
             Section::Keys => "Keyboard shortcuts",
             Section::Appearance => "Appearance",
@@ -49,6 +52,7 @@ impl Section {
             Section::GitHub => "github",
             Section::Sharing => "sharing",
             Section::Threads => "threads",
+            Section::Scheduled => "scheduled",
             Section::Usage => "usage",
             Section::Keys => "keys",
             Section::Appearance => "appearance",
@@ -66,6 +70,7 @@ impl Section {
             Section::GitHub => IconName::Github,
             Section::Sharing => IconName::Globe,
             Section::Threads => IconName::Bot,
+            Section::Scheduled => return Icon::new(gpui_kit_assets::IconName::Clock),
             Section::Usage => IconName::ChartPie,
             Section::Keys => return Icon::new(gpui_kit_assets::IconName::Keyboard),
             Section::Appearance => IconName::Palette,
@@ -164,6 +169,7 @@ impl Settings {
                 .child(self.render_test(cx)),
             Section::GitHub => div().child(self.render_github(cx)),
             Section::Threads => div().child(self.render_threads(cx)),
+            Section::Scheduled => div().children(self.scheduled.clone()),
             Section::Usage => div().children(self.usage.clone()),
             Section::Keys => div().child(self.render_keys(cx)),
             Section::Sharing => unreachable!("returned above"),
@@ -200,6 +206,7 @@ impl Settings {
 
 impl Render for Settings {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("Settings");
         let theme = cx.theme();
         let header = crate::ui::header(theme)
             .child(

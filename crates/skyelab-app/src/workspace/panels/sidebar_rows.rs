@@ -137,6 +137,7 @@ fn thread_row(
                 .when(pinned, |this| {
                     this.child(Icon::new(IconName::Star).size_3().text_color(muted))
                 })
+                .when(marks.scheduled, |this| this.child(scheduled_badge()))
                 .child(div().text_size(ui::META).child(right)),
         )
         .children(marks.preview.clone().map(|p| {
@@ -195,6 +196,11 @@ fn thread_row(
         )
 }
 
+/// A thread a scheduled task started.
+fn scheduled_badge() -> ui::Pill {
+    ui::Pill::new("Scheduled")
+}
+
 fn plain_row(
     item: &SidebarItem,
     marks: Option<&RowMarks>,
@@ -205,6 +211,7 @@ fn plain_row(
     let action = item.action.boxed_clone();
     let is_project = item.account.is_some();
     let (pinned, unread) = marks.map_or((false, false), |m| (m.pinned, m.unread));
+    let scheduled = marks.is_some_and(|m| m.scheduled);
     // A project row is never lifted (T3 keeps project headers flat): a selected one is only set in medium weight.
     ui::row(item.id.clone(), item.selected && !is_project, theme)
         .when(item.selected && is_project, |this| {
@@ -230,6 +237,7 @@ fn plain_row(
                     .text_color(theme.muted_foreground),
             )
         })
+        .when(scheduled, |this| this.child(scheduled_badge()))
         // T3's unread dot: a finished turn nobody has looked at yet.
         .when(unread, |this| this.child(ui::StatusDot::new(theme.info)))
         .children(item.account.as_ref().and_then(|a| {

@@ -1,7 +1,7 @@
 //! A pending permission request stays waiting on the thread screen until a resolved row for it arrives. Rows come
 //! from the desktop's own serializer (`skyelab_agent::Event`), never a hand-written shape.
 
-use skyelab_agent::timeline::{Item, Record, apply};
+use skyelab_agent::timeline::{Item, Items, Record, apply};
 use skyelab_agent::{Decision, Event};
 use skyelab_mobile::timeline_rows::row_lines;
 
@@ -24,7 +24,7 @@ fn pending_until_resolved() {
             input: serde_json::json!({ "command": "make  deploy" }),
         })
     };
-    let mut items = Vec::new();
+    let mut items = Items::default();
     apply(&mut items, &ask("p1"));
     apply(&mut items, &ask("p2"));
     assert_eq!(row_lines(&items[0], false), ["Bash: make deploy"]);

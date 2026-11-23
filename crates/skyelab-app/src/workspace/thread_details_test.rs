@@ -1,10 +1,10 @@
-//! The Details tab: the right-panel toggle shows it, it lists the threads the shown thread's agent delegated with
+//! The thread details card: its toggle shows it, it lists the threads the shown thread's agent delegated with
 //! their live status, and every account's newest usage reading.
 #![cfg(unix)]
 
 use crate::ui::Status;
 use crate::workspace::delegation_test::{open, rig, send, start, wait_until};
-use crate::workspace::layout::ToggleRightPanel;
+use crate::workspace::layout::ToggleThreadDetails;
 use crate::workspace::thread::Stop;
 use gpui::TestAppContext;
 
@@ -65,13 +65,13 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
 
     assert!(
         cx.debug_bounds("thread-details-card").is_none(),
-        "the dock starts closed"
+        "the card starts closed"
     );
-    cx.dispatch_action(ToggleRightPanel);
+    cx.dispatch_action(ToggleThreadDetails);
     cx.run_until_parked();
     assert!(
         cx.debug_bounds("thread-details-card").is_some(),
-        "the right-panel toggle shows the Details tab"
+        "the thread details toggle shows the card"
     );
 
     // Link pull request…: only a GitHub PR link is kept, normalized, and the sidebar row shows its number.

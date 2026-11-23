@@ -1,4 +1,4 @@
-//! The Details tab's usage rows only show what still holds: each bar dated by its own reading, a window past its
+//! The details card's usage rows only show what still holds: each bar dated by its own reading, a window past its
 //! reset marked as reset, and a "Limited" that names no reset dropped once it is old.
 
 use super::{limit_text, usage_from};

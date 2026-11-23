@@ -28,7 +28,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
 - UI changes are checked in the running app with `/loop-verify-ui` (native window), not just by compiling.
   Run the app with a throwaway `HOME` (so your real `accounts.toml` is untouched) and `SKYELAB_VERIFY_TOPMOST=1`
   (debug builds: windows open above others, so nothing needs moving). Add `SKYELAB_VERIFY_THEME=dark` or `light` to capture
-  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `alleo-native-window` can't see those
+  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `SKYELAB_DEBUG_RENDERS=1` prints each view's renders per second to stderr (docs/gpui.md). `alleo-native-window` can't see those
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
@@ -38,7 +38,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,
-  `usage` reports two usage windows for the Details tab and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
+  `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
   `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
@@ -50,10 +50,14 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   makes its `thread/resume` fail as a missing thread), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
-  and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed). Never verify against the real `gh`. All of these are debug builds only.
+  and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed; `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there). Never verify against the real `gh`. All of these are debug builds only.
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
   (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.
+- Never kill processes by command-line match (`pkill -f`, `pgrep -f … | xargs kill`): other sessions on this machine run
+  the same commands. Kill only PIDs you started and recorded yourself.
+- Hand-written `accounts.toml` bindings in a throwaway HOME need `resolved = "<same path>"`, or they load as stale
+  ("No account").
 - Mutation probes (break the code to prove a test catches it): undo them by re-applying the edit or from a copy, never
   with `git checkout`/`git restore` on the file, which also wipes your other uncommitted edits there.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
