@@ -2,7 +2,7 @@
 //! pump the view starts and by its follow-ups, so a stopped session's held events, a resume, and a follow-up prompt
 //! all land in the store in the order they happened.
 
-use super::{Record, SharedStore, ThreadView, append, lock};
+use super::{Record, SharedStore, ThreadView, lock};
 use anyhow::Result;
 use gpui::{AppContext as _, AsyncApp, Context};
 use skyelab_agent::Event;
@@ -227,4 +227,13 @@ impl ThreadView {
         })
         .detach();
     }
+}
+
+pub(super) fn append(
+    store: &mut skyelab_store::Store,
+    thread_id: i64,
+    record: &Record,
+) -> anyhow::Result<()> {
+    let (kind, payload) = record.to_row();
+    store.append_event(thread_id, kind, &payload).map(|_| ())
 }

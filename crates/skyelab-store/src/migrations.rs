@@ -183,4 +183,7 @@ END;
     "
 ALTER TABLE threads ADD COLUMN imported_session TEXT;
 ",
+    // Version 15: the linked pull request's last read state ('open', 'draft', 'merged', 'closed'), so an ended PR
+    // isn't read again after a restart.
+    "ALTER TABLE threads ADD COLUMN pr_state TEXT;",
 ];

@@ -17,8 +17,8 @@ dated; newest at the bottom.
   dir uses gh's default config; a GitHub dir inside a project holds a plaintext token that Commit all would stage.
   (2026-11-23)
 - **SkyeLab's own git calls:** run with `env_clear` plus the allowlist, and `-c core.hooksPath=/dev/null` for
-  everything except Commit and Push (status, diff, add, worktree add, the snapshot index). Commit and Push run the
-  repo's hooks, since users rely on pre-commit and pre-push, with the scrubbed env plus the bound account's
+  everything except Commit, Push and Pull (status, diff, add, worktree add, the snapshot index, the background fetch).
+  Commit, Push and Pull run the repo's hooks, since users rely on pre-commit, pre-push and post-merge, with the scrubbed env plus the bound account's
   `launch_env` (Push: its `GH_CONFIG_DIR`), so a hook an agent planted sees nothing the agent couldn't already.
   Filters (`filter.<x>.clean`/`process`, from repo config and `.gitattributes`) can't be turned off generically
   without breaking LFS-style repos, so they still run during status, diff and add, with the scrubbed env only: the

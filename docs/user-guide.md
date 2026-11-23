@@ -25,7 +25,7 @@ The sidebar lists the threads of all your projects in one list: **Pinned** first
 now, or waiting for your answer, even on a page you're not looking at), then the rest by when they last changed: **Today**, **Yesterday**, **Previous 7 days** and **Older**. Each row
 shows the title, then the agent's last reply in two muted lines, then a line with the project, the account the
 project's folder is bound to (**No account** in the warning color if it has none), the pull request opened from the
-thread (**#24**) and the branch (the thread's worktree branch, else the branch the project folder has checked out).
+thread (**#24**, its icon and color showing open, draft, merged or closed, plus its checks while open) and the branch (the thread's worktree branch, else the branch the project folder has checked out).
 Beside the title is the thread's state (**Working 1m 12s**, counting up while the turn runs,
 **Approval** while the agent waits for your answer, **Failed**, **Interrupted**, **Done** for a finished turn you
 haven't seen) or how long ago it last changed. Hold the pointer still on a row for a moment to see its card (a click

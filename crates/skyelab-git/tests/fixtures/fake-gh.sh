@@ -3,7 +3,9 @@
 # GH_CONFIG_DIR it was given, so a missing or wrong dir shows up as a missing record:
 #   fake-gh.args  one arg per line     fake-gh.env  its GH_/GITHUB_/GIT_ env     fake-gh.body  stdin of `pr create`
 #   fake-gh.fullenv  its whole env, from the last call
-# Logged in when "$GH_CONFIG_DIR/fake-login" exists (its content is the login).
+#   fake-gh.prview  one line per `pr view` call (its args)
+# Logged in when "$GH_CONFIG_DIR/fake-login" exists (its content is the login). `pr view` prints
+# "$GH_CONFIG_DIR/fake-pr.json" when it exists, else an open PR whose one check passed.
 dir="${GH_CONFIG_DIR:?fake gh: no GH_CONFIG_DIR}"
 env > "$dir/fake-gh.fullenv"
 case "$1 $2" in
@@ -18,6 +20,18 @@ case "$1 $2" in
   printf '%s\n' "$@" > "$dir/fake-gh.credential"
   cat > /dev/null
   printf 'username=x-access-token\npassword=fake-token\n'
+  ;;
+"pr view")
+  echo "$*" >> "$dir/fake-gh.prview"
+  if [ ! -f "$dir/fake-login" ]; then
+    echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+    exit 4
+  fi
+  if [ -f "$dir/fake-pr.json" ]; then
+    cat "$dir/fake-pr.json"
+  else
+    echo '{"state":"OPEN","isDraft":false,"mergedAt":null,"reviewDecision":"","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://github.com/acme/demo/actions/runs/1"}]}'
+  fi
   ;;
 "pr create")
   printf '%s\n' "$@" > "$dir/fake-gh.args"

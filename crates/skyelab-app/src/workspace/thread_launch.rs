@@ -1,6 +1,7 @@
 //! Starting `claude` for a thread: a new thread, or resuming an ended session. Follow-ups are `thread_follow_up.rs`.
 
-use super::{Record, ThreadView, ThreadViewEvent, append};
+use super::saves::append;
+use super::{Record, ThreadView, ThreadViewEvent};
 use crate::workspace::lock;
 use anyhow::Context as _;
 use gpui::{AppContext as _, Context, Window};

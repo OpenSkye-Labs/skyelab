@@ -11,6 +11,10 @@ mod project_name_test;
 #[path = "pr_unlink_test.rs"]
 mod pr_unlink_test;
 
+#[cfg(unix)] // the fake gh is a shell script
+#[path = "pr_poll_test.rs"]
+mod pr_poll_test;
+
 #[path = "panels/sidebar_card_test.rs"]
 mod sidebar_card_test;
 

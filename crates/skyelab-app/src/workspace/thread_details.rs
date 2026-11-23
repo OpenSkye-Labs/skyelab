@@ -29,6 +29,8 @@ impl On {
 mod card;
 #[path = "thread_details_git.rs"]
 mod git;
+#[path = "thread_details_pr.rs"]
+mod pr;
 #[cfg(test)]
 #[path = "thread_details_test.rs"]
 mod tests;
@@ -65,6 +67,14 @@ pub struct Details {
     /// The "Link pull request…" field and what was wrong with the last link.
     pr_input: Option<Entity<gpui_component::input::InputState>>,
     pr_error: Option<SharedString>,
+    /// Commits ahead of and behind the branch's upstream; `None` without one (or not read yet).
+    sync: Option<(u32, u32)>,
+    /// Why the last background fetch failed.
+    fetch_error: Option<SharedString>,
+    /// When the last fetch started (ms since the epoch), for Settings → Threads' interval.
+    fetched_ms: i64,
+    fetching: bool,
+    _fetch: Option<Task<()>>,
     _load: Option<Task<()>>,
     _gh: Option<Task<()>>,
 }
@@ -164,13 +174,15 @@ impl ThreadView {
         let base = self.thread.as_ref().and_then(|t| t.worktree_base.clone());
         let task = cx.background_spawn(async move {
             let stat = skyelab_git::diff_stat(&cwd, base.as_deref()).ok();
+            let sync = skyelab_git::ahead_behind(&cwd).ok().flatten();
             let machine = super::thread::composer::machine_name().map(SharedString::from);
-            (stat, editors(), machine)
+            (stat, sync, editors(), machine)
         });
         self.details._load = Some(cx.spawn(async move |this, cx| {
-            let (stat, editors, machine) = task.await;
+            let (stat, sync, editors, machine) = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.details.stat = stat;
+                this.details.sync = sync;
                 this.details.editors = Some(editors);
                 this.details.machine = machine;
                 cx.notify();
@@ -194,6 +206,8 @@ impl Workspace {
         }
         self.details.update(cx, |d, cx| d.set_thread(view, cx));
         self.refresh_usage(cx);
+        self.poll_prs(true, cx);
+        self.fetch_shown(cx);
     }
 
     /// Every account's newest usage readings, read off the UI thread; a newer read replaces an older one.

@@ -18,7 +18,7 @@ CREATE TRIGGER event_text_insert AFTER INSERT ON events BEGIN
 END;
 ";
 
-/// Undoes migration 13: titles' source, forks and drafts.
+/// Undoes migrations 14 and 13: the PR state; titles' source, forks and drafts.
 pub const UNDO_V13: &str = "
 DROP TRIGGER drafts_thread_delete; DROP TABLE drafts; DROP TABLE draft_files;
 ALTER TABLE threads DROP COLUMN title_source; ALTER TABLE threads DROP COLUMN forked_from;
@@ -26,4 +26,5 @@ ALTER TABLE threads DROP COLUMN fork_context;
 ";
 
 /// Undoes migration 14: the imported session column.
+pub const UNDO_V15: &str = "ALTER TABLE threads DROP COLUMN pr_state;";
 pub const UNDO_V14: &str = "ALTER TABLE threads DROP COLUMN imported_session;";

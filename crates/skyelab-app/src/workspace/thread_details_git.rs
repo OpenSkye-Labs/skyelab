@@ -33,11 +33,19 @@ impl ThreadView {
             return None;
         }
         let picks_base = thread.is_none() && self.wt.use_worktree;
+        let sync = self.sync_label().map(|s| {
+            div()
+                .id("details-sync")
+                .flex_shrink_0()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(s)
+        });
         let branch_row = match worktree_branch {
             // A worktree thread's branch is its own; it doesn't switch.
-            Some(branch) => {
-                row("details-branch", IconName::GitBranch, branch, theme).cursor_default()
-            }
+            Some(branch) => row("details-branch", IconName::GitBranch, branch, theme)
+                .children(sync)
+                .cursor_default(),
             None => {
                 let picker = self.branch_picker.clone();
                 row(
@@ -46,6 +54,7 @@ impl ThreadView {
                     self.branch_picker.read(cx).label(picks_base),
                     theme,
                 )
+                .children(sync)
                 .child(chevron(IconName::ChevronDown, theme))
                 .on_click(on.click(move |_, _, cx| {
                     picker.update(cx, |p, cx| p.set_open(true, cx));
@@ -77,6 +86,7 @@ impl ThreadView {
         Some(
             v_flex()
                 .child(branch_row)
+                .children(self.render_sync_rows(on, cx))
                 .child(
                     row(
                         "details-commit",
@@ -164,71 +174,6 @@ impl ThreadView {
         Some((title, body.into_any_element()))
     }
 
-    /// The thread's pull request (opened here or linked), else "Link pull request…". `None` before the thread has
-    /// a row to keep the link on.
-    pub(super) fn render_pr(&self, on: &On, cx: &App) -> Option<AnyElement> {
-        let theme = cx.theme();
-        let thread = self.thread.as_ref()?;
-        let Some(url) = thread.pr_url.clone() else {
-            return Some(
-                row(
-                    "details-link-pr",
-                    IconName::Plus,
-                    "Link pull request…",
-                    theme,
-                )
-                .on_click(on.click(|this, window, cx| this.open_link_pr(window, cx)))
-                .into_any_element(),
-            );
-        };
-        let label = url.trim_start_matches("https://").to_owned();
-        Some(
-            row("details-pr", IconName::GitPullRequest, label, theme)
-                .on_click(move |_, _, cx| {
-                    if super::super::thread_render::opens_in_browser(&url) {
-                        cx.open_url(&url);
-                    }
-                })
-                .child(
-                    Button::new("details-unlink-pr")
-                        .ghost()
-                        .xsmall()
-                        .icon(IconName::Unlink)
-                        .tooltip("Unlink pull request")
-                        .on_click(on.click(|this, _, cx| {
-                            cx.stop_propagation(); // not the row's open-in-browser
-                            this.unlink_pr(cx);
-                        })),
-                )
-                .into_any_element(),
-        )
-    }
-
-    /// Forgets the thread's pull request (the PR itself is untouched); the workspace's notice can undo it.
-    pub(in crate::workspace) fn unlink_pr(&mut self, cx: &mut Context<Self>) {
-        let Some((id, Some(url))) = self.thread.as_ref().map(|t| (t.id, t.pr_url.clone())) else {
-            return;
-        };
-        let store = self.backend.store.clone();
-        let saved = cx.background_spawn(async move {
-            super::super::lock(&store).and_then(|s| s.set_thread_pr_url(id, None))
-        });
-        cx.spawn(async move |this, cx| {
-            let saved = saved.await;
-            let _ = this.update(cx, |this, cx| match saved {
-                Err(e) => {
-                    this.error = Some(format!("Couldn't unlink the pull request: {e:#}").into());
-                    cx.notify();
-                }
-                Ok(()) => {
-                    this.set_pr_url(None, cx);
-                    cx.emit(ThreadViewEvent::PrUnlinked(url));
-                }
-            });
-        })
-        .detach(); // one short write; `this` is weak
-    }
-
     /// The Commit & push menu, and who it pushes as (read from the account's `gh` now, off the UI thread).
     pub(in crate::workspace) fn open_git_menu(&mut self, cx: &mut Context<Self>) {
         self.details.page = Page::Git;
@@ -266,7 +211,7 @@ impl ThreadView {
         cx.notify();
     }
 
-    /// T3's GitActionsControl as a page: Commit, Commit & push, Push, then Open PR (View PR once there is one). Each
+    /// T3's GitActionsControl as a page: Commit, Commit & push, Push, Pull, then Open PR (View PR once there is one). Each
     /// runs in the Changes tab, where its message and result show.
     pub(super) fn render_git_menu(&self, on: &On, cx: &App) -> Vec<AnyElement> {
         let theme = cx.theme();
@@ -329,6 +274,12 @@ impl ThreadView {
                 IconName::ArrowUp,
                 "Push",
                 GitAction::Push,
+            ),
+            action(
+                "details-git-pull",
+                IconName::ArrowDown,
+                "Pull",
+                GitAction::Pull,
             ),
             pr,
         ]

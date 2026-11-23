@@ -237,6 +237,17 @@ pub(super) fn row(
     label: impl Into<SharedString>,
     theme: &Theme,
 ) -> gpui::Stateful<gpui::Div> {
+    tinted_row(id, icon, theme.muted_foreground, label, theme)
+}
+
+/// [`row`] with its icon in `color` (a PR's state, a check's result).
+pub(super) fn tinted_row(
+    id: impl Into<gpui::ElementId>,
+    icon: IconName,
+    color: gpui::Hsla,
+    label: impl Into<SharedString>,
+    theme: &Theme,
+) -> gpui::Stateful<gpui::Div> {
     h_flex()
         .id(id)
         .h(ui::ROW_H)
@@ -248,12 +259,7 @@ pub(super) fn row(
         .text_size(ui::CODE)
         .font_weight(FontWeight::MEDIUM)
         .text_color(theme.foreground.opacity(0.8))
-        .child(
-            Icon::new(icon)
-                .size_4()
-                .flex_shrink_0()
-                .text_color(theme.muted_foreground),
-        )
+        .child(Icon::new(icon).size_4().flex_shrink_0().text_color(color))
         .child(div().flex_1().min_w_0().truncate().child(label.into()))
 }
 

@@ -165,8 +165,12 @@ impl Workspace {
 
     /// Clears unread when the window comes back to a thread, and runs the sidebar's thread filter.
     pub(super) fn watch_attention(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let activation =
-            cx.observe_window_activation(window, |this, window, cx| this.mark_seen(window, cx));
+        let activation = cx.observe_window_activation(window, |this, window, cx| {
+            this.mark_seen(window, cx);
+            if window.is_window_active() {
+                this.poll_prs(true, cx);
+            }
+        });
         let search = cx.subscribe(
             &self.sidebar.clone(),
             |this, _, e: &super::panels::SidebarSearch, cx| this.search_threads(e.0.clone(), cx),

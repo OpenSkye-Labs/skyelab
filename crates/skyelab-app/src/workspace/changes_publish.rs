@@ -1,5 +1,5 @@
-//! The Changes tab's Commit / Push / Open PR. Each runs only while the folder still resolves to the
-//! thread's recorded account; Push and Open PR also need that account's GitHub login.
+//! The Changes tab's Commit / Push / Pull / Open PR. Each runs only while the folder still resolves to the
+//! thread's recorded account; Push, Pull and Open PR also need that account's GitHub login.
 
 use super::changes::ChangesView;
 use super::changes_generate::Gen;
@@ -127,6 +127,7 @@ impl ChangesView {
     ) {
         let (text, focus, empty) = match action {
             GitAction::Push => return self.push(window, cx),
+            GitAction::Pull => return self.pull(window, cx),
             GitAction::Commit | GitAction::CommitPush => {
                 let f = self.commit_message.read(cx);
                 (
@@ -222,8 +223,39 @@ impl ChangesView {
                 let to = skyelab_git::push_with(&t.dir, &gh.context("no GitHub login")?, &env)?;
                 Ok(format!("Pushed to {to}"))
             },
-            |this, note, _, _| this.publish_note = Some(note.into()),
+            |this, note, _, cx| {
+                this.publish_note = Some(note.into());
+                this.reload_thread_details(cx);
+            },
         );
+    }
+
+    /// Fetches and fast-forwards to the upstream; refused when the tree is dirty or the branch diverged.
+    pub(super) fn pull(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.run(
+            true,
+            window,
+            cx,
+            |t, gh| {
+                let env = hook_env(&t.config, &t.dir)?;
+                Ok(skyelab_git::pull_ff(
+                    &t.dir,
+                    &gh.context("no GitHub login")?,
+                    &env,
+                )?)
+            },
+            |this, note, _, cx| {
+                this.publish_note = Some(note.into());
+                this.reload_thread_details(cx);
+            },
+        );
+    }
+
+    /// The thread's Details card reads its ahead/behind counts and diff size again.
+    fn reload_thread_details(&self, cx: &mut Context<Self>) {
+        if let Some(view) = self.thread.as_ref().and_then(|t| t.upgrade()) {
+            view.update(cx, |t, cx| t.load_details(cx));
+        }
     }
 
     pub(super) fn open_pr(&mut self, window: &mut Window, cx: &mut Context<Self>) {
