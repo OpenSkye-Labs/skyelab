@@ -38,8 +38,9 @@ What's built today:
   threads (with undo), search them by title and message text, see which ones finished while you were away (unread
   markers and notifications), and move between them with <kbd>⌘N</kbd>, <kbd>⇧⌘[</kbd> / <kbd>⇧⌘]</kbd> and
   <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor. The header is a plain breadcrumb;
-  the right panel's **Details** tab holds the folder, branch, git actions, scripts, delegated agents, pull request
-  and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
+  the right panel's **Details** tab holds the folder, branch (with how far behind or ahead of its upstream, kept
+  fresh by a background fetch, and a fast-forward Pull), git actions, scripts, delegated agents, pull request (its
+  state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
 - **GitHub per account.** An account can have its own `gh` config dir (`GH_CONFIG_DIR`). Agents, project terminals
   and the Changes tab's Commit / Push / Open PR all run as that account's GitHub user (a sparkle writes the commit
   message or PR text, from the PR template too, with that account's agent); inherited `GH_TOKEN` /

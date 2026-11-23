@@ -6,11 +6,16 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
 
 - **Environment:** this machine's name, with a button that opens the thread's folder in Finder (or your file
   manager). On a git repo, then:
-  - **The branch** opens the branch picker (a worktree thread shows its own branch, which doesn't switch).
+  - **The branch** opens the branch picker (a worktree thread shows its own branch, which doesn't switch). When the
+    branch tracks an upstream, the row ends with how far apart they are (**2 behind / 1 ahead**), counted after the
+    background fetch (Settings → Threads → **Fetch remote**). If that fetch failed, a line under the row says why.
+  - **Pull N commits** shows while the upstream is ahead. It runs **Pull** (below).
   - **Commit & push** opens a menu that says which GitHub login pushes (the thread's account's own `gh` login, read
     against `accounts.toml` as saved now; if the folder has been bound to another account since, it shows the refusal
     Push would give instead), then
-    **Commit**, **Commit & push**, **Push** and **Open PR** (**View PR** once the thread has one). Each runs in the
+    **Commit**, **Commit & push**, **Push**, **Pull** and **Open PR** (**View PR** once the thread has one). Pull fetches,
+    then fast-forwards the branch to its upstream; it refuses when the folder has uncommitted changes to tracked files,
+    when the branch has no upstream yet, and when the branch has commits the upstream doesn't (merge or rebase by hand). Each runs in the
     Changes tab with the same checks as its buttons there: the folder must still be bound to the thread's account,
     and Push and Open PR need that account's GitHub login. Commit and Open PR use the message and title typed in
     Changes; with none typed, the field is focused and nothing runs.
@@ -32,6 +37,14 @@ tab beside Changes, browsers and Devices. Everything in it acts on the thread's 
   `https://github.com/<owner>/<repo>/pull/<number>` link (anything else is refused) and keeps it on the thread; it
   then shows here and as the `#<number>` badge on the thread's sidebar row. The unlink button at the end of the row
   forgets the link (the pull request itself is untouched) without asking; the notice that follows has **Undo**.
+  Once read, the row shows the PR's state (**Open**, **Draft**, **Merged**, **Closed**, colored like its sidebar badge),
+  then its checks (passing, running, or **N checks failing** with each failing check listed; click one to open its
+  page) and its review (**Approved**, **Changes requested**, **Awaiting review**). SkyeLab reads it with the thread's
+  account's own `gh` after Push's checks, one PR at a time: an open PR every 5 minutes, the shown thread's after a
+  minute when you focus the window or open it. A merged or closed PR is never read again, across restarts too
+  (linking another PR starts over). An account with no GitHub login shows **Sign in to GitHub** (it opens
+  Settings → GitHub) and `gh` is never run for it. The sidebar badge takes the state's icon and color, with a small
+  check mark, dot or cross for the checks while the PR is open.
 - **Editor:** **Open in <editor>** runs the editor described under **Open in editor**. The arrow lists the editors on
   your PATH (VS Code, Cursor, Zed, Windsurf, Sublime Text); picking one opens the folder in it and saves it as
   `editor` in `settings.toml`.
