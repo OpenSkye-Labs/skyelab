@@ -443,8 +443,6 @@ mod manage_harness;
 #[cfg(test)]
 mod manage_projects_test;
 #[cfg(test)]
-mod manage_sidebar_test;
-#[cfg(test)]
 mod manage_threads_test;
 #[cfg(test)]
 mod palette_search_test;
@@ -465,21 +463,15 @@ mod browser_tests;
 mod thread_model_test;
 
 #[cfg(test)]
+mod sidebar_tests;
+#[cfg(test)]
 mod timeline_tests;
 
 #[cfg(test)]
 mod threads_test;
 
 #[cfg(test)]
-mod sidebar_account_test;
-#[cfg(test)]
-mod sidebar_flat_test;
-
-#[cfg(test)]
 mod layout_test;
-
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod sidebar_status_test;
 
 #[cfg(test)]
 mod agent_bin_test;
