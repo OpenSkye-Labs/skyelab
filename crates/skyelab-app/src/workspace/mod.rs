@@ -6,6 +6,7 @@ mod browser_tabs;
 mod changes;
 mod changes_model;
 mod changes_publish;
+mod child_slots;
 mod devices;
 mod env_mode;
 mod env_picker;
@@ -159,7 +160,7 @@ pub struct Workspace {
     terminals: Vec<Entity<TerminalPanel>>,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
     settings: Option<WeakEntity<Settings>>,
     backend: Backend,
@@ -170,6 +171,8 @@ pub struct Workspace {
     /// The selected project's threads, most recently updated first.
     threads: Vec<Thread>,
     open_threads: Vec<WeakEntity<ThreadView>>,
+    /// Local tabs that opened on their own while another machine was shown; added when the user is back here.
+    queued_tabs: Vec<Entity<ThreadView>>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     _thread_events: Vec<Subscription>,
     _load: Option<Task<()>>,
@@ -246,7 +249,7 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             terminals: Vec::new(),
             browsers: Vec::new(),
-            #[cfg(test)]
+            #[cfg(all(test, unix))]
             browser_engine: None,
             settings: None,
             backend,
@@ -256,6 +259,7 @@ impl Workspace {
             project: None,
             threads: Vec::new(),
             open_threads: Vec::new(),
+            queued_tabs: Vec::new(),
             changes_views: Vec::new(),
             _thread_events: Vec::new(),
             _load: None,
@@ -449,6 +453,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_remote))
             .on_action(cx.listener(Self::toggle_sharing))
             .on_action(cx.listener(Self::disconnect_peer))
+            .on_action(cx.listener(Self::allow_device))
+            .on_action(cx.listener(Self::deny_device))
+            .on_action(cx.listener(Self::revoke_device))
             .on_action(cx.listener(Self::open_palette))
             .map(|el| self.env_actions(el, cx))
             .size_full()
@@ -480,7 +487,7 @@ mod agent_bin_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
 mod codex_thread_test;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_second_row_test;
 
 #[cfg(test)]
@@ -507,7 +514,7 @@ mod worktree_discard_test;
 #[cfg(test)]
 mod worktree_review_test;
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_cta_folder_test;
 
 #[cfg(test)]
@@ -556,7 +563,15 @@ mod changes_follow_folder_test;
 mod delegation_test;
 
 #[cfg(test)]
+mod delegation_cap_test;
+#[cfg(test)]
 mod delegation_resume_test;
+#[cfg(test)]
+mod delegation_turns_test;
+#[cfg(test)]
+mod env_approval_test;
+#[cfg(test)]
+mod env_queue_test;
 
 #[cfg(test)]
 mod long_thread_test;
@@ -584,3 +599,7 @@ mod remote_resume_test;
 mod save_retry_stop_test;
 #[cfg(test)]
 mod save_retry_test;
+#[cfg(test)]
+mod save_turns_test;
+#[cfg(test)]
+mod stale_idle_test;

@@ -6,9 +6,11 @@
 //! Security gate, in order, for every TCP connection: the listener is bound to this node's tailnet IPs only;
 //! `whois(peer_addr)` must say it is one of the user's own untagged devices ([`is_own_device`]); TLS with this
 //! node's `tailscale cert` certificate (there is no plaintext mode); the WebSocket handshake must not come from a
-//! browser (no `Origin`); the first request must be a compatible `hello`. Any error, including Tailscale being
+//! browser (no `Origin`); the first request must be a compatible `hello` carrying a device key the user approved
+//! for that node ([`Approval`]), and nothing but hello is answered before that. Any error, including Tailscale being
 //! down or slow, rejects the connection. Without a certificate the daemon doesn't start.
 
+mod access;
 mod backend;
 mod peers;
 mod serve;
@@ -37,11 +39,13 @@ use tokio_tungstenite::tungstenite::handshake::server::{
 use tokio_tungstenite::tungstenite::http::{StatusCode, header};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 
+use access::SharedAccess;
+pub use access::{AccessRequest, Approval};
 pub use backend::{
     Agents, Backend, MAX_EVENTS_PER_REPLY, MAX_REPLY_BYTES, NotWired, StoreBackend, event,
 };
 pub use peers::Peer;
-use peers::{Peers, Registered, lock_peers};
+use peers::{Entry, Peers, Registered, lock_peers};
 use serve::serve;
 pub use skyelab_tailnet::ADMIN_DNS_URL;
 use slots::{Slot, Slots};
@@ -72,6 +76,8 @@ pub struct Config {
     pub cert_check_every: Duration,
     /// After a failed renewal, the next try comes this soon (the current cert keeps being served).
     pub cert_retry: Duration,
+    /// The devices allowed in from the first connection on. Change them with [`Daemon::set_approved`].
+    pub approved: Vec<Approval>,
 }
 
 impl Default for Config {
@@ -86,6 +92,7 @@ impl Default for Config {
             max_pending_per_peer: 4,
             cert_check_every: Duration::from_secs(24 * 3600),
             cert_retry: Duration::from_secs(3600),
+            approved: Vec::new(),
         }
     }
 }
@@ -95,6 +102,7 @@ pub struct Daemon {
     addrs: Vec<SocketAddr>,
     events: broadcast::Sender<ThreadEvent>,
     peers: Peers,
+    access: SharedAccess,
     tls: Arc<Tls>,
     shutdown: Option<oneshot::Sender<()>>,
     thread: Option<JoinHandle<()>>,
@@ -109,6 +117,7 @@ struct Shared {
     events: broadcast::Sender<ThreadEvent>,
     pending: Arc<Slots>,
     peers: Peers,
+    access: SharedAccess,
     next_peer: AtomicU64,
     tls: Arc<Tls>,
 }
@@ -180,8 +189,12 @@ impl Daemon {
         };
         let (events, _) = broadcast::channel(256);
         let peers = Peers::default();
+        let access = Arc::new(std::sync::Mutex::new(access::Access::new(
+            config.approved.clone(),
+        )));
         let shared = Arc::new(Shared {
             peers: peers.clone(),
+            access: access.clone(),
             next_peer: AtomicU64::new(1),
             pending: Slots::new(config.max_pending, config.max_pending_per_peer),
             tls: tls.clone(),
@@ -210,6 +223,7 @@ impl Daemon {
             addrs,
             events,
             peers,
+            access,
             tls,
             shutdown: Some(shutdown),
             thread: Some(thread),
@@ -225,24 +239,41 @@ impl Daemon {
         self.tls.info()
     }
 
-    /// Connections that passed the gate and are still open, oldest first.
+    /// Connections whose hello was approved and that are still open, oldest first.
     pub fn peers(&self) -> Vec<Peer> {
         lock_peers(&self.peers)
             .values()
-            .map(|(p, _)| p.clone())
+            .filter(|e| e.approval.is_some())
+            .map(|e| e.peer.clone())
             .collect()
     }
 
     /// Closes the connection `id`. False if it's already gone.
     pub fn disconnect(&self, id: u64) -> bool {
         match lock_peers(&self.peers).get(&id) {
-            Some((_, kick)) => {
+            Some(entry) => {
                 // notify_one keeps the wakeup if the serve loop isn't waiting right now.
-                kick.notify_one();
+                entry.kick.notify_one();
                 true
             }
             None => false,
         }
+    }
+
+    /// Replaces the approved devices. A connection whose approval is gone is closed at once; a call it already
+    /// started still finishes.
+    pub fn set_approved(&self, approved: Vec<Approval>) {
+        access::set_approved(&self.access, &self.peers, approved);
+    }
+
+    /// Devices waiting for the user to allow or deny them, oldest first.
+    pub fn requests(&self) -> Vec<AccessRequest> {
+        access::lock(&self.access).requests()
+    }
+
+    /// Turns a device key down until the daemon stops: its request goes, and its next hello is told `denied`.
+    pub fn deny(&self, node_id: &str, key_hash: &str) {
+        access::deny(&self.access, node_id, key_hash);
     }
 
     /// Pushes `event` to every connection that has said hello. Never blocks.
@@ -345,13 +376,27 @@ async fn handle(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>, permit
         addr: peer,
         device: who.node.name.trim_end_matches('.').to_owned(),
         user: who.user_profile.login_name,
+        node_id: who.node.stable_id,
     };
-    lock_peers(&shared.peers).insert(id, (info, kick.clone()));
+    let who = access::Who {
+        peer_id: id,
+        node_id: info.node_id.clone(),
+        device: info.device.clone(),
+        user: info.user.clone(),
+    };
+    lock_peers(&shared.peers).insert(
+        id,
+        Entry {
+            peer: info,
+            kick: kick.clone(),
+            approval: None,
+        },
+    );
     let _registered = Registered {
         peers: &shared.peers,
         id,
     };
-    serve(ws, peer, &shared, &kick).await;
+    serve(ws, peer, &shared, &who, &kick).await;
 }
 
 /// The gate. Nothing is read from the socket, not even a TLS ClientHello, until whois has passed.

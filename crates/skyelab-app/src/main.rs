@@ -126,6 +126,23 @@ fn agent_bin(env: Option<std::ffi::OsString>, debug: bool, name: &str) -> std::p
     }
 }
 
+/// This install's device key for connecting to other machines, which approve it. Release builds on macOS keep it
+/// in the keychain, where another program (an agent) can't read it without the user's yes. Debug builds and other
+/// OSes use a 0600 file in the config dir, so a throwaway `HOME` never touches the login keychain. `None` (logged)
+/// means other machines can't approve this one.
+fn device_key() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    if !cfg!(debug_assertions) {
+        return skyelab_client::keychain_device_key()
+            .map_err(|e| eprintln!("skyelab: no device key from the keychain: {e}"))
+            .ok();
+    }
+    let path = dirs::config_dir()?.join("skyelab").join("device-key");
+    skyelab_client::load_or_create_device_key(&path)
+        .map_err(|e| eprintln!("skyelab: no device key in {}: {e}", path.display()))
+        .ok()
+}
+
 /// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.
 fn tailnet() -> skyelab_tailnet::TailscaleCli {
     let cli = skyelab_tailnet::TailscaleCli::default();
@@ -234,6 +251,7 @@ fn main() {
         let store = Arc::new(Mutex::new(store));
         let (agents, calls) = remote::UiAgents::new();
         let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
+        let device_key = device_key();
         let host = remote::Host {
             settings_path: AppSettings::default_path(),
             tailnet: tailnet.clone(),
@@ -263,7 +281,8 @@ fn main() {
                     workspace::Workspace::new(folder, path, config, error, backend, window, cx);
                 ws.store_error = store_error.map(Into::into);
                 ws.set_remote(remote, calls, window, cx);
-                let options = environment::client_options(tailnet.clone());
+                let mut options = environment::client_options(tailnet.clone());
+                options.device_key = device_key.clone();
                 ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                 #[cfg(unix)]
                 if let Some(o) = orchestrate {

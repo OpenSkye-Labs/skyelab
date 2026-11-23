@@ -21,6 +21,11 @@ pub enum ConnState {
     Reconnecting(String),
     /// The remote's gate (whois) dropped us before the handshake. The client keeps retrying.
     Refused,
+    /// The remote hasn't approved this device yet; the user is asked there. Holds the client's words, which
+    /// name this device's code.
+    NotApproved(String),
+    /// The user turned this device down on the remote.
+    Denied,
     /// This machine's own Tailscale doesn't vouch for the dialled address as one of the user's own untagged devices
     /// (or whois failed). Nothing was sent to it. The client keeps retrying.
     NotYourDevice(String),
@@ -45,6 +50,10 @@ impl ConnState {
     fn from_update(update: &Update) -> Option<Self> {
         Some(match update {
             Update::Disconnected(d) if d.kind == DisconnectKind::Refused => Self::Refused,
+            Update::Disconnected(d) if d.kind == DisconnectKind::NotApproved => {
+                Self::NotApproved(d.message.clone())
+            }
+            Update::Disconnected(d) if d.kind == DisconnectKind::Denied => Self::Denied,
             Update::Disconnected(d) if d.kind == DisconnectKind::NotYourDevice => {
                 Self::NotYourDevice(d.message.clone())
             }
@@ -64,6 +73,9 @@ impl ConnState {
             Self::Connected => "Connected".into(),
             Self::Reconnecting(why) => format!("Reconnecting: {why}").into(),
             Self::Refused => "That machine didn't accept this device".into(),
+            Self::NotApproved(why) => format!("Waiting for approval: {why}").into(),
+            Self::Denied => "That machine denied this device. It can ask again after sharing restarts there."
+                .into(),
             Self::NotYourDevice(why) => format!(
                 "Not connected: your Tailscale can't confirm that machine is one of your own devices ({why})"
             )
@@ -92,7 +104,7 @@ impl ConnState {
     pub fn color(&self, theme: &Theme) -> Hsla {
         match self {
             Self::Connected => theme.success,
-            Self::Connecting | Self::Reconnecting(_) => theme.warning,
+            Self::Connecting | Self::Reconnecting(_) | Self::NotApproved(_) => theme.warning,
             _ => theme.danger,
         }
     }
@@ -423,6 +435,19 @@ mod tests {
         assert_eq!(
             state(gone(DisconnectKind::Other, reset)),
             Some(ConnState::Reconnecting(reset.into()))
+        );
+        assert_eq!(
+            state(gone(
+                DisconnectKind::NotApproved,
+                "x hasn't approved (code AB12-CD34)"
+            )),
+            Some(ConnState::NotApproved(
+                "x hasn't approved (code AB12-CD34)".into()
+            ))
+        );
+        assert_eq!(
+            state(gone(DisconnectKind::Denied, "x turned this device down")),
+            Some(ConnState::Denied)
         );
         assert_eq!(
             state(gone(DisconnectKind::NotYourDevice, "tagged")),

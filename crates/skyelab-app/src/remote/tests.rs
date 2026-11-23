@@ -15,6 +15,9 @@ use tungstenite::Message;
 
 const ME: u64 = 7;
 
+/// The raw test client's device key; the calls fixture approves it for the phone.
+const PHONE_KEY: &str = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
 /// This node is 127.0.0.1; every peer is the user's own phone, unless the tailnet is down.
 #[derive(Default)]
 struct FakeTailnet {
@@ -369,5 +372,7 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
     }
 }
 
+mod approval;
 mod calls;
+mod revoke_while_starting;
 mod tls_tests;

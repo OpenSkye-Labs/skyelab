@@ -1,9 +1,9 @@
 //! Closing a local thread's tab ends its agent and records the thread as stopped.
 #![cfg(unix)] // the fake agent is a shell script
 
+use super::threads_test::resume::env_reports;
 use super::threads_test::{
-    env_reports, fixture, open_workspace, project_thread, setup, type_and_send, wait_done,
-    wait_until,
+    fixture, open_workspace, project_thread, setup, type_and_send, wait_done, wait_until,
 };
 use gpui::TestAppContext;
 

@@ -7560,6 +7560,7 @@ dependencies = [
  "futures",
  "rustls",
  "rustls-webpki",
+ "security-framework",
  "serde_json",
  "skyelab-daemon",
  "skyelab-protocol",
@@ -7632,6 +7633,7 @@ dependencies = [
 name = "skyelab-protocol"
 version = "0.1.0"
 dependencies = [
+ "ring",
  "serde",
  "serde_json",
 ]

@@ -7,6 +7,7 @@ use anyhow::Result;
 use gpui::{AppContext as _, AsyncApp, Context};
 use skyelab_agent::Event;
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -18,82 +19,126 @@ const SAVE_BACKOFF: Duration = Duration::from_millis(50);
 const RETRY_EVERY: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Default)]
-pub(super) struct Unsaved(Arc<Mutex<VecDeque<Held>>>);
+pub(super) struct Unsaved(Arc<Mutex<Inner>>);
+
+/// A session's count of prompts still waiting for their `Result` (`ThreadView::turns`).
+pub(super) type Turns = Arc<AtomicUsize>;
+
+#[derive(Default)]
+struct Inner {
+    queue: VecDeque<Held>,
+    /// A session's last turn ended: write `idle` if its count is still zero by then (a follow-up may have started one).
+    /// Kept apart from the rows, so a row the store refuses never holds the thread busy and its child slot taken.
+    idle: Option<Turns>,
+    /// The session the view runs now: an idle from an older one never lands.
+    current: Option<Turns>,
+}
 
 struct Held {
     record: Record,
-    /// The row is stored and only its follow-up write (session id, status) is left, so a retry won't store it twice.
+    /// The row is stored and only its follow-up write (session id) is left, so a retry won't store it twice.
     row_stored: bool,
 }
 
 impl Unsaved {
-    fn queue(&self) -> MutexGuard<'_, VecDeque<Held>> {
+    fn inner(&self) -> MutexGuard<'_, Inner> {
         self.0.lock().unwrap_or_else(|e| e.into_inner()) // plain data, consistent after a panic
     }
 
-    /// Queues `record` behind what is held and saves the queue front to back. Returns how many are still held.
-    /// Blocking: run it off the UI thread.
+    /// Queues `record` behind what is held (and `idle`, a session whose last turn just ended), then saves everything
+    /// in order. Returns how many writes are still held. Blocking: run it off the UI thread.
     pub(super) fn push_and_save(
         &self,
         store: &SharedStore,
         id: i64,
         record: Option<Record>,
+        idle: Option<Turns>,
     ) -> (usize, Result<()>) {
-        let mut queue = self.queue();
+        let mut inner = self.inner();
         if let Some(record) = record {
-            queue.push_back(Held {
+            inner.queue.push_back(Held {
                 record,
                 row_stored: false,
             });
         }
-        let saved = save_in_order(store, id, &mut queue);
-        (queue.len(), saved)
+        if idle.is_some() {
+            inner.idle = idle;
+        }
+        let saved = save_in_order(store, id, &mut inner);
+        (inner.queue.len() + usize::from(inner.idle.is_some()), saved)
+    }
+
+    /// `run` started a session counting its turns in `turns`.
+    pub(super) fn set_session(&self, turns: &Turns) {
+        self.inner().current = Some(turns.clone());
     }
 
     /// Saves what is held, or says why it can't. Blocking: run it off the UI thread.
     pub(super) fn flush(&self, store: &SharedStore, id: i64) -> Result<()> {
-        self.push_and_save(store, id, None).1
+        self.push_and_save(store, id, None, None).1
     }
 
-    pub(super) fn is_empty(&self) -> bool {
-        self.queue().is_empty()
+    fn is_empty(&self) -> bool {
+        let inner = self.inner();
+        inner.queue.is_empty() && inner.idle.is_none()
     }
 }
 
-/// A held follow-up prompt also marks its turn running, so a held `Result` saved before it can't leave the thread idle.
-fn save_in_order(store: &SharedStore, id: i64, queue: &mut VecDeque<Held>) -> Result<()> {
+fn save_in_order(store: &SharedStore, id: i64, inner: &mut Inner) -> Result<()> {
     let mut store = lock(store)?;
-    while let Some(h) = queue.front_mut() {
+    if let Some(turns) = &inner.idle {
+        // Only for the current session, with no turn started since, and only over "running": a Stop or an exit
+        // written meanwhile stays.
+        let current = inner
+            .current
+            .as_ref()
+            .is_some_and(|c| Arc::ptr_eq(c, turns));
+        if current
+            && turns.load(Ordering::SeqCst) == 0
+            && store.thread(id)?.is_some_and(|t| t.status == "running")
+        {
+            store.set_thread_status(id, "idle")?;
+        }
+        inner.idle = None;
+    }
+    while let Some(h) = inner.queue.front_mut() {
         if !h.row_stored {
             append(&mut store, id, &h.record)?;
             h.row_stored = true;
         }
-        match &h.record {
-            Record::Agent(Event::Init { session_id, .. }) => {
-                store.set_agent_session_id(id, Some(session_id))?
-            }
-            Record::Agent(Event::Result { .. }) => store.set_thread_status(id, "idle")?,
-            Record::Prompt(_) => store.set_thread_status(id, "running")?,
-            _ => {}
+        if let Record::Agent(Event::Init { session_id, .. }) = &h.record {
+            store.set_agent_session_id(id, Some(session_id))?
         }
-        queue.pop_front();
+        inner.queue.pop_front();
     }
     Ok(())
 }
 
-/// [`Unsaved::push_and_save`] off the UI thread, retried with backoff when the queue was empty before.
+/// Saves an agent event off the UI thread, retried with backoff when nothing was held before. A `Result` ends one
+/// of `turns` here, once, whether or not its row saves: the count follows the agent, the store catches up.
 pub(super) async fn save(
     unsaved: &Unsaved,
     store: &SharedStore,
     id: i64,
     record: Record,
+    turns: &Turns,
     cx: &mut AsyncApp,
 ) -> usize {
+    let idle = matches!(record, Record::Agent(Event::Result { .. }))
+        .then(|| {
+            let before = turns
+                .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                    Some(n.saturating_sub(1))
+                })
+                .unwrap_or_default();
+            (before <= 1).then(|| turns.clone())
+        })
+        .flatten();
     let (q, s) = (unsaved.clone(), store.clone());
     let (was_empty, (mut left, mut saved)) = cx
         .background_spawn(async move {
             let was_empty = q.is_empty();
-            (was_empty, q.push_and_save(&s, id, Some(record)))
+            (was_empty, q.push_and_save(&s, id, Some(record), idle))
         })
         .await;
     let mut delay = SAVE_BACKOFF;
@@ -105,11 +150,11 @@ pub(super) async fn save(
         delay *= 2;
         let (q, s) = (unsaved.clone(), store.clone());
         (left, saved) = cx
-            .background_spawn(async move { q.push_and_save(&s, id, None) })
+            .background_spawn(async move { q.push_and_save(&s, id, None, None) })
             .await;
     }
     if let Err(e) = saved {
-        eprintln!("skyelab: {left} events of thread {id} not saved yet: {e:#}");
+        eprintln!("skyelab: {left} writes of thread {id} not saved yet: {e:#}");
     }
     left
 }
@@ -134,7 +179,7 @@ impl ThreadView {
                 cx.background_executor().timer(RETRY_EVERY).await;
                 let (q, s) = (unsaved.clone(), store.clone());
                 let (left, _) = cx
-                    .background_spawn(async move { q.push_and_save(&s, id, None) })
+                    .background_spawn(async move { q.push_and_save(&s, id, None, None) })
                     .await;
                 let gone = this
                     .update(cx, |this, cx| {

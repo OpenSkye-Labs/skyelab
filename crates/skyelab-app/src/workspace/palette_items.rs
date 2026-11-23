@@ -69,7 +69,13 @@ impl Workspace {
 
     fn tabs(&self, cx: &mut Context<Self>) -> Vec<Entry> {
         let mut tabs = Vec::new();
-        for view in self.open_threads.iter().filter_map(|t| t.upgrade()) {
+        // A queued tab isn't in the dock yet, so there is nothing to go to.
+        for view in self
+            .open_threads
+            .iter()
+            .filter_map(|t| t.upgrade())
+            .filter(|v| !self.queued_tabs.contains(v))
+        {
             let title = view.read(cx).title();
             tabs.push(self.tab(title, &view, cx));
         }

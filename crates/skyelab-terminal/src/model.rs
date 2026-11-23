@@ -56,7 +56,7 @@ impl Terminal {
     pub fn spawn(opts: SpawnOptions) -> anyhow::Result<(Self, UnboundedReceiver<Event>)> {
         let (tx, rx) = unbounded();
         let listener = Listener(tx);
-        let (program, args, env) = launch(opts.command, opts.env);
+        let (program, args, env) = launch(opts.command, opts.env, cfg!(windows));
         let options = tty::Options {
             shell: Some(tty::Shell::new(program, args)),
             working_directory: Some(opts.cwd),
@@ -215,10 +215,11 @@ const ACCOUNT_VARS: [&str; 11] = [
 /// The child's program, args and env: the caller's env plus `TERM`/`COLORTERM`, and none of the parent's
 /// [`ACCOUNT_VARS`] the caller didn't set. Unix runs the command through `env -u ..`. On Windows alacritty adds
 /// every inherited var the env map doesn't name, and has no way to remove one, so each is overridden with an empty
-/// value instead.
+/// value instead. `windows` picks the branch, so tests cover both on any OS.
 fn launch(
     command: Option<(String, Vec<String>)>,
     mut env: HashMap<String, String>,
+    windows: bool,
 ) -> (String, Vec<String>, HashMap<String, String>) {
     env.entry("TERM".into()).or_insert("xterm-256color".into());
     env.entry("COLORTERM".into()).or_insert("truecolor".into());
@@ -230,7 +231,7 @@ fn launch(
         .into_iter()
         .filter(|v| env.get(*v).is_none_or(|v| v.is_empty()))
         .collect();
-    if cfg!(windows) {
+    if windows {
         // shortcut: on Windows the child sees VAR="" (alacritty can't remove a var); upgrade when its Options can.
         for v in unset {
             env.insert(v.into(), String::new());
@@ -306,10 +307,16 @@ mod env_tests {
 
     #[test]
     fn child_env_never_inherits_the_parents_config_dir() {
+        for windows in [false, true] {
+            config_dir_case(windows);
+        }
+    }
+
+    fn config_dir_case(windows: bool) {
         let cmd = || Some(("prog".to_string(), vec!["a".to_string()]));
-        let (program, args, env) = launch(cmd(), HashMap::new());
+        let (program, args, env) = launch(cmd(), HashMap::new(), windows);
         assert_eq!(env["TERM"], "xterm-256color");
-        if cfg!(windows) {
+        if windows {
             assert_eq!(
                 (program.as_str(), args.as_slice()),
                 ("prog", &["a".to_string()][..])
@@ -323,7 +330,7 @@ mod env_tests {
         }
 
         let account = HashMap::from([(CLAUDE_CONFIG_DIR.to_string(), "/acct".to_string())]);
-        let (_, args, env) = launch(cmd(), account);
+        let (_, args, env) = launch(cmd(), account, windows);
         assert!(!args.iter().any(|a| a == CLAUDE_CONFIG_DIR), "{args:?}");
         assert_eq!(env[CLAUDE_CONFIG_DIR], "/acct");
     }

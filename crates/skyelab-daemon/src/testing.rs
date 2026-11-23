@@ -2,8 +2,7 @@
 //! a configurable fake tailnet, and an [`Env`] that serves a store through an in-process daemon on loopback.
 //! Never enabled in a shipped build.
 
-use std::collections::HashMap;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
+use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -17,7 +16,7 @@ use rustls::pki_types::{CertificateDer, ServerName};
 use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 use skyelab_protocol::{ErrorCode, Project, RpcError, Thread, ThreadEvent};
 use skyelab_store::{NewThread, Store};
-use skyelab_tailnet::{Cert, Error as TailnetError, Node, Tailnet, UserProfile, WhoIs, WhoIsNode};
+use skyelab_tailnet::Cert;
 
 use crate::{Agents, Backend, Config, Daemon, StoreBackend};
 
@@ -124,169 +123,28 @@ pub fn tls_connect(
 /// The tailnet user every fake node belongs to unless a test says otherwise.
 pub const ME: u64 = 1001;
 
-/// Who `FakeTailnet::whois` says is calling.
-#[derive(Clone, Copy, Debug)]
-pub enum Peer {
-    /// One of the user's own untagged devices: the gate admits it.
-    Own,
-    OtherUser,
-    /// The user's node, but tagged: refused.
-    Tagged,
-    WhoisError,
-    /// Admitted, after this long.
-    Hang(Duration),
+/// The test client's device key. [`config`] approves it for the phone ("nPhone"), the node whois names by default.
+/// `skyelab_client::testing::DEVICE_KEY` is the same key (a client test checks they agree).
+pub const DEVICE_KEY: &str = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+
+/// [`DEVICE_KEY`] approved on "nPhone".
+pub fn approvals() -> Vec<crate::Approval> {
+    vec![crate::Approval {
+        node_id: "nPhone".into(),
+        key_hash: skyelab_protocol::device_key_hash(DEVICE_KEY),
+    }]
 }
 
-/// A tailnet node on loopback.
-pub fn node(id: &str, dns: &str, user: u64, online: bool, tags: &[&str]) -> Node {
-    Node {
-        stable_id: id.into(),
-        hostname: dns.split('.').next().unwrap_or_default().into(),
-        dns_name: format!("{dns}."),
-        tailscale_ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
-        os: "macOS".into(),
-        online,
-        user_id: Some(user),
-        tags: tags.iter().map(|t| (*t).to_owned()).collect(),
-    }
-}
+mod tailnet;
+pub use tailnet::{FakeTailnet, Peer, node};
 
-/// The daemon's view of the tailnet: this node is `NODE_NAME` on `ips` (127.0.0.1), `peers` is what
-/// `tailscale status` lists, and whois answers as `peer` says. The atomic and `Mutex` knobs can change while a
-/// daemon uses them.
-pub struct FakeTailnet {
-    pub ips: Vec<IpAddr>,
-    /// `self_node` fails like a stopped Tailscale.
-    pub down: AtomicBool,
-    pub peer: Mutex<Peer>,
-    /// Overrides `peer` for callers from these addresses.
-    pub peer_by_ip: Mutex<HashMap<IpAddr, Peer>>,
-    pub peers: Vec<Node>,
-    pub whois_calls: AtomicUsize,
-    /// What `cert` returns; an `Err` is the CLI's error text.
-    pub cert: Mutex<Result<Cert, String>>,
-    /// `cert` sleeps this long first (a hung `tailscale cert`).
-    pub cert_hang: Mutex<Duration>,
-    pub cert_calls: AtomicUsize,
-    /// `Self.DNSName`; empty means MagicDNS is off.
-    pub dns_name: Mutex<String>,
-    /// This node's StableID; `None` is `nSelf`.
-    pub self_id: Mutex<Option<String>>,
-}
-
-impl Default for FakeTailnet {
-    fn default() -> Self {
-        Self {
-            ips: vec![IpAddr::V4(Ipv4Addr::LOCALHOST)],
-            down: AtomicBool::new(false),
-            peer: Mutex::new(Peer::Own),
-            peer_by_ip: Mutex::default(),
-            peers: Vec::new(),
-            whois_calls: AtomicUsize::new(0),
-            cert: Mutex::new(Ok(ca().issue(NODE_NAME))),
-            cert_hang: Mutex::new(Duration::ZERO),
-            cert_calls: AtomicUsize::new(0),
-            dns_name: Mutex::new(format!("{NODE_NAME}.")),
-            self_id: Mutex::new(None),
-        }
-    }
-}
-
-impl FakeTailnet {
-    pub fn new(peer: Peer) -> Arc<Self> {
-        Arc::new(Self {
-            peer: Mutex::new(peer),
-            ..Self::default()
-        })
-    }
-
-    pub fn set_peer(&self, peer: Peer) {
-        *self.peer.lock().expect("peer lock") = peer;
-    }
-
-    pub fn whois_calls(&self) -> usize {
-        self.whois_calls.load(Ordering::SeqCst)
-    }
-}
-
-fn whois(user: u64, tags: Vec<String>) -> WhoIs {
-    WhoIs {
-        node: WhoIsNode {
-            stable_id: "nPhone".into(),
-            name: "phone.example.ts.net.".into(),
-            user: Some(user),
-            tags,
-        },
-        user_profile: UserProfile {
-            id: Some(user),
-            login_name: format!("user{user}@example.com"),
-            display_name: "Someone".into(),
-        },
-    }
-}
-
-impl Tailnet for FakeTailnet {
-    fn self_node(&self) -> Result<Node, TailnetError> {
-        if self.down.load(Ordering::SeqCst) {
-            return Err(TailnetError::NotRunning("Stopped".into()));
-        }
-        let id = self.self_id.lock().expect("self id lock").clone();
-        Ok(Node {
-            tailscale_ips: self.ips.clone(),
-            dns_name: self.dns_name.lock().expect("dns lock").clone(),
-            ..node(id.as_deref().unwrap_or("nSelf"), NODE_NAME, ME, true, &[])
-        })
-    }
-
-    fn peers(&self) -> Result<Vec<Node>, TailnetError> {
-        Ok(self.peers.clone())
-    }
-
-    fn whois(&self, addr: SocketAddr) -> Result<WhoIs, TailnetError> {
-        self.whois_calls.fetch_add(1, Ordering::SeqCst);
-        // Copy out first: holding the lock through a Hang would serialize every whois.
-        let by_ip = self
-            .peer_by_ip
-            .lock()
-            .expect("peer lock")
-            .get(&addr.ip())
-            .copied();
-        let peer = by_ip.unwrap_or_else(|| *self.peer.lock().expect("peer lock"));
-        match peer {
-            Peer::Own => Ok(whois(ME, vec![])),
-            Peer::OtherUser => Ok(whois(2002, vec![])),
-            Peer::Tagged => Ok(whois(ME, vec!["tag:server".into()])),
-            Peer::WhoisError => Err(TailnetError::Command {
-                command: "whois",
-                stderr: "no such peer".into(),
-            }),
-            Peer::Hang(d) => {
-                std::thread::sleep(d);
-                Ok(whois(ME, vec![]))
-            }
-        }
-    }
-
-    fn cert(&self, _name: &str) -> Result<Cert, TailnetError> {
-        self.cert_calls.fetch_add(1, Ordering::SeqCst);
-        let hang = *self.cert_hang.lock().expect("cert lock");
-        std::thread::sleep(hang);
-        self.cert
-            .lock()
-            .expect("cert lock")
-            .clone()
-            .map_err(|stderr| TailnetError::Command {
-                command: "cert",
-                stderr,
-            })
-    }
-}
-
-/// Daemon settings for tests: `port` (0 picks one) and a short gate timeout.
+/// Daemon settings for tests: `port` (0 picks one), a short gate timeout, and the test key approved
+/// ([`approvals`]).
 pub fn config(port: u16) -> Config {
     Config {
         port,
         gate_timeout: Duration::from_millis(500),
+        approved: approvals(),
         ..Config::default()
     }
 }

@@ -1,7 +1,8 @@
 //! A remote or delegated message to a stopped thread whose folder was rebound says why it was refused.
 #![cfg(unix)] // the fake agent is a shell script
 
-use super::threads_test::{fixture, rebind, reopen, setup, stopped_thread};
+use super::threads_test::resume::{rebind, reopen, stopped_thread};
+use super::threads_test::{fixture, setup};
 use gpui::TestAppContext;
 
 fn refused_with(to: Option<&str>, says: &str, cx: &mut TestAppContext) {

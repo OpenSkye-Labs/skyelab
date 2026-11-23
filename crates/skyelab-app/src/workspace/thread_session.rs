@@ -6,6 +6,7 @@ use super::{Interrupt, Record, SharedStore, Stop, ThreadView, ThreadViewEvent, l
 use anyhow::{Context as _, Result};
 use gpui::{AppContext as _, Context, Window};
 use skyelab_agent::{Event, Session};
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 
 impl ThreadView {
@@ -20,6 +21,10 @@ impl ThreadView {
     ) {
         let events = session.events().clone();
         self.session = Some(Arc::new(Mutex::new(session)));
+        // The launch sent one prompt.
+        let turns = Arc::new(AtomicUsize::new(1));
+        self.turns = turns.clone();
+        self.unsaved.set_session(&turns);
         let launch = self.launches;
         // A stopped session's pump keeps storing what it already printed.
         if let Some(old) = self._pump.take() {
@@ -29,7 +34,7 @@ impl ThreadView {
         self._pump = Some(cx.spawn(async move |this, cx| {
             while let Ok(event) = events.recv_async().await {
                 let record = Record::Agent(event);
-                let left = save(&unsaved, &store, id, record.clone(), cx).await;
+                let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let shown = this.update(cx, |this, cx| {
                     this.saved(left, cx);
                     if let (Record::Agent(Event::Init { session_id, .. }), Some(t)) =

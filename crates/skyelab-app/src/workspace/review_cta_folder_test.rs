@@ -32,7 +32,6 @@ fn send(view: &Entity<ThreadView>, text: &'static str, cx: &mut VisualTestContex
 
 /// Thread tabs stay open across project switches, so the refusal's button must start the new
 /// thread in the refused thread's folder, not the sidebar's.
-#[cfg(unix)]
 #[gpui::test]
 fn start_a_new_thread_opens_in_the_refused_threads_folder(cx: &mut TestAppContext) {
     cx.executor().allow_parking();

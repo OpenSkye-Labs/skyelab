@@ -109,8 +109,9 @@ An agent can hand work to another thread with SkyeLab's MCP tools (`start_thread
 `wait_thread`, and others). The new thread opens as a tab. Its header says **Delegated by** and links back to the
 parent, and the parent lists its **Delegated threads**. An agent can only start threads in projects bound to its own
 account; a start into a project on another account is refused and no thread is created. A delegated thread can
-delegate once more (two levels), and a thread can have four children running at a time. Codex threads get the same
-tools, with the same account rule. Not available on Windows yet.
+delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
+when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
+tab says why. Codex threads get the same tools, with the same account rule. Not available on Windows yet.
 
 ## Worktrees
 
@@ -155,8 +156,18 @@ Click **Not sharing** in the status bar to open the Remote tab, then turn on **S
 The status bar then reads `Sharing on <machine>.example.ts.net:7287` with the certificate's expiry date, or tells
 you why it couldn't start (Tailscale not installed, not running, logged out, or no certificate).
 
-Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Connected devices are
-listed in the Remote tab, each with a **Disconnect** button. A connected device can list projects and threads,
+Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Each one must also be
+allowed here once:
+
+- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and the Remote tab
+  lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
+  **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
+  the app you just opened. **Deny** turns it down until sharing restarts here.
+- Allowed devices are listed under **Allowed devices** (saved in `settings.toml`). **Revoke** closes its connection
+  at once and forgets it; it has to ask again.
+- An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
+
+Connected devices are listed in the Remote tab, each with a **Disconnect** button. A connected device can list projects and threads,
 start a thread in an existing project, send follow-ups and interrupt. It can't add projects, change accounts or
 bindings, or open terminals. Turning sharing off closes every connection.
 
@@ -164,11 +175,15 @@ bindings, or open terminals. Turning sharing off closes every connection.
 
 The top of the sidebar (**SkyeLab on This Mac ▾**) picks which machine the window shows. Open it to see your online
 devices and recent ones, or type a MagicDNS name such as `desktop.example.ts.net` and click **Connect**. Only full
-MagicDNS names work, not IP addresses or short names. The other machine must have sharing turned on.
+MagicDNS names work, not IP addresses or short names. The other machine must have sharing turned on. The first
+time, it must also allow this device: the status bar says **Waiting for approval** with this device's code; check
+that the other machine shows the same code, click **Allow** there, and this window connects within a few seconds.
 
 On a remote machine, the sidebar lists its projects and threads. You can open threads, start new ones, send
 follow-ups and stop them. The account shown is the one that machine resolved. Terminals and worktree controls are
-local only. Switching back to **This Mac** closes all remote tabs.
+local only. Switching back to **This Mac** closes all remote tabs. A thread that starts on this machine while you
+look at another one (a delegated thread, or one started from your phone) doesn't open among the remote tabs: the
+sidebar shows **This Mac · 1 new thread here**, and clicking it switches back and shows it.
 
 Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
 one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the

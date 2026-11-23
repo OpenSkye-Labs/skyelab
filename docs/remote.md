@@ -34,7 +34,62 @@ exactly, is valid now, and matches its key.
 3. TLS 1.3 with this node's certificate. A client speaking plaintext fails here.
 4. A WebSocket handshake carrying an `Origin` header is refused: that is a web page open on one of your devices,
    which would pass whois.
-5. The first message must be a compatible `hello`.
+5. The first message must be a compatible `hello` carrying a **device key the user approved for that node**
+   (below). Nothing but hello is answered before that.
+
+**Device approval.** Whois proves "one of my machines", not "the SkyeLab app I opened": any process running as the
+user on any of their tailnet machines passes it, an agent with network access included. So each client install has
+a device key (32 random bytes, `skyelab_protocol::new_device_key`) that it sends in hello (protocol 1.2), and the
+sharing machine admits a hello only if `(whois node StableID, SHA-256 of the key)` is in `approved_devices` in its
+`settings.toml`. The daemon enforces it (`Daemon::set_approved`, `Config.approved` from the first connection);
+the app only edits the list.
+
+- An unknown pair is refused `not_approved` and listed as a request: at most 16, two per node (the newest
+  replaces the oldest, so one machine making keys can't push other devices off the list), each dropped 10 minutes
+  after its last try. The Remote tab and the status bar show "<device> (<user>) wants to connect" with a code: the
+  first 16 hex chars (64 bits) of the key's hash, too many to grind a look-alike key for a code seen on screen.
+  The client works the code out from its own key and shows it too, so the user can tell their app's request from
+  another program's. Allow saves the pair, then admits it. Deny drops the request and answers `denied` until
+  sharing restarts (in memory only: "not now"). A connection is listed under connected devices only once its
+  hello was approved.
+- Revoke applies first, then saves (an off switch works even when saving fails): `set_approved` closes every open
+  connection whose pair is gone. The hello check and the record of which pair a connection used happen under one
+  lock that `set_approved` also takes, so a revoke can't miss a hello passing at that moment. A call that was
+  already running when the revoke came still finishes; a connection blocked writing to a client that stopped
+  reading closes when that write times out.
+- The client maps the codes to `DisconnectKind::NotApproved` / `Denied` (additive kinds; match with `_`) and, while
+  not approved, retries at least every 3 s, so an Allow takes effect within seconds. Desktop shows "Waiting for
+  approval … (code …)" or "That machine denied this device"; mobile shows the client's message.
+- A `settings.toml` that can't be read approves nobody. A client older than 1.2 sends no key, so it is always
+  refused `not_approved` (and never listed: there is nothing to approve).
+
+**Where the key lives, and what that stops.** The key is what separates SkyeLab from another program of the same
+user on an approved machine, so it lives outside every project folder and, where the OS can, where other programs
+can't read it:
+
+- macOS release builds: a keychain item SkyeLab creates (service `dev.openskye.skyelab`). Its default access list
+  trusts only the program that made it, so an agent running `security find-generic-password` or reading files gets
+  a system prompt, not the key. Debug builds use the file below, so a throwaway `HOME` never touches the login
+  keychain.
+- Windows, Linux: `<config dir>/skyelab/device-key`, mode 0600. That keeps other OS users out, but not another
+  program of the same user: an agent on such a machine that reads the file and replays it passes. Their secret
+  stores have no per-app access control either, so they wouldn't do better.
+- Mobile: a file in the app's sandboxed data dir. Other apps can't read it and the phone runs no agents.
+
+It stops: a script, tool or agent on one of your machines that dials the port without SkyeLab's key, including one
+that makes its own key (it gets a prompt with a different code, which you deny); a key replayed from another node.
+It doesn't stop:
+
+- on Windows and Linux, a same-user process that reads the key file;
+- on macOS, a user who answers "Always Allow" to that prompt, a process that can debug or patch SkyeLab itself,
+  or one that plants the keychain item (readable by every app) before SkyeLab's first release run;
+- a machine you connect to learns your key (it is sent in hello). A compromised one could replay it, but only
+  from your own approved node, since the node is part of the approval. A challenge-response (HMAC of the key over
+  a server nonce) would close that;
+- agents on the sharing machine itself: they run as you there and can edit `settings.toml`. The approval guards
+  the network, not the host.
+
+TLS client certificates would add nothing here: their private key would sit in the same places.
 
 The client (`skyelab-client`) checks the server in turn: it dials only addresses in Tailscale's ranges, speaks only
 `wss://`, and accepts only a certificate chain that verifies against the Mozilla roots (`webpki-roots`) whose leaf

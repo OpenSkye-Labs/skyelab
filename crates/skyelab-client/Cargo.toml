@@ -22,6 +22,9 @@ tokio-rustls.workspace = true
 webpki.workspace = true
 webpki-roots.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework.workspace = true
+
 [dev-dependencies]
 anyhow.workspace = true
 skyelab-daemon = { workspace = true, features = ["test-support"] }
