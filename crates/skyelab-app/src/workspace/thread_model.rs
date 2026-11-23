@@ -431,10 +431,32 @@ fn result_text(content: &Value) -> String {
         Value::String(s) => s.clone(),
         Value::Array(blocks) => blocks
             .iter()
-            .filter_map(|b| b["text"].as_str())
+            .filter_map(|b| match b["type"].as_str() {
+                Some("image") => Some(image_line(b)),
+                _ => b["text"].as_str().map(str::to_owned),
+            })
             .collect::<Vec<_>>()
             .join("\n"),
         Value::Null => String::new(),
         other => other.to_string(),
     }
+}
+
+/// "Image (205 KB)", plus "not kept" once the store dropped the bytes (it leaves `omitted_bytes` in their place).
+fn image_line(block: &Value) -> String {
+    let source = &block["source"];
+    let omitted = source["omitted_bytes"]
+        .as_u64()
+        .or(block["omitted_bytes"].as_u64());
+    let data = source["data"].as_str().or(block["data"].as_str());
+    // Base64 is 4 characters per 3 bytes.
+    let Some(bytes) = omitted.or(data.map(|d| d.len() as u64 / 4 * 3)) else {
+        return "Image".to_owned();
+    };
+    let size = match bytes {
+        b if b >= 1024 * 1024 => format!("{:.1} MB", b as f64 / (1024.0 * 1024.0)),
+        b => format!("{} KB", ((b + 512) / 1024).max(1)),
+    };
+    let kept = if omitted.is_some() { " not kept" } else { "" };
+    format!("Image ({size}){kept}")
 }

@@ -16,6 +16,9 @@ mod timeline_fold_test;
 #[path = "timeline_fold_stopped_test.rs"]
 mod timeline_fold_stopped_test;
 
+#[path = "image_placeholder_test.rs"]
+mod image_placeholder_test;
+
 #[path = "card_path_test.rs"]
 mod card_path_test;
 
