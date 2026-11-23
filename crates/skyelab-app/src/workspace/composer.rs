@@ -1,5 +1,5 @@
 //! How the composer looks, after T3's (docs/design/t3-reference-chat.md §4): the queue above a rounded card holding the
-//! attachments, the prompt and a control row (attach; model and effort, the permission slot and Send), and a footer
+//! attachments, the prompt and a control row (attach and the permission chip; the model chip and Send), and a footer
 //! strip under it (machine, account, checkout, changes, branch). Behavior lives in `composer_state.rs`.
 
 // The composer's parts. Their `super::` paths name the workspace's modules through the imports below.
@@ -53,9 +53,12 @@ use gpui_kit_assets::IconName as Lucide;
 use skyelab_agent::{AttachmentKind, CLAUDE_MODELS};
 use thread::{SendPrompt, ThreadView};
 
+/// Under this card width the control row goes compact (T3 collapses its chips the same way).
+const COMPACT_BELOW: gpui::Pixels = px(560.);
+
 impl ThreadView {
-    /// The model picker's button label: "Opus High", or "Default model".
-    fn pick_label(&self) -> String {
+    /// The model chip's label: "Opus · High", or "Default model". `compact` leaves the effort out.
+    fn pick_label(&self, compact: bool) -> String {
         let pick = &self.composer.pick;
         let model = match pick.model.as_deref() {
             None => "Default model".to_owned(),
@@ -70,8 +73,8 @@ impl ThreadView {
                 .unwrap_or_else(|| id.to_owned()),
         };
         match &pick.effort {
-            Some(e) => format!("{model} {}", title_case(e)),
-            None => model,
+            Some(e) if !compact => format!("{model} · {}", title_case(e)),
+            _ => model,
         }
     }
 
@@ -84,6 +87,19 @@ impl ThreadView {
         let queue = self.render_queue(cx);
         let footer = self.render_footer(cx);
         let view = cx.entity().downgrade();
+        let (width, view_id) = (self.composer.width.clone(), cx.entity_id());
+        // The card's width, read by the next frame's control row: crossing the compact line redraws once.
+        let measure = gpui::canvas(
+            move |bounds, _, cx| {
+                let old = width.replace(bounds.size.width);
+                if (old < COMPACT_BELOW) != (bounds.size.width < COMPACT_BELOW) {
+                    cx.notify(view_id);
+                }
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
         let theme = cx.theme();
         let card = v_flex()
             .id("composer-card")
@@ -98,6 +114,7 @@ impl ThreadView {
             .on_drop(cx.listener(|this, paths: &ExternalPaths, _, cx| {
                 this.attach_paths(paths.paths().to_vec(), cx)
             }))
+            .child(measure)
             .children(menu_el)
             .children(picker)
             .children(attachments)
@@ -132,8 +149,11 @@ impl ThreadView {
             .into_any_element()
     }
 
-    /// The row inside the card under the prompt: attach on the left; model, the permission slot and Send on the right.
+    /// The row inside the card under the prompt, T3's: attach and the permission chip on the left; the model chip
+    /// and Send on the right. A narrow card (a right panel open) keeps only the chips' icons and the model's name.
     fn render_controls(&self, cx: &mut Context<Self>) -> AnyElement {
+        let width = self.composer.width.get();
+        let compact = width > px(0.) && width < COMPACT_BELOW;
         h_flex()
             .px_2()
             .pb_2()
@@ -149,24 +169,18 @@ impl ThreadView {
                         this.attach_files(&AttachFiles, window, cx)
                     })),
             )
+            .child(self.render_mode_picker(compact, cx))
             .child(div().flex_1())
             .child(
                 Button::new("model-picker")
                     .ghost()
                     .small()
-                    .label(self.pick_label())
+                    .label(self.pick_label(compact))
                     .dropdown_caret(true)
                     .tooltip("Model and effort")
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_picker(cx))),
             )
-            .child(
-                div()
-                    .id("permission-slot")
-                    .text_size(ui::META)
-                    .text_color(cx.theme().muted_foreground)
-                    .child(self.render_mode_picker(cx)),
-            )
-            .child(h_flex().pl_2().gap_1().children(self.render_primary(cx)))
+            .child(h_flex().pl_1().gap_1().children(self.render_primary(cx)))
             .into_any_element()
     }
 

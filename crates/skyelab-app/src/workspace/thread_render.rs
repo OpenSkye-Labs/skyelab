@@ -9,12 +9,14 @@ use gpui::{
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Selectable as _, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
+    menu::{DropdownMenu as _, PopupMenuItem},
     tooltip::Tooltip,
     v_flex,
 };
+use gpui_kit_assets::IconName as Lucide;
 
 /// Agent text is untrusted (a repo can steer it), so its links only open web pages, never
 /// `file://` paths or app URL schemes.
@@ -135,6 +137,17 @@ impl ThreadView {
 }
 
 /// What each permission mode is called in the composer, and what it allows.
+/// The mode's icon, T3's: a lock (asks), a clipboard (plans), a pen (edits go ahead), an open shield (nothing asks).
+fn mode_icon(mode: skyelab_agent::Mode) -> Lucide {
+    use skyelab_agent::Mode;
+    match mode {
+        Mode::Default => Lucide::Lock,
+        Mode::Plan => Lucide::ClipboardList,
+        Mode::AcceptEdits => Lucide::PenLine,
+        Mode::Bypass => Lucide::ShieldOff,
+    }
+}
+
 pub(super) fn mode_label(mode: skyelab_agent::Mode) -> (&'static str, &'static str) {
     use skyelab_agent::Mode;
     match mode {
@@ -155,27 +168,53 @@ pub(super) fn mode_label(mode: skyelab_agent::Mode) -> (&'static str, &'static s
 }
 
 impl ThreadView {
-    /// The thread's permission mode, T3's composer "Permissions" toggle: one small button per mode.
-    pub(super) fn render_mode_picker(&self, cx: &mut Context<Self>) -> AnyElement {
+    /// The thread's permission mode as one chip, T3's: the mode's icon and name, a menu of the four with what each
+    /// allows. Full access is drawn in the warning color. `compact` (a narrow composer) keeps only the icon.
+    pub(super) fn render_mode_picker(&self, compact: bool, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
-        h_flex()
-            .flex_shrink_0()
-            .gap_0p5()
-            .child(div().pr_1().child("Permissions"))
-            .children(skyelab_agent::Mode::ALL.into_iter().map(|mode| {
-                let (label, tip) = mode_label(mode);
-                Button::new(SharedString::from(format!("mode-{}", mode.as_str())))
-                    .ghost()
-                    .xsmall()
-                    .label(label)
-                    .tooltip(tip)
-                    .selected(self.mode == mode)
-                    .when(
-                        mode == skyelab_agent::Mode::Bypass && self.mode == mode,
-                        |b| b.text_color(ui::ink(theme, theme.warning)),
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| this.set_mode(mode, cx)))
-            }))
+        let (label, tip) = mode_label(self.mode);
+        let view = cx.entity().downgrade();
+        let current = self.mode;
+        Button::new("permission-mode")
+            .ghost()
+            .small()
+            .icon(Icon::new(mode_icon(self.mode)))
+            .when(!compact, |b| b.label(label).dropdown_caret(true))
+            .tooltip(format!("Permissions: {label}. {tip}"))
+            .when(self.mode == skyelab_agent::Mode::Bypass, |b| {
+                b.text_color(ui::ink(theme, theme.warning))
+            })
+            .dropdown_menu_with_anchor(gpui::Anchor::BottomLeft, move |mut menu, _, _| {
+                menu = menu.min_w(px(280.)).label("Permissions");
+                for mode in skyelab_agent::Mode::ALL {
+                    let (label, tip) = mode_label(mode);
+                    let view = view.clone();
+                    let item = PopupMenuItem::element(move |_, cx| {
+                        let theme = cx.theme();
+                        v_flex()
+                            .py_0p5()
+                            .child(
+                                h_flex()
+                                    .gap_2()
+                                    .child(Icon::new(mode_icon(mode)).size_3p5())
+                                    .child(label),
+                            )
+                            .child(
+                                div()
+                                    .pl(px(22.))
+                                    .text_size(ui::META)
+                                    .text_color(theme.muted_foreground)
+                                    .child(tip),
+                            )
+                    })
+                    .checked(mode == current)
+                    .on_click(move |_, _, cx| {
+                        let _ = view.update(cx, |this, cx| this.set_mode(mode, cx));
+                    });
+                    menu = menu.item(item);
+                }
+                menu
+            })
             .into_any_element()
     }
 
