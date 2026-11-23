@@ -1,18 +1,30 @@
-use alacritty_terminal::{
-    term::{TermMode, cell::Flags, color::Colors},
-    vte::ansi::{Color, CursorShape, NamedColor, Rgb},
-};
+use std::path::{Component, PathBuf};
+
+use alacritty_terminal::{grid::Scroll, index::Side, selection::SelectionType, term::TermMode};
 use futures::{StreamExt as _, channel::mpsc::UnboundedReceiver};
 use gpui::{
-    App, Bounds, Context, FocusHandle, Focusable, Font, FontStyle, FontWeight, Hsla, KeyBinding,
-    KeyDownEvent, MouseButton, Pixels, Rgba, ShapedLine, SharedString, Task, TextAlign, TextRun,
-    UnderlineStyle, Window, actions, canvas, div, fill, font, outline, point, prelude::*, px, size,
+    App, Context, EventEmitter, FocusHandle, Focusable, KeyBinding, KeyDownEvent, Modifiers,
+    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
+    ScrollEvent, Task, Window, actions, canvas, div, font, point, prelude::*,
 };
-use gpui_component::{ActiveTheme as _, theme::ThemeColor};
+use gpui_component::ActiveTheme as _;
 
-use crate::{Event, OptionKeys, Terminal, key_to_bytes, keys::paste_bytes};
+use crate::{
+    Event, Link, LinkKind, OptionKeys, Terminal, key_to_bytes,
+    keys::paste_bytes,
+    links::path_target,
+    mouse::{self, MouseAction, MouseMods, mouse_report},
+    paint::{Palette, Style, layout},
+};
 
-actions!(terminal, [Paste]);
+actions!(terminal, [Copy, Paste]);
+
+/// What a terminal asks its host to do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalEvent {
+    /// A file path was cmd-clicked (absolute, resolved against the terminal's start folder).
+    OpenPath(PathBuf),
+}
 
 const CONTEXT: &str = "Terminal";
 
@@ -23,18 +35,47 @@ const PASTE_KEY: &str = if cfg!(target_os = "macos") {
 } else {
     "ctrl-shift-v"
 };
+// ctrl-c is interrupt in a shell, hence ctrl-shift-c off macOS.
+const COPY_KEY: &str = if cfg!(target_os = "macos") {
+    "cmd-c"
+} else {
+    "ctrl-shift-c"
+};
 
 /// Binds the terminal's keys. Call once at startup.
 pub fn init(cx: &mut App) {
-    cx.bind_keys([KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT))]);
+    cx.bind_keys([
+        KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT)),
+        KeyBinding::new(COPY_KEY, Copy, Some(CONTEXT)),
+    ]);
+}
+
+/// Where the last frame put the grid, so mouse positions map to cells.
+#[derive(Clone, Copy)]
+pub(crate) struct Geometry {
+    pub(crate) origin: gpui::Point<Pixels>,
+    pub(crate) cell_width: Pixels,
+    pub(crate) line_height: Pixels,
 }
 
 pub struct TerminalView {
-    terminal: Terminal,
+    pub(crate) terminal: Terminal,
     option_keys: OptionKeys,
-    focus: FocusHandle,
+    pub(crate) focus: FocusHandle,
+    pub(crate) geometry: Option<Geometry>,
+    /// A left-button drag is extending the selection.
+    selecting: bool,
+    /// The last cell a mouse report named, so motion reports only go out when the cell changes.
+    reported_cell: Option<(usize, usize)>,
+    /// The link under the mouse while cmd (ctrl off macOS) is held; drawn underlined.
+    pub(crate) hovered: Option<Link>,
+    mouse_at: Option<gpui::Point<Pixels>>,
+    /// Wheel movement smaller than a line, carried to the next event (trackpads send fractions).
+    wheel_rest: f32,
     _events: Task<()>,
 }
+
+impl EventEmitter<TerminalEvent> for TerminalView {}
 
 impl TerminalView {
     /// Wraps a spawned terminal; `events` is the receiver `Terminal::spawn` returned.
@@ -54,6 +95,8 @@ impl TerminalView {
                     for ev in &batch {
                         this.terminal.handle_event(ev);
                     }
+                    // Output may have scrolled the hovered link away; the next mouse move finds it again.
+                    this.hovered = None;
                     cx.notify();
                 });
                 if applied.is_err() {
@@ -65,6 +108,12 @@ impl TerminalView {
             terminal,
             option_keys: OptionKeys::default(),
             focus: cx.focus_handle(),
+            geometry: None,
+            selecting: false,
+            reported_cell: None,
+            hovered: None,
+            mouse_at: None,
+            wheel_rest: 0.,
             _events,
         }
     }
@@ -73,15 +122,241 @@ impl TerminalView {
         self.option_keys = option_keys;
     }
 
+    pub fn terminal(&self) -> &Terminal {
+        &self.terminal
+    }
+
+    /// The window position of a viewport cell's centre, once the view has been laid out.
+    pub fn cell_position(&self, row: usize, col: usize) -> Option<gpui::Point<Pixels>> {
+        let g = self.geometry?;
+        Some(point(
+            g.origin.x + g.cell_width * (col as f32 + 0.5),
+            g.origin.y + g.line_height * (row as f32 + 0.5),
+        ))
+    }
+
+    /// The viewport cell under a window position, and which half of it.
+    fn cell_at(&self, at: gpui::Point<Pixels>) -> Option<(usize, usize, Side)> {
+        let g = self.geometry?;
+        let (cols, lines) = self.terminal.size();
+        let x = ((at.x - g.origin.x) / g.cell_width).max(0.);
+        let y = ((at.y - g.origin.y) / g.line_height).max(0.);
+        let col = (x.floor() as usize).min(usize::from(cols).saturating_sub(1));
+        let row = (y.floor() as usize).min(usize::from(lines).saturating_sub(1));
+        let side = if x.fract() < 0.5 {
+            Side::Left
+        } else {
+            Side::Right
+        };
+        Some((row, col, side))
+    }
+
+    /// Mouse events go to the program when it asked for them, unless Shift is held.
+    fn reporting(&self, modifiers: &Modifiers) -> bool {
+        !modifiers.shift && self.terminal.term().mode().intersects(TermMode::MOUSE_MODE)
+    }
+
+    fn report(
+        &mut self,
+        action: MouseAction,
+        button: mouse::MouseButton,
+        row: usize,
+        col: usize,
+        m: &Modifiers,
+    ) {
+        let mods = MouseMods {
+            shift: m.shift,
+            alt: m.alt,
+            ctrl: m.control,
+        };
+        let mode = *self.terminal.term().mode();
+        if let Some(bytes) = mouse_report(action, button, col, row, mods, mode) {
+            self.terminal.write(bytes);
+        }
+        self.reported_cell = Some((row, col));
+    }
+
+    fn mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        self.focus.focus(window, cx);
+        let Some((row, col, side)) = self.cell_at(event.position) else {
+            return;
+        };
+        if event.button == MouseButton::Left
+            && event.modifiers.secondary(cx)
+            && let Some(link) = self.terminal.link_at(row, col)
+        {
+            self.open_link(&link, cx);
+            return;
+        }
+        if self.reporting(&event.modifiers) {
+            if let Some(button) = report_button(event.button) {
+                self.report(MouseAction::Press, button, row, col, &event.modifiers);
+            }
+            return;
+        }
+        if event.button != MouseButton::Left {
+            return;
+        }
+        let kind = match event.click_count {
+            0 | 1 => SelectionType::Simple,
+            2 => SelectionType::Semantic,
+            _ => SelectionType::Lines,
+        };
+        self.terminal.select(kind, row, col, side);
+        self.selecting = true;
+        cx.notify();
+    }
+
+    fn mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.mouse_at = Some(event.position);
+        self.update_hover(&event.modifiers, cx);
+        let Some((row, col, side)) = self.cell_at(event.position) else {
+            return;
+        };
+        if self.selecting && event.pressed_button == Some(MouseButton::Left) {
+            self.terminal.extend_selection(row, col, side);
+            cx.notify();
+        } else if self.reporting(&event.modifiers) && self.reported_cell != Some((row, col)) {
+            let button = event
+                .pressed_button
+                .and_then(report_button)
+                .unwrap_or(mouse::MouseButton::None);
+            self.report(MouseAction::Motion, button, row, col, &event.modifiers);
+        }
+    }
+
+    fn mouse_up(&mut self, event: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
+        if event.button == MouseButton::Left {
+            self.selecting = false;
+        }
+        if !self.reporting(&event.modifiers) {
+            return;
+        }
+        if let (Some((row, col, _)), Some(button)) =
+            (self.cell_at(event.position), report_button(event.button))
+        {
+            self.report(MouseAction::Release, button, row, col, &event.modifiers);
+        }
+    }
+
+    fn scroll_wheel(&mut self, event: &ScrollEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let Some(g) = self.geometry else { return };
+        let lines = self.wheel_rest + event.delta.pixel_delta(g.line_height).y / g.line_height;
+        let whole = lines.trunc();
+        self.wheel_rest = lines - whole;
+        let n = whole as i32;
+        cx.stop_propagation();
+        if n == 0 {
+            return;
+        }
+        let mode = *self.terminal.term().mode();
+        let up = n > 0;
+        // shortcut: one wheel event reports at most 10 lines, so a flung trackpad doesn't flood the program.
+        let count = n.unsigned_abs().min(10);
+        if self.reporting(&event.modifiers) {
+            if let Some((row, col, _)) = self.cell_at(event.position) {
+                let button = if up {
+                    mouse::MouseButton::WheelUp
+                } else {
+                    mouse::MouseButton::WheelDown
+                };
+                for _ in 0..count {
+                    self.report(MouseAction::Press, button, row, col, &event.modifiers);
+                }
+            }
+        } else if mode.contains(TermMode::ALT_SCREEN | TermMode::ALTERNATE_SCROLL)
+            && !event.modifiers.shift
+        {
+            // A full-screen program without mouse tracking (less, man) scrolls on arrow keys.
+            let key: &[u8] = match (up, mode.contains(TermMode::APP_CURSOR)) {
+                (true, true) => b"\x1bOA",
+                (true, false) => b"\x1b[A",
+                (false, true) => b"\x1bOB",
+                (false, false) => b"\x1b[B",
+            };
+            self.terminal.write(key.repeat(count as usize));
+        } else {
+            self.terminal.scroll(Scroll::Delta(n));
+            cx.notify();
+        }
+    }
+
+    fn modifiers_changed(
+        &mut self,
+        event: &ModifiersChangedEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.update_hover(&event.modifiers, cx);
+    }
+
+    fn update_hover(&mut self, modifiers: &Modifiers, cx: &mut Context<Self>) {
+        let link = modifiers
+            .secondary(cx)
+            .then(|| self.mouse_at.and_then(|at| self.cell_at(at)))
+            .flatten()
+            .and_then(|(row, col, _)| self.terminal.link_at(row, col));
+        if link != self.hovered {
+            self.hovered = link;
+            cx.notify();
+        }
+    }
+
+    fn open_link(&mut self, link: &Link, cx: &mut Context<Self>) {
+        match link.kind {
+            // Only http(s) leaves the app: never file:// or a scheme handler a program printed.
+            LinkKind::Url
+                if link.text.starts_with("https://") || link.text.starts_with("http://") =>
+            {
+                cx.open_url(&link.text)
+            }
+            LinkKind::Url => {}
+            LinkKind::Path => {
+                // shortcut: relative paths resolve against the folder the terminal started in, not the shell's
+                // current one (we don't track `cd`); upgrade with OSC 7 cwd reports.
+                let path = self.terminal.cwd().join(path_target(&link.text));
+                let mut normal = PathBuf::new();
+                for c in path.components() {
+                    match c {
+                        Component::CurDir => {}
+                        Component::ParentDir => _ = normal.pop(),
+                        c => normal.push(c),
+                    }
+                }
+                let path = normal;
+                cx.emit(TerminalEvent::OpenPath(path));
+            }
+        }
+    }
+
     fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let mode = *self.terminal.term().mode();
-        if let Some(bytes) = key_to_bytes(
-            &event.keystroke,
-            mode,
-            self.option_keys.resolve(device_flags()),
-        ) {
+        let k = &event.keystroke;
+        let only_shift =
+            k.modifiers.shift && !k.modifiers.control && !k.modifiers.alt && !k.modifiers.platform;
+        if only_shift && !mode.contains(TermMode::ALT_SCREEN) {
+            let page = match k.key.as_str() {
+                "pageup" => Some(Scroll::PageUp),
+                "pagedown" => Some(Scroll::PageDown),
+                _ => None,
+            };
+            if let Some(page) = page {
+                self.terminal.scroll(page);
+                cx.stop_propagation();
+                cx.notify();
+                return;
+            }
+        }
+        if let Some(bytes) = key_to_bytes(k, mode, self.option_keys.resolve(device_flags())) {
+            self.terminal.scroll(Scroll::Bottom);
             self.terminal.write(bytes);
             cx.stop_propagation();
+        }
+    }
+
+    fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(text) = self.terminal.selection_text() {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
         }
     }
 
@@ -95,6 +370,7 @@ impl TerminalView {
             .mode()
             .contains(TermMode::BRACKETED_PASTE);
         let bytes = paste_bytes(&text, bracketed);
+        self.terminal.scroll(Scroll::Bottom);
         self.terminal.write(bytes);
     }
 }
@@ -119,11 +395,22 @@ impl Render for TerminalView {
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::paste))
+            .on_action(cx.listener(Self::copy))
             .on_key_down(cx.listener(Self::key_down))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _, window, cx| this.focus.focus(window, cx)),
-            )
+            .on_any_mouse_down(cx.listener(Self::mouse_down))
+            .on_mouse_move(cx.listener(Self::mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::mouse_up))
+            .on_mouse_up(MouseButton::Middle, cx.listener(Self::mouse_up))
+            .on_mouse_up(MouseButton::Right, cx.listener(Self::mouse_up))
+            .on_scroll(cx.listener(Self::scroll_wheel))
+            .on_modifiers_changed(cx.listener(Self::modifiers_changed))
+            .map(|d| {
+                if self.hovered.is_some() {
+                    d.cursor_pointer()
+                } else {
+                    d.cursor_text()
+                }
+            })
             .size_full()
             .p_1()
             .bg(style.palette.background)
@@ -137,306 +424,14 @@ impl Render for TerminalView {
     }
 }
 
-struct Style {
-    palette: Palette,
-    font: Font,
-    font_size: Pixels,
-}
-
-/// Everything one frame paints, built in prepaint so paint is just drawing.
-struct Frame {
-    rects: Vec<(Bounds<Pixels>, Hsla)>,
-    cursor: Option<(Bounds<Pixels>, Hsla, bool)>,
-    lines: Vec<(gpui::Point<Pixels>, ShapedLine)>,
-    line_height: Pixels,
-}
-
-impl Frame {
-    fn paint(self, window: &mut Window, cx: &mut App) {
-        for (bounds, color) in self.rects {
-            window.paint_quad(fill(bounds, color));
-        }
-        if let Some((bounds, color, filled)) = self.cursor {
-            window.paint_quad(if filled {
-                fill(bounds, color)
-            } else {
-                outline(bounds, color, gpui::BorderStyle::Solid)
-            });
-        }
-        for (origin, line) in self.lines {
-            // A failed glyph raster only loses that run's text for one frame.
-            let _ = line.paint(origin, self.line_height, TextAlign::Left, None, window, cx);
-        }
+/// The mouse button a report names; GPUI's back/forward buttons have no xterm code.
+fn report_button(button: MouseButton) -> Option<mouse::MouseButton> {
+    match button {
+        MouseButton::Left => Some(mouse::MouseButton::Left),
+        MouseButton::Middle => Some(mouse::MouseButton::Middle),
+        MouseButton::Right => Some(mouse::MouseButton::Right),
+        MouseButton::Navigate(_) => None,
     }
-}
-
-/// A stretch of same-styled cells on one row, shaped as one line.
-struct Run {
-    row: usize,
-    col: usize,
-    cells: usize,
-    text: String,
-    fg: Hsla,
-    flags: Flags,
-    ends: bool,
-}
-
-fn layout(
-    view: &gpui::Entity<TerminalView>,
-    style: &Style,
-    bounds: Bounds<Pixels>,
-    window: &mut Window,
-    cx: &mut App,
-) -> Frame {
-    let text_system = window.text_system().clone();
-    let font_id = text_system.resolve_font(&style.font);
-    let cell_width = text_system
-        .advance(font_id, style.font_size, 'm')
-        .map(|s| s.width)
-        .unwrap_or(style.font_size * 0.6);
-    let line_height = (style.font_size * 1.3).round();
-    let cols = (bounds.size.width / cell_width).floor().max(1.) as u16;
-    let lines = (bounds.size.height / line_height).floor().max(1.) as u16;
-    view.update(cx, |this, _| {
-        this.terminal
-            .resize(cols, lines, f32::from(cell_width), f32::from(line_height));
-    });
-
-    let this = view.read(cx);
-    let focused = this.focus.is_focused(window);
-    let term = this.terminal.term();
-    let content = term.renderable_content();
-    let palette = &style.palette;
-    let offset = content.display_offset as i32;
-    let cursor_at = {
-        let p = content.cursor.point;
-        ((p.line.0 + offset) as usize, p.column.0)
-    };
-    let block_cursor = focused && content.cursor.shape == CursorShape::Block;
-    let origin = |row: usize, col: usize| {
-        point(
-            bounds.origin.x + cell_width * col as f32,
-            bounds.origin.y + line_height * row as f32,
-        )
-    };
-
-    let mut rects: Vec<(Bounds<Pixels>, Hsla)> = Vec::new();
-    let mut runs: Vec<Run> = Vec::new();
-    let mut cursor_cells = 1;
-    for cell in content.display_iter {
-        if cell
-            .flags
-            .intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER)
-        {
-            continue;
-        }
-        let (row, col) = ((cell.point.line.0 + offset) as usize, cell.point.column.0);
-        let width = if cell.flags.contains(Flags::WIDE_CHAR) {
-            2
-        } else {
-            1
-        };
-        let (mut fg, mut bg) = (
-            palette.color(cell.fg, content.colors),
-            palette.color(cell.bg, content.colors),
-        );
-        if cell.flags.contains(Flags::INVERSE) {
-            std::mem::swap(&mut fg, &mut bg);
-        }
-        if cell.flags.contains(Flags::DIM) {
-            fg = fg.opacity(0.7);
-        }
-        if (row, col) == cursor_at {
-            cursor_cells = width;
-        }
-        if block_cursor && (row, col) == cursor_at {
-            fg = palette.background;
-        }
-        if bg != palette.background {
-            let cell_bounds = Bounds::new(
-                origin(row, col),
-                size(cell_width * width as f32, line_height),
-            );
-            match rects.last_mut() {
-                Some((b, c)) if *c == bg && b.top_right() == cell_bounds.origin => {
-                    b.size.width += cell_bounds.size.width;
-                }
-                _ => rects.push((cell_bounds, bg)),
-            }
-        }
-        let flags = cell.flags & (Flags::BOLD | Flags::ITALIC | Flags::UNDERLINE);
-        match runs.last_mut() {
-            Some(r)
-                if !r.ends
-                    && r.row == row
-                    && r.col + r.cells == col
-                    && r.fg == fg
-                    && r.flags == flags =>
-            {
-                r.text.push(cell.c);
-                r.text.extend(cell.zerowidth().into_iter().flatten());
-                r.cells += width;
-                r.ends = width == 2;
-            }
-            _ => runs.push(Run {
-                row,
-                col,
-                cells: width,
-                text: std::iter::once(cell.c)
-                    .chain(cell.zerowidth().into_iter().flatten().copied())
-                    .collect(),
-                fg,
-                flags,
-                // Shape a wide char on its own so cells after it stay on the grid.
-                ends: width == 2,
-            }),
-        }
-    }
-
-    let cursor = (content.cursor.shape != CursorShape::Hidden).then(|| {
-        let (row, col) = cursor_at;
-        let full = size(cell_width * cursor_cells as f32, line_height);
-        let size = match content.cursor.shape {
-            CursorShape::Beam => size(px(2.), line_height),
-            CursorShape::Underline => size(full.width, px(2.)),
-            _ => full,
-        };
-        let mut at = origin(row, col);
-        if content.cursor.shape == CursorShape::Underline {
-            at.y += line_height - px(2.);
-        }
-        (
-            Bounds::new(at, size),
-            palette.cursor,
-            focused || size != full,
-        )
-    });
-
-    let lines = runs
-        .into_iter()
-        .filter(|r| !r.text.trim().is_empty() || r.flags.contains(Flags::UNDERLINE))
-        .map(|r| {
-            let mut font = style.font.clone();
-            if r.flags.contains(Flags::BOLD) {
-                font.weight = FontWeight::BOLD;
-            }
-            if r.flags.contains(Flags::ITALIC) {
-                font.style = FontStyle::Italic;
-            }
-            let underline = r
-                .flags
-                .contains(Flags::UNDERLINE)
-                .then_some(UnderlineStyle {
-                    thickness: px(1.),
-                    color: Some(r.fg),
-                    wavy: false,
-                });
-            let text = SharedString::from(r.text);
-            let run = TextRun {
-                len: text.len(),
-                font,
-                color: r.fg,
-                background_color: None,
-                underline,
-                strikethrough: None,
-            };
-            let shaped = text_system.shape_line(text, style.font_size, &[run], Some(cell_width));
-            (origin(r.row, r.col), shaped)
-        })
-        .collect();
-
-    Frame {
-        rects,
-        cursor,
-        lines,
-        line_height,
-    }
-}
-
-/// The 16 ANSI colors plus the defaults, taken from the app theme where it has a matching color.
-struct Palette {
-    ansi: [Hsla; 16],
-    foreground: Hsla,
-    background: Hsla,
-    cursor: Hsla,
-}
-
-impl Palette {
-    fn new(t: &ThemeColor) -> Self {
-        let gray = |v: u8| rgb(Rgb { r: v, g: v, b: v });
-        Self {
-            ansi: [
-                gray(0x00),
-                t.red,
-                t.green,
-                t.yellow,
-                t.blue,
-                t.magenta,
-                t.cyan,
-                gray(0xe5),
-                t.muted_foreground,
-                t.red_light,
-                t.green_light,
-                t.yellow_light,
-                t.blue_light,
-                t.magenta_light,
-                t.cyan_light,
-                gray(0xff),
-            ],
-            foreground: t.foreground,
-            background: t.background,
-            cursor: t.caret,
-        }
-    }
-
-    fn color(&self, color: Color, overrides: &Colors) -> Hsla {
-        match color {
-            Color::Spec(c) => rgb(c),
-            Color::Indexed(i) => self.indexed(i.into(), overrides),
-            Color::Named(n) => self.indexed(n as usize, overrides),
-        }
-    }
-
-    fn indexed(&self, i: usize, overrides: &Colors) -> Hsla {
-        // Programs can redefine palette entries (OSC 4/10/11); honour that first.
-        if let Some(c) = overrides[i] {
-            return rgb(c);
-        }
-        const CUBE: [u8; 6] = [0, 95, 135, 175, 215, 255];
-        let dim = |c: Hsla| c.opacity(0.7);
-        match i {
-            0..16 => self.ansi[i],
-            16..232 => {
-                let i = i - 16;
-                rgb(Rgb {
-                    r: CUBE[i / 36],
-                    g: CUBE[i / 6 % 6],
-                    b: CUBE[i % 6],
-                })
-            }
-            232..256 => {
-                let v = (8 + 10 * (i - 232)) as u8;
-                rgb(Rgb { r: v, g: v, b: v })
-            }
-            _ if i == NamedColor::Background as usize => self.background,
-            _ if i == NamedColor::Cursor as usize => self.cursor,
-            _ if i == NamedColor::DimForeground as usize => dim(self.foreground),
-            _ if (NamedColor::DimBlack as usize..=NamedColor::DimWhite as usize).contains(&i) => {
-                dim(self.ansi[i - NamedColor::DimBlack as usize])
-            }
-            _ => self.foreground,
-        }
-    }
-}
-
-fn rgb(c: Rgb) -> Hsla {
-    Rgba {
-        r: f32::from(c.r) / 255.,
-        g: f32::from(c.g) / 255.,
-        b: f32::from(c.b) / 255.,
-        a: 1.,
-    }
-    .into()
 }
 
 /// macOS's device-dependent modifier bits, which tell left from right Option; GPUI's keystroke has one `alt` flag.
@@ -456,8 +451,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn paste_binding_parses() {
+    fn bindings_parse() {
         // Panics on a keystroke string GPUI can't parse.
         KeyBinding::new(PASTE_KEY, Paste, Some(CONTEXT));
+        KeyBinding::new(COPY_KEY, Copy, Some(CONTEXT));
     }
 }
