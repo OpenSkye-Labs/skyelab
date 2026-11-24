@@ -55,7 +55,15 @@ pub fn diff_merge_base(path: &Path, base: &str) -> Result<Vec<FileDiff>> {
 /// Lines added and removed in the working tree since `base` (its merge-base with `HEAD`), or since `HEAD`
 /// without one, as `git diff --numstat` counts them, plus the lines of untracked files. Binary files count nothing.
 pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
-    let mut args = vec!["diff", "--numstat", "--no-ext-diff", "--no-textconv", "-M"];
+    // Whole repo, like the untracked count added to it, whatever the user's diff.relative says.
+    let mut args = vec![
+        "diff",
+        "--numstat",
+        "--no-relative",
+        "--no-ext-diff",
+        "--no-textconv",
+        "-M",
+    ];
     if base.is_some() {
         args.push("--merge-base");
     }
@@ -75,8 +83,10 @@ pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
     .map(|(added, removed)| (added + untracked_lines(path), removed))
 }
 
-/// Lines in the untracked files of `path`'s repo: regular text files only, each read up to 8 MiB.
+/// Lines in the untracked files of `path`'s repo: regular text files only, each read up to 8 MiB and 16 MiB in all
+/// (an unignored build folder must not make every details card read it).
 fn untracked_lines(path: &Path) -> u64 {
+    let mut budget: u64 = 16 << 20;
     use std::io::Read as _;
     let (Ok(root), Ok(status)) = (crate::repo_root(path), crate::status(path)) else {
         return 0;
@@ -87,10 +97,12 @@ fn untracked_lines(path: &Path) -> u64 {
         .map(|rel| {
             let file = root.join(rel);
             let mut bytes = Vec::new();
-            let read = std::fs::symlink_metadata(&file).is_ok_and(|m| m.file_type().is_file())
+            let read = budget > 0
+                && std::fs::symlink_metadata(&file).is_ok_and(|m| m.file_type().is_file())
                 && std::fs::File::open(&file)
-                    .and_then(|f| f.take(8 << 20).read_to_end(&mut bytes))
+                    .and_then(|f| f.take(budget.min(8 << 20)).read_to_end(&mut bytes))
                     .is_ok();
+            budget = budget.saturating_sub(bytes.len() as u64);
             if !read || bytes.contains(&0) {
                 return 0;
             }

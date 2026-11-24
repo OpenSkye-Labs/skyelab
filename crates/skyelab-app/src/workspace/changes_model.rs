@@ -170,12 +170,14 @@ fn load_with(dir: &Path, base: Option<&str>, ignore_ws: bool) -> Result<Changes>
     let mut entries = diff_entries(diffs, &mut lines_left);
     let mut budget = MAX_UNTRACKED_TOTAL;
     let status = skyelab_git::status(dir)?;
-    let dirty = status.changed_paths();
-    let uncommitted = entries
+    // What Commit all would commit: every change under the project folder (a folder inside a bigger repo commits
+    // only itself), even one the base diff doesn't list (a committed file deleted again).
+    let folder = dir.strip_prefix(&root).unwrap_or(Path::new(""));
+    let uncommitted = status
+        .changed_paths()
         .iter()
-        .filter(|(f, _)| dirty.contains(f.path.as_path()))
-        .count()
-        + status.untracked.len();
+        .filter(|p| p.starts_with(folder))
+        .count();
     for rel in status.untracked.clone() {
         let max_lines = skyelab_git::MAX_FILE_LINES.min(lines_left);
         let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget, max_lines);

@@ -7,6 +7,7 @@ use super::thread::{ThreadView, ThreadViewEvent};
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::TextField;
+use gpui::Focusable as _;
 use gpui::{
     AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window, div,
     prelude::*, px,
@@ -32,6 +33,8 @@ pub struct BranchPicker {
     /// The worktree base picked for a new thread (`None`: the current branch).
     pub(super) base: Option<String>,
     busy: bool,
+    /// Where the focus goes back to when the list closes: the search it took is no longer drawn then.
+    return_focus: Option<(gpui::AnyWindowHandle, gpui::FocusHandle)>,
     _load: Option<Task<()>>,
     /// A switch or create; apart from `_load`, so reopening the list never drops it.
     _switch: Option<Task<()>>,
@@ -67,6 +70,7 @@ impl BranchPicker {
             shown_tree: None,
             base: None,
             busy: false,
+            return_focus: None,
             _load: None,
             _switch: None,
             _query,
@@ -82,6 +86,16 @@ impl BranchPicker {
             self.reload(cx);
         } else {
             self.dirty = None;
+            if let Some((win, to)) = self.return_focus.take() {
+                let query = self.query.clone();
+                cx.defer(move |cx| {
+                    let _ = win.update(cx, |_, window, cx| {
+                        if query.read(cx).focus_handle(cx).is_focused(window) {
+                            to.focus(window, cx);
+                        }
+                    });
+                });
+            }
         }
         cx.notify();
     }
@@ -89,6 +103,12 @@ impl BranchPicker {
     /// Opens the list with the search focused, so typing narrows it (or names a new branch) at once.
     pub fn open_focused(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.set_open(true, cx);
+        let search = self.query.read(cx).focus_handle(cx);
+        let back = window.focused(cx).filter(|h| *h != search).or_else(|| {
+            let owner = self.owner.upgrade()?;
+            Some(owner.read(cx).focus_handle(cx))
+        });
+        self.return_focus = back.map(|h| (window.window_handle(), h));
         self.query.update(cx, |q, cx| q.focus(window, cx));
     }
 

@@ -175,4 +175,12 @@ fn the_branch_row_opens_the_picker_ready_to_type(cx: &mut TestAppContext) {
         cx.update(|window, cx| query.read(cx).focus_handle(cx).is_focused(window)),
         "typing goes to the search"
     );
+    // Closed again, the hidden search gives the focus back, or the window's keys would reach nothing.
+    picker.update(cx, |p, cx| p.set_open(false, cx));
+    cx.run_until_parked();
+    assert!(
+        cx.update(|window, cx| !query.read(cx).focus_handle(cx).is_focused(window)
+            && window.focused(cx).is_some()),
+        "the focus went back"
+    );
 }

@@ -160,4 +160,10 @@ fn counts_only_uncommitted_files_against_a_base() {
     let c = load(&root, Some("main~1")).expect("load");
     assert_eq!((c.files.len(), c.uncommitted), (3, 2));
     assert_eq!(load(&root, None).expect("load").uncommitted, 2);
+
+    // A committed file deleted again: the base diff no longer lists it, but there is a change to commit.
+    git(&root, &["add", "."]);
+    git(&root, &["commit", "-q", "-m", "more"]);
+    std::fs::remove_file(root.join("done.txt")).expect("rm");
+    assert_eq!(load(&root, Some("main~2")).expect("load").uncommitted, 1);
 }
