@@ -472,24 +472,26 @@ impl Workspace {
         cx: &Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         use gpui::InteractiveElement as _;
+        use gpui::prelude::FluentBuilder as _;
         el.on_action(cx.listener(Self::manage_thread))
             .on_action(cx.listener(Self::fork_thread))
             .on_action(cx.listener(Self::hand_off_thread))
             .on_action(cx.listener(Self::manage_project))
-            .on_action(
-                cx.listener(|ws, _: &RenameThread, w, cx| ws.act_on_shown(ThreadOp::Rename, w, cx)),
-            )
-            .on_action(
-                cx.listener(|ws, _: &TogglePinThread, w, cx| ws.act_on_shown(ThreadOp::Pin, w, cx)),
-            )
-            .on_action(
-                cx.listener(|ws, _: &ArchiveThread, w, cx| {
+            // Only while a thread shows, so the palette doesn't offer them on an empty page.
+            .when(self.shown_thread(cx).is_some(), |el| {
+                el.on_action(cx.listener(|ws, _: &RenameThread, w, cx| {
+                    ws.act_on_shown(ThreadOp::Rename, w, cx)
+                }))
+                .on_action(cx.listener(|ws, _: &TogglePinThread, w, cx| {
+                    ws.act_on_shown(ThreadOp::Pin, w, cx)
+                }))
+                .on_action(cx.listener(|ws, _: &ArchiveThread, w, cx| {
                     ws.act_on_shown(ThreadOp::Archive, w, cx)
-                }),
-            )
-            .on_action(
-                cx.listener(|ws, _: &DeleteThread, w, cx| ws.act_on_shown(ThreadOp::Delete, w, cx)),
-            )
+                }))
+                .on_action(cx.listener(|ws, _: &DeleteThread, w, cx| {
+                    ws.act_on_shown(ThreadOp::Delete, w, cx)
+                }))
+            })
             .on_action(cx.listener(|ws, _: &RenameProject, w, cx| {
                 if let Some(id) = ws.project.as_ref().map(|p| p.id) {
                     ws.manage_project(
