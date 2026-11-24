@@ -1,13 +1,22 @@
 //! Acceptance tests for editing and saving the accounts config.
 
 use skyelab_core::{Account, AccountsConfig, Binding};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+/// A Unix-style absolute path, on drive C: on Windows so it is absolute there too.
+fn abs(p: &str) -> PathBuf {
+    if cfg!(windows) && p.starts_with('/') {
+        format!("C:{p}").into()
+    } else {
+        p.into()
+    }
+}
 
 fn acct(id: &str) -> Account {
     Account {
         id: id.into(),
         label: format!("{id} label"),
-        config_dir: PathBuf::from(format!("/home/me/.claude-{id}")),
+        config_dir: abs(&format!("/home/me/.claude-{id}")),
         provider: Default::default(),
         gh_config_dir: None,
         ssh_agent: false,
@@ -15,7 +24,7 @@ fn acct(id: &str) -> Account {
 }
 
 fn bind(path: &str, account: &str) -> Binding {
-    Binding::new(path.into(), account.into())
+    Binding::new(abs(path), account.into())
 }
 
 fn two_accounts_one_binding() -> AccountsConfig {
@@ -68,7 +77,7 @@ fn account_update_changes_label_and_dir_and_rejects_unknown() {
     let mut c = two_accounts_one_binding();
     let mut changed = acct("acme");
     changed.label = "Acme Team".into();
-    changed.config_dir = "/elsewhere".into();
+    changed.config_dir = abs("/elsewhere");
     c.update_account(changed.clone()).expect("update");
     assert_eq!(c.accounts[0], changed);
 
@@ -108,7 +117,7 @@ fn binding_add_rejects_unknown_account_and_duplicate_path() {
     c.add_binding(bind("/nonexistent/work/acme/fork", "personal"))
         .expect("nested binding");
     assert_eq!(
-        c.resolve(Path::new("/nonexistent/work/acme/fork/src"))
+        c.resolve(&abs("/nonexistent/work/acme/fork/src"))
             .map(|a| a.id.as_str()),
         Some("personal")
     );
@@ -117,9 +126,9 @@ fn binding_add_rejects_unknown_account_and_duplicate_path() {
 #[test]
 fn binding_remove_unbinds_and_rejects_unknown_path() {
     let mut c = two_accounts_one_binding();
-    assert!(c.remove_binding(Path::new("/nonexistent/nope")).is_err());
-    c.remove_binding(Path::new("/nonexistent/work/acme"))
+    assert!(c.remove_binding(&abs("/nonexistent/nope")).is_err());
+    c.remove_binding(&abs("/nonexistent/work/acme"))
         .expect("remove");
-    assert!(c.resolve(Path::new("/nonexistent/work/acme")).is_none());
+    assert!(c.resolve(&abs("/nonexistent/work/acme")).is_none());
     c.remove_account("acme").expect("now unbound, removable");
 }

@@ -430,6 +430,6 @@ impl Render for PrActions {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake gh is a shell script
 #[path = "pr_actions_test.rs"]
 mod tests;

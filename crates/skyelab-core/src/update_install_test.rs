@@ -70,7 +70,12 @@ fn detects_how_it_was_installed() {
         detect(Path::new("/w/target/debug/skyelab"), None, "macos"),
         None
     );
-    let appimage = Path::new("/home/u/Apps/SkyeLab.AppImage");
+    // `$APPIMAGE` must be absolute on the host running the test.
+    let appimage = Path::new(if cfg!(windows) {
+        r"C:\u\SkyeLab.AppImage"
+    } else {
+        "/home/u/Apps/SkyeLab.AppImage"
+    });
     assert_eq!(
         detect(
             Path::new("/tmp/.mount_x/usr/bin/skyelab"),

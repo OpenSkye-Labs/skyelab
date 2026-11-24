@@ -73,9 +73,10 @@ fn lists_projects_and_threads() {
             result: Reply::Projects(p),
             ..
         }) => {
+            // As a path: Windows stores `/src/app` as `\src\app`.
             assert_eq!(
-                (p.len(), p[0].id, p[0].path.as_str()),
-                (1, project_id, "/src/app")
+                (p.len(), p[0].id, Path::new(&p[0].path)),
+                (1, project_id, Path::new("/src/app"))
             );
         }
         other => panic!("{other:?}"),

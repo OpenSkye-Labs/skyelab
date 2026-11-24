@@ -192,6 +192,7 @@ fn a_new_child_does_not_start_past_the_cap(cx: &mut TestAppContext) {
     );
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn a_follow_up_to_an_idle_child_does_not_pass_the_cap(cx: &mut TestAppContext) {
     let r = rig(cx);

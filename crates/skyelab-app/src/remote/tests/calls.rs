@@ -4,7 +4,9 @@ use super::*;
 
 pub(super) struct Fixture {
     pub _dir: tempfile::TempDir,
+    #[cfg(unix)] // read only by the fake agent's test
     pub project_dir: PathBuf,
+    #[cfg(unix)]
     pub account_dir: PathBuf,
     pub store: workspace::SharedStore,
     pub ws: Entity<Workspace>,
@@ -101,7 +103,9 @@ pub(super) fn sharing_workspace(
     (
         Fixture {
             _dir: dir,
+            #[cfg(unix)]
             project_dir,
+            #[cfg(unix)]
             account_dir,
             store,
             ws,
@@ -142,6 +146,7 @@ pub(super) fn error_of(msg: ServerMessage) -> skyelab_protocol::RpcError {
     }
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn remote_start_runs_under_the_bound_account_shows_locally_and_pushes_events(
     cx: &mut TestAppContext,

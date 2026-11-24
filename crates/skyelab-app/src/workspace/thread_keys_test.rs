@@ -111,8 +111,10 @@ fn every_thread_key_is_unique_and_in_the_palette(cx: &mut TestAppContext) {
 #[test]
 fn the_editor_runs_without_a_shell_and_with_a_terminal_env() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let argv = ["sh".to_owned(), "--flag".to_owned()];
-    let cmd = editor_command(&argv, dir.path()).expect("sh is on PATH");
+    // A program every runner has on PATH.
+    let bin = if cfg!(windows) { "cmd" } else { "sh" };
+    let argv = [bin.to_owned(), "--flag".to_owned()];
+    let cmd = editor_command(&argv, dir.path()).expect("on PATH");
     assert!(
         Path::new(cmd.get_program()).is_absolute(),
         "resolved, not left to the child"

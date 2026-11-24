@@ -48,7 +48,9 @@ fn repo_root_finds_toplevel_from_subdir() {
     let (_tmp, root) = repo();
     let sub = root.join("deep/er");
     fs::create_dir_all(&sub).expect("mkdir");
-    assert_eq!(skyelab_git::repo_root(&sub).expect("root"), root);
+    // git prints `C:/...` on Windows, `canonicalize` gives `\\?\C:\...`: compare both canonical.
+    let found = skyelab_git::repo_root(&sub).expect("root");
+    assert_eq!(fs::canonicalize(found).expect("canon"), root);
 }
 
 #[test]
@@ -68,7 +70,7 @@ fn worktree_round_trip() {
 
     let list = skyelab_git::list_worktrees(&root).expect("list");
     assert_eq!(list.len(), 2, "{list:?}");
-    assert_eq!(list[0].path, root);
+    assert_eq!(fs::canonicalize(&list[0].path).expect("canon"), root);
     assert_eq!(list[0].branch.as_deref(), Some("main"));
     let made = list
         .iter()

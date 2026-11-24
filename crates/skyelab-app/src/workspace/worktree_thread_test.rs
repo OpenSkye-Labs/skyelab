@@ -1,18 +1,27 @@
 //! A thread started with "Run in a new worktree": the worktree, the account it runs under, the
 //! Changes tab that follows it, its terminal and its discard. Real git, the fake agent.
 
-use super::changes_model_test::{git, repo};
-use super::thread::{Stop, ThreadView, ThreadViewEvent};
-use super::thread_model::Record;
-use super::thread_worktree::{DiscardWorktree, OpenChanges, ToggleWorktree};
+use super::changes_model_test::repo;
+use super::thread::ThreadView;
 use super::*;
 use gpui::{TestAppContext, VisualTestContext};
 use skyelab_core::{Account, Binding};
+// The tests here run the fake agent, a shell script; the helpers above them serve other tests everywhere.
+#[cfg(unix)]
+use super::changes_model_test::git;
+#[cfg(unix)]
+use super::thread::{Stop, ThreadViewEvent};
+#[cfg(unix)]
+use super::thread_model::Record;
+#[cfg(unix)]
+use super::thread_worktree::{DiscardWorktree, OpenChanges, ToggleWorktree};
+#[cfg(unix)]
 use std::rc::Rc;
 
 pub(super) struct Fixture {
     pub _tmp: tempfile::TempDir,
     pub project: PathBuf,
+    #[cfg(unix)] // read only by the fake agent's tests
     pub account_dir: PathBuf,
     pub config: AccountsConfig,
     pub store: SharedStore,
@@ -45,6 +54,7 @@ pub(super) fn fixture() -> Fixture {
     Fixture {
         _tmp: tmp,
         project,
+        #[cfg(unix)]
         account_dir,
         config,
         store: Arc::new(Mutex::new(Store::open_in_memory().expect("store"))),
@@ -104,6 +114,7 @@ pub(super) fn send(cx: &mut VisualTestContext) {
 }
 
 /// The fake agent's `{"type":"fake_env",..}` report, once stored.
+#[cfg(unix)]
 fn fake_env(store: &SharedStore, thread_id: i64) -> Option<serde_json::Value> {
     let store = store.lock().expect("store lock");
     store
@@ -118,6 +129,7 @@ fn fake_env(store: &SharedStore, thread_id: i64) -> Option<serde_json::Value> {
         })
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn worktree_thread_runs_in_the_worktree_under_the_projects_account(cx: &mut TestAppContext) {
     let f = fixture();
@@ -252,6 +264,7 @@ fn worktree_thread_runs_in_the_worktree_under_the_projects_account(cx: &mut Test
     assert_eq!(stored.worktree_branch.as_deref(), Some(branch.as_str()));
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn unchecked_thread_runs_in_the_project_without_a_worktree(cx: &mut TestAppContext) {
     let f = fixture();

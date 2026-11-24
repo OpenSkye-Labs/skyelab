@@ -1,15 +1,24 @@
 //! Acceptance: each account may carry its own `gh` config dir, checked like `config_dir`.
 
 use skyelab_core::{Account, AccountsConfig, Binding};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+/// A Unix-style absolute path, on drive C: on Windows so it is absolute there too.
+fn abs(p: &str) -> PathBuf {
+    if cfg!(windows) && p.starts_with('/') {
+        format!("C:{p}").into()
+    } else {
+        p.into()
+    }
+}
 
 fn acct(id: &str, gh: Option<&str>) -> Account {
     Account {
         id: id.into(),
         label: id.into(),
-        config_dir: PathBuf::from(format!("/home/me/.claude-{id}")),
+        config_dir: abs(&format!("/home/me/.claude-{id}")),
         provider: Default::default(),
-        gh_config_dir: gh.map(PathBuf::from),
+        gh_config_dir: gh.map(abs),
         ssh_agent: false,
     }
 }
@@ -44,7 +53,10 @@ fn relative_gh_dir_is_refused_everywhere() {
     let path = tmp.path().join("accounts.toml");
     std::fs::write(
         &path,
-        "[[account]]\nid = \"acme\"\nlabel = \"A\"\nconfig_dir = \"/c\"\ngh_config_dir = \"gh\"\n",
+        format!(
+            "[[account]]\nid = \"acme\"\nlabel = \"A\"\nconfig_dir = {:?}\ngh_config_dir = \"gh\"\n",
+            abs("/c").display().to_string()
+        ),
     )
     .expect("write");
     assert!(AccountsConfig::load(&path).is_err());
@@ -73,8 +85,8 @@ fn gh_dir_round_trips_and_absent_stays_absent() {
 fn launch_env_sets_gh_config_dir_only_when_present() {
     let (_tmp, work, c) = bound(acct("acme", Some("/home/me/.gh-acme")));
     let env = c.launch_env(&work).expect("env");
-    assert!(env.contains(&("CLAUDE_CONFIG_DIR", PathBuf::from("/home/me/.claude-acme"))));
-    assert!(env.contains(&("GH_CONFIG_DIR", PathBuf::from("/home/me/.gh-acme"))));
+    assert!(env.contains(&("CLAUDE_CONFIG_DIR", abs("/home/me/.claude-acme"))));
+    assert!(env.contains(&("GH_CONFIG_DIR", abs("/home/me/.gh-acme"))));
 
     let (_tmp, work, c) = bound(acct("acme", None));
     let env = c.launch_env(&work).expect("env");
@@ -87,7 +99,7 @@ fn github_config_dir_refuses_without_identity_or_binding() {
     let (_tmp, work, c) = bound(acct("acme", Some("/home/me/.gh-acme")));
     assert_eq!(
         c.github_config_dir(&work.join("sub")).expect("bound"),
-        Path::new("/home/me/.gh-acme")
+        abs("/home/me/.gh-acme")
     );
 
     let (_tmp, work, c) = bound(acct("acme", None));
@@ -99,7 +111,7 @@ fn github_config_dir_refuses_without_identity_or_binding() {
     );
 
     let err = c
-        .github_config_dir(Path::new("/nonexistent/elsewhere"))
+        .github_config_dir(&abs("/nonexistent/elsewhere"))
         .expect_err("unbound");
     assert!(format!("{err:#}").contains("not bound"), "{err:#}");
 }

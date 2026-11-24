@@ -394,6 +394,7 @@ fn free_port_below_ephemeral() -> u16 {
     panic!("no free port in 20000-44999");
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 mod acks;
 mod approval;
 mod calls;

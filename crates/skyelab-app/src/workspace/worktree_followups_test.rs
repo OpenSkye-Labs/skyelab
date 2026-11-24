@@ -82,6 +82,7 @@ fn failed_row_save_removes_the_new_worktree() {
     assert!(!path.exists(), "worktree left behind after: {err:#}");
 }
 
+#[cfg(unix)] // only the fake-claude.sh test reads it
 fn head(dir: &Path) -> String {
     let out = skyelab_core::process::output(
         std::process::Command::new("git")
@@ -97,6 +98,7 @@ fn head(dir: &Path) -> String {
         .to_owned()
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn changes_show_the_agents_commits_against_the_worktree_base(cx: &mut gpui::TestAppContext) {
     use super::thread_worktree::{OpenChanges, ToggleWorktree};

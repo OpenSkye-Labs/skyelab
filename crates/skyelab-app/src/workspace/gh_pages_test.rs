@@ -131,6 +131,7 @@ pub(super) fn settled(
     read(cx)
 }
 
+#[cfg(unix)] // the fake gh is a shell script
 #[gpui::test]
 fn each_repo_is_listed_with_its_own_accounts_gh(cx: &mut gpui::TestAppContext) {
     let (r, cx) = rig(cx);
@@ -209,6 +210,7 @@ fn no_login_means_no_gh_call_and_unbound_projects_are_left_out(cx: &mut gpui::Te
     assert!(!root.join("loose").join("fake-gh.list").exists());
 }
 
+#[cfg(unix)] // the fake gh is a shell script
 #[gpui::test]
 fn filters_are_cached_and_refresh_reads_again(cx: &mut gpui::TestAppContext) {
     let (r, cx) = rig(cx);

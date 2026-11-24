@@ -76,7 +76,8 @@ fn codex_entries_carry_their_line_times() {
 #[test]
 fn a_line_without_a_time_keeps_the_last_one() {
     let home = tempfile::tempdir().expect("temp dir");
-    let folder = Path::new("/work/app");
+    // Absolute on every platform (`/work/app` has no drive on Windows, so its lines would be dropped).
+    let folder = &home.path().join("app");
     let dir = home
         .path()
         .join("projects")
@@ -107,7 +108,8 @@ fn a_line_without_a_time_keeps_the_last_one() {
 #[test]
 fn a_line_without_a_time_takes_none() {
     let home = tempfile::tempdir().expect("temp dir");
-    let folder = Path::new("/work/app");
+    // Absolute on every platform (`/work/app` has no drive on Windows, so its lines would be dropped).
+    let folder = &home.path().join("app");
     let dir = home
         .path()
         .join("projects")

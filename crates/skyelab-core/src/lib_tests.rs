@@ -13,23 +13,34 @@ const CFG: &str = r#"
 
     [[binding]]
     path = "/nonexistent/work/acme"
-    resolved = "/nonexistent/work/acme"
     account = "acme"
 
     [[binding]]
     path = "/nonexistent/work/acme/oss-fork"
-    resolved = "/nonexistent/work/acme/oss-fork"
     account = "personal"
 "#;
 
+/// The test's Unix-style absolute path, made absolute on Windows too (a drive).
+fn p(s: &str) -> PathBuf {
+    match s.strip_prefix('/') {
+        Some(rest) if cfg!(windows) => format!("C:/{rest}").into(),
+        _ => s.into(),
+    }
+}
+
 fn cfg() -> AccountsConfig {
-    let c: AccountsConfig = toml::from_str(CFG).expect("parse");
+    let text = CFG.replace("\"/", if cfg!(windows) { "\"C:/" } else { "\"/" });
+    let mut c: AccountsConfig = toml::from_str(&text).expect("parse");
+    // Confirmed as the user would: canonical, so `\\?\` on Windows.
+    for b in &mut c.bindings {
+        b.resolved = canonical(&b.path);
+    }
     c.validate().expect("valid");
     c
 }
 
 fn resolved(dir: &str) -> Option<String> {
-    cfg().resolve(Path::new(dir)).map(|a| a.id.clone())
+    cfg().resolve(&p(dir)).map(|a| a.id.clone())
 }
 
 #[test]
@@ -48,27 +59,23 @@ fn deepest_binding_wins() {
 fn prefix_is_component_wise_and_unbound_is_none() {
     assert_eq!(resolved("/nonexistent/work/acme-old"), None);
     assert_eq!(resolved("/nonexistent/elsewhere"), None);
-    assert!(
-        cfg()
-            .launch_env(Path::new("/nonexistent/elsewhere"))
-            .is_err()
-    );
+    assert!(cfg().launch_env(&p("/nonexistent/elsewhere")).is_err());
 }
 
 #[test]
 fn launch_env_refuses_a_relative_config_dir_even_unvalidated() {
     let mut c = cfg();
     c.accounts[0].config_dir = ".claude".into();
-    assert!(c.launch_env(Path::new("/nonexistent/work/acme")).is_err());
+    assert!(c.launch_env(&p("/nonexistent/work/acme")).is_err());
 }
 
 #[test]
 fn relative_dir_and_dotdot_binding_never_resolve() {
     assert_eq!(resolved("nonexistent/work/acme"), None);
     let mut c = cfg();
-    c.bindings[0].path = "/nonexistent/x/../work/acme".into();
+    c.bindings[0].path = p("/nonexistent/x/../work/acme");
     assert!(c.validate().is_err());
-    assert!(c.resolve(Path::new("/nonexistent/work/acme")).is_none());
+    assert!(c.resolve(&p("/nonexistent/work/acme")).is_none());
 }
 
 #[test]
@@ -79,15 +86,15 @@ fn unknown_account_is_rejected() {
 }
 
 fn hooks(c: &AccountsConfig, dir: &str, worktrees: &[&str]) -> bool {
-    let wt: Vec<PathBuf> = worktrees.iter().map(PathBuf::from).collect();
-    c.repo_hooks_allowed(Path::new(dir), &wt)
+    let wt: Vec<PathBuf> = worktrees.iter().map(|w| p(w)).collect();
+    c.repo_hooks_allowed(&p(dir), &wt)
 }
 
 fn bind(c: &mut AccountsConfig, path: &str, account: &str) {
     c.bindings.push(Binding {
-        path: path.into(),
+        path: p(path),
         account: account.into(),
-        resolved: Some(path.into()),
+        resolved: canonical(&p(path)),
     });
 }
 
@@ -147,9 +154,9 @@ fn unbound_dir_or_stale_binding_inside_skips_hooks() {
     let mut c = cfg();
     // Confirmed at a folder inside the repo, but its path now points elsewhere: stale, so not acme's.
     c.bindings.push(Binding {
-        path: "/nonexistent/other/place".into(),
+        path: p("/nonexistent/other/place"),
         account: "acme".into(),
-        resolved: Some("/nonexistent/work/acme/api/old".into()),
+        resolved: canonical(&p("/nonexistent/work/acme/api/old")),
     });
     let repo = "/nonexistent/work/acme/api";
     assert!(!hooks(&c, repo, &[repo]));

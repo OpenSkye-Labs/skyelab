@@ -5,11 +5,20 @@ use skyelab_core::Binding;
 use skyelab_core::{Account, AccountsConfig};
 use std::path::PathBuf;
 
+/// A Unix-style absolute path, on drive C: on Windows so it is absolute there too.
+fn abs(p: &str) -> PathBuf {
+    if cfg!(windows) && p.starts_with('/') {
+        format!("C:{p}").into()
+    } else {
+        p.into()
+    }
+}
+
 fn acct(id: &str, dir: &str) -> Account {
     Account {
         id: id.into(),
         label: id.into(),
-        config_dir: PathBuf::from(dir),
+        config_dir: abs(dir),
         provider: Default::default(),
         gh_config_dir: None,
         ssh_agent: false,
@@ -33,10 +42,7 @@ fn empty_or_relative_config_dir_is_rejected() {
         c.update_account(acct("c", "")).is_err(),
         "update to empty accepted"
     );
-    assert_eq!(
-        c.accounts[0].config_dir,
-        PathBuf::from("/home/me/.claude-c")
-    );
+    assert_eq!(c.accounts[0].config_dir, abs("/home/me/.claude-c"));
 }
 
 #[cfg(unix)]

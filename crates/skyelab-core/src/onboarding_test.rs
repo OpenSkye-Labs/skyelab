@@ -60,12 +60,8 @@ fn onboarding_finds_nothing_in_an_empty_or_missing_home() {
 fn onboarding_skips_added_dirs_and_keeps_ids_unique() {
     let home = home();
     let mut config = AccountsConfig::default();
-    for (id, dir) in [("claude", "/elsewhere"), ("x", "")] {
-        let dir = if dir.is_empty() {
-            home.path().join(".codex")
-        } else {
-            PathBuf::from(dir)
-        };
+    for (id, dir) in [("claude", "elsewhere"), ("x", ".codex")] {
+        let dir = home.path().join(dir);
         config
             .add_account(Account {
                 id: id.into(),

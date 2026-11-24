@@ -4,6 +4,11 @@ use skyelab_agent::import;
 use skyelab_core::Provider;
 use std::path::Path;
 
+/// An absolute folder on every platform: `import` drops a cwd that isn't absolute, and `/w` has no drive on Windows.
+fn root() -> &'static Path {
+    Path::new(if cfg!(windows) { r"C:\w" } else { "/w" })
+}
+
 fn line(cwd: &Path, text: &str) -> String {
     serde_json::json!({"type": "user", "cwd": cwd, "message": {"role": "user", "content": text}})
         .to_string()
@@ -15,11 +20,7 @@ fn a_last_line_ending_exactly_at_the_cap_is_read() {
     let f = dir
         .path()
         .join("5f1c2a3b-0000-4000-8000-00000000c1a1.jsonl");
-    let body = format!(
-        "{}\n{}",
-        line(Path::new("/w"), "one"),
-        line(Path::new("/w"), "two")
-    );
+    let body = format!("{}\n{}", line(root(), "one"), line(root(), "two"));
     std::fs::write(&f, &body).expect("write");
     let t = import::read(Provider::Claude, dir.path(), &f, body.len() as u64).expect("parses");
     assert!(!t.truncated);
@@ -32,9 +33,9 @@ fn an_image_only_prompt_opens_its_own_turn() {
     let f = dir
         .path()
         .join("5f1c2a3b-0000-4000-8000-00000000c1a2.jsonl");
-    let image = serde_json::json!({"type": "user", "cwd": "/w", "message": {"role": "user",
+    let image = serde_json::json!({"type": "user", "cwd": root(), "message": {"role": "user",
         "content": [{"type": "image", "source": {"type": "base64", "data": "AAAA"}}]}});
-    let reply = serde_json::json!({"type": "assistant", "cwd": "/w",
+    let reply = serde_json::json!({"type": "assistant", "cwd": root(),
         "message": {"role": "assistant", "content": [{"type": "text", "text": "a cat"}]}});
     std::fs::write(&f, format!("{image}\n{reply}\n")).expect("write");
     let t = import::read(
@@ -54,13 +55,13 @@ fn an_image_only_prompt_opens_its_own_turn() {
 #[test]
 fn a_cwd_with_dot_dot_is_not_offered() {
     let home = tempfile::tempdir().expect("temp dir");
-    let folder = Path::new("/work/app");
+    let folder = &root().join("app");
     let dir = home
         .path()
         .join("projects")
         .join(import::claude_dir_name(folder));
     std::fs::create_dir_all(&dir).expect("temp dir");
-    let sneaky = line(Path::new("/work/app/../other"), "hi");
+    let sneaky = line(&folder.join("..").join("other"), "hi");
     std::fs::write(
         dir.join("5f1c2a3b-0000-4000-8000-00000000c1a3.jsonl"),
         sneaky,
@@ -128,7 +129,7 @@ fn an_aborted_codex_turn_keeps_the_resent_prompt_and_a_fifo_index_never_blocks()
     };
     let lines = [
         serde_json::json!({"timestamp": "2026-11-21T08:00:00Z", "type": "session_meta",
-            "payload": {"id": "019a0c0d-0000-7000-8000-0000000abort", "cwd": "/w"}})
+            "payload": {"id": "019a0c0d-0000-7000-8000-0000000abort", "cwd": root()}})
         .to_string(),
         ev(
             "2026-11-21T08:00:01Z",
@@ -146,6 +147,7 @@ fn an_aborted_codex_turn_keeps_the_resent_prompt_and_a_fifo_index_never_blocks()
     let f = day.join("rollout-2026-11-21T08-00-00-abort.jsonl");
     std::fs::write(&f, lines.join("\n")).expect("write");
     // An index that is a FIFO with no writer: opening it would block the scan for good.
+    #[cfg(unix)]
     assert!(
         std::process::Command::new("mkfifo")
             .arg(home.path().join("session_index.jsonl"))

@@ -37,5 +37,6 @@ mod delegation_starting_cap_test;
 #[path = "delegation_stopped_parent_test.rs"]
 mod delegation_stopped_parent_test;
 
+#[cfg(unix)] // the fake agent is a shell script
 #[path = "delegation_turns_test.rs"]
 mod delegation_turns_test;

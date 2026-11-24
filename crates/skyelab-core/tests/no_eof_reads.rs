@@ -55,7 +55,7 @@ fn no_short_lived_child_output_is_read_from_a_pipe() {
             let code = text.split("#[cfg(test)]").next().unwrap_or_default();
             let rel = file
                 .strip_prefix(&crates)
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
                 .unwrap_or_default();
             for (n, line) in code.lines().enumerate() {
                 let streaming = STREAMING
