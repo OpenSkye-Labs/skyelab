@@ -223,10 +223,16 @@ impl Render for ThreadView {
         let timeline = self.quote_listeners(div(), cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
-        let working = self
-            .turn_started_ms
-            .filter(|_| self.turn_running())
-            .map(|at| format!("Working for {}", ui::elapsed(ui::now_ms() - at)));
+        // A running hook (Codex's account hooks) names itself instead, with a hint once it is slow.
+        let (working, hook_hint) = match self.running_hook().filter(|_| self.turn_running()) {
+            Some((line, hint)) => (Some(line), hint),
+            None => (
+                self.turn_started_ms
+                    .filter(|_| self.turn_running())
+                    .map(|at| format!("Working for {}", ui::elapsed(ui::now_ms() - at))),
+                None,
+            ),
+        };
         let note = self.agent_note(refused.is_some());
         let body = if self.items.is_empty() && !self.read_only {
             let project = &self.project_name;
@@ -337,6 +343,9 @@ impl Render for ThreadView {
                     .children(note.map(|n| line(n.into(), theme.muted_foreground)))
                     .children(working.map(|w| {
                         line(w.into(), theme.muted_foreground).debug_selector(|| "working-for".into())
+                    }))
+                    .children(hook_hint.map(|h| {
+                        line(h.into(), ui::ink(theme, theme.warning)).debug_selector(|| "slow-hook".into())
                     }))
                     .children(strip)
                     .children(dock)

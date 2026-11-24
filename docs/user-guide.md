@@ -58,7 +58,9 @@ project's folder is bound to (**No account** in the warning color if it has none
 thread (**#24**, its icon and color showing open, draft, merged or closed, plus its checks while open) and the branch (the thread's worktree branch, else the branch the project folder has checked out).
 Beside the title is the thread's state (**Working 1m 12s**, counting up while the turn runs,
 **Approval** while the agent waits for a permission, **Input** for its question, **Plan ready** for a plan to approve, **Failed**, **Interrupted**, **Done** for a finished turn you
-haven't seen) or how long ago it last changed. Hold the pointer still on a row for a moment to see its card (a click
+haven't seen) or how long ago it last changed. In the thread itself the line above the composer says **Working for 1m 12s**; while a Codex agent runs one of
+the account's own hooks (its `hooks.json`) it says **Running hook sessionStart (…)… 12s** instead, and after 30 seconds a
+hint says where the hook comes from and that Interrupt stops the turn. Hold the pointer still on a row for a moment to see its card (a click
 holds cards back until the pointer moves again): the project's name and folder, the worktree and branch, the pull request (click to open it), the account with its provider, the bound folder
 that picks that account, and when the thread was created and last updated.
 

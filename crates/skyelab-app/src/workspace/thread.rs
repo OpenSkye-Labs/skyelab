@@ -95,6 +95,8 @@ pub struct ThreadView {
     /// When the running (or last) turn's prompt was sent, ms since the epoch: the "Working 1m 12s" timers.
     pub(super) turn_started_ms: Option<i64>,
     pub(super) _tick: Option<Task<()>>,
+    /// Hooks the agent runs now, newest last.
+    pub(super) hooks: Vec<super::thread_hooks::Hook>,
     /// The prompt a resume launch sent, kept until its session answers: rerun in a new session if it was gone.
     pub(super) resumed_prompt: Option<String>,
     /// Images sent from this tab, by their message's shown text: in memory only, for the thumbnails and viewer.
@@ -339,6 +341,7 @@ impl ThreadView {
             starting: false,
             turn_started_ms: None,
             _tick: None,
+            hooks: Vec::new(),
             resumed_prompt: None,
             sent_images: Default::default(),
             rerun: None,

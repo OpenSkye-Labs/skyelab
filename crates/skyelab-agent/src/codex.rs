@@ -8,45 +8,13 @@ use crate::{Decision, DeltaKind, Event, Mode, Usage};
 mod config;
 #[path = "codex_items.rs"]
 mod items;
-use anyhow::{Context as _, Result};
-pub(crate) use config::{mcp_servers, policy};
+#[cfg(test)]
+use config::main_repo;
+pub(crate) use config::{args, mcp_servers, policy};
 use items::{NOISE, answer, completed, delta, failed, file_changes, plan, rate_limit, started};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-
-/// `app-server` with every project layer off: `dir`, each ancestor and (for a worktree) its main repo are
-/// marked untrusted, so a repo's `.codex/config.toml`, hooks and `.rules` never load. Overrides merge
-/// with the user's `projects` table, which is why every ancestor is named, not just `dir`.
-pub(crate) fn args(dir: &Path) -> Result<Vec<OsString>> {
-    let mut roots: BTreeSet<&Path> = dir.ancestors().collect();
-    let main = main_repo(dir);
-    roots.extend(main.iter().flat_map(|m| m.ancestors()));
-    let entries = roots
-        .iter()
-        .map(|p| {
-            let p = p.to_str().context("folder path is not UTF-8")?;
-            // A JSON string is a valid TOML basic string.
-            Ok(format!("{}={{trust_level=\"untrusted\"}}", json!(p)))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(vec![
-        "app-server".into(),
-        "-c".into(),
-        format!("projects={{{}}}", entries.join(",")).into(),
-    ])
-}
-
-/// The main checkout of the git worktree `dir` is in (from its `.git` file and `commondir`), if any.
-fn main_repo(dir: &Path) -> Option<PathBuf> {
-    let top = dir.ancestors().find(|a| a.join(".git").exists())?;
-    let text = std::fs::read_to_string(top.join(".git")).ok()?; // a directory: a plain repo, no worktree
-    let gitdir = top.join(text.strip_prefix("gitdir:")?.trim());
-    let common = std::fs::read_to_string(gitdir.join("commondir")).ok()?;
-    let common = std::fs::canonicalize(gitdir.join(common.trim())).ok()?;
-    common.parent().map(Path::to_owned)
-}
+use std::collections::{BTreeMap, VecDeque};
+use std::path::Path;
 
 /// Client state for one app-server process.
 pub(crate) struct Codex {
@@ -446,6 +414,15 @@ impl Codex {
                 )
             }
             "turn/plan/updated" => (plan(p).into_iter().collect(), Vec::new()),
+            // Before the thread opens its id is unknown, so a hook then is taken as this thread's.
+            "hook/started" | "hook/completed"
+                if p["threadId"]
+                    .as_str()
+                    .is_none_or(|t| self.thread_id.as_deref().is_none_or(|own| own == t)) =>
+            {
+                (items::hook(&p["run"]).into_iter().collect(), Vec::new())
+            }
+            "hook/started" | "hook/completed" => (Vec::new(), Vec::new()),
             "account/rateLimits/updated" if p["rateLimits"].is_object() => {
                 (rate_limit(&p["rateLimits"]), Vec::new())
             }
@@ -477,3 +454,7 @@ mod stream_tests;
 #[cfg(test)]
 #[path = "context_stream_test.rs"]
 mod context_stream_test;
+
+#[cfg(test)]
+#[path = "codex_hook_tests.rs"]
+mod hook_tests;

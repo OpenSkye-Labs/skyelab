@@ -350,6 +350,7 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
             | Event::RateLimit { .. }
             | Event::SessionGone
             | Event::Mcp { .. }
+            | Event::Hook { .. }
             | Event::Context { .. },
         ) => {}
     }

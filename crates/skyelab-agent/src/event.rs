@@ -113,6 +113,13 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         model: Option<String>,
     },
+    /// A hook the agent runs from the account's own config (Codex's `hook/started` / `hook/completed`), `name` its event
+    /// and status message. Shown while it runs, never stored, like [`Event::Delta`].
+    Hook {
+        id: String,
+        name: String,
+        running: bool,
+    },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.

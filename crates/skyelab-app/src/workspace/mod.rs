@@ -109,6 +109,7 @@ mod subagent;
 mod table_copy;
 mod thread_failure;
 mod thread_find;
+mod thread_hooks;
 mod thread_model;
 mod thread_render;
 mod thread_rows;

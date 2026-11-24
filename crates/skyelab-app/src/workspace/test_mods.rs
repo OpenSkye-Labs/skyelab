@@ -29,6 +29,8 @@ mod checkpoint_turns_test;
 mod claude_folded_turns_test;
 #[cfg(test)]
 mod close_tab_test;
+#[cfg(all(test, unix))] // the fake codex is a shell script
+mod codex_hook_status_test;
 #[cfg(all(test, unix))]
 mod codex_open_failure_turns_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script

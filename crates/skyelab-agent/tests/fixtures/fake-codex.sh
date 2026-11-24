@@ -8,7 +8,8 @@
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
 # A folder with a .fake-session-gone file has no rollouts: thread/resume is refused as real codex refuses it.
 # A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval;
-# one starting "usage" first reports rate limits (5h at 47%, weekly at 83%).
+# one starting "usage" first reports rate limits (5h at 47%, weekly at 83%); one starting "hook" first starts a
+# sessionStart hook ("Reporting status to Orca") and holds it until the folder has a .fake-hook-done file.
 # With a fake-mcp-status file in CODEX_HOME, thread/start/resume first reports its lines as MCP startup statuses
 # (`name status [error...]`, like `docs failed no such command`).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
@@ -90,6 +91,11 @@ while IFS= read -r line; do
               printf '{"id":99,"method":"item/commandExecution/requestApproval","params":{"threadId":"thr_fake","turnId":"turn_fake","itemId":"item_9","command":"make deploy"}}\n'
               IFS= read -r reply
               printf '{"method":"fake/request","params":%s}\n' "$reply" ;;
+            *'"text":"hook'*)
+              printf '{"method":"hook/started","params":{"threadId":"thr_fake","turnId":"turn_fake","run":{"id":"session-start:0:fake-hooks.json","eventName":"sessionStart","handlerType":"command","executionMode":"sync","scope":"thread","source":"user","status":"running","statusMessage":"Reporting status to Orca","completedAt":null}}}\n'
+              n=0
+              while [ ! -f .fake-hook-done ] && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
+              printf '{"method":"hook/completed","params":{"threadId":"thr_fake","turnId":"turn_fake","run":{"id":"session-start:0:fake-hooks.json","eventName":"sessionStart","handlerType":"command","executionMode":"sync","scope":"thread","source":"user","status":"completed","statusMessage":"Reporting status to Orca","completedAt":1}}}\n' ;;
             *'"text":"usage'*)
               now=$(date +%s)
               printf '{"method":"account/rateLimits/updated","params":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":47,"windowDurationMins":300,"resetsAt":%s},"secondary":{"usedPercent":83,"windowDurationMins":10080,"resetsAt":%s},"rateLimitReachedType":null}}}\n' "$((now + 7200))" "$((now + 300000))" ;;
