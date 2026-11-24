@@ -69,3 +69,36 @@ fn toggles_are_tab_stops_that_space_flips(cx: &mut TestAppContext) {
         "Space/Enter did not flip the focused toggles"
     );
 }
+
+struct Picker {
+    seen: Rc<RefCell<Vec<String>>>,
+}
+
+impl Render for Picker {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let seen = self.seen.clone();
+        div().p_4().child(
+            super::SegmentedControl::new("seg")
+                .items(["One", "Two"])
+                .selected(Some(0))
+                .on_click(move |ix, _, _| seen.borrow_mut().push(format!("seg={ix}"))),
+        )
+    }
+}
+
+#[gpui::test]
+fn segments_are_tab_stops_that_space_picks(cx: &mut TestAppContext) {
+    super::button_test::setup(cx);
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let s = seen.clone();
+    let (_, cx) = cx.add_window_view(move |_, _| Picker { seen: s });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.focus_next(cx));
+    cx.update(|window, cx| window.focus_next(cx));
+    press("space", cx);
+    assert_eq!(
+        *seen.borrow(),
+        ["seg=1"],
+        "Tab, Tab, Space picks the second segment"
+    );
+}

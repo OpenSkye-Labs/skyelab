@@ -104,8 +104,10 @@ impl RenderOnce for SegmentedControl {
             .children(c.items.into_iter().enumerate().map(|(ix, item)| {
                 let on = c.selected == Some(ix);
                 let f = c.on_click.clone();
-                h_flex()
-                    .id(ix)
+                // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
+                gpui_base::Button::new(ix)
+                    .selected(on)
+                    .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::RadioButton)
                     .aria_toggled(if on {
                         accesskit::Toggled::True
@@ -153,8 +155,10 @@ impl RenderOnce for Tabs {
                 let on = c.selected == Some(ix);
                 let f = c.on_click.clone();
                 let fg = theme.foreground;
-                h_flex()
-                    .id(ix)
+                // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
+                gpui_base::Button::new(ix)
+                    .selected(on)
+                    .on_any_mouse_down(|_, window, _| window.prevent_default())
                     .role(accesskit::Role::Tab)
                     .h(c.size.height() + px(4.))
                     .gap_1p5()
