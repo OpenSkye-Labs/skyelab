@@ -58,6 +58,9 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed (after the seconds in `fake-view-delay`, when that file is there); `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there;
 `pr merge` / `pr review` (the PR actions dialog) log their args to `fake-gh.actions` and the review text to `fake-gh.review-body`, fail with the text of a `fake-action-fail` file when there is one,
 and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is that dir's `fake-head` (else 40 `1`s), reported as `headRefOid` by the default `pr view` / `pr list`, and `pr merge` fails unless `--match-head-commit` matches it; `repo view` (the allowed merge methods) answers with `fake-repo.json`, else all three). Never verify against the real `gh`.
+  Machines: `SKYELAB_TAILSCALE_BIN=crates/skyelab-app/tests/fixtures/fake-tailscale.sh` (absolute path) stands in for the
+  tailscale CLI: a running tailnet with two online devices of yours and one offline, so the machine menu and Settings →
+  Machines never list real machines (only `status --json` is faked; connecting to one fails). `SKYELAB_VERIFY_MACHINE` names this machine.
   Devices: `SKYELAB_ADB_BIN` = a copy of `crates/skyelab-devices/tests/fixtures/fake-adb.sh` in a folder of its own (absolute path;
   one booted emulator `emulator-5554`, AVD `Fake_Pixel`; it logs each call to `fake-adb.log` and its env to `fake-adb.env`
   next to itself, and its screen flips blue/green after every `input`), and `SKYELAB_XCRUN_BIN` = a script printing

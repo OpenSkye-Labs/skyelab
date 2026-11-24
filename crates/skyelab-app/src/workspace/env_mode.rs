@@ -5,12 +5,14 @@
 
 use super::Workspace;
 use super::center::Page;
-use super::env_picker::{ConnectTyped, EnvPicker, ToggleEnvironments};
+use super::env_picker::{
+    ConnectTyped, EnvPicker, ForgetEnvironment, MENU_W, ShowEnvironments, ToggleEnvironments,
+};
 use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
 use crate::environment::{EnvEvent, RemoteEnv};
 use gpui::{
-    Action, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement, SharedString,
-    Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
+    Action, App, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
+    SharedString, Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
@@ -110,10 +112,6 @@ impl Workspace {
                 }
             })
         });
-        self.sidebar.update(cx, |s, cx| {
-            s.picker = Some(picker.clone());
-            cx.notify();
-        });
         self.env = EnvMode {
             picker: Some(picker),
             settings_path,
@@ -129,6 +127,8 @@ impl Workspace {
         cx: &Context<Self>,
     ) -> Stateful<gpui::Div> {
         el.on_action(cx.listener(Self::toggle_environments))
+            .on_action(cx.listener(Self::show_environments))
+            .on_action(cx.listener(Self::forget_environment))
             .on_action(cx.listener(Self::connect_typed))
             .on_action(cx.listener(Self::switch_environment))
             .on_action(cx.listener(Self::select_remote_project))
@@ -147,7 +147,6 @@ impl Workspace {
         self.env.remote.clone()
     }
 
-    #[cfg(test)]
     pub(crate) fn env_picker(&self) -> Option<Entity<EnvPicker>> {
         self.env.picker.clone()
     }
@@ -159,12 +158,80 @@ impl Workspace {
     fn toggle_environments(
         &mut self,
         _: &ToggleEnvironments,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(picker) = &self.env.picker {
-            picker.update(cx, |p, cx| p.toggle(cx));
+        self.open_env_menu(None, window, cx);
+    }
+
+    fn show_environments(
+        &mut self,
+        a: &ShowEnvironments,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.open_env_menu(Some(gpui::point(px(a.x), px(a.y))), window, cx);
+    }
+
+    /// Toggles the menu, except under the Settings modal, which would cover it.
+    fn open_env_menu(
+        &mut self,
+        at: Option<gpui::Point<gpui::Pixels>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.settings_open {
+            return;
         }
+        if let Some(picker) = &self.env.picker {
+            picker.update(cx, |p, cx| p.toggle(at, window, cx));
+        }
+    }
+
+    /// Closes the machine menu; true when it was open.
+    pub(super) fn close_env_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(picker) = self.env.picker.clone() else {
+            return false;
+        };
+        let open = picker.read(cx).open;
+        picker.update(cx, |p, cx| p.close(window, cx));
+        open
+    }
+
+    /// The machine menu over everything, while it is open: a backdrop that closes it on a press, and the card with
+    /// its bottom-left corner at the clicked chip (over the bottom of the window from the palette).
+    pub(super) fn env_menu(&self, window: &Window, cx: &App) -> Option<impl IntoElement + use<>> {
+        let picker = self.env.picker.clone()?;
+        let p = picker.read(cx);
+        if !p.open {
+            return None;
+        }
+        let size = window.viewport_size();
+        let at = p.anchor.map_or(
+            gpui::point(size.width / 2. - px(MENU_W / 2.), size.height - px(72.)),
+            |a| a - gpui::point(px(8.), px(10.)),
+        );
+        let weak = picker.downgrade();
+        Some(
+            gpui::deferred(
+                div()
+                    .id("env-menu-backdrop")
+                    .absolute()
+                    .inset_0()
+                    .occlude()
+                    .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                        let _ = weak.update(cx, |p, cx| p.close(window, cx));
+                    })
+                    .child(
+                        gpui::anchored()
+                            .position(at)
+                            .anchor(gpui::Anchor::BottomLeft)
+                            .snap_to_window_with_margin(px(8.))
+                            .child(picker),
+                    ),
+            )
+            .with_priority(2),
+        )
     }
 
     fn connect_typed(&mut self, _: &ConnectTyped, window: &mut Window, cx: &mut Context<Self>) {
@@ -200,10 +267,7 @@ impl Workspace {
         if same {
             // Already there: keep the connection and its tabs, just close the list.
             if let Some(picker) = &self.env.picker {
-                picker.update(cx, |p, cx| {
-                    p.open = false;
-                    cx.notify();
-                });
+                picker.update(cx, |p, cx| p.close(window, cx));
             }
             return;
         }
@@ -243,10 +307,10 @@ impl Workspace {
         }
         let current = self.env.remote.as_ref().map(|e| e.read(cx).host.clone());
         if let Some(picker) = &self.env.picker {
+            let remote = self.env.remote.clone();
             picker.update(cx, |p, cx| {
-                p.current = current;
-                p.open = false;
-                p.error = error;
+                (p.current, p.remote, p.error) = (current, remote, error);
+                p.close(window, cx);
                 cx.notify();
             });
         }
@@ -315,6 +379,16 @@ impl Workspace {
     /// Saves `host` first in the recents, off the UI thread. A file that doesn't parse is left alone.
     fn remember(&mut self, host: String, cx: &mut Context<Self>) {
         self.save_env_settings(move |s| s.remember_environment(&host), cx);
+    }
+
+    fn forget_environment(
+        &mut self,
+        a: &ForgetEnvironment,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let host = a.host.clone();
+        self.save_env_settings(move |s| s.forget_environment(&host), cx);
     }
 
     /// Applies `change` to settings.toml off the UI thread, after any earlier save, and shows the saved recents. A
@@ -457,7 +531,9 @@ impl Workspace {
                         .child(div().size(px(6.)).rounded_full().bg(dot))
                         .child(SharedString::from(format!("Remote: {text}"))),
                 )
-                .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleEnvironments), cx)),
+                .on_click(|e, window, cx| {
+                    window.dispatch_action(Box::new(ShowEnvironments::at(e.position())), cx)
+                }),
         )
     }
 }

@@ -292,6 +292,13 @@ impl AppSettings {
             .any(|h| h.eq_ignore_ascii_case(host))
     }
 
+    /// Drops `host` from the recents. Its trusted node stays, so connecting again still checks the same machine.
+    pub fn forget_environment(&mut self, host: &str) {
+        let host = host.trim();
+        self.recent_environments
+            .retain(|h| !h.eq_ignore_ascii_case(host));
+    }
+
     /// The node `host` was trusted as, if any.
     pub fn environment_node(&self, host: &str) -> Option<&str> {
         self.environment_nodes

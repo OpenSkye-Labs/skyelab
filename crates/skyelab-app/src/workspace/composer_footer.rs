@@ -11,6 +11,38 @@ use gpui_component::{
     h_flex, v_flex,
 };
 
+/// The machine the thread runs on, as a chip that opens the machine menu (T3's environment selector).
+pub(in crate::workspace) fn machine_chip(
+    name: SharedString,
+    icon: SkyeIcon,
+    hover: gpui::Hsla,
+) -> gpui::Stateful<gpui::Div> {
+    let tip: SharedString = format!("Runs on {name}. Click to switch machine").into();
+    h_flex()
+        .id("composer-machine")
+        .flex_shrink_0()
+        .gap_1p5()
+        .px_1p5()
+        .py_0p5()
+        .rounded(ui::RADIUS)
+        .cursor_pointer()
+        .hover(move |s| s.bg(hover))
+        .tooltip(move |window, cx| {
+            gpui_component::tooltip::Tooltip::new(tip.clone()).build(window, cx)
+        })
+        .on_click(|e, window, cx| {
+            window.dispatch_action(
+                Box::new(crate::workspace::env_picker::ShowEnvironments::at(
+                    e.position(),
+                )),
+                cx,
+            )
+        })
+        .child(Icon::new(icon).xsmall())
+        .child(name)
+        .child(Icon::new(SkyeIcon::ChevronsUpDown).xsmall())
+}
+
 impl ThreadView {
     /// Messages waiting for the running turn: dashed, unfilled bubbles (a turn not sent yet), each with Steer and Remove.
     pub(in crate::workspace) fn render_queue(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
@@ -128,7 +160,12 @@ impl ThreadView {
             .gap_2()
             .text_size(ui::META)
             .text_color(fg)
-            .children(footer.machine.clone().map(|m| item(SkyeIcon::Monitor, m)))
+            .children(
+                footer
+                    .machine
+                    .clone()
+                    .map(|m| machine_chip(m, SkyeIcon::Monitor, theme.accent)),
+            )
             .children(footer.machine.as_ref().map(|_| divider()))
             .child(div().id("provider-badge").child(self.account_badge()))
             .child(divider())

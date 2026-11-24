@@ -119,9 +119,12 @@ Disconnect button.
 **Port forwarding (1.5).** A connected device may forward a port on this machine's loopback to itself; the rules
 are in [remote-port-forwarding.md](remote-port-forwarding.md).
 
-**Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window
-shows: "This Mac", your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this
-node), recent ones, or a MagicDNS name typed by hand. Recents are saved as `recent_environments` in `settings.toml`.
+**Driving another machine (the environment switcher).** The composer footer's machine chip (also the palette's
+Switch Machine and the status bar's Remote badge) opens a menu that picks which machine the window shows: this
+machine, your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this node) and
+recent ones. Settings → Machines lists the same machines with Connect / Disconnect / Forget and takes a MagicDNS name
+typed by hand. Recents are saved as `recent_environments` in `settings.toml`; Forget removes one there and leaves its
+trusted node in `environment_nodes`.
 On a remote machine the sidebar comes from its daemon through `skyelab-client`: every project's threads
 (`list_threads` per project, listed again a second after pushed events) in the local flat list's sections, with each
 thread's pin and last reply (1.4: `Thread.pinned`, `Thread.preview`, the reply's first 400 chars; absent from an older

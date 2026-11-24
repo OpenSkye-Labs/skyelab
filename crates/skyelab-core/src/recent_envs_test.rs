@@ -19,6 +19,23 @@ fn remember_environment_moves_to_front_without_duplicates_and_caps() {
 }
 
 #[test]
+fn forget_environment_drops_the_name_and_keeps_its_trusted_node() {
+    let mut s = AppSettings::default();
+    s.remember_environment("a.ts.net");
+    s.remember_environment("b.ts.net");
+    s.trust_environment_node("b.ts.net", "nB");
+    s.forget_environment(" B.ts.net ");
+    assert_eq!(s.recent_environments, ["a.ts.net"]);
+    assert_eq!(
+        s.environment_node("b.ts.net"),
+        Some("nB"),
+        "trust unchanged"
+    );
+    s.forget_environment("missing.ts.net");
+    assert_eq!(s.recent_environments, ["a.ts.net"]);
+}
+
+#[test]
 fn recents_round_trip_and_old_files_still_load() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("settings.toml");

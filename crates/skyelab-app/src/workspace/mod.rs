@@ -33,6 +33,7 @@ mod import_sessions;
 mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
+pub(crate) mod machines_page;
 mod manage;
 mod manage_projects;
 mod mermaid;

@@ -115,10 +115,10 @@ What's built today:
 - **Share a machine over your tailnet.** Off by default. When on, the app serves this machine over `wss://` with its
   Tailscale HTTPS certificate, and only your own, untagged devices may connect, each one after you allow it once
   (matching a code shown on both screens). Revoke cuts a device off at once.
-- **Environment switcher.** Pick another of your machines at the top of the sidebar to see its projects and threads,
-  start threads there and send follow-ups. Its agents run there, on its own accounts. Link a machine (command
-  palette: "Show threads from … in this list") and its threads also show in This Mac's list, marked with its name,
-  and open in place.
+- **Environment switcher.** Pick another of your machines from the machine chip under the composer (manage them in
+  Settings → Machines) to see its projects and threads, start threads there and send follow-ups. Its agents run there,
+  on its own accounts. Link a machine (command palette: "Show threads from … in this list") and its threads also show
+  in This Mac's list, marked with its name, and open in place.
 - **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It connects to a
   shared machine over your tailnet (`*.ts.net` names, `wss://`), shows the desktop's flat thread list, streams a
   thread live with the desktop's timeline (folded turns, shell, diff, todo and subagent cards), sends or stops, and

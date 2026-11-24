@@ -435,8 +435,11 @@ impl Render for RemoteThreadView {
                     .gap_1p5()
                     .text_size(crate::ui::META)
                     .text_color(theme.muted_foreground)
-                    .child(gpui_component::Icon::new(crate::ui::SkyeIcon::Remote).xsmall())
-                    .child(host)
+                    .child(super::thread::composer::machine_chip(
+                        host.into(),
+                        crate::ui::SkyeIcon::Remote,
+                        theme.accent,
+                    ))
                     .children(self.account.clone().map(|a| format!("· {a}"))),
             )
     }

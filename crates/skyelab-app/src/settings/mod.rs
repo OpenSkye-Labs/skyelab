@@ -136,6 +136,7 @@ pub struct Settings {
     keys: Vec<keys::KeyRow>,
     /// The Sharing section's content; `None` without a tailnet hook.
     pub remote: Option<Entity<crate::remote::RemotePanel>>,
+    pub machines: Option<Entity<crate::workspace::machines_page::MachinesPage>>,
     /// The Usage section's content; the workspace sets it and reads the store for it.
     pub usage: Option<Entity<crate::workspace::usage_page::UsagePage>>,
     /// The Scheduled tasks section's content, set by the workspace like `usage`.
@@ -253,6 +254,7 @@ impl Settings {
             account_select,
             section: Section::default(),
             remote: None,
+            machines: None,
             usage: None,
             scheduled: None,
             focus,

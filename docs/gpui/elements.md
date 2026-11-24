@@ -44,6 +44,13 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   its `on_mouse_down_out`, emitted as an event the owner decides on: the owner knows whether the card covers the
   chat (T3's popover mode) and skips the press that lands on the page header, where the toggle's own click closes it.
   Closing on the down and reopening on the toggle's click would otherwise flicker it open again.
+- A menu opened from triggers in other views (the machine menu: the composer chip, the status bar badge, the palette)
+  is drawn by the workspace root as `deferred(div().absolute().inset_0().occlude().on_mouse_down(close))` holding
+  `anchored().position(click).anchor(Anchor::BottomLeft).snap_to_window_with_margin(..)`. The backdrop eats the press,
+  so a second click on the trigger closes the menu instead of closing and reopening it, and nothing under it reacts.
+  The trigger passes `ClickEvent::position()` in its action, since only it knows where it was drawn. The card itself
+  stops `on_mouse_down` propagation so its own rows don't reach the backdrop. In gpui-pre 0.3.12 the corner enum is
+  `gpui::Anchor`, not `Corner`.
 - A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
   `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight
   to the workspace's actions and fire only while it has focus.

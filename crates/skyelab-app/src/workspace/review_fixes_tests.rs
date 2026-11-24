@@ -39,3 +39,9 @@ mod env_linked_test;
 
 #[path = "env_linked_trust_test.rs"]
 mod env_linked_trust_test;
+
+#[path = "machine_menu_test.rs"]
+mod machine_menu_test;
+
+#[path = "machines_page_test.rs"]
+mod machines_page_test;
