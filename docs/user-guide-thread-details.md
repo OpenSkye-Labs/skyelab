@@ -28,6 +28,10 @@ bound account.
   scripts.
 - **Lineage · N running:** the threads this thread's agent delegated that are working now, with how long they have
   run. **Previous agents** lists the rest with how they ended. Click one to open it.
+- **MCP servers:** the servers the thread's latest agent process was given and what it reported for each:
+  **Connected**, **Starting**, **Failed** (hover for the error when the agent gave one), **Needs sign-in** or
+  **Cancelled**. It shows once an agent has started; a new process (a resume, **Restart Agent Session**) starts the
+  list over. See [Accounts](user-guide-accounts.md) for which servers load.
 - **Usage:** every account in `accounts.toml`: its name and provider, and a small bar per window it reported
   (**5h**, **Weekly**) with the percentage used and how old that window's own reading is (**3m**). A window whose reset
   time has passed is dimmed and reads **reset**: its old percentage no longer holds. When the newest reading says the

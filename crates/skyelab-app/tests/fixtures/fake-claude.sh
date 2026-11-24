@@ -55,16 +55,32 @@ if [ -f .fake-agent-edits ]; then
   # An agent that edits a file every turn (one turn per run).
   printf 'turn\n' >> agent-edit.txt
 fi
+# Claude's init reports the MCP servers it connected: with a fake-mcp-status.json (a JSON list of {name, status})
+# in the account dir, the replayed init line carries it as `mcp_servers`.
+mcp_status="$CLAUDE_CONFIG_DIR/fake-mcp-status.json"
+replay() {
+  if [ -f "$mcp_status" ]; then
+    sed "s|\"subtype\":\"init\",|\"subtype\":\"init\",\"mcp_servers\":$(tr -d '\n|' < "$mcp_status"),|"
+  else
+    cat
+  fi
+}
 if [ -f .fake-agent-no-result ]; then
   # A turn that never ends (no result event), so tests can act mid-turn.
-  grep -v '"type":"result"' "$(dirname "$0")/session.jsonl"
+  grep -v '"type":"result"' "$(dirname "$0")/session.jsonl" | replay
 else
-  cat "$(dirname "$0")/session.jsonl"
+  replay < "$(dirname "$0")/session.jsonl"
 fi
 if [ -f .fake-session-gone ]; then
   printf '{"type":"system","subtype":"init","cwd":"/tmp/x","session_id":"fake-sess-new","tools":[],"model":"claude-opus-5-5"}\n'
 fi
 printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s","pid":%s}\n' "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$*" "$$"
+# The --mcp-config file it got, on one line (tests read which servers reached it).
+prev=
+for a in "$@"; do
+  [ "$prev" = --mcp-config ] && [ -f "$a" ] && printf '{"type":"fake_mcp","config":%s}\n' "$(tr -d '\n' < "$a")"
+  prev=$a
+done
 # Like Claude Code, `total_cost_usd` and `modelUsage` are the process's running totals (the replayed session's $0.0421
 # first); `usage` is the turn's own.
 total=0.0421 in_total=0 out_total=0

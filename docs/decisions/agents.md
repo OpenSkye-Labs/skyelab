@@ -74,3 +74,19 @@ Each entry is dated; newest at the bottom.
   thread-wide and `last` the newest model call, so a turn is its `total` growth, based at `total - last` when the
   process has no earlier reading (a resumed thread). Stored Codex rows can't be checked (only the turn's difference was
   kept), so they are left as they are. (2026-11-24)
+- **The account's own MCP servers load; the repo's never do.** Claude: SkyeLab keeps `--strict-mcp-config` (so a
+  repo's `.mcp.json` stays out) and copies the top-level `mcpServers` of the bound account's
+  `$CLAUDE_CONFIG_DIR/.claude.json` (Claude Code's user scope) into the `--mcp-config` file next to its own server, after
+  the folder was re-checked against the account. Per-folder `projects.*.mcpServers` (local scope) are left out too:
+  they are keyed by a path the repo doesn't choose, but they are still per-folder config we don't need. A server named
+  `skyelab` in any case is skipped, so SkyeLab's server and its pre-allowed `mcp__skyelab` tools can't be replaced;
+  the account's servers are not pre-allowed and ask like any tool. A file that doesn't parse starts the agent with only
+  SkyeLab's server and a warning row. Claude Code (2.1.330, from its own strings: "This session runs with
+  --strict-mcp-config, which connects no plugin servers") connects no plugin MCP servers in strict mode; not checked by
+  a run. Codex reads `CODEX_HOME/config.toml` itself; SkyeLab now sends its server as the one dotted override key
+  `mcp_servers.skyelab` (as T3 does), because a whole `mcp_servers` table replaces the account's list. Not checked
+  against a real Codex. The MCP servers start with the agent's env (the allowlist plus the account's own vars) plus
+  whatever `env` the account's config gives them. (2026-11-24)
+- **Restart agent session ends the process, it doesn't start one.** Like T3's: the palette command stops the agent
+  (asking first when a turn is running), and the next send resumes the same session in a new process, which reads the
+  account's MCP servers, skills and plugins again. (2026-11-24)

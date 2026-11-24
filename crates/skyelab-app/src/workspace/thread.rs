@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-actions!(skyelab, [SendPrompt, Interrupt, Stop]);
+actions!(skyelab, [SendPrompt, Interrupt, Stop, RestartAgentSession]);
 
 pub(super) const CONTEXT: &str = "Thread";
 
@@ -34,6 +34,8 @@ mod follow_up;
 mod launch;
 #[path = "thread_mode.rs"]
 mod mode;
+#[path = "thread_restart.rs"]
+mod restart;
 #[path = "thread_saves.rs"]
 mod saves;
 #[path = "thread_session.rs"]
@@ -236,6 +238,7 @@ impl ThreadView {
                         replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
                         this.note_model(r, false);
+                        super::thread_details::fold_mcp(&mut this.details.mcp, r);
                     }
                     this.lists.reset(this.items.len());
                     this.load_turn_files(cx);
@@ -409,6 +412,9 @@ impl ThreadView {
             cx.emit(ThreadViewEvent::UsageReported);
         }
         self.note_model(record, true);
+        if super::thread_details::fold_mcp(&mut self.details.mcp, record) {
+            cx.notify();
+        }
         let limited = limit_after(self.limited, record);
         if limited != self.limited {
             self.limited = limited;
