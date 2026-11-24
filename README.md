@@ -32,9 +32,11 @@ What's built today:
   which project when it can't tell.
 - **Several windows.** **New Window** (<kbd>⇧⌘N</kbd>) opens another window on the same projects, threads and
   accounts, with its own page, sidebar filter and panels. A thread open in two windows runs one agent; both show it.
-- **Update check.** Once a day at most, and from **Check for Updates**, SkyeLab asks GitHub for its latest release
-  and shows a small notice with **Download** (opens the release page) and **Skip this version**. It sends nothing but
-  the request, installs nothing, and Settings → General turns it off.
+- **Updates.** Once a day at most, and from **Check for Updates**, SkyeLab asks GitHub for its latest release
+  and shows a small notice with **Download and install** (just **Download**, the release page, for a build from
+  source) and **Skip this version**. The download is checked against the release's SHA-256 list (and, when your
+  macOS copy is signed, its code signature) before anything changes, and the new version goes in only when you click
+  **Restart to update**. Settings → General turns the check off.
 - **Keyboard.** Every command is an action you can rebind in `keybindings.toml` (reloaded as you save; bad lines
   are reported with their line number and skipped), listed with its current keys in Settings → Keybindings.
   F6 / Shift+F6 move between the sidebar, conversation, message input and the open panels.

@@ -149,6 +149,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      # The in-app updater refuses any download that isn't listed here with its SHA-256.
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum -- * > ../SHA256SUMS && mv ../SHA256SUMS . && cat SHA256SUMS
       - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           draft: true

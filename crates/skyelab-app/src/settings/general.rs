@@ -104,12 +104,12 @@ impl Settings {
             ))
             .child(section(
                 "Updates",
-                "SkyeLab only looks; it never installs anything itself.",
+                "Nothing installs until you click Download and install, then Restart to update.",
                 [setting(
                     true,
                     "Check for updates",
-                    "On start, at most once a day, SkyeLab asks GitHub for its latest release. Nothing installs: \
-                     Download opens the release page.",
+                    "On start, at most once a day, SkyeLab asks GitHub for its latest release and shows a notice \
+                     when there is a newer one.",
                     Switch::new("about-updates")
                         .checked(enabled)
                         .accessibility_label("Check for updates")

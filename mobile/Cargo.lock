@@ -6623,6 +6623,7 @@ dependencies = [
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "ring",
  "serde",
  "tempfile",
  "toml 1.2.2+spec-1.1.0",
