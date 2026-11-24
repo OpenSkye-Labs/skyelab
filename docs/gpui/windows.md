@@ -37,3 +37,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   rule is GPUI's own `QuitMode::Default`: quit off macOS, keep running on macOS; don't add a hook for it.
 - An `observe` that must act in a window (a notice when an observed view starts waiting on the user) uses
   `cx.observe_in(&view, window, ..)`: plain `observe` gets no `Window`, and `notify_attention` needs one.
+- App-wide work that must outlive the windows (the scheduler's tick) runs on `cx.spawn` from `App`, keeps what it
+  needs (the store) in a `Global`, and opens a window itself when it needs one: macOS keeps the app running with every
+  window closed, so "act through the hub window" silently stops then.
+- In tests, a `VisualTestContext` whose window was removed panics on `update` ("window not found"); after
+  `window.remove_window()` reach the app through `TestAppContext::update(cx, |cx| ..)`, and open a new
+  `VisualTestContext::from_window` for a window opened later.

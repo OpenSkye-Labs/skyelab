@@ -33,6 +33,7 @@ impl MobileApp {
             self.usage = Usage::default();
             self.expanded.clear();
             self.drafts.clear();
+            self.typed.clear();
             0
         });
         let before = self.items.len();

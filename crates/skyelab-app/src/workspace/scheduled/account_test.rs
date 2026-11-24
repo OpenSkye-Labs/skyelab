@@ -18,7 +18,7 @@ fn a_due_task_runs_under_the_saved_account(cx: &mut TestAppContext) {
     assert_eq!(run.account_id, "acme");
     let after = read(&rig.f.store, t.id);
     assert_eq!(after.last_status.as_deref(), Some("started"));
-    assert_eq!(after.next_run_at, Some(NOW + HOUR), "counts on from now");
+    assert_eq!(after.next_run_at, Some(NOW - 1 + HOUR), "keeps its beat");
     assert!(after.enabled);
 }
 

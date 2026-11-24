@@ -25,15 +25,7 @@ impl Settings {
         let mut s = themes::get(cx);
         change(&mut s);
         let save = themes::set(s, cx);
-        cx.spawn(async move |this, cx| {
-            if let Err(e) = save.await {
-                let _ = this.update(cx, |this, cx| {
-                    this.error = Some(format!("Saving Appearance failed: {e:#}"));
-                    cx.notify();
-                });
-            }
-        })
-        .detach();
+        self.report(save, "Appearance", cx);
         cx.notify();
     }
 

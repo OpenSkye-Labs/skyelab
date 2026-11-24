@@ -414,4 +414,6 @@ mod codex_test;
 #[cfg(test)]
 mod keys_test;
 #[cfg(test)]
+mod restore_error_test;
+#[cfg(test)]
 mod search_test;

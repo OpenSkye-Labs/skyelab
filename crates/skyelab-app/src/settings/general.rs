@@ -17,6 +17,24 @@ pub(super) fn editor(cx: &App) -> String {
 }
 
 impl Settings {
+    /// Shows `save`'s failure in the section's error banner, as "Saving <what> failed: …".
+    pub(super) fn report<T: 'static>(
+        &self,
+        save: gpui::Task<anyhow::Result<T>>,
+        what: &'static str,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |this, cx| {
+            if let Err(e) = save.await {
+                let _ = this.update(cx, |this, cx| {
+                    this.error = Some(format!("Saving {what} failed: {e:#}"));
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
     /// The editor field was left or confirmed: save it (empty is the default lookup).
     pub(super) fn save_editor(&mut self, cx: &mut Context<Self>) {
         let typed = self.editor_input.read(cx).value().trim().to_owned();
@@ -29,15 +47,7 @@ impl Settings {
                 changed
             })
         });
-        cx.spawn(async move |this, cx| {
-            if let Err(e) = save.await {
-                let _ = this.update(cx, |this, cx| {
-                    this.error = Some(format!("Saving the editor command failed: {e:#}"));
-                    cx.notify();
-                });
-            }
-        })
-        .detach();
+        self.report(save, "the editor command", cx);
     }
 
     pub(super) fn render_general(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
@@ -100,8 +110,9 @@ impl Settings {
                     Switch::new("about-updates")
                         .checked(enabled)
                         .accessibility_label("Check for updates")
-                        .on_click(cx.listener(|_, on: &bool, _, cx| {
-                            crate::updates::set_enabled(*on, cx).detach_and_log_err(cx);
+                        .on_click(cx.listener(|this, on: &bool, _, cx| {
+                            let save = crate::updates::set_enabled(*on, cx);
+                            this.report(save, "the update check", cx);
                             cx.notify();
                         })),
                     cx,
@@ -139,7 +150,8 @@ impl Settings {
         let fresh = ThreadSettings::default();
         match self.section {
             Section::Appearance => {
-                crate::ui::themes::set(Default::default(), cx).detach_and_log_err(cx)
+                let save = crate::ui::themes::set(Default::default(), cx);
+                self.report(save, "Appearance", cx);
             }
             Section::Chat => self.set_threads(
                 |t| {
@@ -153,7 +165,8 @@ impl Settings {
                 cx,
             ),
             Section::Diffs => {
-                prefs::save_diff(DiffSettings::default(), cx).detach_and_log_err(cx);
+                let save = prefs::save_diff(DiffSettings::default(), cx);
+                self.report(save, "Diffs", cx);
                 self.set_threads(
                     |t| {
                         t.fetch_minutes = fresh.fetch_minutes;
@@ -167,8 +180,10 @@ impl Settings {
                 self.editor_input
                     .update(cx, |i, cx| i.set_value("", window, cx));
                 self.save_editor(cx);
-                crate::updates::set_enabled(true, cx).detach_and_log_err(cx);
-                prefs::save_terminal(Default::default(), cx).detach_and_log_err(cx);
+                let save = crate::updates::set_enabled(true, cx);
+                self.report(save, "the update check", cx);
+                let save = prefs::save_terminal(Default::default(), cx);
+                self.report(save, "the terminal settings", cx);
             }
             _ => {}
         }

@@ -7,11 +7,22 @@ use super::*;
 use crate::timeline_rows::clip;
 use skyelab_agent::timeline::cards::{Question, questions};
 
-/// Each question's picked labels, or why they can't be sent yet. `picked[q]` holds question `q`'s option indexes.
-pub fn answers(qs: &[Question], picked: &[BTreeSet<usize>]) -> Result<Vec<Vec<String>>, String> {
+/// Each question's picked labels (or typed text, for a question with no options), or why they can't be sent yet.
+/// `picked[q]` holds question `q`'s option indexes, `typed[q]` its typed text.
+pub fn answers(
+    qs: &[Question],
+    picked: &[BTreeSet<usize>],
+    typed: &[String],
+) -> Result<Vec<Vec<String>>, String> {
     qs.iter()
         .enumerate()
         .map(|(qi, q)| {
+            if q.options.is_empty() {
+                return match typed.get(qi).map(|t| t.trim()) {
+                    Some(t) if !t.is_empty() => Ok(vec![t.to_owned()]),
+                    _ => Err(format!("Type an answer to \"{}\".", q.question)),
+                };
+            }
             let labels: Vec<String> = picked
                 .get(qi)
                 .into_iter()
@@ -42,6 +53,37 @@ impl MobileApp {
             .is_some_and(|s| s.connection() == Connection::Connected && s.speaks(4))
     }
 
+    /// Makes the text field of every waiting question that has no options, the first time it shows.
+    pub fn ensure_typed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let open: Vec<(String, usize)> = self
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                Item::Approval(a) if a.decision.is_none() && a.tool == "AskUserQuestion" => {
+                    Some((a.id.clone(), questions(&a.raw)))
+                }
+                _ => None,
+            })
+            .flat_map(|(id, qs)| {
+                let free = qs
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(_, q)| q.options.is_empty());
+                free.map(move |(qi, _)| (id.clone(), qi))
+            })
+            .collect();
+        for key in open {
+            self.typed.entry(key).or_insert_with(|| {
+                cx.new(|cx| InputState::new(window, cx).placeholder("Type your answer…"))
+            });
+        }
+    }
+
+    /// The text field of question `q` of request `id`, once it has shown.
+    pub fn typed_answer(&self, id: &str, q: usize) -> Option<Entity<InputState>> {
+        self.typed.get(&(id.to_owned(), q)).cloned()
+    }
+
     /// Picks option `option` of question `q` (one question: replaces the pick; multi-select: toggles it).
     pub fn pick(&mut self, id: &str, q: usize, option: usize, cx: &mut Context<Self>) {
         let Some(qs) = asked(&self.items, id) else {
@@ -68,7 +110,15 @@ impl MobileApp {
             return;
         };
         let picked = self.drafts.get(id).cloned().unwrap_or_default();
-        match answers(&qs, &picked) {
+        let typed: Vec<String> = (0..qs.len())
+            .map(|q| {
+                let field = self.typed_answer(id, q);
+                field
+                    .map(|f| f.read(cx).value().to_string())
+                    .unwrap_or_default()
+            })
+            .collect();
+        match answers(&qs, &picked, &typed) {
             Err(why) => self.error = Some(why.into()),
             Ok(answers) => {
                 self.error = None;
@@ -123,6 +173,10 @@ impl MobileApp {
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(clip(&q.question)),
             );
+            if q.options.is_empty() {
+                let field = self.typed_answer(id, qi).filter(|_| answerable);
+                card = card.children(field.map(|f| Input::new(&f).h(px(TAP))));
+            }
             for (oi, (label, description)) in q.options.iter().enumerate() {
                 let on = draft
                     .and_then(|d| d.get(qi))

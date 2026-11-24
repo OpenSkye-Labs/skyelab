@@ -34,6 +34,8 @@ mod follow_up;
 mod launch;
 #[path = "thread_mode.rs"]
 mod mode;
+#[path = "thread_resume.rs"]
+mod resume;
 #[path = "thread_saves.rs"]
 mod saves;
 #[path = "thread_session.rs"]

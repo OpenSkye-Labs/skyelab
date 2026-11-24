@@ -310,7 +310,7 @@ impl Workspace {
         if let Some(calls) = orchestrate {
             self.set_orchestrator(calls, window, cx);
         }
-        super::scheduled::start(cx);
+        super::scheduled::start(self.backend.store.clone(), cx);
     }
 
     /// Stops serving the call queues (its window closed); the next window claims them.

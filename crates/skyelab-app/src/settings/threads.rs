@@ -211,10 +211,11 @@ impl Settings {
                 Switch::new(id)
                     .checked(on)
                     .accessibility_label(title)
-                    .on_click(cx.listener(move |_, on: &bool, _, cx| {
+                    .on_click(cx.listener(move |this, on: &bool, _, cx| {
                         let mut d = prefs::get_diff(cx);
                         set(&mut d, *on);
-                        prefs::save_diff(d, cx).detach_and_log_err(cx);
+                        let save = prefs::save_diff(d, cx);
+                        this.report(save, "Diffs", cx);
                         cx.notify();
                     })),
                 cx,

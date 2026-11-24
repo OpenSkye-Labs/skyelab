@@ -13,60 +13,6 @@ use skyelab_store::{NewThread, Thread};
 pub(super) const BUSY_ELSEWHERE: &str = "Another thread is running this agent session right now. Stop it there first, then send this again.";
 
 impl ThreadView {
-    /// Continues an ended thread's `claude` session, only under the account on its row: the
-    /// session's files live in that account's config dir.
-    pub(in crate::workspace) fn resume(
-        &mut self,
-        text: String,
-        attachments: Vec<skyelab_agent::Attachment>,
-        thread: Thread,
-        resolved: Option<Account>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.error = None;
-        if let Some(session) = thread.agent_session_id.as_deref()
-            && lock(&self.backend.store)
-                .and_then(|s| s.session_busy_elsewhere(thread.id, session))
-                .unwrap_or(false)
-        {
-            self.composer.attachments.extend(attachments); // kept with the unsent text
-            self.resume_refused = Some(BUSY_ELSEWHERE.into());
-            return cx.notify();
-        }
-        match resolved {
-            Some(account) if account.id == thread.account_id => {
-                self.resume_refused = None;
-                self.launch(text, attachments, account, Some(thread), window, cx);
-            }
-            Some(other) => {
-                self.composer.attachments.extend(attachments); // kept with the unsent text
-                self.resume_refused = Some(
-                    format!(
-                        "This folder is now bound to {} ({}), but this thread ran under {}. \
-                         Its session can't continue under another account.",
-                        other.label, other.id, thread.account_id
-                    )
-                    .into(),
-                );
-                cx.notify();
-            }
-            None => {
-                self.composer.attachments.extend(attachments);
-                // No path: this text also goes to remote clients (submit_remote).
-                self.resume_refused = Some(
-                    format!(
-                        "This folder isn't bound to {} any more (unbound, or its binding needs \
-                         re-confirming in Settings), so this thread can't continue.",
-                        thread.account_id
-                    )
-                    .into(),
-                );
-                cx.notify();
-            }
-        }
-    }
-
     /// Starts the account's agent (`claude` or `codex`) under `account`: a new thread row, or `resume`'s session.
     pub(in crate::workspace) fn launch(
         &mut self,
@@ -144,6 +90,7 @@ impl ThreadView {
         // A resumed thread keeps the folder it started in (its worktree, if it had one).
         let use_worktree = resume.is_none() && self.wt.use_worktree;
         let base_branch = self.branch_picker.read(cx).base.clone();
+        let pin = self.wt.pin.clone();
         let parent = self.parent.as_ref().map(|p| p.0);
         let compare_group = self.compare_group.filter(|_| resume.is_none());
         // A side chat is a read-only helper: Plan mode and none of SkyeLab's tools, whatever its row or view says.
@@ -200,6 +147,7 @@ impl ThreadView {
                                     &account.id,
                                     &text,
                                     base_branch.as_deref(),
+                                    pin.as_ref(),
                                 )
                             })
                             .transpose()

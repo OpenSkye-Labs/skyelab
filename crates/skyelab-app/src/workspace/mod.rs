@@ -103,7 +103,7 @@ pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task, WeakEntity,
-    Window, actions, div, prelude::*, px,
+    Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _,
@@ -120,24 +120,8 @@ use std::sync::{Arc, Mutex};
 use terminal_panel::TerminalPanel;
 use thread::ThreadView;
 
-actions!(
-    skyelab,
-    [
-        ToggleSidebar,
-        ToggleBottomPanel,
-        NewTerminal,
-        OpenSettings,
-        OpenBrowser,
-        AddProject,
-        NewThread,
-        OpenDevices,
-        ShowAllProjects,
-        GoBack,
-        GoForward,
-        SetUpAccounts,
-        OpenUsage
-    ]
-);
+mod actions;
+pub use actions::*;
 
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;
@@ -479,6 +463,8 @@ mod commit_snapshot_test;
 mod compare_base_test;
 #[cfg(all(test, unix))]
 mod compare_cap_test;
+#[cfg(test)]
+mod compare_pin_test;
 #[cfg(all(test, unix))]
 mod compare_test;
 #[cfg(test)]

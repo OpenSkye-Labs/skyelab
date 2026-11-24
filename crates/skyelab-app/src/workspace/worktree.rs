@@ -61,14 +61,21 @@ pub(super) fn creating(repo: &Path) -> Arc<Mutex<()>> {
     repos.entry(repo.to_owned()).or_default().clone()
 }
 
+/// The base commit a multi-model send's columns share, with the base branch it was resolved for (`None`: HEAD):
+/// empty until the first column resolves it.
+pub(super) type BasePin = Arc<Mutex<Option<(Option<String>, String)>>>;
+
 /// Creates a worktree of `project` on `skyelab/<slug>` from local branch `base_branch` (its HEAD when `None`), and
-/// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again.
+/// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again. With `pin`,
+/// the first call resolves the base into it and later calls for the same base branch start from that commit, wherever
+/// the branch is by then. A call for another branch (a column re-sent after a new pick) resolves its own.
 pub(super) fn create(
     config: &AccountsConfig,
     project: &Path,
     account_id: &str,
     title: &str,
     base_branch: Option<&str>,
+    pin: Option<&BasePin>,
 ) -> Result<Created> {
     let project = std::fs::canonicalize(project)
         .with_context(|| format!("resolving {}", project.display()))?;
@@ -103,14 +110,23 @@ pub(super) fn create(
         .expect("an unbounded range finds a free name");
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
-    let base = match base_branch {
+    // Under the repo lock, so the first column's resolve is the one every later column reads.
+    let mut pinned = pin.map(|p| p.lock().unwrap_or_else(PoisonError::into_inner));
+    let same = |(b, _): &&(Option<String>, String)| b.as_deref() == base_branch;
+    let reuse = pinned.as_deref().and_then(|p| p.as_ref().filter(same));
+    let base = match (reuse.map(|(_, sha)| sha.clone()), base_branch) {
+        (Some(sha), _) => sha,
         // Only a listed local branch, never a revision expression.
-        Some(b) if local.iter().any(|l| l == b) => {
+        (None, Some(b)) if local.iter().any(|l| l == b) => {
             skyelab_git::rev_parse(&project, &format!("refs/heads/{b}"))?
         }
-        Some(b) => bail!("the base branch {b} is gone"),
-        None => skyelab_git::rev_parse(&project, "HEAD")?,
+        (None, Some(b)) => bail!("the base branch {b} is gone"),
+        (None, None) => skyelab_git::rev_parse(&project, "HEAD")?,
     };
+    if let Some(p) = pinned.as_deref_mut() {
+        p.get_or_insert_with(|| (base_branch.map(str::to_owned), base.clone()));
+    }
+    drop(pinned);
     let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;
     if let Err(e) = check(config, &project, &path, account_id) {
         return Err(match skyelab_git::remove_worktree(&project, &path, true) {
