@@ -337,8 +337,8 @@ impl Render for UsagePage {
             .gap_3()
             .child(section_title(
                 match metric {
-                    Metric::Cost => "Daily cost",
-                    Metric::Tokens => "Daily tokens",
+                    Metric::Cost => "Daily cost · 30 days",
+                    Metric::Tokens => "Daily tokens · 30 days",
                 },
                 theme,
             ))
