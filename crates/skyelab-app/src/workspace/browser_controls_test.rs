@@ -78,10 +78,19 @@ fn zoom_keys(cx: &mut TestAppContext) {
     let (_ws, browser, _page, cx) = agent_tab("http://localhost:3000/", cx);
     let zoom = |cx: &mut VisualTestContext| browser.read_with(cx, |b, _| b.zoom());
     assert_eq!(zoom(cx), 1.0);
+    assert_eq!(
+        browser.read_with(cx, |b, _| b.zoom_label()),
+        None,
+        "no chip at 100%"
+    );
     cx.simulate_keystrokes(skyelab_browser::ZOOM_IN_KEY);
     assert_eq!(zoom(cx), 1.1);
     cx.simulate_keystrokes(skyelab_browser::ZOOM_IN_KEY);
     assert_eq!(zoom(cx), 1.25);
+    assert_eq!(
+        browser.read_with(cx, |b, _| b.zoom_label()).as_deref(),
+        Some("125%")
+    );
     cx.simulate_keystrokes(skyelab_browser::ZOOM_RESET_KEY);
     assert_eq!(zoom(cx), 1.0);
     cx.simulate_keystrokes(skyelab_browser::ZOOM_OUT_KEY);

@@ -5,6 +5,7 @@ use futures::channel::oneshot;
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, Focusable, InteractiveElement as _, IntoElement,
     ParentElement as _, Render, SharedString, Styled as _, Subscription, Task, Window, div,
+    prelude::FluentBuilder as _,
 };
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
@@ -34,8 +35,10 @@ pub struct BrowserView {
     loaded: bool,
     /// Pages committed so far, so a caller can wait for the next one.
     loads: u64,
+    /// The URL of the page that committed last (wry's `Started`), which the user sees. The engine's own URL can
+    /// name a pending load.
+    committed_url: Option<String>,
     focus: FocusHandle,
-    /// The page zoom, 1.0 being the page's own size.
     zoom: f64,
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
     shown: bool,
@@ -156,6 +159,8 @@ impl BrowserView {
                 let updated = this.update_in(cx, |this, window, cx| {
                     this.loaded = true;
                     this.loads += 1;
+                    this.committed_url = Some(url.clone());
+                    this.page_changed();
                     this.url_bar
                         .update(cx, |bar, cx| bar.set_value(url, window, cx));
                 });
@@ -172,6 +177,7 @@ impl BrowserView {
             error: error.map(|e| format!("{e:#}").into()),
             loaded: false,
             loads: 0,
+            committed_url: None,
             focus: cx.focus_handle(),
             zoom: 1.0,
             shown: true,
@@ -218,6 +224,10 @@ impl BrowserView {
     /// Shows or hides the native view, which otherwise stays on screen when its pane isn't drawn.
     pub fn set_visible(&mut self, visible: bool, cx: &gpui::App) {
         self.shown = visible;
+        // A pane that isn't drawn drops its open menu without a close event.
+        if !visible {
+            self.menu_open = false;
+        }
         self.apply_visibility(cx);
     }
 
@@ -384,7 +394,9 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::duplicate))
             .on_action(cx.listener(Self::copy_url))
             .on_action(cx.listener(Self::open_external))
-            .on_action(cx.listener(Self::dev_tools))
+            .when(cfg!(debug_assertions), |d| {
+                d.on_action(cx.listener(Self::dev_tools))
+            })
             .size_full()
             .flex()
             .flex_col()

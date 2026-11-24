@@ -152,7 +152,7 @@ code block, up to 20,000 characters.
 
 ### Browser tabs
 
-<kbd>⌥⌘B</kbd> opens a browser tab in the right panel. Type a `localhost` address, any http or https address, or a
+<kbd>⌥⌘B</kbd> (<kbd>Ctrl+Alt+B</kbd>) opens a browser tab in the right panel. Type a `localhost` address, any http or https address, or a
 local file path in its address bar. While the tab has the focus (its address bar, or right after you open or click
 the tab):
 
@@ -160,7 +160,8 @@ the tab):
   (<kbd>Ctrl</kbd> on Linux and Windows). The toolbar shows the zoom level when it isn't 100%; click it to reset.
 - <kbd>⌘F</kbd> (<kbd>Ctrl+F</kbd>) opens a find bar under the toolbar. Typing selects the first match and scrolls to
   it, <kbd>Enter</kbd> or the arrows go to the next or previous one (wrapping round), and **No matches** shows when
-  there is none. <kbd>Esc</kbd> closes it.
+  there is none. <kbd>Esc</kbd> closes it. The search runs inside the page, so the page's own scripts can see
+  what you search for.
 - The **⋯** button at the end of the toolbar has **Reload**, **Duplicate tab** (a new tab of yours on the same page,
   even when an agent drives this one), **Copy URL**, **Open in system browser** (http and https pages only), find and
   zoom, and, in development builds, **Open DevTools**, which opens the page's inspector in a window of its own.

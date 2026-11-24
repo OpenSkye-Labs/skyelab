@@ -44,6 +44,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new(ZOOM_IN_KEY, BrowserZoomIn, tab),
         // ⌘⇧= arrives as ⌘+ on macOS.
         KeyBinding::new(mod_key!("+"), BrowserZoomIn, tab),
+        KeyBinding::new(mod_key!("shift-="), BrowserZoomIn, tab),
         KeyBinding::new(ZOOM_OUT_KEY, BrowserZoomOut, tab),
         KeyBinding::new(ZOOM_RESET_KEY, BrowserZoomReset, tab),
         KeyBinding::new("escape", BrowserCloseFind, Some(FIND_CONTEXT)),
@@ -71,8 +72,10 @@ pub(crate) fn zoom_step(current: f64, zoom_in: bool) -> f64 {
 /// it, wrapping) and evaluates to whether it did. `restart` starts at the current match, so a longer query grows it
 /// in place; an empty query clears the selection instead.
 pub(crate) fn find_script(query: &str, backwards: bool, restart: bool) -> String {
+    // wry's macOS bridge unwraps the JSON encoding of the result and the page owns `window.find` and `getSelection`:
+    // a `NaN` or a throw there would abort the app, so the script answers with a boolean of its own.
     if query.is_empty() {
-        return "(getSelection().removeAllRanges(), false)".into();
+        return "(() => { try { getSelection().removeAllRanges(); } catch (e) {} return false; })()".into();
     }
     // A JSON string is a valid JS string literal.
     let query = serde_json::Value::from(query).to_string();
@@ -80,7 +83,9 @@ pub(crate) fn find_script(query: &str, backwards: bool, restart: bool) -> String
         true => "{ const s = getSelection(); if (s.rangeCount) s.collapseToStart(); } ",
         false => "",
     };
-    format!("(() => {{ {start}return window.find({query}, false, {backwards}, true); }})()")
+    format!(
+        "(() => {{ try {{ {start}return window.find({query}, false, {backwards}, true) === true; }} catch (e) {{ return false; }} }})()"
+    )
 }
 
 /// The page's URL when the system browser may open it: http and https only, since the OS would run anything else

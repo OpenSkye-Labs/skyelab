@@ -58,3 +58,20 @@ fn external_urls_are_web_only() {
     assert!(external_url("javascript:alert(1)").is_none());
     assert!(external_url("").is_none());
 }
+
+/// wry's macOS bridge unwraps the JSON encoding of a script's result, so a page whose `window.find` returns `NaN`
+/// (or throws) would abort the app: the script must hand back a boolean it made itself.
+#[test]
+fn find_script_returns_its_own_boolean() {
+    for js in [
+        find_script("x", false, true),
+        find_script("x", true, false),
+        find_script("", false, true),
+    ] {
+        assert!(
+            js.contains("=== true") || js.contains("return false; })()"),
+            "{js}"
+        );
+        assert!(js.contains("catch"), "a throwing page answers false: {js}");
+    }
+}

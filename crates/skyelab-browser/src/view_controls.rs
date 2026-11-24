@@ -1,5 +1,4 @@
-//! The tab's own commands: zoom, find in page, and the ⋯ menu (Reload, Duplicate, Copy URL, Open in system
-//! browser, DevTools).
+//! The tab's own commands: zoom, find in page and the ⋯ menu.
 
 use futures::channel::oneshot;
 use gpui::{
@@ -23,10 +22,8 @@ pub struct DuplicateTab(pub Option<String>);
 
 impl EventEmitter<DuplicateTab> for BrowserView {}
 
-/// The open find bar.
 pub(super) struct Find {
     input: Entity<InputState>,
-    /// The last search found nothing.
     missed: bool,
     /// The query last searched: a Change that leaves it as it was (Enter sends one) doesn't start over.
     searched: String,
@@ -39,13 +36,23 @@ impl BrowserView {
         self.zoom
     }
 
+    /// The zoom chip's label, when the page isn't at its own size.
+    pub fn zoom_label(&self) -> Option<String> {
+        ((self.zoom - 1.0).abs() > 1e-6).then(|| format!("{:.0}%", self.zoom * 100.0))
+    }
+
     fn set_zoom(&mut self, zoom: f64, cx: &mut Context<Self>) {
+        // No page (it couldn't be built, or the pane closed): nothing to zoom, and its error stays on screen.
+        if self.engine.is_none() {
+            return;
+        }
+        if let Some(page) = &self.webview
+            && let Err(e) = page.read(cx).set_zoom(zoom)
+        {
+            return self.report(Err(e.into()), cx);
+        }
         self.zoom = zoom;
-        let result = match &self.webview {
-            Some(page) => page.read(cx).set_zoom(zoom).map_err(Into::into),
-            None => Ok(()),
-        };
-        self.report(result, cx);
+        cx.notify();
     }
 
     pub(super) fn zoom_in(&mut self, _: &BrowserZoomIn, _: &mut Window, cx: &mut Context<Self>) {
@@ -65,11 +72,17 @@ impl BrowserView {
         self.set_zoom(1.0, cx);
     }
 
-    /// The committed page's URL. `None` before the first load, when wry would panic on the nil URL.
-    fn page_url(&self, cx: &gpui::App) -> Option<String> {
-        self.loaded
-            .then(|| self.engine().ok()?.url(cx).ok())
-            .flatten()
+    /// The URL of the page on screen: the one that committed last, never a pending load.
+    fn page_url(&self, _: &gpui::App) -> Option<String> {
+        self.committed_url.clone()
+    }
+
+    /// A new page committed: the find bar's last answer was about the old one.
+    pub(super) fn page_changed(&mut self) {
+        if let Some(find) = &mut self.find {
+            find.missed = false;
+            find.searched.clear();
+        }
     }
 
     /// What the URL bar shows.
@@ -119,24 +132,30 @@ impl BrowserView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // wry has DevTools only in debug builds (its `devtools` feature calls private API on macOS).
+        // wry has DevTools only in debug builds (its `devtools` feature calls private API on macOS); release builds
+        // never register this handler.
         #[cfg(debug_assertions)]
         if let Some(page) = &self.webview {
             page.read(cx).raw().open_devtools();
-            // WebKit docks the inspector across the whole host window (over the GPUI views), and only once its
-            // frontend has loaded, so it is moved to a window of its own a moment later.
+            // WebKit docks the inspector across the whole host window (over the GPUI views), and a `detach` before
+            // its frontend has loaded does nothing: try again a little later, in case the first was too early.
             #[cfg(target_os = "macos")]
             {
                 let page = page.downgrade();
                 cx.spawn(async move |_, cx| {
-                    cx.background_executor()
-                        .timer(std::time::Duration::from_millis(500))
-                        .await;
-                    let _ = page.read_with(cx, |page, _| {
-                        skyelab_webkit_sys::detach_inspector(&wry::WebViewExtMacOS::webview(
-                            page.raw(),
-                        ))
-                    });
+                    for wait in [500, 1500] {
+                        cx.background_executor()
+                            .timer(std::time::Duration::from_millis(wait))
+                            .await;
+                        let detached = page.read_with(cx, |page, _| {
+                            skyelab_webkit_sys::detach_inspector(&wry::WebViewExtMacOS::webview(
+                                page.raw(),
+                            ))
+                        });
+                        if detached.is_err() {
+                            break;
+                        }
+                    }
                 })
                 .detach();
             }
@@ -189,8 +208,13 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.find.take().is_some() {
-            if let Ok(engine) = self.engine() {
+        if let Some(find) = self.find.take() {
+            self._find_task = gpui::Task::ready(());
+            // Clear only our own match: with nothing searched, the selection is the user's.
+            if !find.searched.is_empty()
+                && self.loaded
+                && let Ok(engine) = self.engine()
+            {
                 let _ = engine.find("", false, false, Box::new(|_| {}), cx);
             }
             self.focus.focus(window, cx);
@@ -218,11 +242,14 @@ impl BrowserView {
         self.run_find(false, true, cx);
     }
 
-    /// Searches the page for the bar's query; an empty query clears the last match.
     fn run_find(&mut self, backwards: bool, restart: bool, cx: &mut Context<Self>) {
         let Some(query) = self.find_query(cx) else {
             return;
         };
+        // Before the first load wry queues scripts for whatever page comes next.
+        if !self.loaded {
+            return;
+        }
         if let Some(find) = &mut self.find {
             find.searched = query.clone();
         }
@@ -251,11 +278,10 @@ impl BrowserView {
         });
     }
 
-    /// The zoom level, when the page isn't at its own size; clicking it resets.
     pub(super) fn render_zoom_chip(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        ((self.zoom - 1.0).abs() > 1e-6).then(|| {
+        self.zoom_label().map(|label| {
             Button::new("zoom")
-                .label(format!("{:.0}%", self.zoom * 100.0))
+                .label(label)
                 .small()
                 .ghost()
                 .tooltip("Reset zoom")
@@ -264,7 +290,6 @@ impl BrowserView {
         })
     }
 
-    /// The ⋯ menu. The page hides while it is open: it would draw over the menu.
     pub(super) fn render_menu(&self, cx: &mut Context<Self>) -> AnyElement {
         let this = cx.entity().downgrade();
         let focus: FocusHandle = self.focus.clone();
@@ -304,7 +329,6 @@ impl BrowserView {
             .into_any_element()
     }
 
-    /// The find bar, as a row under the toolbar.
     pub(super) fn render_find(&self, _: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
         let find = self.find.as_ref()?;
         let theme = cx.theme();

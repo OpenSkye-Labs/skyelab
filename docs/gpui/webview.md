@@ -19,4 +19,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
   scrolls like WKWebView's `findString`, with no FFI. Quote the query with `serde_json` (a JSON string is a valid JS
   literal). gpui-component's input emits a `Change` when Enter is pressed even though the text didn't change, so a
   find that restarts on `Change` must compare with the query it searched last, or Enter never moves on.
+- A script whose result comes back through `evaluate_script_with_callback` must return a value it made itself
+  (`window.find(..) === true` inside `try`/`catch`), never one a page function returns: the page owns `window.find`
+  and every prototype, and wry's macOS bridge `unwrap()`s the result's JSON encoding, so `NaN` or a lone surrogate
+  aborts the whole app (it did, with `window.find = () => NaN`). The page also sees every query it is handed.
+- A menu left open when its pane stops being drawn is dropped without `on_open_change(false)`: clear the
+  menu-open flag when the host hides the pane, or the page stays hidden when the tab comes back.
 - Zoom with `gpui_webview::WebView::set_zoom`, not wry's `zoom`: on Linux it also makes up for GTK's integer scale.
