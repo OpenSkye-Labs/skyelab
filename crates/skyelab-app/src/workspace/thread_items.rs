@@ -266,21 +266,7 @@ fn render_row<V: ItemsView>(
         Item::Live {
             kind: DeltaKind::Text,
             text,
-        } => column(
-            div()
-                .debug_selector(|| "streaming-text".into())
-                .px_1()
-                .text_size(ui::BODY)
-                .child(markdown(
-                    ("md", key),
-                    text,
-                    true,
-                    root.as_deref(),
-                    window,
-                    cx,
-                ))
-                .into_any_element(),
-        ),
+        } => super::timeline_text::streaming_row(this, ix, text, root.as_deref(), window, cx),
         Item::Live {
             kind: DeltaKind::Thinking,
             text,

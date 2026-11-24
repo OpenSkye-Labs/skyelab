@@ -373,6 +373,10 @@ ALTER TABLE threads ADD COLUMN compare_group INTEGER;
 CREATE INDEX threads_by_compare_group ON threads(compare_group) WHERE compare_group IS NOT NULL;
 ",
     turn_price::MIGRATION_V24,
+    // Version 25: where the reader left a thread scrolled up (`<row>:<offset px>`); NULL means at its end.
+    "
+ALTER TABLE threads ADD COLUMN scroll_mark TEXT;
+",
 ];
 
 // After the macros: the migration builds its trigger with `turn_cost!` and `fork_copy!`.

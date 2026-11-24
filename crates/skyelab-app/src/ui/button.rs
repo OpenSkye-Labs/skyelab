@@ -132,6 +132,8 @@ pub struct Button {
     disabled: bool,
     selected: bool,
     loading: bool,
+    /// The loading spinner turns; off, it shows one still frame.
+    spin: bool,
     caret: bool,
     square: bool,
     toggled: Option<bool>,
@@ -155,6 +157,7 @@ impl Button {
             disabled: false,
             selected: false,
             loading: false,
+            spin: true,
             caret: false,
             square: false,
             toggled: None,
@@ -239,6 +242,12 @@ impl Button {
     /// Shows a spinner in place of the icon and swallows clicks until the work is done.
     pub fn loading(mut self, loading: bool) -> Self {
         self.loading = loading;
+        self
+    }
+
+    /// Whether the loading spinner turns. A still frame draws once; a turning one asks for a frame on every vsync.
+    pub fn spin(mut self, spin: bool) -> Self {
+        self.spin = spin;
         self
     }
 
@@ -409,7 +418,16 @@ impl RenderOnce for Button {
             });
         base.style().refine(&caller);
 
-        let lead = if self.loading {
+        let lead = if self.loading && !self.spin {
+            Some(
+                Self::icon_el(
+                    Icon::new(gpui_component::IconName::Loader),
+                    size.icon(),
+                    c.icon,
+                )
+                .into_any_element(),
+            )
+        } else if self.loading {
             Some(
                 Spinner::new()
                     .with_size(size.icon())

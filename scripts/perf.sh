@@ -84,6 +84,11 @@ report() {
     | if ($s | length) == 0 then "  no frames in the trace" else
       "  frames \($s | length), p50 \($s[($s | length) / 2 | floor] * 10 | round / 10) ms, p95 \($s[($s | length) * 0.95 | floor] * 10 | round / 10) ms, max \($s[-1] * 10 | round / 10) ms, over 16 ms: \([$s[] | select(. > 16)] | length)"
       end' "$trace"
+  # How frame time grows with the reply: p50 per 10 s of the run (flat means a delta costs the same at any length).
+  [ "$scenario" = stream ] && jq -r '
+    [.[] | select(.cat == "skyelab::frame") | {t: .ts, ms: (.args.ms | tonumber)}] | sort_by(.t)
+    | (.[0].t) as $t0 | group_by(((.t - $t0) / 10000000) | floor)
+    | map((map(.ms) | sort) as $s | "\($s[($s | length) / 2 | floor] * 10 | round / 10)") | "  p50 per 10 s: " + join(" / ") + " ms"' "$trace"
   jq -r '[.[] | select(.ph == "B" and .name == "render") | .args.view] | group_by(.) | map({v: .[0], n: length}) | sort_by(-.n) | .[:8] | map("\(.v)=\(.n)") | "  renders: " + join(" ")' "$trace"
 }
 

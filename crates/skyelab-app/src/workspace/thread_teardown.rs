@@ -4,13 +4,38 @@ use super::{SharedStore, ThreadView, lock};
 use skyelab_agent::Session;
 
 impl ThreadView {
+    /// Writes where the reader left the thread, so it reopens there after a restart. Nothing before its rows
+    /// loaded: an unloaded list follows its end and would wipe the kept mark.
+    fn mark_flush(&self) -> impl FnOnce() + use<> {
+        let job = self
+            .thread
+            .as_ref()
+            .filter(|_| !self.items.is_empty())
+            .map(|t| {
+                (
+                    t.id,
+                    self.lists.mark(self.window),
+                    self.backend.store.clone(),
+                )
+            });
+        move || {
+            if let Some((id, mark, store)) = job
+                && let Ok(store) = lock(&store)
+            {
+                let _ = store.set_scroll_mark(id, mark);
+            }
+        }
+    }
+
     pub(super) fn quitting(&mut self) -> impl std::future::Future<Output = ()> + use<> {
         self.stop_requested = true; // a late `ended` must not write exited over stopped
         let job = self.session.take().zip(self.thread.as_ref().map(|t| t.id));
         let store = self.backend.store.clone();
         let drafts = self.draft_flush();
+        let mark = self.mark_flush();
         async move {
             drafts();
+            mark();
             let Some((session, id)) = job else { return };
             if let Ok(store) = lock(&store) {
                 let _ = store.set_thread_status(id, "stopped");
@@ -70,6 +95,10 @@ impl ThreadView {
     /// launch still in progress sees `stop_requested` and ends its own agent.
     pub(in crate::workspace) fn close(&mut self) {
         self.stop_requested = true;
+        let mark = self.mark_flush();
+        let _ = std::thread::Builder::new()
+            .name("skyelab-scroll-mark".into())
+            .spawn(mark);
         let session = self.session.take();
         let Some(thread) = &self.thread else {
             return;
