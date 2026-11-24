@@ -104,6 +104,7 @@ pub fn thread_one() -> Vec<Record> {
                 input: 12_300,
                 output: 175,
             }),
+            turn_cost_usd: None,
         }),
         Record::Prompt("Now add a test for it, and screenshot the login page.".into()),
         tool("shot1", "browser_screenshot", json!({})),

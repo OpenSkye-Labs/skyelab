@@ -114,6 +114,7 @@ pub(super) fn failed(message: String) -> Event {
         result: Some(message),
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     }
 }
 

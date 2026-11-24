@@ -207,6 +207,7 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
             total_cost_usd,
             usage,
             result,
+            turn_cost_usd,
             ..
         }) => {
             if let Some(ix) = settle_live(items) {
@@ -248,7 +249,8 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
                 items.push(Item::Done {
                     is_error: *is_error,
                     duration_ms: *duration_ms,
-                    cost_usd: crate::turn_cost(previous, *total_cost_usd),
+                    cost_usd: turn_cost_usd
+                        .unwrap_or_else(|| crate::turn_cost(previous, *total_cost_usd)),
                     total_usd: *total_cost_usd,
                     usage: *usage,
                     at_ms: None,

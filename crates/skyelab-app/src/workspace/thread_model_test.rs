@@ -196,6 +196,7 @@ fn a_resumed_imported_sessions_restored_total_is_not_its_first_turns_cost() {
         result: None,
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     });
     let live = |total: f64| {
         Record::Agent(Event::parse(&format!(

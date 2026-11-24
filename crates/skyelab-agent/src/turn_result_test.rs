@@ -26,6 +26,7 @@ fn done(is_error: bool, total: f64, result: Option<&str>) -> Record {
         result: result.map(str::to_owned),
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     })
 }
 

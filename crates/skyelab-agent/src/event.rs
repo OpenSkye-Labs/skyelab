@@ -29,6 +29,10 @@ pub enum Event {
         /// The turn's tokens, when the agent reported them.
         #[serde(default)]
         usage: Option<Usage>,
+        /// What this turn alone cost, when the agent says (Claude's `model_usage_since_last_result`): preferred over
+        /// [`turn_cost`], whose running total can drop on a resume and so can't tell a restart from a fresh session.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_cost_usd: Option<f64>,
     },
     /// The agent asks to use a tool and waits until [`crate::Session::answer`] answers `id`.
     Permission {
@@ -134,27 +138,6 @@ impl McpServer {
             other => other,
         }
     }
-}
-
-/// Claude's init `mcp_servers` list as a report, or `None` when it names none.
-pub(crate) fn claude_mcp(init: &Value) -> Option<Event> {
-    let servers: Vec<McpServer> = init["mcp_servers"]
-        .as_array()?
-        .iter()
-        .filter_map(|s| {
-            Some(McpServer {
-                name: s["name"].as_str()?.to_owned(),
-                status: s["status"].as_str().unwrap_or("unknown").to_owned(),
-                error: s["error"].as_str().map(str::to_owned),
-            })
-        })
-        .collect();
-    // The whole list the process connected: it replaces what SkyeLab said it gave it.
-    (!servers.is_empty()).then_some(Event::Mcp {
-        servers,
-        launch: true,
-        warning: None,
-    })
 }
 
 fn one() -> u32 {
@@ -347,6 +330,9 @@ impl Event {
             }),
             (Some("system"), Some("thinking_tokens" | "status")) => return None,
             (Some("system"), Some("task_updated" | "background_tasks_changed")) => return None,
+            // Hook runs (their output is the account's own text) and prompt queue states: nothing shows them.
+            (Some("system"), Some("hook_started" | "hook_response")) => return None,
+            (Some("command_lifecycle"), _) => return None,
             (
                 Some("system"),
                 Some(kind @ ("task_started" | "task_progress" | "task_notification")),
@@ -377,6 +363,9 @@ impl Event {
                 result: o.text(),
                 prompts: 1,
                 usage: v.get("usage").filter(|u| u.is_object()).map(claude_usage),
+                turn_cost_usd: v["model_usage_since_last_result"]
+                    .as_object()
+                    .map(|m| m.values().filter_map(|u| u["costUSD"].as_f64()).sum()),
             }),
             _ => None,
         };
@@ -479,40 +468,4 @@ fn claude_usage(u: &Value) -> Usage {
         input: n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens"),
         output: n("output_tokens"),
     }
-}
-
-/// A main-thread assistant line's context reading: input, cache writes, cache reads and output, and its model.
-/// `None` for a subagent's line and for a placeholder usage with no input.
-pub(crate) fn claude_context(v: &Value) -> Option<Event> {
-    if v["type"] != "assistant" || !v["parent_tool_use_id"].is_null() {
-        return None;
-    }
-    let u = v["message"].get("usage").filter(|u| u.is_object())?;
-    let n = |k: &str| u[k].as_u64().unwrap_or_default();
-    let input = n("input_tokens")
-        .saturating_add(n("cache_creation_input_tokens"))
-        .saturating_add(n("cache_read_input_tokens"));
-    (input > 0).then(|| Event::Context {
-        tokens: Some(input.saturating_add(n("output_tokens"))),
-        window: None,
-        model: v["message"]["model"].as_str().map(str::to_owned),
-    })
-}
-
-/// Each model's window from a result's `modelUsage`.
-pub(crate) fn claude_context_windows(v: &Value) -> Vec<Event> {
-    let Some(models) = v["modelUsage"].as_object() else {
-        return Vec::new();
-    };
-    models
-        .iter()
-        .filter_map(|(model, m)| {
-            let window = m["contextWindow"].as_u64().filter(|w| *w > 0)?;
-            Some(Event::Context {
-                tokens: None,
-                window: Some(window),
-                model: Some(model.clone()),
-            })
-        })
-        .collect()
 }

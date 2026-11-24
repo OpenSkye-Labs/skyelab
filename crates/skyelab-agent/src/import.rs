@@ -340,6 +340,7 @@ impl Timeline {
                     result: None,
                     prompts: 1,
                     usage: None,
+                    turn_cost_usd: None,
                 }),
                 at,
             );

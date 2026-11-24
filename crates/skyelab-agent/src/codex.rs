@@ -380,6 +380,7 @@ impl Codex {
                         } else {
                             turn["status"].as_str().map(str::to_owned)
                         }),
+                    turn_cost_usd: None,
                 };
                 self.end_turn();
                 let mut events = self.withdraw_all();

@@ -341,10 +341,18 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
     let remote = cx.new(|cx| Remote::new(h, cx));
     remote.update(cx, |r, cx| r.toggle(cx));
     wait_until(cx, "sharing", |cx| sharing_port(&remote, cx).is_some());
-    // Then a fixed port, as in the app: the old listener must be gone before the new one binds. The OS picked it
-    // just now, so no other process holds it (a probed or hard-coded port can be another session's).
-    let port = sharing_port(&remote, cx).expect("port");
-    remote.update(cx, |r, _| r.host.config.port = port);
+    // Then a fixed port, as in the app: the old listener must be gone before the new one binds. Not the one the OS
+    // picked: that comes from the ephemeral range, where another process's outgoing connection can take it while
+    // the loop has it released. A random free port below that range, so parallel runs don't pick the same one.
+    let port = free_port_below_ephemeral();
+    remote.update(cx, |r, cx| {
+        r.toggle(cx);
+        r.host.config.port = port;
+        r.toggle(cx);
+    });
+    wait_until(cx, "sharing on the fixed port", |cx| {
+        sharing_port(&remote, cx) == Some(port)
+    });
     for _ in 0..3 {
         remote.update(cx, |r, cx| {
             r.toggle(cx);
@@ -361,6 +369,29 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
             "it rebinds the same port"
         );
     }
+}
+
+/// A port nothing listens on, from 20000–44999: below macOS's and Linux's ephemeral ranges, picked at random so
+/// two test runs on one machine don't try the same sequence.
+fn free_port_below_ephemeral() -> u16 {
+    use std::hash::{BuildHasher as _, Hasher as _};
+    let mut seed = std::collections::hash_map::RandomState::new().build_hasher();
+    seed.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    );
+    let mut next = seed.finish();
+    for _ in 0..200 {
+        next = next
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        let port = 20000 + u16::try_from((next >> 33) % 25000).expect("below 25000");
+        if std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).is_ok() {
+            return port;
+        }
+    }
+    panic!("no free port in 20000-44999");
 }
 
 mod acks;

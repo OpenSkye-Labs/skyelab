@@ -135,6 +135,7 @@ fn subagent_card_collects_nested_calls_and_status() {
             result: None,
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         }),
     );
     let card = items.iter().position(|i| matches!(i, Item::Subagent(_)));

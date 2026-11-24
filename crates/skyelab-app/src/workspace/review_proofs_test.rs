@@ -14,6 +14,7 @@ fn result(is_error: bool) -> Record {
         result: None,
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     })
 }
 

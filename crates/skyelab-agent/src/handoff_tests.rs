@@ -64,6 +64,7 @@ fn items_condense_tool_calls() {
             result: Some("API overloaded".into()),
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         }),
     ];
     let got: Vec<(&str, &str, String)> = items(&records)

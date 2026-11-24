@@ -51,6 +51,7 @@ fn parses_fixture() {
             result: Some("Done.".into()),
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         }
     );
 }

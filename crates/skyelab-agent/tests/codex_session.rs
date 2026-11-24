@@ -176,6 +176,7 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
                     input: 1000,
                     output: 200
                 }),
+                turn_cost_usd: None,
             },
         ]
     );
