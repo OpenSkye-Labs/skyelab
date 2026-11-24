@@ -59,18 +59,28 @@ mod win {
             let ours = bind_exclusive((Ipv4Addr::LOCALHOST, 0).into()).expect("bind");
             let addr = ours.local_addr().expect("addr");
             assert!(hijack(addr).is_err(), "bound over 127.0.0.1");
-            assert!(
-                hijack((Ipv4Addr::UNSPECIFIED, addr.port()).into()).is_err(),
-                "bound over the wildcard"
-            );
         }
 
-        /// The control: without the option the same hijack succeeds, so the test above can fail.
+        /// Windows lets a wildcard socket share the port, but a client of the forward (127.0.0.1) still reaches ours:
+        /// the more specific binding wins, so the wildcard one can't take the forward's traffic.
         #[test]
-        fn a_plain_listener_can_be_bound_over() {
-            let ours = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind");
+        fn a_wildcard_socket_never_gets_the_forwards_connections() {
+            let ours: TcpListener = bind_exclusive((Ipv4Addr::LOCALHOST, 0).into()).expect("bind");
             let addr = ours.local_addr().expect("addr");
-            assert!(hijack(addr).is_ok());
+            let other = hijack((Ipv4Addr::UNSPECIFIED, addr.port()).into()).ok();
+            if let Some(other) = &other {
+                other.listen(8).expect("listen");
+                other.set_nonblocking(true).expect("nonblocking");
+            }
+            let _client = std::net::TcpStream::connect(addr).expect("connect");
+            ours.accept()
+                .expect("the forward's own listener takes the connection");
+            if let Some(other) = &other {
+                assert!(
+                    other.accept().is_err(),
+                    "the wildcard socket got the forward's connection"
+                );
+            }
         }
     }
 }
