@@ -140,3 +140,8 @@ pub fn bind_project(config: &mut AccountsConfig, dir: &Path, account: &str) -> R
     }
     config.add_binding(Binding::new(dir.to_path_buf(), account.to_string()))
 }
+
+/// Whether `defaults read com.apple.universalaccess reduceMotion` printed that Reduce Motion is on.
+pub fn reduce_motion_on(defaults_output: &str) -> bool {
+    defaults_output.trim() == "1"
+}

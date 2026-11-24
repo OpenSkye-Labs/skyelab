@@ -143,3 +143,7 @@ impl ThreadSettings {
         (model.clone().or(base.0), effort.clone().or(base.1))
     }
 }
+
+#[cfg(test)]
+#[path = "thread_defaults_test.rs"]
+mod tests;

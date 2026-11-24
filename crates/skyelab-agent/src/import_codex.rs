@@ -21,6 +21,18 @@ pub(super) fn files(home: &Path, folder: &Path) -> Vec<PathBuf> {
     out
 }
 
+/// Every rollout under `home/sessions`, whatever folder it ran in.
+pub(super) fn all_files(home: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    walk(&home.join("sessions"), 4, &mut out);
+    out
+}
+
+/// The folder a rollout's `session_meta` names.
+pub(super) fn cwd_of(path: &Path) -> Option<PathBuf> {
+    meta_cwd(path)
+}
+
 fn walk(dir: &Path, depth: u8, out: &mut Vec<PathBuf>) {
     // The top dir too: `sessions/` itself may be a link.
     let Some(entries) = super::real_dir(dir) else {

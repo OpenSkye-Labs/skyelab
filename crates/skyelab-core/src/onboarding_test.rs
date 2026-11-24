@@ -251,3 +251,11 @@ fn only_a_plain_id_names_a_default_folder() {
         assert_eq!(default_gh_dir(h, bad), None, "{bad}");
     }
 }
+
+#[test]
+fn reduce_motion_reads_the_defaults_answer() {
+    use super::onboarding::reduce_motion_on;
+    assert!(reduce_motion_on("1\n"));
+    assert!(!reduce_motion_on("0\n"));
+    assert!(!reduce_motion_on(""), "unset: motion stays on");
+}
