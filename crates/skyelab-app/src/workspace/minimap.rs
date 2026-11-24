@@ -82,13 +82,38 @@ fn width(distance: Option<usize>) -> f32 {
         }
 }
 
-/// `text` on one line, cut for the card.
-// shortcut: markdown marks (`**`, `#`) stay in the preview; strip them if the card reads noisy.
+/// `text` (markdown) as plain text on one line, cut for the card.
 fn preview(text: &str) -> SharedString {
-    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut plain = String::new();
+    match markdown::to_mdast(text, &markdown::ParseOptions::gfm()) {
+        Ok(tree) => plain_text(&tree, &mut plain),
+        Err(_) => plain.push_str(text), // GFM never fails to parse (only MDX can); the raw text then
+    }
+    let flat = plain.split_whitespace().collect::<Vec<_>>().join(" ");
     match flat.char_indices().nth(PREVIEW) {
         Some((cut, _)) => format!("{}…", &flat[..cut]).into(),
         None => flat.into(),
+    }
+}
+
+/// The words of a markdown tree, a space after each block (`## Summary` + a paragraph read "Summary The…").
+fn plain_text(node: &markdown::mdast::Node, out: &mut String) {
+    use markdown::mdast::Node;
+    match node {
+        Node::Text(t) => out.push_str(&t.value),
+        Node::InlineCode(c) => out.push_str(&c.value),
+        Node::Code(c) => out.push_str(&c.value),
+        Node::Break(_) => out.push(' '),
+        _ => {}
+    }
+    for child in node.children().into_iter().flatten() {
+        plain_text(child, out);
+    }
+    if matches!(
+        node,
+        Node::Paragraph(_) | Node::Heading(_) | Node::Code(_) | Node::TableCell(_)
+    ) {
+        out.push(' ');
     }
 }
 
