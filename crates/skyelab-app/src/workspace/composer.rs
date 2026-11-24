@@ -48,6 +48,11 @@ pub(in crate::workspace) mod composer_stash;
 mod composer_stash_view;
 #[path = "composer_state.rs"]
 mod composer_state;
+#[path = "composer_voice.rs"]
+pub(in crate::workspace) mod composer_voice;
+#[cfg(all(test, target_os = "macos"))] // dictation is macOS only
+#[path = "composer_voice_test.rs"]
+mod composer_voice_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "context_chips_test.rs"]
 mod context_chips_test;
@@ -86,7 +91,6 @@ use gpui_component::{
     input::Textarea,
     v_flex,
 };
-use skyelab_agent::AttachmentKind;
 use thread::{SendPrompt, ThreadView};
 
 /// Under this card width the control row goes compact (T3 collapses its chips the same way).
@@ -133,8 +137,10 @@ impl ThreadView {
         .absolute()
         .size_full();
         let input = if owned {
+            // Read-only while dictating. The element sets this on the state every render, so set_readonly wouldn't hold.
             Textarea::new(&self.prompt)
                 .appearance(false)
+                .readonly(self.composer.dictation.active())
                 .on_paste(move |item, _, cx| {
                     view.update(cx, |this, cx| this.attach_clipboard(item, cx))
                         .unwrap_or(false)
@@ -177,6 +183,9 @@ impl ThreadView {
                         menu.is_some() || self.composer.stash_open.is_some(),
                         |this| this.key_context(MENU_CONTEXT),
                     )
+                    .when(self.composer.dictation.active(), |this| {
+                        this.key_context(composer_voice::VOICE_CONTEXT)
+                    })
                     .child(input),
             )
             .child(controls);
@@ -253,6 +262,7 @@ impl ThreadView {
                     })
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_picker(cx))),
             )
+            .children(self.render_voice(cx))
             .child(h_flex().pl_1().gap_1().children(self.render_primary(cx)))
             .into_any_element()
     }
@@ -340,52 +350,6 @@ impl ThreadView {
         };
         out.push(button);
         out
-    }
-
-    /// Removable chips for the attached files, above the prompt.
-    fn render_attachments(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if self.composer.attachments.is_empty() {
-            return None;
-        }
-        let theme = cx.theme();
-        Some(
-            h_flex()
-                .flex_wrap()
-                .gap_1p5()
-                .px_3()
-                .pt_3()
-                .children(self.composer.attachments.iter().enumerate().map(|(ix, a)| {
-                    let icon = match a.kind {
-                        AttachmentKind::Image(_) => SkyeIcon::Image,
-                        AttachmentKind::Pdf | AttachmentKind::Text => SkyeIcon::File,
-                    };
-                    h_flex()
-                        .id(SharedString::from(format!("attachment-{ix}")))
-                        .h(px(28.))
-                        .max_w(px(220.))
-                        .pl_2()
-                        .gap_1()
-                        .rounded(ui::RADIUS)
-                        .border_1()
-                        .border_color(theme.border)
-                        .bg(theme.muted)
-                        .text_size(ui::META)
-                        .child(Icon::new(icon).xsmall().text_color(theme.muted_foreground))
-                        .child(div().min_w_0().truncate().child(a.name.clone()))
-                        .child(
-                            Button::new(SharedString::from(format!("remove-attachment-{ix}")))
-                                .ghost()
-                                .xsmall()
-                                .icon(Icon::new(SkyeIcon::X))
-                                .tooltip("Remove")
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.remove_attachment(ix, cx);
-                                    this.restore_draft(window, cx);
-                                })),
-                        )
-                }))
-                .into_any_element(),
-        )
     }
 
     /// The `@` / `/` / `$` / `#` menu, floating above the card.

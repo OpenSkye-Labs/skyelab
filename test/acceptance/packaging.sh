@@ -28,6 +28,8 @@ plist() {
   [ "$(read_key LSMinimumSystemVersion)" = 14.0 ] || fail "min macOS"
   [ "$(read_key NSHighResolutionCapable)" = true ] || fail "NSHighResolutionCapable"
   read_key LSApplicationCategoryType | grep -q '^public.app-category\.' || fail "category"
+  read_key NSMicrophoneUsageDescription | grep -q . || fail "NSMicrophoneUsageDescription"
+  read_key NSSpeechRecognitionUsageDescription | grep -q . || fail "NSSpeechRecognitionUsageDescription"
   local icon; icon=$(read_key CFBundleIconFile)
   [ -s "target/release/SkyeLab.app/Contents/Resources/$icon" ] || fail "icon file $icon"
   ls target/release/SkyeLab_*.dmg >/dev/null 2>&1 || fail "no dmg"

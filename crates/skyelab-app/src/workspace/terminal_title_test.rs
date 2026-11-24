@@ -49,11 +49,10 @@ fn the_title_follows_the_command_and_a_rename_sticks(cx: &mut gpui::TestAppConte
         .expect("named")
         .to_string_lossy()
         .into_owned();
-    assert_eq!(
-        label_after_poll(&panel, cx),
-        folder,
-        "at the prompt: the folder"
-    );
+    // The shell may still be starting: wait for the prompt's title rather than reading it once.
+    wait_until(cx, "at the prompt: the folder", |cx| {
+        label_after_poll(&panel, cx) == folder
+    });
 
     view.read_with(cx, |v, _| v.terminal().write(b"sleep 30\n".as_slice()));
     wait_until(cx, "sleep in the title", |cx| {

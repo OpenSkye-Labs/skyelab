@@ -48,6 +48,15 @@ to a default account: no pick, no thread. Remove the project or its binding like
   Restored into a thread on another account, a prompt comes back without its quote, terminal and diff-comment chips,
   so one account's output never reaches another's agent. A restore that would pass 8 chips or 10 files is refused
   and the entry stays in the stash.
+- **Dictate** (macOS): click the microphone left of Send, or press <kbd>⌘⇧M</kbd>. Words appear in the prompt at the
+  cursor as you speak (replacing what you had selected), and the prompt is read-only meanwhile. <kbd>⌘⇧M</kbd> again
+  or the check mark finishes; <kbd>Esc</kbd> or × puts your draft back as it was; Send finishes and sends what is in the
+  prompt. Switching to another tab, or anything else that takes the focus out of the thread, ends dictation and keeps
+  the words heard so far (switching to another app doesn't). macOS's Speech framework does the recognition on your Mac whenever it supports your language there, so
+  the audio never leaves it; when it doesn't, the pill says **Sent to Apple** while you dictate, because macOS then
+  sends the audio to Apple to recognize it. The first time, macOS asks for the microphone and for speech recognition;
+  if you said no, the composer tells you where to allow it (System Settings → Privacy & Security → Microphone, or
+  Speech Recognition). It uses your Mac's language. Linux and Windows have no dictation, so the button isn't there.
 - **The model chip** (right of the composer: **Opus 5.5 High**) always names the model that will run. Until you pick
   one it shows the account's own default, with the tooltip **Account default model**: the model the thread's last run
   on the default reported, else the `model` in the account's Claude `settings.json` or Codex `config.toml` (SkyeLab reads only that

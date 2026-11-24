@@ -95,6 +95,7 @@ icons! {
     Map => "map",
     MessageCircle => "message-circle",
     MessagesSquare => "messages-square",
+    Mic => "mic",
     Minus => "minus",
     Model => "model",
     Monitor => "monitor",
