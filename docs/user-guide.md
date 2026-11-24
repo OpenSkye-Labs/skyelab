@@ -86,7 +86,9 @@ thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+*
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
 focus, or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
-The expand button at the panel's top right fills the window with it.
+The expand button at the panel's top right fills the window with it. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
+back the tab you closed last in this window: a browser tab on its page, the file preview on its file, or a Changes
+tab while its thread is open. Terminals, side chats and agents' browser tabs don't come back.
 
 **Thread details** (<kbd>⇧⌘B</kbd>, <kbd>Ctrl+Shift+B</kbd> on Linux and Windows) opens a card that floats over the
 chat at the top right: this machine and the folder, the branch with its git actions and Changes, project scripts,

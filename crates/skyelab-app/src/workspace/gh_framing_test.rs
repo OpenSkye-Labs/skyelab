@@ -18,6 +18,7 @@ fn an_issue_body_is_quoted_data() {
         text: terminal_context::issue_summary("https://github.com/o/r/issues/3", "t", &[], body),
         open: false,
         bound: None,
+        thread: None,
     };
     let heading = chip.heading();
     assert!(

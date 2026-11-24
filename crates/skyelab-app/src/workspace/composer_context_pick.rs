@@ -142,7 +142,11 @@ impl ThreadView {
             if let Ok(Some((kind, label, text, bound))) = read.await {
                 // `push_context` checks `bound` again: a rebind may have landed during the read.
                 let _ = this.update(cx, |this, cx| {
-                    this.push_context(kind, SharedString::from(label), text, bound, cx)
+                    if this.push_context(kind, SharedString::from(label), text, bound, cx)
+                        && let Some(chip) = this.composer.contexts.last_mut()
+                    {
+                        chip.thread = Some(id);
+                    }
                 });
             }
         })

@@ -47,6 +47,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
   `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight
   to the workspace's actions and fire only while it has focus.
+- `Panel::on_removed` fires only when a panel leaves the dock for good (its tab closed, `remove_panel`), not when it
+  moves between tab groups, so it is where a closed tab records how to come back (`workspace/reopen.rs`). It gets the
+  `Window`, so per-window state is keyed by `window.window_handle()`.
 - A hit target over part of a row (the diff gutter) is an `absolute` child with its own id and mouse handlers. A plain
   `absolute().inset_0()` div with no handlers (a selection tint) draws over the row without taking its clicks, so the
   row's own colors still show under it.
