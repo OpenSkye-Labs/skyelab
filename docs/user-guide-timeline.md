@@ -15,6 +15,9 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
 - Shell commands show as `$ command` with how they ended (`exit 1`, `failed`); click one for its output.
 - Messages and code blocks have copy buttons; under a turn's final reply the copy button sits next to the time the
   turn ended.
+- A table in a reply has a copy button under its right edge: **Copy as Markdown**, **Copy as TSV** (pastes into a
+  spreadsheet as cells) or **Copy as HTML** (pastes into mail, docs and wikis as a real table; apps that take only
+  text get the TSV).
 - A ```` ```mermaid ```` block in a reply draws as a diagram once the block is complete (while it streams you see its
   source). The code icon in its corner shows the source, the diagram icon brings the drawing back, and copy copies the
   source. A diagram SkyeLab can't draw (bad syntax, over 16 KB, or too big to read) shows its source with the reason.
@@ -54,6 +57,12 @@ in**. **Log in** opens a terminal tab that signs that same account in (`claude a
 account's own config folder); when it finishes, press **Retry**. **Open Settings** goes to Settings → Accounts.
 SkyeLab never retries under another account: the folder's binding decides.
 Stopping a turn yourself (Stop, Interrupt) shows no banner.
+
+## Minimap
+
+A thread with two or more of your messages gets a thin rail at the left edge of the timeline: one short line per
+message, top to bottom. The line of the turn you are reading is brighter. Hover the rail to see that message and the
+turn's last reply; click a line to scroll its message to the top.
 
 ## Find in thread
 

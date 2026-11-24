@@ -331,6 +331,7 @@ impl Render for ThreadView {
         let find = self.render_find(cx);
         let strip = self.render_subagent_strip(cx);
         let quote = self.render_quote_button(cx);
+        let minimap = self.render_minimap(window, cx);
         let timeline = self.quote_listeners(div(), cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
@@ -382,6 +383,7 @@ impl Render for ThreadView {
                     .flex_1()
                     .py_3(),
                 )
+                .children(minimap)
                 .children(find)
                 .into_any_element()
         };

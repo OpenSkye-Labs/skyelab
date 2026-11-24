@@ -16,6 +16,7 @@ mod reap;
 pub mod thread_list;
 pub mod timeline;
 mod title;
+pub mod turn_result;
 mod version;
 pub use git_text::{
     MAX_SUBJECT, clean_commit_message, clean_pr, commit_prompt, generate_commit_message,

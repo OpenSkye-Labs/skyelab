@@ -190,4 +190,6 @@ account; a start into a project on another account is refused and no thread is c
 delegate once more (two levels), and a thread can have four children running at a time. That limit also holds
 when a stopped child is sent a new message, by its parent, from another device or by you: it stays stopped and its
 header says why. Once you stop a thread, it can't start or message other threads, even with a call
-it had already sent. Codex threads get the same tools, with the same account rule. On Windows they work the same way (not yet tested on a real Windows machine).
+it had already sent. When `wait_thread` sees a child's turn end, it also returns that turn as data: whether it failed, its
+result text, how long it took, what it cost and which files it edited, so the parent doesn't parse the child's reply.
+Codex threads get the same tools, with the same account rule. On Windows they work the same way (not yet tested on a real Windows machine).

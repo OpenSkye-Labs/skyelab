@@ -22,7 +22,8 @@ pub mod scratch;
 pub mod snooze;
 pub use app_settings::{
     AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
-    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, TerminalSettings, ThreadSettings, WindowLayout,
+    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, SidebarView, TerminalSettings, ThreadSettings,
+    WindowLayout,
 };
 pub mod terminal_context;
 pub mod terminal_layout;

@@ -99,22 +99,28 @@ fn tool_item(name: &str, input: &Value) -> Option<Item> {
     if name == crate::PLAN_TOOL {
         return item("plan", input["plan"].as_str()?.to_owned());
     }
-    let paths: Vec<&str> = if cards::is_edit(name) || name == "NotebookEdit" {
+    let paths = edited_paths(name, input);
+    (!paths.is_empty()).then_some(())?;
+    item("file_change", format!("File change: {}", paths.join(", ")))
+}
+
+/// The files a tool call edits: Claude's Edit, Write, MultiEdit and NotebookEdit, Codex's `apply_patch`.
+pub fn edited_paths<'a>(name: &str, input: &'a Value) -> Vec<&'a str> {
+    if cards::is_edit(name) || name == "NotebookEdit" {
         [&input["file_path"], &input["notebook_path"]]
             .into_iter()
             .filter_map(Value::as_str)
             .collect()
     } else if name == "apply_patch" {
         input["files"]
-            .as_array()?
-            .iter()
+            .as_array()
+            .into_iter()
+            .flatten()
             .filter_map(Value::as_str)
             .collect()
     } else {
-        return None;
-    };
-    (!paths.is_empty()).then_some(())?;
-    item("file_change", format!("File change: {}", paths.join(", ")))
+        Vec::new()
+    }
 }
 
 /// `v` as JSON with `<`, U+2028 and U+2029 escaped, so quoted text can't open or close a tag or start a line. They

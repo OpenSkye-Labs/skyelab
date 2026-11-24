@@ -61,6 +61,7 @@ panel!(super::center::Center, "Center", closable: false, title_bar: false, |_thi
 mod sidebar;
 mod sidebar_card;
 mod sidebar_rows;
+mod sidebar_views;
 pub use sidebar::{
     ArchivedRows, RowAccount, RowCard, RowMarks, RowShelf, ScopeMenu, ScopeProject, Shelf, Sidebar,
     SidebarItem, SidebarSearch, SidebarSection,

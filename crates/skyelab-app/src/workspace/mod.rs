@@ -82,7 +82,9 @@ pub(crate) mod thread_extras;
 mod thread_items;
 mod thread_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
+mod saved_views;
 mod subagent;
+mod table_copy;
 mod thread_failure;
 mod thread_find;
 mod thread_model;
@@ -634,6 +636,8 @@ mod thread_model_test;
 mod threads_test;
 #[cfg(test)]
 mod timeline_tests;
+#[cfg(test)]
+mod turn_result_wait_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod unread_test;
 #[cfg(test)]

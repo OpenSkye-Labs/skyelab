@@ -1,0 +1,224 @@
+//! The timeline minimap (T3's `TimelineMinimap`): a rail at the timeline's left edge with one short tick per prompt.
+//! The tick of the turn being read is brighter; hovering shows the prompt and the turn's last reply; a click scrolls
+//! that prompt to the top.
+//!
+//! Redraw: it notifies only when the hovered tick changes and on a jump. Each frame scans the items for prompt
+//! rows (a tag check per row) and draws a div per prompt; preview text is derived only for the hovered tick.
+
+use crate::ui;
+use crate::workspace::thread::ThreadView;
+use crate::workspace::thread_model::Item;
+use gpui::{AnyElement, Context, ListOffset, SharedString, Window, div, prelude::*, px, relative};
+use gpui_component::{ActiveTheme as _, StyledExt as _};
+
+#[cfg(test)]
+#[path = "minimap_test.rs"]
+mod tests;
+
+/// Fewer prompts than this show no rail.
+const MIN_PROMPTS: usize = 2;
+/// Pixels between ticks while they fit; a longer thread squeezes them into the cap.
+const SPACING: f32 = 8.0;
+/// The rail's tallest, as a share of the timeline's height.
+const MAX_SHARE: f32 = 0.7;
+const TICK_W: f32 = 24.0;
+/// Each tick's hit box: as tall as the spacing, wider than the tick.
+const HIT_W: f32 = 40.0;
+/// How long the previews may be, in characters.
+const PREVIEW: usize = 300;
+
+/// The rows that start a turn: the user's prompts.
+pub(super) fn prompt_rows(items: &[Item]) -> Vec<usize> {
+    items
+        .iter()
+        .enumerate()
+        .filter(|(_, i)| matches!(i, Item::Prompt(_)))
+        .map(|(ix, _)| ix)
+        .collect()
+}
+
+/// Tick `i` of `n`'s place down the rail, 0.0 (top) to 1.0 (bottom).
+pub(super) fn tick_at(i: usize, n: usize) -> f32 {
+    if n <= 1 {
+        0.0
+    } else {
+        i.min(n - 1) as f32 / (n - 1) as f32
+    }
+}
+
+/// The tick for the turn being read: the last prompt at or above the list's top row.
+pub(super) fn current(rows: &[usize], top: usize) -> Option<usize> {
+    rows.iter().rposition(|&r| r <= top)
+}
+
+/// T3's fisheye: the hovered tick full width, its neighbours shorter.
+fn width(distance: Option<usize>) -> f32 {
+    TICK_W
+        * match distance {
+            Some(0) => 1.0,
+            Some(1) => 0.667,
+            Some(2) => 0.417,
+            _ => 0.333,
+        }
+}
+
+/// `text` on one line, cut for the card.
+// shortcut: markdown marks (`**`, `#`) stay in the preview; strip them if the card reads noisy.
+fn preview(text: &str) -> SharedString {
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    match flat.char_indices().nth(PREVIEW) {
+        Some((cut, _)) => format!("{}…", &flat[..cut]).into(),
+        None => flat.into(),
+    }
+}
+
+/// The turn's last reply text: the last text row before the next prompt.
+fn reply(items: &[Item], prompt: usize) -> Option<&str> {
+    items[prompt + 1..]
+        .iter()
+        .take_while(|i| !matches!(i, Item::Prompt(_)))
+        .filter_map(|i| match i {
+            Item::Text(t) => Some(t.as_str()),
+            _ => None,
+        })
+        .last()
+}
+
+impl ThreadView {
+    /// Scrolls prompt row `row` to the top of the timeline.
+    pub(in crate::workspace) fn jump_to_prompt(
+        &mut self,
+        row: usize,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.list_in(window.window_handle()).scroll_to(ListOffset {
+            item_ix: row,
+            offset_in_item: px(0.),
+        });
+        cx.notify();
+    }
+
+    pub(in crate::workspace) fn render_minimap(
+        &self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let rows = prompt_rows(&self.items);
+        let n = rows.len();
+        if n < MIN_PROMPTS {
+            return None;
+        }
+        let top = self
+            .list_in(window.window_handle())
+            .logical_scroll_top()
+            .item_ix;
+        let now = current(&rows, top);
+        let hovered = self.timeline.minimap_hover.filter(|&h| h < n);
+        let theme = cx.theme();
+        let (dim, lit, card_bg, border, muted) = (
+            theme.muted_foreground.opacity(0.3),
+            theme.foreground.opacity(0.6),
+            theme.popover,
+            theme.border,
+            theme.muted_foreground,
+        );
+        let ticks = rows.iter().enumerate().map(|(i, &row)| {
+            let distance = hovered.map(|h| h.abs_diff(i));
+            let color = if distance == Some(0) || now == Some(i) {
+                lit
+            } else {
+                dim
+            };
+            div()
+                .id(("minimap-tick", self.items.key(row)))
+                .debug_selector(move || format!("minimap-tick-{i}"))
+                .absolute()
+                .left_0()
+                .top(relative(tick_at(i, n)))
+                .mt(px(-SPACING / 2.))
+                .h(px(SPACING))
+                .w(px(HIT_W))
+                .flex()
+                .items_center()
+                .cursor_pointer()
+                .on_hover(cx.listener(move |this, on: &bool, _, cx| {
+                    let next = if *on {
+                        Some(i)
+                    } else {
+                        this.timeline.minimap_hover.filter(|&h| h != i)
+                    };
+                    if this.timeline.minimap_hover != next {
+                        this.timeline.minimap_hover = next;
+                        cx.notify();
+                    }
+                }))
+                .on_click(
+                    cx.listener(move |this, _, window, cx| this.jump_to_prompt(row, window, cx)),
+                )
+                .child(
+                    div()
+                        .h(px(2.))
+                        .w(px(width(distance)))
+                        .rounded_full()
+                        .bg(color),
+                )
+        });
+        let card = hovered.map(|h| {
+            let row = rows[h];
+            let prompt = match &self.items[row] {
+                Item::Prompt(p) => preview(p),
+                _ => SharedString::default(),
+            };
+            div()
+                .absolute()
+                .left(px(HIT_W + 4.))
+                .top(relative(tick_at(h, n)))
+                .mt(px(-18.))
+                .w(px(320.))
+                .p_3()
+                .rounded_xl()
+                .border_1()
+                .border_color(border)
+                .bg(card_bg)
+                .shadow_lg()
+                .debug_selector(|| "minimap-card".into())
+                .child(
+                    div()
+                        .text_size(ui::BODY)
+                        .font_medium()
+                        .truncate()
+                        .child(prompt),
+                )
+                .children(reply(&self.items, row).map(|r| {
+                    div()
+                        .mt_1()
+                        .text_size(ui::BODY)
+                        .text_color(muted)
+                        .line_clamp(3)
+                        .child(preview(r))
+                }))
+        });
+        let height = (n - 1) as f32 * SPACING;
+        Some(
+            // Only the ticks take the pointer; the rest of the strip lets clicks through to the timeline.
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left_3()
+                .flex()
+                .items_center()
+                .child(
+                    div()
+                        .relative()
+                        .w(px(HIT_W))
+                        .h(px(height))
+                        .max_h(relative(MAX_SHARE))
+                        .children(ticks)
+                        .children(card),
+                )
+                .into_any_element(),
+        )
+    }
+}

@@ -194,6 +194,16 @@ impl AppHost {
         Ok(depth)
     }
 
+    /// The thread's last finished turn as data: what `wait_thread` adds once the thread is done.
+    fn last_turn(&self, id: i64) -> Result<Option<skyelab_agent::turn_result::TurnResult>, String> {
+        let rows = self.store(|s| s.events_since(id, 0))?;
+        let records: Vec<Record> = rows
+            .iter()
+            .filter_map(|r| Record::from_row(&r.kind, &r.payload_json).ok())
+            .collect();
+        Ok(skyelab_agent::turn_result::last_turn(&records))
+    }
+
     fn read(&self, thread: &Thread, since_seq: i64) -> Result<Value, String> {
         let rows = self.store(|s| s.events_since(thread.id, since_seq))?;
         let last_seq = rows.last().map_or(since_seq, |e| e.seq);
@@ -340,7 +350,12 @@ impl Host for AppHost {
                     let t = self.drivable(caller, thread_id)?;
                     let done = !busy(&t.status);
                     if done || Instant::now() >= deadline {
-                        return Ok(json!({"thread_id": t.id, "status": t.status, "done": done}));
+                        let mut out = json!({"thread_id": t.id, "status": t.status, "done": done});
+                        // A store read error leaves `turn` out rather than failing the wait.
+                        if done && let Ok(Some(turn)) = self.last_turn(t.id) {
+                            out["turn"] = json!(turn);
+                        }
+                        return Ok(out);
                     }
                     std::thread::sleep(Duration::from_millis(250));
                 }

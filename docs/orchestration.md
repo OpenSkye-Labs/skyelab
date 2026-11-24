@@ -35,6 +35,15 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   while the calling thread is open: a start whose window closes mid-start still answers, and a retry served by
   another window gets the same child. A start without one can still outlast the wait while a big worktree is checked out (the
   row is saved after the checkout).
+- **Turn result.** Once the thread is done, `wait_thread` adds `turn` next to `thread_id`, `status` and `done`: the
+  child's last finished turn as data (`is_error`, `summary`, `duration_ms`, `cost_usd`, `files_changed`), read from its
+  stored events by `skyelab_agent::turn_result` (T3 #38874's typed result, without its output schema). `summary` is
+  the result text, else the turn's last assistant text, cut to its last 8000 bytes. `files_changed` comes from the
+  edit tool calls (Edit, Write, MultiEdit, NotebookEdit, Codex `apply_patch`) since the previous turn that had a
+  result, not from git, so a file a shell command changed isn't listed. `cost_usd` is the timeline's own price for
+  that turn (its Done row). A turn that ended with no result (the agent crashed or was stopped) comes back as
+  `is_error` with the agent's last stderr line, or "The turn ended without a result.", never as the turn before it.
+  No `turn` while the child is busy or before its first prompt.
 - **Live parent.** Starts and sends run only while the calling thread's agent is live in this window: a parent the
   user stopped, or that was closed, is refused, even for a call it queued before.
 - **Current binding.** A launch re-reads accounts.toml right before it spawns the agent and checks the folder

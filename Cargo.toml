@@ -16,6 +16,8 @@ gpui = { package = "gpui-pre", version = "=0.3.12" }
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "x11", "wayland"] }
 # syntect: the lighter highlighter (file preview, chat code blocks); tree-sitter costs tens of MB more.
 gpui-component = { version = "=0.10.0", features = ["syntect"] }
+# The system clipboard with an HTML flavor (Copy table as HTML): GPUI's clipboard carries only text, images and paths.
+arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
 # Its window text selection (`TextSelection`), which gpui-component doesn't re-export; the version it pins.
 gpui-base = "=0.10.0"
 # The icon SVGs gpui-component draws; same release as gpui-component, so one copy.

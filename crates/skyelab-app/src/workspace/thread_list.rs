@@ -193,6 +193,10 @@ impl Workspace {
                     checked: self.scope.contains(&p.id),
                 })
                 .collect(),
+            views: super::saved_views::views(cx)
+                .iter()
+                .map(|v| (v.name.clone().into(), self.shows_view(v)))
+                .collect(),
         };
         super::compare_sidebar::mark_groups(&mut marks, group_rows);
         let cards = &mut cx.default_global::<super::panels::ThreadCards>().0;

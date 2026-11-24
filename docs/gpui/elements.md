@@ -67,6 +67,15 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Read `ClickEvent::click_count()` for a double-click; the × inside a dock tab calls `cx.stop_propagation()` so the
   tab's own click doesn't also run.
 
+- gpui-component's markdown `TextView` takes per-block action rows: `code_block_actions` (the code block's corner) and
+  `table_actions` (a full-width row under each table, given a `TableData` with plain-text cells and the table's
+  markdown; align it yourself with `h_flex().justify_end()`). Their ids are scoped per block, so a plain `"copy"`
+  id is fine. Pass a fn that returns `AnyElement`: an `fn(..) -> impl IntoElement` fails the hook's higher-ranked
+  bound ("one type is more general than the other").
+- GPUI's `ClipboardItem` carries only text, images and paths: no `text/html`. A rich copy (a table as HTML) goes
+  through `arboard` (`set().html(html, Some(plain))`), with one `Clipboard` kept for the app's life, since on Linux
+  the owner serves pastes (`table_copy.rs`).
+
 ### Text selection
 
 - A selectable `TextView` joins the window's one text selection (`gpui_base::TextSelection`, not re-exported by
