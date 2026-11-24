@@ -81,11 +81,15 @@ pub fn push_with(
     Ok(format!("{remote}/{branch}"))
 }
 
-/// The receiving side of a push to a local path, with its hooks off whatever `hooks` says: git drops our `-c`
-/// config for a local transport, and that repo's hooks (another account's, possibly) would get this account's env.
-/// Ignored over https.
+/// The receiving side of a push to a local path, with its hooks and programs off whatever `hooks` says: git drops
+/// our `-c` config for a local transport, and that repo (another account's, possibly) would run them with this
+/// account's env. Its alternates' refs aren't listed (`alternateRefsCommand` runs through sh), its work tree is never
+/// updated (filters, fsmonitor), and no gc follows. Ignored over https.
 fn receive_pack() -> String {
-    let mut cmd = "--receive-pack=git -c core.hooksPath=/dev/null".to_owned();
+    let mut cmd = "--receive-pack=git -c core.hooksPath=/dev/null -c core.alternateRefsCommand=true \
+                   -c core.alternateRefsPrefixes= -c core.fsmonitor=false -c receive.denyCurrentBranch=refuse \
+                   -c receive.autogc=false -c gc.auto=0 -c maintenance.auto=false"
+        .to_owned();
     for event in crate::HOOK_EVENTS {
         cmd.push_str(&format!(" -c hook.{event}.enabled=false"));
     }

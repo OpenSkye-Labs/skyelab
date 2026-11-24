@@ -244,9 +244,11 @@ fn user_command(dir: &Path, hooks: bool) -> Result<Command> {
 
 /// Always set: hooks, fsmonitor and a submodule's own config (`submodule.recurse` would check submodules out with
 /// their filters, a dirty check runs git inside each) off, no credential helper (push and fetch add only the bound
-/// gh after this) and no askpass.
-const FIXED_OFF: [(&str, &str); 6] = [
+/// gh after this), no askpass, and no automatic gc or maintenance afterwards (gc runs `gc.recentObjectsHook`).
+const FIXED_OFF: [(&str, &str); 8] = [
     ("core.hooksPath", "/dev/null"),
+    ("gc.auto", "0"),
+    ("maintenance.auto", "false"),
     ("core.fsmonitor", "false"),
     ("submodule.recurse", "false"),
     ("diff.ignoreSubmodules", "dirty"),

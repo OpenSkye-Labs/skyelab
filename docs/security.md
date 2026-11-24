@@ -41,8 +41,9 @@
   checkout, so SkyeLab also reads every bound folder's own `.git` (its `gitdir:` and `commondir`, or a folder git
   takes as a git dir itself): one that leads into the repo shares it, listed or not, and a `.git` it can't read as a
   small file (a FIFO, say) counts as sharing. Hooks set in config (`hook.<name>.command`, newer git) are off whenever
-  hook scripts are. A push to a local-path remote always starts that repo's `receive-pack` with its hooks off: git
-  doesn't pass SkyeLab's config across a local transport, and that repo may be another account's.
+  hook scripts are. A push to a local-path remote always starts that repo's `receive-pack` with its hooks, its
+  `core.alternateRefsCommand`, work-tree updates and gc off: git doesn't pass SkyeLab's config across a local
+  transport, and that repo may be another account's.
 - **Git never runs a program from the repo's own config unless hooks may run.** Every background git call (status,
   diff, fetch, checkpoints, worktrees, branch switches), Commit, Push and Pull with hooks off, and the git that
   `gh pr create` runs in the repo, override with `-c` every config key that names a program, since an agent can write
@@ -50,8 +51,11 @@
   `gpg.ssh.defaultKeyCommand` get your global (or system) value, else git's own default (`ssh`, `gpg`, `gpgsm`,
   `ssh-keygen`, no key command), so signing still uses your tools; `credential.helper` and `core.askPass` are emptied
   (push and fetch then add only the account's gh); `core.fsmonitor`, `core.hooksPath` and `submodule.recurse` are
-  off, and a submodule's dirty check (git run inside it, under its own config) is skipped, so the Changes tab shows a
-  submodule's new commit but not edits inside it. A new worktree is checked out by SkyeLab's own git in it, so a
+  off, as are automatic gc and maintenance (gc runs `gc.recentObjectsHook`). A submodule's dirty check (git run
+  inside it, under its own config, which `.gitmodules` can switch back on) never runs: status and diffs pass
+  `--ignore-submodules=dirty`, the review snapshot and a branch switch's stash leave checked-out submodules out of
+  their pathspec and read only their HEAD. So the Changes tab shows a submodule's new commit but not edits inside it,
+  and a branch-switch stash doesn't take a submodule's changes along. A new worktree is checked out by SkyeLab's own git in it, so a
   config only that worktree's gitdir or branch includes (`includeIf`) is seen too. Each clean/smudge/process filter and merge driver the repo's own config defines is emptied unless your global
   config defines the same one (Git LFS installed globally keeps working): an empty filter passes content through, and
   a `required` one (git-crypt, a `--local` LFS install) fails the command instead, so an encrypting filter never
