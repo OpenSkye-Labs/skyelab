@@ -1,4 +1,4 @@
-//! Acceptance: a project's own new-thread defaults over the app-wide ones (thread pick > project > app).
+//! Acceptance: a project's own new-thread defaults over the app-wide ones (see `ThreadSettings::resolve_model`).
 
 use crate::thread_defaults::{ThreadDefaults, ThreadField};
 use crate::{AppSettings, Provider, ThreadSettings};
@@ -49,7 +49,8 @@ fn project_model_beats_last_pick() {
         pair(None, None),
         pair(Some("sonnet"), None),
     );
-    assert_eq!(got, pair(Some("opus"), Some("low")));
+    // The unset effort half comes from the remembered pick (its effort: the agent's default), not the app's.
+    assert_eq!(got, pair(Some("opus"), None));
 }
 
 #[test]

@@ -46,18 +46,24 @@ pub(crate) fn get(cx: &App) -> ThreadSettings {
     )
 }
 
-/// Uses `settings` from now on and saves them into the file as it is on disk (other settings untouched).
-pub(crate) fn save(settings: ThreadSettings, cx: &mut App) -> Task<anyhow::Result<()>> {
-    let path = cx.try_global::<ThreadPrefs>().and_then(|p| p.path.clone());
+/// Applies `change` to the settings now, and to the file's `[threads]` as it is on disk, so an outside edit to
+/// another field (a project table edited by hand) survives the save.
+pub(crate) fn edit(
+    change: impl Fn(&mut ThreadSettings) + Send + 'static,
+    cx: &mut App,
+) -> Task<anyhow::Result<()>> {
+    let mut next = get(cx);
+    change(&mut next);
+    let path = path(cx);
     cx.set_global(ThreadPrefs {
         path: path.clone(),
-        settings: settings.clone(),
+        settings: next,
         diff: get_diff(cx),
         terminal: get_terminal(cx),
     });
     cx.background_spawn(async move {
         match path {
-            Some(p) => AppSettings::update(&p, |s| s.threads = settings).map(drop),
+            Some(p) => AppSettings::update(&p, |s| change(&mut s.threads)).map(drop),
             None => Ok(()),
         }
     })

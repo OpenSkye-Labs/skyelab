@@ -412,6 +412,8 @@ mod threads;
 mod widgets;
 
 #[cfg(test)]
+mod outside_edit_test;
+#[cfg(test)]
 mod project_scope_test;
 #[cfg(test)]
 mod tests;

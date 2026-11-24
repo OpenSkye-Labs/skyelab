@@ -47,12 +47,10 @@ impl Settings {
     /// Applies `change` to the new-thread settings (Chat, Diffs, Worktrees) and saves it; a failed save shows on the page.
     pub(super) fn set_threads(
         &mut self,
-        change: impl FnOnce(&mut ThreadSettings),
+        change: impl Fn(&mut ThreadSettings) + Send + 'static,
         cx: &mut Context<Self>,
     ) {
-        let mut next = prefs::get(cx);
-        change(&mut next);
-        let save = prefs::save(next, cx);
+        let save = prefs::edit(change, cx);
         cx.spawn(async move |this, cx| {
             let failed = save
                 .await
@@ -165,7 +163,7 @@ impl Settings {
                 .accessibility_label("Generate thread titles")
                 .on_click(cx.listener(|this, on: &bool, _, cx| {
                     let on = *on;
-                    this.set_threads(|t| t.generate_titles = on, cx)
+                    this.set_threads(move |t| t.generate_titles = on, cx)
                 })),
             cx,
         )];
@@ -272,7 +270,7 @@ impl Settings {
                     .accessibility_label("Generate commit messages and PRs")
                     .on_click(cx.listener(|this, on: &bool, _, cx| {
                         let on = *on;
-                        this.set_threads(|t| t.generate_git_text = on, cx)
+                        this.set_threads(move |t| t.generate_git_text = on, cx)
                     })),
                 cx,
             ),
@@ -308,7 +306,7 @@ impl Settings {
             .find(|(v, _)| v == current)
             .map_or_else(|| current.clone().unwrap_or_default(), |(_, l)| l.clone());
         let pick: super::project_scope::Pick =
-            std::rc::Rc::new(move |this, v, cx| this.set_threads(|t| set(t, v), cx));
+            std::rc::Rc::new(move |this, v, cx| this.set_threads(move |t| set(t, v.clone()), cx));
         self.dropdown(id, label, current.clone(), options, pick, cx)
     }
 }

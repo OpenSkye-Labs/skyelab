@@ -52,18 +52,21 @@ fn project_overrides_apply_to_its_new_threads(cx: &mut TestAppContext) {
         assert!(t.wt.use_worktree);
     });
 
-    // Full access set by hand in the file is still never a default.
+    // Full access as a project's mode is still never a default.
     let mut next = cx.update(|_, cx| prefs::get(cx));
     let key = f.project_dir.clone();
     next.projects.get_mut(&key).expect("demo").permission_mode = Some(Mode::Bypass.as_str().into());
-    cx.update(|_, cx| prefs::save(next.clone(), cx)).detach();
+    let all = next.clone();
+    cx.update(|_, cx| prefs::edit(move |t| *t = all.clone(), cx))
+        .detach();
     let second = new_thread(&ws, cx);
     second.read_with(cx, |t, _| assert_eq!(t.mode, Mode::Default));
 
     // Overrides for another folder leave this project on the app defaults.
     let theirs = next.projects.remove(&key).expect("demo");
     next.projects.insert("/elsewhere".into(), theirs);
-    cx.update(|_, cx| prefs::save(next, cx)).detach();
+    cx.update(|_, cx| prefs::edit(move |t| *t = next.clone(), cx))
+        .detach();
     let third = new_thread(&ws, cx);
     wait_until(cx, "the app default model", |cx| {
         third.read_with(cx, |t, _| t.composer.pick == choice("haiku", "low"))

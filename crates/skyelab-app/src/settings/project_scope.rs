@@ -17,7 +17,7 @@ use skyelab_core::thread_defaults::ThreadField;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-/// What a dropdown pick does: set one value of the shown layer.
+/// What picking a dropdown value does.
 pub(super) type Pick = Rc<dyn Fn(&mut Settings, Option<String>, &mut Context<Settings>)>;
 
 impl Settings {
@@ -49,8 +49,8 @@ impl Settings {
         cx: &mut Context<Self>,
     ) {
         match self.scope.clone() {
-            None => self.set_threads(|t| t.set_field(f, value), cx),
-            Some(dir) => self.set_threads(|t| t.set_project_field(&dir, f, value), cx),
+            None => self.set_threads(move |t| t.set_field(f, value.clone()), cx),
+            Some(dir) => self.set_threads(move |t| t.set_project_field(&dir, f, value.clone()), cx),
         }
     }
 
@@ -74,7 +74,10 @@ impl Settings {
         };
         let pick: Pick = Rc::new(move |this, v, cx| this.set_shown_field(f, v, cx));
         if self.scope.is_none() {
-            let current = app.field(f).clone();
+            // Unset shows (and checks) the first option, as the agent treats it: Ask for the permission mode.
+            let current = Some(app.field(f).clone())
+                .filter(|v| v.is_some() || options.iter().any(|(o, _)| o.is_none()))
+                .unwrap_or_else(|| options.first().and_then(|(o, _)| o.clone()));
             let label = label_of(&current);
             return self.dropdown(id, label, current, options, pick, cx);
         }
@@ -99,7 +102,7 @@ impl Settings {
                 .accessibility_label("New threads start in a worktree")
                 .on_click(cx.listener(|this, on: &bool, _, cx| {
                     let on = *on;
-                    this.set_threads(|t| t.new_worktree = on, cx)
+                    this.set_threads(move |t| t.new_worktree = on, cx)
                 }))
                 .into_any_element();
         };
@@ -119,7 +122,7 @@ impl Settings {
         let pick: Pick = Rc::new(move |this, v, cx| {
             let on = v.map(|v| v == "on");
             let dir = dir.clone();
-            this.set_threads(|t| t.set_project_worktree(&dir, on), cx)
+            this.set_threads(move |t| t.set_project_worktree(&dir, on), cx)
         });
         self.dropdown("threads-worktree", label, current, options, pick, cx)
     }
@@ -226,15 +229,9 @@ impl Settings {
     ) {
         let section = self.section;
         self.set_threads(
-            |t| match section {
+            move |t| match section {
                 super::Section::Chat => {
-                    for f in [
-                        ThreadField::PermissionMode,
-                        ThreadField::ClaudeModel,
-                        ThreadField::ClaudeEffort,
-                        ThreadField::CodexModel,
-                        ThreadField::CodexEffort,
-                    ] {
+                    for f in ThreadField::ALL {
                         t.set_project_field(&dir, f, None);
                     }
                 }

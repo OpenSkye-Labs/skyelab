@@ -27,6 +27,16 @@ pub enum ThreadField {
     CodexEffort,
 }
 
+impl ThreadField {
+    pub const ALL: [ThreadField; 5] = [
+        ThreadField::PermissionMode,
+        ThreadField::ClaudeModel,
+        ThreadField::ClaudeEffort,
+        ThreadField::CodexModel,
+        ThreadField::CodexEffort,
+    ];
+}
+
 /// A model and its effort; `None` leaves it to the next layer (or, at the bottom, the agent's own default).
 pub type ModelPair = (Option<String>, Option<String>);
 
@@ -95,19 +105,18 @@ impl ThreadSettings {
     pub fn for_project(&self, dir: &Path) -> ThreadSettings {
         let mut out = self.clone();
         if let Some(p) = self.projects.get(dir) {
-            let pick = |own: &Option<String>, app: &Option<String>| own.clone().or(app.clone());
-            out.permission_mode = pick(&p.permission_mode, &self.permission_mode);
-            out.claude_model = pick(&p.claude_model, &self.claude_model);
-            out.claude_effort = pick(&p.claude_effort, &self.claude_effort);
-            out.codex_model = pick(&p.codex_model, &self.codex_model);
-            out.codex_effort = pick(&p.codex_effort, &self.codex_effort);
+            for f in ThreadField::ALL {
+                if let Some(v) = p.field(f) {
+                    out.set_field(f, Some(v.clone()));
+                }
+            }
             out.new_worktree = p.new_worktree.unwrap_or(self.new_worktree);
         }
         out
     }
 
     /// The model and effort a `provider` thread in `dir` runs with: the thread's own pick, else the project's default
-    /// (a half it leaves unset comes from the app's), else the project's remembered last pick, else the app default.
+    /// halves over the project's remembered last pick (or, with none, over the app default).
     pub fn resolve_model(
         &self,
         dir: &Path,
@@ -119,16 +128,18 @@ impl ThreadSettings {
         if set(&thread_pick) {
             return thread_pick;
         }
-        let project = self.projects.get(dir).map(|p| match provider {
-            Provider::Claude => (p.claude_model.clone(), p.claude_effort.clone()),
-            Provider::Codex => (p.codex_model.clone(), p.codex_effort.clone()),
-        });
-        if project.as_ref().is_some_and(set) {
-            return self.for_project(dir).model_for(provider);
-        }
-        if set(&last_pick) {
-            return last_pick;
-        }
-        self.model_for(provider)
+        let base = if set(&last_pick) {
+            last_pick
+        } else {
+            self.model_for(provider)
+        };
+        let Some(p) = self.projects.get(dir) else {
+            return base;
+        };
+        let (model, effort) = match provider {
+            Provider::Claude => (&p.claude_model, &p.claude_effort),
+            Provider::Codex => (&p.codex_model, &p.codex_effort),
+        };
+        (model.clone().or(base.0), effort.clone().or(base.1))
     }
 }

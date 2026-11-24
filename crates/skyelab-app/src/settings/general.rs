@@ -140,12 +140,12 @@ impl Settings {
                 crate::ui::themes::set(Default::default(), cx).detach_and_log_err(cx)
             }
             Section::Chat => self.set_threads(
-                |t| {
-                    t.permission_mode = fresh.permission_mode;
-                    t.claude_model = fresh.claude_model;
-                    t.claude_effort = fresh.claude_effort;
-                    t.codex_model = fresh.codex_model;
-                    t.codex_effort = fresh.codex_effort;
+                move |t| {
+                    t.permission_mode = fresh.permission_mode.clone();
+                    t.claude_model = fresh.claude_model.clone();
+                    t.claude_effort = fresh.claude_effort.clone();
+                    t.codex_model = fresh.codex_model.clone();
+                    t.codex_effort = fresh.codex_effort.clone();
                     t.generate_titles = fresh.generate_titles;
                 },
                 cx,
@@ -153,14 +153,16 @@ impl Settings {
             Section::Diffs => {
                 prefs::save_diff(DiffSettings::default(), cx).detach_and_log_err(cx);
                 self.set_threads(
-                    |t| {
+                    move |t| {
                         t.fetch_minutes = fresh.fetch_minutes;
                         t.generate_git_text = fresh.generate_git_text;
                     },
                     cx,
                 );
             }
-            Section::Worktrees => self.set_threads(|t| t.new_worktree = fresh.new_worktree, cx),
+            Section::Worktrees => {
+                self.set_threads(move |t| t.new_worktree = fresh.new_worktree, cx)
+            }
             Section::General => {
                 self.editor_input
                     .update(cx, |i, cx| i.set_value("", window, cx));

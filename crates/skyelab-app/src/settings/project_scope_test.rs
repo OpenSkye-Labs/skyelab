@@ -34,7 +34,8 @@ fn scoped_rows_edit_the_project(cx: &mut TestAppContext) {
     view.update(cx, |s, cx| s.save_codex_model(cx));
     view.update_in(cx, |s, window, cx| {
         s.show(Section::Worktrees, window, cx);
-        s.set_threads(|t| t.set_project_worktree(&work, Some(true)), cx);
+        let work = work.clone();
+        s.set_threads(move |t| t.set_project_worktree(&work, Some(true)), cx);
     });
     cx.run_until_parked();
 
