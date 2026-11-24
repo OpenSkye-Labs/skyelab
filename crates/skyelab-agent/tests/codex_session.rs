@@ -231,8 +231,9 @@ fn resume_reopens_the_thread_with_the_same_hardening() {
     let session = start(&f, Some("019a-old-thread"), "again", Some(&grant)).expect("start");
     let mut reports = Vec::new();
     let events = turn(session.events(), &mut reports);
+    assert!(matches!(&events[0], Event::Mcp { launch: true, .. })); // what SkyeLab gave it
     assert_eq!(
-        events[0],
+        events[1],
         Event::Init {
             session_id: "019a-old-thread".into(),
             model: "gpt-fake".into()
@@ -248,7 +249,7 @@ fn resume_reopens_the_thread_with_the_same_hardening() {
     assert_eq!(p["approvalPolicy"], "untrusted");
     assert_eq!(p["sandbox"], "workspace-write");
     assert_eq!(
-        p["config"]["mcp_servers"]["skyelab"]["command"],
+        p["config"]["mcp_servers.skyelab"]["command"],
         "/bin/skyelab"
     );
     assert_eq!(
@@ -275,7 +276,7 @@ fn mcp_tools_go_over_stdin_never_argv() {
     let mut reports = Vec::new();
     turn(session.events(), &mut reports);
     let opened = requests(&reports, "thread/start");
-    let server = &opened[0]["params"]["config"]["mcp_servers"]["skyelab"];
+    let server = &opened[0]["params"]["config"]["mcp_servers.skyelab"];
     assert_eq!(server["command"], "/bin/skyelab");
     assert_eq!(server["args"], serde_json::json!(["--mcp-proxy"]));
     assert_eq!(server["env"]["SKYELAB_MCP_TOKEN"], "secret-token");

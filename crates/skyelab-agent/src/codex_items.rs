@@ -22,6 +22,19 @@ pub(super) fn answer(method: &str, id: Value) -> String {
         .to_string()
 }
 
+/// One server's startup state as a report (`None` without a name).
+pub(super) fn mcp_status(p: &Value) -> Option<Event> {
+    Some(Event::Mcp {
+        servers: vec![crate::McpServer {
+            name: p["name"].as_str()?.to_owned(),
+            status: p["status"].as_str().unwrap_or("unknown").to_owned(),
+            error: p["error"].as_str().map(str::to_owned),
+        }],
+        launch: false,
+        warning: None,
+    })
+}
+
 pub(super) fn delta(kind: DeltaKind, p: &Value) -> Vec<Event> {
     p["delta"]
         .as_str()
