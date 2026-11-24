@@ -166,7 +166,8 @@ impl Settings {
         let search_input = input("Search", window, cx);
         let editor_input = input("$VISUAL, $EDITOR, then code or zed", window, cx);
         editor_input.update(cx, |i, cx| i.set_value(general::editor(cx), window, cx));
-        let codex_model_input = input("Account default", window, cx);
+        // Empty means the account's default app-wide and Inherit for a project; the row's description says which.
+        let codex_model_input = input("Not set", window, cx);
         let codex_model = crate::workspace::thread_extras::prefs::get(cx).codex_model;
         codex_model_input.update(cx, |i, cx| {
             i.set_value(codex_model.unwrap_or_default(), window, cx)

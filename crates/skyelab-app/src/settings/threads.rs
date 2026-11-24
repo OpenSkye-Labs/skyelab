@@ -110,7 +110,11 @@ impl Settings {
             setting(
                 false,
                 "Claude model",
-                "For new Claude threads in a project that hasn't picked one yet.",
+                if self.scope.is_some() {
+                    "For this project's new Claude threads, over the last model picked in it."
+                } else {
+                    "For new Claude threads in a project that hasn't picked one yet."
+                },
                 h_flex()
                     .gap_2()
                     .child(self.field_choice(
