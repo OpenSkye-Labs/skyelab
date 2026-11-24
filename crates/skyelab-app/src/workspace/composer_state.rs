@@ -6,7 +6,7 @@ use super::composer_queue::Queue;
 use super::composer_stash::StashKey;
 use super::lock;
 use super::thread::ThreadView;
-use gpui::{App, AppContext as _, Context, KeyBinding, SharedString, Window, actions};
+use gpui::{AppContext as _, Context, SharedString, Window, actions};
 use skyelab_agent::{Attachment, AttachmentKind, CLAUDE_MODELS, ModelInfo};
 use skyelab_core::{Account, Provider};
 use skyelab_store::ModelChoice;
@@ -23,52 +23,6 @@ actions!(
         AttachFiles
     ]
 );
-
-const INTERRUPT_KEY: &str = if cfg!(target_os = "macos") {
-    "cmd-."
-} else {
-    "ctrl-."
-};
-const STOP_KEY: &str = if cfg!(target_os = "macos") {
-    "cmd-alt-."
-} else {
-    "ctrl-alt-."
-};
-
-/// Set on the composer while a menu is open, so its keys reach the menu before the text field.
-pub(in crate::workspace) const MENU_CONTEXT: &str = "ComposerMenu";
-const STEER_KEY: &str = if cfg!(target_os = "macos") {
-    "cmd-shift-enter"
-} else {
-    "ctrl-shift-enter"
-};
-
-/// Binds the composer's keys. The menu's override the text field's own up/down/enter/tab/escape: same depth, bound later.
-pub(in crate::workspace) fn bind_keys(cx: &mut App) {
-    let menu = Some("ComposerMenu > Input");
-    cx.bind_keys([
-        KeyBinding::new("up", MenuUp, menu),
-        KeyBinding::new("down", MenuDown, menu),
-        KeyBinding::new("enter", MenuAccept, menu),
-        KeyBinding::new("tab", MenuAccept, menu),
-        KeyBinding::new("escape", MenuClose, menu),
-        KeyBinding::new(STEER_KEY, SteerPrompt, Some(super::thread::CONTEXT)),
-        // Stop has no button (T3 has none either): the palette and this key.
-        KeyBinding::new(
-            INTERRUPT_KEY,
-            super::thread::Interrupt,
-            Some(super::thread::CONTEXT),
-        ),
-        KeyBinding::new(STOP_KEY, super::thread::Stop, Some(super::thread::CONTEXT)),
-        KeyBinding::new(
-            super::composer_stash::STASH_KEY,
-            super::composer_stash::StashPrompt,
-            Some(super::thread::CONTEXT),
-        ),
-    ]);
-    super::composer_draft::bind_keys(cx);
-    super::composer_voice::bind_keys(cx);
-}
 
 /// An open menu: its rows (already ranked) and the highlighted one.
 pub(crate) struct Menu {
@@ -149,6 +103,8 @@ pub(crate) struct Composer {
     pub dock_sent: Option<String>,
     /// The docked question panel's focus: 1–9 pick while it has it (T3 leaves digits typed in a field alone).
     pub dock_focus: Option<gpui::FocusHandle>,
+    /// The docked question the focus last moved to on its arrival, so it moves once per question.
+    pub dock_focused: Option<String>,
     /// The last long paste made into a chip (its name and text), for "Paste as text".
     pub pasted: Option<(String, String)>,
     /// An interrupt was sent and the turn hasn't ended yet ("Stopping…"); its number, so a late timer can't clear a newer one.

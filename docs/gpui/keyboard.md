@@ -40,3 +40,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   (`Window::is_action_available_in` reads the rendered dispatch tree, not App-level `cx.on_action`). A new palette
   action goes on the workspace (`render.rs`), and its test reads `palette_entries` from a real workspace
   (`palette_gallery_test.rs`), never only `all_action_names`.
+- Moving focus to something that just appeared (a docked question): do it from `render` once per item, remembering its
+  id (`ComposerState::dock_focused`), never on every render, or a click elsewhere is taken back the next frame.
+  `window.focus` while drawing is safe: `refresh` is a no-op mid-draw. Don't steal it from a text field holding text.

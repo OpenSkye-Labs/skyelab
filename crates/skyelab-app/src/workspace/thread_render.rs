@@ -298,6 +298,9 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(Self::restart_session))
             .map(|el| self.handoff_actions(el, cx))
+            .when(self.dock_step().is_some(), |v| {
+                v.on_action(cx.listener(Self::focus_question))
+            })
             .on_action(cx.listener(Self::toggle_worktree))
             .on_action(cx.listener(Self::open_changes))
             .on_action(cx.listener(Self::open_worktree_terminal))

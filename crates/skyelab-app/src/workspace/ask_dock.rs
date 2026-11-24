@@ -21,6 +21,10 @@ const DIGITS: [&str; 9] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 const OVERLAP: gpui::Pixels = px(18.);
 const DECLINE_HINT: &str = "Send a message to decline and redirect the agent";
 
+#[path = "ask_dock_keys.rs"]
+mod keys;
+pub(in crate::workspace) use keys::{FOCUS_QUESTION_KEY, FocusQuestion};
+
 impl ThreadView {
     /// The newest unanswered question or permission ask while the agent can take an answer.
     pub(in crate::workspace) fn dock(&self) -> Option<&ApprovalItem> {
@@ -66,6 +70,7 @@ impl ThreadView {
             self.composer.dock_sent = None;
             self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         }
+        self.focus_new_question(window, cx);
         if want == self.composer.dock_placeholder {
             return;
         }
@@ -148,41 +153,6 @@ impl ThreadView {
             self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
         }
         cx.notify();
-    }
-
-    /// A key pressed while the question panel has the focus: 1–9 pick that option (T3's shortcuts, which leave digits
-    /// typed in a field alone), Enter is Next or Submit. Returns whether it was used.
-    pub(in crate::workspace) fn dock_key(
-        &mut self,
-        key: &str,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        let Some(id) = self.dock().map(|a| a.id.clone()) else {
-            return false;
-        };
-        if self.composer.dock_collapsed.as_deref() == Some(id.as_str()) {
-            return false; // folded away: the options aren't in view
-        }
-        match key.as_bytes() {
-            [d @ b'1'..=b'9'] => {
-                let option = usize::from(d - b'1');
-                let fits = self.dock_step().is_some_and(|(step, _)| {
-                    self.dock()
-                        .and_then(|a| questions(&a.raw).into_iter().nth(step))
-                        .is_some_and(|q| option < q.options.len())
-                });
-                if fits {
-                    self.dock_pick(option, window, cx);
-                }
-                fits
-            }
-            b"enter" => {
-                self.advance_question(window, cx);
-                true
-            }
-            _ => false,
-        }
     }
 
     /// The panel on the composer's top edge, or `None` with nothing to answer.
