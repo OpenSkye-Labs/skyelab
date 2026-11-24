@@ -85,8 +85,13 @@ fn add_a_codex_account_and_log_in(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(*asked.borrow(), vec!["oai".to_string()]);
 
-    let opts = crate::workspace::github::codex_login_options(Path::new("/opt/codex"), &codex_home)
-        .expect("options");
+    use crate::workspace::github::{agent_login_options, login_args};
+    let opts = agent_login_options(
+        Path::new("/opt/codex"),
+        login_args(Provider::Codex),
+        &saved.accounts[0],
+    )
+    .expect("options");
     assert_eq!(
         opts.command,
         Some(("/opt/codex".into(), vec!["login".into()]))

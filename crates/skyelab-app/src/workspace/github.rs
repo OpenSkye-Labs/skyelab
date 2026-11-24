@@ -26,47 +26,30 @@ pub(crate) fn codex_bin(cx: &App) -> PathBuf {
         .map_or_else(|| "codex".into(), |g| g.0.clone())
 }
 
-/// A terminal running `codex login` with `CODEX_HOME=<dir>` only, so the login lands in that account's dir.
-/// Codex refuses a `CODEX_HOME` that doesn't exist, so the dir is made (private) first.
-pub(crate) fn codex_login_options(codex: &Path, dir: &Path) -> anyhow::Result<SpawnOptions> {
-    let dir_text = dir
-        .to_str()
-        .with_context(|| format!("{} is not valid UTF-8", dir.display()))?;
-    let codex = codex
-        .to_str()
-        .with_context(|| format!("{} is not valid UTF-8", codex.display()))?;
-    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-            .with_context(|| format!("making {} private", dir.display()))?;
+/// What logs an account in to its agent CLI.
+pub(crate) fn login_args(provider: skyelab_core::Provider) -> &'static [&'static str] {
+    match provider {
+        skyelab_core::Provider::Claude => &["auth", "login"],
+        skyelab_core::Provider::Codex => &["login"],
     }
-    Ok(SpawnOptions {
-        cwd: dirs::home_dir().unwrap_or_else(|| dir.to_owned()),
-        command: Some((codex.into(), vec!["login".into()])),
-        env: HashMap::from([("CODEX_HOME".to_string(), dir_text.to_string())]),
-        cols: 80,
-        lines: 24,
-    })
 }
 
-/// A terminal running `claude auth login` with `account`'s launch env (its `CLAUDE_CONFIG_DIR`, and its
-/// `GH_CONFIG_DIR` when set), so the login lands in that account's config dir and nowhere else. The dir is made
-/// private first, like a Codex home.
-pub(crate) fn claude_login_options(
-    claude: &Path,
+/// A terminal running `<bin> <args>` (`claude auth login`, `codex login`) with `account`'s launch env only, so the
+/// login lands in that account's config dir. Codex refuses a `CODEX_HOME` that doesn't exist, so the dir is made
+/// (private) first.
+pub(crate) fn agent_login_options(
+    bin: &Path,
+    args: &[&str],
     account: &skyelab_core::Account,
 ) -> anyhow::Result<SpawnOptions> {
-    let claude = claude
-        .to_str()
-        .with_context(|| format!("{} is not valid UTF-8", claude.display()))?;
+    let utf8 = |p: &Path| {
+        p.to_str()
+            .map(str::to_owned)
+            .with_context(|| format!("{} is not valid UTF-8", p.display()))
+    };
     let mut env = HashMap::new();
     for (var, path) in account.launch_env()? {
-        let text = path
-            .to_str()
-            .with_context(|| format!("{} is not valid UTF-8", path.display()))?;
-        env.insert(var.to_string(), text.to_string());
+        env.insert(var.to_string(), utf8(&path)?);
     }
     let dir = &account.config_dir;
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
@@ -78,7 +61,7 @@ pub(crate) fn claude_login_options(
     }
     Ok(SpawnOptions {
         cwd: dirs::home_dir().unwrap_or_else(|| dir.to_owned()),
-        command: Some((claude.into(), vec!["auth".into(), "login".into()])),
+        command: Some((utf8(bin)?, args.iter().map(|a| a.to_string()).collect())),
         env,
         cols: 80,
         lines: 24,

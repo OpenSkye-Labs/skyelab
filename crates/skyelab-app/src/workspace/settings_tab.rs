@@ -199,9 +199,11 @@ impl Workspace {
                 // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
                 this.close_settings(window, cx);
                 // The tab names the account being logged in to, not the folder it starts in.
-                let account = this.config.accounts.iter().find(|a| {
-                    a.gh_config_dir.as_deref() == Some(dir.as_path()) || a.config_dir == *dir
-                });
+                let account = this
+                    .config
+                    .accounts
+                    .iter()
+                    .find(|a| a.gh_config_dir.as_deref() == Some(dir.as_path()));
                 let account = account.cloned();
                 let opened = opened.and_then(|o| this.add_terminal_with(o, account, window, cx));
                 if let Err(e) = opened {
@@ -225,14 +227,12 @@ impl Workspace {
             eprintln!("no account '{}' to log in", a.id);
             return;
         };
-        let options = match account.provider {
-            skyelab_core::Provider::Claude => {
-                github::claude_login_options(&self.backend.claude_bin, &account)
-            }
-            skyelab_core::Provider::Codex => {
-                github::codex_login_options(&github::codex_bin(cx), &account.config_dir)
-            }
+        let bin = match account.provider {
+            skyelab_core::Provider::Claude => self.backend.claude_bin.clone(),
+            skyelab_core::Provider::Codex => github::codex_bin(cx),
         };
+        let options =
+            github::agent_login_options(&bin, github::login_args(account.provider), &account);
         // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
         self.close_settings(window, cx);
         if let Err(e) = options.and_then(|o| self.add_terminal_with(o, Some(account), window, cx)) {

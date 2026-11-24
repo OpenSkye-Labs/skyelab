@@ -23,8 +23,13 @@ fn claude_login_runs_auth_login_with_the_accounts_launch_env() {
     let dir = tmp.path().join("claude-acme");
     let gh = tmp.path().join("gh-acme");
     let account = claude_account(&dir, Some(gh.clone()));
-    let opts = crate::workspace::github::claude_login_options(Path::new("/opt/claude"), &account)
-        .expect("options");
+    use crate::workspace::github::{agent_login_options, login_args};
+    let opts = agent_login_options(
+        Path::new("/opt/claude"),
+        login_args(account.provider),
+        &account,
+    )
+    .expect("options");
     assert_eq!(
         opts.command,
         Some(("/opt/claude".into(), vec!["auth".into(), "login".into()]))
