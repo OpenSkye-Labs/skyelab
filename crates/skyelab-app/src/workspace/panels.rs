@@ -254,15 +254,33 @@ impl BasePanel for BrowserPanel {
     }
 }
 impl Panel for BrowserPanel {
-    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        if self.agent.is_some() {
-            "Agent browser"
-        } else {
-            "Browser"
-        }
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        browser_tab_title(
+            self.browser.read(cx).title().map(|t| t.as_ref()),
+            self.agent.is_some(),
+        )
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None
+    }
+}
+
+/// A browser tab's label: the page's title (cut to fit a tab), else what kind of tab it is. An agent's tab keeps
+/// saying so, whatever page it shows.
+pub(super) fn browser_tab_title(page: Option<&str>, agent: bool) -> SharedString {
+    const MAX: usize = 28;
+    let kind = if agent { "Agent browser" } else { "Browser" };
+    let Some(page) = page.map(str::trim).filter(|p| !p.is_empty()) else {
+        return kind.into();
+    };
+    let page = match page.char_indices().nth(MAX) {
+        Some((at, _)) => format!("{}…", page[..at].trim_end()),
+        None => page.to_owned(),
+    };
+    if agent {
+        format!("Agent: {page}").into()
+    } else {
+        page.into()
     }
 }
 

@@ -40,6 +40,8 @@ pub struct BrowserView {
     /// The URL of the page that committed last (wry's `Started`), which the user sees. The engine's own URL can
     /// name a pending load.
     committed_url: Option<String>,
+    /// The page's `document.title` as the webview last reported it (untrusted page text, display only).
+    title: Option<SharedString>,
     focus: FocusHandle,
     zoom: f64,
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
@@ -50,6 +52,7 @@ pub struct BrowserView {
     _data_dir: Option<tempfile::TempDir>,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
+    _sync_title: Task<()>,
 }
 
 impl BrowserView {
@@ -79,6 +82,7 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
+        let (title_tx, title_rx) = flume::unbounded::<String>();
         let mut no_folder = None;
         let override_env = std::env::var_os("WEBVIEW2_USER_DATA_FOLDER");
         let data_dir = crate::webview_data_dir(cfg!(windows), private, override_env.as_deref())
@@ -93,14 +97,16 @@ impl BrowserView {
             Some(context) => wry::WebViewBuilder::new_with_web_context(context),
             None => wry::WebViewBuilder::new(),
         };
-        let mut builder =
-            builder
-                .with_incognito(private)
-                .with_on_page_load_handler(move |event, url| {
-                    if matches!(event, wry::PageLoadEvent::Started) {
-                        let _ = loaded_tx.send(url);
-                    }
-                });
+        let mut builder = builder
+            .with_incognito(private)
+            .with_on_page_load_handler(move |event, url| {
+                if matches!(event, wry::PageLoadEvent::Started) {
+                    let _ = loaded_tx.send(url);
+                }
+            })
+            .with_document_title_changed_handler(move |title| {
+                let _ = title_tx.send(title);
+            });
         let mut error = None;
         match url.map(parse_url) {
             Some(Ok(url)) => builder = builder.with_url(url.as_str()),
@@ -124,6 +130,21 @@ impl BrowserView {
         let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
         let mut view = Self::build(webview, engine, loaded_rx, url, error, window, cx);
         view._data_dir = data_dir;
+        view._sync_title = cx.spawn(async move |this, cx| {
+            while let Ok(title) = title_rx.recv_async().await {
+                let title = title.trim();
+                let title = (!title.is_empty()).then(|| SharedString::from(title.to_owned()));
+                if this
+                    .update(cx, |this, cx| {
+                        this.title = title;
+                        cx.notify();
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
         view
     }
 
@@ -187,6 +208,7 @@ impl BrowserView {
             loaded: false,
             loads: 0,
             committed_url: None,
+            title: None,
             focus: cx.focus_handle(),
             zoom: 1.0,
             shown: true,
@@ -196,6 +218,7 @@ impl BrowserView {
             _data_dir: None,
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
+            _sync_title: Task::ready(()),
         }
     }
 
@@ -270,6 +293,11 @@ impl BrowserView {
         };
         check_agent_eval(&url, self.loaded)?;
         Ok((self.engine()?, url))
+    }
+
+    /// The page's title, once it reported a non-empty one.
+    pub fn title(&self) -> Option<&SharedString> {
+        self.title.as_ref()
     }
 
     /// The URL the page is on now, as the engine reports it. Refused for local files, so an agent

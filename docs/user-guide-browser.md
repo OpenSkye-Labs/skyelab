@@ -3,7 +3,8 @@
 ## Browser tabs
 
 <kbd>⌥⌘B</kbd> (<kbd>Ctrl+Alt+B</kbd>) opens a browser tab in the right panel. Type a `localhost` address, any http or https address, or a
-local file path in its address bar. While the tab has the focus (its address bar, or right after you open or click
+local file path in its address bar. The tab is named after the page's title (an agent's tab: **Agent:** and the
+title), and so is its **Go to tab** entry in the palette. While the tab has the focus (its address bar, or right after you open or click
 the tab):
 
 - <kbd>⌘+</kbd> / <kbd>⌘−</kbd> zoom the page in and out, <kbd>⌘0</kbd> puts it back to its own size

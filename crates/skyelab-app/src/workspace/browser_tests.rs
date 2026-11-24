@@ -83,3 +83,16 @@ fn agent_calls_refuse_file_urls_and_unloaded_pages(cx: &mut TestAppContext) {
         "agent refusal, got: {err:#}"
     );
 }
+
+#[test]
+fn browser_tab_titles_follow_the_page_and_stay_short() {
+    use super::panels::browser_tab_title as t;
+    assert_eq!(t(None, false), "Browser");
+    assert_eq!(t(Some("  "), false), "Browser", "an empty title keeps the kind");
+    assert_eq!(t(Some("QA page"), false), "QA page");
+    assert_eq!(t(Some("QA page"), true), "Agent: QA page");
+    assert_eq!(t(None, true), "Agent browser");
+    let long = t(Some("A very long page title that goes on and on"), false);
+    assert_eq!(long, "A very long page title that…");
+    assert_eq!(t(Some("ééééééééééééééééééééééééééééééé"), false).chars().count(), 29);
+}
