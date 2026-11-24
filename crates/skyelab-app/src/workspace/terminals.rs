@@ -87,7 +87,7 @@ impl Workspace {
         .detach();
     }
 
-    /// A tab running one login command, titled `Log in: <account>` and never saved for a restart.
+    /// A tab running one login command, titled after the account and left out of the tabs saved for a restart.
     pub(super) fn add_login_terminal(
         &mut self,
         options: SpawnOptions,
@@ -96,19 +96,16 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let title = match &account {
-            Some(a) => format!("Log in: {}", a.label),
+            Some(a) if !a.label.is_empty() => format!("Log in: {}", a.label),
+            Some(a) => format!("Log in: {}", a.id),
             None => "Log in".to_owned(),
         };
-        self.add_terminal_tab(
-            options,
-            account,
-            Some((title.into(), String::new())),
-            window,
-            cx,
-        )?;
-        if let Some(tab) = self.terminals.last() {
-            tab.update(cx, |t, _| t.one_shot = true);
-        }
+        let tab = self.add_terminal_tab(options, account, None, window, cx)?;
+        tab.update(cx, |t, cx| {
+            t.name = Some(title.into());
+            t.one_shot = true;
+            cx.notify();
+        });
         Ok(())
     }
 
@@ -121,7 +118,7 @@ impl Workspace {
         tab: TerminalTab,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Entity<TerminalPanel>> {
         let (name, input) = match tab {
             Some((title, input)) => (Some(title), Some(input)),
             None => (None, None),
@@ -137,9 +134,9 @@ impl Workspace {
         let owner = self.current_thread();
         let panel = cx.new(|cx| TerminalPanel::new(pane, name, None, cx));
         self.set_terminal_owner(&panel, owner, cx);
-        self.add_terminal_panel(panel, window, cx);
+        self.add_terminal_panel(panel.clone(), window, cx);
         view.read(cx).focus_handle(cx).focus(window, cx);
-        Ok(())
+        Ok(panel)
     }
 
     /// The tab goes with `thread`; `None` shows it with every thread.
