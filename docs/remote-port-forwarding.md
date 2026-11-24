@@ -52,7 +52,9 @@ never `localhost`, which a browser may send to whatever holds ::1. A browser tab
 one) gets a private, in-memory web store of its own, as an agent's tab does: cookies ignore the port, so on the shared
 store the other machine's server would get this machine's 127.0.0.1 cookies, and a reused local port would share
 storage and service workers between machines. A unique origin per forward isn't possible: macOS has only 127.0.0.1
-on its loopback, and `*.localhost` may resolve to ::1.
+on its loopback, and `*.localhost` may resolve to ::1. The tab itself records that it is private (`BrowserView::is_private`),
+so it stays private after the forward ends: its Duplicate is private too, Reopen Closed never rebuilds it on the
+user's profile, and Open in system browser is refused for it.
 
 Accepted limits, as with `ssh -L`: any local process and any page in a browser here can connect to the local
 port (the forwarded server's own Host checks guard against DNS rebinding). On Windows, the listener isn't bound with

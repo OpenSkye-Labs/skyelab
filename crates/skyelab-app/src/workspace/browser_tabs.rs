@@ -80,17 +80,23 @@ impl Workspace {
         if agent.is_some() {
             browser.update(cx, |b, _| b.mark_agent_page());
         }
-        let agent_page = browser.read(cx).is_agent_page();
-        // A copy is never the agent's. A copy of an agent's page (taken over or not) is private and stays marked, so
-        // no copy of it ever lands in the user's profile.
+        let private = browser.read(cx).is_private();
+        // A copy is never the agent's. A copy of a private tab (an agent's page, taken over or not, or a forwarded
+        // page, whether or not the forward still exists) is private too, so none ever lands in the user's profile.
         cx.subscribe_in(
             &browser,
             window,
             |this, source, DuplicateTab(url): &DuplicateTab, window, cx| {
-                let copy = match source.read(cx).is_agent_page() {
+                let (private, agent_page) = {
+                    let source = source.read(cx);
+                    (source.is_private(), source.is_agent_page())
+                };
+                let copy = match private {
                     true => cx.new(|cx| {
                         let mut copy = BrowserView::new_private(url.as_deref(), window, cx);
-                        copy.mark_agent_page();
+                        if agent_page {
+                            copy.mark_agent_page();
+                        }
                         copy
                     }),
                     false => this.user_browser(url.as_deref(), window, cx),
@@ -101,7 +107,7 @@ impl Workspace {
         )
         .detach();
         let panel = cx.new(|_| BrowserPanel {
-            users: !agent_page,
+            users: !private,
             browser,
             agent,
         });

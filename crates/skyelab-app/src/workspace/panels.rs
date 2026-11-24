@@ -221,8 +221,8 @@ pub struct BrowserPanel {
     /// The thread whose agent drives this tab. `None` for the user's tabs, and after Take over: an agent
     /// only ever reaches a tab whose owner is its own thread.
     pub agent: Option<AgentOwner>,
-    /// Opened by the user on their own profile. `false` for an agent's tab (also after Take over) and every copy of
-    /// one, which are private: Reopen Closed never brings them back, so an agent's page never reaches the profile.
+    /// A tab on the user's own profile. `false` for every private tab (an agent's, also after Take over, a forwarded
+    /// page, and their copies): Reopen Closed never brings those back, so none reaches the profile.
     pub users: bool,
 }
 

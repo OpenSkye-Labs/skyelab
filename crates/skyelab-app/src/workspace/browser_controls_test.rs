@@ -206,6 +206,15 @@ fn an_agent_page_never_opens_in_the_system_browser(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_private_page_never_opens_in_the_system_browser(cx: &mut TestAppContext) {
+    let (_ws, browser, _page, cx) = agent_tab("https://example.com/a", cx);
+    browser.update(cx, |b, _| assert!(b.is_private(), "an agent's page is private"));
+    cx.dispatch_action(skyelab_browser::BrowserOpenExternal);
+    cx.run_until_parked();
+    assert_eq!(cx.opened_url(), None);
+}
+
+#[gpui::test]
 fn copy_url(cx: &mut TestAppContext) {
     let (_ws, _browser, _page, cx) = agent_tab("http://localhost:3000/b", cx);
     cx.dispatch_action(skyelab_browser::BrowserCopyUrl);
@@ -254,4 +263,29 @@ fn a_find_answer_from_the_old_page_does_not_land_on_the_new_one(cx: &mut TestApp
         !browser.read_with(cx, |b, _| b.find_missed()),
         "STALE_FIND: the old page's miss shows on the new page"
     );
+}
+
+/// A private tab that isn't an agent's (a forwarded port's page): private is the tab's own, not the forward's.
+#[gpui::test]
+fn a_private_tab_stays_private_after_its_forward_is_gone(cx: &mut TestAppContext) {
+    let (ws, cx) = workspace(cx);
+    ws.update_in(cx, |ws, window, cx| {
+        let tab = cx.new(|cx| BrowserView::new_private(Some("http://127.0.0.1:4100/"), window, cx));
+        let panel = ws.add_browser(tab, None, window, cx);
+        panel.read(cx).focus_handle(cx).focus(window, cx);
+    });
+    cx.run_until_parked();
+    let first = tabs(&ws, cx)[0].clone();
+    assert!(
+        first.read_with(cx, |p, cx| !p.users && p.browser.read(cx).is_private()),
+        "closing it never reopens it in the user's profile"
+    );
+    // No forward exists in this window: the copy is private because its source is.
+    cx.dispatch_action(skyelab_browser::BrowserDuplicate);
+    cx.run_until_parked();
+    let all = tabs(&ws, cx);
+    assert_eq!(all.len(), 2);
+    assert!(all[1].read_with(cx, |p, cx| !p.users
+        && p.browser.read(cx).is_private()
+        && !p.browser.read(cx).is_agent_page()));
 }

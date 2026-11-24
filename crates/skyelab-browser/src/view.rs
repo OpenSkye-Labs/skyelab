@@ -45,8 +45,10 @@ pub struct BrowserView {
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
     shown: bool,
     menu_open: bool,
-    /// An agent's page, or a copy of one ([`Self::mark_agent_page`]): its copies open private and it never opens
-    /// in the system browser, so an agent never gets a page into the user's own profile.
+    /// On a private, in-memory web store of its own ([`Self::new_private`], an agent's tab). It stays private for
+    /// good: its copies are private and it never opens in the system browser or comes back on the user's profile.
+    private: bool,
+    /// An agent's page, or a copy of one ([`Self::mark_agent_page`]). Always private too.
     agent_page: bool,
     find: Option<controls_ui::Find>,
     _find_task: Task<()>,
@@ -84,6 +86,11 @@ impl BrowserView {
 
     pub fn is_agent_page(&self) -> bool {
         self.agent_page
+    }
+
+    /// Whether this tab is private (see `private`): built private, or an agent's page.
+    pub fn is_private(&self) -> bool {
+        self.private || self.agent_page
     }
 
     fn with_wry(
@@ -138,6 +145,7 @@ impl BrowserView {
         let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
         let mut view = Self::build(webview, engine, loaded_rx, url, error, window, cx);
         view._data_dir = data_dir;
+        view.private = private;
         view
     }
 
@@ -205,6 +213,7 @@ impl BrowserView {
             zoom: 1.0,
             shown: true,
             menu_open: false,
+            private: false,
             agent_page: false,
             find: None,
             _find_task: Task::ready(()),
