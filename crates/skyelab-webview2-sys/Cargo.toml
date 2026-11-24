@@ -1,0 +1,14 @@
+[package]
+name = "skyelab-webview2-sys"
+description = "The WebView2 call skyelab-browser needs that has no safe binding: a page snapshot (CapturePreview)."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+webview2-com.workspace = true
+windows = { workspace = true, features = ["Win32_System_Com", "Win32_UI_Shell"] }
+
+[lints]
+workspace = true

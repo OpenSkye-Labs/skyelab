@@ -69,6 +69,14 @@ impl Engine for Wry {
         Ok(())
     }
 
+    // Cross-compiled here, never run on this machine: Windows CI's `wkwebview_page` takes a real one.
+    #[cfg(windows)]
+    fn snapshot(&self, done: SnapshotDone, cx: &App) -> anyhow::Result<()> {
+        use wry::WebViewExtWindows as _;
+        skyelab_webview2_sys::snapshot(&self.0.read(cx).raw().webview(), done);
+        Ok(())
+    }
+
     // shortcut: written against the webkit2gtk 2.0.1 docs and only cross-checked, never run; test it on a Linux box.
     #[cfg(target_os = "linux")]
     fn snapshot(&self, done: SnapshotDone, cx: &App) -> anyhow::Result<()> {

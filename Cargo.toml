@@ -87,6 +87,10 @@ url = "2.5.9"
 # image hrefs refused. resvg's raster-images stay off: diagrams draw no embedded images.
 mermaid-rs-renderer = { version = "0.3.1", default-features = false }
 resvg = { version = "0.50.0", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+# Windows page snapshots (skyelab-webview2-sys): the webview2-com and windows majors lb-wry uses, so the
+# ICoreWebView2 it hands out is the same type.
+webview2-com = "0.38.2"
+windows = "0.61.3"
 # Linux browser screenshots: the exact webkit2gtk (and its cairo-rs) lb-wry pins, so the snapshot's types match.
 webkit2gtk = "=2.0.1"
 cairo-rs = { version = "0.18.5", features = ["png"] }
@@ -116,6 +120,7 @@ skyelab-webkit-sys = { path = "crates/skyelab-webkit-sys" }
 skyelab-speech-sys = { path = "crates/skyelab-speech-sys" }
 skyelab-pipe-sys = { path = "crates/skyelab-pipe-sys" }
 skyelab-net-sys = { path = "crates/skyelab-net-sys" }
+skyelab-webview2-sys = { path = "crates/skyelab-webview2-sys" }
 skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }
 skyelab-client = { path = "crates/skyelab-client" }

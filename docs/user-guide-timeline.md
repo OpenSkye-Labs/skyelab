@@ -31,8 +31,8 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   button to open the live page over the window (scripts run in it); **×** or a click outside closes it. The page is
   sandboxed: it can't reach your files, SkyeLab or your browser's cookies, can't send requests, and its links don't
   open. It may load scripts, styles, images and fonts from public `https` addresses (a CDN). The page is saved with the
-  thread, so it is there when you reopen it. The picture needs macOS (or Linux); on Windows the card says so and the
-  expand button still opens the page.
+  thread, so it is there when you reopen it. When no picture can be taken (Linux is untested so far), the card says so
+  and the expand button still opens the page.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
   **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›** (that turn's own tokens and cost). Click it to open or fold the work. A running turn shows
   everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.

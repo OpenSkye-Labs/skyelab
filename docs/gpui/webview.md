@@ -30,7 +30,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
   wholly outside the content mask and otherwise shows all of it, over whatever is around. So never put a webview in a
   scrolling list (the timeline). Visual replies draw a snapshot image there, taken from a hidden webview, and the live
   page only in a modal dialog. A hidden (`set_visible(false)`) WKWebView still loads, runs scripts and snapshots
-  (`takeSnapshotWithConfiguration`) at the bounds you give it, so it can render offscreen.
+  (`takeSnapshotWithConfiguration`) at the bounds you give it, so it can render offscreen. WebView2 paints nothing
+  while hidden (`CapturePreview` has no fresh frame), so on Windows the page is shown, parked far left of the window
+  (`page::SHOT_X`): a child view outside its parent is clipped away. Its window must be shown too.
 - A dialog that hosts a webview hides it when `window.has_active_dialog` turns false: a closing dialog is still drawn
   while it fades, and the native page would sit over the backdrop until it is gone.
 - wry calls `with_navigation_handler` for every frame, not only the main one, so a scheme allowlist must keep the
