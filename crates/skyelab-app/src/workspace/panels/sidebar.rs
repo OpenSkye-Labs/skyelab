@@ -73,6 +73,8 @@ pub struct RowMarks {
     pub group: Option<(usize, bool, i64)>,
     /// A comparison group's thread, listed under the group's row.
     pub nested: bool,
+    /// A linked machine's row: that machine's short name, drawn in the meta line (T3's environment label).
+    pub machine: Option<SharedString>,
 }
 
 /// A thread row's hover card (T3's thread tooltip): where it runs and on which account.

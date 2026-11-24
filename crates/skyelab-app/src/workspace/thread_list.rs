@@ -137,6 +137,7 @@ impl Workspace {
                         .map(|u| super::pr_watch::badge(t, u, cx)),
                     group: None,
                     nested: false,
+                    machine: None,
                 },
             );
             SidebarItem {
@@ -176,8 +177,7 @@ impl Workspace {
             .collect();
         let mut group_rows = Vec::new(); // a comparison group folds into one row (`compare_sidebar.rs`)
         let mut fold = |ts| self.fold_section(ts, &mut item, &mut group_rows, cx);
-        let (pinned, working, rest) = (fold(pinned), fold(working), fold(rest));
-        let empty = rest.is_empty() && !shelved;
+        let (mut pinned, mut working, mut rest) = (fold(pinned), fold(working), fold(rest));
         let archived = ArchivedRows {
             items: self.listed_threads().1.into_iter().map(&mut item).collect(),
             open: self.show_archived,
@@ -199,6 +199,12 @@ impl Workspace {
                 .collect(),
         };
         super::compare_sidebar::mark_groups(&mut marks, group_rows);
+        // Linked machines' rows join the list after the comparison groups are marked, so none lands inside one.
+        let ([lp, lw, lr], linked_state) = self.linked_rows(&mut marks, cx);
+        pinned.extend(lp);
+        working.extend(lw);
+        super::env_linked::merge_by_time(&mut rest, lr, &marks);
+        let empty = rest.is_empty() && !shelved;
         let cards = &mut cx.default_global::<super::panels::ThreadCards>().0;
         for (id, m) in &marks {
             let thread = id.strip_prefix("thread-").and_then(|n| n.parse().ok());
@@ -238,6 +244,7 @@ impl Workspace {
                 ..section("Threads", Vec::new())
             });
         }
+        sections.extend(linked_state);
         self.sidebar.update(cx, |sidebar, cx| {
             sidebar.marks = marks;
             sidebar.archived = Some(archived);

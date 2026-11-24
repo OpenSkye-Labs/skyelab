@@ -16,6 +16,8 @@ pub struct AppSettings {
     pub share_on_tailnet: bool,
     /// Remote environments (MagicDNS names or tailnet IPs) the user picked, most recent first.
     pub recent_environments: Vec<String>,
+    /// Machines (MagicDNS names) whose threads also show in this machine's sidebar, in the order they were linked.
+    pub linked_environments: Vec<String>,
     /// MagicDNS name (lowercase) → the Tailscale node StableID it answered from when it was trusted. A name that
     /// later answers from another node (a reused device name in a shared tailnet) is refused until trusted again.
     pub environment_nodes: BTreeMap<String, String>,
@@ -264,6 +266,30 @@ impl AppSettings {
             .retain(|h| !h.eq_ignore_ascii_case(host));
         self.recent_environments.insert(0, host.to_owned());
         self.recent_environments.truncate(MAX_RECENT_ENVIRONMENTS);
+    }
+
+    /// Links `host` (its threads show in this machine's list), or unlinks it when it already is. Returns whether it
+    /// is linked now. Names compare case-insensitively, as DNS does; a blank name changes nothing.
+    pub fn toggle_linked_environment(&mut self, host: &str) -> bool {
+        let host = host.trim();
+        if host.is_empty() {
+            return false;
+        }
+        let before = self.linked_environments.len();
+        self.linked_environments
+            .retain(|h| !h.eq_ignore_ascii_case(host));
+        let linked = self.linked_environments.len() == before;
+        if linked {
+            self.linked_environments.push(host.to_owned());
+        }
+        linked
+    }
+
+    pub fn is_linked_environment(&self, host: &str) -> bool {
+        let host = host.trim();
+        self.linked_environments
+            .iter()
+            .any(|h| h.eq_ignore_ascii_case(host))
     }
 
     /// The node `host` was trusted as, if any.

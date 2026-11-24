@@ -132,6 +132,16 @@ reconnecting, version mismatch, "that machine didn't accept this device" when it
 The account shows as "Label · id" from the remote's own accounts.toml (protocol 1.1), or the id from a 1.0 server.
 Only MagicDNS names can be typed (`skyelab_protocol::is_magicdns_name`, shared with mobile).
 
+**Linked machines (one list for several).** Settings' `linked_environments` names machines whose threads also show
+in This Mac's sidebar (`workspace/env_linked.rs`). Each gets its own `RemoteEnv`, made by the same `Workspace::dial`
+as the switcher's (approve each connection, peer verifier, node pin, Trust it), so a linked machine can do exactly
+what the switcher can there. Rows are built by the switcher's `remote_row`, plus the machine's short name in the
+meta line, and open a `RemoteThreadView` on that machine's env as the page, without switching (`is_remote()` stays
+false, so local-only actions still see this machine). Linking is a command palette toggle (`ToggleLinkedEnvironment`) over the
+recents and linked names. A refused or untrusted connection closes that machine's pages; a machine not connected
+shows one short "Linked machines" row whose hover card holds the full state (it doesn't switch). Its listings rebuild the sidebar only when a hash
+of everything its rows draw changed; a "Done" mark is kept in memory for a thread that stopped working unseen.
+
 **A name that moves.** In a shared tailnet a device name can be reused by another node. So the desktop client checks
 the dialled address with its own Tailscale: right after the TCP connect, before TLS, `Options::verify_peer` (backed by
 the app's `TailscaleCli`, `skyelab_tailnet::verify_own_peer`) runs `tailscale whois` on the socket's peer address and

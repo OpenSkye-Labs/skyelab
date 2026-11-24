@@ -20,6 +20,7 @@ mod details_panel;
 mod device_agent;
 mod devices;
 mod diff_comments;
+mod env_linked;
 mod env_mode;
 mod env_picker;
 mod env_sidebar;
@@ -501,6 +502,8 @@ mod env_followups_test;
 mod env_harness;
 #[cfg(test)]
 mod env_identity_gate_test;
+#[cfg(test)]
+mod env_linked_test;
 #[cfg(test)]
 mod env_picker_test;
 #[cfg(test)]

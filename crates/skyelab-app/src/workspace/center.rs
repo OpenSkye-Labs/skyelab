@@ -100,7 +100,7 @@ impl Workspace {
         self.apply_page(window, cx);
     }
 
-    fn alive(&self, page: &Page, cx: &App) -> bool {
+    pub(super) fn alive(&self, page: &Page, cx: &App) -> bool {
         match page {
             Page::Welcome => true,
             // Made on demand, so they can always show; but they list this machine's projects, never while another

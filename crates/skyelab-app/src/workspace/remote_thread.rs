@@ -136,6 +136,11 @@ impl RemoteThreadView {
         self.thread_id
     }
 
+    /// The machine this thread is on.
+    pub fn env(&self) -> &Entity<RemoteEnv> {
+        &self.env
+    }
+
     pub fn env_badge(&self) -> String {
         format!("Remote · {}", self.host)
     }

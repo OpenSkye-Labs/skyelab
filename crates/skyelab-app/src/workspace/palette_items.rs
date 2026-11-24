@@ -139,6 +139,10 @@ impl Workspace {
                 dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
             }));
         }
+        // Linked machines' toggles and threads; only on this machine, where their rows show.
+        if !self.is_remote() {
+            out.extend(self.linked_palette_entries(cx));
+        }
         out.extend(self.tabs(cx));
         out.extend(theme_entries(cx));
         out
