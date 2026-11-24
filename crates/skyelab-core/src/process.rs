@@ -18,7 +18,9 @@ use std::time::{Duration, Instant};
 
 /// Starts `cmd` while no other child of this process is being started (see the module docs).
 pub fn spawn(cmd: &mut Command) -> io::Result<Child> {
-    exclusive(|| cmd.spawn())
+    let started = exclusive(|| cmd.spawn());
+    crate::debug::record_spawn(cmd, &started);
+    started
 }
 
 /// Runs `start` under [`spawn`]'s lock: a spawn that doesn't go through a `Command` here (a terminal's PTY), or an
@@ -34,6 +36,8 @@ pub struct Captured {
     pub child: Child,
     stdout: File,
     stderr: File,
+    /// Timed for the debug log while debug mode is on.
+    debug: Option<crate::debug::Started>,
 }
 
 impl Captured {
@@ -58,11 +62,15 @@ impl Captured {
             child,
             stdout,
             stderr,
+            debug: crate::debug::Started::now(cmd),
         })
     }
 
     /// What the child printed, once `status` (from `wait` or `try_wait`) says it exited.
     pub fn output(self, status: ExitStatus) -> io::Result<Output> {
+        if let Some(started) = self.debug {
+            started.exited(status);
+        }
         Ok(Output {
             status,
             stdout: read_all(self.stdout)?,
@@ -85,6 +93,7 @@ fn read_all(mut file: File) -> io::Result<Vec<u8>> {
 
 /// Like [`Command::output`], with `input` on stdin: runs `cmd` to its exit and returns what it printed.
 pub fn output(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<Output> {
+    let _span = tracing::info_span!("process", program = ?cmd.get_program()).entered();
     Captured::spawn(cmd, input)?.wait()
 }
 
@@ -94,6 +103,7 @@ pub fn output_within(
     input: Option<&[u8]>,
     limit: Duration,
 ) -> io::Result<Output> {
+    let _span = tracing::info_span!("process", program = ?cmd.get_program()).entered();
     let mut run = Captured::spawn(cmd, input)?;
     let start = Instant::now();
     loop {
