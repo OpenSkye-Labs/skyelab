@@ -152,10 +152,11 @@ Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager
   `.AppImage` (Linux), and attaches them to a **draft** GitHub release. Check the draft, then publish it.
 - **Locally (macOS):** `cargo packager --release -p skyelab-app -f app,dmg` writes `target/release/SkyeLab.app` and the `.dmg`.
   Prefix `CI=true` when the terminal has no Automation permission for Finder; that skips only the dmg window layout.
-  `test/acceptance/packaging.sh all` checks the icons, release profile, Info.plist and workflow.
+  `test/acceptance/packaging.sh all` checks the icons, release profile, Info.plist, code signature and workflow.
 - **Icon:** see [the brand guide](docs/design/brand.md). Edit `crates/skyelab-app/icons/icon.svg`, then run `scripts/icons.sh` on macOS (needs `cargo install resvg`).
 - **Re-running** a tag's workflow makes a second draft; delete the stale draft first.
-- **Signing** is skipped unless these repository secrets exist. Never commit them. Each set is all-or-nothing.
+- **Signing:** without these repository secrets the macOS app is signed ad hoc (`signing-identity = "-"`, so the bundle
+  verifies and keeps its identifier; Gatekeeper still asks on first open), and Windows is unsigned. Never commit them. Each set is all-or-nothing.
   - macOS, sign + notarize: `APPLE_CERTIFICATE` (base64 Developer ID Application `.p12`), `APPLE_CERTIFICATE_PASSWORD`,
     `APPLE_SIGNING_IDENTITY` (e.g. `Developer ID Application: Name (TEAMID)`), `APPLE_ID`,
     `APPLE_PASSWORD` (an app-specific password), `APPLE_TEAM_ID`.

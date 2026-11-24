@@ -21,7 +21,8 @@ icons() {
 }
 
 plist() {
-  local p=target/release/SkyeLab.app/Contents/Info.plist
+  local app=target/release/SkyeLab.app sig
+  local p=$app/Contents/Info.plist
   [ -f "$p" ] || fail "no $p (run cargo packager --release -p skyelab-app -f app,dmg)"
   read_key() { /usr/libexec/PlistBuddy -c "Print :$1" "$p"; }
   [ "$(read_key CFBundleIdentifier)" = dev.openskye.skyelab ] || fail "bundle id"
@@ -31,7 +32,12 @@ plist() {
   read_key NSMicrophoneUsageDescription | grep -q . || fail "NSMicrophoneUsageDescription"
   read_key NSSpeechRecognitionUsageDescription | grep -q . || fail "NSSpeechRecognitionUsageDescription"
   local icon; icon=$(read_key CFBundleIconFile)
-  [ -s "target/release/SkyeLab.app/Contents/Resources/$icon" ] || fail "icon file $icon"
+  [ -s "$app/Contents/Resources/$icon" ] || fail "icon file $icon"
+  codesign --verify --deep --strict "$app" || fail "SkyeLab.app signature doesn't verify"
+  sig=$(codesign -dv "$app" 2>&1)
+  grep -qx 'Identifier=dev.openskye.skyelab' <<<"$sig" || fail "signature identifier"
+  grep -q 'flags=.*runtime' <<<"$sig" || fail "no hardened runtime"
+  codesign -d --entitlements - --xml "$app" 2>/dev/null | grep -q 'com.apple.security.device.audio-input' || fail "audio-input entitlement"
   ls target/release/SkyeLab_*.dmg >/dev/null 2>&1 || fail "no dmg"
   echo "plist ok"
 }
@@ -62,6 +68,7 @@ workflow() {
   grep -q 'tags: \["v\*"\]' "$w" || fail "no v* tag trigger"
   for os in macos windows ubuntu; do grep -q "os: $os-" "$w" || fail "no $os runner"; done
   grep -q 'draft: true' "$w" || fail "release not draft"
+  grep -q 's/^signing-identity = ' "$w" || fail "the Developer ID step must replace the ad-hoc identity, not add one"
   grep -q "sha256sum -- \* > ../SHA256SUMS" "$w" || fail "no SHA256SUMS for the in-app updater"
   # Only the detect step and signing/package steps may hold secrets: none at job level.
   ! sed -n '/^    runs-on:/,/^    steps:/p' "$w" | grep -q 'secrets\.' || fail "secrets in job-level env"

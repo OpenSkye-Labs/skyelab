@@ -67,7 +67,7 @@ jobs:
       # Build here, with no secrets in env: cargo-packager's own build then has nothing left to compile.
       - run: cargo build --release --locked -p skyelab-app
 
-      # ---- Code signing: secret-gated, skipped when the secrets are absent (see CLAUDE.md "Release") ----
+      # ---- Code signing: secret-gated; without the secrets macOS stays ad hoc and Windows unsigned (CLAUDE.md "Release") ----
       # secrets.* can't be read in a step `if:`, so this step turns "all set" into outputs.
       - name: Detect signing secrets
         id: signing
@@ -94,16 +94,16 @@ jobs:
             AZURE_ARTIFACT_SIGNING_ACCOUNT AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE; then
             echo "windows=true" >> "$GITHUB_OUTPUT"
           fi
-      # cargo-packager signs only when `signing-identity` is configured; it then imports APPLE_CERTIFICATE into a
-      # temporary keychain and notarizes the .app with APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID.
+      # Swaps the committed ad-hoc identity ("-") for the Developer ID; cargo-packager then imports APPLE_CERTIFICATE
+      # into a temporary keychain and notarizes the .app with APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID.
       - name: Enable macOS signing and notarization
         if: runner.os == 'macOS' && steps.signing.outputs.macos == 'true'
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          perl -pi -e 's/^\[package\.metadata\.packager\.macos\]\n/$&signing-identity = "$ENV{APPLE_SIGNING_IDENTITY}"\n/' \
+          perl -pi -e 's/^signing-identity = .*$/signing-identity = "$ENV{APPLE_SIGNING_IDENTITY}"/' \
             crates/skyelab-app/Cargo.toml
-          grep -q '^signing-identity = ' crates/skyelab-app/Cargo.toml
+          grep -qxF "signing-identity = \"$APPLE_SIGNING_IDENTITY\"" crates/skyelab-app/Cargo.toml
       # Windows: Azure Artifact Signing (cloud HSM). cargo-packager runs the sign command on the exe and the installer.
       - name: Enable Windows signing
         if: runner.os == 'Windows' && steps.signing.outputs.windows == 'true'
@@ -121,18 +121,23 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           FORMATS: ${{ matrix.formats }}
-          # Empty unless this leg signs, so no other OS sees these secrets.
-          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+          # Empty unless this leg signs (all of a set present), so no other OS sees these secrets.
+          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && steps.signing.outputs.macos == 'true' && secrets.APPLE_TEAM_ID || '' }}
           AZURE_CLIENT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_SECRET || '' }}
           AZURE_TENANT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_TENANT_ID || '' }}
           AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ runner.os == 'Windows' && secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT || '' }}
           AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ runner.os == 'Windows' && secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE || '' }}
-        run: cargo packager --release -p skyelab-app -f "$FORMATS"
+        # cargo-packager takes a set-but-empty APPLE_* as a certificate or notarization login: unset the empty ones.
+        run: |
+          for v in ${!APPLE_*}; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          cargo packager --release -p skyelab-app -f "$FORMATS"
       - uses: actions/upload-artifact@v7
         with:
           name: skyelab-${{ runner.os }}

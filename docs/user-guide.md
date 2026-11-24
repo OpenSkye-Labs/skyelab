@@ -148,7 +148,7 @@ updates** turns the daily check off.
 
 **Download and install** downloads the release's file for your computer (with its progress in the notice) and checks
 it against the `SHA256SUMS` list published with the release. On macOS it also opens the disk image, copies the new
-app next to yours; it must be SkyeLab (the same bundle identifier) and, when your SkyeLab is signed, signed by the
+app next to yours; it must be SkyeLab (the same bundle identifier) and, when your SkyeLab is signed with a Developer ID, signed by the
 same developer and accepted by Gatekeeper. On Windows a signed SkyeLab runs only an installer validly signed by the
 same publisher. Nothing you run changes yet. When it says **SkyeLab x.y.z is ready**, click **Restart to
 update**: SkyeLab replaces itself and opens again.

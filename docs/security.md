@@ -26,7 +26,7 @@
   on the same release. On macOS the new app must have the installed one's bundle identifier, and a signed install
   takes only a new app that verifies with `codesign`, has the same Developer ID team and passes Gatekeeper
   (`spctl`). On Windows a signed install runs only an installer whose Authenticode signature is valid and from the
-  same publisher. An unsigned install relies on the checksum, and a signature that can't be read refuses the update.
+  same publisher. An unsigned or ad-hoc-signed install (no Developer ID team) relies on the checksum, and a signature that can't be read refuses the update.
   Nothing installs until the user's Restart click, which checks the staged copy again first (hash or signature).
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
