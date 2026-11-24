@@ -121,6 +121,10 @@ pub struct Settings {
     /// Settings → Chat's Codex model field, and why its last Chat or Diffs save failed.
     pub(super) codex_model_input: Entity<InputState>,
     pub(super) threads_error: Option<String>,
+    /// Chat and Worktrees edit this project folder's own defaults (`None`: All projects).
+    pub scope: Option<PathBuf>,
+    /// The local projects the scope menu lists (name, folder); the workspace sets them as the modal opens.
+    pub projects: Vec<(SharedString, PathBuf)>,
     /// Settings → Keybindings' search, and the rows it leaves.
     pub(super) keys_search: Entity<InputState>,
     /// Where the focus was when the modal opened; it goes back there on close.
@@ -237,6 +241,8 @@ impl Settings {
             test_input,
             codex_model_input,
             threads_error: None,
+            scope: None,
+            projects: Vec::new(),
             keys_search,
             keys: Vec::new(),
             gh_logins: HashMap::new(),
@@ -398,11 +404,14 @@ mod general;
 mod keys;
 mod nav;
 mod page;
+mod project_scope;
 pub use page::Section;
 mod source_control;
 mod threads;
 mod widgets;
 
+#[cfg(test)]
+mod project_scope_test;
 #[cfg(test)]
 mod tests;
 

@@ -45,6 +45,20 @@ A thread's own choice always wins. They live in three Settings sections:
 
 They are saved in `settings.toml` under `[threads]`. Threads an agent delegates start in Ask.
 
+### Per-project defaults
+
+Work and personal projects often want different defaults. At the top of **Chat** and **Worktrees**, **Applying
+settings for** picks **All projects** (the app-wide defaults above) or one project. With a project picked, the same
+rows set that project's own default for permissions, Claude model and effort, Codex model and effort, and "start in a
+worktree". Each row offers **Inherit: …**, which follows All projects (the Codex model field inherits when empty).
+**Restore defaults** sends the project's rows on that page back to Inherit. **Project settings…** in a project's
+sidebar menu opens Chat with that project already picked.
+
+A new thread's model comes from, in order: the project's own default, the last model picked in that project, then
+All projects. Full access is still never a default, and the project's account is not a setting here: it always comes
+from the folder's binding (**Accounts**). Per-project values are saved in `settings.toml` under
+`[threads.projects."<project folder>"]`, so moving the folder loses them, as it loses the binding.
+
 ## Fork a thread
 
 Under a finished reply, the branch button (**Fork from here**) makes a new thread in the same project, under the same

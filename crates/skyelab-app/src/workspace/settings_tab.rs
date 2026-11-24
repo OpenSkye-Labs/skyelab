@@ -42,7 +42,20 @@ impl Workspace {
                 settings.update(cx, |s, cx| s.set_config(config, window, cx));
             }
             let back = window.focused(cx);
-            settings.update(cx, |s, _| s.return_focus = back);
+            // Local projects only: a remote's folders are another machine's, and its menu can't open this page.
+            let projects = if self.is_remote() {
+                Vec::new()
+            } else {
+                self.projects
+                    .iter()
+                    .map(|p| (p.name.clone().into(), p.path.clone()))
+                    .collect()
+            };
+            settings.update(cx, |s, cx| {
+                s.return_focus = back;
+                s.projects = projects;
+                s.set_scope(None, window, cx);
+            });
             self.settings_open = true;
         }
         settings.update(cx, |s, cx| s.show(section, window, cx));

@@ -241,6 +241,11 @@ impl Settings {
                     .pb_12()
                     .gap_8()
                     .children(self.render_error(cx))
+                    .children(
+                        matches!(self.section, Section::Chat | Section::Worktrees)
+                            .then(|| self.render_scope(cx))
+                            .flatten(),
+                    )
                     .child(body),
             )
             .into_any_element()

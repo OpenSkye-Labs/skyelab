@@ -112,7 +112,6 @@ impl Settings {
     }
 
     pub(super) fn render_worktrees(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let t = prefs::get(cx);
         section(
             "Worktrees",
             "A worktree gives a thread's agent its own branch and folder, so parallel threads don't collide.",
@@ -120,13 +119,7 @@ impl Settings {
                 true,
                 "New threads start in a worktree",
                 "Turns on \"New worktree\" under a new thread's composer.",
-                Switch::new("threads-worktree")
-                    .checked(t.new_worktree)
-                    .accessibility_label("New threads start in a worktree")
-                    .on_click(cx.listener(|this, on: &bool, _, cx| {
-                        let on = *on;
-                        this.set_threads(|t| t.new_worktree = on, cx)
-                    })),
+                self.worktree_control(cx),
                 cx,
             )],
             cx,
@@ -137,6 +130,11 @@ impl Settings {
     /// The header's Restore defaults: this section's preferences back to how a fresh install has them.
     pub(super) fn restore_defaults(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let fresh = ThreadSettings::default();
+        if let Some(dir) = self.scope.clone()
+            && matches!(self.section, Section::Chat | Section::Worktrees)
+        {
+            return self.restore_project(dir, window, cx);
+        }
         match self.section {
             Section::Appearance => {
                 crate::ui::themes::set(Default::default(), cx).detach_and_log_err(cx)

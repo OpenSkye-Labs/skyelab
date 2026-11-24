@@ -88,7 +88,8 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         if self.thread.is_none() {
-            let prefs = crate::workspace::thread_extras::prefs::get(cx);
+            // A new thread's cwd is its project's folder, the key of that project's own defaults.
+            let prefs = crate::workspace::thread_extras::prefs::get(cx).for_project(&self.cwd);
             // Full access is never a default: it is confirmed per thread.
             self.mode = match Mode::parse(prefs.permission_mode.as_deref().unwrap_or_default()) {
                 Mode::Bypass => Mode::Default,

@@ -30,6 +30,9 @@ mod fork_cut_gone_test;
 #[path = "fork_test.rs"]
 mod fork_test;
 #[cfg(all(test, unix))]
+#[path = "project_defaults_test.rs"]
+mod project_defaults_test;
+#[cfg(all(test, unix))]
 #[path = "prompt_history_test.rs"]
 mod prompt_history_test;
 #[cfg(all(test, unix))]
