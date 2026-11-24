@@ -69,12 +69,14 @@ pub fn clean_title(raw: &str) -> Option<String> {
     (!t.is_empty() && !t.chars().any(char::is_control)).then_some(t)
 }
 
-/// Whether a title line reads as JSON or code rather than words: braces or brackets around it, a fence, a tag, or
-/// code punctuation (`{`, `}`, `;`, `=>`, `</`). Plain titles about code ("Fix AccountsConfig::resolve()") pass.
+/// Whether a title line reads as JSON or code rather than words: a code fence, a JSON array or object, a closing tag,
+/// a line ending in `;`, or code punctuation (`{`, `}`, `=>`). "[WIP] Fix login; add tests" and
+/// "Fix AccountsConfig::resolve()" pass.
 fn looks_like_code(line: &str) -> bool {
-    line.starts_with(['{', '[', '<'])
-        || line.starts_with("```")
-        || ["{", "}", ";", "=>", "</", "\":"]
+    line.starts_with("```")
+        || (line.starts_with('[') && line.ends_with(']'))
+        || line.ends_with(';')
+        || ["{", "}", "=>", "</", "\":"]
             .iter()
             .any(|p| line.contains(p))
 }
@@ -217,6 +219,7 @@ mod tests {
             "fn main() { println!(\"hi\"); }",
             "let x = 1;",
             "<title>Fix login</title>",
+            "[]",
             "items.map(x => x.id)",
         ] {
             assert_eq!(clean_title(raw), None, "{raw:?}");
@@ -226,6 +229,9 @@ mod tests {
             Some("Fix AccountsConfig::resolve() fallback"),
             "a title about code is still a title"
         );
+        for title in ["[WIP] Fix login", "Fix login; add tests"] {
+            assert_eq!(clean_title(title).as_deref(), Some(title));
+        }
     }
 
     #[test]

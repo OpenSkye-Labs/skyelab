@@ -48,7 +48,7 @@ fn pr_label(url: &str) -> String {
 }
 
 /// What a `#` thread row shows beside its title so same-titled threads differ, like the sidebar row: how long
-/// ago it was updated, its worktree branch and its last reply's first words. Project and account are the same for
+/// ago it was updated, its worktree branch and its last reply as one plain line (the menu cuts it). Project and account are the same for
 /// every row (only this project's threads of this account are offered), so they aren't repeated.
 fn thread_detail(t: &Thread, reply: Option<&String>, now_ms: i64) -> String {
     let mut parts = vec![crate::ui::ago(now_ms, t.updated_at)];

@@ -131,7 +131,7 @@ fn steps(
 fn a_row_changed_in_place_keeps_the_reading_offset(cx: &mut TestAppContext) {
     let (view, cx) = long_thread(cx);
     cx.run_until_parked();
-    let row = view.read_with(cx, |v, _| v.own_list().item_count()) - 21; // a 9 KB reply
+    let row = view.read_with(cx, |v, _| v.own_list().item_count()) - 21;
     view.update(cx, |v, cx| {
         v.own_list().scroll_to(gpui::ListOffset {
             item_ix: row,
@@ -149,4 +149,16 @@ fn a_row_changed_in_place_keeps_the_reading_offset(cx: &mut TestAppContext) {
     assert_eq!(anchor(&view, cx), before, "not back at the row's top");
     let offset = view.read_with(cx, |v, _| v.own_list().logical_scroll_top().offset_in_item);
     assert_eq!(offset, px(300.));
+}
+
+/// Rows merged into fewer (a fold): a reader in a row that went lands on the first changed row, not past it.
+#[test]
+fn a_reader_in_removed_rows_lands_on_the_first_changed_row() {
+    let list = gpui::ListState::new(10, gpui::ListAlignment::Top, px(600.));
+    list.scroll_to(gpui::ListOffset {
+        item_ix: 6,
+        offset_in_item: px(40.),
+    });
+    super::timeline_list::splice(&list, 5..7, 1);
+    assert_eq!(list.logical_scroll_top().item_ix, 5);
 }

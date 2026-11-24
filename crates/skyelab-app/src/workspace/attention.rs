@@ -89,6 +89,8 @@ pub fn init(cx: &mut App) {
 struct ThreadNote;
 
 impl Workspace {
+    /// The current thread page's thread only. Whether the user can see a thread (a Compare page shows several) is
+    /// [`Self::shows_thread`].
     pub(super) fn shown_thread(&self, cx: &App) -> Option<i64> {
         self.current_thread()?
             .read(cx)

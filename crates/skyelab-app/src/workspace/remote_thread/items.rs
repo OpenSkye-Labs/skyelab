@@ -23,7 +23,7 @@ impl ItemsView for RemoteThreadView {
         }
         if let Some(rows) = crate::workspace::timeline_fold::rows_of(&self.items, tool_id) {
             let n = rows.len();
-            self.list.splice(rows, n);
+            crate::workspace::timeline_list::splice(&self.list, rows, n);
         }
         cx.notify();
     }
@@ -76,7 +76,7 @@ impl ItemsView for RemoteThreadView {
             .iter()
             .position(|i| matches!(i, Item::Approval(a) if a.id == id))
         {
-            self.list.splice(ix..ix + 1, 1);
+            crate::workspace::timeline_list::splice(&self.list, ix..ix + 1, 1);
         }
         cx.notify();
     }

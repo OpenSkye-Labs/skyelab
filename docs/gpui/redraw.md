@@ -102,6 +102,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   height (5,500 px for a 9 KB reply in `timeline_scroll_jump_test`). The timelines call
   `timeline_list::settle_rows_above` as they build the `list`: it `remeasure_items` the 8 rows above the first drawn
   one, so a parse or asset that lands (and re-renders the view) fixes their heights before the reader gets there.
+  This is the one write `render` makes, an exception to "render only reads": it only marks list rows for measuring
+  (no notify, no entity update), and the rows it marks lie in the leading overdraw the list lays out anyway.
 - `ListState::splice` puts a reader whose top row is in the spliced range back at that row's top (offset 0), and drops
   the rows' heights. For rows changed in place (a tool result, a fold toggle, a row refreshed) use `remeasure_items`,
   which keeps the offset; `timeline_list::splice` does that for the rows a change keeps and splices only the rows added or
