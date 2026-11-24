@@ -91,7 +91,9 @@ pub(super) fn list() -> Value {
         },
         {
             "name": "wait_thread",
-            "description": "Wait until the thread finishes its turn, or timeout_s passes.",
+            "description": "Wait until the thread finishes its turn, or timeout_s passes. Once done, `turn` gives its \
+                last finished turn as data: is_error, summary (its result text), duration_ms, cost_usd and \
+                files_changed.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

@@ -634,6 +634,8 @@ mod thread_model_test;
 mod threads_test;
 #[cfg(test)]
 mod timeline_tests;
+#[cfg(test)]
+mod turn_result_wait_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod unread_test;
 #[cfg(test)]
