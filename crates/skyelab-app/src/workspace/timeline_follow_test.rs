@@ -181,3 +181,66 @@ fn a_tool_whose_agent_died_shows_interrupted_not_running(cx: &mut TestAppContext
         "the call is in the timeline"
     );
 }
+
+/// T3 keeps each thread's scroll: a thread left scrolled up reopens where the reader was, after a close (the mark
+/// is stored, so a restart reopens there too); one left at its end reopens following its end.
+#[gpui::test]
+fn a_reopened_thread_opens_where_the_reader_left_it(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let id = seed(&f.store, &f.project_dir);
+    {
+        let mut s = f.store.lock().expect("store");
+        for n in 0..200 {
+            let (kind, payload) = Record::Prompt(format!("message {n}")).to_row();
+            s.append_event(id, kind, &payload).expect("event");
+        }
+    }
+    let (ws, cx) = open_workspace(&f, cx);
+    let open = |cx: &mut gpui::VisualTestContext| {
+        ws.update_in(cx, |ws, window, cx| {
+            ws.open_thread(&OpenThread { id }, window, cx)
+        });
+        cx.run_until_parked();
+        cx.update(|_, cx| ws.read(cx).open_view(id, cx))
+            .expect("open")
+    };
+    let close = |view: &Entity<ThreadView>, cx: &mut gpui::VisualTestContext| {
+        ws.update_in(cx, |ws, window, cx| ws.close_thread(view, window, cx));
+        cx.run_until_parked();
+    };
+    let mark = |cx: &mut gpui::VisualTestContext| {
+        let _ = cx;
+        f.store.lock().expect("store").scroll_mark(id).expect("read")
+    };
+
+    let view = open(cx);
+    view.read_with(cx, |v, _| {
+        v.own_list().scroll_to(ListOffset {
+            item_ix: 20,
+            offset_in_item: gpui::px(5.),
+        })
+    });
+    close(&view, cx);
+    drop(view);
+    crate::test_wait::wait_until(cx, "the mark stored", |cx| mark(cx) == Some((20, 5.)));
+
+    let view = open(cx);
+    let top = view.read_with(cx, |v, _| {
+        let top = v.own_list().logical_scroll_top();
+        (top.item_ix, f32::from(top.offset_in_item), v.own_list().is_following_tail())
+    });
+    assert_eq!(top, (20, 5., false), "reopened where the reader left it");
+
+    // Back at the end: the mark clears and the thread follows its end again.
+    view.update(cx, |v, cx| {
+        v.own_list().scroll_to_end();
+        cx.notify(); // the end is reached when the list next lays out
+    });
+    cx.run_until_parked();
+    close(&view, cx);
+    drop(view);
+    crate::test_wait::wait_until(cx, "the mark cleared", |cx| mark(cx).is_none());
+    let view = open(cx);
+    assert!(view.read_with(cx, |v, _| v.own_list().is_following_tail()));
+}

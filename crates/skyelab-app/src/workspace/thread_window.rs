@@ -118,6 +118,31 @@ impl Lists {
         }
     }
 
+    /// Where the owner window's reader is, kept so a reopened thread opens there (T3 keeps each thread's scroll):
+    /// `None` while it follows the end.
+    pub(in crate::workspace) fn mark(&self) -> Option<(usize, f32)> {
+        let list = &self.0[0].1;
+        (!list.is_following_tail()).then(|| {
+            let top = list.logical_scroll_top();
+            (top.item_ix, f32::from(top.offset_in_item))
+        })
+    }
+
+    /// Opens every list at a kept [`Self::mark`]; one past the rows (they changed since) opens at the end.
+    pub(in crate::workspace) fn restore(&self, mark: Option<(usize, f32)>) {
+        let Some((item_ix, offset)) = mark else {
+            return;
+        };
+        for (_, l) in &self.0 {
+            if item_ix < l.item_count() {
+                l.scroll_to(gpui::ListOffset {
+                    item_ix,
+                    offset_in_item: px(offset),
+                });
+            }
+        }
+    }
+
     pub(in crate::workspace) fn reset(&self, rows: usize) {
         for (_, l) in &self.0 {
             l.reset(rows);

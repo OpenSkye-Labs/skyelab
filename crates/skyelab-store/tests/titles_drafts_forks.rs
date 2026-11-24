@@ -134,3 +134,19 @@ fn an_unsent_fork_keeps_its_marker_after_its_source_is_deleted() {
         Some("ctx")
     );
 }
+
+#[test]
+fn a_scroll_mark_is_kept_per_thread_and_cleared_back_to_the_end() {
+    let store = Store::open_in_memory().expect("store");
+    let (_, id) = thread(&store);
+    assert_eq!(
+        store.scroll_mark(id).unwrap(),
+        None,
+        "a new thread opens at its end"
+    );
+    store.set_scroll_mark(id, Some((42, 17.5))).unwrap();
+    assert_eq!(store.scroll_mark(id).unwrap(), Some((42, 17.5)));
+    store.set_scroll_mark(id, None).unwrap();
+    assert_eq!(store.scroll_mark(id).unwrap(), None);
+    assert_eq!(store.scroll_mark(id + 1).unwrap(), None, "no such thread");
+}
