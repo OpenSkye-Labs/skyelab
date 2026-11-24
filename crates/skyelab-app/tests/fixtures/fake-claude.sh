@@ -2,14 +2,14 @@
 # `--version` prints a fixed version (the Welcome page's agent list).
 [ "$1" = --version ] && { echo '2.1.0 (Claude Code)'; exit 0; }
 # `auth login` signs the account in: it writes fake-login (fake@example.com) in its config dir. `auth status` answers
-# like Claude Code's JSON: signed in, as fake-login's content, while that file is there.
+# like Claude Code's pretty-printed JSON: signed in, as fake-login's content, while that file is there.
 [ "$1 $2" = "auth login" ] && { echo "fake claude auth login for $CLAUDE_CONFIG_DIR"; mkdir -p "$CLAUDE_CONFIG_DIR" && echo fake@example.com > "$CLAUDE_CONFIG_DIR/fake-login"; exit 0; }
 if [ "$1 $2" = "auth status" ]; then
   if [ -f "$CLAUDE_CONFIG_DIR/fake-login" ]; then
-    printf '{"loggedIn":true,"authMethod":"claude.ai","email":"%s"}\n' "$(cat "$CLAUDE_CONFIG_DIR/fake-login")"
+    printf '{\n  "loggedIn": true,\n  "authMethod": "claude.ai",\n  "email": "%s"\n}\n' "$(cat "$CLAUDE_CONFIG_DIR/fake-login")"
     exit 0
   fi
-  echo '{"loggedIn":false,"authMethod":"none"}'
+  printf '{\n  "loggedIn": false,\n  "authMethod": "none"\n}\n'
   exit 1
 fi
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the

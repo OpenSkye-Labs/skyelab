@@ -44,11 +44,24 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
     }
 }
 
-/// `claude auth status` prints JSON (`loggedIn`, `email`, `orgName`, …) whether or not it is signed in.
+/// `claude auth status` prints JSON (`loggedIn`, `email`, `orgName`, …) whether or not it is signed in. Claude Code
+/// 2.1.331 pretty-prints it over many lines; older ones printed one line.
 fn parse_claude(stdout: &str, stderr: &str) -> Result<Login> {
-    // The JSON is the last `{` line: a notice may come before it.
-    let line = stdout.lines().map(str::trim).rfind(|l| l.starts_with('{'));
-    let Some(Ok(json)) = line.map(serde_json::from_str::<serde_json::Value>) else {
+    // The JSON starts at the last line that opens an object in column 0: a notice may come before it, and a nested
+    // object's lines are indented.
+    let start = stdout
+        .match_indices('\n')
+        .map(|(i, _)| i + 1)
+        .chain([0])
+        .filter(|&i| stdout[i..].starts_with('{'))
+        .max();
+    let json = start.and_then(|i| {
+        serde_json::Deserializer::from_str(&stdout[i..])
+            .into_iter::<serde_json::Value>()
+            .next()?
+            .ok()
+    });
+    let Some(json) = json else {
         bail!("claude auth status: {}", first_line(stderr, stdout));
     };
     match json["loggedIn"].as_bool() {
@@ -125,6 +138,21 @@ mod tests {
             parse_claude("Update available: 2.2.0\n{\"loggedIn\":false}\n", "").expect("parsed"),
             Login::SignedOut,
             "a notice before the JSON"
+        );
+        // Claude Code 2.1.331's real answer (private values replaced): pretty-printed over many lines.
+        let real = "{\n  \"loggedIn\": true,\n  \"authMethod\": \"claude.ai\",\n  \"apiProvider\": \"firstParty\",\n  \"configDirectory\": \"/Users/me/.claude-work\",\n  \"loginExpiresAt\": \"2026-12-20T02:59:27.942Z\",\n  \"email\": \"me@example.com\",\n  \"orgId\": \"00000000-0000-0000-0000-000000000000\",\n  \"orgName\": \"Acme\",\n  \"subscriptionType\": \"team\",\n  \"storedClaudeAiLogin\": true,\n  \"planTier\": \"other\"\n}\n";
+        assert_eq!(
+            parse_claude(real, "").expect("parsed"),
+            Login::SignedIn(Some("me@example.com".into()))
+        );
+        assert_eq!(
+            parse_claude(
+                "Update available\n{\n  \"loggedIn\": false,\n  \"x\": {\n    \"y\": 1\n  }\n}\n",
+                ""
+            )
+            .expect("parsed"),
+            Login::SignedOut,
+            "a notice, then pretty JSON with a nested object"
         );
         let unknown = parse_claude("", "error: unknown command 'auth'").expect_err("not an answer");
         assert!(unknown.to_string().contains("unknown command"), "{unknown}");
