@@ -6,6 +6,8 @@
 //! - [`prepare`] puts a doctype and a Content-Security-Policy meta first in the document, so it governs everything after it:
 //!   scripts, styles, images, fonts and media from inline code, `data:`/`blob:` or https only; no fetch, XHR,
 //!   WebSocket, frames, workers, plugins, forms or `<base>`.
+//! - On Windows, `skyelab_webview2_sys::lock` enforces the same again under the CSP before the page loads: WebView2
+//!   answers every other request itself (a 403) and refuses new windows on the UI thread.
 //! - Then T3's theme variables and base sheet, which the page may override.
 //! - [`shoot`] lays a page out hidden at a width, measures it and snapshots it; the timeline shows that image, so
 //!   no native view ever sits inside a scrolling list. The live page is only for the expand dialog.
@@ -93,13 +95,17 @@ impl Page {
             None => wry::WebViewBuilder::new(),
         };
         let (loaded_tx, loaded) = flume::unbounded();
+        // On Windows the page loads only once the WebView2 lock is on (below), so its first request is covered.
+        #[cfg(not(windows))]
+        let builder = builder
+            .with_html(prepared)
+            .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny);
         let builder = builder
             .with_incognito(true)
             .with_devtools(false)
             // Never the keyboard: on Windows a page being shot is shown (off the window) while it loads.
             .with_focused(false)
             .with_visible(false)
-            .with_html(prepared)
             // The string load is the one navigation; a link, a script or a meta refresh goes nowhere. It is the first
             // one, started before the page has any script, and WebView2 names it `data:text/html…`, not `about:blank`.
             .with_navigation_handler({
@@ -108,7 +114,6 @@ impl Page {
                     first.swap(false, std::sync::atomic::Ordering::SeqCst) || url == "about:blank"
                 }
             })
-            .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny)
             .with_download_started_handler(|_, _| false)
             .with_on_page_load_handler(move |event, _| {
                 if matches!(event, wry::PageLoadEvent::Finished) {
@@ -116,6 +121,18 @@ impl Page {
                 }
             });
         let webview = WebView::build(builder, window, cx).context("create the page's webview")?;
+        // wry refuses new windows from a thread of its own, where WebView2 ignores the answer (the default popup
+        // opens); without a handler it refuses on the spot, and the lock refuses too and blocks every request the
+        // CSP wouldn't allow.
+        #[cfg(windows)]
+        {
+            use wry::WebViewExtWindows as _;
+            skyelab_webview2_sys::lock(&webview.raw().webview()).context("lock the page")?;
+            webview
+                .raw()
+                .load_html(&prepared)
+                .context("load the page")?;
+        }
         let _ = webview.set_visible(false);
         Ok(Self {
             webview: cx.new(|_| webview),
