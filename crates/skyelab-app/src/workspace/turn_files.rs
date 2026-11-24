@@ -27,6 +27,8 @@ pub struct FileStat {
     pub rel: String,
     pub added: usize,
     pub removed: usize,
+    /// Shown instead of "+0 −0" for a file with no lines counted: "binary", "too large to show", or "new file" (empty).
+    pub note: Option<&'static str>,
 }
 
 /// A thread view's timeline state beyond its items: turn files, the find bar, a dismissed failure banner, the
@@ -111,18 +113,30 @@ fn load(
     Some((turns.len(), by_turn, cache))
 }
 
-fn stats(root: &std::path::Path, diffs: Vec<skyelab_git::FileDiff>) -> Vec<FileStat> {
+pub(super) fn stats(root: &std::path::Path, diffs: Vec<skyelab_git::FileDiff>) -> Vec<FileStat> {
     diffs
         .into_iter()
         .filter_map(|d| {
             let rel = d.new_path.clone().or(d.old_path.clone())?;
             let lines = d.hunks.iter().flat_map(|h| &h.lines);
             let count = |f: fn(&skyelab_git::Line) -> bool| lines.clone().filter(|l| f(l)).count();
+            let added = count(|l| matches!(l, skyelab_git::Line::Added(_)));
+            let removed = count(|l| matches!(l, skyelab_git::Line::Removed(_)));
+            let note = if d.binary {
+                Some("binary")
+            } else if d.too_large.is_some() {
+                Some("too large to show") // its lines were dropped, so none were counted
+            } else if added + removed == 0 && d.kind == skyelab_git::ChangeKind::Added {
+                Some("new file")
+            } else {
+                None
+            };
             Some(FileStat {
                 path: root.join(&rel),
                 rel: rel.display().to_string(),
-                added: count(|l| matches!(l, skyelab_git::Line::Added(_))),
-                removed: count(|l| matches!(l, skyelab_git::Line::Removed(_))),
+                added,
+                removed,
+                note,
             })
         })
         .collect()
@@ -160,9 +174,25 @@ impl ThreadView {
     }
 }
 
-fn stat_label(added: usize, removed: usize, cx: &gpui::App) -> impl IntoElement {
+/// "+a −r", or the note when nothing was counted ("new file", "binary"); nothing when neither says anything.
+fn stat_label(
+    added: usize,
+    removed: usize,
+    note: Option<&'static str>,
+    cx: &gpui::App,
+) -> Option<gpui::AnyElement> {
     let theme = cx.theme();
-    h_flex()
+    if added + removed == 0 {
+        return note.map(|n| {
+            div()
+                .flex_shrink_0()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(n)
+                .into_any_element()
+        });
+    }
+    let stat = h_flex()
         .gap_1()
         .flex_shrink_0()
         .font_family(theme.mono_font_family.clone())
@@ -176,7 +206,8 @@ fn stat_label(added: usize, removed: usize, cx: &gpui::App) -> impl IntoElement 
             div()
                 .text_color(ui::ink(theme, theme.danger))
                 .child(format!("−{removed}")),
-        )
+        );
+    Some(stat.into_any_element())
 }
 
 /// The card under turn divider `done`: "N changed files +a −r" and Open turn N diff; opened, one row per file.
@@ -222,7 +253,13 @@ pub(super) fn render<V: ItemsView>(
             .text_color(theme.muted_foreground),
         )
         .child(count)
-        .child(stat_label(added, removed, cx))
+        // One file says what it is; several with nothing counted say nothing.
+        .children(stat_label(
+            added,
+            removed,
+            (files.len() == 1).then(|| files[0].note).flatten(),
+            cx,
+        ))
         .child(div().flex_1())
         .child(
             Button::new(SharedString::from(format!("open-turn-diff-{done}")))
@@ -261,7 +298,7 @@ pub(super) fn render<V: ItemsView>(
                     .text_size(ui::META)
                     .child(f.rel.clone()),
             )
-            .child(stat_label(f.added, f.removed, cx))
+            .children(stat_label(f.added, f.removed, f.note, cx))
     });
     let rows: Vec<_> = rows.collect();
     let theme = cx.theme();
