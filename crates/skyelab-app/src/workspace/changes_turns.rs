@@ -4,13 +4,9 @@
 use super::changes::ChangesView;
 use super::changes_model::{self, Scope};
 use crate::ui;
+use crate::ui::{Button, Checkbox};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Selectable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex};
 
 /// A rewind the user was shown and has to confirm.
 pub(super) struct PendingRewind {

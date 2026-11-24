@@ -7,16 +7,12 @@ use super::thread::GitAction;
 use super::worktree::push_account;
 use super::{SharedStore, lock};
 use crate::ui;
+use crate::ui::Button;
+use crate::ui::TextField;
 use anyhow::{Context as _, Result, bail};
 use gpui::Focusable as _;
 use gpui::{AnyElement, App, Context, Window, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::{Input, Textarea},
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Sizable as _, h_flex, input::Textarea, v_flex};
 use skyelab_core::AccountsConfig;
 use skyelab_git::GitHub;
 use std::ffi::OsString;
@@ -345,7 +341,7 @@ impl ChangesView {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(div().flex_1().child(Input::new(&self.pr_title).small()))
+                    .child(div().flex_1().child(TextField::new(&self.pr_title).small()))
                     .children(self.generate_button(Gen::Pr, cx))
                     .child(
                         button("open-pr", "Open PR".into())

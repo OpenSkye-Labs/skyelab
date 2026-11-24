@@ -5,6 +5,7 @@
 use super::center::Page;
 use super::thread::ThreadView;
 use super::{OpenThread, Workspace};
+use crate::ui::Button;
 use gpui::{Action, AppContext as _, Context, Entity, ParentElement as _, SharedString, Window};
 use skyelab_core::Account;
 use skyelab_store::ModelChoice;
@@ -274,11 +275,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_component::{
-            Sizable as _, WindowExt as _,
-            button::{Button, ButtonVariants as _},
-            dialog::DialogFooter,
-        };
+        use gpui_component::{WindowExt as _, dialog::DialogFooter};
         let id = a.id;
         let others = self.compare_others(id, cx);
         if others.iter().any(|&o| self.working(o, cx)) {

@@ -7,17 +7,12 @@ use super::pr_watch::{checks_look, review_look, state_look};
 use super::usage_page_render::segments;
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::{Button, Tooltip};
 use gpui::{
     AnyElement, Context, Focusable as _, FontWeight, Hsla, IntoElement, Render, SharedString,
     Window, div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _, Theme,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    tooltip::Tooltip,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, Theme, h_flex, v_flex};
 use skyelab_git::{IssueFilter, IssueRow, PrFilter, PrRow, PrState};
 
 const PR_FILTERS: [(Filter, &str); 3] = [

@@ -5,17 +5,13 @@
 
 use super::thread::{ThreadView, ThreadViewEvent};
 use crate::ui;
+use crate::ui::Button;
+use crate::ui::TextField;
 use gpui::{
     AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::{Input, InputState},
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
 use skyelab_git::{Branches, OnDirty, Status};
 use std::path::PathBuf;
 
@@ -323,7 +319,7 @@ impl Render for BranchPicker {
             .id("branch-picker")
             .w(px(280.))
             .gap_1()
-            .child(Input::new(&self.query).small())
+            .child(TextField::new(&self.query).small())
             .child(caption(if picks_base {
                 "Base for the new worktree"
             } else {

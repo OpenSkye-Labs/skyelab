@@ -7,13 +7,11 @@ use super::changes::ChangesView;
 use super::thread_extras::title::Bins;
 use super::thread_model::Record;
 use super::{SharedStore, lock};
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use anyhow::{Context as _, Result, bail};
 use gpui::{AnyElement, App, Context, Window, prelude::*};
-use gpui_component::{
-    Disableable as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-};
+use gpui_component::Icon;
 use skyelab_core::AccountsConfig;
 use std::path::{Path, PathBuf};
 
