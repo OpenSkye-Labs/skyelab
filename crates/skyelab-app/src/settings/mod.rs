@@ -177,7 +177,7 @@ impl Settings {
         };
         let id_input = input("work", window, cx);
         let label_input = input("Work", window, cx);
-        let dir_input = input("/Users/you/.claude-work", window, cx);
+        let dir_input = input("Empty: ~/.claude-<id> or ~/.codex-<id>", window, cx);
         let gh_input = input("/Users/you/.config/gh-work", window, cx);
         let test_input = input("/path/to/a/folder", window, cx);
         let keys_search = input("Search shortcuts", window, cx);

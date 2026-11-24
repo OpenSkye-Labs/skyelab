@@ -15,6 +15,12 @@ pub struct FoundAccount {
     pub label: String,
 }
 
+/// Where a new account keeps its login when the user names no folder: `~/.claude-<id>` or `~/.codex-<id>`, the
+/// pattern [`find_accounts`] offers back.
+pub fn default_config_dir(home: &Path, provider: Provider, id: &str) -> PathBuf {
+    home.join(format!(".{}-{id}", provider.label().to_lowercase()))
+}
+
 /// Names whose presence marks a provider's config dir. Never credential files: only their absence matters here.
 fn markers(provider: Provider) -> &'static [&'static str] {
     match provider {

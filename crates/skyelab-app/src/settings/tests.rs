@@ -244,3 +244,33 @@ fn binding_picker_shows_labels_and_picks_ids() {
         ]
     );
 }
+
+#[gpui::test]
+fn an_empty_config_folder_defaults_to_home_dot_provider_id(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("accounts.toml");
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        Settings::new(
+            Some(path.clone()),
+            AccountsConfig::default(),
+            None,
+            window,
+            cx,
+        )
+    });
+    let label = view.read_with(cx, |v, _| v.label_input.clone());
+    label.update_in(cx, |s, window, cx| s.set_value("Side Project", window, cx));
+    view.update_in(cx, |v, window, cx| v.save_account(&SaveAccount, window, cx));
+    let saved = AccountsConfig::load(&path).expect("saved");
+    let home = dirs::home_dir().expect("a home dir");
+    assert_eq!(saved.accounts[0].id, "side-project");
+    assert_eq!(
+        saved.accounts[0].config_dir,
+        home.join(".claude-side-project"),
+        "nothing typed: the folder find_accounts would offer"
+    );
+}

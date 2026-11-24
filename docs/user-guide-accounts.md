@@ -32,7 +32,8 @@ run **Set Up Accounts** from the command palette.
 
 1. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude** or **Codex**, give
    it a name (`Work`; the id is made from it unless you type one), choose its config folder
-   (`/Users/you/.claude-work`, or **Choose…**), then click **Add account**. Each account shows as a card: its provider
+   (`/Users/you/.claude-work`, or **Choose…**; left empty it is `~/.claude-<id>`, or `~/.codex-<id>` for Codex), then
+   click **Add account**. Each account shows as a card: its provider
    mark in the account's color, its name (click it, or the pencil, to edit in place) and its config folder, with a
    copy button.
 2. Press **Log in** on its card. For Claude that opens a terminal tab running `claude auth login` with

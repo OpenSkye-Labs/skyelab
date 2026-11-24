@@ -193,3 +193,19 @@ fn onboarding_skips_a_link_to_a_dir_already_offered_or_added() {
         .collect();
     assert_eq!(ids, ["claude-work", "codex"], "added through its link");
 }
+
+#[test]
+fn a_new_accounts_default_folder_is_one_find_accounts_offers_back() {
+    let home = tempfile::tempdir().expect("tempdir");
+    let h = home.path();
+    let dir = default_config_dir(h, Provider::Claude, "work");
+    assert_eq!(dir, h.join(".claude-work"));
+    assert_eq!(
+        default_config_dir(h, Provider::Codex, "ci"),
+        h.join(".codex-ci")
+    );
+    fs::create_dir_all(&dir).expect("mkdir");
+    fs::write(dir.join("settings.json"), "{}").expect("write");
+    let found = find_accounts(h, &AccountsConfig::default());
+    assert!(found.iter().any(|f| f.config_dir == dir), "{found:?}");
+}

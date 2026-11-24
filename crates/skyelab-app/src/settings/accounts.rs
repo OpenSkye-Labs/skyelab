@@ -50,16 +50,25 @@ impl Settings {
         let value = |input: &Entity<InputState>| input.read(cx).value().trim().to_string();
         let label = value(&self.label_input);
         let typed_id = value(&self.id_input);
+        let id = self.editing.clone().unwrap_or_else(|| {
+            if typed_id.is_empty() {
+                slug(&label)
+            } else {
+                typed_id
+            }
+        });
+        let typed_dir = value(&self.dir_input);
+        // A new account with no folder typed gets `~/.claude-<id>` (or `.codex-`); the login creates it.
+        let config_dir = match dirs::home_dir() {
+            Some(home) if typed_dir.is_empty() && self.editing.is_none() && !id.is_empty() => {
+                skyelab_core::onboarding::default_config_dir(&home, self.provider, &id)
+            }
+            _ => PathBuf::from(typed_dir),
+        };
         let account = Account {
-            id: self.editing.clone().unwrap_or_else(|| {
-                if typed_id.is_empty() {
-                    slug(&label)
-                } else {
-                    typed_id
-                }
-            }),
+            id,
             label,
-            config_dir: PathBuf::from(value(&self.dir_input)),
+            config_dir,
             provider: self.provider,
             gh_config_dir: Some(value(&self.gh_input))
                 .filter(|v| !v.is_empty())
