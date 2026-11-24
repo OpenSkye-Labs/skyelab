@@ -11,6 +11,9 @@ with no binding doesn't fall back to a default. SkyeLab asks you to bind it firs
 
 > **Status: early, pre-release.** Expect rough edges and breaking changes. macOS is the main platform.
 
+**New here, or coming from T3?** Start with [Getting started](docs/getting-started.md): install, accounts, binding
+folders, importing your sessions and the everyday loop.
+
 ![A thread with its Changes open in the right panel](docs/images/thread.png)
 
 ## Features
