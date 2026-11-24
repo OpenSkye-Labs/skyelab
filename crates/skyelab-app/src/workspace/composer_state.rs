@@ -192,7 +192,7 @@ impl ThreadView {
         }
     }
 
-    /// Loads the model pick (the thread's, else the project's default) and the footer's facts.
+    /// Loads the model pick (the thread's; a new thread's as `ThreadSettings::resolve_model` layers it) and the footer's facts.
     pub(in crate::workspace) fn load_composer(&mut self, cx: &mut Context<Self>) {
         let (store, thread, project) = (
             self.backend.store.clone(),
@@ -219,12 +219,10 @@ impl ThreadView {
                     {
                         pick = ModelChoice::default();
                     }
-                    // Never picked in this project: a new thread takes Settings → Threads' default for its provider.
-                    if let (None, Some(p), true) =
-                        (&this.thread, provider, pick == ModelChoice::default())
-                    {
-                        let (model, effort) =
-                            crate::workspace::thread_extras::prefs::get(cx).model_for(p);
+                    // A new thread: the project's own default, else its remembered pick, else Settings' default.
+                    if let (None, Some(p)) = (&this.thread, provider) {
+                        let (model, effort) = crate::workspace::thread_extras::prefs::get(cx)
+                            .resolve_model(&this.cwd, p, (None, None), (pick.model, pick.effort));
                         pick = ModelChoice { model, effort };
                     }
                     this.composer.pick = pick;

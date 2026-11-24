@@ -26,6 +26,9 @@ pub use app_settings::{
 };
 pub mod terminal_context;
 pub mod terminal_layout;
+pub mod thread_defaults;
+#[cfg(test)]
+mod thread_defaults_test;
 pub mod update;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.

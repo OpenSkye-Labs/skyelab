@@ -96,7 +96,7 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
   worktree can't be deleted until you discard the worktree.
 - **Manage a project** from the project filter: **Manage projects**, then the project, then **Rename**,
-  **Open in editor**, **Account bindings…** (opens Settings), **Import sessions…** or **Remove from SkyeLab**. **Switch to project** in the
+  **Open in editor**, **Project settings…** (the project's own new-thread defaults), **Account bindings…** (opens Settings), **Import sessions…** or **Remove from SkyeLab**. **Switch to project** in the
   palette narrows the list to that project. Removing never touches the folder or its
   files, and keeps the threads' history: add the same folder again and the project comes back with its threads. If
   agents are running in it, SkyeLab asks first, and removing stops them.

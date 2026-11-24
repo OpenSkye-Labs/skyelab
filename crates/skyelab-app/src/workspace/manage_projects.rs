@@ -43,6 +43,12 @@ impl Workspace {
             }
             ProjectOp::OpenFolder => self.open_dir_in_editor(project.path, None, window, cx),
             ProjectOp::Accounts => window.dispatch_action(Box::new(super::OpenSettings), cx),
+            ProjectOp::Settings => {
+                self.open_settings_at(crate::settings::Section::Chat, window, cx);
+                if let Some(settings) = self.settings.clone() {
+                    settings.update(cx, |s, cx| s.set_scope(Some(project.path), window, cx));
+                }
+            }
             ProjectOp::ImportSessions => self.open_import(id, window, cx),
             ProjectOp::Remove => {
                 let live = self

@@ -160,6 +160,9 @@ pub struct ThreadSettings {
     pub new_worktree: bool,
     /// Minutes between background `git fetch`es of the shown thread's folder; 0 is off.
     pub fetch_minutes: u32,
+    /// Project folder → its own new-thread defaults over these (Settings' "Applying settings for <project>").
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub projects: BTreeMap<PathBuf, crate::thread_defaults::ThreadDefaults>,
 }
 
 impl ThreadSettings {
@@ -184,6 +187,7 @@ impl Default for ThreadSettings {
             codex_effort: None,
             new_worktree: false,
             fetch_minutes: 5,
+            projects: BTreeMap::new(),
         }
     }
 }

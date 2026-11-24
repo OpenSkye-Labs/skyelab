@@ -123,7 +123,6 @@ impl Settings {
     }
 
     pub(super) fn render_worktrees(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let t = prefs::get(cx);
         section(
             "Worktrees",
             "A worktree gives a thread's agent its own branch and folder, so parallel threads don't collide.",
@@ -131,13 +130,7 @@ impl Settings {
                 true,
                 "New threads start in a worktree",
                 "Turns on \"New worktree\" under a new thread's composer.",
-                Switch::new("threads-worktree")
-                    .checked(t.new_worktree)
-                    .accessibility_label("New threads start in a worktree")
-                    .on_click(cx.listener(|this, on: &bool, _, cx| {
-                        let on = *on;
-                        this.set_threads(|t| t.new_worktree = on, cx)
-                    })),
+                self.worktree_control(cx),
                 cx,
             )],
             cx,
@@ -148,18 +141,23 @@ impl Settings {
     /// The header's Restore defaults: this section's preferences back to how a fresh install has them.
     pub(super) fn restore_defaults(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let fresh = ThreadSettings::default();
+        if let Some(dir) = self.scope.clone()
+            && matches!(self.section, Section::Chat | Section::Worktrees)
+        {
+            return self.restore_project(dir, window, cx);
+        }
         match self.section {
             Section::Appearance => {
                 let save = crate::ui::themes::set(Default::default(), cx);
                 self.report(save, "Appearance", cx);
             }
             Section::Chat => self.set_threads(
-                |t| {
-                    t.permission_mode = fresh.permission_mode;
-                    t.claude_model = fresh.claude_model;
-                    t.claude_effort = fresh.claude_effort;
-                    t.codex_model = fresh.codex_model;
-                    t.codex_effort = fresh.codex_effort;
+                move |t| {
+                    t.permission_mode = fresh.permission_mode.clone();
+                    t.claude_model = fresh.claude_model.clone();
+                    t.claude_effort = fresh.claude_effort.clone();
+                    t.codex_model = fresh.codex_model.clone();
+                    t.codex_effort = fresh.codex_effort.clone();
                     t.generate_titles = fresh.generate_titles;
                 },
                 cx,
@@ -168,14 +166,16 @@ impl Settings {
                 let save = prefs::save_diff(DiffSettings::default(), cx);
                 self.report(save, "Diffs", cx);
                 self.set_threads(
-                    |t| {
+                    move |t| {
                         t.fetch_minutes = fresh.fetch_minutes;
                         t.generate_git_text = fresh.generate_git_text;
                     },
                     cx,
                 );
             }
-            Section::Worktrees => self.set_threads(|t| t.new_worktree = fresh.new_worktree, cx),
+            Section::Worktrees => {
+                self.set_threads(move |t| t.new_worktree = fresh.new_worktree, cx)
+            }
             Section::General => {
                 self.editor_input
                     .update(cx, |i, cx| i.set_value("", window, cx));

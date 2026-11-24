@@ -121,6 +121,10 @@ pub struct Settings {
     /// Settings → Chat's Codex model field, and why its last Chat or Diffs save failed.
     pub(super) codex_model_input: Entity<InputState>,
     pub(super) threads_error: Option<String>,
+    /// Chat and Worktrees edit this project folder's own defaults (`None`: All projects).
+    pub scope: Option<PathBuf>,
+    /// The local projects the scope menu lists (name, folder); the workspace sets them as the modal opens.
+    pub projects: Vec<(SharedString, PathBuf)>,
     /// Settings → Keybindings' search, and the rows it leaves.
     pub(super) keys_search: Entity<InputState>,
     /// Where the focus was when the modal opened; it goes back there on close.
@@ -162,7 +166,8 @@ impl Settings {
         let search_input = input("Search", window, cx);
         let editor_input = input("$VISUAL, $EDITOR, then code or zed", window, cx);
         editor_input.update(cx, |i, cx| i.set_value(general::editor(cx), window, cx));
-        let codex_model_input = input("Account default", window, cx);
+        // Empty means the account's default app-wide and Inherit for a project; the row's description says which.
+        let codex_model_input = input("Not set", window, cx);
         let codex_model = crate::workspace::thread_extras::prefs::get(cx).codex_model;
         codex_model_input.update(cx, |i, cx| {
             i.set_value(codex_model.unwrap_or_default(), window, cx)
@@ -237,6 +242,8 @@ impl Settings {
             test_input,
             codex_model_input,
             threads_error: None,
+            scope: None,
+            projects: Vec::new(),
             keys_search,
             keys: Vec::new(),
             gh_logins: HashMap::new(),
@@ -398,11 +405,16 @@ mod general;
 mod keys;
 mod nav;
 mod page;
+mod project_scope;
 pub use page::Section;
 mod source_control;
 mod threads;
 mod widgets;
 
+#[cfg(test)]
+mod outside_edit_test;
+#[cfg(test)]
+mod project_scope_test;
 #[cfg(test)]
 mod tests;
 

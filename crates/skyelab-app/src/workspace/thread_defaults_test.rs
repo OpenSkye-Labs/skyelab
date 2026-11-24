@@ -53,9 +53,8 @@ fn new_threads_start_with_the_saved_defaults(cx: &mut TestAppContext) {
     });
 
     // Saving from Settings writes the file, keeping the rest of it.
-    let mut next = cx.update(|_, cx| prefs::get(cx));
-    next.generate_titles = false;
-    cx.update(|_, cx| prefs::save(next, cx)).detach();
+    cx.update(|_, cx| prefs::edit(|t| t.generate_titles = false, cx))
+        .detach();
     wait_until(cx, "the file saved", |_| {
         skyelab_core::AppSettings::load(&path).is_ok_and(|s| !s.threads.generate_titles)
     });

@@ -1,19 +1,13 @@
-//! Settings → Chat (what new threads start with) and Diffs & pull requests. A thread's own pick still wins.
+//! Settings → Chat (what new threads start with, app-wide or for one project) and Diffs & pull requests. A thread's
+//! own pick still wins.
 
 use super::Settings;
 use super::widgets::{section, setting};
 use crate::workspace::thread_extras::prefs;
-use gpui::{AnyElement, Context, SharedString, div, prelude::*};
-use gpui_component::{
-    Sizable as _,
-    button::Button,
-    h_flex,
-    input::Input,
-    menu::{DropdownMenu as _, PopupMenuItem},
-    switch::Switch,
-    v_flex,
-};
+use gpui::{AnyElement, Context, div, prelude::*};
+use gpui_component::{Sizable as _, h_flex, input::Input, switch::Switch, v_flex};
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS, Mode};
+use skyelab_core::thread_defaults::ThreadField;
 use skyelab_core::{DiffSettings, ThreadSettings};
 
 /// The permission modes a new thread may start in. Full access is confirmed per thread, never a default.
@@ -53,12 +47,10 @@ impl Settings {
     /// Applies `change` to the new-thread settings (Chat, Diffs, Worktrees) and saves it; a failed save shows on the page.
     pub(super) fn set_threads(
         &mut self,
-        change: impl FnOnce(&mut ThreadSettings),
+        change: impl Fn(&mut ThreadSettings) + Send + 'static,
         cx: &mut Context<Self>,
     ) {
-        let mut next = prefs::get(cx);
-        change(&mut next);
-        let save = prefs::save(next, cx);
+        let save = prefs::edit(change, cx);
         cx.spawn(async move |this, cx| {
             let failed = save
                 .await
@@ -81,14 +73,13 @@ impl Settings {
             return cx.notify();
         }
         let model = (!typed.is_empty()).then_some(typed);
-        if prefs::get(cx).codex_model != model {
-            self.set_threads(|t| t.codex_model = model, cx);
+        if self.shown_field(ThreadField::CodexModel, cx) != model {
+            self.set_shown_field(ThreadField::CodexModel, model, cx);
         }
     }
 
     pub(super) fn render_chat(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = prefs::get(cx);
-        let mode = Mode::parse(t.permission_mode.as_deref().unwrap_or_default());
         let modes = MODES
             .iter()
             .map(|(m, l)| (Some(m.as_str().to_owned()), (*l).to_owned()))
@@ -111,33 +102,29 @@ impl Settings {
                 true,
                 "Default permissions",
                 "What a new thread's agent may do without asking. Full access is picked per thread, never here.",
-                self.choice(
-                    "threads-mode",
-                    &Some(mode.as_str().to_owned()),
-                    modes,
-                    |t, v| t.permission_mode = v,
-                    cx,
-                ),
+                self.field_choice("threads-mode", ThreadField::PermissionMode, modes, cx),
                 cx,
             ),
             setting(
                 false,
                 "Claude model",
-                "For new Claude threads in a project that hasn't picked one yet.",
+                if self.scope.is_some() {
+                    "For this project's new Claude threads, over the last model picked in it."
+                } else {
+                    "For new Claude threads in a project that hasn't picked one yet."
+                },
                 h_flex()
                     .gap_2()
-                    .child(self.choice(
+                    .child(self.field_choice(
                         "threads-claude-model",
-                        &t.claude_model,
+                        ThreadField::ClaudeModel,
                         claude_models,
-                        |t, v| t.claude_model = v,
                         cx,
                     ))
-                    .child(self.choice(
+                    .child(self.field_choice(
                         "threads-claude-effort",
-                        &t.claude_effort,
+                        ThreadField::ClaudeEffort,
                         efforts(CLAUDE_EFFORTS),
-                        |t, v| t.claude_effort = v,
                         cx,
                     )),
                 cx,
@@ -145,7 +132,11 @@ impl Settings {
             setting(
                 false,
                 "Codex model",
-                "A Codex model id (empty: the account's default), and its reasoning effort.",
+                if self.scope.is_some() {
+                    "A Codex model id (empty: inherit All projects'), and its reasoning effort."
+                } else {
+                    "A Codex model id (empty: the account's default), and its reasoning effort."
+                },
                 h_flex()
                     .gap_2()
                     .child(
@@ -153,11 +144,10 @@ impl Settings {
                             .w(gpui::px(160.))
                             .child(Input::new(&self.codex_model_input).small()),
                     )
-                    .child(self.choice(
+                    .child(self.field_choice(
                         "threads-codex-effort",
-                        &t.codex_effort,
+                        ThreadField::CodexEffort,
                         efforts(&CODEX_EFFORTS),
-                        |t, v| t.codex_effort = v,
                         cx,
                     )),
                 cx,
@@ -173,7 +163,7 @@ impl Settings {
                 .accessibility_label("Generate thread titles")
                 .on_click(cx.listener(|this, on: &bool, _, cx| {
                     let on = *on;
-                    this.set_threads(|t| t.generate_titles = on, cx)
+                    this.set_threads(move |t| t.generate_titles = on, cx)
                 })),
             cx,
         )];
@@ -185,12 +175,15 @@ impl Settings {
                 defaults,
                 cx,
             ))
-            .child(section(
-                "Titles",
-                "How threads get their names.",
-                titles,
-                cx,
-            ))
+            // App-wide only: a project picked shows just what it can override.
+            .when(self.scope.is_none(), |d| {
+                d.child(section(
+                    "Titles",
+                    "How threads get their names.",
+                    titles,
+                    cx,
+                ))
+            })
             .into_any_element()
     }
 
@@ -278,7 +271,7 @@ impl Settings {
                     .accessibility_label("Generate commit messages and PRs")
                     .on_click(cx.listener(|this, on: &bool, _, cx| {
                         let on = *on;
-                        this.set_threads(|t| t.generate_git_text = on, cx)
+                        this.set_threads(move |t| t.generate_git_text = on, cx)
                     })),
                 cx,
             ),
@@ -300,7 +293,7 @@ impl Settings {
             .into_any_element()
     }
 
-    /// A dropdown of `options` (value, label) setting one field of the new-thread settings.
+    /// A dropdown of `options` (value, label) setting one app-wide field of the new-thread settings.
     fn choice(
         &self,
         id: &'static str,
@@ -309,32 +302,12 @@ impl Settings {
         set: fn(&mut ThreadSettings, Option<String>),
         cx: &Context<Self>,
     ) -> AnyElement {
-        let label: SharedString = options
+        let label = options
             .iter()
             .find(|(v, _)| v == current)
-            .map_or_else(|| current.clone().unwrap_or_default(), |(_, l)| l.clone())
-            .into();
-        let current = current.clone();
-        let view = cx.entity().downgrade();
-        Button::new(id)
-            .outline()
-            .small()
-            .label(label)
-            .dropdown_caret(true)
-            .dropdown_menu(move |mut menu, _, _| {
-                for (value, label) in options.clone() {
-                    let view = view.clone();
-                    let on = value == current;
-                    menu = menu.item(PopupMenuItem::new(label).checked(on).on_click(
-                        move |_, _, cx| {
-                            let value = value.clone();
-                            let _ =
-                                view.update(cx, |this, cx| this.set_threads(|t| set(t, value), cx));
-                        },
-                    ));
-                }
-                menu
-            })
-            .into_any_element()
+            .map_or_else(|| current.clone().unwrap_or_default(), |(_, l)| l.clone());
+        let pick: super::project_scope::Pick =
+            std::rc::Rc::new(move |this, v, cx| this.set_threads(move |t| set(t, v.clone()), cx));
+        self.dropdown(id, label, current.clone(), options, pick, cx)
     }
 }
