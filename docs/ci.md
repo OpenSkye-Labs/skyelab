@@ -75,7 +75,7 @@ Only macOS is tested locally. Check the others like this before merging somethin
 
 - A cold build of the test targets takes ~15 min on Linux and Windows, and the app's unit tests ~13 min on
   Linux (one binary, ~800 tests that wait on real processes) against ~1 min on Windows (the Unix-only fake-agent
-  tests don't run there). Jobs time out at 60 min (test) and 30 min (clippy).
+  tests don't run there). Jobs time out at 70 min (test; its test step at 55) and 30 min (clippy).
 - `Swatinem/rust-cache` saves only after a successful job by default. The test job had never passed, so it
   rebuilt from nothing every run; `cache-on-failure: true` keeps the build either way.
 
@@ -86,7 +86,7 @@ Only macOS is tested locally. Check the others like this before merging somethin
   `curl -sSL -H "Authorization: Bearer $(gh auth token)" https://api.github.com/repos/OpenSkye-Labs/skyelab/actions/jobs/<id>/logs`.
   Search it for `FAILED`, `panicked` and `error: test failed`. The failure annotation's line number tells you how
   long the full log is.
-- A real hang: the test step stops at 55 min, before the job's 60, so the cache still saves. Every test that runs
+- A real hang: the test step stops at 55 min, 15 before the job's 70, so the cache still saves. Every test that runs
   past 60 s is named in the log ("has been running for over 60 seconds"). The hung test is a named one that never
   prints `ok`.
 

@@ -391,7 +391,8 @@ impl Env {
         self.daemon = None;
         let backend = self.backend();
         let mut last = None;
-        for _ in 0..100 {
+        // Daemon::start already waits up to 0.5 s for a busy port; this makes it about 2 s in all.
+        for _ in 0..4 {
             match Daemon::start(config(self.port), self.tailnet.clone(), backend.clone()) {
                 Ok(d) => {
                     self.port = d.local_addrs()[0].port();
