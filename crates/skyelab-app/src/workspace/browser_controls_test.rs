@@ -13,6 +13,8 @@ struct Page {
     url: RefCell<String>,
     loads: RefCell<Option<flume::Sender<String>>>,
     finds: RefCell<Vec<(String, bool, bool)>>,
+    /// Set: find answers wait here instead of landing at once.
+    held: RefCell<Option<Option<FindDone>>>,
 }
 
 impl Engine for Page {
@@ -38,6 +40,10 @@ impl Engine for Page {
         _: &gpui::App,
     ) -> anyhow::Result<()> {
         (self.finds.borrow_mut()).push((query.to_owned(), backwards, restart));
+        if let Some(held) = &mut *self.held.borrow_mut() {
+            *held = Some(done);
+            return Ok(());
+        }
         done(query == "hello");
         Ok(())
     }
@@ -183,5 +189,32 @@ fn copy_url_needs_a_page(cx: &mut TestAppContext) {
         copied.as_deref(),
         Some("before"),
         "nothing loaded, nothing copied"
+    );
+}
+
+#[gpui::test]
+fn a_find_answer_from_the_old_page_does_not_land_on_the_new_one(cx: &mut TestAppContext) {
+    let (_ws, browser, page, cx) = agent_tab("http://localhost:3000/", cx);
+    cx.simulate_keystrokes(skyelab_browser::FIND_KEY);
+    cx.run_until_parked();
+    *page.held.borrow_mut() = Some(None);
+    cx.simulate_input("nope");
+    cx.run_until_parked();
+    // The page navigates before the old page's miss arrives.
+    browser
+        .update(cx, |b, cx| b.navigate("http://localhost:3000/next", cx))
+        .expect("load");
+    cx.run_until_parked();
+    let done = page
+        .held
+        .borrow_mut()
+        .take()
+        .flatten()
+        .expect("a find waits");
+    done(false);
+    cx.run_until_parked();
+    assert!(
+        !browser.read_with(cx, |b, _| b.find_missed()),
+        "STALE_FIND: the old page's miss shows on the new page"
     );
 }
