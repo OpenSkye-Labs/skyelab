@@ -58,10 +58,10 @@ impl Settings {
             }
         });
         let typed_dir = value(&self.dir_input);
-        // A new account with no folder typed gets `~/.claude-<id>` (or `.codex-`); the login creates it.
         let config_dir = match dirs::home_dir() {
-            Some(home) if typed_dir.is_empty() && self.editing.is_none() && !id.is_empty() => {
+            Some(home) if typed_dir.is_empty() && self.editing.is_none() => {
                 skyelab_core::onboarding::default_config_dir(&home, self.provider, &id)
+                    .unwrap_or_default()
             }
             _ => PathBuf::from(typed_dir),
         };

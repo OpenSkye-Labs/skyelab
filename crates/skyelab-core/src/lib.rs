@@ -229,14 +229,30 @@ impl AccountsConfig {
         if self.accounts.iter().any(|a| a.id == account.id) {
             bail!("account '{}' already exists", account.id);
         }
+        self.check_own_dir(&account)?;
         self.accounts.push(account);
         Ok(())
+    }
+
+    /// An account is its config dir: no two accounts share one.
+    fn check_own_dir(&self, account: &Account) -> Result<()> {
+        let real = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.into());
+        let mine = real(&account.config_dir);
+        match self
+            .accounts
+            .iter()
+            .find(|a| a.id != account.id && real(&a.config_dir) == mine)
+        {
+            Some(o) => bail!("account '{}' already uses {}", o.id, o.config_dir.display()),
+            None => Ok(()),
+        }
     }
 
     /// Replace the label and config dirs of the account with the same id. Its provider stays: its
     /// threads hold that provider's session ids, which the other CLI can't resume.
     pub fn update_account(&mut self, account: Account) -> Result<()> {
         check_account(&account)?;
+        self.check_own_dir(&account)?;
         let slot = self
             .accounts
             .iter_mut()

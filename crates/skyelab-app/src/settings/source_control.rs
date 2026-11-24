@@ -58,27 +58,48 @@ impl Settings {
             self.error = Some(format!("no account '{}'", a.id));
             return cx.notify();
         };
-        let mut dir = account.gh_config_dir.clone();
-        // No GitHub folder yet: give it `~/.config/gh-<id>` (saved first, so the login lands where it's read).
-        if dir.is_none()
-            && let Some(home) = dirs::home_dir()
-        {
-            let gh = skyelab_core::onboarding::default_gh_dir(&home, &account.id);
-            let set = gh.clone();
+        // No GitHub folder yet: give it `~/.config/gh-<id>`, saved before the login so it lands where it's read.
+        if account.gh_config_dir.is_none() {
+            let Some(home) = dirs::home_dir() else {
+                self.error = Some("no home folder to put a GitHub login in".into());
+                return cx.notify();
+            };
+            let Some(gh) = skyelab_core::onboarding::default_gh_dir(&home, &account.id) else {
+                self.error = Some(format!(
+                    "'{}' can't name a folder: set its GitHub folder in Accounts",
+                    account.id
+                ));
+                return cx.notify();
+            };
+            let id = account.id.clone();
+            // Only that field, on the account as the file has it now (apply re-reads it): nothing else reverts.
             let saved = self.apply(
                 move |c| {
-                    c.update_account(skyelab_core::Account {
-                        gh_config_dir: Some(set),
-                        ..account
-                    })
+                    let mut now = c
+                        .accounts
+                        .iter()
+                        .find(|x| x.id == id)
+                        .cloned()
+                        .ok_or_else(|| anyhow::anyhow!("no account '{id}'"))?;
+                    if now.gh_config_dir.is_none() {
+                        now.gh_config_dir = Some(gh);
+                        c.update_account(now)?;
+                    }
+                    Ok(())
                 },
                 window,
                 cx,
             );
-            if saved {
-                dir = Some(gh);
+            if !saved {
+                return; // apply shows why
             }
         }
+        let dir = self
+            .config
+            .accounts
+            .iter()
+            .find(|acct| acct.id == a.id)
+            .and_then(|acct| acct.gh_config_dir.clone());
         match dir {
             Some(dir) => cx.emit(SettingsEvent::GhLogin { dir }),
             None => {

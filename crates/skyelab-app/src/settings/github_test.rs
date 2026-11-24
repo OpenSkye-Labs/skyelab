@@ -146,3 +146,46 @@ fn log_in_without_a_github_folder_sets_the_default_one_first(cx: &mut TestAppCon
         "then the login terminal is asked for"
     );
 }
+
+#[gpui::test]
+fn set_up_keeps_what_the_file_says_about_the_account(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+        cx.set_global(crate::workspace::GhBin(fake_gh()));
+    });
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let path = tmp.path().join("accounts.toml");
+    let base = Account {
+        id: "acme".into(),
+        label: "Acme".into(),
+        provider: Provider::Claude,
+        config_dir: "/home/me/.claude-acme".into(),
+        gh_config_dir: None,
+        ssh_agent: false,
+    };
+    let mut config = AccountsConfig::default();
+    config.add_account(base.clone()).expect("add");
+    config.save(&path).expect("save");
+    let (view, cx) = cx
+        .add_window_view(|window, cx| Settings::new(Some(path.clone()), config, None, window, cx));
+    // Edited elsewhere after the page loaded: Set up must not put the page's old copy back.
+    let mut disk = AccountsConfig::load(&path).expect("load");
+    disk.update_account(Account {
+        label: "Acme Corp".into(),
+        ssh_agent: true,
+        ..base
+    })
+    .expect("edit");
+    disk.save(&path).expect("save");
+    view.update_in(cx, |v, window, cx| {
+        v.gh_log_in(&GhLogIn { id: "acme".into() }, window, cx)
+    });
+    let saved = AccountsConfig::load(&path).expect("saved");
+    assert_eq!(saved.accounts[0].label, "Acme Corp");
+    assert!(
+        saved.accounts[0].ssh_agent,
+        "ssh_agent kept as the file has it"
+    );
+    assert!(saved.accounts[0].gh_config_dir.is_some());
+}
