@@ -22,6 +22,15 @@ Only macOS is tested locally. Check the others like this before merging somethin
 - `/w` or `/home/me/x` is not absolute (no drive). Code that checks `is_absolute()` (session import, account config
   dirs, bindings) rejects it, so tests build paths from a temp dir, or `C:\w` under `cfg(windows)`.
 - `canonicalize` returns `\\?\C:\…`, git prints `C:/…`. Canonicalize both sides before comparing.
+- Git can't take a `\\?\C:\…` path as a folder to create: `git worktree add \\?\C:\…` fails with "could not
+  create leading directories of '//?/C:/…': Invalid argument" (`-C \\?\…` works). Paths handed to git as
+  arguments go through `skyelab_core::files::without_verbatim` (`create_worktree`, `remove_worktree`, and test
+  setup that runs `git worktree add` itself).
+- Git lists paths with `/`; a path built with `join` has `\`. Compare them by components (`Path` equality does),
+  never as strings or as string keys (the rewind's `Removed` set lowercases and joins parts with `/`).
+- A server that closes a socket with the client's bytes still unread sends a reset, and Windows then discards
+  what it had already sent before the client reads it (os error 10053). A fake server that "answers then hangs
+  up" shuts down its write side and drains the client first.
 - Git for Windows checks text out with CRLF (`core.autocrlf=true`). CI turns it off before checkout so fixtures
   are the committed bytes; test repos made in a test set `core.autocrlf=false` themselves.
 - Fakes that are shell scripts (`fake-claude.sh`, `fake-gh.sh`, …), `mkfifo`, symlinks and Unix permissions:
@@ -30,9 +39,16 @@ Only macOS is tested locally. Check the others like this before merging somethin
 **Linux**
 
 - `cmd-` in a test keystroke is the super key: a `secondary-` binding is ctrl there. Write `secondary-…`.
+- `std::fs::copy` stamps the copy with the current time (macOS and Windows keep the source's mtime). A copied
+  git index must keep the original's mtime: git trusts an entry's stat only when the file is older than the
+  index, and ext4's timestamps are coarse, so a same-size edit right after the index was written looked
+  unchanged in the copy (`snapshot_tree`'s scratch index; the Commit snapshot failed only on Linux).
 
 **macOS runners**
 
+- macos-latest runners can be short: a job GitHub never hands to a runner ends as **cancelled** after about
+  15 min with the annotation "The job was not acquired by Runner of type hosted even after multiple attempts".
+  That is not a timeout or a hang in the tests; re-run it.
 - Real file events (FSEvents) arrive late and in batches on a loaded runner: assert "a few", not an exact count,
   when the count is about coalescing (`skyelab-git/tests/watch.rs`).
 - On GitHub's macos-26 image cargo was not in `~/.cargo/bin` when Xcode ran the "Build Rust" phase ("env: cargo:
@@ -46,6 +62,14 @@ Only macOS is tested locally. Check the others like this before merging somethin
   build again with another empty one in verify mode. Gradle's write mode does not record some of these (buildscript
   classpath BOMs); add them by hand with the sha256 of the file from Maven Central, checked against Central's
   `.sha1`.
+
+**Timing and cache**
+
+- A cold build of the test targets takes ~15 min on Linux and Windows, and the app's unit tests ~13 min on
+  Linux (one binary, ~800 tests that wait on real processes) against ~1 min on Windows (the Unix-only fake-agent
+  tests don't run there). Jobs time out at 60 min (test) and 30 min (clippy).
+- `Swatinem/rust-cache` saves only after a successful job by default. The test job had never passed, so it
+  rebuilt from nothing every run; `cache-on-failure: true` keeps the build either way.
 
 **Any loaded runner**
 
