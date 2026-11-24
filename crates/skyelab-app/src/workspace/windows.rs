@@ -440,7 +440,7 @@ impl Workspace {
             Some(window) == active
                 && ws
                     .upgrade()
-                    .is_some_and(|ws| ws.read(cx).shown_thread(cx) == Some(id))
+                    .is_some_and(|ws| ws.read(cx).shows_thread(id, cx))
         })
     }
 

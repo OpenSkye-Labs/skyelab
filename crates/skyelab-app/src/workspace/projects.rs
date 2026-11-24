@@ -318,7 +318,7 @@ impl Workspace {
                     // A draft just got its row, so the saved page can name it now.
                     if this.current_thread().as_ref() == Some(view) {
                         this.schedule_layout_save(window, cx);
-                    } else if view.read(cx).background && view.read(cx).owned_by(window) {
+                    } else if this.started_unseen(view, thread.id, window, cx) {
                         this.mark_unread(view, cx);
                     }
                 }
