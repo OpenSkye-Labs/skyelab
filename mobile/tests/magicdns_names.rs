@@ -7,7 +7,10 @@ fn magicdns_names_are_accepted_and_normalized() {
     for (input, stored) in [
         ("laptop.tail1234.ts.net", "laptop.tail1234.ts.net"),
         ("  Laptop.Tail1234.TS.NET ", "laptop.tail1234.ts.net"),
-        ("my-mac.example-tailnet.ts.net", "my-mac.example-tailnet.ts.net"),
+        (
+            "my-mac.example-tailnet.ts.net",
+            "my-mac.example-tailnet.ts.net",
+        ),
     ] {
         assert_eq!(validate(input).as_deref(), Ok(stored), "{input:?}");
     }
