@@ -90,6 +90,47 @@ impl ThreadView {
         }
     }
 
+    /// The `@` menu's model rows: the picker's models for the thread's provider (Codex's once listed), none when
+    /// the composer has no account.
+    pub(in crate::workspace) fn mention_models(&self) -> Vec<super::composer_menu::MenuItem> {
+        let Some(provider) = self.composer_account().map(|a| a.provider) else {
+            return Vec::new();
+        };
+        let models: Vec<(String, String)> = match provider {
+            Provider::Codex => self
+                .listed()
+                .unwrap_or_default()
+                .iter()
+                .map(|m| (m.id.clone(), m.label.clone()))
+                .collect(),
+            Provider::Claude => CLAUDE_MODELS
+                .iter()
+                .map(|(id, label)| ((*id).to_owned(), (*label).to_owned()))
+                .collect(),
+        };
+        super::composer_menu::model_items(&models, provider.label())
+    }
+
+    /// An `@` model row was picked: the thread runs on that model from this send on, as if picked in the picker. The
+    /// effort stays when the model takes it.
+    pub(in crate::workspace) fn pick_mentioned(&mut self, model: String, cx: &mut Context<Self>) {
+        let codex = self.composer_account().map(|a| a.provider) == Some(Provider::Codex);
+        let effort = self.composer.pick.effort.clone().filter(|e| {
+            !codex
+                || self
+                    .listed()
+                    .and_then(|l| l.iter().find(|m| m.id == model))
+                    .is_some_and(|m| m.efforts.contains(e))
+        });
+        self.pick_model(
+            skyelab_store::ModelChoice {
+                model: Some(model),
+                effort,
+            },
+            cx,
+        );
+    }
+
     fn listed(&self) -> Option<&[ModelInfo]> {
         Some(
             self.composer

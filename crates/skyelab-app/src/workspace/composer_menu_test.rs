@@ -2,7 +2,7 @@
 //! account the folder is bound to.
 
 use super::composer_menu::{
-    MenuItem, MenuKind, Trigger, command_items, rank, skill_items, trigger,
+    MenuItem, MenuKind, Trigger, command_items, model_items, rank, skill_items, trigger,
 };
 use super::threads_test::{fixture, open_workspace, project_thread, setup, wait_until};
 use gpui::TestAppContext;
@@ -243,5 +243,68 @@ fn at_menu_lists_tracked_files_and_inserts_a_mention(cx: &mut TestAppContext) {
     // The footer knows the branch.
     wait_until(cx, "the footer's branch", |cx| {
         thread.read_with(cx, |t, _| t.composer.footer.branch.is_some())
+    });
+}
+
+#[test]
+fn at_models_need_two_letters_match_word_starts_and_rank_first() {
+    let mut items = model_items(
+        &[
+            ("sonnet".into(), "Sonnet".into()),
+            ("gpt-5.1-codex".into(), "GPT-5.1 Codex".into()),
+        ],
+        "Claude",
+    );
+    items.push(MenuItem {
+        label: "src/sonnet.rs".into(),
+        ..Default::default()
+    });
+    let labels = |q: &str| -> Vec<String> {
+        rank(&items, q)
+            .into_iter()
+            .map(|i| items[i].label.clone())
+            .collect()
+    };
+    assert_eq!(labels("so"), ["Sonnet", "src/sonnet.rs"]);
+    assert_eq!(
+        labels("s"),
+        ["src/sonnet.rs"],
+        "one letter lists files only"
+    );
+    assert_eq!(
+        labels("onnet"),
+        ["src/sonnet.rs"],
+        "a model matches by word start only"
+    );
+    assert_eq!(labels("gpt-cod"), ["GPT-5.1 Codex"]);
+    assert_eq!(labels("5.1"), ["GPT-5.1 Codex"]);
+}
+
+#[gpui::test]
+fn at_model_pick_routes_the_thread_and_leaves_no_text(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
+    cx.simulate_keystrokes("f i x space @ s o n");
+    wait_until(cx, "the @ menu to rank", |cx| {
+        thread.read_with(cx, |t, _| {
+            t.composer
+                .menu
+                .as_ref()
+                .is_some_and(|m| m.ranked.as_deref() == Some("son"))
+        })
+    });
+    let first = thread.read_with(cx, |t, _| {
+        let m = t.composer.menu.as_ref().expect("menu");
+        m.items.as_ref().expect("items")[m.rows[0]].model.clone()
+    });
+    assert_eq!(first.as_deref(), Some("sonnet"));
+    cx.simulate_keystrokes("tab");
+    cx.run_until_parked();
+    thread.read_with(cx, |t, cx| {
+        assert_eq!(t.prompt.read(cx).value().as_ref(), "fix ");
+        assert_eq!(t.composer.pick.model.as_deref(), Some("sonnet"));
     });
 }

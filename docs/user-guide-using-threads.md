@@ -24,7 +24,9 @@ to a default account: no pick, no thread. Remove the project or its binding like
   store image files). Click one to view it large: **+** and **−** zoom, **Fit** fits it to the window again, and
   <kbd>Esc</kbd> or a click outside closes it.
 - **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
-  then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it.
+  then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it. Two or more letters that start a
+  model's name (`@son`, `@gpt-cod`) also list the thread's models above the files: picking one runs the thread on
+  that model from this send on, as the model chip would, and leaves no text in the prompt.
 - **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
   account's `commands/` folder (in its config dir) and the project's `.claude/commands/`. SkyeLab starts Claude
   with only your user settings, so a project command may not run. Codex has no slash commands.
@@ -33,7 +35,7 @@ to a default account: no pick, no thread. Remove the project or its binding like
 - **`#`** lists this project's other threads and the pull requests linked to them. Picking a thread adds a chip with
   its title and last reply (up to 2,000 characters); picking a pull request adds a chip with its link and the title
   of the thread it belongs to. Each chip is sent after your message as a code block, like a terminal excerpt; click
-  it to read the text, × to drop it. Only threads that ran on this composer's account, in a folder still bound to
+  it to read the text, × to drop it. Hover a thread or pull request chip for the same card its sidebar row shows. Only threads that ran on this composer's account, in a folder still bound to
   it, are listed, so another account's work never ends up in this account's prompt.
 - **The model chip** (right of the composer: **Opus 5.5 High**) always names the model that will run. Until you pick
   one it shows the account's own default, with the tooltip **Account default model**: the model the thread's last run

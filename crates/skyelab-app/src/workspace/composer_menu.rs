@@ -1,4 +1,4 @@
-//! The composer's `@` files, `/` commands, `$` skills and `#` threads-and-PRs menus: when one opens, what it lists, and the order.
+//! The composer's `@` files and models, `/` commands, `$` skills and `#` threads-and-PRs menus: when one opens, what it lists, and the order.
 //! No GPUI here, so it is tested without a window.
 
 use skyelab_core::Provider;
@@ -66,6 +66,9 @@ pub(crate) struct MenuItem {
     pub insert: String,
     /// A `#` row: the chip picking it adds.
     pub context: Option<ContextPick>,
+    /// An `@` model row (T3's model mention): picking it routes the thread to this model id, as the picker does,
+    /// and leaves no text behind.
+    pub model: Option<String>,
 }
 
 /// What a `#` row adds: a thread's gist, or the pull request linked to a thread (both by thread id).
@@ -77,13 +80,15 @@ pub(crate) enum ContextPick {
 
 /// The rows matching `query`, best first, at most [`MAX_ROWS`]. A match is the query's characters in order
 /// (ignoring case); a prefix of the file name beats a substring, which beats a scattered match, and shorter wins ties.
+/// Model rows match only by [`model_matches`] and come first.
 pub(crate) fn rank(items: &[MenuItem], query: &str) -> Vec<usize> {
     let q = query.to_lowercase();
     let mut scored: Vec<(u32, usize, usize)> = items
         .iter()
         .enumerate()
-        .filter_map(|(i, item)| {
-            score(&item.label.to_lowercase(), &q).map(|s| (s, item.label.len(), i))
+        .filter_map(|(i, item)| match &item.model {
+            Some(id) => model_matches(&item.label, id, &q).then_some((0, item.label.len(), i)),
+            None => score(&item.label.to_lowercase(), &q).map(|s| (s + 1, item.label.len(), i)),
         })
         .collect();
     scored.sort();
@@ -111,6 +116,44 @@ fn score(label: &str, q: &str) -> Option<u32> {
     }
     let mut chars = label.chars();
     q.chars().all(|c| chars.any(|l| l == c)).then_some(4)
+}
+
+/// Whether `@q` names model `label` (`id`): at least two letters, and every word of `q` (split at spaces, `:`, `/`
+/// and `-`) starts a word of the label or id. Fuzzy hits would push files out of the menu (T3's rule).
+fn model_matches(label: &str, id: &str, q: &str) -> bool {
+    let split = |s: &str| -> Vec<String> {
+        s.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric() && c != '.')
+            .filter(|w| !w.is_empty())
+            .map(str::to_owned)
+            .collect()
+    };
+    let words = split(&format!("{label} {id}"));
+    let wanted = split(q);
+    wanted.iter().map(String::len).sum::<usize>() >= 2
+        && wanted
+            .iter()
+            .all(|w| words.iter().any(|x| x.starts_with(w.as_str())))
+}
+
+/// The `@` rows for the thread's models (id, label); `provider` names them in the row.
+pub(crate) fn model_items(models: &[(String, String)], provider: &str) -> Vec<MenuItem> {
+    models
+        .iter()
+        .map(|(id, label)| MenuItem {
+            label: label.clone(),
+            detail: format!("{provider} model · run this thread on it"),
+            model: Some(id.clone()),
+            ..Default::default()
+        })
+        .collect()
+}
+
+/// The `@` menu's rows: `models` (from [`model_items`]), then the files git tracks in `cwd`.
+pub(crate) fn at_items(mut models: Vec<MenuItem>, cwd: &Path) -> Vec<MenuItem> {
+    let files = skyelab_git::tracked_files(cwd).map(|f| file_items(&f));
+    models.extend(files.unwrap_or_default());
+    models
 }
 
 /// The `@` rows for tracked files (from `skyelab_git::tracked_files`).

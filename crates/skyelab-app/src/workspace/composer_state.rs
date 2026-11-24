@@ -357,6 +357,7 @@ impl ThreadView {
         let cwd = self.cwd.clone();
         let account = self.composer_account();
         let contexts = (kind == MenuKind::Context).then(|| self.context_menu_items());
+        let models = (kind == MenuKind::Files).then(|| self.mention_models());
         let side_commands = !self.is_side_chat();
         let task = cx.background_spawn(async move {
             match (kind, account) {
@@ -364,9 +365,7 @@ impl ThreadView {
                 (MenuKind::Context, _) => contexts
                     .map_or(Ok(Vec::new()), |read| read())
                     .unwrap_or_default(),
-                (MenuKind::Files, _) => skyelab_git::tracked_files(&cwd)
-                    .map(|f| composer_menu::file_items(&f))
-                    .unwrap_or_default(),
+                (MenuKind::Files, _) => composer_menu::at_items(models.unwrap_or_default(), &cwd),
                 // Unbound: no account dir to read, so nothing (never the parent's).
                 (_, None) => Vec::new(),
                 (MenuKind::Commands, Some(a)) => {
@@ -510,6 +509,9 @@ impl ThreadView {
             p.set_selected_range(menu.start..cursor, cx);
             p.replace(item.insert, window, cx);
         });
+        if let Some(model) = item.model {
+            self.pick_mentioned(model, cx);
+        }
         if let Some(pick) = item.context {
             self.add_context_pick(pick, cx);
         }
