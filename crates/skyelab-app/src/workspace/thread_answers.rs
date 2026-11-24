@@ -282,8 +282,8 @@ impl ItemsView for ThreadView {
     fn open_turn_file(&mut self, turn: u32, path: &std::path::Path, cx: &mut Context<Self>) {
         cx.emit(ThreadViewEvent::OpenTurnPath(turn, path.to_owned()));
     }
-    fn find_mark(&self, ix: usize) -> Option<bool> {
-        self.timeline.find.mark(ix)
+    fn find_words(&self, ix: usize) -> Option<(&str, Option<usize>)> {
+        self.timeline.find.words(ix)
     }
     fn tool_live(&self, id: &str) -> bool {
         // Only the running turn's calls can still finish: one in an earlier turn, or with no turn running, was cut off.

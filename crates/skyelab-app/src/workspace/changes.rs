@@ -410,7 +410,7 @@ impl Render for ChangesView {
                 .items_start()
                 .child(files)
                 .child(
-                    div()
+                    v_flex()
                         .relative()
                         .flex_1()
                         .h_full()
@@ -424,8 +424,13 @@ impl Render for ChangesView {
                             MouseButton::Left,
                             cx.listener(|this, _, window, cx| this.finish_drag(window, cx)),
                         )
-                        .child(list(self.list.clone(), cx.processor(Self::render_item)).size_full())
-                        .children(find_bar),
+                        .children(find_bar)
+                        .child(
+                            list(self.list.clone(), cx.processor(Self::render_item))
+                                .w_full()
+                                .flex_1()
+                                .min_h_0(),
+                        ),
                 )
                 .into_any_element()
         };

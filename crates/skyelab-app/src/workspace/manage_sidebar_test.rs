@@ -39,6 +39,41 @@ fn pinned_first_archived_apart_unread_marked(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn only_archived_threads_say_so_and_offer_to_show_them(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let a = r.thread("alpha", cx);
+    r.f.store
+        .lock()
+        .expect("lock")
+        .set_thread_archived(a, true)
+        .expect("archive");
+    r.reload(cx);
+    let empty = |cx: &mut gpui::VisualTestContext| {
+        let sidebar = r.ws.read_with(cx, |ws, _| ws.sidebar.clone());
+        sidebar.read_with(cx, |s, _| {
+            s.sections
+                .iter()
+                .find(|s| !s.empty_title.is_empty())
+                .map(|s| (s.empty_title.to_string(), s.button.as_ref().map(|b| b.0.to_string())))
+        })
+    };
+    assert_eq!(
+        empty(cx),
+        Some((
+            "All threads are archived".into(),
+            Some("Show archived".into())
+        ))
+    );
+    cx.dispatch_action(ToggleArchivedThreads);
+    cx.run_until_parked();
+    assert_eq!(
+        empty(cx),
+        Some(("All threads are archived".into(), None)),
+        "no button once they show"
+    );
+}
+
+#[gpui::test]
 fn filter_matches_titles_and_message_text(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
     r.thread("alpha", cx);

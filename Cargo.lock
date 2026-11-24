@@ -8469,6 +8469,7 @@ dependencies = [
  "gpui-pre-platform",
  "hotpath",
  "image",
+ "markdown",
  "mermaid-rs-renderer",
  "resvg 0.50.0",
  "rusqlite",

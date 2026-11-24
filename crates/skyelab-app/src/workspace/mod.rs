@@ -97,6 +97,7 @@ mod thread_items;
 mod thread_list;
 mod timeline_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
+mod find_marks;
 mod saved_views;
 mod subagent;
 mod table_copy;

@@ -32,6 +32,25 @@ fn a_preview_is_one_line_and_cut() {
     assert_eq!(preview(&long).chars().count(), PREVIEW + 1);
 }
 
+#[test]
+fn a_preview_drops_markdown_marks() {
+    assert_eq!(
+        reply_preview(
+            "## Summary\n\nThe **four** fixes, see [docs](https://x.y) and `cfg`:\n\n- one\n- two!"
+        ),
+        "Summary The four fixes, see docs and cfg: one two!"
+    );
+    assert_eq!(
+        reply_preview("fix the <Button> now"),
+        "fix the <Button> now"
+    );
+    assert_eq!(
+        preview("# not a heading *ok*"),
+        "# not a heading *ok*",
+        "a prompt shows as typed"
+    );
+}
+
 #[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn the_rail_draws_a_tick_per_prompt_and_a_click_jumps_to_it(cx: &mut gpui::TestAppContext) {

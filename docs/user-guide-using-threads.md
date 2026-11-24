@@ -116,7 +116,8 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
 - Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Chat and **Fork from here**:
   [user-guide-threads.md](user-guide-threads.md).
 - **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
-  it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete
+  it. Archived threads move under **Archived** at the end of the list; click it to show them. When every thread is
+  archived the list says so, with **Show archived**. Archive and delete
   show a notice with **Undo**. A deleted thread is gone for good about eight seconds later (or at the next start if
   you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
   worktree can't be deleted until you discard the worktree.

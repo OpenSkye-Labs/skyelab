@@ -150,15 +150,18 @@ impl ThreadView {
         Some(("Side chats".into(), body))
     }
 
-    /// "MCP servers": each server of the latest agent process and its state, the failure as a tooltip. None until an
-    /// agent reported some.
+    /// "MCP servers": each server of the latest agent process and its state ("Stopped" once it ended), the failure as a
+    /// tooltip. None until an agent reported some.
     fn render_mcp(&self, cx: &App) -> Option<(SharedString, AnyElement)> {
         if self.details.mcp.is_empty() {
             return None;
         }
         let theme = cx.theme();
+        // Its last report outlives the agent: once the process is gone, nothing is starting or connected.
+        let ended = self.session.is_none() && !self.starting;
         let rows = self.details.mcp.iter().enumerate().map(|(i, s)| {
             let failed = matches!(s.status.as_str(), "failed" | "needs-auth" | "cancelled");
+            let state = super::mcp_state(s, ended);
             let color = if failed {
                 theme.danger
             } else {
@@ -177,7 +180,7 @@ impl ThreadView {
                     .flex_shrink_0()
                     .text_size(ui::META)
                     .text_color(theme.muted_foreground)
-                    .child(s.state().to_owned()),
+                    .child(state.to_owned()),
             )
             .when_some(s.error.clone(), |r, error| {
                 r.tooltip(move |window, cx| {

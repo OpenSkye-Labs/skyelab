@@ -56,6 +56,19 @@ fn matches_count_each_occurrence() {
     assert!(matches(&items, "absent").is_empty());
 }
 
+#[test]
+fn word_ranges_find_each_match_in_the_text() {
+    use super::find_marks::word_ranges;
+    assert_eq!(word_ranges("The Needle, needle.", "needle"), [4..10, 12..18]);
+    assert_eq!(word_ranges("ÉCOLE école", "école"), [0..6, 7..13], "non-ASCII case");
+    // `İ` lowercases to two chars: the range still ends on a char boundary of the text.
+    let text = "İx ix";
+    for r in word_ranges(text, "x") {
+        assert!(text.is_char_boundary(r.start) && text.is_char_boundary(r.end));
+    }
+    assert!(word_ranges("abc", " ").is_empty());
+}
+
 #[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
@@ -106,6 +119,12 @@ fn find_keys_open_step_and_close(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
     assert_eq!(state(cx).1, 1);
+    one.view.read_with(cx, |v, _| {
+        let f = &v.timeline.find;
+        assert_eq!(f.words(2), Some(("needle", Some(0))), "the row's first match is current");
+        assert_eq!(f.words(1), Some(("needle", None)));
+        assert_eq!(f.words(0), None);
+    });
     cx.simulate_keystrokes("enter enter");
     cx.run_until_parked();
     assert_eq!(state(cx).1, 0, "wraps around");

@@ -218,31 +218,36 @@ impl Workspace {
         let no_projects = self.projects.is_empty();
         let section = plain_section;
         let mut sections = flat_sections(pinned, working, rest);
+        // Every listed thread is archived: the list isn't empty, its rows are put away.
+        let all_archived = !searching && !no_projects && !archived.items.is_empty();
         // No row in any section: the list's empty state, which says what to do next.
         if empty {
+            let (title, hint) = if searching {
+                ("No matching threads", "Titles and messages are searched.")
+            } else if no_projects {
+                (
+                    "No projects yet",
+                    "Add a folder to start. It runs on the account it is bound to.",
+                )
+            } else if all_archived {
+                ("All threads are archived", "They're under Archived below.")
+            } else {
+                ("No threads yet", "Start one with New thread.")
+            };
+            let button: Option<(&str, Box<dyn gpui::Action>)> = if no_projects {
+                Some(("Add project", Box::new(AddProject)))
+            } else if all_archived && !self.show_archived {
+                Some((
+                    "Show archived",
+                    Box::new(super::manage::ToggleArchivedThreads),
+                ))
+            } else {
+                None
+            };
             sections.push(SidebarSection {
-                empty_title: if searching {
-                    "No matching threads"
-                } else if no_projects {
-                    "No projects yet"
-                } else {
-                    "No threads yet"
-                }
-                .into(),
-                empty_hint: if searching {
-                    "Titles and messages are searched."
-                } else if no_projects {
-                    "Add a folder to start. It runs on the account it is bound to."
-                } else {
-                    "Start one with New thread."
-                }
-                .into(),
-                button: no_projects.then(|| {
-                    (
-                        SharedString::from("Add project"),
-                        Box::new(AddProject) as Box<_>,
-                    )
-                }),
+                empty_title: title.into(),
+                empty_hint: hint.into(),
+                button: button.map(|(label, action)| (label.into(), action)),
                 ..section("Threads", Vec::new())
             });
         }

@@ -23,6 +23,8 @@ gpui-base = "=0.11.0"
 # The icon SVGs gpui-component draws; same release as gpui-component, so one copy.
 gpui-kit-assets = "=0.11.0"
 # Local time: the sidebar's date sections and the timeline's clock times.
+# Markdown to plain text (the minimap's hover card); the parser gpui-component already pulls in.
+markdown = "1.0.0"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # Scheduled tasks: cron and daily/weekday times, DST-aware, in the local zone.
 croner = { version = "5.0.0", default-features = false, features = ["std", "chrono"] }

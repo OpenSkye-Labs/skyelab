@@ -83,6 +83,15 @@ impl Render for Center {
     }
 }
 
+/// Each window's thread page (`None` while it shows another page), for what only the selected thread may do when
+/// nothing has the focus: several shown threads (a side chat, Compare) can get a question at once.
+#[derive(Default)]
+pub(crate) struct ShownThread(
+    pub std::collections::HashMap<gpui::WindowId, Option<gpui::EntityId>>,
+);
+
+impl gpui::Global for ShownThread {}
+
 impl Workspace {
     pub(crate) fn current_thread(&self) -> Option<Entity<ThreadView>> {
         match &self.page {
@@ -143,6 +152,13 @@ impl Workspace {
         if !self.alive(&self.page, cx) {
             self.page = Page::Welcome;
         }
+        let shown = match &self.page {
+            Page::Thread(view) => Some(view.entity_id()),
+            _ => None,
+        };
+        cx.default_global::<ShownThread>()
+            .0
+            .insert(window.window_handle().window_id(), shown);
         let view: AnyView = match self.page.clone() {
             Page::Welcome => {
                 self.welcome.read(cx).focus_handle(cx).focus(window, cx);

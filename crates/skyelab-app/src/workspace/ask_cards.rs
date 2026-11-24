@@ -346,6 +346,7 @@ pub(super) fn render_plan<V: ItemsView>(
                     &plan,
                     false,
                     this.files_root(),
+                    None,
                     window,
                     cx,
                 )),

@@ -323,3 +323,19 @@ fn the_keys_come_back_to_the_composer(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(prompt_focused(&one, cx), "the composer has the keys again");
 }
+
+/// With nothing focused, a question in a thread the window doesn't have selected (a side chat, a Compare pane beside
+/// it) leaves the focus alone: several shown threads can get one at once, and only the selected one takes the keys.
+#[gpui::test]
+fn only_the_selected_thread_takes_the_keys_for_its_question(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    one.view.update_in(cx, |_, window, cx| {
+        let elsewhere = gpui::AppContext::new(cx, |_| ()).entity_id(); // the page is another thread
+        cx.default_global::<super::center::ShownThread>()
+            .0
+            .insert(window.window_handle().window_id(), Some(elsewhere));
+    });
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    cx.run_until_parked();
+    assert!(!panel_focused(&one, cx), "not the selected thread");
+}

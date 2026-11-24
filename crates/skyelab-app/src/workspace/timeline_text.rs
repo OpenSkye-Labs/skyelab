@@ -7,17 +7,19 @@ use super::thread_items::ItemsView;
 use super::thread_render::opens_in_browser;
 use super::tool_cards;
 use gpui::{Context, SharedString, div, prelude::*};
-use gpui_component::text::TextView;
+use gpui_component::text::{TextView, TextViewState};
 pub(crate) use skyelab_agent::timeline::cards::{count, divider_text, limited_text, wait};
 
 /// Agent markdown: selectable, a copy button on each code block, web links open in the browser and file links in
 /// the Preview tab (agent text is untrusted, so nothing else opens). Paths in `root` become links, file links outside
-/// it plain text (see `files::linkify`). `live` fades streamed words in.
+/// it plain text (see `files::linkify`). `live` fades streamed words in. `find` (the find bar's query, and which of
+/// this text's matches is the current one) marks the matched words.
 pub(super) fn markdown<V: ItemsView>(
     id: impl Into<gpui::ElementId>,
     text: &str,
     live: bool,
     root: Option<&std::path::Path>,
+    find: Option<(&str, Option<usize>)>,
     window: &mut gpui::Window,
     cx: &mut Context<V>,
 ) -> TextView {
@@ -44,8 +46,14 @@ pub(super) fn markdown<V: ItemsView>(
             }
         }
     };
+    // The view's own state (not `TextView::markdown`'s hidden one), so find can mark words in it.
+    let state = window.use_keyed_state(SharedString::from(format!("{id}/text")), cx, |_, cx| {
+        TextViewState::markdown(&text, cx)
+    });
+    state.update(cx, |s, cx| s.set_text(&text, cx));
+    super::find_marks::mark_words(&state, find, window, cx);
     let root = root.map(std::path::Path::to_path_buf);
-    TextView::markdown(id, text)
+    TextView::new(&state)
         .selectable(true)
         .stream_fade(live)
         // A closed ```mermaid fence draws as a diagram (see `mermaid`).
@@ -148,7 +156,15 @@ pub(super) fn streaming_row<V: ItemsView>(
                 .debug_selector(|| "streaming-text".into())
                 .px_1()
                 .text_size(crate::ui::BODY)
-                .child(markdown(("md", key), text, true, root, window, cx)),
+                .child(markdown(
+                    ("md", key),
+                    text,
+                    true,
+                    root,
+                    this.find_words(ix),
+                    window,
+                    cx,
+                )),
         )
         .into_any_element()
 }
