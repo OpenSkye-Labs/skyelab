@@ -195,6 +195,10 @@ impl Workspace {
                     view.update(cx, |v, cx| v.attach(window, cx));
                 }
                 this.poll_prs(true, cx);
+                // Files may have changed in an editor meanwhile: open diffs read the folder again.
+                for changes in this.changes_views.iter().filter_map(|c| c.upgrade()) {
+                    changes.update(cx, |c, cx| c.refresh(cx));
+                }
                 // Another window may have added, renamed or removed projects and threads meanwhile.
                 if this.has_other_windows(cx) {
                     this.load_projects(None, cx);

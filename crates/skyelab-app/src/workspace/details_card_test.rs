@@ -153,3 +153,34 @@ fn the_card_follows_pickers_another_window_made(cx: &mut TestAppContext) {
         "STALE_PICKER: A's card never redrew for the picker B's attach made"
     );
 }
+
+#[gpui::test]
+fn the_branch_row_opens_the_picker_ready_to_type(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    use super::changes_model_test::git;
+    git(&f.project_dir, &["init", "-q", "-b", "main"]);
+    git(&f.project_dir, &["commit", "-q", "--allow-empty", "-m", "init"]);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    cx.dispatch_action(ToggleThreadDetails);
+    cx.run_until_parked();
+    let row = cx.debug_bounds("details-branch").expect("branch row");
+    cx.simulate_click(row.center(), Modifiers::none());
+    cx.run_until_parked();
+    let picker = thread.read_with(cx, |t, _| t.branch_picker.clone());
+    assert!(picker.read_with(cx, |p, _| p.open), "the list is open");
+    let query = picker.read_with(cx, |p, _| p.query.clone());
+    assert!(
+        cx.update(|window, cx| query.read(cx).focus_handle(cx).is_focused(window)),
+        "typing goes to the search"
+    );
+    // Closed again, the hidden search gives the focus back, or the window's keys would reach nothing.
+    picker.update(cx, |p, cx| p.set_open(false, cx));
+    cx.run_until_parked();
+    assert!(
+        cx.update(|window, cx| !query.read(cx).focus_handle(cx).is_focused(window)
+            && window.focused(cx).is_some()),
+        "the focus went back"
+    );
+}

@@ -164,7 +164,12 @@ impl ChangesView {
         let (nothing, tree) = self
             .changes
             .as_ref()
-            .map(|c| (c.files.is_empty(), c.tree.clone()))
+            .map(|c| {
+                (
+                    c.uncommitted == 0 && self.selected.is_empty(),
+                    c.tree.clone(),
+                )
+            })
             .unwrap_or((true, None));
         let paths = self.picked_paths();
         self.run(
@@ -282,8 +287,9 @@ impl ChangesView {
     }
 
     pub(super) fn render_publish(&self, cx: &mut Context<Self>) -> AnyElement {
-        let total = self.changes.as_ref().map_or(0, |c| c.files.len());
+        let total = self.changes.as_ref().map_or(0, |c| c.uncommitted);
         let commit_label = commit_label(self.selected.len(), total);
+        let nothing = total == 0 && self.selected.is_empty();
         let button = |id: &'static str, label: String| {
             Button::new(id)
                 .small()
@@ -292,11 +298,10 @@ impl ChangesView {
                 .disabled(self.busy)
         };
         // Push and Open PR run under the thread's account (re-checked when they run); say which, up front.
-        let account = self
-            .thread
-            .as_ref()
-            .and_then(|t| t.upgrade())
-            .map(|t| t.read(cx).account_badge().chip());
+        let thread = self.thread.as_ref().and_then(|t| t.upgrade());
+        let account = thread.as_ref().map(|t| t.read(cx).account_badge().chip());
+        // Once the thread has a PR, the PR row opens it instead (as the details card's menu does).
+        let pr_url = thread.and_then(|t| t.read(cx).thread.as_ref()?.pr_url.clone());
         let theme = cx.theme();
         v_flex()
             .px_4()
@@ -330,6 +335,7 @@ impl ChangesView {
                     .child(
                         button("commit", commit_label)
                             .primary()
+                            .disabled(self.busy || nothing)
                             .on_click(cx.listener(|this, _, window, cx| this.commit(window, cx))),
                     )
                     .child(
@@ -338,18 +344,39 @@ impl ChangesView {
                             .on_click(cx.listener(|this, _, window, cx| this.push(window, cx))),
                     ),
             )
-            .child(
-                h_flex()
-                    .gap_2()
-                    .child(div().flex_1().child(TextField::new(&self.pr_title).small()))
-                    .children(self.generate_button(Gen::Pr, cx))
+            .map(|v| match pr_url {
+                Some(url) => v.child(
+                    h_flex()
+                        .justify_end()
+                        .debug_selector(|| "view-pr".into())
+                        .child(
+                            Button::new("view-pr")
+                                .small()
+                                .outline()
+                                .icon(crate::ui::SkyeIcon::ExternalLink)
+                                .label("View PR")
+                                .tooltip(url.clone())
+                                .on_click(move |_, _, cx| {
+                                    if super::thread_render::opens_in_browser(&url) {
+                                        cx.open_url(&url);
+                                    }
+                                }),
+                        ),
+                ),
+                None => v
                     .child(
-                        button("open-pr", "Open PR".into())
-                            .outline()
-                            .on_click(cx.listener(|this, _, window, cx| this.open_pr(window, cx))),
-                    ),
-            )
-            .child(Textarea::new(&self.pr_body).small())
+                        h_flex()
+                            .gap_2()
+                            .child(div().flex_1().child(TextField::new(&self.pr_title).small()))
+                            .children(self.generate_button(Gen::Pr, cx))
+                            .child(div().debug_selector(|| "open-pr".into()).child(
+                                button("open-pr", "Open PR".into()).outline().on_click(
+                                    cx.listener(|this, _, window, cx| this.open_pr(window, cx)),
+                                ),
+                            )),
+                    )
+                    .child(Textarea::new(&self.pr_body).small()),
+            })
             .children(self.publish_error.clone().map(|e| {
                 div()
                     .id("publish-error")
@@ -378,6 +405,7 @@ pub(super) fn commit_label(selected: usize, total: usize) -> String {
         }
     };
     match selected {
+        0 if total == 0 => "Nothing to commit".to_string(),
         0 => format!("Commit all {}", files(total)),
         n => format!("Commit {}", files(n)),
     }

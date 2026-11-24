@@ -84,6 +84,7 @@ fn an_unchanged_tree_commits_exactly_the_listed_files() {
 
 #[test]
 fn the_button_names_what_will_be_committed() {
+    assert_eq!(commit_label(0, 0), "Nothing to commit");
     assert_eq!(commit_label(0, 3), "Commit all 3 files");
     assert_eq!(commit_label(0, 1), "Commit all 1 file");
     assert_eq!(commit_label(1, 3), "Commit 1 file");

@@ -290,8 +290,13 @@ impl ChangesView {
                         let (row_ix, path) = (f.first_row, f.path.clone());
                         let ticked = self.selected.contains(&f.path);
                         let active = self.active_file.as_ref() == Some(&f.path);
+                        // Ticks pick files to commit: only the working tree commits.
                         let tick =
-                            Checkbox::new(SharedString::from(format!("pick-{}", f.path.display())))
+                            (self.scope == super::changes_model::Scope::Working).then(|| {
+                                Checkbox::new(SharedString::from(format!(
+                                    "pick-{}",
+                                    f.path.display()
+                                )))
                                 .xsmall()
                                 .checked(ticked)
                                 .on_click(cx.listener({
@@ -302,14 +307,15 @@ impl ChangesView {
                                         }
                                         cx.notify();
                                     }
-                                }));
+                                }))
+                            });
                         row.when(active, |d| d.bg(theme.accent))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.scroll_to_row(row_ix);
                                 this.active_file = Some(path.clone());
                                 cx.notify();
                             }))
-                            .child(tick)
+                            .children(tick)
                             .child(kind_badge(f.kind, cx))
                             .child(div().truncate().child(label.clone()))
                     }

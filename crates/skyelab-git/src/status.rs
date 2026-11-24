@@ -16,6 +16,16 @@ pub struct Status {
 }
 
 impl Status {
+    /// Every path with a change to commit: staged, unstaged or untracked, each once.
+    pub fn changed_paths(&self) -> std::collections::BTreeSet<&Path> {
+        self.staged
+            .iter()
+            .chain(&self.unstaged)
+            .map(|f| f.path.as_path())
+            .chain(self.untracked.iter().map(PathBuf::as_path))
+            .collect()
+    }
+
     pub fn is_clean(&self) -> bool {
         self.staged.is_empty()
             && self.unstaged.is_empty()

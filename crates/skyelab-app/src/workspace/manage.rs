@@ -282,6 +282,7 @@ impl Workspace {
                         }
                         cx.notify();
                     });
+                    ws.retitle_changes(&view, cx);
                 }
                 ws.update_row(id, |t| t.title = title, cx);
             },

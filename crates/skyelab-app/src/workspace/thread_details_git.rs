@@ -55,8 +55,9 @@ impl ThreadView {
                 )
                 .children(sync)
                 .child(chevron(SkyeIcon::ChevronDown, theme))
-                .on_click(on.click(move |_, _, cx| {
-                    picker.update(cx, |p, cx| p.set_open(true, cx));
+                .debug_selector(|| "details-branch".into())
+                .on_click(on.click(move |_, window, cx| {
+                    picker.update(cx, |p, cx| p.open_focused(window, cx));
                     cx.notify();
                 }))
             }
@@ -131,6 +132,11 @@ impl ThreadView {
                         )
                         .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
+                            // The confirm shows above the composer, where the card would cover it.
+                            window.dispatch_action(
+                                Box::new(super::super::layout::ToggleThreadDetails),
+                                cx,
+                            );
                             this.discard_worktree(&DiscardWorktree, window, cx);
                         })),
                     )

@@ -124,3 +124,24 @@ fn the_picker_switches_and_asks_before_a_dirty_switch(cx: &mut TestAppContext) {
     );
     assert!(f.project.join("new.txt").exists());
 }
+
+#[gpui::test]
+fn a_branch_checked_out_in_another_worktree_is_refused_before_anything_moves(
+    cx: &mut TestAppContext,
+) {
+    let f = fixture();
+    git(&f.project, &["branch", "taken"]);
+    let other = f.project.parent().expect("parent").join("taken-wt");
+    git(&f.project, &["worktree", "add", "-q", &other.to_string_lossy(), "taken"]);
+    let (_ws, thread, cx) = open_thread(&f, cx);
+    let picker = thread.read_with(cx, |t, _| t.branch_picker.clone());
+    wait_until(cx, "branches listed", |cx| {
+        picker.read_with(cx, |p, _| p.branches.elsewhere == ["taken"])
+    });
+    std::fs::write(f.project.join("README.md"), "# edited\n").expect("w");
+    picker.update(cx, |p, cx| p.pick("taken".into(), cx));
+    let (dirty, error) = picker.read_with(cx, |p, _| (p.dirty.is_some(), p.error.clone()));
+    assert!(!dirty, "no stash question for a switch git would refuse");
+    assert!(error.is_some_and(|e| e.contains("another worktree")));
+    assert_eq!(current(&f.project).as_deref(), Some("main"));
+}

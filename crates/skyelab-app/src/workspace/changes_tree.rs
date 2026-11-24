@@ -87,6 +87,24 @@ fn walk(
     );
 }
 
+/// The tree's order for two repo-relative paths (a folder's contents before the files beside it, each level by
+/// name), so the diff lists files top to bottom as the tree does.
+pub fn tree_order(a: &Path, b: &Path) -> std::cmp::Ordering {
+    let key = |p: &Path| {
+        let parts: Vec<String> = p
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        let last = parts.len().saturating_sub(1);
+        parts
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| (i == last, name))
+            .collect::<Vec<_>>()
+    };
+    key(a).cmp(&key(b))
+}
+
 /// One row of the side-by-side diff.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitRow {
