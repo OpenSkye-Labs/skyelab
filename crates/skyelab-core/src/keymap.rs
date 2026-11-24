@@ -42,7 +42,7 @@ impl std::fmt::Display for Problem {
 }
 
 pub fn default_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("skyelab").join("keybindings.toml"))
+    crate::instance::config_file("keybindings.toml")
 }
 
 /// What "Open keybindings file" writes when there is no file yet.

@@ -249,7 +249,7 @@ pub const MAX_RECENT_ENVIRONMENTS: usize = 8;
 
 impl AppSettings {
     pub fn default_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("skyelab").join("settings.toml"))
+        crate::instance::config_file("settings.toml")
     }
 
     /// The windows to open at launch: the list, else an older file's single slot.

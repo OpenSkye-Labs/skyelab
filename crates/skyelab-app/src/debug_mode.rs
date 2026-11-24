@@ -16,9 +16,9 @@ compile_error!("dhat-heap and hotpath-alloc each install the global allocator: p
 /// A frame slower than this is logged (a visible hitch at 60 Hz is anything past ~17 ms; 50 ms is a stutter).
 pub(crate) const SLOW_FRAME: Duration = Duration::from_millis(50);
 
-/// Where debug mode writes: `<local data>/skyelab/debug` (the log, dumps, profiler reports).
+/// Where debug mode writes: `<local data>/<APP_DIR>/debug` (the log, dumps, profiler reports).
 pub(crate) fn debug_dir() -> Option<PathBuf> {
-    dirs::data_local_dir().map(|d| d.join("skyelab").join("debug"))
+    dirs::data_local_dir().map(|d| d.join(skyelab_core::instance::APP_DIR).join("debug"))
 }
 
 /// Turns debug mode on for this run: the log starts recording (and appending to `debug/debug.log`) and the

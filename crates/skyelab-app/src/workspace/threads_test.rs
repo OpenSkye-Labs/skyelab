@@ -224,7 +224,7 @@ fn terminal_env_is_the_bound_account_or_empty() {
 
 #[test]
 fn store_lives_in_the_platform_data_dir() {
-    let expected = dirs::data_dir().map(|d| d.join("skyelab").join("skyelab.db"));
+    let expected = dirs::data_dir().map(|d| d.join(skyelab_core::instance::APP_DIR).join("skyelab.db"));
     assert_eq!(crate::store_path(), expected);
 }
 

@@ -16,6 +16,7 @@ mod pr_url;
 pub use pr_url::github_pr_url;
 pub mod env;
 pub mod files;
+pub mod instance;
 pub mod keymap;
 pub mod onboarding;
 pub mod process;
@@ -170,7 +171,7 @@ pub struct AccountsConfig {
 
 impl AccountsConfig {
     pub fn default_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("skyelab").join("accounts.toml"))
+        instance::config_file("accounts.toml")
     }
 
     pub fn load(path: &Path) -> Result<Self> {

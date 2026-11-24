@@ -112,7 +112,9 @@ pub fn installer(fake_app: Option<PathBuf>, debug: bool, download: Download) -> 
     };
     let dir = match install {
         Install::Deb => dirs::download_dir()?,
-        _ => dirs::cache_dir()?.join("skyelab").join("updates"),
+        _ => dirs::cache_dir()?
+            .join(skyelab_core::instance::APP_DIR)
+            .join("updates"),
     };
     Some(Installer {
         install,

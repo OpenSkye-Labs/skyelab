@@ -381,7 +381,8 @@ impl Workspace {
             settings_open: false,
             backend,
             store_error: None,
-            scratch_root: dirs::data_dir().map(|d| d.join("skyelab").join("scratch")),
+            scratch_root: dirs::data_dir()
+                .map(|d| d.join(skyelab_core::instance::APP_DIR).join("scratch")),
             sidebar,
             projects: Vec::new(),
             project: None,

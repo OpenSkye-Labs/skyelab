@@ -22,3 +22,9 @@ Windows) first asks, listing them. **Quit** quits, **Cancel** keeps everything r
 while it asks quits too. Tick **Don't ask again** to quit at once from then on; **Quit confirmation** in Settings →
 General turns the question back on. With nothing in flight it quits at once. Windows, drafts and thread state are saved
 either way.
+
+## One SkyeLab at a time
+
+Opening SkyeLab again while it runs brings the running one forward (or opens a window in it) instead of starting a
+second copy, which would run scheduled tasks and resume threads twice. A build from source keeps its own data
+(`skyelab-dev`), so it runs next to the installed app with its own threads.
