@@ -5,10 +5,25 @@ Part of [remote.md](remote.md).
 **Port forwarding (1.5).** A connected device may also forward a port on this machine's loopback to itself, so a
 dev server an agent started here opens in a browser there. The main connection asks with `forward_port {port}` and
 gets a random token for that forward. The daemon refuses ports below 1024, its own listening ports, and a denylist
-of services that hand over the machine without a login of their own: 2375/2376 Docker, 2379 etcd, 3389 RDP, 5037
-adb, 5432 Postgres, 5900 VNC, 6000 X11, 6379 Redis, 8001 kubectl proxy, 9222 browser debugging, 9229 Node
-inspector, 11211 memcached and 27017 MongoDB. It also refuses more than 32 forwards per connection, and a port
-nothing accepts on 127.0.0.1 or ::1 (it dials once to check). It never dials any other host.
+of well-known ports whose services hand over the machine, its user or their data without a login of their own (or
+with one that trusts loopback, which is exactly where a forward lands):
+
+- Remote control of the machine or a device: 3389 Remote Desktop, 5900/5901 VNC, 6000 X11, 5037 adb server, 5555 an
+  Android device's adb.
+- Code execution: 2375/2376 Docker's API, 6443 Kubernetes API, 10250 kubelet (exec in pods), 8001 kubectl proxy,
+  9000 php-fpm (FastCGI runs any PHP file it is pointed at), 8888 Jupyter, 9222 browser debugging, 9229 Node
+  inspector, 4444 WebDriver (Selenium, geckodriver) and 9515 ChromeDriver (both start a browser with any flags),
+  8500 Consul (its API registers checks that run scripts), 8983 Solr.
+- Data stores and queues that ship with no login or a loopback-only default one: 2379/2380 etcd, 2181 ZooKeeper,
+  3306 MySQL, 5432 Postgres, 5984 CouchDB, 6379 Redis, 8086 InfluxDB, 9042 Cassandra, 9092 Kafka, 9200/9300
+  Elasticsearch, 11211 memcached, 15672 RabbitMQ's management UI (its `guest` login works only from localhost),
+  27017 MongoDB.
+- Network pivots: 1080 SOCKS proxy (it would let the other device reach this machine's network as this machine).
+
+Generic dev-server ports (3000, 4200, 5000, 5173, 8000, 8080, …) stay forwardable: forwarding them is the point. A
+service moved to another port isn't caught; the list only stops the well-known defaults.
+
+The daemon also refuses more than 32 forwards per connection, and a port nothing accepts on 127.0.0.1 or ::1 (it dials once to check). It never dials any other host.
 
 Each TCP connection the client accepts locally opens **a new connection to the same listener**, through the whole
 gate again (whois, TLS, no `Origin`, approved key in hello). That hello declares the `tunnel` capability. A tunnel

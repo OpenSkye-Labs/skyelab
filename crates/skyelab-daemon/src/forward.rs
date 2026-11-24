@@ -23,22 +23,44 @@ pub(crate) const MAX_FORWARDS: usize = 32;
 pub(crate) const MAX_TUNNELS: usize = 64;
 const DIAL_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Services that hand whoever reaches them control of this machine or its user, with no login of their own.
+/// Services that hand whoever reaches them control of this machine, its user or their data, with no login of their
+/// own (or one that trusts loopback, which a forward is). Generic dev-server ports (3000, 5173, 8080, …) stay open.
 const DENIED: &[(u16, &str)] = &[
+    (1080, "a SOCKS proxy"),
+    (2181, "ZooKeeper"),
     (2375, "Docker's API"),
+    (2376, "Docker's API"),
     (2379, "etcd"),
+    (2380, "etcd"),
+    (3306, "MySQL"),
+    (3389, "Remote Desktop"),
+    (4444, "a WebDriver (Selenium, geckodriver)"),
     (5037, "the adb server"),
     (5432, "Postgres"),
-    (6000, "an X11 display"),
-    (8001, "kubectl proxy"),
-    (11211, "memcached"),
-    (27017, "MongoDB"),
-    (2376, "Docker's API"),
-    (3389, "Remote Desktop"),
+    (5555, "an Android device's adb"),
     (5900, "Screen Sharing (VNC)"),
+    (5901, "a VNC display"),
+    (5984, "CouchDB"),
+    (6000, "an X11 display"),
     (6379, "Redis"),
+    (6443, "a Kubernetes API server"),
+    (8001, "kubectl proxy"),
+    (8086, "InfluxDB"),
+    (8500, "Consul's API"),
+    (8888, "Jupyter"),
+    (8983, "Solr"),
+    (9000, "PHP FastCGI (php-fpm)"),
+    (9042, "Cassandra"),
+    (9092, "Kafka"),
+    (9200, "Elasticsearch"),
     (9222, "a browser's remote debugging port"),
     (9229, "Node's inspector"),
+    (9300, "Elasticsearch"),
+    (9515, "ChromeDriver"),
+    (10250, "a kubelet"),
+    (11211, "memcached"),
+    (15672, "RabbitMQ's management UI"),
+    (27017, "MongoDB"),
 ];
 
 /// Why `port` can't be forwarded, or `None` when it can.
@@ -197,4 +219,22 @@ pub(crate) async fn pump(
     }
     // A peer that stopped reading must not hold the socket long.
     let _ = timeout(Duration::from_secs(1), sink.close()).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refusal;
+
+    #[test]
+    fn dev_server_ports_stay_forwardable() {
+        for port in [3000, 4200, 5000, 5173, 8000, 8080, 8443] {
+            assert_eq!(refusal(port, &[]), None, "port {port}");
+        }
+    }
+
+    #[test]
+    fn a_refusal_names_the_service() {
+        let why = refusal(9000, &[]).expect("php-fpm is denied");
+        assert!(why.contains("PHP FastCGI"), "{why}");
+    }
 }

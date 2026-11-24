@@ -2,7 +2,8 @@
 //! account the folder is bound to.
 
 use super::composer_menu::{
-    MAX_MODEL_ROWS, MenuItem, MenuKind, Trigger, command_items, model_items, rank, skill_items, trigger,
+    MAX_MODEL_ROWS, MenuItem, MenuKind, Trigger, command_items, model_items, rank, skill_items,
+    trigger,
 };
 use super::threads_test::{fixture, open_workspace, project_thread, setup, wait_until};
 use gpui::TestAppContext;

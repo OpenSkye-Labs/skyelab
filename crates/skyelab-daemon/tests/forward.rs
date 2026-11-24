@@ -165,7 +165,14 @@ fn a_forwarded_port_carries_bytes_both_ways() {
 fn refuses_system_own_denied_and_silent_ports() {
     let d = daemon();
     let mut owner = connect_hello(addr(&d));
-    for port in [22, 80, addr(&d).port(), 9229, 2375, 5900, 5037, 27017] {
+    let new = [
+        1080, 2181, 2380, 3306, 4444, 5555, 5901, 5984, 6443, 8086, 8500, 8888, 8983, 9000, 9042,
+        9092, 9200, 9300, 9515, 10250, 15672,
+    ];
+    for port in [22, 80, addr(&d).port(), 9229, 2375, 5900, 5037, 27017]
+        .into_iter()
+        .chain(new)
+    {
         assert_eq!(
             forward(&mut owner, port),
             Err(ErrorCode::BadRequest),
