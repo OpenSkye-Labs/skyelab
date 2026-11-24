@@ -28,6 +28,7 @@ mod env_picker;
 mod env_sidebar;
 mod files;
 mod focus_areas;
+pub(crate) mod folder_watch;
 mod gh_pages;
 mod gh_pages_render;
 mod html_card;

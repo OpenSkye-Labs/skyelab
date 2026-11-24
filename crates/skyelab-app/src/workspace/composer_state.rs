@@ -87,7 +87,7 @@ pub(crate) struct Menu {
 }
 
 /// The footer strip's facts, read off the UI thread.
-#[derive(Default)]
+#[derive(Default, PartialEq)]
 pub(crate) struct Footer {
     pub machine: Option<SharedString>,
     pub branch: Option<SharedString>,
@@ -138,6 +138,8 @@ pub(crate) struct Composer {
     /// The account's own default model, from its config dir.
     pub account_model: Option<String>,
     pub footer: Footer,
+    /// The footer read in flight: a newer one drops it, so an older read never lands last.
+    pub footer_read: Option<gpui::Task<()>>,
     /// Why the last attach or send was refused.
     pub notice: Option<SharedString>,
     /// The last long paste made into a chip (its name and text), for "Paste as text".
@@ -257,18 +259,21 @@ impl ThreadView {
             let branch = skyelab_git::current_branch(&cwd).ok().flatten();
             (super::composer_machine::machine_name(), branch, changes)
         });
-        cx.spawn(async move |this, cx| {
+        self.composer.footer_read = Some(cx.spawn(async move |this, cx| {
             let (machine, branch, changes) = task.await;
             let _ = this.update(cx, |this, cx| {
-                this.composer.footer = Footer {
+                let footer = Footer {
                     machine: machine.map(Into::into),
                     branch: branch.map(Into::into),
                     changes,
                 };
-                cx.notify();
+                // Most reads (a folder watch firing on an edit that changes no count) find what is shown.
+                if this.composer.footer != footer {
+                    this.composer.footer = footer;
+                    cx.notify();
+                }
             });
-        })
-        .detach();
+        }));
     }
 
     // The model picker.

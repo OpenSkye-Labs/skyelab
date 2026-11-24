@@ -13,6 +13,7 @@ mod publish;
 mod remote;
 mod status;
 mod summary;
+pub mod watch;
 mod worktree;
 
 use std::ffi::OsStr;

@@ -147,6 +147,7 @@ pub struct ThreadView {
     _pump: Option<Task<()>>,
     _task: Option<Task<()>>,
     pub(super) _subs: Vec<Subscription>,
+    pub(super) _watch: Option<Task<()>>,
 }
 
 impl EventEmitter<ThreadViewEvent> for ThreadView {}
@@ -282,6 +283,7 @@ impl ThreadView {
             cx.on_app_quit(|this, _| this.quitting()),
         ];
         let lists = window_owner::Lists::new(window.window_handle());
+        let watch = super::folder_watch::watch(&cwd, cx, Self::folder_changed);
         let owner = cx.weak_entity();
         let branch_picker = cx.new(|cx| {
             super::branch_picker::BranchPicker::new(owner.clone(), cwd.clone(), window, cx)
@@ -350,6 +352,7 @@ impl ThreadView {
             composer: Default::default(),
             _pump: None,
             _task: None,
+            _watch: watch,
             _subs: subs,
         }
     }

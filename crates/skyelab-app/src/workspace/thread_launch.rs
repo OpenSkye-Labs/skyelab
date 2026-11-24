@@ -333,6 +333,8 @@ impl ThreadView {
         self.cwd = thread.cwd.clone();
         self.thread = Some(thread.clone());
         if moved {
+            self._watch =
+                crate::workspace::folder_watch::watch(&self.cwd, cx, Self::folder_changed);
             self.refresh_footer(cx);
         }
         cx.emit(ThreadViewEvent::Started(Box::new(thread.clone())));

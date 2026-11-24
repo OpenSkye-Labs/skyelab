@@ -59,7 +59,7 @@ pub struct Details {
     page: Page,
     machine: Option<SharedString>,
     /// Lines added and removed in the thread's folder since its base (`None` until loaded, or not a repo).
-    stat: Option<(u64, u64)>,
+    pub(in crate::workspace) stat: Option<(u64, u64)>,
     editors: Option<Editors>,
     /// This thread's side chats (id, title), newest first.
     pub(in crate::workspace) side_chats: Vec<(i64, SharedString)>,
@@ -79,6 +79,8 @@ pub struct Details {
     fetching: bool,
     _fetch: Option<Task<()>>,
     _load: Option<Task<()>>,
+    /// A read of `stat` and `sync` only, after the folder changed on disk.
+    _stat: Option<Task<()>>,
     _gh: Option<Task<()>>,
 }
 
@@ -265,6 +267,8 @@ impl ThreadView {
             let machine = super::thread::composer::machine_name().map(SharedString::from);
             (stat, sync, editors(), machine)
         });
+        // This read covers the stat too: an older watch read must not land after it.
+        self.details._stat = None;
         self.details._load = Some(cx.spawn(async move |this, cx| {
             let (stat, sync, editors, machine) = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -273,6 +277,27 @@ impl ThreadView {
                 this.details.editors = Some(editors);
                 this.details.machine = machine;
                 cx.notify();
+            });
+        }));
+    }
+
+    /// The folder changed on disk (a folder watch): the footer, the diff size and the upstream counts are read again,
+    /// and the view redraws only when one of them differs.
+    pub(super) fn folder_changed(&mut self, cx: &mut Context<Self>) {
+        self.refresh_footer(cx);
+        let cwd = self.cwd.clone();
+        let base = self.thread.as_ref().and_then(|t| t.worktree_base.clone());
+        let task = cx.background_spawn(async move {
+            let stat = skyelab_git::diff_stat(&cwd, base.as_deref()).ok();
+            (stat, skyelab_git::ahead_behind(&cwd).ok().flatten())
+        });
+        self.details._stat = Some(cx.spawn(async move |this, cx| {
+            let read = task.await;
+            let _ = this.update(cx, |this, cx| {
+                if (this.details.stat, this.details.sync) != read {
+                    (this.details.stat, this.details.sync) = read;
+                    cx.notify();
+                }
             });
         }));
     }
