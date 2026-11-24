@@ -6,7 +6,7 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
 `thread_status`, `read_thread`, `send_message` and `wait_thread`. It can also drive a browser tab of its own with
 `browser_open`, `browser_navigate`, `browser_url`, `browser_eval` and `browser_screenshot`, and simulators and
 emulators with `device_list`, `device_open`, `device_screenshot`, `device_tap`, `device_type`, `device_press` and
-`device_close`.
+`device_close`. It shows a visual reply in its own thread with `html_render`, after checking it with `html_preview`.
 
 - **Account rule.** A delegated thread runs under its target project's bound account, through the normal launch
   path, pinned to the account the start was approved for. An agent under account A can only list and start in
@@ -95,6 +95,21 @@ emulators with `device_list`, `device_open`, `device_screenshot`, `device_tap`, 
   non-persistent WebKit data store (`with_incognito`), so it shares no cookies or storage with the user's tabs (on the
   default persistent store) or other threads' tabs. Open and navigate answer once the new page commits. Take over
   reloads the page, ending the agent's scripts, and an eval still running answers with an error.
+- **Visual replies.** T3's `html_render` and `html_preview` (`skyelab-agent/src/mcp/html.rs`), T3's limits: html
+  1-512 000 chars, title 1-200, height 80-2000, preview width 240-1600 (default 728), appearance dark (default) or
+  light. Only inline HTML (T3's `path` input and local image inlining are left out). `html_render` stores nothing of
+  its own: the tool call, already saved with the thread's events, is what the timeline draws (`html_card.rs`), and only
+  a call that came back without an error. Both answer only while the caller is live. `html_preview` lays the page out
+  hidden at the width, waits 600 ms after the load, measures `scrollHeight` and returns a PNG (the browser
+  screenshot's caps) with `{width, contentHeight, capturedHeight, bytes}`; 10 s timeout. Every page runs in
+  `skyelab_browser::page`: a fresh webview per render on its own in-memory store (Windows: a temp folder), loaded from
+  a string (opaque `about:blank` origin, no file access), every later navigation, new window and download refused, no
+  IPC, no devtools, and a CSP meta put before anything in the document: scripts, styles, images, fonts and media
+  inline or from `https:` (T3 lets pages load public resources too; it also blocks private addresses in previews, which
+  a CSP can't do, so an `https` name on your network can still be requested, never read), `connect-src`, frames,
+  workers, objects, forms and `base` all `'none'`, no `http:`. Theme variables are T3's names, from the app theme.
+  Snapshots render one at a time per app, cached in memory by tool call and theme. Not yet: T3's console messages,
+  link opening and zoom.
 - **UI.** A child's header says "Delegated by <parent>"; a parent lists its delegated threads. The store records
   `parent_thread_id` (schema 3).
 - **Codex** sessions get the same tools and grant; see [codex.md](codex.md).

@@ -7,7 +7,7 @@ use super::{SharedStore, lock};
 use anyhow::Result;
 use gpui::{App, Global};
 use serde_json::{Value, json};
-use skyelab_agent::mcp::{BrowserTool, Caller, DeviceTool, Host, Proxy, Server, Tool};
+use skyelab_agent::mcp::{BrowserTool, Caller, DeviceTool, Host, HtmlTool, Proxy, Server, Tool};
 use skyelab_agent::{Block, Event};
 use skyelab_core::AccountsConfig;
 use skyelab_store::Thread;
@@ -61,6 +61,12 @@ pub enum OrchCall {
     Device {
         caller: Caller,
         tool: DeviceTool,
+        reply: Reply<Value>,
+    },
+    /// A visual reply or its preview (`html_card`); the preview needs a webview.
+    Html {
+        caller: Caller,
+        tool: HtmlTool,
         reply: Reply<Value>,
     },
 }
@@ -339,6 +345,11 @@ impl Host for AppHost {
                 reply,
             }),
             Tool::Device(tool) => ask(&self.calls, |reply| OrchCall::Device {
+                caller: caller.clone(),
+                tool,
+                reply,
+            }),
+            Tool::Html(tool) => ask(&self.calls, |reply| OrchCall::Html {
                 caller: caller.clone(),
                 tool,
                 reply,

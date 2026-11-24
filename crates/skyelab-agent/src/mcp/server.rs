@@ -304,7 +304,7 @@ fn serve_until_closed(stream: Conn, inner: &Inner, host: &dyn Host, claimed: &mu
 }
 
 /// A screenshot answer as MCP content: its `image` field (`{data, mimeType}`) as an image block, then the rest
-/// as JSON text. Only `browser_screenshot` and `device_screenshot` come here: an eval's page value may have an `image` key of its own.
+/// as JSON text. Only `browser_screenshot`, `device_screenshot` and `html_preview` come here: an eval's page value may have an `image` key of its own.
 fn image_content(mut answer: Value) -> Value {
     let image = answer.as_object_mut().and_then(|o| o.remove("image"));
     let text = json!({"type": "text", "text": answer.to_string()});
@@ -349,7 +349,7 @@ fn respond(
                 "serverInfo": {"name": "skyelab", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": "Delegate work to other SkyeLab threads. You can only reach projects bound \
                     to your own account. Drive a SkyeLab browser tab (http and https only) with the browser_ tools, and a simulator or emulator \
-                    with the device_ tools.",
+                    with the device_ tools. Show a visual reply (chart, diagram, mockup) with html_render.",
             })
         }
         "ping" => json!({}),
@@ -359,7 +359,11 @@ fn respond(
             let answer = tools::parse(name, &params["arguments"])
                 .and_then(|tool| host.call_granted(caller, tool, granted));
             match answer {
-                Ok(v) if name == "browser_screenshot" || name == "device_screenshot" => {
+                Ok(v)
+                    if name == "browser_screenshot"
+                        || name == "device_screenshot"
+                        || name == "html_preview" =>
+                {
                     json!({"content": image_content(v), "isError": false})
                 }
                 Ok(v) => {

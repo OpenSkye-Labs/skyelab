@@ -2,6 +2,7 @@
 
 use super::browser::{self, BrowserTool};
 use super::device::{self, DeviceTool};
+use super::html::{self, HtmlTool};
 use serde_json::{Map, Value, json};
 
 /// Longest prompt or message an agent may send.
@@ -37,6 +38,7 @@ pub enum Tool {
     },
     Browser(BrowserTool),
     Device(DeviceTool),
+    Html(HtmlTool),
 }
 
 pub(super) fn list() -> Value {
@@ -109,6 +111,7 @@ pub(super) fn list() -> Value {
     if let Value::Array(list) = &mut tools {
         list.extend(browser::list());
         list.extend(device::list());
+        list.extend(html::list());
     }
     tools
 }
@@ -163,9 +166,14 @@ pub(super) fn parse(name: &str, args: &Value) -> Result<Tool, String> {
                     "timeout_s must be an integer from 1 to {MAX_WAIT_S}"
                 ))?,
         },
-        other => match (browser::parse(other, args), device::parse(other, args)) {
-            (Some(tool), _) => Tool::Browser(tool?),
-            (_, Some(tool)) => Tool::Device(tool?),
+        other => match (
+            browser::parse(other, args),
+            device::parse(other, args),
+            html::parse(other, args),
+        ) {
+            (Some(tool), _, _) => Tool::Browser(tool?),
+            (_, Some(tool), _) => Tool::Device(tool?),
+            (_, _, Some(tool)) => Tool::Html(tool?),
             _ => return Err(format!("unknown tool '{other}'")),
         },
     })

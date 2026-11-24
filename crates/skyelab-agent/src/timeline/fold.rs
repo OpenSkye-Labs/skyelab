@@ -44,15 +44,16 @@ pub fn turn_start(items: &[Item], done: usize) -> usize {
 
 /// The rows a fold can hide.
 fn work(item: &Item) -> bool {
-    matches!(
-        item,
-        Item::Tool(_)
-            | Item::Subagent(_)
-            | Item::Thinking { .. }
-            | Item::Output { .. }
-            | Item::Todo(_)
-            | Item::Text(_)
-    )
+    match item {
+        // A visual reply stays out, above the reply, as T3 shows it.
+        Item::Tool(t) => !crate::mcp::is_rendered_page(t),
+        Item::Subagent(_)
+        | Item::Thinking { .. }
+        | Item::Output { .. }
+        | Item::Todo(_)
+        | Item::Text(_) => true,
+        _ => false,
+    }
 }
 
 /// The turn's reply: its last text, which the fold never hides.

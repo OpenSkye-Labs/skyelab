@@ -38,7 +38,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `scroll:x;y;lines` turns the wheel, positive up; `window:N` sends the entries after it to the Nth open window, 0 being the first). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
-  `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,
+  `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `chart` calls `html_render` with a small bar chart (a visual reply card) and `peek` calls `html_preview` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir and exits 0 (the Log in terminal),

@@ -171,6 +171,8 @@ fn lists_all_tools_with_schemas() {
             "device_screenshot",
             "device_tap",
             "device_type",
+            "html_preview",
+            "html_render",
             "list_projects",
             "read_thread",
             "send_message",
