@@ -275,13 +275,16 @@ impl PrActions {
                         (m, label)
                     })
                     .collect();
-                segments(
-                    "pr-merge-method",
-                    &items,
-                    self.method,
-                    |this: &mut Self, m, cx| this.pick_method(m, cx),
-                    cx,
-                )
+                // Content width, like the page's filter tabs.
+                h_flex()
+                    .child(segments(
+                        "pr-merge-method",
+                        &items,
+                        self.method,
+                        |this: &mut Self, m, cx| this.pick_method(m, cx),
+                        cx,
+                    ))
+                    .into_any_element()
             }
         };
         let theme = cx.theme();
