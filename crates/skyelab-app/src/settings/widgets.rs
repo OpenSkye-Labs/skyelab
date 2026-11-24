@@ -92,7 +92,6 @@ pub(super) fn label(title: &str, about: &str, cx: &App) -> gpui::Div {
 /// Middle-truncated so both the root and the folder name stay visible; full path on hover.
 pub(super) fn path_text(id: String, path: &Path) -> gpui::Stateful<gpui::Div> {
     let full = SharedString::from(path.display().to_string());
-    // Home written `~`, as onboarding shows it; the tooltip and copy button keep the full path.
     let shown = ui::short_path(path, dirs::home_dir().as_deref());
     div()
         .id(SharedString::from(id))

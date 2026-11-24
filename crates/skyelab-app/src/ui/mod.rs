@@ -176,7 +176,7 @@ pub const ROW_H: Pixels = px(32.);
 pub const HEADER_H: Pixels = px(52.);
 pub const CHAT_MAX_W: Pixels = px(736.);
 pub const PAGE_MAX_W: Pixels = px(896.);
-/// T3's settings column: every Settings section is centered at this width.
+/// The width of the centered Settings column.
 pub const SETTINGS_MAX_W: Pixels = px(780.);
 
 /// FNV-1a (64-bit): stable across runs, builds and platforms, unlike std's `DefaultHasher`.

@@ -182,7 +182,7 @@ impl Settings {
         let test_input = input("/path/to/a/folder", window, cx);
         let keys_search = input("Search shortcuts", window, cx);
         let search_input = input("Search", window, cx);
-        let editor_input = input("Automatic", window, cx); // the row says what empty tries
+        let editor_input = input("Automatic", window, cx);
         editor_input.update(cx, |i, cx| i.set_value(general::editor(cx), window, cx));
         // Empty means the account's default app-wide and Inherit for a project; the row's description says which.
         let codex_model_input = input("Not set", window, cx);
@@ -401,14 +401,33 @@ fn stale_bindings(config: &AccountsConfig) -> Vec<(PathBuf, Option<PathBuf>)> {
 }
 
 fn account_ids(config: &AccountsConfig) -> Vec<AccountChoice> {
+    let name = |a: &skyelab_core::Account| {
+        if a.label.is_empty() {
+            a.id.clone()
+        } else {
+            a.label.clone()
+        }
+    };
     config
         .accounts
         .iter()
-        .map(|a| AccountChoice {
-            id: a.id.clone().into(),
-            label: if a.label.is_empty() { &a.id } else { &a.label }
-                .clone()
+        .map(|a| {
+            // Two accounts with one label would read the same: the id tells them apart.
+            let shared = config
+                .accounts
+                .iter()
+                .filter(|b| name(b) == name(a))
+                .count()
+                > 1;
+            AccountChoice {
+                id: a.id.clone().into(),
+                label: if shared {
+                    format!("{} ({})", name(a), a.id)
+                } else {
+                    name(a)
+                }
                 .into(),
+            }
         })
         .collect()
 }

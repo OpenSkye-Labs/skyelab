@@ -204,7 +204,6 @@ impl Render for MachinesPage {
             .child(
                 v_flex()
                     .w_full()
-                    // Shown as a Settings section: its column, like every other section.
                     .max_w(ui::SETTINGS_MAX_W)
                     .mx_auto()
                     .px_8()

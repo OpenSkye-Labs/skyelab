@@ -228,7 +228,12 @@ fn binding_picker_shows_labels_and_picks_ids() {
         ssh_agent: false,
     };
     let config = AccountsConfig {
-        accounts: vec![account("work", "Work (Acme)"), account("home", "")],
+        accounts: vec![
+            account("work", "Work (Acme)"),
+            account("home", ""),
+            account("a", "Same"),
+            account("b", "Same"),
+        ],
         ..Default::default()
     };
     let choices = account_ids(&config);
@@ -240,7 +245,9 @@ fn binding_picker_shows_labels_and_picks_ids() {
         shown,
         [
             ("Work (Acme)".into(), "work".into()),
-            ("home".into(), "home".into())
+            ("home".into(), "home".into()),
+            ("Same (a)".into(), "a".into()),
+            ("Same (b)".into(), "b".into()),
         ]
     );
 }
