@@ -55,6 +55,7 @@ pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Resul
         )));
     }
     let urls = check_urls(&root, &remote, true)?;
+    crate::remote::check_repo_config(&root, "push")?;
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let refspec = format!("HEAD:refs/heads/{branch}");
     let mut cmd = hooked_command(Path::new("git"), &root);

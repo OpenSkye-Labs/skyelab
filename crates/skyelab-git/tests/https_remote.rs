@@ -248,3 +248,57 @@ fn the_ca_is_trusted_only_where_skyelab_says_so() {
         "the remote saw the anonymous request"
     );
 }
+
+/// Push refuses the same repo-set keys as fetch (plus `receivepack`), before git starts: the server sees no request
+/// and the bound gh is never asked for its token.
+#[test]
+fn push_refuses_repo_set_keys_before_the_token_leaves() {
+    let (remote, _) = server();
+    let ca = remote.ca_file.to_str().expect("utf8").to_owned();
+    let keys = [
+        ("remote.origin.uploadpack", "git-upload-pack".to_owned()),
+        ("remote.origin.receivepack", "git-receive-pack".to_owned()),
+        ("remote.origin.proxy", "http://127.0.0.1:9".to_owned()),
+        ("remote.origin.vcs", "evil".to_owned()),
+        ("http.proxy", "http://127.0.0.1:9".to_owned()),
+        ("http.sslcainfo", ca.clone()),
+        ("SCOPED.sslcainfo", ca.clone()),
+        ("http.sslcapath", "/tmp".to_owned()),
+        ("http.sslcert", "/tmp/c.pem".to_owned()),
+        ("http.sslkey", "/tmp/k.pem".to_owned()),
+        ("http.curloptresolve", "127.0.0.1:443:127.0.0.1".to_owned()),
+        ("http.cookiefile", "/tmp/cookies".to_owned()),
+        ("http.pinnedpubkey", "sha256//x".to_owned()),
+        ("core.alternaterefscommand", "true".to_owned()),
+    ];
+    for (key, value) in keys {
+        let f = Fixture::new(&format!("push-refuse-{}", key.replace('.', "-")));
+        let key = key.replace("SCOPED", &format!("http.{}", f.url));
+        git(&f.repo, &["config", &key, &value]);
+        let (gh, dir) = f.gh();
+        let gh = GitHub {
+            gh: &gh,
+            config_dir: &dir,
+        };
+        let err = skyelab_git::push(&f.repo, &gh).expect_err(&key);
+        assert!(err.to_string().contains("won't push"), "{key}: {err}");
+        assert!(
+            err.to_string().to_lowercase().contains(&key.to_lowercase()),
+            "{key}: the message names the key: {err}"
+        );
+        let path = format!(
+            "/{}.git/",
+            f.bare.file_stem().expect("name").to_string_lossy()
+        );
+        assert!(
+            requests_to(&path).is_empty(),
+            "{key}: nothing reached the remote"
+        );
+        assert!(
+            !dir.join("fake-gh.credential").exists(),
+            "{key}: the gh login was never asked for its token"
+        );
+        git(&f.repo, &["config", "--unset", &key]);
+        skyelab_git::push(&f.repo, &gh).expect("a clean config pushes");
+    }
+}
