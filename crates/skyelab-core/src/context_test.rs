@@ -1,14 +1,23 @@
 use super::context::*;
 
 #[test]
-fn claude_models_have_a_200k_window() {
+fn claude_5_models_have_a_1m_window_and_older_ones_200k() {
+    // Real Claude Code 2.1.331 reports `contextWindow` 1000000 for claude-haiku-5-5 and claude-opus-5-5.
     for m in [
         "opus",
         "sonnet",
         "haiku",
         "fable",
         "claude-opus-5-5",
+        "claude-haiku-5-5",
+        "claude-fable-5-2",
+    ] {
+        assert_eq!(window(m), Some(1_000_000), "{m}");
+    }
+    for m in [
         "claude-sonnet-4-5-20250929",
+        "claude-sonnet-4-6",
+        "claude-3-5-sonnet-20241022",
     ] {
         assert_eq!(window(m), Some(200_000), "{m}");
     }
