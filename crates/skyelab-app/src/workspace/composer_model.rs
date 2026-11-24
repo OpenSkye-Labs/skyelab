@@ -1,12 +1,12 @@
 //! What the composer's model chip names: the model that will run, never a bare "default" (T3's "Opus 5.5 High").
 
 use super::composer_picker::title_case;
-use crate::workspace::thread::ThreadView;
 use super::lock;
+use crate::workspace::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString};
-use skyelab_store::ModelChoice;
 use skyelab_agent::{CLAUDE_MODELS, ModelInfo, model_label};
 use skyelab_core::Provider;
+use skyelab_store::ModelChoice;
 
 impl ThreadView {
     /// Picks a model and effort: kept on the thread, remembered as the project's default for new threads, and
@@ -36,7 +36,11 @@ impl ThreadView {
                 s.set_project_model(project, &pick)?;
             }
             if let Some(session) = session {
-                lock(&session)?.set_model(pick.model.as_deref(), pick.effort.as_deref())?;
+                let mut session = lock(&session)?;
+                // Checked again under this lock: a newer pick may have reached the agent since the store write.
+                if latest.load(std::sync::atomic::Ordering::SeqCst) == this_pick {
+                    session.set_model(pick.model.as_deref(), pick.effort.as_deref())?;
+                }
             }
             Ok(())
         });

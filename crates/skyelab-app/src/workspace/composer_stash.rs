@@ -5,21 +5,13 @@
 //! text is [`Stashed`] as JSON, its files the draft's files. Every thread view draws from the [`PromptStash`] global.
 
 use super::composer_context::ChipKind;
+use super::composer_context::MAX_CONTEXTS;
+use super::lock;
 use super::thread::ThreadView;
-use super::{lock, popover};
 use crate::ui;
-use gpui::{
-    AnyElement, App, AppContext as _, Context, FontWeight, Global, SharedString, Window, actions,
-    div, prelude::*, px,
-};
-use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
-use gpui_kit_assets::IconName as Lucide;
+use gpui::{App, AppContext as _, Context, Global, SharedString, Window, actions};
 use serde::{Deserialize, Serialize};
-use skyelab_agent::Attachment;
+use skyelab_agent::{Attachment, MAX_ATTACHMENTS};
 use std::path::PathBuf;
 
 actions!(skyelab, [StashPrompt]);
@@ -29,7 +21,7 @@ pub(in crate::workspace) const STASH_KEY: &str = if cfg!(target_os = "macos") {
 } else {
     "ctrl-s"
 };
-const SHORTCUT: &str = if cfg!(target_os = "macos") {
+pub(super) const SHORTCUT: &str = if cfg!(target_os = "macos") {
     "⌘S"
 } else {
     "Ctrl+S"
@@ -45,6 +37,10 @@ struct Stashed {
     text: String,
     #[serde(default)]
     chips: Vec<Chip>,
+    /// The account the composer ran on: chips without a binding of their own (a quote of its agent's reply, terminal
+    /// output, diff comments) go back only into a composer on the same account.
+    #[serde(default)]
+    account: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,7 +57,7 @@ impl Stashed {
         // An entry this build can't read (a newer chip kind) still gives its text back.
         serde_json::from_str(&raw).unwrap_or(Stashed {
             text: raw,
-            chips: Vec::new(),
+            ..Default::default()
         })
     }
 }
@@ -72,6 +68,7 @@ pub(crate) struct StashRow {
     pub owner: String,
     pub snippet: SharedString,
     pub files: usize,
+    pub chips: usize,
     pub at: i64,
 }
 
@@ -131,11 +128,15 @@ impl ThreadView {
         cx.spawn(async move |this, cx| {
             let result = task.await.map(|rows| {
                 (rows.into_iter())
-                    .map(|r| StashRow {
-                        snippet: snippet(&Stashed::parse(r.text), r.files),
-                        owner: r.owner,
-                        files: r.files,
-                        at: r.updated_at,
+                    .map(|r| {
+                        let stashed = Stashed::parse(r.text);
+                        StashRow {
+                            snippet: snippet(&stashed, r.files),
+                            chips: stashed.chips.len(),
+                            owner: r.owner,
+                            files: r.files,
+                            at: r.updated_at,
+                        }
                     })
                     .collect()
             });
@@ -155,6 +156,7 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let text = self.prompt.read(cx).value().to_string();
+        let account = self.composer_account().map(|a| a.id);
         let composer = &mut self.composer;
         if text.trim().is_empty() && composer.attachments.is_empty() && composer.contexts.is_empty()
         {
@@ -177,6 +179,7 @@ impl ThreadView {
                     bound: c.bound,
                 })
                 .collect(),
+            account,
         };
         let files: Vec<(String, Vec<u8>)> = (composer.attachments.drain(..))
             .map(|a| (a.name, a.data))
@@ -204,8 +207,9 @@ impl ThreadView {
                 s.delete_draft(&owner)?;
                 return Err(e);
             }
+            // The entry is stored: a failed trim must not put it back in the composer too.
             for old in rows.iter().skip(MAX - 1) {
-                s.delete_draft(&old.owner)?;
+                let _ = s.delete_draft(&old.owner);
             }
             anyhow::Ok(())
         });
@@ -227,11 +231,27 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.composer.stash_open = None;
+        cx.notify();
         if self.read_only {
             return;
         }
-        self.composer.stash_open = None;
-        cx.notify();
+        // Check the caps before taking it out: past them a chip or a file would be lost, or the send refused.
+        let row = PromptStash::rows(cx).iter().find(|r| r.owner == owner);
+        let (chips, files) = row.map_or((0, 0), |r| (r.chips, r.files));
+        let composer = &mut self.composer;
+        if composer.contexts.len() + chips > MAX_CONTEXTS
+            || composer.attachments.len() + files > MAX_ATTACHMENTS
+        {
+            composer.notice = Some(
+                format!(
+                    "Remove some chips or files first: a message carries up to {MAX_CONTEXTS} chips and \
+                     {MAX_ATTACHMENTS} files."
+                )
+                .into(),
+            );
+            return;
+        }
         let store = self.backend.store.clone();
         let task = cx.background_spawn(async move { lock(&store)?.take_draft(&owner) });
         cx.spawn_in(window, async move |this, cx| {
@@ -276,8 +296,20 @@ impl ThreadView {
         // Read back through the same checks as an attached file.
         let files = files.into_iter();
         (self.composer.attachments).extend(files.filter_map(|(n, d)| Attachment::new(n, d).ok()));
+        let here = self.composer_account().map(|a| a.id);
+        let mut left_out = 0;
         for c in stashed.chips {
+            if c.bound.is_none() && stashed.account != here {
+                left_out += 1;
+                continue;
+            }
             self.push_context(c.kind, c.label.into(), c.text, c.bound, cx);
+        }
+        if left_out > 0 {
+            self.composer.notice = Some(
+                format!("{left_out} chip(s) left out: they came from another account's thread.")
+                    .into(),
+            );
         }
         if let Some(e) = error {
             self.show_error(e, cx);
@@ -312,182 +344,6 @@ impl ThreadView {
         cx.notify();
         true
     }
-
-    /// The tab on the composer's top-right shoulder: "Stash" and the count. Hidden while empty or open.
-    pub(in crate::workspace) fn render_stash_badge(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let count = PromptStash::rows(cx).len();
-        if count == 0 || self.composer.stash_open.is_some() {
-            return None;
-        }
-        let theme = cx.theme();
-        let tab = h_flex()
-            .id("stash-badge")
-            .debug_selector(|| "stash-badge".into())
-            .h(px(24.))
-            .px_2p5()
-            .gap_1p5()
-            .rounded_t(ui::RADIUS_LG)
-            .border_1()
-            .border_b_0()
-            .border_color(theme.border)
-            .bg(theme.popover)
-            .text_size(ui::META)
-            .text_color(theme.muted_foreground)
-            .cursor_pointer()
-            .hover(|this| this.text_color(cx.theme().foreground))
-            .child(Icon::new(Lucide::Bookmark).xsmall())
-            .child("Stash")
-            .child(
-                div()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(count.to_string()),
-            )
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.composer.stash_open = Some(0);
-                cx.notify();
-            }));
-        // Overlaps the card's top border by a pixel, so the tab reads as part of it.
-        Some(
-            h_flex()
-                .w_full()
-                .justify_end()
-                .pr_4()
-                .mb(px(-1.))
-                .child(tab)
-                .into_any_element(),
-        )
-    }
-
-    /// The open list, floating above the card like the `@` menu.
-    pub(in crate::workspace) fn render_stash_menu(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> Option<AnyElement> {
-        let selected = self.composer.stash_open?;
-        let rows = PromptStash::rows(cx).to_vec();
-        let theme = cx.theme();
-        let now = ui::now_ms();
-        let header = h_flex()
-            .id("stash-header")
-            .h(px(28.))
-            .px_2()
-            .gap_2()
-            .rounded(ui::RADIUS_SM)
-            .text_size(ui::META)
-            .cursor_pointer()
-            .hover(|this| this.bg(cx.theme().accent))
-            .child(
-                Icon::new(Lucide::Bookmark)
-                    .xsmall()
-                    .text_color(theme.muted_foreground),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .text_color(theme.muted_foreground)
-                    .child("Stash"),
-            )
-            .child(
-                div()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(rows.len().to_string()),
-            )
-            .child(
-                Icon::new(IconName::ChevronDown)
-                    .xsmall()
-                    .text_color(theme.muted_foreground),
-            )
-            .on_click(cx.listener(|this, _, _, cx| {
-                this.composer.stash_open = None;
-                cx.notify();
-            }));
-        let body: Vec<AnyElement> = if rows.is_empty() {
-            vec![super::hint(
-                format!(
-                    "Nothing stashed yet. Press {SHORTCUT} with a prompt in the composer to stash it."
-                ),
-                cx,
-            )]
-        } else {
-            rows.into_iter()
-                .enumerate()
-                .map(|(ix, row)| {
-                    let (restore, delete) = (row.owner.clone(), row.owner.clone());
-                    h_flex()
-                        .id(("stash-row", ix))
-                        .debug_selector(move || format!("stash-row-{ix}"))
-                        .h(px(28.))
-                        .px_2()
-                        .gap_2()
-                        .rounded(ui::RADIUS_SM)
-                        .text_size(ui::BODY)
-                        .cursor_pointer()
-                        .when(ix == selected, |this| {
-                            this.bg(theme.foreground.opacity(0.09))
-                        })
-                        .hover(|this| this.bg(cx.theme().accent))
-                        .child(
-                            Icon::new(Lucide::FileText)
-                                .xsmall()
-                                .text_color(theme.muted_foreground),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .truncate()
-                                .text_color(theme.foreground.opacity(0.8))
-                                .child(row.snippet),
-                        )
-                        .when(row.files > 0, |this| {
-                            this.child(
-                                h_flex()
-                                    .gap_1()
-                                    .text_size(ui::META)
-                                    .text_color(theme.muted_foreground)
-                                    .child(Icon::new(IconName::File).xsmall())
-                                    .child(row.files.to_string()),
-                            )
-                        })
-                        .child(
-                            div()
-                                .text_size(ui::META)
-                                .text_color(theme.muted_foreground)
-                                .child(ui::ago(now, row.at)),
-                        )
-                        .child(
-                            Button::new(("stash-delete", ix))
-                                .ghost()
-                                .xsmall()
-                                .icon(Icon::new(Lucide::X))
-                                .tooltip("Delete stashed prompt")
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    cx.stop_propagation();
-                                    this.delete_stash(delete.clone(), cx);
-                                })),
-                        )
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.restore_stash(restore.clone(), window, cx)
-                        }))
-                        .into_any_element()
-                })
-                .collect()
-        };
-        Some(
-            popover(cx)
-                .id("stash-menu")
-                .max_h(px(320.))
-                .overflow_y_scroll()
-                .left_0()
-                .right_0()
-                .child(header)
-                .children(body)
-                .into_any_element(),
-        )
-    }
 }
 
 /// A list key, from the `@` menu's actions.
@@ -509,7 +365,7 @@ mod tests {
         assert_eq!(appended("now", ""), "now");
         let s = |text: &str| Stashed {
             text: text.into(),
-            chips: Vec::new(),
+            ..Default::default()
         };
         assert_eq!(snippet(&s(" a\n\nb "), 0), "a b");
         assert_eq!(snippet(&s(""), 2), "(2 files)");

@@ -43,6 +43,9 @@ to a default account: no pick, no thread. Remove the project or its binding like
   press <kbd>⌘S</kbd> in an empty composer) to list the stashed prompts, newest first. Click one, or pick it with
   <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, to take it out of the stash and add it after what you have typed;
   × deletes one. There is one stash for all projects and threads; it keeps the last 20 and survives restarts.
+  Restored into a thread on another account, a prompt comes back without its quote, terminal and diff-comment chips,
+  so one account's output never reaches another's agent. A restore that would pass 8 chips or 10 files is refused
+  and the entry stays in the stash.
 - **The model chip** (right of the composer: **Opus 5.5 High**) always names the model that will run. Until you pick
   one it shows the account's own default, with the tooltip **Account default model**: the model the thread's last run
   on the default reported, else the `model` in the account's Claude `settings.json` or Codex `config.toml` (SkyeLab reads only that

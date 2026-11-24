@@ -62,6 +62,10 @@ impl ThreadView {
         let Some((_, text)) = self.composer.quote.take() else {
             return;
         };
+        // Cleared since (a click outside the timeline): nothing is selected any more.
+        if TextSelection::selected_text(window, cx).trim().is_empty() {
+            return cx.notify();
+        }
         TextSelection::clear(window, cx);
         let text = skyelab_core::terminal_context::clip(&text);
         self.push_context(ChipKind::Quote, label(&text).into(), text, None, cx);

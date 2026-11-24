@@ -113,3 +113,30 @@ fn stash_restore_delete_and_cap(cx: &mut TestAppContext) {
     wait_until(cx, "deleted", |_| stored(&f).len() == 19);
     assert!(stored(&f).iter().all(|r| r.owner != newest));
 }
+
+#[gpui::test]
+fn restore_past_the_chip_cap_is_refused_and_keeps_the_entry(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    fill(&thread, "later", cx);
+    cx.simulate_keystrokes(STASH_KEY);
+    wait_until(cx, "stashed", |cx| {
+        stored(&f).len() == 1 && shown_rows(cx) == 1
+    });
+    thread.update(cx, |t, cx| {
+        for n in 0..8 {
+            t.add_terminal_context(format!("Terminal {n}").into(), "out", cx);
+        }
+    });
+    let owner = stored(&f)[0].owner.clone();
+    thread.update_in(cx, |t, window, cx| t.restore_stash(owner, window, cx));
+    cx.run_until_parked();
+    assert_eq!(stored(&f).len(), 1, "CAP_LOST_ENTRY");
+    let (chips, notice) = thread.read_with(cx, |t, _| {
+        (t.composer.contexts.len(), t.composer.notice.clone())
+    });
+    assert_eq!(chips, 8);
+    assert!(notice.is_some_and(|n| n.contains("up to 8 chips")));
+}

@@ -44,6 +44,8 @@ mod composer_review_test;
 mod composer_send;
 #[path = "composer_stash.rs"]
 pub(in crate::workspace) mod composer_stash;
+#[path = "composer_stash_view.rs"]
+mod composer_stash_view;
 #[path = "composer_state.rs"]
 mod composer_state;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
@@ -58,6 +60,9 @@ mod quote_selection_test;
 #[cfg(test)]
 #[path = "side_commands_test.rs"]
 mod side_commands_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "stash_account_test.rs"]
+mod stash_account_test;
 pub(in crate::workspace) use composer_machine::machine_name;
 
 #[cfg(test)]
