@@ -32,7 +32,9 @@ When a turn fails, or the agent exits with an error, what it wrote to stderr (th
 
 When the agent asks you something (Claude's `AskUserQuestion`, Codex's user-input request), the thread shows a
 question card: each question with its options (one choice, or **Pick any** for several) and **Other** for a typed
-answer. **Submit answers** sends them all; **Skip** declines. In Plan mode, when the agent is ready it shows a
+answer. **Attach files** under a question adds files to that answer (up to 100 in all; × drops one): the agent gets
+their paths with your answer and reads them with its own tools. A file alone answers a question. Attaching is
+offered only on the machine that runs the thread. **Submit answers** sends them all; **Skip** declines. In Plan mode, when the agent is ready it shows a
 **Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep
 planning** tells it to keep refining. From another machine's view the plan's buttons work but don't switch the
 thread's mode, and the question card can only be read.

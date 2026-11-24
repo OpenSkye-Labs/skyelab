@@ -144,3 +144,45 @@ fn keep_planning_denies_the_plan(cx: &mut TestAppContext) {
         "deny"
     );
 }
+
+#[gpui::test]
+fn files_attached_to_answers_reach_the_agent_as_paths(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    wait_until(cx, "the question card", |cx| ask(&one, cx).is_some());
+    let (id, _) = ask(&one, cx).expect("asked");
+    let (a, b) = (Path::new("/tmp/schema.sql"), Path::new("/tmp/notes.md"));
+    one.view.update(cx, |v, cx| {
+        v.pick(&id, 0, 1, false, cx);
+        v.attach_answer_paths(&id, 0, vec![a.into()], cx);
+        // Question 2 is answered by files alone; the same file twice is kept once.
+        v.attach_answer_paths(&id, 1, vec![b.into(), b.into()], cx);
+    });
+    one.view.update(cx, |v, cx| v.submit_answers(&id, cx));
+    assert_eq!(
+        one.view.read_with(cx, |v, _| v.error.clone()),
+        None,
+        "files alone answer a question"
+    );
+    wait_until(cx, "the agent's report of the answer", |cx| {
+        reply(&one, cx).is_some()
+    });
+    let r = reply(&one, cx).expect("reply");
+    assert_eq!(
+        r["response"]["updatedInput"]["answers"],
+        json!({
+            "Which database?": "SQLite, Attached files: /tmp/schema.sql",
+            "Which extras?": "Attached files: /tmp/notes.md",
+        })
+    );
+}
+
+#[test]
+fn an_answer_takes_at_most_a_hundred_files() {
+    use super::question_drafts::{Drafts, attach};
+    let mut drafts = Drafts::new();
+    let many: Vec<std::path::PathBuf> = (0..150).map(|i| format!("/f{i}").into()).collect();
+    // No item: the draft still sizes to the question index given by an earlier pick, so size it by hand.
+    drafts.entry("q".into()).or_default().files = vec![Vec::new()];
+    attach(&[], &mut drafts, "q", 0, many);
+    assert_eq!(drafts["q"].files[0].len(), 100);
+}

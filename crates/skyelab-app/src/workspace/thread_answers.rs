@@ -59,6 +59,36 @@ impl ThreadView {
         self.redraw(id, cx);
     }
 
+    /// Picks files for question `q`'s answer with the system file dialog.
+    pub fn attach_answer_files(&mut self, id: &str, q: usize, cx: &mut Context<Self>) {
+        let picked = cx.prompt_for_paths(gpui::PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: true,
+            prompt: Some("Attach".into()),
+        });
+        let id = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = picked.await else {
+                return; // cancelled, or the platform has no picker
+            };
+            let _ = this.update(cx, |this, cx| this.attach_answer_paths(&id, q, paths, cx));
+        })
+        .detach();
+    }
+
+    /// Adds `paths` to question `q`'s answer.
+    pub(in crate::workspace) fn attach_answer_paths(
+        &mut self,
+        id: &str,
+        q: usize,
+        paths: Vec<std::path::PathBuf>,
+        cx: &mut Context<Self>,
+    ) {
+        question_drafts::attach(&self.items, &mut self.drafts, id, q, paths);
+        self.redraw(id, cx);
+    }
+
     /// Question `q`'s "Other" text field, made the first time it shows.
     pub fn other_input(
         &mut self,
@@ -258,6 +288,16 @@ impl ItemsView for ThreadView {
         cx: &mut Context<Self>,
     ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
         Some(ThreadView::other_input(self, id, q, window, cx))
+    }
+    fn can_attach_answer_files(&self, cx: &App) -> bool {
+        self.can_answer_questions(cx)
+    }
+    fn attach_answer_files(&mut self, id: &str, q: usize, cx: &mut Context<Self>) {
+        ThreadView::attach_answer_files(self, id, q, cx)
+    }
+    fn remove_answer_file(&mut self, id: &str, q: usize, ix: usize, cx: &mut Context<Self>) {
+        question_drafts::detach(&mut self.drafts, id, q, ix);
+        self.redraw(id, cx);
     }
     fn submit_answers(&mut self, id: &str, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::submit_answers(self, id, cx)

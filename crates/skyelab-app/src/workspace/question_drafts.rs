@@ -22,7 +22,44 @@ fn draft_mut<'a>(items: &[Item], drafts: &'a mut Drafts, id: &str) -> &'a mut Qu
     d.picked
         .resize_with(n.max(d.picked.len()), Default::default);
     d.other.resize_with(n.max(d.other.len()), Default::default);
+    d.files.resize_with(n.max(d.files.len()), Default::default);
     d
+}
+
+/// The most files one set of answers carries (T3's limit).
+const MAX_FILES: usize = 100;
+
+/// Adds `paths` to question `q`'s answer, skipping ones already there and any past [`MAX_FILES`] in all.
+pub(super) fn attach(
+    items: &[Item],
+    drafts: &mut Drafts,
+    id: &str,
+    q: usize,
+    paths: Vec<std::path::PathBuf>,
+) {
+    let d = draft_mut(items, drafts, id);
+    let mut room = MAX_FILES.saturating_sub(d.files.iter().map(Vec::len).sum());
+    let Some(files) = d.files.get_mut(q) else {
+        return;
+    };
+    for p in paths {
+        if room == 0 {
+            break;
+        }
+        if !files.contains(&p) {
+            files.push(p);
+            room -= 1;
+        }
+    }
+}
+
+/// Drops file `ix` from question `q`'s answer.
+pub(super) fn detach(drafts: &mut Drafts, id: &str, q: usize, ix: usize) {
+    if let Some(files) = drafts.get_mut(id).and_then(|d| d.files.get_mut(q))
+        && ix < files.len()
+    {
+        files.remove(ix);
+    }
 }
 
 /// Toggles a pick. A single-choice question keeps one pick; "Other" is a pick too.
@@ -65,7 +102,8 @@ pub(super) fn other_input<V: 'static>(
     input
 }
 
-/// Each question's picks as labels (a typed "Other" answer is its text), or why they can't be sent yet.
+/// Each question's picks as labels (a typed "Other" answer is its text, attached files one line of paths), or why
+/// they can't be sent yet. Files alone answer a question.
 pub(super) fn answers(
     items: &[Item],
     drafts: &Drafts,
@@ -89,15 +127,25 @@ pub(super) fn answers(
                 .flatten()
                 .filter_map(|&o| q.options.get(o).map(|(l, _)| l.clone()))
                 .collect();
+            let files = draft
+                .and_then(|d| d.files.get(qi))
+                .filter(|f| !f.is_empty());
             if picked.is_some_and(|p| p.contains(&OTHER)) {
                 let typed = draft
                     .and_then(|d| d.other.get(qi).cloned().flatten())
                     .map(|i| i.read(cx).value().trim().to_owned())
                     .unwrap_or_default();
-                if typed.is_empty() {
-                    return Err(format!("Type your answer to \"{}\".", q.question));
+                match (typed.is_empty(), files.is_some()) {
+                    (true, false) => {
+                        return Err(format!("Type your answer to \"{}\".", q.question));
+                    }
+                    (true, true) => {} // "Other" with only files: the files are the answer
+                    (false, _) => labels.push(typed),
                 }
-                labels.push(typed);
+            }
+            if let Some(files) = files {
+                let paths: Vec<String> = files.iter().map(|p| p.display().to_string()).collect();
+                labels.push(format!("Attached files: {}", paths.join(", ")));
             }
             if labels.is_empty() {
                 return Err(format!("Pick an answer to \"{}\".", q.question));

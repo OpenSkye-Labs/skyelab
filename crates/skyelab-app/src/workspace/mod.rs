@@ -71,6 +71,7 @@ use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
 mod pr_watch;
+mod ask_files;
 mod shell_card;
 mod surfaces;
 pub(crate) mod thread_checkpoints;
