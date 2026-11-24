@@ -103,6 +103,20 @@ impl Lists {
         }
     }
 
+    /// An ask (permission, question, plan) waits on you: every window's list goes to its end, where it is, even if
+    /// you had scrolled up (T3 docks it above the composer).
+    pub(in crate::workspace) fn reveal_ask(&self, record: &super::super::thread_model::Record) {
+        use super::super::thread_model::Record;
+        if matches!(
+            record,
+            Record::Agent(skyelab_agent::Event::Permission { .. })
+        ) {
+            for (_, l) in &self.0 {
+                l.scroll_to_end();
+            }
+        }
+    }
+
     pub(in crate::workspace) fn reset(&self, rows: usize) {
         for (_, l) in &self.0 {
             l.reset(rows);

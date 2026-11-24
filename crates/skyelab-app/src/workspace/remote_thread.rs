@@ -175,6 +175,12 @@ impl RemoteThreadView {
             stamp_done(&mut self.items, event.created_at);
             self.find_rows_changed();
             self.list.splice(first..old, self.items.len() - first);
+            if matches!(
+                record,
+                Record::Agent(skyelab_agent::Event::Permission { .. })
+            ) {
+                self.list.scroll_to_end(); // an ask waits on you: in view, as on this machine's threads
+            }
             cx.notify();
         }
     }

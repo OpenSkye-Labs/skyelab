@@ -447,6 +447,7 @@ impl ThreadView {
             stamp_done(&mut self.items, crate::ui::now_ms());
             self.find_rows_changed();
             self.lists.splice(first..old, self.items.len() - first);
+            self.lists.reveal_ask(record);
             cx.notify();
         }
     }
