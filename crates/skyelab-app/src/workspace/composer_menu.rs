@@ -118,8 +118,8 @@ fn score(label: &str, q: &str) -> Option<u32> {
     q.chars().all(|c| chars.any(|l| l == c)).then_some(4)
 }
 
-/// Whether `@q` names model `label` (`id`): at least two letters, and every word of `q` (split at spaces, `:`, `/`
-/// and `-`) starts a word of the label or id. Fuzzy hits would push files out of the menu (T3's rule).
+/// Whether `@q` names model `label` (`id`): at least two characters, and every word of `q` (split at anything but
+/// letters, digits and `.`) starts a word of the label or id. Fuzzy hits would push files out of the menu.
 fn model_matches(label: &str, id: &str, q: &str) -> bool {
     let split = |s: &str| -> Vec<String> {
         s.to_lowercase()

@@ -170,8 +170,8 @@ fn files_attached_to_answers_reach_the_agent_as_paths(cx: &mut TestAppContext) {
     assert_eq!(
         r["response"]["updatedInput"]["answers"],
         json!({
-            "Which database?": "SQLite, Attached files: /tmp/schema.sql",
-            "Which extras?": "Attached files: /tmp/notes.md",
+            "Which database?": "SQLite, Attached files: \"/tmp/schema.sql\"",
+            "Which extras?": "Attached files: \"/tmp/notes.md\"",
         })
     );
 }
@@ -181,7 +181,7 @@ fn an_answer_takes_at_most_a_hundred_files() {
     use super::question_drafts::{Drafts, attach};
     let mut drafts = Drafts::new();
     let many: Vec<std::path::PathBuf> = (0..150).map(|i| format!("/f{i}").into()).collect();
-    // No item: the draft still sizes to the question index given by an earlier pick, so size it by hand.
+    // With no question item to size it, the draft gets its one question by hand.
     drafts.entry("q".into()).or_default().files = vec![Vec::new()];
     attach(&[], &mut drafts, "q", 0, many);
     assert_eq!(drafts["q"].files[0].len(), 100);

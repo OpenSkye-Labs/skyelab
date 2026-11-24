@@ -50,7 +50,11 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<BrowserPanel> {
-        let panel = cx.new(|_| BrowserPanel { browser, agent });
+        let panel = cx.new(|_| BrowserPanel {
+            users: agent.is_none(),
+            browser,
+            agent,
+        });
         self.add_right_panel(panel.clone(), window, cx);
         cx.subscribe_in(
             &panel,

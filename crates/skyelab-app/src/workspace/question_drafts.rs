@@ -144,7 +144,11 @@ pub(super) fn answers(
                 }
             }
             if let Some(files) = files {
-                let paths: Vec<String> = files.iter().map(|p| p.display().to_string()).collect();
+                // Quoted, so a comma or newline in a file name can't run into the next path.
+                let paths: Vec<String> = files
+                    .iter()
+                    .map(|p| format!("{:?}", p.display().to_string()))
+                    .collect();
                 labels.push(format!("Attached files: {}", paths.join(", ")));
             }
             if labels.is_empty() {

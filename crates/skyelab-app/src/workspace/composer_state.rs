@@ -353,10 +353,13 @@ impl ThreadView {
         cx.notify();
     }
 
-    fn load_menu_items(&mut self, kind: MenuKind, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn load_menu_items(&mut self, kind: MenuKind, cx: &mut Context<Self>) {
         let cwd = self.cwd.clone();
         let account = self.composer_account();
         let contexts = (kind == MenuKind::Context).then(|| self.context_menu_items());
+        if kind == MenuKind::Files {
+            self.list_codex_models(cx); // the menu reloads when they land
+        }
         let models = (kind == MenuKind::Files).then(|| self.mention_models());
         let side_commands = !self.is_side_chat();
         let task = cx.background_spawn(async move {

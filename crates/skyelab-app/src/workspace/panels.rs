@@ -220,6 +220,8 @@ pub struct BrowserPanel {
     /// The thread whose agent drives this tab. `None` for the user's tabs, and after Take over: an agent
     /// only ever reaches a tab whose owner is its own thread.
     pub agent: Option<AgentOwner>,
+    /// Opened by the user: an agent's tab keeps `false` after Take over, so it never reopens in the user's profile.
+    pub users: bool,
 }
 
 pub struct AgentOwner {
@@ -243,8 +245,7 @@ impl BasePanel for BrowserPanel {
         self.browser.read(cx).set_visible(active, cx);
     }
     fn on_removed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        // An agent's tab isn't reopened: its owner may be gone, and the user didn't open it.
-        if self.agent.is_none()
+        if self.users
             && let Ok(url) = self.browser.read(cx).current_url(cx)
         {
             super::reopen::remember(window, super::reopen::Closed::Browser(url), cx);

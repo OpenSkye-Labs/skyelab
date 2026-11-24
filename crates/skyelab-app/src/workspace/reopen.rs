@@ -12,7 +12,7 @@ use std::path::PathBuf;
 actions!(skyelab, [ReopenClosedView]);
 
 /// The most closed tabs kept, across windows.
-const MAX: usize = 20;
+const MAX_CLOSED: usize = 20;
 
 pub(crate) enum Closed {
     Browser(String),
@@ -29,9 +29,17 @@ impl Global for ClosedViews {}
 pub(crate) fn remember(window: &Window, closed: Closed, cx: &mut App) {
     let list = &mut cx.default_global::<ClosedViews>().0;
     list.push((window.window_handle(), closed));
-    if list.len() > MAX {
+    if list.len() > MAX_CLOSED {
         list.remove(0);
     }
+}
+
+/// How many closed tabs `window` can reopen.
+#[cfg(test)]
+pub(crate) fn pending(window: &Window, cx: &App) -> usize {
+    let here = window.window_handle();
+    cx.try_global::<ClosedViews>()
+        .map_or(0, |c| c.0.iter().filter(|(w, _)| *w == here).count())
 }
 
 impl Workspace {
@@ -43,6 +51,10 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // A remote machine's view has no local tabs to reopen; keep the list for when it's local again.
+        if self.is_remote() {
+            return;
+        }
         let here = window.window_handle();
         loop {
             let latest = cx

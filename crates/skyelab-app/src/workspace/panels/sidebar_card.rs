@@ -13,8 +13,8 @@ use std::time::Duration;
 /// T3's tooltip delay: long enough that moving down the list doesn't flash cards.
 const OPEN_DELAY: Duration = Duration::from_millis(500);
 
-/// Each local thread's row card, by thread id, as the sidebar last listed it, for the composer's thread and PR chips
-/// (T3's thread-chip hover cards).
+/// Local threads' row cards by thread id, as a sidebar last listed each (a thread no sidebar lists keeps its last
+/// card), for the composer's thread and PR chips (T3's thread-chip hover cards).
 #[derive(Default)]
 pub struct ThreadCards(pub std::collections::HashMap<i64, Rc<RowCard>>);
 

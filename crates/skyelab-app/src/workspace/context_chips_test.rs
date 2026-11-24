@@ -118,7 +118,7 @@ fn picking_a_thread_sends_its_gist_and_other_accounts_stay_out(cx: &mut gpui::Te
         (ChipKind::Thread, "sibling")
     );
     assert_eq!(chip.text, "Title: sibling\nLast reply:\nreply of sibling");
-    // The chip keeps its thread, and hovering it shows that thread's sidebar card.
+    // The chip keeps its thread, whose sidebar card its hover shows.
     assert_eq!(chip.thread, Some(sibling));
     ws.update(cx, |ws, cx| ws.load_threads(cx));
     wait_until(cx, "the sidebar's card for the thread", |cx| {

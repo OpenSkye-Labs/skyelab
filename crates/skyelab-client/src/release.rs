@@ -29,7 +29,8 @@ pub fn npm_latest(url: &str) -> io::Result<String> {
     parse_npm_latest(&get(url, "application/json")?)
 }
 
-/// `version` from an npm registry version record: short, digits and dots first (untrusted until compared).
+/// `version` from an npm registry version record: at most 64 letters, digits, `.`, `-` and `+` (untrusted until
+/// compared).
 pub(crate) fn parse_npm_latest(body: &[u8]) -> io::Result<String> {
     let v: serde_json::Value = serde_json::from_slice(body).map_err(io::Error::other)?;
     v.get("version")

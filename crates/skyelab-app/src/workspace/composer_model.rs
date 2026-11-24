@@ -1,5 +1,6 @@
 //! What the composer's model chip names: the model that will run, never a bare "default" (T3's "Opus 5.5 High").
 
+use super::composer_menu::MenuKind;
 use super::composer_picker::title_case;
 use crate::workspace::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString};
@@ -91,11 +92,15 @@ impl ThreadView {
     }
 
     /// The `@` menu's model rows: the picker's models for the thread's provider (Codex's once listed), none when
-    /// the composer has no account.
+    /// the composer has no account or sends to several models.
     pub(in crate::workspace) fn mention_models(&self) -> Vec<super::composer_menu::MenuItem> {
         let Some(provider) = self.composer_account().map(|a| a.provider) else {
             return Vec::new();
         };
+        // A send to several models goes to the ticked set; one picked model would be ignored.
+        if self.composer.compare.is_some() {
+            return Vec::new();
+        }
         let models: Vec<(String, String)> = match provider {
             Provider::Codex => self
                 .listed()
@@ -186,6 +191,14 @@ impl ThreadView {
             let listed = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.composer.codex_models = Some(listed);
+                if this
+                    .composer
+                    .menu
+                    .as_ref()
+                    .is_some_and(|m| m.kind == MenuKind::Files)
+                {
+                    this.load_menu_items(MenuKind::Files, cx); // the `@` menu's model rows
+                }
                 cx.notify();
             });
         })
