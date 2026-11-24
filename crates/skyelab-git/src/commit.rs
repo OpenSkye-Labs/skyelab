@@ -224,7 +224,10 @@ pub(crate) fn indexed<S: AsRef<OsStr>>(
     crate::finish(root, args, skyelab_core::process::output(&mut cmd, input)?)
 }
 
-fn copy_index(root: &Path, to: &Path) -> Result<()> {
+/// Copies the repo's index to `to`, keeping its mtime: git trusts an entry's stat only when the file is older than
+/// the index (its racy-git check). Linux's `fs::copy` stamps the copy with now, so an edit within the same
+/// timestamp tick (ext4's are coarse) as the index looked unchanged and the snapshot missed it.
+pub(crate) fn copy_index(root: &Path, to: &Path) -> Result<()> {
     let index = PathBuf::from(
         lossy(&git(
             root,
@@ -233,8 +236,16 @@ fn copy_index(root: &Path, to: &Path) -> Result<()> {
         .trim_end_matches('\n'),
     );
     match std::fs::copy(&index, to) {
-        Err(e) if e.kind() != io::ErrorKind::NotFound => Err(e.into()),
-        _ => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+        Ok(_) => {
+            let modified = std::fs::metadata(&index)?.modified()?;
+            std::fs::File::options()
+                .write(true)
+                .open(to)?
+                .set_modified(modified)?;
+            Ok(())
+        }
     }
 }
 

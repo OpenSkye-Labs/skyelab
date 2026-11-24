@@ -23,6 +23,11 @@ fn hang_up_with(reply: &'static [u8]) -> u16 {
         for stream in listener.incoming() {
             let Ok(mut stream) = stream else { return };
             let _ = stream.write_all(reply);
+            // Hang up the way a server does: read what the client sent first. Closing with its bytes unread
+            // resets the connection, and Windows then drops `reply` before the client reads it.
+            let _ = stream.shutdown(std::net::Shutdown::Write);
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+            let _ = std::io::copy(&mut stream, &mut std::io::sink());
         }
     });
     port

@@ -29,7 +29,8 @@ fn changes_of_a_repo_without_commits_lists_new_files() {
 fn a_worktree_deleted_by_hand_discards_cleanly() {
     let (_tmp, root) = super::changes_model_test::repo(&[("a.txt", b"a\n")]);
     let wt = root.join("wt");
-    let wt_arg = wt.to_str().expect("utf-8");
+    let wt_plain = skyelab_core::files::without_verbatim(&wt);
+    let wt_arg = wt_plain.to_str().expect("utf-8");
     git(
         &root,
         &[

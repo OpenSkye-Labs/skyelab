@@ -124,7 +124,9 @@ fn reports_worktree_head_change() {
                 "worktree",
                 "add",
                 "-q",
-                wt.to_str().expect("utf8"),
+                skyelab_core::files::without_verbatim(&wt)
+                    .to_str()
+                    .expect("utf8"),
                 "feature",
             ],
         );

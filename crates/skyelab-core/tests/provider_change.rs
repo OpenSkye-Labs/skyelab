@@ -8,7 +8,8 @@ fn account(provider: Provider) -> Account {
         id: "acct".into(),
         label: "Acct".into(),
         provider,
-        config_dir: "/home/me/.acct".into(),
+        // Absolute on every OS (`/home/me` has no drive on Windows).
+        config_dir: std::env::temp_dir().join(".acct"),
         gh_config_dir: None,
         ssh_agent: false,
     }

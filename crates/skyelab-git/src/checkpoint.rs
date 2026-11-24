@@ -224,10 +224,7 @@ struct Removed {
 
 impl Removed {
     fn new(root: &Path, paths: &[PathBuf]) -> Self {
-        let paths = paths
-            .iter()
-            .map(|p| (p.to_string_lossy().to_lowercase(), p.clone()))
-            .collect();
+        let paths = paths.iter().map(|p| (key(p), p.clone())).collect();
         Self {
             root: root.to_owned(),
             paths,
@@ -235,12 +232,21 @@ impl Removed {
     }
 
     fn has(&self, path: &Path) -> bool {
-        match self.paths.get(&path.to_string_lossy().to_lowercase()) {
+        match self.paths.get(&key(path)) {
             Some(listed) if listed == path => true,
             Some(listed) => same_entry(&self.root.join(listed), &self.root.join(path)),
             None => false,
         }
     }
+}
+
+/// `path` lowercased, its parts joined by `/`: git lists `a/b`, a walk on Windows builds `a\b`.
+fn key(path: &Path) -> String {
+    let parts: Vec<_> = path
+        .iter()
+        .map(|c| c.to_string_lossy().to_lowercase())
+        .collect();
+    parts.join("/")
 }
 
 #[cfg(unix)]
