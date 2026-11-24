@@ -1,6 +1,6 @@
 //! Find in thread (T3's ThreadFindBar): mod+F opens a bar over the timeline. It counts every match of the query
 //! (case-insensitive) in the thread's rows, steps through them with Enter / Shift-Enter, scrolls to each, opens the
-//! folded turn or collapsed row it sits in, and tints the rows that match. Esc closes it.
+//! folded turn or collapsed row it sits in, and marks the matched words (other rows that match are tinted). Esc closes it.
 
 use super::thread::{CONTEXT, ThreadView};
 use super::thread_items::ItemsView;
@@ -52,11 +52,18 @@ pub struct Find {
 impl Find {
     /// `Some(true)` for the current match's row, `Some(false)` for another matching row.
     pub fn mark(&self, ix: usize) -> Option<bool> {
+        self.words(ix).map(|(_, active)| active.is_some())
+    }
+
+    /// For a matching row: the query, and which of the row's matches is the current one (`None` on another row).
+    pub fn words(&self, ix: usize) -> Option<(&str, Option<usize>)> {
         self.input.as_ref()?;
-        if self.matches.get(self.active) == Some(&ix) {
-            return Some(true);
+        let first = self.matches.partition_point(|&m| m < ix);
+        if self.matches.get(first) != Some(&ix) {
+            return None;
         }
-        self.matches.binary_search(&ix).is_ok().then_some(false)
+        let active = (self.matches.get(self.active) == Some(&ix)).then(|| self.active - first);
+        Some((&self.query, active))
     }
 
     /// "2/7", "0/0", or nothing before a query.

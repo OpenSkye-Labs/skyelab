@@ -110,6 +110,13 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - GPUI's `ClipboardItem` carries only text, images and paths: no `text/html`. A rich copy (a table as HTML) goes
   through `arboard` (`set().html(html, Some(plain))`), with one `Clipboard` kept for the app's life, since on Linux
   the owner serves pastes (`table_copy.rs`).
+- To mark words in a markdown `TextView` (find in thread), own its state: `TextView::markdown(id, text)` keeps a
+  hidden `TextViewState` you can't reach. Make it with `window.use_keyed_state(..)`, `set_text` it every render
+  (cheap when equal; an extension streams as an append), draw `TextView::new(&state)`, and call
+  `set_range_highlights` with ranges of `state.rendered_text()` (the plain text, not the markdown source). Parses
+  land async, so set them again whenever that snapshot (`==` per parse), the query or the current match changes; a
+  highlight paints behind glyphs, so it never changes layout (`find_marks::mark_words`).
+- Plain `String` text marks the same way with `StyledText::with_highlights` and a `HighlightStyle` background.
 
 ### Text selection
 

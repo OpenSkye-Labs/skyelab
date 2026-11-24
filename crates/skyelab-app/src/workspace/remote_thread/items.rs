@@ -59,8 +59,8 @@ impl ItemsView for RemoteThreadView {
         let pending = self.client.answer_permission(thread, id, answer);
         self.await_reply(pending, None, window, cx, |_, _, _| {});
     }
-    fn find_mark(&self, ix: usize) -> Option<bool> {
-        self.find.mark(ix)
+    fn find_words(&self, ix: usize) -> Option<(&str, Option<usize>)> {
+        self.find.words(ix)
     }
     /// Only a machine that knows `answer_questions` (1.4) gets the card's controls.
     fn can_answer_questions(&self, cx: &App) -> bool {

@@ -63,8 +63,8 @@ pub(super) trait ItemsView: Sized + 'static {
     }
     /// Shows `path` (absolute) in the Changes tab, scoped to checkpoint turn `turn`.
     fn open_turn_file(&mut self, _turn: u32, _path: &std::path::Path, _cx: &mut Context<Self>) {}
-    /// The find bar's tint for row `ix`: `Some(true)` holds the active match, `Some(false)` another one.
-    fn find_mark(&self, _ix: usize) -> Option<bool> {
+    /// The find bar's query for row `ix` when it matches, and which of its matches is the current one.
+    fn find_words(&self, _ix: usize) -> Option<(&str, Option<usize>)> {
         None
     }
     /// "Fork from here" on reply row `ix` (local threads with a row only).
@@ -151,18 +151,8 @@ pub(super) fn render_item<V: ItemsView>(
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
     let _render = crate::debug_renders::count("timeline row");
-    let mark = this.find_mark(ix);
     let row = timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx);
-    match mark {
-        None => row,
-        // A find match: tinted, the current one stronger (T3 marks the text; markdown here can't).
-        Some(active) => div()
-            .debug_selector(move || if active { "find-active" } else { "find-match" }.into())
-            .w_full()
-            .bg(cx.theme().warning.opacity(if active { 0.22 } else { 0.08 }))
-            .child(row)
-            .into_any_element(),
-    }
+    super::find_marks::mark_row(this, ix, row, cx)
 }
 
 fn render_row<V: ItemsView>(
@@ -229,7 +219,11 @@ fn render_row<V: ItemsView>(
                         .rounded(ui::RADIUS_XL)
                         .bg(theme.secondary)
                         .text_size(ui::BODY)
-                        .child(text.clone()),
+                        .child(super::find_marks::prompt_text(
+                            text,
+                            this.find_words(ix),
+                            theme.warning,
+                        )),
                 )
                 .into_any_element(),
         ),
@@ -244,6 +238,7 @@ fn render_row<V: ItemsView>(
                     text,
                     false,
                     root.as_deref(),
+                    this.find_words(ix),
                     window,
                     cx,
                 ))
@@ -276,6 +271,7 @@ fn render_row<V: ItemsView>(
                     text,
                     true,
                     root.as_deref(),
+                    this.find_words(ix),
                     window,
                     cx,
                 ))
