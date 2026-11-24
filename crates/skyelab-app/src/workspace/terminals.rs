@@ -87,17 +87,6 @@ impl Workspace {
         .detach();
     }
 
-    /// `account` is the one the shell's env was set up for, shown on its tab (`None`: unbound).
-    pub(super) fn add_terminal_with(
-        &mut self,
-        options: SpawnOptions,
-        account: Option<skyelab_core::Account>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
-        self.add_terminal_tab(options, account, None, window, cx)
-    }
-
     /// A tab running one login command, titled `Log in: <account>` and never saved for a restart.
     pub(super) fn add_login_terminal(
         &mut self,
@@ -123,7 +112,8 @@ impl Workspace {
         Ok(())
     }
 
-    /// [`Self::add_terminal_with`], with `tab`'s title and its text typed into the new shell (a project script).
+    /// A new tab from `options`; `account` is the one the shell's env was set up for, shown on its tab (`None`:
+    /// unbound). `tab` gives its title and text typed into the new shell (a project script).
     pub(super) fn add_terminal_tab(
         &mut self,
         options: SpawnOptions,
