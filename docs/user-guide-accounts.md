@@ -13,7 +13,9 @@ With no accounts or no projects, the Welcome page shows setup instead of its usu
 run **Set Up Accounts** from the command palette.
 
 - **Agents** lists Claude Code and Codex, found on your `PATH` the same way threads find them, with the version each
-  reports. "Not found" means a thread can't start on that provider yet.
+  reports. "Not found" means a thread can't start on that provider yet. While **Check for updates** is on, SkyeLab
+  also asks the npm registry for each CLI's latest release and shows **2.2.0 available** beside an older one. Update
+  it the way you installed it; SkyeLab never installs anything.
 - **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex` and `~/.codex-*` folder that looks like a login
   (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`).
   SkyeLab only checks that those names exist: it never opens a file in them, so no login or token is read. Tick the

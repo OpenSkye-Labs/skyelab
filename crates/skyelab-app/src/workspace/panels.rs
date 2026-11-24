@@ -21,6 +21,9 @@ macro_rules! panel {
         panel!($ty, $name, closable: $closable, title_bar: true, |$this| $title);
     };
     ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, |$this:ident| $title:expr) => {
+        panel!($ty, $name, closable: $closable, title_bar: $title_bar, removed: |_this, _window, _cx| {}, |$this| $title);
+    };
+    ($ty:ty, $name:literal, closable: $closable:literal, title_bar: $title_bar:literal, removed: |$rthis:ident, $rwindow:ident, $rcx:ident| $removed:block, |$this:ident| $title:expr) => {
         impl EventEmitter<PanelEvent> for $ty {}
         impl BasePanel for $ty {
             fn panel_name(&self) -> &'static str {
@@ -31,6 +34,10 @@ macro_rules! panel {
             }
             fn zoomable(&self, _: &App) -> bool {
                 false
+            }
+            fn on_removed(&mut self, $rwindow: &mut Window, $rcx: &mut Context<Self>) {
+                let $rthis = &*self;
+                $removed
             }
         }
         impl Panel for $ty {
@@ -58,6 +65,7 @@ pub use sidebar::{
     ArchivedRows, RowAccount, RowCard, RowMarks, RowShelf, ScopeMenu, ScopeProject, Shelf, Sidebar,
     SidebarItem, SidebarSearch, SidebarSection,
 };
+pub use sidebar_card::{ThreadCards, with_card_at};
 
 /// The page with no thread open: what SkyeLab is and its main keys, or first-run setup while `show_setup`.
 pub struct Welcome {
@@ -200,7 +208,11 @@ impl Render for TerminalsEmpty {
     }
 }
 
-panel!(super::changes::ChangesView, "Changes", closable: true, |this| this.title());
+panel!(super::changes::ChangesView, "Changes", closable: true, title_bar: true, removed: |this, window, cx| {
+    if let Some(thread) = this.thread.clone() {
+        super::reopen::remember(window, super::reopen::Closed::Changes(thread), cx);
+    }
+}, |this| this.title());
 
 /// The page is a native view: it stays on screen until told otherwise (see skyelab-browser's docs).
 pub struct BrowserPanel {
@@ -208,6 +220,8 @@ pub struct BrowserPanel {
     /// The thread whose agent drives this tab. `None` for the user's tabs, and after Take over: an agent
     /// only ever reaches a tab whose owner is its own thread.
     pub agent: Option<AgentOwner>,
+    /// Opened by the user: an agent's tab keeps `false` after Take over, so it never reopens in the user's profile.
+    pub users: bool,
 }
 
 pub struct AgentOwner {
@@ -230,7 +244,12 @@ impl BasePanel for BrowserPanel {
     fn set_active(&mut self, active: bool, _: &mut Window, cx: &mut Context<Self>) {
         self.browser.update(cx, |b, cx| b.set_visible(active, cx));
     }
-    fn on_removed(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_removed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.users
+            && let Ok(url) = self.browser.read(cx).current_url(cx)
+        {
+            super::reopen::remember(window, super::reopen::Closed::Browser(url), cx);
+        }
         self.browser.update(cx, |b, cx| b.close(cx));
     }
 }

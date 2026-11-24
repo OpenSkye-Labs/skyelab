@@ -195,6 +195,13 @@ impl Workspace {
                 .collect(),
         };
         super::compare_sidebar::mark_groups(&mut marks, group_rows);
+        let cards = &mut cx.default_global::<super::panels::ThreadCards>().0;
+        for (id, m) in &marks {
+            let thread = id.strip_prefix("thread-").and_then(|n| n.parse().ok());
+            if let (Some(thread), Some(card)) = (thread, &m.card) {
+                cards.insert(thread, card.clone());
+            }
+        }
         let searching = self.thread_search.is_some();
         let no_projects = self.projects.is_empty();
         let section = plain_section;

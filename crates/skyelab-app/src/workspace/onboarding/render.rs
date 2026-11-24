@@ -144,6 +144,14 @@ impl Onboarding {
                     .child(ui::StatusDot::new(dot))
                     .child(div().font_weight(FontWeight::MEDIUM).child(a.name))
                     .child(div().text_color(theme.muted_foreground).child(text))
+                    .when_some(a.update.clone(), |d, v| {
+                        d.child(
+                            div()
+                                .debug_selector(|| "agent-update".into())
+                                .text_color(ui::ink(theme, theme.info))
+                                .child(format!("{v} available")),
+                        )
+                    })
             }))
     }
 

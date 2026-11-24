@@ -5,8 +5,8 @@
 
 use gpui::{App, AppContext as _, Global, Task, actions};
 use skyelab_client::release::Release;
-use skyelab_core::AppSettings;
 use skyelab_core::update::{self, LATEST_RELEASE_URL};
+use skyelab_core::{AppSettings, Provider};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -15,6 +15,8 @@ actions!(skyelab, [CheckForUpdates]);
 
 /// How the latest release is fetched: the network in the app, a fake in tests and debug runs.
 pub type Fetch = Arc<dyn Fn() -> std::io::Result<Release> + Send + Sync>;
+/// How an agent CLI's newest version is fetched (npm's `latest`): the network in the app, a fake in tests and debug runs.
+pub type AgentFetch = Arc<dyn Fn(Provider) -> std::io::Result<String> + Send + Sync>;
 
 /// How often the app asks whether the daily check is due; the answer is wall-clock time, so a laptop that slept
 /// still checks the next day.
@@ -38,6 +40,8 @@ pub struct Updates {
     pub(crate) current: String,
     /// The automatic check's switch, as settings.toml had it at start and Settings → About set it since.
     pub enabled: bool,
+    /// Welcome's agent CLI check; `None` until the app sets it, so tests never reach the network.
+    agent_fetch: Option<AgentFetch>,
     _check: Option<Task<()>>,
     _tick: Option<Task<()>>,
 }
@@ -57,6 +61,28 @@ pub fn fetcher(fake: Option<String>, debug: bool) -> Fetch {
     }
 }
 
+/// The real agent fetch, or in debug builds `SKYELAB_AGENT_LATEST_FAKE=<version>` for both agents (no network).
+pub fn agent_fetcher(fake: Option<String>, debug: bool) -> AgentFetch {
+    match fake.filter(|_| debug) {
+        Some(v) => Arc::new(move |_| Ok(v.clone())),
+        None => Arc::new(|p| skyelab_client::release::npm_latest(update::agent_latest_url(p))),
+    }
+}
+
+/// Sets how Welcome asks for the agent CLIs' newest versions.
+pub fn set_agent_fetch(fetch: AgentFetch, cx: &mut App) {
+    if cx.has_global::<Updates>() {
+        cx.global_mut::<Updates>().agent_fetch = Some(fetch);
+    }
+}
+
+/// The agent fetch while the update check is on (Settings → About); `None` means no request at all.
+pub fn agent_check(cx: &App) -> Option<AgentFetch> {
+    cx.try_global::<Updates>()
+        .filter(|u| u.enabled)
+        .and_then(|u| u.agent_fetch.clone())
+}
+
 /// Installs the check and runs the start check if it is due, then asks again every [`TICK`].
 pub fn init(path: Option<PathBuf>, fetch: Fetch, cx: &mut App) {
     let enabled = path
@@ -69,6 +95,7 @@ pub fn init(path: Option<PathBuf>, fetch: Fetch, cx: &mut App) {
         path,
         fetch,
         current: env!("CARGO_PKG_VERSION").to_owned(),
+        agent_fetch: None,
         _check: None,
         _tick: None,
     });

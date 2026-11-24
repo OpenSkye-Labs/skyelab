@@ -1,4 +1,4 @@
-use crate::release::{MAX_BODY, Release, get_over, parse_release};
+use crate::release::{MAX_BODY, Release, get_over, parse_npm_latest, parse_release};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 /// Runs a GET against a fake server on the other end of an in-memory pipe; returns the result and what was sent.
@@ -17,7 +17,13 @@ fn fetch(answer: Vec<u8>) -> (std::io::Result<Vec<u8>>, String) {
             drop(server);
             String::from_utf8_lossy(&req[..n]).into_owned()
         });
-        let got = get_over(client, "api.github.com", "/repos/o/r/releases/latest").await;
+        let got = get_over(
+            client,
+            "api.github.com",
+            "/repos/o/r/releases/latest",
+            "application/vnd.github+json",
+        )
+        .await;
         (got, serve.await.expect("server"))
     })
 }
@@ -68,4 +74,13 @@ fn oversized_body_refused() {
 fn missing_fields_refused() {
     assert!(parse_release(br#"{"tag_name":"v1"}"#).is_err());
     assert!(parse_release(b"not json").is_err());
+}
+
+#[test]
+fn npm_latest_reads_a_plain_version_only() {
+    let got = parse_npm_latest(br#"{"name":"@openai/codex","version":"0.47.0"}"#).expect("parses");
+    assert_eq!(got, "0.47.0");
+    assert!(parse_npm_latest(br#"{"name":"x"}"#).is_err());
+    assert!(parse_npm_latest(br#"{"version":"1.0 <script>"}"#).is_err());
+    assert!(parse_npm_latest(b"not json").is_err());
 }

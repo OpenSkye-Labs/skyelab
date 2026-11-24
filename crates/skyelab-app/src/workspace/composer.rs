@@ -406,6 +406,14 @@ impl ThreadView {
                 .filter_map(|(pos, &i)| Some((pos, items.get(i)?.clone())))
                 .collect::<Vec<_>>()
         });
+        let models_shown = rows
+            .as_ref()
+            .is_some_and(|r| r.iter().any(|(_, i)| i.model.is_some()));
+        let title = if models_shown {
+            "Models and files"
+        } else {
+            title
+        };
         let body: Vec<AnyElement> = match rows {
             None => vec![hint("Loading…", cx)],
             Some(rows) if rows.is_empty() => vec![hint(empty, cx)],
@@ -422,6 +430,13 @@ impl ThreadView {
                             .text_size(ui::BODY)
                             .when(selected, |this| this.bg(theme.foreground.opacity(0.09)))
                             .hover(|this| this.bg(theme.accent))
+                            .when(item.model.is_some(), |this| {
+                                this.child(
+                                    Icon::new(IconName::Bot)
+                                        .xsmall()
+                                        .text_color(theme.muted_foreground),
+                                )
+                            })
                             .child(
                                 div()
                                     .flex_shrink_0()

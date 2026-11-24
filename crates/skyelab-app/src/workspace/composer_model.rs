@@ -1,5 +1,6 @@
 //! What the composer's model chip names: the model that will run, never a bare "default" (T3's "Opus 5.5 High").
 
+use super::composer_menu::MenuKind;
 use super::composer_picker::title_case;
 use super::lock;
 use crate::workspace::thread::ThreadView;
@@ -130,6 +131,51 @@ impl ThreadView {
         }
     }
 
+    /// The `@` menu's model rows: the picker's models for the thread's provider (Codex's once listed), none when
+    /// the composer has no account or sends to several models.
+    pub(in crate::workspace) fn mention_models(&self) -> Vec<super::composer_menu::MenuItem> {
+        let Some(provider) = self.composer_account().map(|a| a.provider) else {
+            return Vec::new();
+        };
+        // A send to several models goes to the ticked set; one picked model would be ignored.
+        if self.composer.compare.is_some() {
+            return Vec::new();
+        }
+        let models: Vec<(String, String)> = match provider {
+            Provider::Codex => self
+                .listed()
+                .unwrap_or_default()
+                .iter()
+                .map(|m| (m.id.clone(), m.label.clone()))
+                .collect(),
+            Provider::Claude => CLAUDE_MODELS
+                .iter()
+                .map(|(id, label)| ((*id).to_owned(), (*label).to_owned()))
+                .collect(),
+        };
+        super::composer_menu::model_items(&models, provider.label())
+    }
+
+    /// An `@` model row was picked: the thread runs on that model from this send on, as if picked in the picker. The
+    /// effort stays when the model takes it.
+    pub(in crate::workspace) fn pick_mentioned(&mut self, model: String, cx: &mut Context<Self>) {
+        let codex = self.composer_account().map(|a| a.provider) == Some(Provider::Codex);
+        let effort = self.composer.pick.effort.clone().filter(|e| {
+            !codex
+                || self
+                    .listed()
+                    .and_then(|l| l.iter().find(|m| m.id == model))
+                    .is_some_and(|m| m.efforts.contains(e))
+        });
+        self.pick_model(
+            skyelab_store::ModelChoice {
+                model: Some(model),
+                effort,
+            },
+            cx,
+        );
+    }
+
     fn listed(&self) -> Option<&[ModelInfo]> {
         Some(
             self.composer
@@ -185,6 +231,14 @@ impl ThreadView {
             let listed = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.composer.codex_models = Some(listed);
+                if this
+                    .composer
+                    .menu
+                    .as_ref()
+                    .is_some_and(|m| m.kind == MenuKind::Files)
+                {
+                    this.load_menu_items(MenuKind::Files, cx); // the `@` menu's model rows
+                }
                 cx.notify();
             });
         })

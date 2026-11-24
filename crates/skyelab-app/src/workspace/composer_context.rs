@@ -48,6 +48,8 @@ pub(crate) struct ContextChip {
     pub open: bool,
     /// A thread or PR chip: the account it was picked under and the folder that bound it, checked again on send.
     pub bound: Option<(String, std::path::PathBuf)>,
+    /// A thread or PR chip's thread, whose sidebar card shows on hover.
+    pub thread: Option<i64>,
 }
 
 impl ContextChip {
@@ -94,7 +96,7 @@ impl ThreadView {
         self.push_context(ChipKind::Terminal, label, text, None, cx);
     }
 
-    /// Adds a chip with already capped `text`, replacing the oldest past [`MAX_CONTEXTS`].
+    /// Adds a chip with already capped `text`, replacing the oldest past [`MAX_CONTEXTS`]. False when refused.
     pub(crate) fn push_context(
         &mut self,
         kind: ChipKind,
@@ -102,9 +104,9 @@ impl ThreadView {
         text: String,
         bound: Option<(String, std::path::PathBuf)>,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         if self.read_only || !self.chip_allowed(bound.as_ref()) {
-            return;
+            return false;
         }
         let id = self.composer.next_context;
         self.composer.next_context += 1;
@@ -119,8 +121,10 @@ impl ThreadView {
             text,
             open: false,
             bound,
+            thread: None,
         });
         cx.notify();
+        true
     }
 
     /// Whether a chip picked under `bound` (account, the referenced thread's folder) may go in this composer now: the
@@ -191,10 +195,15 @@ impl ThreadView {
         if contexts.is_empty() {
             return None;
         }
+        let cards = cx.try_global::<crate::workspace::panels::ThreadCards>();
+        let cards: Vec<_> = contexts
+            .iter()
+            .map(|c| c.thread.and_then(|t| cards?.0.get(&t).cloned()))
+            .collect();
         let theme = cx.theme();
-        let chips = contexts.iter().map(|c| {
+        let chips = contexts.iter().zip(cards).map(|(c, card)| {
             let id = c.id;
-            h_flex()
+            let chip = h_flex()
                 .id(("context-chip", id))
                 .h(px(28.))
                 .max_w(px(260.))
@@ -249,7 +258,9 @@ impl ThreadView {
                             this.composer.contexts.retain(|c| c.id != id);
                             cx.notify();
                         })),
-                )
+                );
+            let key = SharedString::from(format!("context-chip-{id}"));
+            crate::workspace::panels::with_card_at(&key, chip, card, gpui::Anchor::BottomLeft)
         });
         let open = contexts.iter().filter(|c| c.open).map(|c| {
             div()

@@ -13,17 +13,34 @@ use std::time::Duration;
 /// T3's tooltip delay: long enough that moving down the list doesn't flash cards.
 const OPEN_DELAY: Duration = Duration::from_millis(500);
 
+/// Local threads' row cards by thread id, as a sidebar last listed each (a thread no sidebar lists keeps its last
+/// card), for the composer's thread and PR chips (T3's thread-chip hover cards).
+#[derive(Default)]
+pub struct ThreadCards(pub std::collections::HashMap<i64, Rc<RowCard>>);
+
+impl gpui::Global for ThreadCards {}
+
 /// `row` as the trigger of its card; `row` as it is when it has none.
 pub(super) fn with_card(
     id: &SharedString,
     row: impl IntoElement + 'static,
     card: Option<Rc<RowCard>>,
 ) -> AnyElement {
+    with_card_at(id, row, card, Anchor::LeftCenter)
+}
+
+/// [`with_card`], its card placed at `anchor` of the trigger.
+pub fn with_card_at(
+    id: &SharedString,
+    row: impl IntoElement + 'static,
+    card: Option<Rc<RowCard>>,
+    anchor: Anchor,
+) -> AnyElement {
     let Some(card) = card else {
         return row.into_any_element();
     };
     HoverCard::new(SharedString::from(format!("card-{id}")))
-        .anchor(Anchor::LeftCenter)
+        .anchor(anchor)
         .open_delay(OPEN_DELAY)
         .trigger_style({
             let mut s = gpui::StyleRefinement::default();
