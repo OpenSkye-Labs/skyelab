@@ -90,18 +90,34 @@ pub fn merge_methods(gh: &crate::GitHub, url: &str) -> Result<Vec<MergeMethod>> 
         .collect())
 }
 
-/// Merges the PR at `url` with `gh pr merge`, deleting its branch on GitHub when `delete_branch`. gh refuses a merge
-/// its branch protection blocks; `--admin` is never passed.
+/// Merges the PR at `url` with `gh pr merge`, deleting its branch on GitHub when `delete_branch`. The merge is pinned
+/// to `head` (`--match-head-commit`), the commit whose checks the user saw: GitHub refuses it when the branch moved
+/// since. gh refuses a merge its branch protection blocks; `--admin` is never passed.
 pub fn merge_pr(
     gh: &crate::GitHub,
     url: &str,
+    head: &str,
     method: MergeMethod,
     delete_branch: bool,
 ) -> Result<()> {
     let url = pr_link(url)?;
+    if !(matches!(head.len(), 40 | 64) && head.bytes().all(|b| b.is_ascii_hexdigit())) {
+        return Err(invalid(
+            "the pull request's head commit isn't known; refresh it, then merge",
+        ));
+    }
     // With --repo, gh never deletes or switches a local branch, whatever git repo its cwd is in.
     let repo = repo_of(url);
-    let mut args = vec!["pr", "merge", url, "--repo", &repo, method.flag()];
+    let mut args = vec![
+        "pr",
+        "merge",
+        url,
+        "--repo",
+        &repo,
+        "--match-head-commit",
+        head,
+        method.flag(),
+    ];
     if delete_branch {
         args.push("--delete-branch");
     }

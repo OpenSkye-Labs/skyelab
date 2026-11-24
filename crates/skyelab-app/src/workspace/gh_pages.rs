@@ -198,6 +198,7 @@ impl GhPage {
             url,
             number,
             checks: Some(pr.checks),
+            head: pr.head.clone(),
             dir: source.path.clone(),
             account: group.account.as_ref()?.0.clone(),
             config: self.inputs.as_ref()?.config.clone(),

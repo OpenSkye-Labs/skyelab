@@ -6,6 +6,8 @@ use skyelab_git::{GitHub, MergeMethod, PrState, Verdict};
 use std::path::{Path, PathBuf};
 
 const URL: &str = "https://github.com/acme/demo/pull/7";
+/// The fake's head commit when no `fake-head` file says otherwise.
+const HEAD: &str = "1111111111111111111111111111111111111111";
 
 fn fake_gh() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-gh.sh")
@@ -32,15 +34,21 @@ fn merge_passes_the_method_and_the_delete_flag_in_the_account_dir() {
         gh: &bin,
         config_dir: &dir,
     };
-    skyelab_git::merge_pr(&gh, URL, MergeMethod::Squash, true).expect("merges");
-    skyelab_git::merge_pr(&gh, URL, MergeMethod::Merge, false).expect("merges");
-    skyelab_git::merge_pr(&gh, URL, MergeMethod::Rebase, false).expect("merges");
+    skyelab_git::merge_pr(&gh, URL, HEAD, MergeMethod::Squash, true).expect("merges");
+    skyelab_git::merge_pr(&gh, URL, HEAD, MergeMethod::Merge, false).expect("merges");
+    skyelab_git::merge_pr(&gh, URL, HEAD, MergeMethod::Rebase, false).expect("merges");
     assert_eq!(
         actions(&dir),
         [
-            format!("pr merge {URL} --repo github.com/acme/demo --squash --delete-branch"),
-            format!("pr merge {URL} --repo github.com/acme/demo --merge"),
-            format!("pr merge {URL} --repo github.com/acme/demo --rebase"),
+            format!(
+                "pr merge {URL} --repo github.com/acme/demo --match-head-commit {HEAD} --squash --delete-branch"
+            ),
+            format!(
+                "pr merge {URL} --repo github.com/acme/demo --match-head-commit {HEAD} --merge"
+            ),
+            format!(
+                "pr merge {URL} --repo github.com/acme/demo --match-head-commit {HEAD} --rebase"
+            ),
         ]
     );
     let env = std::fs::read_to_string(dir.join("fake-gh.fullenv")).expect("env");
@@ -64,7 +72,7 @@ fn a_failed_merge_carries_gh_stderr() {
         gh: &bin,
         config_dir: &dir,
     };
-    let e = skyelab_git::merge_pr(&gh, URL, MergeMethod::Squash, false).expect_err("refused");
+    let e = skyelab_git::merge_pr(&gh, URL, HEAD, MergeMethod::Squash, false).expect_err("refused");
     assert!(e.to_string().contains("base branch policy"), "{e}");
     let e = skyelab_git::review_pr(&gh, URL, Verdict::Approve, "").expect_err("refused");
     assert!(e.to_string().contains("base branch policy"), "{e}");
@@ -88,7 +96,7 @@ fn links_that_are_not_github_prs_never_reach_gh() {
         "https://evil.example/acme/demo/pull/7",
         "https://github.com/acme/demo/pull/7?x=1",
     ] {
-        assert!(skyelab_git::merge_pr(&gh, bad, MergeMethod::Merge, false).is_err());
+        assert!(skyelab_git::merge_pr(&gh, bad, HEAD, MergeMethod::Merge, false).is_err());
         assert!(skyelab_git::review_pr(&gh, bad, Verdict::Approve, "").is_err());
         assert!(skyelab_git::merge_methods(&gh, bad).is_err());
     }
@@ -184,4 +192,68 @@ fn review_bodies_gh_would_refuse_never_reach_it() {
         );
     }
     assert!(!dir.join("fake-gh.actions").exists());
+}
+
+#[test]
+fn merge_is_pinned_to_the_head_commit_read_with_the_checks() {
+    let (_tmp, dir) = logged_in();
+    let bin = fake_gh();
+    let gh = GitHub {
+        gh: &bin,
+        config_dir: &dir,
+    };
+    // The read that showed the checks reports the head the merge pins.
+    let read = skyelab_git::pr_status(&gh, URL).expect("reads");
+    assert_eq!(read.head.as_deref(), Some(HEAD));
+    // A commit pushed since: GitHub refuses the pinned merge, and the PR stays open.
+    std::fs::write(
+        dir.join("fake-head"),
+        "2222222222222222222222222222222222222222",
+    )
+    .expect("push");
+    let e = skyelab_git::merge_pr(&gh, URL, HEAD, MergeMethod::Squash, false).expect_err("moved");
+    assert!(e.to_string().contains("Head branch was modified"), "{e}");
+    assert_eq!(
+        skyelab_git::pr_status(&gh, URL).expect("reads").state,
+        PrState::Open
+    );
+    // No usable sha: refused before gh runs, asking for a refresh.
+    let tries = actions(&dir).len();
+    for bad in ["", "abc", "--admin", &"g".repeat(40)] {
+        let e =
+            skyelab_git::merge_pr(&gh, URL, bad, MergeMethod::Squash, false).expect_err("refused");
+        assert!(e.to_string().contains("refresh"), "{bad}: {e}");
+    }
+    assert_eq!(actions(&dir).len(), tries);
+}
+
+#[test]
+fn a_head_that_is_not_a_sha_reads_as_unknown() {
+    let (_tmp, dir) = logged_in();
+    let bin = fake_gh();
+    let gh = GitHub {
+        gh: &bin,
+        config_dir: &dir,
+    };
+    for (head, want) in [
+        (r#""headRefOid":"--admin","#, None),
+        ("", None),
+        (
+            r#""headRefOid":"abcdef0123456789abcdef0123456789abcdef01","#,
+            Some("abcdef0123456789abcdef0123456789abcdef01"),
+        ),
+    ] {
+        std::fs::write(
+            dir.join("fake-pr.json"),
+            format!(r#"{{"state":"OPEN","isDraft":false,{head}"statusCheckRollup":[]}}"#),
+        )
+        .expect("pr");
+        assert_eq!(
+            skyelab_git::pr_status(&gh, URL)
+                .expect("reads")
+                .head
+                .as_deref(),
+            want
+        );
+    }
 }

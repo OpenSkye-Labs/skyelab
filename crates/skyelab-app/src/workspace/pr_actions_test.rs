@@ -96,7 +96,7 @@ fn merging_with_failing_checks_takes_a_third_click_then_the_pr_reads_merged(
     let gh = github(&r, cx);
     std::fs::write(
         gh.join("fake-pr.json"),
-        r#"{"state":"OPEN","isDraft":false,"statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE"}]}"#,
+        r#"{"state":"OPEN","isDraft":false,"headRefOid":"1111111111111111111111111111111111111111","statusCheckRollup":[{"__typename":"CheckRun","name":"test","status":"COMPLETED","conclusion":"FAILURE"}]}"#,
     )
     .expect("pr");
     let (id, dialog) = thread_dialog(&r, cx);
@@ -134,7 +134,7 @@ fn merging_with_failing_checks_takes_a_third_click_then_the_pr_reads_merged(
     assert_eq!(
         lines(&gh.join("fake-gh.actions")),
         [format!(
-            "pr merge {URL} --repo github.com/acme/demo --squash --delete-branch"
+            "pr merge {URL} --repo github.com/acme/demo --match-head-commit 1111111111111111111111111111111111111111 --squash --delete-branch"
         )]
     );
     assert!(!dialog_open(cx), "the dialog closes after the merge");
@@ -368,4 +368,49 @@ fn a_read_that_started_before_the_stored_one_landed_is_dropped(cx: &mut gpui::Te
         matches!(status(id, cx), Some(PrView::Status(s)) if s.state == PrState::Open),
         "the older read must not replace the newer one"
     );
+}
+
+#[gpui::test]
+fn a_merge_without_a_known_head_is_refused_and_a_moved_branch_shows_ghs_refusal(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    let (id, dialog) = thread_dialog(&r, cx);
+    let merge = |cx: &mut VisualTestContext| {
+        for _ in 0..2 {
+            dialog.update_in(cx, |d, window, cx| d.press_merge(window, cx));
+        }
+        cx.run_until_parked();
+    };
+    // The read gave no head: nothing runs, and the dialog asks for a refresh.
+    let head = dialog.update(cx, |d, _| d.target.head.take());
+    assert_eq!(
+        head.as_deref(),
+        Some("1111111111111111111111111111111111111111")
+    );
+    merge(cx);
+    let error = dialog
+        .read_with(cx, |d, _| d.error.clone())
+        .expect("refused");
+    assert!(error.contains("Refresh it, then merge"), "{error}");
+    assert!(lines(&gh.join("fake-gh.actions")).is_empty());
+
+    // The head from the read, but a commit was pushed since: GitHub's refusal shows, nothing merges.
+    dialog.update(cx, |d, _| d.target.head = head);
+    std::fs::write(
+        gh.join("fake-head"),
+        "2222222222222222222222222222222222222222",
+    )
+    .expect("push");
+    merge(cx);
+    wait_until(cx, "refused", |cx| {
+        dialog.read_with(cx, |d, _| {
+            d.error
+                .as_ref()
+                .is_some_and(|e| e.contains("Head branch was modified"))
+        })
+    });
+    assert!(dialog_open(cx));
+    assert!(matches!(status(id, cx), Some(PrView::Status(s)) if s.state == PrState::Open));
 }

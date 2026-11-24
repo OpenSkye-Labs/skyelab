@@ -172,9 +172,9 @@ impl ThreadView {
     ) -> Option<gpui::Entity<super::super::pr_actions::PrActions>> {
         let thread = self.thread.as_ref()?;
         let url = thread.pr_url.clone()?;
-        let checks = match PrStatuses::view(cx, thread.id, &url) {
-            Some(PrView::Status(s)) => Some(s.checks),
-            _ => None,
+        let (checks, head) = match PrStatuses::view(cx, thread.id, &url) {
+            Some(PrView::Status(s)) => (Some(s.checks), s.head.clone()),
+            _ => (None, None),
         };
         let target = super::super::pr_actions::Target {
             number: url
@@ -184,6 +184,7 @@ impl ThreadView {
                 .unwrap_or(0),
             url,
             checks,
+            head,
             dir: self.cwd.clone(),
             account: thread.account_id.clone(),
             config: self.config.clone(),

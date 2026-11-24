@@ -35,6 +35,8 @@ pub(crate) struct Target {
     pub number: u64,
     /// `None` when the PR wasn't read yet: merging then asks once more, as for failing checks.
     pub checks: Option<Checks>,
+    /// The head commit of the same read as `checks`: the merge is pinned to it. `None` refuses the merge.
+    pub head: Option<String>,
     /// The folder whose binding picks the account.
     pub dir: PathBuf,
     /// The account the caller showed (the thread's, or the page group's): the folder must still be bound to it.
@@ -55,7 +57,8 @@ pub(crate) enum Stage {
 }
 
 enum Act {
-    Merge(MergeMethod, bool),
+    /// The head commit to pin, the method, and whether to delete the branch.
+    Merge(String, MergeMethod, bool),
     Review(Verdict, String),
 }
 
@@ -189,7 +192,19 @@ impl PrActions {
             (Stage::Confirm, Some(Checks::Failing) | None) => Stage::ConfirmFailing,
             _ => {
                 self.stage = Stage::Idle;
-                return self.run(Act::Merge(self.method, self.delete_branch), window, cx);
+                let Some(head) = self.target.head.clone() else {
+                    self.error = Some(
+                        "This pull request's head commit isn't known, so the merge can't be pinned to the \
+                         checks shown. Refresh it, then merge."
+                            .into(),
+                    );
+                    return cx.notify();
+                };
+                return self.run(
+                    Act::Merge(head, self.method, self.delete_branch),
+                    window,
+                    cx,
+                );
             }
         };
         cx.notify();
@@ -218,8 +233,8 @@ impl PrActions {
                 config_dir: &gh_dir,
             };
             match act {
-                Act::Merge(method, delete) => {
-                    skyelab_git::merge_pr(&github, &target.url, method, delete)?
+                Act::Merge(head, method, delete) => {
+                    skyelab_git::merge_pr(&github, &target.url, &head, method, delete)?
                 }
                 Act::Review(verdict, body) => {
                     skyelab_git::review_pr(&github, &target.url, verdict, &body)?
