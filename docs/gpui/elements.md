@@ -133,3 +133,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   height, not its aspect, and letterboxes the picture inside (blank bands above and below). Give it its logical size
   (`.w(px(css_w)).h(px(css_h))`), or put it `size_full` in a div that has `.max_w_full().aspect_ratio(..)`
   (`html_card`); `.aspect_ratio` on the `img` itself didn't change it.
+- Text of unknown length in an `h_flex` beside buttons (a confirm naming files) doesn't wrap: a `flex_1` div without
+  `min_w_0` grows to its text's width and pushes the buttons out of the panel, past the window. Put the text on its own
+  line in a `v_flex` and the buttons in a row under it (`changes_turns.rs`'s rewind confirm), or give it `min_w_0`.

@@ -6,7 +6,7 @@ use super::changes_model::{self, Scope};
 use crate::ui;
 use crate::ui::{Button, Checkbox};
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*};
-use gpui_component::{ActiveTheme as _, h_flex};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 
 /// A rewind the user was shown and has to confirm.
 pub(super) struct PendingRewind {
@@ -177,60 +177,66 @@ impl ChangesView {
         let msg = changes_model::rewind_message(&pending.plan, pending.overwrite_ignored);
         let ignored = !pending.plan.ignored.is_empty();
         let ticked = pending.overwrite_ignored;
+        // The file list can be long: it wraps on its own line, with the choices under it.
         Some(
-            h_flex()
+            v_flex()
                 .id("rewind-confirm")
+                .debug_selector(|| "rewind-confirm-box".into())
                 .mx_4()
                 .my_2()
                 .p_2()
                 .gap_2()
-                .items_start()
                 .rounded(ui::RADIUS)
                 .border_1()
                 .border_color(theme.danger)
                 .child(
                     div()
-                        .flex_1()
                         .text_size(ui::META)
                         .font_weight(FontWeight::MEDIUM)
                         .child(format!("Rewind to before turn {}? {msg}", pending.turn)),
                 )
-                .when(ignored, |row| {
-                    row.child(
-                        Checkbox::new("rewind-ignored")
-                            .xsmall()
-                            .label("Overwrite ignored files")
-                            .checked(ticked)
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                if let Some(p) = this.rewind.as_mut() {
-                                    p.overwrite_ignored = !p.overwrite_ignored;
-                                }
-                                cx.notify();
-                            })),
-                    )
-                })
                 .child(
-                    Button::new("cancel-rewind")
-                        .ghost()
-                        .xsmall()
-                        .label("Cancel")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.rewind = None;
-                            cx.notify();
-                        })),
+                    h_flex()
+                        .debug_selector(|| "rewind-choices".into())
+                        .justify_end()
+                        .gap_2()
+                        .when(ignored, |row| {
+                            row.child(
+                                Checkbox::new("rewind-ignored")
+                                    .xsmall()
+                                    .label("Overwrite ignored files")
+                                    .checked(ticked)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        if let Some(p) = this.rewind.as_mut() {
+                                            p.overwrite_ignored = !p.overwrite_ignored;
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                        })
+                        .child(
+                            Button::new("cancel-rewind")
+                                .ghost()
+                                .xsmall()
+                                .label("Cancel")
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.rewind = None;
+                                    cx.notify();
+                                })),
+                        )
+                        .when(!pending.plan.is_empty(), |row| {
+                            row.child(
+                                Button::new("confirm-rewind")
+                                    .danger()
+                                    .xsmall()
+                                    .label("Rewind files")
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(|this, _, _: &mut Window, cx| {
+                                        this.confirm_rewind(cx)
+                                    })),
+                            )
+                        }),
                 )
-                .when(!pending.plan.is_empty(), |row| {
-                    row.child(
-                        Button::new("confirm-rewind")
-                            .danger()
-                            .xsmall()
-                            .label("Rewind files")
-                            .disabled(self.busy)
-                            .on_click(
-                                cx.listener(|this, _, _: &mut Window, cx| this.confirm_rewind(cx)),
-                            ),
-                    )
-                })
                 .into_any_element(),
         )
     }

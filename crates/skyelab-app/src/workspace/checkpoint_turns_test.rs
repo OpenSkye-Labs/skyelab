@@ -126,6 +126,25 @@ fn each_turn_leaves_a_checkpoint_and_changes_can_rewind_it(cx: &mut TestAppConte
         changes_model::rewind_message(p, false)
     });
     assert_eq!(shown, "Restores agent-edit.txt.");
+    // A long file list wraps; Cancel and Rewind files stay inside the tab.
+    let restore = changes.read_with(cx, |c, _| c.rewind.as_ref().expect("pending").plan.restore.clone());
+    changes.update(cx, |c, cx| {
+        let p = &mut c.rewind.as_mut().expect("pending").plan;
+        p.restore = (0..40)
+            .map(|i| format!("src/some/fairly/long/path/file_{i}.rs").into())
+            .collect();
+        cx.notify();
+    });
+    cx.run_until_parked();
+    let (confirm, choices) = (
+        cx.debug_bounds("rewind-confirm-box").expect("confirm"),
+        cx.debug_bounds("rewind-choices").expect("choices"),
+    );
+    assert!(
+        choices.right() <= confirm.right() && choices.bottom() <= confirm.bottom(),
+        "choices {choices:?} spill out of {confirm:?}"
+    );
+    changes.update(cx, |c, _| c.rewind.as_mut().expect("pending").plan.restore = restore);
     changes.update(cx, |c, cx| c.confirm_rewind(cx));
     wait_until(cx, "the rewind", |cx| {
         changes.read_with(cx, |c, _| {
