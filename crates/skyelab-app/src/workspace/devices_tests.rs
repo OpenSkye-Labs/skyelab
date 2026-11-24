@@ -65,6 +65,9 @@ impl DeviceSource for Fake {
         self.log(format!("open {} {url}", d.id));
         Ok(())
     }
+    fn input(&self, _: &Device, _: &skyelab_devices::Input) -> anyhow::Result<()> {
+        anyhow::bail!("no input in this fake")
+    }
     fn screenshot(&self, d: &Device) -> anyhow::Result<Vec<u8>> {
         self.log(format!("screenshot {}", d.id));
         Ok(Vec::new())
@@ -276,6 +279,9 @@ impl DeviceSource for Avd {
     }
     fn open_url(&self, _: &Device, _: &str) -> anyhow::Result<()> {
         Ok(())
+    }
+    fn input(&self, _: &Device, _: &skyelab_devices::Input) -> anyhow::Result<()> {
+        anyhow::bail!("no input in this fake")
     }
     fn screenshot(&self, _: &Device) -> anyhow::Result<Vec<u8>> {
         Ok(Vec::new())

@@ -14,7 +14,7 @@ use gpui_component::{
     dock::{BasePanel, Panel, PanelEvent},
     input::{InputEvent, InputState},
 };
-use skyelab_devices::{Device, DeviceHub, DeviceState, Error, Listing, Platform};
+use skyelab_devices::{Device, DeviceState, Error, Listing, Platform};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -70,6 +70,7 @@ pub struct DevicesPanel {
     rendered: bool,
     _pick: Option<Task<()>>,
     _url_enter: Subscription,
+    _claims: Subscription,
 }
 
 impl DevicesPanel {
@@ -84,7 +85,10 @@ impl DevicesPanel {
                 this.submit_url(cx);
             }
         });
+        // Agents claim and release devices from the orchestrating window: redraw on each change, not on a timer.
+        let _claims = cx.observe_global::<super::device_agent::DeviceClaims>(|_, cx| cx.notify());
         let mut this = Self {
+            _claims,
             focus: cx.focus_handle(),
             source,
             listing: None,
@@ -300,20 +304,24 @@ impl DevicesPanel {
             device,
             "Taking screenshot…",
             |s, d| s.screenshot(d),
-            |this, id, png, cx| {
-                let image = Arc::new(Image::from_bytes(ImageFormat::Png, png));
-                let new_id = image.id();
-                let old = this
-                    .ops
-                    .entry(id.to_string())
-                    .or_default()
-                    .screenshot
-                    .replace(image);
-                // Same bytes, same cache entry: the new image is drawn from it.
-                uncache(old.filter(|old| old.id() != new_id), cx);
-            },
+            |this, id, png, cx| this.show_screenshot(id, png, cx),
             cx,
         );
+    }
+
+    /// Shows `png` as the device's latest screenshot.
+    pub(super) fn show_screenshot(&mut self, id: &str, png: Vec<u8>, cx: &mut Context<Self>) {
+        let image = Arc::new(Image::from_bytes(ImageFormat::Png, png));
+        let new_id = image.id();
+        let old = self
+            .ops
+            .entry(id.to_string())
+            .or_default()
+            .screenshot
+            .replace(image);
+        // Same bytes, same cache entry: the new image is drawn from it.
+        uncache(old.filter(|old| old.id() != new_id), cx);
+        cx.notify();
     }
 
     pub(super) fn install(&mut self, device: &Device, app: PathBuf, cx: &mut Context<Self>) {
@@ -430,19 +438,28 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(panel) = self.devices.as_ref().and_then(|p| p.upgrade()) {
+        let open = self.devices.as_ref().and_then(|p| p.upgrade()).is_some();
+        let panel = self.devices_panel(window, cx);
+        if open {
             self.show_right_panel(panel.entity_id().into(), window, cx);
-            panel.read(cx).focus_handle(cx).focus(window, cx);
-            return;
         }
-        let source = self
-            .device_source
-            .get_or_insert_with(|| Arc::new(HubSource(DeviceHub::discover())))
-            .clone();
+        panel.read(cx).focus_handle(cx).focus(window, cx);
+    }
+
+    /// The Devices tab, added to the right dock if it isn't open.
+    pub(super) fn devices_panel(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<DevicesPanel> {
+        if let Some(panel) = self.devices.as_ref().and_then(|p| p.upgrade()) {
+            return panel;
+        }
+        let source = self.device_source();
         let panel = cx.new(|cx| DevicesPanel::new(source, window, cx));
         self.add_right_panel(panel.clone(), window, cx);
-        panel.read(cx).focus_handle(cx).focus(window, cx);
         self.devices = Some(panel.downgrade());
         cx.notify();
+        panel
     }
 }

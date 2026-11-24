@@ -3,6 +3,9 @@
 //! No GPUI, no async runtime. Every operation runs `xcrun simctl`, `adb` or `emulator` directly with explicit
 //! argv, never through a local shell. Calls block until the tool exits, so a UI runs them off the main thread.
 
+mod claims;
+mod emulator;
+mod input;
 mod parse;
 
 use std::collections::HashSet;
@@ -11,9 +14,11 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::process::{Command, Stdio};
 
+pub use claims::{Claims, Holder};
+pub use emulator::Emulator;
+pub use input::{Input, Key};
 pub use parse::{parse_adb_devices, parse_avd_list, parse_simctl_list};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -276,7 +281,7 @@ impl DeviceHub {
                     .as_deref()
                     .ok_or(Error::NotAvailable(Platform::Android))?;
                 let child = skyelab_core::process::spawn(
-                    Command::new(emulator)
+                    tool_command(emulator)
                         .arg("-avd")
                         .arg(not_a_flag(device.id.as_ref())?)
                         .stdin(Stdio::null())
@@ -423,66 +428,27 @@ const DEFAULT_SDK: &str = if cfg!(target_os = "macos") {
     "Android/Sdk"
 };
 
-/// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running, and a thread reaps
-/// it when it exits; call [`Emulator::stop`] to end it.
-#[derive(Debug)]
-pub struct Emulator {
-    /// `None` only inside `drop`, which hands the child to the reaper thread.
-    child: Option<Child>,
-}
+/// SDK vars the device tools read, on top of the agent allowlist.
+const TOOL_ENV: &[&str] = &[
+    "ANDROID_HOME",
+    "ANDROID_SDK_ROOT",
+    "ANDROID_AVD_HOME",
+    "ANDROID_USER_HOME",
+    "DEVELOPER_DIR",
+];
 
-const TAKEN_IN_DROP: &str = "only drop takes the child, and nothing runs after drop";
-
-impl Drop for Emulator {
-    fn drop(&mut self) {
-        if let Some(mut child) = self.child.take()
-            && matches!(child.try_wait(), Ok(None))
-        {
-            // Not reaping leaves a zombie until this process exits. The thread lives as long as the emulator does.
-            std::thread::spawn(move || child.wait());
-        }
-    }
-}
-
-impl Emulator {
-    pub fn pid(&self) -> u32 {
-        self.child.as_ref().expect(TAKEN_IN_DROP).id()
-    }
-
-    /// Asks the emulator to quit (SIGTERM on Unix, so it shuts the AVD down cleanly), waits up to 30 s, then kills it.
-    pub fn stop(&mut self) -> io::Result<()> {
-        let child = self.child.as_mut().expect(TAKEN_IN_DROP);
-        if cfg!(unix) && child.try_wait()?.is_none() {
-            // std can only SIGKILL. An absolute path, so a planted `kill` on PATH can't skip the clean shutdown.
-            let termed = skyelab_core::process::spawn(
-                Command::new("/bin/kill")
-                    .args(["-TERM", &child.id().to_string()])
-                    .stderr(Stdio::null()),
-            )
-            .and_then(|mut c| c.wait())
-            .is_ok_and(|s| s.success());
-            // No `/bin/kill` (NixOS): don't wait 30 s for a signal that was never sent.
-            let wait = if termed {
-                Duration::from_secs(30)
-            } else {
-                Duration::ZERO
-            };
-            let deadline = Instant::now() + wait;
-            while Instant::now() < deadline {
-                if child.try_wait()?.is_some() {
-                    return Ok(());
-                }
-                std::thread::sleep(Duration::from_millis(100));
-            }
-        }
-        child.kill()?;
-        child.wait().map(drop)
-    }
+/// A device tool's command, from a cleared env: the agent allowlist plus [`TOOL_ENV`].
+fn tool_command(tool: &Path) -> Command {
+    let mut cmd = Command::new(tool);
+    cmd.env_clear()
+        .envs(skyelab_core::env::inherited_agent_env(false))
+        .envs(TOOL_ENV.iter().filter_map(|k| Some((*k, env::var_os(k)?))));
+    cmd
 }
 
 fn run<S: AsRef<OsStr>>(tool: &Path, args: &[S]) -> Result<Vec<u8>, Error> {
     let out =
-        skyelab_core::process::output(Command::new(tool).args(args), None).map_err(|source| {
+        skyelab_core::process::output(tool_command(tool).args(args), None).map_err(|source| {
             Error::Io {
                 path: tool.to_owned(),
                 source,

@@ -1,4 +1,4 @@
-//! SkyeLab's own MCP server, so an agent can delegate to other threads and drive its own browser tab.
+//! SkyeLab's own MCP server, so an agent can delegate to other threads and drive its own browser tab and devices.
 //!
 //! `claude` spawns the proxy (`skyelab --mcp-proxy`) from the `--mcp-config` file a [`Grant`] writes. The proxy
 //! connects to the app (a unix socket in a private (0700) dir, or on Windows a per-run named pipe only this user can
@@ -7,12 +7,14 @@
 //! here; the [`Host`] (the app) decides the rest.
 
 mod browser;
+mod device;
 mod proxy;
 mod server;
 mod tools;
 mod transport;
 
 pub use browser::BrowserTool;
+pub use device::{DeviceKey, DeviceTool};
 pub use proxy::{proxy_main, run_proxy};
 pub use server::{Grant, Server, remove_stale_runs};
 pub use tools::Tool;

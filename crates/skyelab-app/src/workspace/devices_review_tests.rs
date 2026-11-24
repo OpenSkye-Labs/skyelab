@@ -45,6 +45,9 @@ impl DeviceSource for Fake {
         self.opened.lock().expect("opened lock").push(url.into());
         Ok(())
     }
+    fn input(&self, _: &Device, _: &skyelab_devices::Input) -> anyhow::Result<()> {
+        anyhow::bail!("no input in this fake")
+    }
     fn screenshot(&self, _: &Device) -> anyhow::Result<Vec<u8>> {
         // Distinct bytes per shot: GPUI keys an image by a hash of its bytes.
         let n = self

@@ -57,7 +57,12 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
   and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed; `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there;
 `pr merge` / `pr review` (the PR actions dialog) log their args to `fake-gh.actions` and the review text to `fake-gh.review-body`, fail with the text of a `fake-action-fail` file when there is one,
-and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is that dir's `fake-head` (else 40 `1`s), reported as `headRefOid` by the default `pr view` / `pr list`, and `pr merge` fails unless `--match-head-commit` matches it; `repo view` (the allowed merge methods) answers with `fake-repo.json`, else all three). Never verify against the real `gh`. All of these are debug builds only.
+and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is that dir's `fake-head` (else 40 `1`s), reported as `headRefOid` by the default `pr view` / `pr list`, and `pr merge` fails unless `--match-head-commit` matches it; `repo view` (the allowed merge methods) answers with `fake-repo.json`, else all three). Never verify against the real `gh`.
+  Devices: `SKYELAB_ADB_BIN` = a copy of `crates/skyelab-devices/tests/fixtures/fake-adb.sh` in a folder of its own (absolute path;
+  one booted emulator `emulator-5554`, AVD `Fake_Pixel`; it logs each call to `fake-adb.log` and its env to `fake-adb.env`
+  next to itself, and its screen flips blue/green after every `input`), and `SKYELAB_XCRUN_BIN` = a script printing
+  `{"devices":{}}` so no real simulator is listed. In `fake-claude-delegate.sh`, `device <id>` calls `device_open` and
+  `tap <id>` calls `device_tap` at 50,100. Never drive a real simulator or emulator in tests. All of these are debug builds only.
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
   (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.

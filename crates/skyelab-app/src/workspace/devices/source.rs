@@ -2,7 +2,7 @@
 
 use anyhow::Context as _;
 use gpui::BackgroundExecutor;
-use skyelab_devices::{Device, DeviceHub, DeviceState, Listing};
+use skyelab_devices::{Device, DeviceHub, DeviceState, Input, Listing};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +17,8 @@ pub(in crate::workspace) trait DeviceSource: Send + Sync + 'static {
     fn open_url(&self, device: &Device, url: &str) -> anyhow::Result<()>;
     /// PNG bytes of the screen.
     fn screenshot(&self, device: &Device) -> anyhow::Result<Vec<u8>>;
+    /// An agent's tap, text or key.
+    fn input(&self, device: &Device, input: &Input) -> anyhow::Result<()>;
 }
 
 pub(in crate::workspace) struct HubSource(pub DeviceHub);
@@ -47,6 +49,9 @@ impl DeviceSource for HubSource {
             .context("create a temp file for the screenshot")?;
         self.0.screenshot(device, file.path())?;
         std::fs::read(file.path()).context("read the screenshot")
+    }
+    fn input(&self, device: &Device, input: &Input) -> anyhow::Result<()> {
+        Ok(self.0.input(device, input)?)
     }
 }
 

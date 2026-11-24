@@ -17,6 +17,7 @@ mod compare;
 mod compare_sidebar;
 mod compare_view;
 mod details_panel;
+mod device_agent;
 mod devices;
 mod diff_comments;
 mod env_mode;
@@ -480,6 +481,8 @@ mod delegation_test;
 mod delegation_tests;
 #[cfg(all(test, unix))]
 mod delegation_window_close_test;
+#[cfg(test)]
+mod device_agent_test;
 #[cfg(test)]
 mod devices_review_tests;
 #[cfg(test)]

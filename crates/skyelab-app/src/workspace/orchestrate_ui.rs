@@ -109,6 +109,21 @@ impl Workspace {
                     }
                 }
             }
+            OrchCall::Device {
+                caller,
+                tool,
+                reply,
+            } => {
+                if reply.is_disconnected() {
+                    return;
+                }
+                match self.caller_live(&caller, cx) {
+                    Ok(()) => self.device_call(caller.thread_id, tool, reply, window, cx),
+                    Err(why) => {
+                        let _ = reply.send(Err(why));
+                    }
+                }
+            }
         }
     }
 

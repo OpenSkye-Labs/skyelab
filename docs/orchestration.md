@@ -4,7 +4,9 @@ Part of [architecture.md](architecture.md).
 
 An agent can delegate work to other threads through SkyeLab's own MCP tools: `list_projects`, `start_thread`,
 `thread_status`, `read_thread`, `send_message` and `wait_thread`. It can also drive a browser tab of its own with
-`browser_open`, `browser_navigate`, `browser_url`, `browser_eval` and `browser_screenshot`.
+`browser_open`, `browser_navigate`, `browser_url`, `browser_eval` and `browser_screenshot`, and simulators and
+emulators with `device_list`, `device_open`, `device_screenshot`, `device_tap`, `device_type`, `device_press` and
+`device_close`.
 
 - **Account rule.** A delegated thread runs under its target project's bound account, through the normal launch
   path, pinned to the account the start was approved for. An agent under account A can only list and start in
@@ -68,6 +70,18 @@ An agent can delegate work to other threads through SkyeLab's own MCP tools: `li
   A `wait_thread` stops polling, with an error, as soon as the caller's grant is revoked or its row is no longer
   live (stopped, exited, or the thread closed). Browser calls from a thread that isn't running here any more are refused like start and
   send.
+- **Device tools.** `skyelab_devices::Claims` (an app global, `DeviceClaims`) maps a device id to the thread that
+  opened it, or to the user. `device_open` claims first (so a thread closed during the listing leaves nothing behind), lists afresh, and
+  keeps the claim only for a booted simulator or emulator (physical devices are refused); a device another thread holds,
+  or one the user took back, is refused, and so is every other call on a device the thread doesn't hold. **Take back**
+  in the Devices panel makes the user the holder until **Let agents use**; closing or archiving a thread releases its
+  claims. Every screenshot or input lists afresh first and refuses (dropping the claim) when the
+  device is no longer booted under the name it was opened with: an emulator serial passes to the next AVD. Calls run on the background executor through the panel's `DeviceSource` (`xcrun simctl` / `adb`, each from
+  `env_clear()` plus the agent allowlist and the Android/Xcode SDK vars). Input is Android only (`adb shell input
+  tap|text|keyevent`; text is printable ASCII, at most 500 chars, not starting with `-` and without `%s`, which `input` reads as a space; taps 0..=10000 px). `device_id` is 1-128 chars of
+  `[A-Za-z0-9._:-]` not starting with `-`. A screenshot is the device's full-size PNG (so tap coordinates match) as
+  an MCP image block plus `{width, height, bytes}`. After each agent action the panel gets one new screenshot: no
+  polling. Claims live in memory, so a restart frees every device.
 - **Browser tools.** A thread reaches only the tab it opened (`BrowserPanel::agent` names its thread); the user's
   tabs, another thread's and one the user took over are never matched, and there is no fallback. Calls run on the UI
   thread through `skyelab-browser`'s agent path: `parse_agent_url` (http/https), `check_agent_eval` and the in-page

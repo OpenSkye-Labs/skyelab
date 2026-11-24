@@ -7,7 +7,7 @@ use super::{SharedStore, lock};
 use anyhow::Result;
 use gpui::{App, Global};
 use serde_json::{Value, json};
-use skyelab_agent::mcp::{BrowserTool, Caller, Host, Proxy, Server, Tool};
+use skyelab_agent::mcp::{BrowserTool, Caller, DeviceTool, Host, Proxy, Server, Tool};
 use skyelab_agent::{Block, Event};
 use skyelab_core::AccountsConfig;
 use skyelab_store::Thread;
@@ -55,6 +55,12 @@ pub enum OrchCall {
     Browser {
         caller: Caller,
         tool: BrowserTool,
+        reply: Reply<Value>,
+    },
+    /// A device tool, run against devices the caller claimed (`device_agent`).
+    Device {
+        caller: Caller,
+        tool: DeviceTool,
         reply: Reply<Value>,
     },
 }
@@ -328,6 +334,11 @@ impl Host for AppHost {
                 Ok(json!({"ok": true}))
             }
             Tool::Browser(tool) => ask(&self.calls, |reply| OrchCall::Browser {
+                caller: caller.clone(),
+                tool,
+                reply,
+            }),
+            Tool::Device(tool) => ask(&self.calls, |reply| OrchCall::Device {
                 caller: caller.clone(),
                 tool,
                 reply,

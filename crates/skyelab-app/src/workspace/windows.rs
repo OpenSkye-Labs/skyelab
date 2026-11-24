@@ -355,6 +355,9 @@ impl Workspace {
     pub(super) fn unshare_thread(&self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
         cx.default_global::<Windows>().threads.retain(|v| v != view);
         super::orchestrate_ui::DelegatedStarts::forget(view.entity_id(), cx);
+        if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
+            super::device_agent::DeviceClaims::release_thread(id, cx);
+        }
         let others = self.other_windows(cx);
         let view = view.clone();
         cx.defer(move |cx| {
