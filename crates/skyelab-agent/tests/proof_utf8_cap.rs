@@ -32,11 +32,14 @@ fn capped_line_stays_within_cap() {
         bindings: vec![Binding::new(dir.clone(), "a".into())],
     };
     let session = start_in(&bin, &cfg, &dir, "hi").expect("start");
-    match session
-        .events()
-        .recv_timeout(Duration::from_secs(10))
-        .expect("event within 10s")
-    {
+    let next = || {
+        session
+            .events()
+            .recv_timeout(Duration::from_secs(10))
+            .expect("event within 10s")
+    };
+    assert!(matches!(next(), Event::Mcp { launch: true, .. }));
+    match next() {
         Event::Unknown(serde_json::Value::String(s)) => {
             assert!(s.len() <= 16 << 20, "capped len {}", s.len())
         }

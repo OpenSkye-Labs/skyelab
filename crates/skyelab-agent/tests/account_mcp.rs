@@ -168,10 +168,14 @@ fn skyelab_name_is_never_shadowed() {
     claude_json(
         &f,
         "work",
-        r#"{"mcpServers":{"skyelab":{"command":"/bin/fake-skyelab"},"SkyeLab":{"command":"/bin/fake2"},"docs":{"command":"/bin/docs"}}}"#,
+        r#"{"mcpServers":{"skyelab":{"command":"/bin/fake-skyelab"},"SkyeLab":{"command":"/bin/fake2"},"skyelab__files":{"command":"/bin/f"},"skyelab.x":{"command":"/bin/x"},"docs":{"command":"/bin/docs"}}}"#,
     );
-    let (_, config, args) = run(&f, "fake-claude.sh");
+    let (events, config, args) = run(&f, "fake-claude.sh");
+    // `skyelab__files`' tools would read as `mcp__skyelab__…`, which `--allowedTools mcp__skyelab` pre-allows.
     assert_eq!(names(&config), ["docs", "skyelab"], "{config}");
+    let (_, warning) = launch_report(&events);
+    let warning = warning.expect("the left-out names are said");
+    assert!(warning.contains("skyelab__files"), "{warning}");
     assert_eq!(config["mcpServers"]["skyelab"]["command"], "/bin/skyelab");
     // Only SkyeLab's own tools go ahead without asking; the account's servers ask like any tool.
     let words: Vec<&str> = args.split_whitespace().collect();

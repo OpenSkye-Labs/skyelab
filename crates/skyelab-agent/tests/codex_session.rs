@@ -115,6 +115,12 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
     assert_eq!(
         events,
         vec![
+            // No grant, so no servers: the launch report still says so.
+            Event::Mcp {
+                servers: vec![],
+                launch: true,
+                warning: None
+            },
             Event::Init {
                 session_id: "thr_fake".into(),
                 model: "gpt-fake".into()

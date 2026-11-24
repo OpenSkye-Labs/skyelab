@@ -128,6 +128,7 @@ fn send_and_kill() {
     let cfg = bound(&dir, &dir.join("account"));
     let mut session = start_in(&fake_bin(), &cfg, &dir, "first").expect("start");
     let rx = session.events().clone();
+    assert!(matches!(next(&rx), Event::Mcp { launch: true, .. }));
     assert!(matches!(next(&rx), Event::Init { .. }));
     fake_env(&rx);
     // The fake echoes stdin, so the prompt and each follow-up come back as user lines.

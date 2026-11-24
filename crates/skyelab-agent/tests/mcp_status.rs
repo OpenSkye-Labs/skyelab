@@ -16,7 +16,7 @@ fn server(name: &str, status: &str, error: Option<&str>) -> McpServer {
     }
 }
 
-/// The reports (not the launch one) a session of `bin` sends before its stream ends or `stop` shows up.
+/// The reports after the launch one a session of `bin` sends before its stream ends or `stop` shows up.
 fn reports(provider: Provider, bin: &Path, setup: impl FnOnce(&Path)) -> Vec<Vec<McpServer>> {
     let tmp = tempfile::tempdir().expect("tempdir");
     let root = std::fs::canonicalize(tmp.path()).expect("canonical");
@@ -48,14 +48,19 @@ fn reports(provider: Provider, bin: &Path, setup: impl FnOnce(&Path)) -> Vec<Vec
         mode: Default::default(),
     };
     let session = start_with_bin(bin, &config, &launch).expect("start");
+    // Without a grant the launch report is an empty list: it still clears an earlier process's.
+    match session.events().recv_timeout(Duration::from_secs(10)) {
+        Ok(Event::Mcp {
+            servers,
+            launch: true,
+            warning: None,
+        }) => assert!(servers.is_empty(), "{servers:?}"),
+        other => panic!("no launch report first: {other:?}"),
+    }
     let mut out = Vec::new();
     loop {
         match session.events().recv_timeout(Duration::from_secs(10)) {
-            Ok(Event::Mcp {
-                servers,
-                launch: false,
-                ..
-            }) => out.push(servers),
+            Ok(Event::Mcp { servers, .. }) => out.push(servers),
             Ok(Event::Init { .. }) if provider == Provider::Codex => return out,
             Ok(_) => {}
             Err(_) => return out, // the stream ended

@@ -185,9 +185,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let stderr = child.stderr.take().context("child stderr was piped")?;
 
     let (tx, events) = flume::unbounded();
-    if let Some(report) = report {
-        let _ = tx.send(report); // `events` is held below, so this can't fail
-    }
+    let _ = tx.send(report); // `events` is held below, so this can't fail
     let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
     // Ask ids carry this, so one stored by an earlier process never names an ask of this one.
     let nonce = format!("{}-", &uuid::Uuid::new_v4().simple().to_string()[..8]);

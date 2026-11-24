@@ -81,9 +81,9 @@ pub enum Event {
         parent: String,
         content: Vec<Block>,
     },
-    /// MCP servers: with `launch`, the ones SkyeLab gave a new agent process (each `starting`; reports from an earlier
-    /// process no longer count), else the agent's own report, which updates each named server (Claude's init
-    /// `mcp_servers`, Codex's `mcpServer/startupStatus/updated`). `warning`: why the account's own servers were left out.
+    /// MCP servers: with `launch`, the whole list of the agent process now running (what SkyeLab gave a new one, each
+    /// `starting`, then Claude's init `mcp_servers`), so earlier lists no longer count; without, an update of each server
+    /// it names (Codex's `mcpServer/startupStatus/updated`). `warning`: why the account's own servers were left out.
     Mcp {
         servers: Vec<McpServer>,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -134,9 +134,10 @@ pub(crate) fn claude_mcp(init: &Value) -> Option<Event> {
             })
         })
         .collect();
+    // The whole list the process connected: it replaces what SkyeLab said it gave it.
     (!servers.is_empty()).then_some(Event::Mcp {
         servers,
-        launch: false,
+        launch: true,
         warning: None,
     })
 }
