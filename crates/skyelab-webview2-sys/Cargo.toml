@@ -1,6 +1,6 @@
 [package]
 name = "skyelab-webview2-sys"
-description = "The WebView2 call skyelab-browser needs that has no safe binding: a page snapshot (CapturePreview)."
+description = "The WebView2 calls skyelab-browser needs that have no safe binding: a page snapshot (CapturePreview) and the visual reply page's network lock."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true

@@ -14,8 +14,7 @@ fn main() {
 #[cfg(any(target_os = "macos", windows))]
 mod real {
     use std::io::Read as _;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use gpui::{AnyWindowHandle, AppContext as _, AsyncApp, WindowOptions};
@@ -23,23 +22,38 @@ mod real {
 
     const PINK: [u8; 3] = [255, 0, 128];
 
-    /// A local server that counts every connection it gets.
-    fn listen(hits: Arc<AtomicUsize>) -> String {
+    /// What the local server saw: one entry per connection, the request's path (or `(no request)`).
+    type Hits = Arc<Mutex<Vec<String>>>;
+
+    /// A local server that records every connection it gets.
+    fn listen(hits: Hits) -> String {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("addr");
         std::thread::spawn(move || {
             for conn in listener.incoming() {
                 let Ok(mut conn) = conn else { continue };
-                hits.fetch_add(1, Ordering::SeqCst);
-                let mut buf = [0u8; 2048];
-                let _ = conn.read(&mut buf);
+                let hits = hits.clone();
+                // Its own thread: a preconnect that never sends must not hold up the next connection.
+                std::thread::spawn(move || {
+                    let _ = conn.set_read_timeout(Some(Duration::from_secs(1)));
+                    let mut buf = [0u8; 2048];
+                    let n = conn.read(&mut buf).unwrap_or(0);
+                    let head = String::from_utf8_lossy(&buf[..n]);
+                    let path = head
+                        .lines()
+                        .next()
+                        .and_then(|line| line.split_whitespace().nth(1))
+                        .unwrap_or("(no request)")
+                        .to_owned();
+                    hits.lock().expect("hits lock").push(path);
+                });
             }
         });
         format!("127.0.0.1:{}", addr.port())
     }
 
     pub fn run() {
-        let hits = Arc::new(AtomicUsize::new(0));
+        let hits = Hits::default();
         let host = listen(hits.clone());
         std::thread::spawn(|| {
             std::thread::sleep(Duration::from_secs(90));
@@ -75,7 +89,7 @@ mod real {
     async fn check(
         window: AnyWindowHandle,
         host: &str,
-        hits: &AtomicUsize,
+        hits: &Mutex<Vec<String>>,
         cx: &mut AsyncApp,
     ) -> anyhow::Result<()> {
         let theme = PageTheme {
@@ -134,8 +148,18 @@ mod real {
             ran == "true",
             "the script ran and the page stayed put: {ran}"
         );
-        let n = hits.load(Ordering::SeqCst);
-        anyhow::ensure!(n == 0, "the page reached the local server {n} times");
+        // Late connections (a preconnect's read timeout) land within a second.
+        cx.background_executor().timer(Duration::from_secs(1)).await;
+        let hits = hits
+            .lock()
+            .map_err(|_| anyhow::anyhow!("hits lock"))?
+            .clone();
+        let n = hits.len();
+        anyhow::ensure!(
+            n == 0,
+            "the page reached the local server {n} times: {}",
+            hits.join(", ")
+        );
         println!("wkwebview_page: ok");
         Ok(())
     }
