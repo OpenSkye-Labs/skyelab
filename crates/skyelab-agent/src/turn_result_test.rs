@@ -30,10 +30,8 @@ fn done(is_error: bool, total: f64, result: Option<&str>) -> Record {
 }
 
 #[test]
-fn no_turn_until_a_result_arrives() {
+fn no_turn_before_any_prompt() {
     assert_eq!(last_turn(&[]), None);
-    let records = [Record::Prompt("go".into()), said("working on it")];
-    assert_eq!(last_turn(&records), None);
 }
 
 #[test]
@@ -78,16 +76,28 @@ fn summary_falls_back_to_the_turns_last_text() {
 }
 
 #[test]
-fn a_running_turn_after_a_finished_one_still_reports_the_finished_one() {
+fn a_turn_that_ended_without_a_result_is_an_error_not_the_last_success() {
     let records = [
         Record::Prompt("go".into()),
         done(false, 0.1, Some("one")),
         Record::Prompt("again".into()),
         tool("Edit", json!({"file_path": "/r/x.rs"})),
+        Record::Agent(Event::Stderr {
+            text: "agent crashed".into(),
+        }),
     ];
-    let t = last_turn(&records).expect("the finished turn");
-    assert_eq!(t.summary, "one");
-    assert!(t.files_changed.is_empty());
+    let t = last_turn(&records).expect("the unfinished turn");
+    assert!(t.is_error);
+    assert_eq!(t.summary, "agent crashed");
+    assert_eq!(t.files_changed, ["/r/x.rs"]);
+}
+
+#[test]
+fn a_first_turn_that_died_before_any_result_is_an_error() {
+    let records = [Record::Prompt("go".into()), said("working on it")];
+    let t = last_turn(&records).expect("the unfinished turn");
+    assert!(t.is_error);
+    assert_eq!(t.summary, "The turn ended without a result.");
 }
 
 #[test]

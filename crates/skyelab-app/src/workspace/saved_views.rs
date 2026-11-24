@@ -5,6 +5,7 @@
 use super::Workspace;
 use gpui::{Action, App, AppContext as _, Context, Global, SharedString, Window};
 use skyelab_core::{AppSettings, SidebarView};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(test)]
 #[path = "saved_views_test.rs"]
@@ -37,20 +38,50 @@ pub(crate) fn views(cx: &App) -> &[SidebarView] {
     cx.try_global::<SidebarViews>().map_or(&[], |v| &v.0)
 }
 
-/// Applies `change` to the views now and to the file's as they are on disk.
-fn edit(change: impl Fn(&mut Vec<SidebarView>) + Send + 'static, cx: &mut App) {
-    change(&mut cx.default_global::<SidebarViews>().0);
-    if let Some(path) = super::thread_extras::prefs::path(cx) {
-        cx.background_spawn(async move {
-            if let Err(e) = AppSettings::update(&path, |s| change(&mut s.sidebar_views)) {
-                eprintln!("skyelab: saving the sidebar views: {e:#}");
-            }
-        })
-        .detach(); // one short write, ordered by AppSettings::update's lock
-    }
-}
+/// Bumped by every change: a write runs only while it is still the newest, checked under the settings file's lock,
+/// so two quick changes can't land out of order.
+static SAVES: AtomicU64 = AtomicU64::new(0);
 
 impl Workspace {
+    /// Applies `change` to the views now, then writes the whole list into the file as it is on disk (its other
+    /// settings untouched). A failed write is told to the user.
+    fn edit_views(
+        &mut self,
+        change: impl FnOnce(&mut Vec<SidebarView>),
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let list = {
+            let views = &mut cx.default_global::<SidebarViews>().0;
+            change(views);
+            views.clone()
+        };
+        self.refresh_sidebar(cx);
+        let Some(path) = super::thread_extras::prefs::path(cx) else {
+            return;
+        };
+        let generation = SAVES.fetch_add(1, Ordering::SeqCst) + 1;
+        let write = cx.background_spawn(async move {
+            AppSettings::update(&path, |s| {
+                if SAVES.load(Ordering::SeqCst) == generation {
+                    s.sidebar_views = list;
+                }
+            })
+        });
+        cx.spawn_in(window, async move |ws, cx| {
+            if let Err(e) = write.await {
+                let _ = ws.update_in(cx, |ws, window, cx| {
+                    ws.say(
+                        format!("Couldn't save the sidebar views: {e:#}"),
+                        window,
+                        cx,
+                    )
+                });
+            }
+        })
+        .detach(); // one short write; `ws` is weak
+    }
+
     /// The sidebar's scope and filter as a view named `name`.
     fn sidebar_view(&self, name: String) -> SidebarView {
         SidebarView {
@@ -107,18 +138,24 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let suggested = self.suggested_view_name();
-        self.prompt_text("Save view", suggested, window, cx, |ws, name, _, cx| {
-            let view = ws.sidebar_view(name);
-            // A name saved again replaces that view.
-            edit(
-                move |views| match views.iter_mut().find(|v| v.name == view.name) {
-                    Some(v) => *v = view.clone(),
-                    None => views.push(view.clone()),
-                },
-                cx,
-            );
-            ws.refresh_sidebar(cx);
-        });
+        self.prompt_text(
+            "Save view",
+            suggested,
+            window,
+            cx,
+            |ws, name, window, cx| {
+                let view = ws.sidebar_view(name);
+                // A name saved again replaces that view.
+                ws.edit_views(
+                    move |views| match views.iter_mut().find(|v| v.name == view.name) {
+                        Some(v) => *v = view,
+                        None => views.push(view),
+                    },
+                    window,
+                    cx,
+                );
+            },
+        );
     }
 
     pub(super) fn apply_sidebar_view(
@@ -148,11 +185,10 @@ impl Workspace {
     pub(super) fn delete_sidebar_view(
         &mut self,
         a: &DeleteSidebarView,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let name = a.name.to_string();
-        edit(move |views| views.retain(|v| v.name != name), cx);
-        self.refresh_sidebar(cx);
+        let name = a.name.clone();
+        self.edit_views(|views| views.retain(|v| v.name != name), window, cx);
     }
 }

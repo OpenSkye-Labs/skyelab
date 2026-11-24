@@ -2,7 +2,7 @@
 //! The tick of the turn being read is brighter; hovering shows the prompt and the turn's last reply; a click scrolls
 //! that prompt to the top.
 //!
-//! Redraw: it adds no notify of its own except when the hovered tick changes. Each frame scans the items for prompt
+//! Redraw: it notifies only when the hovered tick changes and on a jump. Each frame scans the items for prompt
 //! rows (a tag check per row) and draws a div per prompt; preview text is derived only for the hovered tick.
 
 use crate::ui;

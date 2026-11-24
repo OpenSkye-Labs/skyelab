@@ -82,4 +82,22 @@ fn a_saved_view_restores_scope_and_filter_and_deletes_from_the_file(cx: &mut Tes
         on_disk().sidebar_views.is_empty()
     });
     assert!(cx.update(|_, cx| super::views(cx).is_empty()));
+
+    // A file that doesn't parse is left alone, and the save says so.
+    std::fs::write(&settings, "not = [valid").expect("break the file");
+    r.ws.update_in(cx, |ws, window, cx| {
+        ws.save_sidebar_view(&SaveSidebarView, window, cx)
+    });
+    assert!(r.dialog_open(cx));
+    cx.simulate_input("Again");
+    cx.simulate_keystrokes("enter");
+    wait_until(cx, "the failed save is told", |cx| {
+        r.notices(cx)
+            .iter()
+            .any(|n| n.starts_with("Couldn't save the sidebar views"))
+    });
+    assert_eq!(
+        std::fs::read_to_string(&settings).expect("read"),
+        "not = [valid"
+    );
 }

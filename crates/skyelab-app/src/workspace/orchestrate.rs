@@ -351,7 +351,8 @@ impl Host for AppHost {
                     let done = !busy(&t.status);
                     if done || Instant::now() >= deadline {
                         let mut out = json!({"thread_id": t.id, "status": t.status, "done": done});
-                        if done && let Some(turn) = self.last_turn(t.id)? {
+                        // A store read error leaves `turn` out rather than failing the wait.
+                        if done && let Ok(Some(turn)) = self.last_turn(t.id) {
                             out["turn"] = json!(turn);
                         }
                         return Ok(out);
