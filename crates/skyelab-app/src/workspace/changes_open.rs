@@ -29,7 +29,9 @@ impl Workspace {
             // One tab per folder; it publishes for (and saves the PR link on) the thread that opened it last.
             // Same folder, same bound account, and publishing re-checks the account anyway.
             let thread = view.downgrade();
+            let title = view.read(cx).title();
             changes.update(cx, |c, cx| {
+                c.title = title;
                 // A comment being written for another thread doesn't move to this one.
                 if c.thread.as_ref() != Some(&thread) {
                     (c.draft, c.drag) = (None, None);
@@ -76,6 +78,20 @@ impl Workspace {
                 c.reveal(&path, cx);
             });
         }
+    }
+
+    /// A thread got its generated title: its Changes tabs say it too.
+    pub(super) fn retitle_changes(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
+        let (thread, title) = (view.downgrade(), view.read(cx).title());
+        for changes in self.changes_views.iter().filter_map(|c| c.upgrade()) {
+            if changes.read(cx).thread.as_ref() == Some(&thread) {
+                changes.update(cx, |c, cx| {
+                    c.title = title.clone();
+                    cx.notify();
+                });
+            }
+        }
+        cx.notify();
     }
 
     /// A thread's turn ended: every Changes tab on its folder may be out of date.

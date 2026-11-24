@@ -48,7 +48,7 @@ pub struct ChangesView {
     pub(super) dir: PathBuf,
     /// `None` diffs against `HEAD`.
     pub(super) base: Option<String>,
-    title: SharedString,
+    pub(super) title: SharedString,
     pub(super) changes: Option<Changes>,
     pub(super) error: Option<SharedString>,
     /// The diff's rows (unified) or `split` (side by side).
@@ -324,9 +324,11 @@ impl Render for ChangesView {
                     .flex_1()
                     .min_w_0()
                     .gap_2()
+                    // The title keeps its room up to 60%; the folder path gives way first.
                     .child(
                         div()
-                            .min_w_0()
+                            .flex_shrink_0()
+                            .max_w(gpui::relative(0.6))
                             .truncate()
                             .text_size(ui::BODY)
                             .font_weight(FontWeight::MEDIUM)

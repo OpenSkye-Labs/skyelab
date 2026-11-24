@@ -182,3 +182,33 @@ fn a_rebound_folder_never_pushes_the_thread_as_another_account(cx: &mut TestAppC
     cx.run_until_parked();
     assert!(!gh_dir.join("fake-gh.args").exists(), "gh ran");
 }
+
+#[gpui::test]
+fn the_changes_tab_takes_the_threads_generated_title(cx: &mut TestAppContext) {
+    let f = fixture();
+    let (thread, changes, cx) = thread_and_changes(&f, cx);
+    let id = thread.read_with(cx, |t, _| t.thread.as_ref().map(|t| t.id).expect("row"));
+    thread.update(cx, |t, cx| t.retitled(id, "Fix the parser".into(), cx));
+    cx.run_until_parked();
+    let title = changes.read_with(cx, |c, _| c.title());
+    assert_eq!(title.as_ref(), "Changes · Fix the parser");
+}
+
+#[gpui::test]
+fn coming_back_to_the_window_reads_the_changes_again(cx: &mut TestAppContext) {
+    let f = fixture();
+    let (_thread, changes, cx) = thread_and_changes(&f, cx);
+    let listed = |cx: &mut VisualTestContext| {
+        changes.read_with(cx, |c, _| {
+            c.changes
+                .as_ref()
+                .is_some_and(|c| c.files.iter().any(|f| f.path.ends_with("edited-elsewhere.txt")))
+        })
+    };
+    cx.deactivate_window();
+    std::fs::write(f.project.join("edited-elsewhere.txt"), "from an editor\n").expect("write");
+    cx.run_until_parked();
+    assert!(!listed(cx), "nothing told the tab yet");
+    cx.update(|window, _| window.activate_window());
+    wait_until(cx, "the new file listed", listed);
+}

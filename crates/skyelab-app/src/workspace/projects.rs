@@ -314,6 +314,7 @@ impl Workspace {
             |this, view, e: &ThreadViewEvent, window, cx| match e {
                 ThreadViewEvent::Started(thread) => {
                     this.thread_started(thread, cx);
+                    this.retitle_changes(view, cx);
                     // A draft just got its row, so the saved page can name it now.
                     if this.current_thread().as_ref() == Some(view) {
                         this.schedule_layout_save(window, cx);
@@ -331,6 +332,7 @@ impl Workspace {
                 }
                 ThreadViewEvent::FilesChanged => this.refresh_changes(view, cx),
                 ThreadViewEvent::Retitled(title) => {
+                    this.retitle_changes(view, cx);
                     if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
                         this.update_row(id, |t| t.title = title.clone(), cx);
                     }
