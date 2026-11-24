@@ -119,6 +119,13 @@ fn hand_off_and_send(
     } else {
         "ctrl-enter"
     });
+    wait_until(cx, "the prompt shown as typed", |cx| {
+        view.read_with(cx, |t, _| {
+            t.items
+                .iter()
+                .any(|i| matches!(i, crate::workspace::thread_model::Item::Prompt(p) if p == "next step"))
+        })
+    });
     wait_until(cx, "the agent got the transcript", |_| {
         let s = f.store.lock().expect("lock");
         s.events_since(row.id, 0)
