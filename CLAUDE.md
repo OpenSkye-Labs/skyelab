@@ -141,6 +141,8 @@ Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager
 `[package.metadata.packager]` in `crates/skyelab-app/Cargo.toml`. Install it with `cargo install cargo-packager --locked`.
 
 - **Cut a release:** bump `version` in the root `Cargo.toml`, commit, then tag `v<version>` and push the tag (the workflow fails if the two differ).
+  The release job also attaches `SHA256SUMS` (`sha256sum` over every asset); the in-app updater refuses a download it doesn't list, so keep that step and never edit assets on a published release.
+  Live-check the updater with `SKYELAB_UPDATE_FAKE=<tag>`, `SKYELAB_UPDATE_FAKE_DIR` (a folder of assets plus their `SHA256SUMS`, served slowly as the release's downloads) and `SKYELAB_UPDATE_FAKE_APP` (a stand-in `.app` or AppImage to replace), debug builds only.
   `.github/workflows/release.yml` builds a `.dmg` (macOS, arm64), an NSIS `-setup.exe` (Windows) and a `.deb` +
   `.AppImage` (Linux), and attaches them to a **draft** GitHub release. Check the draft, then publish it.
 - **Locally (macOS):** `cargo packager --release -p skyelab-app -f app,dmg` writes `target/release/SkyeLab.app` and the `.dmg`.

@@ -32,6 +32,7 @@ pub mod thread_defaults;
 #[cfg(test)]
 mod thread_defaults_test;
 pub mod update;
+pub mod update_install;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -515,3 +516,6 @@ mod update_test;
 #[cfg(test)]
 #[path = "context_test.rs"]
 mod context_test;
+
+#[cfg(test)]
+mod update_install_test;

@@ -95,3 +95,36 @@ pub fn version_in(line: &str) -> Option<&str> {
         .map(|w| w.trim_matches(|c: char| !c.is_ascii_alphanumeric()))
         .find(|w| w.contains('.') && parts(w).is_some())
 }
+
+/// A release's downloads (`assets[]` of GitHub's release JSON); name and URL untrusted until checked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Asset {
+    pub name: String,
+    pub url: String,
+}
+
+/// The checksums file the release workflow attaches (`sha256sum` over every other asset).
+pub const CHECKSUMS: &str = "SHA256SUMS";
+
+/// Whether an asset URL may be downloaded: this repo's `releases/download/<tag>/<name>`, nothing else.
+pub fn asset_url_ok(url: &str) -> bool {
+    url.strip_prefix(RELEASES_PAGE)
+        .and_then(|r| r.strip_prefix("download/"))
+        .is_some_and(|rest| {
+            rest.split('/').count() == 2
+                && !rest.contains("..")
+                && rest
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "-._/+".contains(c))
+        })
+}
+
+/// `name`'s lowercase SHA-256 in a `sha256sum` listing (`<hex>  <name>`, or `<hex> *<name>` in binary mode).
+pub fn expected_sha256(sums: &str, name: &str) -> Option<String> {
+    sums.lines().find_map(|line| {
+        let (hex, rest) = line.trim_end().split_once(' ')?;
+        let file = rest.trim_start_matches(' ').trim_start_matches('*');
+        (file == name && hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()))
+            .then(|| hex.to_ascii_lowercase())
+    })
+}

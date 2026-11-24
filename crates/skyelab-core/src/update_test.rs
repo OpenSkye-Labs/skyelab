@@ -80,3 +80,33 @@ fn each_agent_asks_its_own_npm_package() {
     );
     assert!(agent_latest_url(crate::Provider::Codex).ends_with("/@openai/codex/latest"));
 }
+
+#[test]
+fn asset_urls_are_this_repos_downloads_only() {
+    let ok = format!("{RELEASES_PAGE}download/v0.3.0/SkyeLab_0.3.0_aarch64.dmg");
+    assert!(asset_url_ok(&ok));
+    assert!(!asset_url_ok(
+        "https://evil.example/SkyeLab_0.3.0_aarch64.dmg"
+    ));
+    assert!(!asset_url_ok(&format!("{RELEASES_PAGE}tag/v0.3.0")));
+    assert!(!asset_url_ok(&format!(
+        "{RELEASES_PAGE}download/v0.3.0/../x.dmg"
+    )));
+    assert!(!asset_url_ok(&format!(
+        "{RELEASES_PAGE}download/v0.3.0/a/b.dmg"
+    )));
+}
+
+#[test]
+fn checksums_listing() {
+    let a = "a".repeat(64);
+    let b = "B".repeat(64);
+    let sums = format!("{a}  SkyeLab_0.3.0_aarch64.dmg\n{b} *skyelab_0.3.0_amd64.deb\nbad  x\n");
+    assert_eq!(expected_sha256(&sums, "SkyeLab_0.3.0_aarch64.dmg"), Some(a));
+    assert_eq!(
+        expected_sha256(&sums, "skyelab_0.3.0_amd64.deb"),
+        Some("b".repeat(64))
+    );
+    assert_eq!(expected_sha256(&sums, "x"), None, "not a sha256");
+    assert_eq!(expected_sha256(&sums, "SkyeLab"), None, "whole names only");
+}
