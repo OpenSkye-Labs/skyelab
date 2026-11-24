@@ -124,6 +124,11 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
     if let Some(reading) = crate::event::claude_context(&v) {
         return vec![event, reading];
     }
+    if matches!(event, Event::RateLimit { .. }) {
+        let mut events = usage_windows(&v);
+        events.push(event);
+        return events;
+    }
     if let Event::Result { prompts, .. } = &mut event {
         let listed: Option<Vec<&str>> = match (&v["user_message_uuids"], &v["user_message_uuid"]) {
             (Value::Array(ids), _) => Some(ids.iter().filter_map(Value::as_str).collect()),
@@ -161,6 +166,26 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
         .then(|| crate::event::claude_mcp(&v))
         .flatten();
     std::iter::once(event).chain(mcp).collect()
+}
+
+/// One reading per window of a rate-limit line's `unifiedWindows` (Claude Code 2.1.331 reports utilization only
+/// there). Readings never say limited: the line's own event, sent after them, does.
+fn usage_windows(v: &Value) -> Vec<Event> {
+    let Some(windows) = v["rate_limit_info"]["unifiedWindows"].as_object() else {
+        return Vec::new();
+    };
+    windows
+        .iter()
+        .filter_map(|(window, w)| {
+            let used = w["utilization"].as_f64().filter(|u| u.is_finite())?;
+            Some(Event::RateLimit {
+                limited: false,
+                resets_at: w["resetsAt"].as_i64(),
+                window: Some(window.clone()),
+                used: Some(used.clamp(0.0, 1.0) as f32),
+            })
+        })
+        .collect()
 }
 
 /// The `control_response` line answering AskUserQuestion ask `id`: `answers` holds each question's picked labels,

@@ -347,6 +347,9 @@ impl Event {
             }),
             (Some("system"), Some("thinking_tokens" | "status")) => return None,
             (Some("system"), Some("task_updated" | "background_tasks_changed")) => return None,
+            // Hook runs (their output is the account's own text) and prompt queue states: nothing shows them.
+            (Some("system"), Some("hook_started" | "hook_response")) => return None,
+            (Some("command_lifecycle"), _) => return None,
             (
                 Some("system"),
                 Some(kind @ ("task_started" | "task_progress" | "task_notification")),

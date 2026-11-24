@@ -16,9 +16,7 @@ fn real_rate_limit_lines_report_each_unified_window() {
         .iter()
         .filter_map(|e| match e {
             Event::RateLimit {
-                limited,
-                resets_at,
-                ..
+                limited, resets_at, ..
             } => e.rate_limit().map(|r| (r, *limited, *resets_at)),
             _ => None,
         })
@@ -39,7 +37,10 @@ fn real_rate_limit_lines_report_each_unified_window() {
 
     let rejected = RATE_LIMIT
         .replacen(r#""status":"allowed""#, r#""status":"rejected""#, 1)
-        .replace(r#""overageStatus":"allowed""#, r#""overageStatus":"rejected""#);
+        .replace(
+            r#""overageStatus":"allowed""#,
+            r#""overageStatus":"rejected""#,
+        );
     let events = claude(&rejected);
     assert!(events.len() > 1, "{events:?}");
     assert!(
