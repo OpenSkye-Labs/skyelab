@@ -175,3 +175,30 @@ pub fn read_preview(root: &Path, path: &Path) -> Result<Preview> {
     }
     Ok(String::from_utf8(bytes).map_or(Preview::Binary, Preview::Text))
 }
+
+/// `C:\x` for Windows' canonical `\\?\C:\x`: agents record the plain form. Other paths (a UNC share, any Unix
+/// path) come back as they are. Git needs it too: `worktree add \\?\C:\…` fails to create the folder.
+pub fn without_verbatim(path: &Path) -> PathBuf {
+    let plain = path
+        .to_str()
+        .and_then(|s| s.strip_prefix(r"\\?\"))
+        .filter(|rest| {
+            let b = rest.as_bytes();
+            b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':'
+        });
+    plain.map_or_else(|| path.to_owned(), PathBuf::from)
+}
+
+#[cfg(test)]
+#[test]
+fn verbatim_drive_paths_lose_their_prefix_only() {
+    assert_eq!(
+        without_verbatim(Path::new(r"\\?\C:\w\app")),
+        Path::new(r"C:\w\app")
+    );
+    assert_eq!(
+        without_verbatim(Path::new(r"\\?\UNC\host\share")),
+        Path::new(r"\\?\UNC\host\share")
+    );
+    assert_eq!(without_verbatim(Path::new("/w/app")), Path::new("/w/app"));
+}

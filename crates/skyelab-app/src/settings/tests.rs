@@ -11,6 +11,9 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
     let path = dir.path().join("cfg").join("accounts.toml");
     let work = dir.path().join("work");
     std::fs::create_dir_all(work.join("api")).expect("mkdir");
+    // Absolute on every OS (`/home/me/…` has no drive on Windows, so the account would be refused).
+    let config_dir = dir.path().join(".claude-acme");
+    let config_dir = config_dir.to_str().expect("utf-8");
     let (view, cx) = cx.add_window_view(|window, cx| {
         let view = Settings::new(
             Some(path.clone()),
@@ -37,7 +40,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
     });
     set(&id, "acme", cx);
     set(&label, "Acme Team", cx);
-    set(&dir_in, "/home/me/.claude-acme", cx);
+    set(&dir_in, config_dir, cx);
     view.update_in(cx, |v, window, cx| v.focus.focus(window, cx));
     cx.simulate_keystrokes("secondary-enter"); // the SaveAccount binding: cmd on macOS, ctrl elsewhere
     cx.run_until_parked();
@@ -48,7 +51,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
 
     // Duplicate id: core error shows inline, nothing saved.
     set(&id, "acme", cx);
-    set(&dir_in, "/home/me/.claude-acme", cx);
+    set(&dir_in, config_dir, cx);
     view.update_in(cx, |v, window, cx| v.save_account(&SaveAccount, window, cx));
     view.read_with(cx, |v, _| {
         assert!(

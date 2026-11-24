@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 fn add_worktree(root: &Path, name: &str) -> PathBuf {
     let wt = root.join(".skyelab/worktrees").join(name);
     let branch = format!("skyelab/{name}");
-    let dest = wt.to_str().expect("utf-8");
+    let plain = skyelab_core::files::without_verbatim(&wt);
+    let dest = plain.to_str().expect("utf-8");
     git(
         root,
         &["worktree", "add", "-q", "-b", &branch, dest, "HEAD"],

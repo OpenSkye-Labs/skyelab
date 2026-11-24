@@ -40,7 +40,9 @@ pub fn create_worktree(
     if exists && !reuse_branch {
         return Err(Error::BranchExists(branch.to_owned()));
     }
-    let dest_arg = dest.as_os_str();
+    // Git can't make a worktree at Windows' canonical `\\?\C:\…`; the plain form names the same folder.
+    let plain = skyelab_core::files::without_verbatim(&dest);
+    let dest_arg = plain.as_os_str();
     // `--` keeps a dest starting with `-` from being read as an option.
     if exists {
         git(
@@ -131,7 +133,8 @@ pub fn remove_worktree(repo: &Path, path: &Path, force: bool) -> Result<()> {
     if force {
         args.push("--force".as_ref());
     }
-    args.extend(["--".as_ref(), path.as_os_str()]);
+    let plain = skyelab_core::files::without_verbatim(path);
+    args.extend(["--".as_ref(), plain.as_os_str()]);
     git(repo, &args)?;
     Ok(())
 }

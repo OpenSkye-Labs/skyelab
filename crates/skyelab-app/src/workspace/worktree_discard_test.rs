@@ -15,7 +15,7 @@ fn discard_refuses_dirty_until_confirmed_with_the_current_status() {
             "-q",
             "-b",
             "skyelab/w",
-            wt.to_str().expect("utf-8"),
+            skyelab_core::files::without_verbatim(&wt).to_str().expect("utf-8"),
             "HEAD",
         ],
     );
@@ -55,7 +55,7 @@ fn a_clean_worktree_is_removed_at_once() {
             "-q",
             "-b",
             "skyelab/c",
-            wt.to_str().expect("utf-8"),
+            skyelab_core::files::without_verbatim(&wt).to_str().expect("utf-8"),
             "HEAD",
         ],
     );

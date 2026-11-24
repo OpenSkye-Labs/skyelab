@@ -168,3 +168,32 @@ fn a_repo_driver_named_with_equals_or_non_utf8_is_refused() {
     assert!(overrides_from(b"local\0filter.a=b.clean\nx\0").is_err());
     assert!(overrides_from(b"local\0filter.\xff.clean\nx\0").is_err());
 }
+
+/// The snapshot's scratch index keeps the real index's mtime, so git's racy-entry check still re-reads a file
+/// edited in the same timestamp tick as the index (Linux's `fs::copy` stamped the copy with now).
+#[test]
+fn the_scratch_index_keeps_the_index_mtime() {
+    let tmp = tempfile::tempdir().expect("tmp");
+    let repo = tmp.path().join("repo");
+    std::fs::create_dir(&repo).expect("mkdir");
+    git(&repo, &["init", "-q"]).expect("init");
+    std::fs::write(repo.join("a.txt"), "one\n").expect("write");
+    git(&repo, &["add", "a.txt"]).expect("add");
+    let index = repo.join(".git").join("index");
+    let old = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+    std::fs::File::options()
+        .write(true)
+        .open(&index)
+        .expect("open index")
+        .set_modified(old)
+        .expect("age the index");
+    let to = tmp.path().join("copy");
+    commit::copy_index(&repo, &to).expect("copy");
+    assert_eq!(
+        std::fs::metadata(&to)
+            .expect("copy")
+            .modified()
+            .expect("mtime"),
+        old
+    );
+}
