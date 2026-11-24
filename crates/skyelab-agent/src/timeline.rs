@@ -104,6 +104,8 @@ impl Item {
         match self {
             Item::Tool(t) => Some(&t.id),
             Item::Subagent(s) => Some(&s.id),
+            // A file-change approval's "+N more lines".
+            Item::Approval(a) => Some(&a.id),
             Item::Output { id, .. } | Item::Thinking { id, .. } => Some(id),
             _ => None,
         }

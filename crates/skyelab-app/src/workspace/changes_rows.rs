@@ -369,6 +369,18 @@ pub(in crate::workspace) fn diff_line(
     line_parts(base, old, Some(new), kind, text, false, theme)
 }
 
+/// [`diff_line`] with the text wrapping under itself: an approval must show a long line whole.
+pub(in crate::workspace) fn diff_line_wrapped(
+    base: gpui::Stateful<gpui::Div>,
+    old: Option<u32>,
+    new: Option<u32>,
+    kind: LineKind,
+    text: SharedString,
+    theme: &gpui_component::Theme,
+) -> gpui::Stateful<gpui::Div> {
+    line_parts(base, old, Some(new), kind, text, true, theme)
+}
+
 /// A line's number column(s), sign and text on `base`; `second` is the new-side number in a unified row (`None`:
 /// one column, a split half). `wrap` lets the text wrap under itself.
 fn line_parts<E: ParentElement + Styled>(

@@ -15,7 +15,8 @@ fi
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,
-# reports it as `fake_answer` and ends the turn; one starting "crash" writes to stderr and exits 3, and one starting
+# reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write and "permit edit" an Edit
+# instead); one starting "crash" writes to stderr and exits 3, and one starting
 # "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
 # "turn" ends a plain turn ($0.0125, 1200 in, 80 out) with Claude's running totals.
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
@@ -99,6 +100,18 @@ total=0.0421 in_total=0 out_total=0
 while IFS= read -r line; do
   printf '%s\n' "$line"
   case "$line" in
+    *'"content":"permit write'*)
+      # A 2,000-line Write: the approval shows its first lines, not its JSON.
+      body=$(awk 'BEGIN { for (i = 1; i <= 2000; i++) printf "fn line_%d() {}\\n", i }')
+      printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Write","input":{"file_path":"%s/src/big.rs","content":"%s"},"tool_use_id":"toolu_p"}}\n' "$PWD" "$body"
+      IFS= read -r reply
+      printf '{"type":"fake_answer","reply":%s}\n' "$reply"
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
+    *'"content":"permit edit'*)
+      printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Edit","input":{"file_path":"%s/src/main.rs","old_string":"fn main() {\\n    println!(\\"hi\\");\\n}","new_string":"fn main() {\\n    println!(\\"hello\\");\\n    run();\\n    // a long line that must wrap, never clip, a long line that must wrap, never clip, a long line that must wrap, never clip, a long line that must wrap, never clip, a long line that must wrap, never clip, a long line that must wrap, never clip, END\\n}"},"tool_use_id":"toolu_p"}}\n' "$PWD"
+      IFS= read -r reply
+      printf '{"type":"fake_answer","reply":%s}\n' "$reply"
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
     *'"content":"permit'*)
       printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"make deploy","description":"Deploy the site"},"tool_use_id":"toolu_p"}}\n'
       IFS= read -r reply

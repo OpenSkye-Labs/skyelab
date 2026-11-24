@@ -151,3 +151,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Text of unknown length in an `h_flex` beside buttons (a confirm naming files) doesn't wrap: a `flex_1` div without
   `min_w_0` grows to its text's width and pushes the buttons out of the panel, past the window. Put the text on its own
   line in a `v_flex` and the buttons in a row under it (`changes_turns.rs`'s rewind confirm), or give it `min_w_0`.
+- **Text the user approves must wrap, never clip.** `whitespace_nowrap()` inside an `overflow_hidden()` or
+  y-only-scroll box cuts a long line at the edge with no sign, so a permission card could show `# config` while the
+  line goes on to `; curl … | sh`. Approval diffs use `diff_line_wrapped` (rows `min_h`, not `h`); clipping is fine
+  only for text that is shown in full elsewhere (the Changes tab, the edit card).
