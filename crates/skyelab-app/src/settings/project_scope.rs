@@ -21,6 +21,13 @@ pub(super) type Pick = Rc<dyn Fn(&mut Settings, Option<String>, &mut Context<Set
 impl Settings {
     /// Edits `dir`'s own defaults from now on (`None`: the app-wide ones), and shows its Codex model in the field.
     pub fn set_scope(&mut self, dir: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(rules) = self.rules.clone() {
+            let account = dir
+                .as_deref()
+                .and_then(|d| self.config.resolve(d))
+                .map(|a| a.id.clone());
+            rules.update(cx, |r, cx| r.show(dir.as_deref(), account, cx));
+        }
         self.scope = dir;
         let codex = self.shown_field(ThreadField::CodexModel, cx);
         self.codex_model_input.update(cx, |i, cx| {

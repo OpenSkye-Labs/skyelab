@@ -123,7 +123,7 @@ fn claude_allow_reaches_agent_and_waits() {
     assert!(early.is_err(), "the agent went on unanswered: {early:?}");
     s.answer(&id, Decision::AllowOnce).expect("answer");
     let resolved = until(&s, |e| match e {
-        Event::PermissionResolved { id, decision } => Some((id.clone(), *decision)),
+        Event::PermissionResolved { id, decision, .. } => Some((id.clone(), *decision)),
         _ => None,
     });
     assert_eq!(resolved, (id.clone(), Decision::AllowOnce));
@@ -176,7 +176,7 @@ fn answer_unknown_id_fails() {
 fn claude_cancel_withdraws() {
     let (mut s, _tmp) = start("withdraw", "withdraw it", Mode::Default);
     let resolved = until(&s, |e| match e {
-        Event::PermissionResolved { id, decision } => Some((id.clone(), *decision)),
+        Event::PermissionResolved { id, decision, .. } => Some((id.clone(), *decision)),
         _ => None,
     });
     assert!(resolved.0.ends_with("-perm-2"), "{resolved:?}");

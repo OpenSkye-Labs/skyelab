@@ -68,6 +68,17 @@
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.
+- **Project rules are SkyeLab's, not the repo's.** A repo can't allow itself anything: its `.claude/settings*.json`
+  stays ignored. "Allow for this project" saves a rule in SkyeLab's own database, keyed by the project and the account
+  the agent runs under, so it never applies under another account or in another project, and rebinding the folder
+  starts with none. The rule is shown (and can be narrowed) before it is saved, and must cover the call waiting then.
+  SkyeLab matches each later ask itself and answers it "allow once", so the agent's own rule grammar never sees the
+  rule: a command rule is the exact command, or a word prefix of one plain command (a command or prefix with `;`, `&`,
+  `|`, `$`, a backtick, `<`, `>`, parentheses, a backslash or a control character never matches a prefix rule); a file
+  rule is a glob relative to the thread's folder, with no `..` or absolute paths, and the file must be inside the
+  folder by its text and after symlinks are resolved; an MCP rule names one tool. Codex's folder-wide write grants
+  (`apply_patch`) and every other tool can't take one. Rules never answer in Plan mode or a side chat, and the thread
+  row of an ask a rule answered names that rule.
 - **Private tabs stay private.** An agent's browser tab and a forwarded port's page have their own in-memory cookies
   and storage, and the tab itself records that (not whether a forward still exists). Duplicate tab on one (also
   after Take over or after the forward ends, and on any copy) opens another private, throwaway tab, never one on your

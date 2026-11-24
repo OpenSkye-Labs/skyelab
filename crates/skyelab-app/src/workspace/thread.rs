@@ -376,7 +376,7 @@ impl ThreadView {
         (self.session.is_some() || self.starting) && !self.stop_requested
     }
 
-    fn show_error(&mut self, e: anyhow::Error, cx: &mut Context<Self>) {
+    pub(in crate::workspace) fn show_error(&mut self, e: anyhow::Error, cx: &mut Context<Self>) {
         self.error = Some(format!("{e:#}").into());
         cx.notify();
     }

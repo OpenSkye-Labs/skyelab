@@ -63,6 +63,11 @@ const INDEX: &[(Section, &str, &str)] = &[
     ),
     (Section::Chat, "Codex model", "model effort reasoning"),
     (Section::Chat, "Generate thread titles", "title name"),
+    (
+        Section::Chat,
+        "Permission rules",
+        "allow for this project approval always command prefix path",
+    ),
     (Section::Diffs, "Side by side", "split diff unified"),
     (Section::Diffs, "Wrap long lines", "diff wrap"),
     (Section::Diffs, "Ignore whitespace", "diff whitespace"),

@@ -354,6 +354,16 @@ impl Session {
     /// carry [`Event::PermissionResolved`]. Fails, sending nothing, when `id` is no longer waiting (answered,
     /// withdrawn, or never asked).
     pub fn answer(&mut self, id: &str, decision: Decision) -> Result<()> {
+        self.answer_noting(id, decision, None)
+    }
+
+    /// Allows the [`Event::Permission`] `id` once on behalf of the user, by the project rule `rule` (its label), which
+    /// the resolved event carries so the thread says what allowed it.
+    pub fn answer_by_rule(&mut self, id: &str, rule: String) -> Result<()> {
+        self.answer_noting(id, Decision::AllowOnce, Some(rule))
+    }
+
+    fn answer_noting(&mut self, id: &str, decision: Decision, rule: Option<String>) -> Result<()> {
         if decision == Decision::Withdrawn {
             bail!("an answer allows or denies");
         }
@@ -374,6 +384,7 @@ impl Session {
             let _ = tx.send(Event::PermissionResolved {
                 id: id.to_owned(),
                 decision,
+                rule,
             });
         }
         Ok(())
@@ -399,6 +410,7 @@ impl Session {
             let _ = tx.send(Event::PermissionResolved {
                 id: id.to_owned(),
                 decision: Decision::AllowOnce,
+                rule: None,
             });
         }
         Ok(())

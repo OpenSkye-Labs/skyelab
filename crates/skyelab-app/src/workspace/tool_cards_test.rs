@@ -134,6 +134,7 @@ fn divider_limit_notice_question_and_plan_draw(cx: &mut TestAppContext) {
             input: raw.to_string(),
             raw,
             decision: None,
+            rule: None,
         })
     };
     show(

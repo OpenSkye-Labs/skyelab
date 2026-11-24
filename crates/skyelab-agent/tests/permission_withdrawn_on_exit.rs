@@ -51,7 +51,7 @@ fn killed_agent_withdraws_its_open_ask() {
         rest.push(e);
     }
     assert!(
-        rest.iter().any(|e| matches!(e, Event::PermissionResolved { id, decision: Decision::Withdrawn } if *id == asked)),
+        rest.iter().any(|e| matches!(e, Event::PermissionResolved { id, decision: Decision::Withdrawn, .. } if *id == asked)),
         "open ask never withdrawn after the agent died; events after kill: {rest:?}"
     );
 }

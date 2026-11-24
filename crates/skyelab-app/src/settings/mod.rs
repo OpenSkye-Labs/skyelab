@@ -158,6 +158,8 @@ pub struct Settings {
     pub usage: Option<Entity<crate::workspace::usage_page::UsagePage>>,
     /// The Scheduled tasks section's content, set by the workspace like `usage`.
     pub scheduled: Option<Entity<crate::workspace::scheduled::ScheduledPage>>,
+    /// Settings → Chat's permission rules for the picked project, set by the workspace like `usage`.
+    pub rules: Option<Entity<crate::workspace::ProjectRulesPage>>,
     pub(super) focus: FocusHandle,
     pub(super) _pick: Option<Task<()>>,
     /// Whether each account is signed in to its agent CLI (shared with the setup page).
@@ -279,6 +281,7 @@ impl Settings {
             machines: None,
             usage: None,
             scheduled: None,
+            rules: None,
             focus,
             _pick: None,
             login,

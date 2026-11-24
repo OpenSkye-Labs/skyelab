@@ -79,9 +79,14 @@ pub(super) fn render_approval<V: ItemsView>(
             .child(summary)
             .child(
                 div()
+                    .flex_shrink_0()
                     .text_size(ui::META)
                     .text_color(color)
-                    .child(decided(d)),
+                    .child(match &a.rule {
+                        // Which rule answered for the user, so an allow nobody clicked is never silent.
+                        Some(rule) => format!("Allowed by project rule · {rule}"),
+                        None => decided(d).to_owned(),
+                    }),
             )
             .into_any_element();
     }
@@ -108,6 +113,21 @@ pub(super) fn render_approval<V: ItemsView>(
                 )
                 .outline(),
             )
+            .when(this.offers_project_rule(&a.tool), |d| {
+                let id = a.id.clone();
+                d.child(
+                    Button::new(SharedString::from(format!("allow-project-{}", a.id)))
+                        .xsmall()
+                        .outline()
+                        .label("Allow for this project")
+                        .tooltip(
+                            "Save a rule for this project and account, shown before it is saved",
+                        )
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.allow_for_project(&id, window, cx)
+                        })),
+                )
+            })
             .child(button("Deny", "deny", Decision::Deny).ghost())
             .child(
                 Button::new(SharedString::from(format!("interrupt-{}", a.id)))

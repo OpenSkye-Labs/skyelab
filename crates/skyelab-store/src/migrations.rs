@@ -377,6 +377,8 @@ CREATE INDEX threads_by_compare_group ON threads(compare_group) WHERE compare_gr
     "
 ALTER TABLE threads ADD COLUMN scroll_mark TEXT;
 ",
+    // Version 26: "Allow for this project" rules, per project and account.
+    crate::project_rules::MIGRATION_V26,
 ];
 
 // After the macros: the migration builds its trigger with `turn_cost!` and `fork_copy!`.

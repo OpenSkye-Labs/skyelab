@@ -141,6 +141,7 @@ fn resolved_elsewhere_or_turn_end_withdraws_requests() {
     let withdrawn = |id: &str| Event::PermissionResolved {
         id: id.into(),
         decision: Decision::Withdrawn,
+        rule: None,
     };
     assert_eq!(events, vec![withdrawn("codex-3")]);
     let (events, _) = c.on_line(

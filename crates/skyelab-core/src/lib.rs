@@ -20,6 +20,7 @@ pub mod instance;
 pub mod keymap;
 pub mod onboarding;
 pub mod process;
+pub mod project_rules;
 pub mod prompt;
 pub mod scratch;
 pub mod snooze;
