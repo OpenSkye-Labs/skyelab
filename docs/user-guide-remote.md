@@ -86,7 +86,7 @@ For each forwarded port, the palette then lists **Open Forwarded Port** (a brows
 - Only ports on the other machine's own loopback (127.0.0.1 or ::1) can be forwarded, and only from 1024 up. It
   refuses SkyeLab's own port, and the well-known ports of services that would hand over the machine or its data
   without a login (Docker's API, Kubernetes, Screen Sharing/VNC, Remote Desktop, adb, php-fpm, Jupyter, WebDriver,
-  Consul, databases such as MySQL, Postgres, Redis, MongoDB and Elasticsearch, a SOCKS proxy, browser and Node
+  Consul, Java, Python and Go debuggers, ngrok's API, databases such as MySQL, Postgres, Redis, MongoDB and Elasticsearch, a SOCKS proxy, browser and Node
   debuggers; the full list is in [remote-port-forwarding.md](remote-port-forwarding.md)). Dev-server ports such as
   3000, 5173 or 8080 forward fine. A port with nothing listening is refused with a note.
 - The local end listens on 127.0.0.1 only, so other devices on your network can't use it. Any program on this
