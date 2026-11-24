@@ -2,6 +2,8 @@
 
 /// From this percent on, the meter warns and hints `/compact`.
 pub const NEAR_FULL: u32 = 80;
+/// From this percent on, the meter shows the danger color.
+pub const FULL: u32 = 90;
 
 /// The context window of `model` (a `--model` alias or a full id) in tokens, when SkyeLab knows it. Claude models
 /// take 200k, or 1M with the `[1m]` suffix. Anything else is `None`: Codex reports its own window, and a reading the
@@ -31,15 +33,14 @@ pub fn near_full(percent: u32) -> bool {
 
 /// A token count the way T3 writes it: 950, 9.5k, 84k, 1.3m.
 pub fn tokens_text(n: u64) -> String {
-    // One decimal, dropped when it is 0: `tenths` is the count in tenths of the unit, rounded half up.
-    let tenths = |tenths: u64, unit: &str| match tenths % 10 {
+    let one_decimal = |tenths: u64, unit: &str| match tenths % 10 {
         0 => format!("{}{unit}", tenths / 10),
         d => format!("{}.{d}{unit}", tenths / 10),
     };
     match n {
         0..1_000 => n.to_string(),
-        1_000..10_000 => tenths((n + 50) / 100, "k"),
+        1_000..10_000 => one_decimal((n + 50) / 100, "k"),
         10_000..999_500 => format!("{}k", (n + 500) / 1_000),
-        _ => tenths((n + 50_000) / 100_000, "m"),
+        _ => one_decimal(n.saturating_add(50_000) / 100_000, "m"),
     }
 }

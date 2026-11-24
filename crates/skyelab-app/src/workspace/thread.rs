@@ -69,7 +69,6 @@ pub struct ThreadView {
     pub(super) items: super::thread_model::Items,
     /// `Some(resets_at)` while the account's usage limit holds the agent back.
     pub(super) limited: Option<Option<i64>>,
-    /// The newest context-window reading (`thread_context.rs`).
     pub(super) context: context_meter::Reading,
     /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
     pub(super) lists: window_owner::Lists,

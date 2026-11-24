@@ -1,5 +1,3 @@
-//! Context-window readings from both agents' streams: what the meter in the composer footer and the details card reads.
-
 use super::*;
 use crate::claude::{Asks, Sent, parse};
 

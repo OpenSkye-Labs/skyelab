@@ -215,8 +215,7 @@ impl Workspace {
         settings
     }
 
-    /// Opens a terminal tab that logs account `id` in to its agent, under that account's own config dir: from its
-    /// card in Settings → Accounts, and from a thread's "isn't signed in" banner (which only names its own account).
+    /// Opens a terminal tab that logs account `a.id` in to its agent, under that account's own config dir.
     pub(super) fn log_in_account(
         &mut self,
         a: &LogInAccount,

@@ -1,5 +1,5 @@
 //! The context-window meter (T3's thread details "Context" row): how full the thread's context is after the newest
-//! model call, in the composer footer and the thread details card. Past 80% it warns and hints `/compact`.
+//! model call, in the composer footer and the thread details card. From 80% it warns and hints `/compact`.
 
 use super::ThreadView;
 use crate::ui;
@@ -34,7 +34,6 @@ impl Reading {
     }
 }
 
-/// What the meter shows: the tokens in context, the window when known and how full that is.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(in crate::workspace) struct Meter {
     pub tokens: u64,
@@ -43,7 +42,6 @@ pub(in crate::workspace) struct Meter {
 }
 
 impl Meter {
-    /// "42% context", or "84k context" when the window is unknown.
     pub fn text(&self) -> String {
         match self.percent {
             Some(p) => format!("{p}% context"),
@@ -55,7 +53,6 @@ impl Meter {
         self.percent.is_some_and(context::near_full)
     }
 
-    /// "84k / 200k", or the tokens alone.
     pub fn amount(&self) -> String {
         let used = context::tokens_text(self.tokens);
         match self.window {
@@ -119,8 +116,7 @@ impl ThreadView {
         })
     }
 
-    /// The details card's "Context" row: a bar filled to the use, the percentage and "84k / 200k", and the `/compact`
-    /// hint past 80%.
+    /// The details card's "Context" row (T3's `ThreadDetailsContext`).
     pub(in crate::workspace) fn render_context_row(&self, cx: &App) -> Option<AnyElement> {
         let meter = self.context_meter()?;
         let theme = cx.theme();
@@ -187,10 +183,10 @@ fn div_text(text: impl Into<gpui::SharedString>) -> gpui::Div {
     gpui::div().child(text.into())
 }
 
-/// Plain until 80%, then the warning ink, and the danger ink from 90% (T3's tones).
+/// T3's tones: plain, then warning, then danger.
 pub(in crate::workspace) fn meter_color(meter: &Meter, theme: &Theme) -> gpui::Hsla {
     match meter.percent {
-        Some(p) if p >= 90 => ui::ink(theme, theme.danger),
+        Some(p) if p >= context::FULL => ui::ink(theme, theme.danger),
         Some(p) if context::near_full(p) => ui::ink(theme, theme.warning),
         _ => theme.foreground.opacity(0.8),
     }

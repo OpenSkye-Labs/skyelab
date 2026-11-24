@@ -31,8 +31,8 @@ fn unknown_models_have_no_window() {
 fn percent_rounds_and_clamps() {
     assert_eq!(percent(0, 200_000), Some(0));
     assert_eq!(percent(84_000, 200_000), Some(42));
-    assert_eq!(percent(84_999, 200_000), Some(42)); // 42.4995
-    assert_eq!(percent(85_000, 200_000), Some(43)); // 42.5 rounds up
+    assert_eq!(percent(84_999, 200_000), Some(42));
+    assert_eq!(percent(85_000, 200_000), Some(43));
     assert_eq!(percent(250_000, 200_000), Some(100));
     assert_eq!(percent(5, 0), None, "no window, no percent");
 }
@@ -53,4 +53,5 @@ fn token_counts_read_like_t3() {
     assert_eq!(tokens_text(200_000), "200k");
     assert_eq!(tokens_text(1_000_000), "1m");
     assert_eq!(tokens_text(1_250_000), "1.3m");
+    assert_eq!(tokens_text(u64::MAX), "18446744073709.5m");
 }
