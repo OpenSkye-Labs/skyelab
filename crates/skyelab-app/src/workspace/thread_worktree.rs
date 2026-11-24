@@ -5,7 +5,7 @@ use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree::{self, Discard};
 use crate::ui::Button;
 use gpui::{AnyElement, Context, FontWeight, Window, actions, div, prelude::*};
-use gpui_component::{ActiveTheme as _, h_flex};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 
 actions!(
     skyelab,
@@ -155,8 +155,9 @@ impl ThreadView {
         let theme = cx.theme();
         // The exact files the confirm covers; a confirm after they change is refused and asked again.
         let msg = worktree::discard_message(st);
+        // The file list wraps on its own line, with the choices under it (a long one pushed them out of view).
         Some(
-            h_flex()
+            v_flex()
                 .mx_4()
                 .mb_2()
                 .p_2()
@@ -164,30 +165,29 @@ impl ThreadView {
                 .rounded_lg()
                 .border_1()
                 .border_color(theme.danger)
+                .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(msg))
                 .child(
-                    div()
-                        .flex_1()
-                        .text_sm()
-                        .font_weight(FontWeight::MEDIUM)
-                        .child(msg),
-                )
-                .child(
-                    Button::new("cancel-discard")
-                        .ghost()
-                        .xsmall()
-                        .label("Keep it")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.cancel_discard(&CancelDiscardWorktree, window, cx)
-                        })),
-                )
-                .child(
-                    Button::new("confirm-discard")
-                        .danger()
-                        .xsmall()
-                        .label("Discard anyway")
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.confirm_discard(&ConfirmDiscardWorktree, window, cx)
-                        })),
+                    h_flex()
+                        .justify_end()
+                        .gap_2()
+                        .child(
+                            Button::new("cancel-discard")
+                                .ghost()
+                                .xsmall()
+                                .label("Keep it")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.cancel_discard(&CancelDiscardWorktree, window, cx)
+                                })),
+                        )
+                        .child(
+                            Button::new("confirm-discard")
+                                .danger()
+                                .xsmall()
+                                .label("Discard anyway")
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.confirm_discard(&ConfirmDiscardWorktree, window, cx)
+                                })),
+                        ),
                 )
                 .into_any_element(),
         )

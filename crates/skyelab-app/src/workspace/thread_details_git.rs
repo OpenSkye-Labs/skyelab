@@ -132,6 +132,11 @@ impl ThreadView {
                         )
                         .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
+                            // The confirm shows above the composer, where the card would cover it.
+                            window.dispatch_action(
+                                Box::new(super::super::layout::ToggleThreadDetails),
+                                cx,
+                            );
                             this.discard_worktree(&DiscardWorktree, window, cx);
                         })),
                     )
