@@ -6,7 +6,9 @@ Back to the [user guide](user-guide.md).
 
 The branch row in the thread details card (⇧⌘B) lists the folder's local branches, most recent first, with a search. On a thread
 that runs in the project folder, picking one switches the folder's checkout; type a name that doesn't exist and
-pick **Create branch** to make it from the current commit and switch to it (your changes stay as they are). Stop the
+pick **Create branch** to make it from the current commit and switch to it (your changes stay as they are). The
+search has the focus as soon as the list opens. A branch checked out in another worktree (a worktree thread's) is
+marked **in a worktree**: git can't switch to it here, so SkyeLab says so and changes nothing. Stop the
 agent first. With uncommitted changes, SkyeLab asks before switching:
 
 - **Stash and switch** stashes every change, untracked files included, as `skyelab: changes left on the way to <branch>`.

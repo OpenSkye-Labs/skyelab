@@ -23,7 +23,7 @@ pub struct BranchPicker {
     pub(super) dir: PathBuf,
     pub(super) open: bool,
     pub(super) branches: Branches,
-    query: Entity<InputState>,
+    pub(super) query: Entity<InputState>,
     pub(super) error: Option<SharedString>,
     /// A switch the uncommitted changes held back: the branch, and the status the user is asked about.
     pub(super) dirty: Option<(String, Status)>,
@@ -86,6 +86,12 @@ impl BranchPicker {
         cx.notify();
     }
 
+    /// Opens the list with the search focused, so typing narrows it (or names a new branch) at once.
+    pub fn open_focused(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_open(true, cx);
+        self.query.update(cx, |q, cx| q.focus(window, cx));
+    }
+
     /// Picking sets the worktree base rather than switching: a new thread that will run in its own worktree.
     fn picks_base(&self, cx: &gpui::App) -> bool {
         self.owner.upgrade().is_some_and(|o| {
@@ -139,6 +145,14 @@ impl BranchPicker {
         }
         if self.branches.current.as_ref() == Some(&name) {
             self.set_open(false, cx);
+            return;
+        }
+        if self.branches.elsewhere.contains(&name) {
+            self.error = Some(
+                format!("{name} is checked out in another worktree; git can't switch to it here.")
+                    .into(),
+            );
+            cx.notify();
             return;
         }
         self.switch(name, OnDirty::Refuse, None, cx);
@@ -253,18 +267,23 @@ impl Render for BranchPicker {
             .children(rows.into_iter().enumerate().map(|(i, name)| {
                 let selected = chosen.as_ref() == Some(&name);
                 let current = self.branches.current.as_ref() == Some(&name);
+                let note = if current {
+                    Some("current")
+                } else if self.branches.elsewhere.contains(&name) {
+                    Some("in a worktree")
+                } else {
+                    None
+                };
                 let picked = name.clone();
                 ui::row(("branch", i), selected, theme)
                     .on_click(cx.listener(move |this, _, _, cx| this.pick(picked.clone(), cx)))
                     .child(div().flex_1().min_w_0().truncate().child(name))
-                    .when(current, |r| {
-                        r.child(
-                            div()
-                                .text_size(ui::META)
-                                .text_color(theme.muted_foreground)
-                                .child("current"),
-                        )
-                    })
+                    .children(note.map(|n| {
+                        div()
+                            .text_size(ui::META)
+                            .text_color(theme.muted_foreground)
+                            .child(n)
+                    }))
             }));
         let dirty = self.dirty.clone().map(|(name, status)| {
             let files = super::worktree::changed_files(&status).len();

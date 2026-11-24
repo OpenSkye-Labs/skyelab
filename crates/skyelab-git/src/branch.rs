@@ -11,6 +11,8 @@ pub struct Branches {
     pub current: Option<String>,
     /// Local branches, most recently committed first.
     pub local: Vec<String>,
+    /// Local branches checked out in another worktree: git won't switch to them here.
+    pub elsewhere: Vec<String>,
 }
 
 /// What [`switch_branch`] does with uncommitted changes.
@@ -30,22 +32,33 @@ pub fn branches(dir: &Path) -> Result<Branches> {
         &[
             "for-each-ref",
             "--sort=-committerdate",
-            "--format=%(refname)",
+            "--format=%(refname)%00%(worktreepath)",
             "refs/heads/",
         ],
     )?;
-    let local = lossy(&out)
-        .lines()
-        .filter_map(|l| l.strip_prefix("refs/heads/"))
-        .map(str::to_owned)
-        .collect();
     let head = crate::output(Path::new("git"), dir, &["symbolic-ref", "-q", "HEAD"])?;
     let current = head
         .status
         .success()
         .then(|| lossy(&head.stdout))
         .and_then(|s| s.trim().strip_prefix("refs/heads/").map(str::to_owned));
-    Ok(Branches { current, local })
+    let (mut local, mut elsewhere) = (Vec::new(), Vec::new());
+    for line in lossy(&out).lines() {
+        let (name, worktree) = line.split_once('\0').unwrap_or((line, ""));
+        let Some(name) = name.strip_prefix("refs/heads/") else {
+            continue;
+        };
+        // The current branch is checked out here; any other with a worktree path is someone else's.
+        if !worktree.is_empty() && current.as_deref() != Some(name) {
+            elsewhere.push(name.to_owned());
+        }
+        local.push(name.to_owned());
+    }
+    Ok(Branches {
+        current,
+        local,
+        elsewhere,
+    })
 }
 
 /// `name` is a branch name git accepts and can't be read as an option.

@@ -58,8 +58,22 @@ fn lists_local_branches_and_the_current_one() {
     let mut local = b.local.clone();
     local.sort();
     assert_eq!(local, ["feature", "main"]);
+    assert!(b.elsewhere.is_empty());
     git(&repo, &["switch", "-q", "--detach", "HEAD"]);
     assert_eq!(branches(&repo).expect("branches").current, None);
+}
+
+#[test]
+fn names_branches_checked_out_in_another_worktree() {
+    let (tmp, repo) = repo();
+    let other = tmp.path().join("wt");
+    git(
+        &repo,
+        &["worktree", "add", "-q", &other.to_string_lossy(), "feature"],
+    );
+    assert_eq!(branches(&repo).expect("branches").elsewhere, ["feature"]);
+    // From the worktree, main is the one checked out elsewhere.
+    assert_eq!(branches(&other).expect("branches").elsewhere, ["main"]);
 }
 
 #[test]
