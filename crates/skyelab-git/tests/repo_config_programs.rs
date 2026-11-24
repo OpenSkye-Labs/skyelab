@@ -192,12 +192,22 @@ fn a_required_repo_filter_fails_closed_instead_of_committing_unfiltered() {
     assert_eq!(f.ran(), "", "the filter ran");
 }
 
+/// `-c` can't name `filter.a=b.clean`: git 2.54+ never reads it (frozen config), older git refuses the call.
 #[test]
-fn a_driver_name_that_cant_be_overridden_is_refused() {
+fn a_driver_name_that_cant_be_overridden_never_runs() {
     let f = Fixture::new();
-    git(&f.repo, &["config", "filter.a=b.clean", "x"]);
-    let err = skyelab_git::status(&f.repo).expect_err("refused");
-    assert!(err.to_string().contains("a=b"), "{err}");
+    fs::write(f.repo.join(".gitattributes"), "*.txt filter=a=b\n").expect("attrs");
+    let tool = f.base.join("evil-ab");
+    script(&tool, &format!("echo ab >> '{}'\ncat", f.marker.display()));
+    git(
+        &f.repo,
+        &["config", "filter.a=b.clean", tool.to_str().expect("utf-8")],
+    );
+    fs::write(f.repo.join("a.txt"), "changed\n").expect("write");
+    if let Err(err) = skyelab_git::snapshot_tree(&f.repo) {
+        assert!(err.to_string().contains("a=b"), "{err}");
+    }
+    assert_eq!(f.ran(), "", "the filter ran");
 }
 
 #[test]

@@ -171,7 +171,7 @@ pub fn pull_ff(
              merge or rebase it by hand"
         )));
     }
-    let mut cmd = crate::user_command(&root, hooks)?;
+    let mut cmd = crate::user_command(&root, hooks, false)?;
     // Git counts ignored files as expendable; a local `.env` the upstream starts tracking may be the only copy.
     cmd.args([
         "merge",

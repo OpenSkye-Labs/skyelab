@@ -1,5 +1,6 @@
 //! Push and open a pull request under one account's `gh` login.
 
+use std::borrow::BorrowMut;
 use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -65,7 +66,7 @@ pub fn push_with(
     crate::remote::check_repo_config(&root, "push")?;
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let refspec = format!("HEAD:refs/heads/{branch}");
-    let mut cmd = crate::user_command(&root, hooks)?;
+    let mut cmd = crate::user_command(&root, hooks, true)?;
     cmd.args(credential_args(gh, &urls)?)
         .arg("push")
         .arg(receive_pack())
@@ -190,12 +191,14 @@ pub fn create_pr(dir: &Path, gh: &GitHub, title: &str, body: &str) -> Result<Str
     ];
     let mut cmd = gh_command(gh, &root, &args)?;
     // gh runs git in the repo (its uncommitted-changes check is a `git status`): the same overrides as SkyeLab's own.
-    let overrides = crate::program_overrides(Path::new("git"), &root)?;
-    cmd.env("GIT_CONFIG_COUNT", overrides.len().to_string());
-    for (i, (key, value)) in overrides.iter().enumerate() {
+    let frozen = crate::frozen::freeze(Path::new("git"), &root)?;
+    cmd.env("GIT_CONFIG_COUNT", frozen.overrides.len().to_string());
+    for (i, (key, value)) in frozen.overrides.iter().enumerate() {
         cmd.env(format!("GIT_CONFIG_KEY_{i}"), key)
             .env(format!("GIT_CONFIG_VALUE_{i}"), value);
     }
+    cmd.envs(frozen.env.iter().map(|(k, v)| (k, v)));
+    let _frozen = frozen.into_guard(); // until gh, and the git it runs, have exited
     let out = checked(cmd, "gh pr create", Some(body.as_bytes()))?;
     lossy(&out.stdout)
         .lines()
@@ -280,20 +283,24 @@ pub(crate) fn current_branch(root: &Path) -> Result<String> {
 }
 
 /// Runs `cmd` with `input` on stdin; a non-zero exit is an error carrying stderr.
-pub(crate) fn checked(cmd: Command, what: &str, input: Option<&[u8]>) -> Result<Output> {
+pub(crate) fn checked(
+    cmd: impl BorrowMut<Command>,
+    what: &str,
+    input: Option<&[u8]>,
+) -> Result<Output> {
     checked_within(cmd, what, input, None)
 }
 
 /// [`checked`], killed after `limit` when one is given.
 pub(crate) fn checked_within(
-    mut cmd: Command,
+    mut cmd: impl BorrowMut<Command>,
     what: &str,
     input: Option<&[u8]>,
     limit: Option<std::time::Duration>,
 ) -> Result<Output> {
     let out = match limit {
-        Some(limit) => skyelab_core::process::output_within(&mut cmd, input, limit),
-        None => skyelab_core::process::output(&mut cmd, input),
+        Some(limit) => skyelab_core::process::output_within(cmd.borrow_mut(), input, limit),
+        None => skyelab_core::process::output(cmd.borrow_mut(), input),
     };
     let out = out.map_err(|e| match e.kind() {
         io::ErrorKind::NotFound if what.starts_with("gh") => Error::GhNotInstalled,

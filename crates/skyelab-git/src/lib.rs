@@ -7,6 +7,7 @@ mod branch;
 mod checkpoint;
 mod commit;
 mod diff;
+mod frozen;
 mod gh_lists;
 mod pr_actions;
 mod publish;
@@ -209,7 +210,41 @@ fn git_succeeds(dir: &Path, args: &[&str]) -> Result<bool> {
 }
 
 fn output<S: AsRef<OsStr>>(bin: &Path, dir: &Path, args: &[S]) -> Result<Output> {
-    skyelab_core::process::output(command(bin, dir)?.args(args), None).map_err(spawn_error)
+    let mut cmd = if needs_live_config(args) {
+        frozen::Git::plain(command(bin, dir)?)
+    } else {
+        frozen::frozen_command(bin, dir)?
+    };
+    skyelab_core::process::output(cmd.args(args), None).map_err(spawn_error)
+}
+
+/// Subcommands that never run a filter or merge driver, so the listed overrides are enough, and that need the real
+/// common dir: `--git-common-dir`, worktree admin files, `%(worktreepath)`, a new branch's upstream config. The rest
+/// run on [`frozen`] config.
+fn needs_live_config<S: AsRef<OsStr>>(args: &[S]) -> bool {
+    let mut args = args.iter().map(AsRef::as_ref);
+    let sub = loop {
+        match args.next() {
+            Some(a) if a == "-c" => {
+                args.next();
+            }
+            other => break other,
+        }
+    };
+    sub.is_some_and(|s| {
+        [
+            "rev-parse",
+            "config",
+            "worktree",
+            "for-each-ref",
+            "branch",
+            "symbolic-ref",
+            "show-ref",
+            "check-ref-format",
+        ]
+        .iter()
+        .any(|live| s == *live)
+    })
 }
 
 fn spawn_error(e: io::Error) -> Error {
@@ -231,14 +266,17 @@ fn command(bin: &Path, dir: &Path) -> Result<Command> {
     Ok(cmd)
 }
 
-/// [`hooked_command`] when `hooks`, else [`command`]: Commit, Push and Pull run hooks (and the repo's other
+/// [`hooked_command`] when `hooks`, else [`frozen::frozen_command`] (or [`command`] for a push, which runs no filter
+/// and must write `--set-upstream` to the real config): Commit, Push and Pull run hooks (and the repo's other
 /// programs) only while the caller found no other account sharing the repo (`AccountsConfig::repo_hooks_allowed`).
-fn user_command(dir: &Path, hooks: bool) -> Result<Command> {
+fn user_command(dir: &Path, hooks: bool, push: bool) -> Result<frozen::Git> {
     let git = Path::new("git");
     if hooks {
-        Ok(hooked_command(git, dir))
+        Ok(frozen::Git::plain(hooked_command(git, dir)))
+    } else if push {
+        Ok(frozen::Git::plain(command(git, dir)?))
     } else {
-        command(git, dir)
+        frozen::frozen_command(git, dir)
     }
 }
 
@@ -308,7 +346,8 @@ const PROGRAM_KEYS: &str = r"^(hook\..+\.command|core\.sshcommand|gpg\.(.+\.)?pr
 /// scope, and whatever they include; an agent can write them). A fixed-name key gets the system or global value, or
 /// git's default. A filter or merge driver the repo defines gets the system or global value, or empty: an empty
 /// filter passes content through (a `required` one fails, so an encrypting filter never commits plaintext) and an
-/// empty merge driver is a conflict. Limit: a driver written between this listing and git's own read isn't seen.
+/// empty merge driver is a conflict. Limit: a driver written between this listing and git's own read isn't seen, so
+/// a call that can run one uses [`frozen`] config instead (this listing is its fallback on git before 2.54).
 pub(crate) fn program_overrides(bin: &Path, dir: &Path) -> Result<Vec<(String, String)>> {
     let args = ["config", "--show-scope", "-z", "--get-regexp", PROGRAM_KEYS];
     let mut cmd = hooked_command(bin, dir);

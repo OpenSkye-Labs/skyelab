@@ -78,7 +78,12 @@ pub fn create_branch(dir: &Path, name: &str) -> Result<()> {
     if git_succeeds(dir, &["show-ref", "--verify", "--quiet", &full])? {
         return Err(Error::BranchExists(name.to_owned()));
     }
-    git(dir, &["switch", "--no-guess", "-c", name]).map(drop)
+    // `branch` and `symbolic-ref` keep the real config (a `branch.autoSetupMerge` upstream lands there) and never
+    // touch the tree, which is what `switch -c` at HEAD does too. On an unborn HEAD the new name just takes its place.
+    if git_succeeds(dir, &["rev-parse", "-q", "--verify", "HEAD"])? {
+        git(dir, &["branch", name])?;
+    }
+    git(dir, &["symbolic-ref", "HEAD", &full]).map(drop)
 }
 
 /// Switches the checkout at `dir` to the existing local branch `name`. Ignored files are never overwritten (git
@@ -88,6 +93,12 @@ pub fn switch_branch(dir: &Path, name: &str, on_dirty: OnDirty) -> Result<()> {
     let full = valid(dir, name)?;
     if !git_succeeds(dir, &["show-ref", "--verify", "--quiet", &full])? {
         return Err(Error::Invalid(format!("there is no branch `{name}`")));
+    }
+    // git's own check reads the worktree list from the common dir, which the switch's frozen config hides.
+    if branches(dir)?.elsewhere.iter().any(|b| b == name) {
+        return Err(Error::Invalid(format!(
+            "`{name}` is checked out in another worktree"
+        )));
     }
     let dirty = !status(dir)?.is_clean();
     let stashed = match (dirty, on_dirty) {
