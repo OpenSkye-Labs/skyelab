@@ -285,6 +285,22 @@ impl ItemsView for ThreadView {
     fn find_mark(&self, ix: usize) -> Option<bool> {
         self.timeline.find.mark(ix)
     }
+    fn tool_live(&self, id: &str) -> bool {
+        // Only the running turn's calls can still finish: one in an earlier turn, or with no turn running, was cut off.
+        self.turn_running()
+            && self
+                .items
+                .iter()
+                .rev()
+                .take_while(|i| !matches!(i, crate::workspace::thread_model::Item::Prompt(_)))
+                .any(|i| matches!(i, crate::workspace::thread_model::Item::Tool(t) if t.id == id))
+    }
+    fn agent_alive(&self) -> bool {
+        self.session.is_some()
+    }
+    fn docks_asks(&self, id: &str) -> bool {
+        self.dock().is_some_and(|a| a.id == id)
+    }
     fn can_answer_questions(&self, _: &App) -> bool {
         self.session.is_some()
     }

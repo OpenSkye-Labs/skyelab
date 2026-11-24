@@ -220,6 +220,8 @@ mod unread_test;
 #[cfg(test)]
 mod window_restore_test;
 #[cfg(test)]
+mod timeline_follow_test;
+#[cfg(test)]
 mod window_scroll_test;
 #[cfg(all(test, unix))]
 mod worktree_base_test;

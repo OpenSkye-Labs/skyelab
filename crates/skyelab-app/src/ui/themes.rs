@@ -284,6 +284,16 @@ pub(crate) fn parse_hex(s: &str) -> Option<Hsla> {
 /// `base` with the text sizes and, when set, the accent preset written into it.
 pub(crate) fn adjust(base: &ThemeConfig, s: &AppearanceSettings, dark: bool) -> ThemeConfig {
     let mut c = base.clone();
+    // A theme with no `highlight` keeps whatever code colors were applied before (gpui-component starts with its
+    // light ones), so a dark theme drew code in light-theme colors. Give each mode its own default.
+    if c.highlight.is_none() {
+        let default = if dark {
+            gpui_component::highlighter::HighlightTheme::default_dark()
+        } else {
+            gpui_component::highlighter::HighlightTheme::default_light()
+        };
+        c.highlight = Some(default.style.clone());
+    }
     c.font_size = Some(f32::from(s.ui_font_size));
     c.mono_font_size = Some(f32::from(s.code_font_size));
     if let Some(a) = accent(s.accent.as_deref()) {

@@ -155,11 +155,22 @@ fn thread_row(
                 .child(right),
         )
         .children(actions.map(|a| {
-            a.absolute()
+            // The row's own fill (the hover one is translucent over the sidebar), so the buttons cover the title's end
+            // instead of drawing over its letters.
+            let fill = if item.selected {
+                theme.sidebar_accent
+            } else {
+                theme.sidebar_accent.opacity(0.7)
+            };
+            div()
+                .absolute()
                 .right_0()
                 .top(gpui::px(-2.))
+                .rounded(ui::RADIUS_MD)
+                .bg(theme.sidebar)
                 .invisible()
                 .group_hover(group.clone(), |s| s.visible())
+                .child(a.pl_1().rounded(ui::RADIUS_MD).bg(fill))
         }));
     ui::row_surface(v_flex(), item.id.clone(), item.selected, theme)
         .group(group.clone())

@@ -10,8 +10,7 @@ use crate::environment::{ConnState, EnvEvent, RemoteEnv};
 use crate::ui::Button;
 use gpui::{
     App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    IntoElement, ListAlignment, ListState, SharedString, Subscription, Window, actions, div, list,
-    prelude::*, px,
+    IntoElement, ListState, SharedString, Subscription, Window, actions, div, list, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, h_flex,
@@ -118,7 +117,7 @@ impl RemoteThreadView {
             title,
             account,
             items: Default::default(),
-            list: ListState::new(0, ListAlignment::Top, px(600.)),
+            list: super::thread::new_list(0),
             expanded: HashSet::new(),
             last_seq: 0,
             skipped: 0,
@@ -176,6 +175,12 @@ impl RemoteThreadView {
             stamp_done(&mut self.items, event.created_at);
             self.find_rows_changed();
             self.list.splice(first..old, self.items.len() - first);
+            if matches!(
+                record,
+                Record::Agent(skyelab_agent::Event::Permission { .. })
+            ) {
+                self.list.scroll_to_end(); // an ask waits on you: in view, as on this machine's threads
+            }
             cx.notify();
         }
     }

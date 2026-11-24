@@ -87,3 +87,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Frame time without GPUI's profiler: note `Instant::now()` at the root view's render and close it in the paint of an
   invisible `canvas` that is the root's last child (`debug_mode::frame_probe`). It covers render, layout, prepaint and
   most of paint; deferred layers paint after it, so it slightly undercounts.
+- A smooth scroll of a `ListState` (a minimap jump): GPUI has no animated list scroll. Read the start and the target
+  in the list's own pixel estimate (`scroll_px_offset_for_scrollbar` before and after a `scroll_to`, then `scroll_to`
+  back, all before anything draws), then step it with `scroll_by` from a stored `Task` on a 16 ms timer for ~200 ms,
+  eased out, and end with an exact `scroll_to(target)` (rows measured on the way move the estimate). Stop when
+  `logical_scroll_top()` isn't where the last step left it: the user scrolled. The task ends when it arrives, so an
+  idle view never redraws for it (`smooth_scroll.rs`). Tests advance it with `executor().advance_clock`.

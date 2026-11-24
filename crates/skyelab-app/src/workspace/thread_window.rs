@@ -10,7 +10,8 @@ use gpui::{
 use gpui_component::ActiveTheme as _;
 use gpui_component::input::{InputEvent, TextareaState};
 
-const PLACEHOLDER: &str = "Ask anything. @ files, $ skills, / commands, # threads";
+pub(in crate::workspace) const PLACEHOLDER: &str =
+    "Ask anything. @ files, $ skills, / commands, # threads";
 
 /// The composer's text field, made in `window`: its focus and caret-blink hooks live in that window.
 pub(super) fn new_prompt(
@@ -50,8 +51,12 @@ pub(super) fn prompt_subscription(
 /// and rows added or changed reach every window's list. Never empty.
 pub(in crate::workspace) struct Lists(Vec<(AnyWindowHandle, ListState)>);
 
-fn new_list(rows: usize) -> ListState {
-    ListState::new(rows, ListAlignment::Top, px(600.))
+/// A chat log: it follows its end (an opened thread shows its latest rows, streamed ones stay in view) until the user
+/// scrolls up, and follows again once they scroll back to the end.
+pub(in crate::workspace) fn new_list(rows: usize) -> ListState {
+    let list = ListState::new(rows, ListAlignment::Top, px(600.));
+    list.set_follow_mode(gpui::FollowMode::Tail);
+    list
 }
 
 impl Lists {
@@ -75,7 +80,9 @@ impl Lists {
         }
         let first = &self.0[0].1;
         let list = new_list(first.item_count());
-        list.scroll_to(first.logical_scroll_top());
+        if !first.is_following_tail() {
+            list.scroll_to(first.logical_scroll_top());
+        }
         self.0.push((window, list));
     }
 
@@ -94,6 +101,20 @@ impl Lists {
     pub(in crate::workspace) fn splice(&self, old: std::ops::Range<usize>, count: usize) {
         for (_, l) in &self.0 {
             l.splice(old.clone(), count);
+        }
+    }
+
+    /// An ask (permission, question, plan) waits on you: every window's list goes to its end, where it is, even if
+    /// you had scrolled up (T3 docks it above the composer).
+    pub(in crate::workspace) fn reveal_ask(&self, record: &super::super::thread_model::Record) {
+        use super::super::thread_model::Record;
+        if matches!(
+            record,
+            Record::Agent(skyelab_agent::Event::Permission { .. })
+        ) {
+            for (_, l) in &self.0 {
+                l.scroll_to_end();
+            }
         }
     }
 
@@ -160,6 +181,7 @@ impl ThreadView {
         }
         self.window = window.window_handle();
         self.remote_window = super::super::env_mode::shows_remote(cx, self.window);
+        self.composer.dock_placeholder = None; // the new prompt starts with the default one
         self.lists.add(self.window);
         let (text, disabled) = (self.prompt.read(cx).value(), self.read_only);
         let prompt = new_prompt(window, cx);

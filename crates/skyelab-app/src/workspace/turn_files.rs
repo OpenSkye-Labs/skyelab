@@ -39,6 +39,8 @@ pub struct Timeline {
     pub dismissed_failure: Option<usize>,
     /// The minimap tick under the pointer, by prompt number.
     pub minimap_hover: Option<usize>,
+    /// A minimap jump on its way (`smooth_scroll.rs`); replaced by the next one.
+    pub scroll: Option<gpui::Task<()>>,
 }
 
 #[derive(Default)]

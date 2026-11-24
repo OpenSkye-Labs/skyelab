@@ -44,6 +44,7 @@ mod saves;
 mod session;
 #[path = "thread_window.rs"]
 mod window_owner;
+pub(in crate::workspace) use window_owner::{PLACEHOLDER, new_list};
 
 #[path = "thread_context.rs"]
 pub(super) mod context_meter;
@@ -446,6 +447,7 @@ impl ThreadView {
             stamp_done(&mut self.items, crate::ui::now_ms());
             self.find_rows_changed();
             self.lists.splice(first..old, self.items.len() - first);
+            self.lists.reveal_ask(record);
             cx.notify();
         }
     }

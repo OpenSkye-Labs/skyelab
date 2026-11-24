@@ -136,6 +136,8 @@ pub struct Button {
     square: bool,
     toggled: Option<bool>,
     tooltip: Option<(SharedString, Option<ActionRef>)>,
+    /// Its menu or popover is open (`Selectable::open`): no tooltip then, as it would show late, over the menu.
+    menu_open: bool,
     key_hint: Option<ActionRef>,
     on_click: Option<OnClick>,
 }
@@ -157,6 +159,7 @@ impl Button {
             square: false,
             toggled: None,
             tooltip: None,
+            menu_open: false,
             key_hint: None,
             on_click: None,
         }
@@ -301,6 +304,18 @@ pub fn icon_button(id: impl Into<ElementId>, icon: impl Into<Icon>) -> Button {
 impl Selectable for Button {
     fn selected(self, selected: bool) -> Self {
         Button::selected(self, selected)
+    }
+
+    // The popover's open state, kept apart from `selected` (a filter that is on): a popover passes `is_open()` back
+    // to `open` every frame, so deriving one from the other would mark a selected trigger open for good.
+    fn open(mut self, open: bool) -> Self {
+        self.menu_open = open;
+        let selected = self.selected || open;
+        Button::selected(self, selected)
+    }
+
+    fn is_open(&self) -> bool {
+        self.menu_open
     }
 
     fn is_selected(&self) -> bool {
@@ -448,15 +463,22 @@ impl RenderOnce for Button {
                 (false, Some(f)) => b.on_click(move |e, w, cx| f(e, w, cx)),
                 (false, None) => b,
             })
-            .when_some(self.tooltip, |b, (text, action)| {
-                b.tooltip(move |window, cx| {
-                    let t = Tooltip::new(text.clone());
-                    match &action {
-                        Some((a, ctx)) => t.action(a.as_ref(), ctx.as_deref()),
-                        None => t,
-                    }
-                    .build(window, cx)
-                })
-            })
+            .when_some(
+                self.tooltip.filter(|_| !self.menu_open),
+                |b, (text, action)| {
+                    b.tooltip(move |window, cx| {
+                        let t = Tooltip::new(text.clone());
+                        match &action {
+                            Some((a, ctx)) => t.action(a.as_ref(), ctx.as_deref()),
+                            None => t,
+                        }
+                        .build(window, cx)
+                    })
+                },
+            )
     }
 }
+
+#[cfg(test)]
+#[path = "button_menu_open_test.rs"]
+mod menu_open_test;

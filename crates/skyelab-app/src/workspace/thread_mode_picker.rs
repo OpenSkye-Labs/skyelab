@@ -65,7 +65,10 @@ impl ThreadView {
                 b.text_color(ui::ink(theme, theme.warning))
             })
             .dropdown_menu_with_anchor(gpui::Anchor::BottomLeft, move |mut menu, _, _| {
-                menu = menu.label("Permissions");
+                // On the right, as in the model menu: a left check would sit beside the description, not the name.
+                menu = menu
+                    .check_side(gpui_component::Side::Right)
+                    .label("Permissions");
                 for mode in skyelab_agent::Mode::ALL {
                     let (label, tip) = mode_label(mode);
                     let view = view.clone();

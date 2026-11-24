@@ -39,20 +39,20 @@ fn each_window_scrolls_a_shared_thread_on_its_own(cx: &mut TestAppContext) {
     let rows = view.read_with(cx, |v, _| v.items.len());
     assert!(rows >= 200, "the thread loaded: {rows}");
 
-    // A scrolls down; B stays at the top.
+    // A scrolls up to row 120; B still follows the end.
     view.read_with(cx, |v, _| {
         v.list_in(a_window).scroll_to(ListOffset {
             item_ix: 120,
             offset_in_item: gpui::px(0.),
         })
     });
-    let tops = view.read_with(cx, |v, _| {
+    let state = view.read_with(cx, |v, _| {
         (
             v.list_in(a_window).logical_scroll_top().item_ix,
-            v.list_in(b_window).logical_scroll_top().item_ix,
+            v.list_in(b_window).is_following_tail(),
         )
     });
-    assert_eq!(tops, (120, 0), "each window keeps its own scroll");
+    assert_eq!(state, (120, true), "each window keeps its own scroll");
 
     // A new row reaches both windows' lists.
     view.update(cx, |v, cx| v.push(&Record::Prompt("one more".into()), cx));

@@ -5,6 +5,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Anything interactive (click, hover, scroll, drag) needs `.id(..)` for a stable `ElementId`. Ids must be unique among
   siblings. Use the domain id (thread id, path), not the loop index.
 - Long lists: `uniform_list` for fixed-height rows, `list` + `ListState` for variable height. Never `.children(10_000 items)`.
+- A chat-like list (a thread's timeline) sets `ListState::set_follow_mode(FollowMode::Tail)` when made. A plain
+  `ListAlignment::Top` list stays where it is while rows grow under it, so an opened thread shows its first message
+  and a waiting plan or question streams in below the composer, unseen. Tail mode follows the end, stops when the user
+  scrolls up, and starts again once they scroll back down; `scroll_to_end()` on your own send follows again.
 - Controls come from `crate::ui` ([docs/design/components.md](../design/components.md)): `Button`, `icon_button`,
   `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`, `Kbd`, `Tooltip`, `Card`, `Divider`. Use gpui-component
   for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Notification`, `Markdown`, the code
@@ -40,11 +44,22 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
   diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
   row) whenever that set changes (`ChangesView::comments_changed`).
+- A popover or `DropdownMenu` marks its trigger open through `Selectable::open` and reads it back with `is_open`
+  every frame, and both default to `selected`/`is_selected`. A trigger whose `selected` means something else (a
+  filter that is on) overrides both with a field of its own (`ui::Button::menu_open`), or it reads as open for good.
+  A button hides its tooltip while open: shown late, it covers the menu's first item.
+- A `PopupMenu` centers a left check on a multi-line item (an icon, a name and a description), so it sits beside
+  the description; use `.check_side(Side::Right)`.
+- A `ThemeConfig` with no `highlight` keeps the code colors applied before it (gpui-component starts with its light
+  ones), so a dark theme draws code navy on black. `ui::themes::adjust` fills each mode's default.
+- `ListState::scroll_to_reveal_item` doesn't stop `FollowMode::Tail`: the next layout puts the list back at its end.
+  Call `pause_following_tail()` first (find-in-thread, "View output").
 - Hover-only buttons over a row (settle, snooze): `.group(name)` on the row, the buttons `absolute()` with
   `.invisible().group_hover(name, |s| s.visible())` and the text under them `group_hover(.., |s| s.invisible())`. A
   hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A
   button's click bubbles on (`ui::Button` stops propagation only while loading), so wrap the buttons in a div
   whose `on_click` calls `cx.stop_propagation()`, or a click also opens the row.
+  Give the absolute buttons the row's own fill (`sidebar_rows.rs`): with none they draw over the title's letters.
 - A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
   `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after
   and over the dock. Not `anchored()`: that snaps to the window, while this one must sit under a button another view

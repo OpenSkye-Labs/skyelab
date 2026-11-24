@@ -29,6 +29,9 @@ mod allow_test;
 #[path = "side_chat_close_test.rs"]
 mod close_test;
 #[cfg(test)]
+#[path = "side_chat_new_test.rs"]
+mod new_test;
+#[cfg(test)]
 #[path = "side_chat_readonly_test.rs"]
 mod readonly_test;
 #[cfg(test)]
@@ -311,8 +314,16 @@ impl Workspace {
                         cx.notify();
                     });
                     let panel = ws.side_panel(side, &parent, window, cx);
-                    if let (Some(q), Some(panel)) = (question, panel) {
-                        ws.ask_when_ready(&panel.read(cx).view.clone(), q, window, cx);
+                    match (question, panel) {
+                        (Some(q), Some(panel)) => {
+                            ws.ask_when_ready(&panel.read(cx).view.clone(), q, window, cx)
+                        }
+                        // Opened empty: what you type next is for it.
+                        (None, Some(panel)) => {
+                            let view = panel.read(cx).view.clone();
+                            view.update(cx, |v, cx| v.focus_prompt(window, cx));
+                        }
+                        (_, None) => {}
                     }
                 }
                 (Ok(_), None) => {}

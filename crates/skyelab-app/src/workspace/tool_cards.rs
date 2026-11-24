@@ -174,7 +174,11 @@ pub(super) fn render_todo(todos: &[Todo], cx: &Context<impl ItemsView>) -> AnyEl
 
 /// An edit, T3's inline diff: the file (click to show it in Changes) with `+N −N`, then its lines as the Changes tab
 /// draws them.
-pub(super) fn render_edit<V: ItemsView>(tool: &ToolItem, cx: &mut Context<V>) -> AnyElement {
+pub(super) fn render_edit<V: ItemsView>(
+    tool: &ToolItem,
+    live: bool,
+    cx: &mut Context<V>,
+) -> AnyElement {
     let theme = cx.theme();
     let path = tool.raw["file_path"]
         .as_str()
@@ -184,6 +188,7 @@ pub(super) fn render_edit<V: ItemsView>(tool: &ToolItem, cx: &mut Context<V>) ->
     let added = lines.iter().filter(|l| l.2 == LineKind::Added).count();
     let removed = lines.iter().filter(|l| l.2 == LineKind::Removed).count();
     let (icon, color) = match (&tool.result, tool.is_error) {
+        (None, _) if !live => (SkyeIcon::CircleAlert, theme.muted_foreground),
         (None, _) => (SkyeIcon::LoaderCircle, theme.info),
         (Some(_), true) => (SkyeIcon::CircleAlert, theme.danger),
         (Some(_), false) => (SkyeIcon::FileText, theme.muted_foreground),

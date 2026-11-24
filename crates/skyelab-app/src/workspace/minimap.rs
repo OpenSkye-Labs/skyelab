@@ -92,11 +92,12 @@ impl ThreadView {
         window: &Window,
         cx: &mut Context<Self>,
     ) {
-        self.list_in(window.window_handle()).scroll_to(ListOffset {
+        let list = self.list_in(window.window_handle()).clone();
+        let target = ListOffset {
             item_ix: row,
             offset_in_item: px(0.),
-        });
-        cx.notify();
+        };
+        self.timeline.scroll = Some(crate::workspace::smooth_scroll::scroll_to(list, target, cx));
     }
 
     pub(in crate::workspace) fn render_minimap(

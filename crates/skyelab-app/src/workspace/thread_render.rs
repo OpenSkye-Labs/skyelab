@@ -30,6 +30,21 @@ pub(super) fn opens_in_browser(url: &str) -> bool {
 }
 
 impl ThreadView {
+    /// The line above the composer about the agent's process: starting, or ended with no session running.
+    pub(in crate::workspace) fn agent_note(&self, refused: bool) -> Option<&'static str> {
+        if self.starting {
+            Some("Starting the agent…")
+        } else if self.thread.is_none() || self.session.is_some() || refused {
+            None
+        } else if self.read_only {
+            Some("This thread has ended and has no agent session to continue. Start a new thread.")
+        } else if self.items.is_empty() {
+            None // nothing ran yet (a new side chat): there is no agent to have ended
+        } else {
+            Some("The agent has ended. Send a message to continue its session.")
+        }
+    }
+
     /// The account this thread runs on: its own (from its store row), or for a new thread the one its folder resolves to.
     pub(super) fn account_badge(&self) -> ui::AccountBadge {
         match &self.thread {
@@ -84,13 +99,14 @@ impl ThreadView {
                                     .child("/"),
                             )
                     }))
-                    // The title keeps some room when the center is narrow (a right panel open), the folder gives way first.
+                    // The title keeps some room when the center is narrow (a right panel open): a fork's source link gives way
+                    // first, then the folder.
                     .child(div().min_w(px(72.)).truncate().child(self.title()))
-                    .children(
-                        self.composer.extras.forked_from.clone().map(|(id, label)| {
-                            thread_link("forked-from", id, label).flex_shrink_0()
-                        }),
-                    ),
+                    .children(self.composer.extras.forked_from.clone().map(|(id, label)| {
+                        thread_link("forked-from", id, label)
+                            .flex_shrink(8.)
+                            .min_w(px(72.))
+                    })),
             )
             .child(
                 div()
@@ -199,6 +215,8 @@ impl Render for ThreadView {
             .resume_refused
             .clone()
             .map(|r| self.render_refused(r, cx));
+        self.sync_dock_placeholder(window, cx);
+        let dock = self.render_dock(window, cx);
         let composer = self.render_composer(window, cx);
         let failure = self.render_failure(cx);
         let find = self.render_find(cx);
@@ -212,15 +230,7 @@ impl Render for ThreadView {
             .turn_started_ms
             .filter(|_| self.turn_running())
             .map(|at| format!("Working for {}", ui::elapsed(ui::now_ms() - at)));
-        let note = if self.starting {
-            Some("Starting the agent…")
-        } else if self.thread.is_none() || self.session.is_some() || refused.is_some() {
-            None
-        } else if self.read_only {
-            Some("This thread has ended and has no agent session to continue. Start a new thread.")
-        } else {
-            Some("The agent has ended. Send a message to continue its session.")
-        };
+        let note = self.agent_note(refused.is_some());
         let body = if self.items.is_empty() && !self.read_only {
             let project = &self.project_name;
             div()
@@ -337,6 +347,7 @@ impl Render for ThreadView {
                         line(w.into(), theme.muted_foreground).debug_selector(|| "working-for".into())
                     }))
                     .children(strip)
+                    .children(dock)
                     .child(composer),
             )
     }

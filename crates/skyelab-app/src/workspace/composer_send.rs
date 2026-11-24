@@ -206,6 +206,14 @@ impl ThreadView {
         if !external {
             self.end_dictation(cx); // a send from another device leaves this Mac's dictation alone
         }
+        // A docked question takes the composer's text as its answer: Send is its Next (a steer or `/side` still go).
+        if how == super::composer_state::Submit::Send
+            && self.dock_step().is_some()
+            && crate::workspace::side_chat::side_question(self.prompt.read(cx).value().trim())
+                .is_none()
+        {
+            return self.advance_question(window, cx);
+        }
         let text = self.prompt.read(cx).value().trim().to_string();
         let has_files = !external
             && !(self.composer.attachments.is_empty() && self.composer.contexts.is_empty());
@@ -262,6 +270,9 @@ impl ThreadView {
             return;
         }
         self.composer.menu = None;
+        if !external {
+            self.own_list().scroll_to_end(); // your own send brings the end back into view, and follows it again
+        }
         if self.session.is_none()
             && let Some(thread) = self.thread.clone()
         {
@@ -281,6 +292,17 @@ impl ThreadView {
         };
         self.needs_binding = false;
         self.error = None;
+        // A message while a permission ask is docked declines it and goes into the turn instead (the composer says so).
+        let mut how = how;
+        if !external
+            && let Some(ask) = self
+                .dock()
+                .filter(|a| a.tool != skyelab_agent::QUESTION_TOOL)
+                .map(|a| a.id.clone())
+        {
+            self.answer(&ask, skyelab_agent::Decision::Deny, cx);
+            how = super::composer_state::Submit::Steer;
+        }
         if self.session.is_some() {
             let mode = self.send_mode(how, &text);
             let contexts = self.composer.contexts.clone();

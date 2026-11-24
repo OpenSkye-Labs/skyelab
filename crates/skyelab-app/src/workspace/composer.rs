@@ -275,6 +275,11 @@ impl ThreadView {
             && self.composer.contexts.is_empty();
         let round = px(16.);
         let mut out = Vec::new();
+        // A docked question: Next or Submit, with Interrupt beside it while the turn waits (T3's).
+        let next = self.render_dock_send(cx);
+        let docked = next.is_some();
+        let empty = empty || docked;
+        out.extend(next);
         if running && self.composer.stalled {
             out.push(
                 Button::new("force-stop")
@@ -331,6 +336,8 @@ impl ThreadView {
                     }),
                 )
                 .into_any_element()
+        } else if docked {
+            return out;
         } else {
             Button::new("send")
                 .primary()

@@ -241,6 +241,8 @@ pub(super) trait FindHost: ItemsView {
         if let Some(id) = collapsed.filter(|id| !self.is_expanded(id)) {
             self.toggle_tool(&id, cx);
         }
+        // A reveal alone keeps tail-follow, which puts the list back at its end on the next frame.
+        self.list_state().pause_following_tail();
         self.list_state().scroll_to_reveal_item(ix);
         cx.notify();
     }

@@ -22,7 +22,9 @@ pub(super) fn render_bash<V: ItemsView>(
         .map(str::to_owned)
         .unwrap_or_else(|| tool.raw["command"].to_string());
     let status = exit_status(tool);
+    let live = tool.result.is_some() || this.tool_live(&tool.id);
     let (icon, color) = match (&tool.result, &status) {
+        (None, _) if !live => (SkyeIcon::CircleAlert, theme.muted_foreground),
         (None, _) => (SkyeIcon::LoaderCircle, theme.info),
         (Some(_), Some(_)) => (SkyeIcon::CircleAlert, theme.danger),
         (Some(_), None) => (SkyeIcon::SquareTerminal, theme.muted_foreground),
@@ -61,8 +63,12 @@ pub(super) fn render_bash<V: ItemsView>(
             d.child(
                 div()
                     .flex_shrink_0()
-                    .text_color(theme.info)
-                    .child("running"),
+                    .text_color(if live {
+                        theme.info
+                    } else {
+                        theme.muted_foreground
+                    })
+                    .child(if live { "running" } else { "interrupted" }),
             )
         })
         .child(chevron(open, cx));

@@ -133,6 +133,7 @@ impl ThreadView {
             .iter()
             .position(|i| i.expand_id() == Some(id.as_str()))
         {
+            self.own_list().pause_following_tail(); // or tail-follow takes it back to the end
             self.own_list().scroll_to_reveal_item(ix);
         }
         cx.notify();

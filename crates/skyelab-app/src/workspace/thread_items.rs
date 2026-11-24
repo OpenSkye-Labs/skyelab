@@ -75,6 +75,21 @@ pub(super) trait ItemsView: Sized + 'static {
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
     }
+    /// Pending questions and permission asks are answered in a panel docked on the composer (T3's), so the timeline
+    /// shows them as one line. Remote threads keep the cards in the timeline.
+    fn docks_asks(&self, _id: &str) -> bool {
+        false
+    }
+    /// Whether tool `id`, with no result yet, may still get one: an agent runs the turn it belongs to. Otherwise
+    /// (the agent died or was stopped mid-call) it shows as interrupted, not running.
+    fn tool_live(&self, _id: &str) -> bool {
+        true
+    }
+    /// Whether an agent process runs for this thread: a subagent can outlive its turn (Claude's background tasks),
+    /// but not its agent.
+    fn agent_alive(&self) -> bool {
+        true
+    }
     fn draft(&self, _id: &str) -> Option<&QuestionDraft> {
         None
     }
@@ -286,7 +301,7 @@ fn render_row<V: ItemsView>(
         Item::Tool(tool)
             if tool_cards::is_edit(&tool.name) && tool.raw["file_path"].is_string() =>
         {
-            tight(tool_cards::render_edit(tool, cx))
+            tight(tool_cards::render_edit(tool, this.tool_live(&tool.id), cx))
         }
         Item::Tool(tool) => match super::html_card::page_of(tool) {
             Some(page) => column(super::html_card::render(tool, page, window, cx)),
@@ -296,7 +311,7 @@ fn render_row<V: ItemsView>(
         Item::Approval(a) if a.tool == skyelab_agent::PLAN_TOOL => {
             column(ask_cards::render_plan(this, a, window, cx))
         }
-        Item::Approval(a) => column(ask_cards::render_approval(this, a, cx)),
+        Item::Approval(a) => column(ask_cards::render_approval(this, a, false, cx)),
         Item::Limit { resets_at } => column(
             h_flex()
                 .debug_selector(|| "limit-row".into())
@@ -398,13 +413,16 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
     let theme = cx.theme();
     let open = this.is_expanded(&tool.id);
     let summary = tool_summary(tool);
+    let live = tool.result.is_some() || this.tool_live(&tool.id);
     let state = match (&tool.result, tool.is_error) {
+        (None, _) if !live => "interrupted",
         (None, _) => "running",
         (Some(_), true) => "error",
         (Some(_), false) => "",
     };
     let id = tool.id.clone();
     let (icon, icon_color) = match (&tool.result, tool.is_error) {
+        (None, _) if !live => (SkyeIcon::CircleAlert, theme.muted_foreground),
         (None, _) => (SkyeIcon::LoaderCircle, theme.info),
         (Some(_), true) => (SkyeIcon::CircleAlert, theme.danger),
         (Some(_), false) => (SkyeIcon::Check, theme.muted_foreground),

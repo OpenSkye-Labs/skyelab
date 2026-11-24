@@ -91,7 +91,7 @@ impl Workspace {
                 Some(a) if a.provider == to => a.clone(),
                 bound => {
                     return Ok(Outcome::NeedsBinding {
-                        folder: cwd.display().to_string(),
+                        folder: crate::ui::short_path(&cwd, dirs::home_dir().as_deref()),
                         bound: bound.map(|a| format!("{} ({})", a.label, a.provider.label())),
                     });
                 }
