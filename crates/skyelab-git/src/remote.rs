@@ -70,6 +70,7 @@ pub(crate) fn fetch_command(
             "http.lowSpeedTime=60",
         ])
         .args(["fetch", "--quiet", "--recurse-submodules=no", remote])
+        .envs(crate::test_ca_env())
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
     Ok(cmd)

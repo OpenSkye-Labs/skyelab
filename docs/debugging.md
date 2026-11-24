@@ -43,6 +43,7 @@ Debug Overlay**, **Open Debug Log** and **Dump Debug State**.
 | `SKYELAB_DEBUG_RENDERS=1` | Prints `renders/s Workspace=17 ThreadView=16 …` to stderr once a second | all |
 | `SKYELAB_TRACE=path.json` | Writes a Chrome/Perfetto trace there, flushed on quit | all |
 | `SKYELAB_VERIFY_*`, `SKYELAB_*_BIN` | Live-check hooks and fake agents, gh and tailscale (see CLAUDE.md) | debug only |
+| `SKYELAB_GIT_CA_FILE` | Push and fetch trust this CA (the fake https remote's, see CLAUDE.md) | debug only |
 | `--features hotpath` / `hotpath-alloc` | Function timing / allocation report on quit | opt-in |
 | `--features dhat-heap` | dhat heap profile on quit | opt-in |
 | `--features tracy` | Live Tracy profiling of the same spans | opt-in |

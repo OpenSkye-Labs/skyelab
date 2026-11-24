@@ -229,6 +229,11 @@ fn main() {
         workspace::init(cx);
         workspace::folder_watch::init(cx);
         init_keys(skyelab_core::keymap::default_path(), cx);
+        // The fake https remote's CA (`skyelab-git`'s `fake_https_remote` example), trusted by push and fetch only.
+        #[cfg(debug_assertions)]
+        if let Some(ca) = std::env::var_os("SKYELAB_GIT_CA_FILE") {
+            skyelab_git::trust_test_ca(std::path::Path::new(&ca));
+        }
         cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
             Some(bin) if cfg!(debug_assertions) => bin.into(),
             _ => "gh".into(),

@@ -65,6 +65,7 @@ pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Resul
         .args(set_upstream.then_some("--set-upstream"))
         .args([&remote, &refspec])
         .envs(env.iter().map(|(k, v)| (k, v)))
+        .envs(crate::test_ca_env())
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
     checked(cmd, "git push", None)?;

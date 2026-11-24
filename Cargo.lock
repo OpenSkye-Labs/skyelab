@@ -8606,9 +8606,12 @@ dependencies = [
 name = "skyelab-git"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "dirs 7.0.0",
  "ignore",
  "notify 9.0.0",
+ "rcgen",
+ "rustls",
  "serde_json",
  "skyelab-core",
  "tempfile",
