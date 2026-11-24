@@ -170,7 +170,7 @@ fn thread_row(
                 .bg(theme.sidebar)
                 .invisible()
                 .group_hover(group.clone(), |s| s.visible())
-                .child(div().pl_1().rounded(ui::RADIUS_MD).bg(fill).child(a))
+                .child(a.pl_1().rounded(ui::RADIUS_MD).bg(fill))
         }));
     ui::row_surface(v_flex(), item.id.clone(), item.selected, theme)
         .group(group.clone())

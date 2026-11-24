@@ -136,8 +136,7 @@ pub struct Button {
     square: bool,
     toggled: Option<bool>,
     tooltip: Option<(SharedString, Option<ActionRef>)>,
-    /// Its dropdown menu is open (set through `Selectable`, which only `DropdownMenu` calls): no tooltip then, as
-    /// it would show late, over the menu's first items.
+    /// Its menu or popover is open (`Selectable::open`): no tooltip then, as it would show late, over the menu.
     menu_open: bool,
     key_hint: Option<ActionRef>,
     on_click: Option<OnClick>,
@@ -303,9 +302,20 @@ pub fn icon_button(id: impl Into<ElementId>, icon: impl Into<Icon>) -> Button {
 }
 
 impl Selectable for Button {
-    fn selected(mut self, selected: bool) -> Self {
-        self.menu_open = selected;
+    fn selected(self, selected: bool) -> Self {
         Button::selected(self, selected)
+    }
+
+    // The popover's open state, kept apart from `selected` (a filter that is on): a popover passes `is_open()` back
+    // to `open` every frame, so deriving one from the other would mark a selected trigger open for good.
+    fn open(mut self, open: bool) -> Self {
+        self.menu_open = open;
+        let selected = self.selected || open;
+        Button::selected(self, selected)
+    }
+
+    fn is_open(&self) -> bool {
+        self.menu_open
     }
 
     fn is_selected(&self) -> bool {
@@ -468,3 +478,7 @@ impl RenderOnce for Button {
             )
     }
 }
+
+#[cfg(test)]
+#[path = "button_menu_open_test.rs"]
+mod menu_open_test;

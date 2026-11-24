@@ -44,6 +44,16 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
   diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
   row) whenever that set changes (`ChangesView::comments_changed`).
+- A popover or `DropdownMenu` marks its trigger open through `Selectable::open` and reads it back with `is_open`
+  every frame, and both default to `selected`/`is_selected`. A trigger whose `selected` means something else (a
+  filter that is on) overrides both with a field of its own (`ui::Button::menu_open`), or it reads as open for good.
+  A button hides its tooltip while open: shown late, it covers the menu's first item.
+- A `PopupMenu` centers a left check on a multi-line item (an icon, a name and a description), so it sits beside
+  the description; use `.check_side(Side::Right)`.
+- A `ThemeConfig` with no `highlight` keeps the code colors applied before it (gpui-component starts with its light
+  ones), so a dark theme draws code navy on black. `ui::themes::adjust` fills each mode's default.
+- `ListState::scroll_to_reveal_item` doesn't stop `FollowMode::Tail`: the next layout puts the list back at its end.
+  Call `pause_following_tail()` first (find-in-thread, "View output").
 - Hover-only buttons over a row (settle, snooze): `.group(name)` on the row, the buttons `absolute()` with
   `.invisible().group_hover(name, |s| s.visible())` and the text under them `group_hover(.., |s| s.invisible())`. A
   hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A

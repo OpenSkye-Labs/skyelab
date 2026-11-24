@@ -540,10 +540,15 @@ pub(super) fn detail(a: &ApprovalItem) -> Detail {
         return Detail::Json;
     };
     let plain = fields.keys().all(|k| k == "command" || k == "description")
-        && fields.get("command").and_then(|c| c.as_str()) == Some(a.summary.as_str());
+        && fields.get("command").and_then(|c| c.as_str()) == Some(a.summary.as_str())
+        // The JSON escapes control characters; drawn raw they could hide part of the command.
+        && !a.summary.chars().any(|c| {
+            c.is_control()
+                || matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+        });
     match fields.get("description").and_then(|d| d.as_str()) {
         _ if !plain => Detail::Json,
-        Some(d) if !d.trim().is_empty() => Detail::Note(d.to_owned()),
+        Some(d) if !d.trim().is_empty() => Detail::Note(clip(d)),
         _ => Detail::Nothing,
     }
 }

@@ -18,7 +18,8 @@ running Claude thread to Full access saves the choice and says so; stop it (**St
 continue in Full access.
 
 When the agent asks, the thread shows a **Waiting for approval** card with the tool and what it wants to do (the
-command, or the file), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
+command, or the file; for a plain shell command, the agent's own description of it under the command, and for anything
+else the full input it sent), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
 for this call, or this exact command when it has none; while this agent runs; after a resume it asks again) or **Deny**,
 or **Interrupt** to stop the turn instead. Afterwards the row says what was decided.
 An ask the agent withdraws (an interrupt, its turn ended, or the agent stopped) shows **Withdrawn**. A request in a thread whose agent has

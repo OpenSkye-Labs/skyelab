@@ -33,4 +33,16 @@ fn a_plain_command_shows_its_description_not_its_json() {
         detail(&item("make", json!({"command": "make deploy"}))),
         Detail::Json
     );
+    // Control and invisible characters keep the escaped JSON in view.
+    assert_eq!(
+        detail(&item("ls\u{1b}[2K", json!({"command": "ls\u{1b}[2K"}))),
+        Detail::Json
+    );
+    assert_eq!(
+        detail(&item(
+            "ls \u{202E}fdp",
+            json!({"command": "ls \u{202E}fdp"})
+        )),
+        Detail::Json
+    );
 }

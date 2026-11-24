@@ -119,6 +119,7 @@ the threads under it.
 Type `/side <question>` (or `/btw <question>`; both are listed in the composer's `/` menu) in the composer, or run
 **New Side Chat** from the command palette or the thread details card's **Side chats** section, to ask something on the side
 without interrupting the thread's agent. A tab named after your question opens in the right panel with a small chat.
+Opened without a question, the side chat's composer takes the focus, so you can type it there.
 It runs in the thread's folder under the thread's account, as its own agent session, and its first message starts with
 the newest part of the thread's conversation (about the newest 12 KB, no tool calls), fenced as quoted data so no text
 in it can pose as a new message. Its title is your question.

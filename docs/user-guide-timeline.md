@@ -4,6 +4,9 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
 
 ## Rows
 
+- The timeline follows the newest rows, so streamed text and a plan or question waiting for you stay in view. Scroll
+  up to read back and it stays where you are; scroll back to the end, or send a message, and it follows again. An
+  opened thread starts at its end.
 - Text and thinking stream in word by word as the agent writes. Thinking is a **Thought** row; click it to read it.
   Complete blocks are saved. Text a turn cut off (Stop, Interrupt, a crash) is saved as far as it got and marked
   **(interrupted)**, so a reopened thread still shows it.
