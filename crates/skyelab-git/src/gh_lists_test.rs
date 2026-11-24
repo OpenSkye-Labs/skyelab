@@ -205,7 +205,7 @@ fn times_out_a_hung_gh() {
 fn strips_control_and_bidi_characters() {
     let json = serde_json::json!([{
         "number": 1,
-        "title": "ok\u{202E}gpj.exe\u{0007}",
+        "title": "ok\u{202E}gpj.exe\u{0007}\u{200B}\u{2028}\u{FEFF}",
         "url": "https://github.com/acme/demo/issues/1",
         "author": {"login": "a\u{2066}b"},
         "labels": [], "assignees": [],

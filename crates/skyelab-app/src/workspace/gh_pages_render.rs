@@ -149,6 +149,17 @@ impl GhPage {
         row(format!("pr-{project}-{number}").into(), theme)
             .child(glyph(icon, color, label))
             .child(lines(number, &pr.title, signals, meta, r.updated_ms, theme))
+            .child(
+                Button::new(SharedString::from(format!("pr-actions-{project}-{number}")))
+                    .ghost()
+                    .xsmall()
+                    .icon(IconName::GitMerge)
+                    .tooltip("Merge or review…")
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        cx.stop_propagation(); // not the row's review thread
+                        this.open_pr_actions(project, number, window, cx);
+                    })),
+            )
             .child(browser_button(
                 format!("pr-open-{project}-{number}").into(),
                 &pr.url,

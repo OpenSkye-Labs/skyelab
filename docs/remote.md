@@ -2,9 +2,9 @@
 
 Part of [architecture.md](architecture.md).
 
-The app can serve this machine to your other devices. It is **off by default**: Settings → Sharing's "Share this machine
+The app can serve this machine to your other devices. It is **off by default**: Settings → Sharing & access's "Share this machine
 on my tailnet" switch (`skyelab::ToggleSharing`) turns it on, and the choice is saved as `share_on_tailnet` in
-`settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens Settings → Sharing) says
+`settings.toml`, next to `accounts.toml` (never in it). The status bar item (it opens Settings → Sharing & access) says
 `Sharing on <MagicDNS name>:7287 · certificate valid until <date>`, `Not sharing`, or the exact reason it couldn't
 start (Tailscale not installed, not running, logged out, no certificate). Turning it off stops the listener and closes every connection, even when the choice can't be
 saved (the error shows). Closing the window stops it too. A remote call still queued when sharing went off, or one
@@ -46,7 +46,7 @@ the app only edits the list.
 
 - An unknown pair is refused `not_approved` and listed as a request: at most 16, two per node (the newest
   replaces the oldest, so one machine making keys can't push other devices off the list), each dropped 10 minutes
-  after its last try. Settings → Sharing and the status bar show "<device> (<user>) wants to connect" with a code: the
+  after its last try. Settings → Sharing & access and the status bar show "<device> (<user>) wants to connect" with a code: the
   first 16 hex chars (64 bits) of the key's hash, too many to grind a look-alike key for a code seen on screen.
   The client works the code out from its own key and shows it too, so the user can tell their app's request from
   another program's. Allow saves the pair, then admits it. Deny drops the request and answers `denied` until
@@ -113,7 +113,7 @@ the account is recorded on the thread row. A remote-started thread appears in th
 unread dot (it never takes the page or focus), and closing it stops its agent, as for any thread. Every stored event, local or remote, is
 pushed to connected clients. A reply to `thread_events_since` holds at most 500 events and 8 MiB (half the
 client's 16 MiB message limit), and the client asks again from the last seq until it has caught up. A single event
-over 8 MiB keeps its seq but arrives as a short notice to open the thread on its own machine. Settings → Sharing lists connected devices (MagicDNS name, login, address) with a
+over 8 MiB keeps its seq but arrives as a short notice to open the thread on its own machine. Settings → Sharing & access lists connected devices (MagicDNS name, login, address) with a
 Disconnect button.
 
 **Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window

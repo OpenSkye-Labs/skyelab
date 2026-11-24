@@ -26,6 +26,7 @@
 //! - [`Engine`] is the seam under the agent path: [`BrowserView::with_engine`] runs it on a test's fake page.
 
 mod agent;
+mod controls;
 mod engine;
 mod js;
 mod shot;
@@ -62,8 +63,13 @@ pub fn agent_data_dir() -> std::io::Result<tempfile::TempDir> {
 }
 
 pub use agent::parse_agent_url;
-pub use engine::{Engine, EvalDone, SnapshotDone};
+pub use controls::{
+    BrowserCloseFind, BrowserCopyUrl, BrowserDevTools, BrowserDuplicate, BrowserFind,
+    BrowserOpenExternal, BrowserReload, BrowserZoomIn, BrowserZoomOut, BrowserZoomReset, FIND_KEY,
+    ZOOM_IN_KEY, ZOOM_OUT_KEY, ZOOM_RESET_KEY, bind_keys,
+};
+pub use engine::{Engine, EvalDone, FindDone, SnapshotDone};
 pub use js::MAX_EVAL_OUTPUT;
 pub use shot::{MAX_SHOT_BYTES, MAX_SHOT_WIDTH, Shot, encode_png};
 pub use url::parse_url;
-pub use view::BrowserView;
+pub use view::{BrowserView, DuplicateTab};

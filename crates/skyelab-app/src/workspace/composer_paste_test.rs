@@ -106,6 +106,7 @@ fn chips_count_toward_the_limit(cx: &mut gpui::TestAppContext) {
         text: "y".repeat(skyelab_core::prompt::MAX_PROMPT_CHARS / 2),
         open: false,
         bound: None,
+        thread: None,
     };
     view.update_in(cx, |t, window, cx| {
         t.composer.contexts = vec![chip(1), chip(2)];

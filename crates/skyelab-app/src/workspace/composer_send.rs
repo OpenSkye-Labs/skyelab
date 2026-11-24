@@ -310,6 +310,10 @@ impl ThreadView {
             }
             return;
         }
+        // Several models: the workspace starts them all, the draft running the first.
+        if self.comparing() && !external {
+            return cx.emit(super::thread::ThreadViewEvent::Compare(Box::new(account)));
+        }
         let attachments = self.take_attachments(external);
         let text = self.take_contexts(text, external);
         self.launch(text, attachments, account, None, window, cx);

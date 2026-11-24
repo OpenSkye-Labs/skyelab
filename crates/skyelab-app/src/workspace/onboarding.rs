@@ -5,9 +5,10 @@
 use gpui::{App, AppContext as _, Context, Entity, EventEmitter, PathPromptOptions, Task, Window};
 use gpui_component::input::InputState;
 use skyelab_core::onboarding::FoundAccount;
-use skyelab_core::{Account, AccountsConfig};
+use skyelab_core::{Account, AccountsConfig, Provider};
 use std::path::{Path, PathBuf};
 
+mod projects;
 mod render;
 
 pub enum OnboardingEvent {
@@ -29,6 +30,8 @@ pub(super) struct Found {
 pub(super) struct Agent {
     pub name: &'static str,
     pub version: Option<Result<String, String>>,
+    /// A newer release of the CLI than the one installed (T3's provider update notice); never installed from here.
+    pub update: Option<String>,
 }
 
 /// What the workspace tells the page each time it may have changed.
@@ -124,8 +127,10 @@ impl Onboarding {
             .map(|name| Agent {
                 name,
                 version: None,
+                update: None,
             })
             .into();
+        let latest = crate::updates::agent_check(cx);
         let (home, config) = (self.home.clone(), self.config.clone());
         let found = cx.background_spawn(async move {
             let found = home
@@ -159,9 +164,32 @@ impl Onboarding {
                 cx.notify();
             });
             let versions = versions.await;
+            let installed = versions.clone().map(Result::ok);
             let _ = this.update(cx, |this, cx| {
                 for (agent, v) in this.agents.iter_mut().zip(versions) {
                     agent.version = Some(v);
+                }
+                cx.notify();
+            });
+            let Some(fetch) = latest else { return };
+            let updates = cx
+                .background_spawn(async move {
+                    let providers = [Provider::Claude, Provider::Codex];
+                    let newer = |(p, line): (Provider, Option<String>)| {
+                        let have = skyelab_core::update::version_in(line.as_deref()?)?.to_owned();
+                        let newest = fetch(p).ok()?;
+                        skyelab_core::update::is_newer(&newest, &have).then_some(newest)
+                    };
+                    providers
+                        .into_iter()
+                        .zip(installed)
+                        .map(newer)
+                        .collect::<Vec<_>>()
+                })
+                .await;
+            let _ = this.update(cx, |this, cx| {
+                for (agent, u) in this.agents.iter_mut().zip(updates) {
+                    agent.update = u;
                 }
                 cx.notify();
             });

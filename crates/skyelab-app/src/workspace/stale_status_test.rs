@@ -32,8 +32,8 @@ fn status_follows_an_unbind_made_in_settings(cx: &mut TestAppContext) {
         .expect("bind");
     config.save(&accounts_path).expect("save");
 
-    let (ws, cx) = cx.add_window_view(|window, cx| {
-        let ws = Workspace::new(
+    let (ws, cx) = super::threads_test::add_rooted(cx, |window, cx| {
+        Workspace::new(
             folder.clone(),
             Some(accounts_path.clone()),
             config,
@@ -41,9 +41,7 @@ fn status_follows_an_unbind_made_in_settings(cx: &mut TestAppContext) {
             test_backend(),
             window,
             cx,
-        );
-        window.focus(&ws.focus, cx);
-        ws
+        )
     });
     cx.run_until_parked();
     ws.read_with(cx, |ws, _| {

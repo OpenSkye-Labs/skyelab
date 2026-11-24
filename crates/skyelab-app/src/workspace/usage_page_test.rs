@@ -41,10 +41,11 @@ fn open_usage_compares_every_account(cx: &mut gpui::TestAppContext) {
     cx.dispatch_action(OpenUsage);
     let page = ws
         .read_with(cx, |ws, cx| {
-            assert!(matches!(
-                ws.page,
-                Page::Settings(crate::settings::Section::Usage)
-            ));
+            assert!(ws.settings_open, "Usage opens in the Settings modal");
+            assert!(
+                matches!(ws.page, Page::Thread(_)),
+                "the thread page stays under it"
+            );
             ws.settings.as_ref().and_then(|s| s.read(cx).usage.clone())
         })
         .expect("usage page");

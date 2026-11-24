@@ -148,6 +148,7 @@ fn turned_off_hides_the_sparkles_and_refuses(cx: &mut TestAppContext) {
                 ..Default::default()
             },
             diff: Default::default(),
+            terminal: Default::default(),
         })
     });
     assert!(!shown(cx));

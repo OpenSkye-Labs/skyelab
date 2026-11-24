@@ -4,7 +4,7 @@ use super::Workspace;
 use super::panels::{AgentOwner, BrowserPanel, CloseBrowser};
 use gpui::{AppContext as _, Context, Entity, Focusable as _, Window};
 
-use skyelab_browser::BrowserView;
+use skyelab_browser::{BrowserView, DuplicateTab};
 
 /// Makes a fake page engine and its load reports, for a test's agent tabs.
 #[cfg(test)]
@@ -50,7 +50,22 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<BrowserPanel> {
-        let panel = cx.new(|_| BrowserPanel { browser, agent });
+        // Duplicate tab opens a user tab, whoever owns this one.
+        cx.subscribe_in(
+            &browser,
+            window,
+            |this, _, DuplicateTab(url): &DuplicateTab, window, cx| {
+                let copy = cx.new(|cx| BrowserView::new(url.as_deref(), window, cx));
+                let panel = this.add_browser(copy, None, window, cx);
+                panel.read(cx).focus_handle(cx).focus(window, cx);
+            },
+        )
+        .detach();
+        let panel = cx.new(|_| BrowserPanel {
+            users: agent.is_none(),
+            browser,
+            agent,
+        });
         self.add_right_panel(panel.clone(), window, cx);
         cx.subscribe_in(
             &panel,

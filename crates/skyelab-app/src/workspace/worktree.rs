@@ -8,7 +8,9 @@ use anyhow::{Context as _, Result, bail};
 use skyelab_core::AccountsConfig;
 use skyelab_git::Status;
 use skyelab_terminal::SpawnOptions;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// The folder inside a project that holds SkyeLab's worktrees, ignored through `info/exclude`.
 const DIR: &str = ".skyelab";
@@ -52,14 +54,28 @@ pub(super) fn slug(title: &str, now_ms: u128) -> String {
     }
 }
 
+/// The lock worktree creation in `repo` (a canonical root) holds.
+pub(super) fn creating(repo: &Path) -> Arc<Mutex<()>> {
+    static REPOS: Mutex<BTreeMap<PathBuf, Arc<Mutex<()>>>> = Mutex::new(BTreeMap::new());
+    let mut repos = REPOS.lock().unwrap_or_else(PoisonError::into_inner);
+    repos.entry(repo.to_owned()).or_default().clone()
+}
+
+/// The base commit a multi-model send's columns share, with the base branch it was resolved for (`None`: HEAD):
+/// empty until the first column resolves it.
+pub(super) type BasePin = Arc<Mutex<Option<(Option<String>, String)>>>;
+
 /// Creates a worktree of `project` on `skyelab/<slug>` from local branch `base_branch` (its HEAD when `None`), and
-/// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again.
+/// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again. With `pin`,
+/// the first call resolves the base into it and later calls for the same base branch start from that commit, wherever
+/// the branch is by then. A call for another branch (a column re-sent after a new pick) resolves its own.
 pub(super) fn create(
     config: &AccountsConfig,
     project: &Path,
     account_id: &str,
     title: &str,
     base_branch: Option<&str>,
+    pin: Option<&BasePin>,
 ) -> Result<Created> {
     let project = std::fs::canonicalize(project)
         .with_context(|| format!("resolving {}", project.display()))?;
@@ -79,25 +95,38 @@ pub(super) fn create(
             bail!("{} is not a plain folder; remove it first", dir.display());
         }
     }
+    // One at a time per repo: a multi-model send makes several at once (the first live run lost one model's start),
+    // and two slugs of the same millisecond would collide. Another project's checkout doesn't wait on this one's.
+    let repo = creating(&project);
+    let _one = repo.lock().unwrap_or_else(PoisonError::into_inner);
     std::fs::create_dir_all(&parent).with_context(|| format!("creating {}", parent.display()))?;
     skyelab_git::exclude_locally(&project, &format!("/{DIR}/"))?;
 
-    let slug = slug(title, now_ms());
+    let local = skyelab_git::branches(&project)?.local;
+    let now = now_ms();
+    let slug = (0..)
+        .map(|i| slug(title, now + i))
+        .find(|s| !parent.join(s).exists() && !local.contains(&format!("skyelab/{s}")))
+        .expect("an unbounded range finds a free name");
     let branch = format!("skyelab/{slug}");
     let dest = parent.join(&slug);
-    let base = match base_branch {
+    // Under the repo lock, so the first column's resolve is the one every later column reads.
+    let mut pinned = pin.map(|p| p.lock().unwrap_or_else(PoisonError::into_inner));
+    let same = |(b, _): &&(Option<String>, String)| b.as_deref() == base_branch;
+    let reuse = pinned.as_deref().and_then(|p| p.as_ref().filter(same));
+    let base = match (reuse.map(|(_, sha)| sha.clone()), base_branch) {
+        (Some(sha), _) => sha,
         // Only a listed local branch, never a revision expression.
-        Some(b)
-            if skyelab_git::branches(&project)?
-                .local
-                .iter()
-                .any(|l| l == b) =>
-        {
+        (None, Some(b)) if local.iter().any(|l| l == b) => {
             skyelab_git::rev_parse(&project, &format!("refs/heads/{b}"))?
         }
-        Some(b) => bail!("the base branch {b} is gone"),
-        None => skyelab_git::rev_parse(&project, "HEAD")?,
+        (None, Some(b)) => bail!("the base branch {b} is gone"),
+        (None, None) => skyelab_git::rev_parse(&project, "HEAD")?,
     };
+    if let Some(p) = pinned.as_deref_mut() {
+        p.get_or_insert_with(|| (base_branch.map(str::to_owned), base.clone()));
+    }
+    drop(pinned);
     let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;
     if let Err(e) = check(config, &project, &path, account_id) {
         return Err(match skyelab_git::remove_worktree(&project, &path, true) {

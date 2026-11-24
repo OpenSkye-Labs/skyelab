@@ -252,6 +252,16 @@ fn push_rect(rects: &mut Vec<(Bounds<Pixels>, Hsla)>, cell: Bounds<Pixels>, colo
     }
 }
 
+/// The 16 ANSI colors the app's theme family sets for its light and dark theme (`terminal.ansi` in its JSON). Without
+/// it the palette falls back to the theme's base colors.
+#[derive(Clone, Copy)]
+pub struct AnsiColors {
+    pub light: [Hsla; 16],
+    pub dark: [Hsla; 16],
+}
+
+impl gpui::Global for AnsiColors {}
+
 /// The 16 ANSI colors plus the defaults, taken from the app theme where it has a matching color.
 pub(crate) struct Palette {
     ansi: [Hsla; 16],
@@ -264,10 +274,10 @@ pub(crate) struct Palette {
 }
 
 impl Palette {
-    pub(crate) fn new(t: &ThemeColor) -> Self {
+    pub(crate) fn new(t: &ThemeColor, ansi: Option<[Hsla; 16]>) -> Self {
         let gray = |v: u8| rgb(Rgb { r: v, g: v, b: v });
         Self {
-            ansi: [
+            ansi: ansi.unwrap_or([
                 gray(0x00),
                 t.red,
                 t.green,
@@ -284,7 +294,7 @@ impl Palette {
                 t.magenta_light,
                 t.cyan_light,
                 gray(0xff),
-            ],
+            ]),
             foreground: t.foreground,
             background: t.background,
             cursor: t.caret,

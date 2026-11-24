@@ -108,3 +108,27 @@ fn codex_shows_its_listed_default(cx: &mut TestAppContext) {
         chip(&one.view, cx) == ("GPT Fake".into(), true)
     });
 }
+
+#[gpui::test]
+fn at_lists_codex_models_listed_after_it_opens(cx: &mut TestAppContext) {
+    let bin =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-agent/tests/fixtures/fake-codex.sh");
+    let (one, cx) = one_view(cx, Provider::Codex, bin, None);
+    cx.run_until_parked();
+    // As for an account whose config.toml names a model: nothing listed Codex's models yet.
+    one.view.update(cx, |v, _| v.composer.codex_models = None);
+    one.view
+        .update_in(cx, |v, window, cx| v.focus_prompt(window, cx));
+    cx.simulate_keystrokes("@ g p");
+    wait_until(cx, "the model row in the open @ menu", |cx| {
+        one.view.read_with(cx, |v, _| {
+            v.composer.menu.as_ref().is_some_and(|m| {
+                m.rows.iter().any(|&i| {
+                    m.items
+                        .as_ref()
+                        .is_some_and(|items| items[i].model.as_deref() == Some("gpt-fake"))
+                })
+            })
+        })
+    });
+}

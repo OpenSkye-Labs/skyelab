@@ -271,6 +271,7 @@ fn main() {
         let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
         // The last frame when it still shows on a connected display, else most of the primary display.
         workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
+        ui::themes::load(AppSettings::default_path(), cx);
         workspace::scheduled::install(AppSettings::default_path(), cx);
         let saved = AppSettings::default_path()
             .and_then(|p| AppSettings::load(&p).ok())
@@ -303,6 +304,13 @@ fn main() {
             ),
             cx,
         );
+        updates::set_agent_fetch(
+            updates::agent_fetcher(
+                std::env::var("SKYELAB_AGENT_LATEST_FAKE").ok(),
+                cfg!(debug_assertions),
+            ),
+            cx,
+        );
         // A window opened with none left (the dock, the menu): the same store, the accounts as on disk now.
         let fresh = {
             let (path, backend) = (path.clone(), backend.clone());
@@ -326,6 +334,8 @@ fn main() {
         let fresh: std::rc::Rc<dyn Fn(&mut App)> = std::rc::Rc::new(fresh);
         let on_menu = fresh.clone();
         cx.on_action(move |_: &workspace::NewWindow, cx| on_menu(cx));
+        // A scheduled run that comes due with no window open opens one the same way.
+        workspace::scheduled::set_opener(fresh.clone(), cx);
         cx.set_global(FreshWindow(fresh));
         let opened = workspace::restore_windows(
             saved,

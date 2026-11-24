@@ -21,7 +21,7 @@ input, the right panel and the terminal (with no thread open, the page takes the
 are skipped and it wraps around. The area you land on gets a ring until your next click. **Esc** outside a text field
 goes back to the message input; in a terminal, Esc stays the shell's. F6 doesn't reach into a browser tab's page.
 
-**Settings → Keyboard shortcuts** lists every action with the keys that run it now (search by name or key), and
+**Settings → Keybindings** lists every action with the keys that run it now (search by name or key), and
 **Open keybindings file** opens `keybindings.toml` in SkyeLab's config folder (`~/Library/Application Support/skyelab`
 on macOS, `~/.config/skyelab` on Linux), creating it with a commented example. Each rule names a key, an action and,
 optionally, where it applies:
@@ -60,18 +60,35 @@ that picks that account, and when the thread was created and last updated.
 Above the list are the search field, the project filter (the folder button) and **New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
 **Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
-it asks which project. **Settings** is at the bottom of the sidebar.
+it asks which project. The **Working** header shows how many threads work now; click it to fold them away.
+
+**Settle and snooze.** Hover a thread row for two buttons where its time was: the check **settles** it (it's done:
+it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25 at a time with **Show N more**), and
+the alarm clock **snoozes** it: **In 1 hour**, **Tonight** (18:00, while that's ahead), **Tomorrow** (09:00), **Next
+week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30` or `2026-12-01 09:00`. A snoozed
+thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
+**Woke** until you open it. Each notice has **Undo**. A settled row's hover button un-settles it, and a snoozed row's
+wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
+Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
+snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
+
+The sidebar's bottom row: **Settings**, **Pull requests**, **Issues**, **Usage**, and at the right
+**Refresh**, which reloads the thread list.
 
 The center shows one page at a time: a thread, a new thread, Settings, or nothing open yet. Clicking a thread in the
 sidebar (or picking it in the palette) switches the page; there are no center tabs. The window follows the thread's
 project: the status bar, terminals and Open in editor use its folder and account. A thread you switch away from keeps
 running, and its row keeps its state. A thread that starts on its own (delegated, or from another device) doesn't take
-the page: its row says **Done** until you open it (see **Unread** below). Tools open in the right panel beside the
+the page: its row says **Done** until you open it (see **Unread** below). While the agent waits on threads it delegated, or on subagents in its turn, a line over the composer says
+**Waiting on N subagents** with their names: **Details** opens or closes the thread details card (Lineage lists them),
+and **Stop** stops them (a subagent stops with the turn that runs it). Tools open in the right panel beside the
 thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
 focus, or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
-The expand button at the panel's top right fills the window with it.
+The expand button at the panel's top right fills the window with it. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
+back the tab you closed last in this window: a browser tab on its page, the file preview on its file, or a Changes
+tab while its thread is open. Terminals, side chats and agents' browser tabs don't come back.
 
 **Thread details** (<kbd>⇧⌘B</kbd>, <kbd>Ctrl+Shift+B</kbd> on Linux and Windows) opens a card that floats over the
 chat at the top right: this machine and the folder, the branch with its git actions and Changes, project scripts,
@@ -100,6 +117,18 @@ of them again; a window you close leaves that list, except the last one, so a la
 Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps running, agents included, until you quit
 (<kbd>⌘Q</kbd>); click its Dock icon to open a window again.
 
+## Settings and themes
+
+<kbd>⌘,</kbd> (or **Settings** in the sidebar footer, the status bar or the palette) opens Settings as a window-sized
+dialog over the app; **Esc**, a click outside it or the **×** closes it, and it reopens on the section you left.
+Each window has its own. Type in **Search** at the top of its list (or press <kbd>/</kbd>) to find a setting by name.
+Sections with preferences have **Restore defaults** in the header.
+
+**Settings → Appearance** picks a theme (**SkyeLab**, **Skye**, **Graphite**, **Dawn** or **Grove**; each has a light
+and a dark side), the **Mode** (System, Light or Dark), an **Accent color**, **Density** (Compact tightens rows) and
+the **Text size** and **Code text size**. Changes apply at once in every window and are saved under `[appearance]` in
+`settings.toml`. The palette has the same choices as **Theme: …** entries.
+
 ## Updates
 
 Once a day at most, when SkyeLab starts (and every hour after that it checks whether a day has passed), it asks
@@ -107,7 +136,7 @@ GitHub for the latest release of SkyeLab. When that release is newer than yours,
 sidebar offers **Download**, which opens the release page in your browser, and **Skip this version**, which hides it
 until a newer one comes out. **Check for Updates** (the palette, or the SkyeLab menu on macOS) and **Check now** in
 **Settings → About** check right away, skipped version included. SkyeLab never installs anything itself, and the
-request carries nothing about you. **Settings → About → Check for updates** turns the daily check off.
+request carries nothing about you. **Settings → General → Check for updates** turns the daily check off.
 
 ## Accounts and bindings
 
@@ -117,7 +146,8 @@ login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 ## Threads
 
 Starting threads, scratch threads, the composer, permissions, queueing and steering:
-[user-guide-using-threads.md](user-guide-using-threads.md).
+[user-guide-using-threads.md](user-guide-using-threads.md). Browser tabs, yours and agents':
+[user-guide-browser.md](user-guide-browser.md).
 
 ## Scheduled tasks
 
@@ -133,9 +163,24 @@ another's; the repo is the project's `origin` (a github.com https or ssh URL). A
 **Review requested**, **All** for PRs; **Assigned to me**, **All** for issues) until you press refresh.
 
 - Click a PR to start a thread in its project with a review prompt; the PR is linked to the thread when you send it.
-  The arrow icon opens the PR in your browser.
+  The arrow icon opens the PR in your browser, and the merge icon opens **Pull request actions** (below).
 - Click an issue to start a thread with the issue (title, link, labels, the start of its text) as a context chip.
   Click a label to show only that label's issues; click it again (or the **Label** button) to show all.
+
+### Pull request actions
+
+The merge icon on a PR row (here, or on the thread details card's pull request row while the PR is open) opens a small
+dialog that acts on GitHub with the account the project's folder is bound to, never your own `gh` login:
+
+- **Merge**: pick **Squash**, **Merge commit** or **Rebase** (only the ones the repository allows), tick **Delete the
+  branch on GitHub** if you want it gone (your local checkout is never touched), then click the merge button and click
+  it again to confirm. While the PR's checks are failing (or weren't read yet) it asks a third time, **Merge anyway**. The merge is pinned to
+  the commit whose checks you saw: if someone pushed since, GitHub refuses it, and if that commit wasn't read the
+  dialog asks you to refresh first. GitHub's own branch rules still apply: SkyeLab never merges as an admin.
+- **Review**: **Approve**, or write a comment and **Comment** or **Request changes** (both need text).
+
+If GitHub refuses, its message shows in red and the dialog stays open. After an action the dialog closes and the PR is
+read again: the details card shows its new state, and the Pull requests page lists again.
 
 ## Worktrees
 

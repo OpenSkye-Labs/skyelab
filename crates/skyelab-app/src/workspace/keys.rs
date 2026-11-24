@@ -14,12 +14,19 @@ pub(crate) const OPEN_DEVICES_KEY: &str = if MAC { "cmd-shift-d" } else { "ctrl-
 pub(crate) const GO_BACK_KEY: &str = if MAC { "cmd-[" } else { "alt-left" };
 pub(crate) const GO_FORWARD_KEY: &str = if MAC { "cmd-]" } else { "alt-right" };
 pub(crate) const FILE_PICKER_KEY: &str = if MAC { "cmd-p" } else { "ctrl-p" };
+pub(crate) const REOPEN_CLOSED_KEY: &str = if MAC { "cmd-shift-t" } else { "ctrl-shift-t" };
 pub(crate) const SEARCH_FILES_KEY: &str = if MAC { "cmd-shift-f" } else { "ctrl-shift-f" };
 
 #[derive(Clone, PartialEq, gpui::Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct OpenSettingsSection {
     pub section: crate::settings::Section,
+}
+
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct LogInAccount {
+    pub id: String,
 }
 
 #[derive(Clone, PartialEq, gpui::Action)]
@@ -48,6 +55,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new(GO_FORWARD_KEY, GoForward, Some(CONTEXT)),
         KeyBinding::new(FILE_PICKER_KEY, files::OpenFilePicker, Some(CONTEXT)),
         KeyBinding::new(SEARCH_FILES_KEY, files::SearchFiles, Some(CONTEXT)),
+        KeyBinding::new(REOPEN_CLOSED_KEY, reopen::ReopenClosedView, Some(CONTEXT)),
         KeyBinding::new(
             layout::TOGGLE_DETAILS_KEY,
             layout::ToggleThreadDetails,
@@ -66,6 +74,8 @@ pub fn init(cx: &mut App) {
             KeyBinding::new(TOGGLE_BOTTOM_KEY, NoAction, Some("Terminal")),
             // ctrl-p is the shell's previous command.
             KeyBinding::new(FILE_PICKER_KEY, NoAction, Some("Terminal")),
+            // ctrl-shift-t opens a tab in many terminal programs; the shell may want it.
+            KeyBinding::new(REOPEN_CLOSED_KEY, NoAction, Some("Terminal")),
             // alt-left/right move by word in a shell; in a text field they would surprise more than help.
             KeyBinding::new(GO_BACK_KEY, NoAction, Some("Terminal")),
             KeyBinding::new(GO_FORWARD_KEY, NoAction, Some("Terminal")),
@@ -85,8 +95,10 @@ pub fn init(cx: &mut App) {
     surfaces::bind_keys(cx);
     files::bind_keys(cx);
     thread_find::bind_keys(cx);
+    skyelab_browser::bind_keys(cx);
     changes::bind_keys(cx);
     terminal_panel::bind_keys(cx);
+    terminal_tab::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
 }

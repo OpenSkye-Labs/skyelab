@@ -12,7 +12,7 @@ short title (six words at most) from your first prompt and its first reply, and 
 - A title you set yourself (**Rename**) is never replaced by a generated one.
 - **Right-click a thread → Regenerate title** names it again, replacing any title. If the folder is no longer bound to
   the thread's account, nothing runs and a notice says why.
-- Turn it off in **Settings → Threads → Generate thread titles**.
+- Turn it off in **Settings → Chat → Generate thread titles**.
 - Threads on another machine are named there, not here.
 
 ## Drafts
@@ -28,22 +28,36 @@ walks forward and ends at an empty composer. In a prompt with several lines, the
 can still edit it. Text you typed yourself is never replaced; the keys move the caret as usual. Files attached to an
 earlier prompt aren't brought back.
 
-## Settings → Threads
+## Defaults for new threads
 
-Defaults for new threads. A thread's own choice always wins.
+A thread's own choice always wins. They live in three Settings sections:
 
-- **Generate thread titles**: on by default.
-- **Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
+- **Chat → Generate thread titles**: on by default.
+- **Diffs & pull requests → Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
   ([how they work](user-guide-accounts.md)).
-- **Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
-- **New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
-- **Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
+- **Chat → Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
+- **Worktrees → New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
+- **Diffs & pull requests → Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
   its branch's upstream in the background under the thread's account's own GitHub login (the same rules as Push:
   https remotes only), so Details can say how far behind it is. Saved as `fetch_minutes`.
-- **Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
+- **Chat → Claude model** and effort, **Codex model** (an id, empty for the account's default) and effort: used by a new
   thread in a project that hasn't picked a model yet (the last model picked in a project stays its default).
 
 They are saved in `settings.toml` under `[threads]`. Threads an agent delegates start in Ask.
+
+### Per-project defaults
+
+Work and personal projects often want different defaults. At the top of **Chat** and **Worktrees**, **Applying
+settings for** picks **All projects** (the app-wide defaults above) or one project. With a project picked, the same
+rows set that project's own default for permissions, Claude model and effort, Codex model and effort, and "start in a
+worktree". Each row offers **Inherit: …**, which follows All projects (the Codex model field inherits when empty).
+**Restore defaults** sends the project's rows on that page back to Inherit. **Project settings…** in a project's
+sidebar menu opens Chat with that project already picked.
+
+A new thread's model comes from, in order: the project's own default, the last model picked in that project, then
+All projects. Full access is still never a default, and the project's account is not a setting here: it always comes
+from the folder's binding (**Accounts**). Per-project values are saved in `settings.toml` under
+`[threads.projects."<project folder>"]`, so moving the folder loses them, as it loses the binding.
 
 ## Fork a thread
 
@@ -57,6 +71,41 @@ no text in it can pose as a new message. Your message is shown and stored as you
 count again in the Usage page, and the fork's first turn counts its whole cost, since its session is new. The fork
 starts in the project's folder, not in the original's worktree, and copies no checkpoints. If the folder is no longer
 bound to the thread's account, nothing is forked.
+
+## Continue in the other provider
+
+A thread can move from Claude to Codex, or from Codex to Claude: **Continue in Codex** (or **Continue in Claude**) is in
+the thread details card, in the command palette, and on the "This thread can't continue here" notice. It makes a new
+thread in the same project whose header says **Continued from** and links to the original; the details card's
+**Lineage** links to it too. The original is not changed.
+
+A folder is bound to one account, so the new thread runs under the account the folder is bound to, and only when that
+account is of the other provider. If the folder is still bound to the original's account (or to nothing), SkyeLab asks
+you to bind it to a Codex (or Claude) account in Settings → Accounts first; it never picks one for you. Once you do,
+the original's threads in that folder can't send any more, and their notice offers the handoff.
+
+A session can't move between providers, so the new thread's first message starts with a portable transcript of the
+original: your messages and the agent's answers kept whole, each command as the command, whether it failed and its
+output, each file edit as the paths it changed, and plans. Reasoning, other tool calls and attached files are left
+out. Up to 16 KB is carried, picking your latest message, the agent's latest answer and your first message first, then
+the newest others; each item goes whole or not at all, and the transcript marks where items were left out. It is
+fenced as quoted context, never as instructions. Your message is shown and stored as you typed it. Like a fork, it
+starts in the project's folder, not in the original's worktree.
+
+## Send to several models
+
+In a new thread, the model chip's menu has **Send to several models…**. Tick 2 to 4 models of the account the folder
+is bound to (Claude's Opus, Sonnet and Haiku, or the Codex account's models; never another account), and the chip
+reads "3 models". **In worktrees** (on by default in a git repo) gives each model its own worktree, so their edits
+don't collide; **One model** goes back. Send starts one thread per model, the new thread running the first, and opens
+the **Compare** page: a column per model with its status, cost, time, changed files and latest reply. Once every model
+has finished, the header shows the total cost (from each turn's stored cost), and **Keep this one** asks whether to
+archive the other threads or leave them; either way the kept thread opens. Each model runs at its default effort,
+from the same base branch. At most 4 compared threads can be working at once; a send that would pass that is refused
+with your prompt kept.
+
+In the sidebar the threads share one row with a **×3** badge: click the row for the Compare page, the badge to list
+the threads under it.
 
 ## Side chats
 

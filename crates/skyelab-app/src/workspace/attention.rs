@@ -119,6 +119,24 @@ impl Workspace {
         }
     }
 
+    /// A thread's agent waits on a permission answer: unless the user is looking at it, tell them.
+    pub(super) fn approval_needed(
+        &mut self,
+        view: &Entity<ThreadView>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(thread) = view.read(cx).thread.clone() else {
+            return;
+        };
+        let here = window.is_window_active() && self.shown_thread(cx) == Some(thread.id);
+        if here || self.seen_elsewhere(thread.id, cx) {
+            return;
+        }
+        let note = Notification::warning(thread.title).title("Approval needed");
+        self.notify_attention(thread.id, note, window, cx);
+    }
+
     /// Marks the thread unread (stored, in the list and on its view's row) until the user looks at it.
     pub(super) fn mark_unread(&mut self, view: &Entity<ThreadView>, cx: &mut Context<Self>) {
         let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
@@ -201,6 +219,7 @@ impl Workspace {
         let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
             return;
         };
+        self.clear_woke(id, cx);
         let in_tab = view.update(cx, |v, _| {
             v.thread
                 .as_mut()

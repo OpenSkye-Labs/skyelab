@@ -24,14 +24,90 @@ pub struct AppSettings {
     /// "Open in editor": the command to run, split on whitespace (no shell), the folder appended. Unset: `$VISUAL`,
     /// `$EDITOR`, then `code` or `zed` from PATH.
     pub editor: Option<String>,
-    /// Settings → Threads: what new threads start with.
+    /// What new threads start with (Settings → Chat, Diffs & pull requests, Worktrees).
     pub threads: ThreadSettings,
     /// The Changes tab's view toggles.
     pub diff: DiffSettings,
-    /// Settings → About: the update check.
+    /// Settings → General: the update check.
     pub updates: crate::update::UpdateSettings,
+    /// Settings → Appearance: theme, accent, density and text sizes.
+    pub appearance: AppearanceSettings,
     /// Settings → Scheduled tasks: missed runs and how many run at once.
     pub scheduled: ScheduledSettings,
+    /// Settings → General: the terminal.
+    pub terminal: TerminalSettings,
+}
+
+/// Settings → General's terminal switch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TerminalSettings {
+    /// Ask before closing a terminal pane or tab whose shell is running a command (T3's terminal close confirmation).
+    pub confirm_close: bool,
+}
+
+impl Default for TerminalSettings {
+    fn default() -> Self {
+        Self {
+            confirm_close: true,
+        }
+    }
+}
+
+/// Light, dark, or whatever the system shows.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ColorMode {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// Settings → Appearance. Names are the app's theme and accent keys; an unknown one falls back to the default.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AppearanceSettings {
+    pub mode: ColorMode,
+    /// The theme family (`skyelab`, `skye`, …).
+    pub theme: String,
+    /// An accent preset key; unset is the theme's own.
+    pub accent: Option<String>,
+    /// Tighter rows and cards.
+    pub compact: bool,
+    /// Interface text size in points.
+    pub ui_font_size: u8,
+    /// Code and terminal text size in points.
+    pub code_font_size: u8,
+}
+
+impl AppearanceSettings {
+    pub const UI_SIZES: std::ops::RangeInclusive<u8> = 12..=18;
+    pub const CODE_SIZES: std::ops::RangeInclusive<u8> = 11..=18;
+
+    /// The sizes clamped to what the UI offers, so a hand-edited file can't make text vanish.
+    pub fn clamped(mut self) -> Self {
+        self.ui_font_size = self
+            .ui_font_size
+            .clamp(*Self::UI_SIZES.start(), *Self::UI_SIZES.end());
+        self.code_font_size = self
+            .code_font_size
+            .clamp(*Self::CODE_SIZES.start(), *Self::CODE_SIZES.end());
+        self
+    }
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            mode: ColorMode::System,
+            theme: "skyelab".into(),
+            accent: None,
+            compact: false,
+            ui_font_size: 14,
+            code_font_size: 13,
+        }
+    }
 }
 
 /// How the scheduler treats runs. The tasks themselves live in the store.
@@ -84,6 +160,9 @@ pub struct ThreadSettings {
     pub new_worktree: bool,
     /// Minutes between background `git fetch`es of the shown thread's folder; 0 is off.
     pub fetch_minutes: u32,
+    /// Project folder → its own new-thread defaults over these (Settings' "Applying settings for <project>").
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub projects: BTreeMap<PathBuf, crate::thread_defaults::ThreadDefaults>,
 }
 
 impl ThreadSettings {
@@ -108,6 +187,7 @@ impl Default for ThreadSettings {
             codex_effort: None,
             new_worktree: false,
             fetch_minutes: 5,
+            projects: BTreeMap::new(),
         }
     }
 }
@@ -124,6 +204,8 @@ pub struct WindowLayout {
     pub right_panel_width: i32,
     /// The page the center showed: `thread:<id>`, `settings:<section>` or `welcome` (empty in older files).
     pub view: String,
+    /// The window's terminal tabs, in tab order; they reopen with it (new shells, same layout and folders).
+    pub terminals: Vec<crate::terminal_layout::SavedTerminalTab>,
 }
 
 /// One device the user allowed in the Remote tab.

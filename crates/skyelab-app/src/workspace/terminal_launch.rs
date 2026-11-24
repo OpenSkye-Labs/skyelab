@@ -153,7 +153,7 @@ impl Workspace {
     ) {
         let options = cx.background_spawn(async move { job() });
         // The tab belongs to the thread shown when it was asked for, even if another shows by the time it opens.
-        let owner = self.current_thread().map(|t| t.entity_id());
+        let owner = self.current_thread();
         cx.spawn_in(window, async move |this, cx| {
             let options = options.await;
             let _ = this.update_in(cx, |this, window, cx| {
@@ -162,8 +162,8 @@ impl Workspace {
                         return Ok(());
                     }
                     this.add_terminal_tab(o, account, tab, window, cx)?;
-                    if let Some(panel) = this.terminals.last() {
-                        panel.update(cx, |p, _| p.owner = owner);
+                    if let Some(panel) = this.terminals.last().cloned() {
+                        this.set_terminal_owner(&panel, owner, cx);
                     }
                     this.sync_terminals(window, cx);
                     Ok(())

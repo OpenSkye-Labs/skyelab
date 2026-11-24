@@ -17,6 +17,8 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-fe
 gpui-component = "=0.10.0"
 # gpui-mobile's Android text system, run on the host by android/tests/emoji_font.rs. Follows the gpui pin (check-pins.sh).
 gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12" }
+# The iOS platform gpui-pre-platform already pulls in; named here only for its status-bar style. Follows the gpui pin.
+gpui_ios = { package = "gpui-pre-ios", version = "=0.3.12" }
 # longbridge/gpui-mobile ported to gpui-pre 0.3.12: scripts/fetch-gpui-mobile.sh clones and patches it.
 gpui-mobile = { package = "gpui-pre-mobile", path = "target/gpui-mobile", default-features = false }
 
@@ -52,6 +54,8 @@ gpui.workspace = true
 gpui-component.workspace = true
 skyelab-protocol = { path = "../crates/skyelab-protocol" }
 skyelab-client = { path = "../crates/skyelab-client" }
+# The desktop's timeline model (`timeline`) and thread-list text, so both apps read stored rows the same way.
+skyelab-agent = { path = "../crates/skyelab-agent" }
 anyhow = "1"
 flume = "0.12"
 serde_json = "1"
@@ -59,6 +63,9 @@ serde_json = "1"
 # gpui-pre-platform 0.3.12 pulls gpui-pre-ios on target_os = "ios". It has no Android arm (android/ uses gpui-mobile).
 [target.'cfg(not(target_os = "android"))'.dependencies]
 gpui_platform.workspace = true
+
+[target.'cfg(target_os = "ios")'.dependencies]
+gpui_ios.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
@@ -69,8 +76,6 @@ skyelab-client = { path = "../crates/skyelab-client", features = ["test-support"
 skyelab-daemon = { path = "../crates/skyelab-daemon", features = ["test-support"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 skyelab-store = { path = "../crates/skyelab-store" }
-# Fixtures from the real agent event serializer, never hand-written shapes.
-skyelab-agent = { path = "../crates/skyelab-agent" }
 skyelab-tailnet = { path = "../crates/skyelab-tailnet" }
 
 [lints]
@@ -80,6 +85,11 @@ workspace = true
 # wgpu turns on Vulkan debug labels under debug assertions, and the Android emulator's llvmpipe driver segfaults in
 # vkSetDebugUtilsObjectNameEXT. See docs/mobile.md, "Problems found".
 debug-assertions = false
+
+# Tests run on the host, never on the emulator: keep debug assertions there, which GPUI's `debug_selector` (tap-target
+# checks in tests/touch_targets.rs) needs.
+[profile.test]
+debug-assertions = true
 
 [profile.dev.package."*"]
 opt-level = 2 # GPUI is unusably slow unoptimized.

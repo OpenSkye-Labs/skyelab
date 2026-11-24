@@ -110,6 +110,8 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
     };
     // Back to v7: as a build with thread management but no scripts left it.
     let conn = Connection::open(&path).expect("raw");
+    conn.execute_batch(common::UNDO_V23).expect("drop v23");
+    conn.execute_batch(common::UNDO_V22).expect("drop v22");
     conn.execute_batch(common::UNDO_V21).expect("drop v21");
     conn.execute_batch(common::UNDO_V19).expect("drop v19");
     conn.execute_batch(common::UNDO_V16).expect("drop v16");
@@ -133,7 +135,7 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
         .expect("raw")
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .expect("version");
-    assert_eq!(version, 21);
+    assert_eq!(version, 23);
     let t = store.thread(pinned).expect("read").expect("kept");
     assert!(t.pinned_at.is_some() && t.unread);
     let a = store.thread(archived).expect("read").expect("kept");

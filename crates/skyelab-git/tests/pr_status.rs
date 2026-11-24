@@ -140,7 +140,9 @@ mod fake {
         let calls = std::fs::read_to_string(dir.join("fake-gh.prview")).expect("recorded");
         assert_eq!(
             calls.trim(),
-            format!("pr view {URL} --json state,isDraft,mergedAt,reviewDecision,statusCheckRollup")
+            format!(
+                "pr view {URL} --json state,isDraft,mergedAt,reviewDecision,statusCheckRollup,headRefOid"
+            )
         );
         let env = std::fs::read_to_string(dir.join("fake-gh.fullenv")).expect("env");
         assert!(env.contains(&format!("GH_CONFIG_DIR={}", dir.display())));

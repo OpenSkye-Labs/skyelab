@@ -312,10 +312,15 @@ impl RenderOnce for Monogram {
     }
 }
 
-/// T3's sidebar menu row: 32 px, radius 6, hover and selected fills, medium when selected, content truncates.
+/// T3's sidebar menu row: 32 px (28 when compact), radius 6, hover and selected fills, medium when selected, content
+/// truncates.
 pub fn row(id: impl Into<ElementId>, selected: bool, theme: &Theme) -> Stateful<Div> {
     row_surface(h_flex(), id, selected, theme)
-        .h(ROW_H)
+        .h(if super::themes::compact() {
+            px(28.)
+        } else {
+            ROW_H
+        })
         .gap_2p5()
 }
 
@@ -375,21 +380,28 @@ pub fn section_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
         .child(text.into())
 }
 
-/// T3's settings group: rounded 12, a hairline border, rows divided by hairlines (give each row `group_row`).
+/// T3's settings card: rounded 12, a hairline border on the muted fill, rows divided by hairlines (give each row
+/// `group_row`).
 pub fn group(theme: &Theme) -> Div {
     v_flex()
         .rounded(RADIUS_LG)
         .border_1()
         .border_color(theme.border)
-        .bg(theme.popover.opacity(0.4))
+        .bg(theme.muted)
         .overflow_hidden()
 }
 
-/// One row of a [`group`]: `px-4 py-3`, a hairline above all but the first.
+/// One row of a [`group`]: `px-4 py-3.5` (`py-2.5` when compact), a hairline above all but the first.
 pub fn group_row(first: bool, theme: &Theme) -> Div {
     h_flex()
         .px_4()
-        .py_3()
+        .map(|d| {
+            if super::themes::compact() {
+                d.py_2p5()
+            } else {
+                d.py_3p5()
+            }
+        })
         .gap_3()
         .text_size(BODY)
         .when(!first, |this| this.border_t_1().border_color(theme.border))

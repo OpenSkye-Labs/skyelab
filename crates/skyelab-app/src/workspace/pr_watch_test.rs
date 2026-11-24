@@ -20,6 +20,7 @@ fn entry(state: Option<PrState>, checked_ms: i64) -> PrEntry {
                 checks: Checks::None,
                 review: Review::None,
                 failed: Vec::new(),
+                head: None,
             }),
             None => PrView::SignIn,
         },

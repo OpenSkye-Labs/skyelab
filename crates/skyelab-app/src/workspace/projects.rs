@@ -305,16 +305,8 @@ impl Workspace {
     ) {
         view.update(cx, |v, _| v.lists.add(window.window_handle()));
         // Its state shows in the sidebar: rebuild that when what the row shows changed, not on every notify.
-        let observe = cx.observe(view, |this, view, cx| {
-            // Cheap, and a parent's Lineage may have loaded after the child's last change.
-            this.sync_lineage(&view, cx);
-            let sig = super::thread_rows::row_sig(view.read(cx));
-            match this.thread_subs.get_mut(&view.entity_id()) {
-                Some(subs) if subs.sig == sig => return,
-                Some(subs) => subs.sig = sig,
-                None => {}
-            }
-            this.refresh_sidebar(cx)
+        let observe = cx.observe_in(view, window, |this, view, window, cx| {
+            this.thread_changed(&view, window, cx)
         });
         let events = cx.subscribe_in(
             view,
@@ -347,6 +339,7 @@ impl Workspace {
                 ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
                 _ if !view.read(cx).owned_by(window) => {}
                 ThreadViewEvent::Side(ask) => this.side_chat(view, ask.clone(), window, cx),
+                ThreadViewEvent::Compare(account) => this.compare_send(view, account, window, cx),
                 ThreadViewEvent::OpenChanges => _ = this.open_changes(view, window, cx),
                 ThreadViewEvent::Git(action) => {
                     let tab = this.open_changes(view, window, cx);
@@ -394,6 +387,11 @@ impl Workspace {
                     let account = v.thread.as_ref().map(|t| t.account_id.clone());
                     let cwd = v.cwd.clone();
                     this.run_script(script, cwd, account, window, cx);
+                }
+                ThreadViewEvent::PrActed => {
+                    if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
+                        this.reread_pr(id, cx);
+                    }
                 }
                 ThreadViewEvent::PrUnlinked(url) => {
                     if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {

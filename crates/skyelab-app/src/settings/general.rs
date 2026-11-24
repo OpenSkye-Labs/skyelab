@@ -1,0 +1,274 @@
+//! Settings → General (the editor command, the update check) and Worktrees, the error banner every section shows,
+//! and Restore defaults.
+
+use super::widgets::{DESC, section, setting};
+use super::*;
+use crate::ui;
+use crate::workspace::thread_extras::prefs;
+use gpui_component::{IconName, h_flex, switch::Switch, v_flex};
+use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
+
+/// The "Open in editor" command saved in settings.toml (empty: the default lookup).
+pub(super) fn editor(cx: &App) -> String {
+    prefs::path(cx)
+        .and_then(|p| AppSettings::load(&p).ok())
+        .and_then(|s| s.editor)
+        .unwrap_or_default()
+}
+
+impl Settings {
+    /// Shows `save`'s failure in the section's error banner, as "Saving <what> failed: …".
+    pub(super) fn report<T: 'static>(
+        &self,
+        save: gpui::Task<anyhow::Result<T>>,
+        what: &'static str,
+        cx: &mut Context<Self>,
+    ) {
+        cx.spawn(async move |this, cx| {
+            if let Err(e) = save.await {
+                let _ = this.update(cx, |this, cx| {
+                    this.error = Some(format!("Saving {what} failed: {e:#}"));
+                    cx.notify();
+                });
+            }
+        })
+        .detach();
+    }
+
+    /// The editor field was left or confirmed: save it (empty is the default lookup).
+    pub(super) fn save_editor(&mut self, cx: &mut Context<Self>) {
+        let typed = self.editor_input.read(cx).value().trim().to_owned();
+        let Some(path) = prefs::path(cx) else { return };
+        let editor = (!typed.is_empty()).then_some(typed);
+        let save = cx.background_spawn(async move {
+            AppSettings::update(&path, |s| {
+                let changed = s.editor != editor;
+                s.editor = editor;
+                changed
+            })
+        });
+        self.report(save, "the editor command", cx);
+    }
+
+    pub(super) fn render_general(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        let enabled = cx
+            .try_global::<crate::updates::Updates>()
+            .is_none_or(|u| u.enabled);
+        v_flex()
+            .gap_8()
+            .child(section(
+                "Editor",
+                "Where \"Open in editor\" sends a folder.",
+                [setting(
+                    true,
+                    "Open in editor",
+                    "The command \"Open in editor\" runs, with the folder added at the end. Empty tries $VISUAL, \
+                     $EDITOR, then code or zed.",
+                    div().w(gpui::px(220.)).child(Input::new(&self.editor_input).small()),
+                    cx,
+                )],
+                cx,
+            ))
+            .child(section(
+                "Terminal",
+                "The shells in the bottom panel.",
+                [setting(
+                    true,
+                    "Terminal close confirmation",
+                    "Ask before closing a terminal pane or tab whose shell is still running a command. Closing \
+                     stops the process.",
+                    Switch::new("terminal-confirm-close")
+                        .checked(prefs::get_terminal(cx).confirm_close)
+                        .accessibility_label("Terminal close confirmation")
+                        .on_click(cx.listener(|_, on: &bool, _, cx| {
+                            let mut t = prefs::get_terminal(cx);
+                            t.confirm_close = *on;
+                            let save = prefs::save_terminal(t, cx);
+                            cx.spawn(async move |this, cx| {
+                                if let Err(e) = save.await {
+                                    let _ = this.update(cx, |this, cx| {
+                                        this.error = Some(format!("Saving the terminal setting failed: {e:#}"));
+                                        cx.notify();
+                                    });
+                                }
+                            })
+                            .detach();
+                            cx.notify();
+                        })),
+                    cx,
+                )],
+                cx,
+            ))
+            .child(section(
+                "Updates",
+                "SkyeLab only looks; it never installs anything itself.",
+                [setting(
+                    true,
+                    "Check for updates",
+                    "On start, at most once a day, SkyeLab asks GitHub for its latest release. Nothing installs: \
+                     Download opens the release page.",
+                    Switch::new("about-updates")
+                        .checked(enabled)
+                        .accessibility_label("Check for updates")
+                        .on_click(cx.listener(|this, on: &bool, _, cx| {
+                            let save = crate::updates::set_enabled(*on, cx);
+                            this.report(save, "the update check", cx);
+                            cx.notify();
+                        })),
+                    cx,
+                )],
+                cx,
+            ))
+            .into_any_element()
+    }
+
+    pub(super) fn render_worktrees(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
+        section(
+            "Worktrees",
+            "A worktree gives a thread's agent its own branch and folder, so parallel threads don't collide.",
+            [setting(
+                true,
+                "New threads start in a worktree",
+                "Turns on \"New worktree\" under a new thread's composer.",
+                self.worktree_control(cx),
+                cx,
+            )],
+            cx,
+        )
+        .into_any_element()
+    }
+
+    /// The header's Restore defaults: this section's preferences back to how a fresh install has them.
+    pub(super) fn restore_defaults(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let fresh = ThreadSettings::default();
+        if let Some(dir) = self.scope.clone()
+            && matches!(self.section, Section::Chat | Section::Worktrees)
+        {
+            return self.restore_project(dir, window, cx);
+        }
+        match self.section {
+            Section::Appearance => {
+                let save = crate::ui::themes::set(Default::default(), cx);
+                self.report(save, "Appearance", cx);
+            }
+            Section::Chat => self.set_threads(
+                move |t| {
+                    t.permission_mode = fresh.permission_mode.clone();
+                    t.claude_model = fresh.claude_model.clone();
+                    t.claude_effort = fresh.claude_effort.clone();
+                    t.codex_model = fresh.codex_model.clone();
+                    t.codex_effort = fresh.codex_effort.clone();
+                    t.generate_titles = fresh.generate_titles;
+                },
+                cx,
+            ),
+            Section::Diffs => {
+                let save = prefs::save_diff(DiffSettings::default(), cx);
+                self.report(save, "Diffs", cx);
+                self.set_threads(
+                    move |t| {
+                        t.fetch_minutes = fresh.fetch_minutes;
+                        t.generate_git_text = fresh.generate_git_text;
+                    },
+                    cx,
+                );
+            }
+            Section::Worktrees => {
+                self.set_threads(move |t| t.new_worktree = fresh.new_worktree, cx)
+            }
+            Section::General => {
+                self.editor_input
+                    .update(cx, |i, cx| i.set_value("", window, cx));
+                self.save_editor(cx);
+                let save = crate::updates::set_enabled(true, cx);
+                self.report(save, "the update check", cx);
+                let save = prefs::save_terminal(Default::default(), cx);
+                self.report(save, "the terminal settings", cx);
+            }
+            _ => {}
+        }
+        if self.section == Section::Chat {
+            self.codex_model_input
+                .update(cx, |i, cx| i.set_value("", window, cx));
+        }
+        cx.notify();
+    }
+
+    /// The section's error: a short human sentence first; the full text (paths, causes) behind Details, with copy.
+    pub(super) fn render_error(&self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let full = self.error.clone().or_else(|| self.threads_error.clone())?;
+        let theme = cx.theme();
+        let (danger, ink) = (theme.danger, ui::ink(theme, theme.danger));
+        let short = super::widgets::short_error(&full);
+        let open = self.error_open;
+        Some(
+            v_flex()
+                .id("settings-error")
+                .gap_2()
+                .px_4()
+                .py_3()
+                .rounded(ui::RADIUS_LG)
+                .bg(danger.opacity(0.08))
+                .border_1()
+                .border_color(danger.opacity(0.3))
+                .child(
+                    h_flex()
+                        .gap_3()
+                        .child(
+                            gpui_component::Icon::new(IconName::CircleAlert)
+                                .size_4()
+                                .text_color(ink),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .text_size(ui::BODY)
+                                .text_color(ink)
+                                .child(short),
+                        )
+                        .child(
+                            Button::new("settings-error-details")
+                                .ghost()
+                                .xsmall()
+                                .label(if open { "Hide details" } else { "Details" })
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.error_open = !this.error_open;
+                                    cx.notify();
+                                })),
+                        ),
+                )
+                .when(open, |d| {
+                    let copy = full.clone();
+                    d.child(
+                        h_flex()
+                            .items_start()
+                            .gap_2()
+                            .pl_7()
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .font_family(theme.mono_font_family.clone())
+                                    .text_size(DESC)
+                                    .text_color(theme.muted_foreground)
+                                    .child(full),
+                            )
+                            .child(
+                                Button::new("settings-error-copy")
+                                    .ghost()
+                                    .xsmall()
+                                    .icon(IconName::Copy)
+                                    .tooltip("Copy")
+                                    .on_click(move |_, _, cx| {
+                                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                                            copy.clone(),
+                                        ))
+                                    }),
+                            ),
+                    )
+                })
+                .into_any_element(),
+        )
+    }
+}

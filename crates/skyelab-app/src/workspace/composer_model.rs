@@ -1,16 +1,60 @@
 //! What the composer's model chip names: the model that will run, never a bare "default" (T3's "Opus 5.5 High").
 
+use super::composer_menu::MenuKind;
 use super::composer_picker::title_case;
+use super::lock;
 use crate::workspace::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString};
 use skyelab_agent::{CLAUDE_MODELS, ModelInfo, model_label};
 use skyelab_core::Provider;
+use skyelab_store::ModelChoice;
 
 impl ThreadView {
+    /// Picks a model and effort: kept on the thread, remembered as the project's default for new threads, and
+    /// handed to a running agent.
+    pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
+        self.composer.pick = pick.clone();
+        self.composer.picked = true;
+        self.composer.picker_open = false;
+        let (store, thread, project) = (
+            self.backend.store.clone(),
+            self.thread.as_ref().map(|t| t.id),
+            self.project_id,
+        );
+        let session = self.session.clone();
+        // Two quick picks save in two tasks that may run out of order: only the newest writes.
+        let latest = self.composer.pick_gen.clone();
+        let this_pick = latest.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        self.in_background(cx, move || {
+            {
+                let s = lock(&store)?;
+                if latest.load(std::sync::atomic::Ordering::SeqCst) != this_pick {
+                    return Ok(());
+                }
+                if let Some(id) = thread {
+                    s.set_thread_model(id, &pick)?;
+                }
+                s.set_project_model(project, &pick)?;
+            }
+            if let Some(session) = session {
+                let mut session = lock(&session)?;
+                // Checked again under this lock: a newer pick may have reached the agent since the store write.
+                if latest.load(std::sync::atomic::Ordering::SeqCst) == this_pick {
+                    session.set_model(pick.model.as_deref(), pick.effort.as_deref())?;
+                }
+            }
+            Ok(())
+        });
+        cx.notify();
+    }
+
     /// The chip's label ("Opus 5.5 High") and whether it names the account's default rather than a pick. `compact`
     /// leaves the effort out.
     pub(in crate::workspace) fn chip_label(&self, compact: bool) -> (String, bool) {
         let c = &self.composer;
+        if let Some(set) = c.compare.as_ref().filter(|s| s.models.len() > 1) {
+            return (format!("{} models", set.models.len()), false);
+        }
         let (model, default) = match c.pick.model.as_deref() {
             Some(id) => (self.pick_name(id), false),
             None => (self.default_model_name(), true),
@@ -87,6 +131,51 @@ impl ThreadView {
         }
     }
 
+    /// The `@` menu's model rows: the picker's models for the thread's provider (Codex's once listed), none when
+    /// the composer has no account or sends to several models.
+    pub(in crate::workspace) fn mention_models(&self) -> Vec<super::composer_menu::MenuItem> {
+        let Some(provider) = self.composer_account().map(|a| a.provider) else {
+            return Vec::new();
+        };
+        // A send to several models goes to the ticked set; one picked model would be ignored.
+        if self.composer.compare.is_some() {
+            return Vec::new();
+        }
+        let models: Vec<(String, String)> = match provider {
+            Provider::Codex => self
+                .listed()
+                .unwrap_or_default()
+                .iter()
+                .map(|m| (m.id.clone(), m.label.clone()))
+                .collect(),
+            Provider::Claude => CLAUDE_MODELS
+                .iter()
+                .map(|(id, label)| ((*id).to_owned(), (*label).to_owned()))
+                .collect(),
+        };
+        super::composer_menu::model_items(&models, provider.label())
+    }
+
+    /// An `@` model row was picked: the thread runs on that model from this send on, as if picked in the picker. The
+    /// effort stays when the model takes it.
+    pub(in crate::workspace) fn pick_mentioned(&mut self, model: String, cx: &mut Context<Self>) {
+        let codex = self.composer_account().map(|a| a.provider) == Some(Provider::Codex);
+        let effort = self.composer.pick.effort.clone().filter(|e| {
+            !codex
+                || self
+                    .listed()
+                    .and_then(|l| l.iter().find(|m| m.id == model))
+                    .is_some_and(|m| m.efforts.contains(e))
+        });
+        self.pick_model(
+            skyelab_store::ModelChoice {
+                model: Some(model),
+                effort,
+            },
+            cx,
+        );
+    }
+
     fn listed(&self) -> Option<&[ModelInfo]> {
         Some(
             self.composer
@@ -142,6 +231,14 @@ impl ThreadView {
             let listed = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.composer.codex_models = Some(listed);
+                if this
+                    .composer
+                    .menu
+                    .as_ref()
+                    .is_some_and(|m| m.kind == MenuKind::Files)
+                {
+                    this.load_menu_items(MenuKind::Files, cx); // the `@` menu's model rows
+                }
                 cx.notify();
             });
         })

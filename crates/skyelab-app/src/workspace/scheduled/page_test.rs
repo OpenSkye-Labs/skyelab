@@ -12,7 +12,7 @@ use skyelab_agent::Mode;
 
 fn page(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Entity<ScheduledPage> {
     ws.update_in(cx, |ws, window, cx| {
-        ws.show(Page::Settings(Section::Scheduled), window, cx)
+        ws.open_settings_at(Section::Scheduled, window, cx)
     });
     cx.run_until_parked();
     ws.read_with(cx, |ws, cx| {

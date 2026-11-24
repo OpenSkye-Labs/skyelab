@@ -3,7 +3,10 @@
 //! `skyelab-client` and runs no agents.
 
 pub mod app;
+mod demo;
 pub mod env_store;
 pub mod remote;
 pub mod source;
 mod text;
+pub mod thread_rows;
+pub mod timeline_rows;

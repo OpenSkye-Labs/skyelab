@@ -196,6 +196,16 @@ impl BasePanel for PreviewPanel {
     fn zoomable(&self, _: &App) -> bool {
         false
     }
+    fn on_removed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.path.as_os_str().is_empty() {
+            let (root, path) = (self.root.clone(), self.path.clone());
+            crate::workspace::reopen::remember(
+                window,
+                crate::workspace::reopen::Closed::Preview { root, path },
+                cx,
+            );
+        }
+    }
 }
 
 impl Panel for PreviewPanel {

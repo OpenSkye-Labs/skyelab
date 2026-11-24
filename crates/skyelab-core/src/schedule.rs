@@ -40,6 +40,38 @@ impl Schedule {
         Some(next.with_timezone(&Utc))
     }
 
+    /// The run after one that was due at `slot` and handled (run or skipped) at `now`. An interval keeps its beat: the
+    /// first `slot + k * interval` after `now`, so a late tick never pushes it on. Wall times are read from `now`.
+    pub fn next_after_run<Tz: TimeZone>(
+        &self,
+        slot: DateTime<Utc>,
+        now: DateTime<Utc>,
+        tz: &Tz,
+    ) -> Option<DateTime<Utc>> {
+        let Schedule::Every { minutes } = self else {
+            return self.next_after(now, tz);
+        };
+        let step = Duration::minutes(i64::from(*minutes));
+        let behind = (now - slot).num_milliseconds().max(0);
+        let k = behind / step.num_milliseconds() + 1;
+        Some(slot + step * i32::try_from(k).ok()?)
+    }
+
+    /// A wall-time task's next run as the machine's zone `tz` has it now, when that differs from `next` (the zone
+    /// changed since it was computed). In an unchanged zone no slot lies between the save and `next`, so the first one
+    /// after `now` is `next` itself. Intervals and runs already due give `None`.
+    pub fn rezoned<Tz: TimeZone>(
+        &self,
+        next: DateTime<Utc>,
+        now: DateTime<Utc>,
+        tz: &Tz,
+    ) -> Option<DateTime<Utc>> {
+        if matches!(self, Schedule::Every { .. }) || next <= now {
+            return None;
+        }
+        self.next_after(now, tz).filter(|n| *n != next)
+    }
+
     /// The schedule in words, for the task list.
     pub fn label(&self) -> String {
         match self {
@@ -100,7 +132,12 @@ impl FromStr for Schedule {
             }
             "cron" => {
                 let pattern = rest.split_whitespace().collect::<Vec<_>>().join(" ");
-                parse_cron(&pattern)?;
+                let cron = parse_cron(&pattern)?;
+                // `0 9 31 2 *` parses but never comes: saved, it would sit "not scheduled" for good.
+                let from = Utc.with_ymd_and_hms(2000, 1, 1, 0, 0, 0).single();
+                if from.is_none_or(|from| cron.find_next_occurrence(&from, false).is_err()) {
+                    return Err("That cron expression never runs (no such date)".into());
+                }
                 Ok(Schedule::Cron(pattern))
             }
             _ => Err(format!("\"{}\" isn't a schedule", s.trim())),

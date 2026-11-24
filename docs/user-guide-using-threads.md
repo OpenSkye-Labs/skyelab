@@ -24,7 +24,9 @@ to a default account: no pick, no thread. Remove the project or its binding like
   store image files). Click one to view it large: **+** and **−** zoom, **Fit** fits it to the window again, and
   <kbd>Esc</kbd> or a click outside closes it.
 - **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
-  then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it.
+  then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it. Two or more letters that start a
+  model's name (`@son`, `@gpt-cod`) also list the thread's models above the files: picking one runs the thread on
+  that model from this send on, as the model chip would, and leaves no text in the prompt.
 - **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
   account's `commands/` folder (in its config dir) and the project's `.claude/commands/`. SkyeLab starts Claude
   with only your user settings, so a project command may not run. Codex has no slash commands.
@@ -33,8 +35,19 @@ to a default account: no pick, no thread. Remove the project or its binding like
 - **`#`** lists this project's other threads and the pull requests linked to them. Picking a thread adds a chip with
   its title and last reply (up to 2,000 characters); picking a pull request adds a chip with its link and the title
   of the thread it belongs to. Each chip is sent after your message as a code block, like a terminal excerpt; click
-  it to read the text, × to drop it. Only threads that ran on this composer's account, in a folder still bound to
+  it to read the text, × to drop it. Hover a thread or pull request chip for the same card its sidebar row shows. Only threads that ran on this composer's account, in a folder still bound to
   it, are listed, so another account's work never ends up in this account's prompt.
+- **Quote** a reply: select text in one of the agent's replies (drag over it, or double-click a word) and a small
+  **Quote** button shows where you let go. It adds the selection as a quote chip; the message sends it as a Markdown
+  quote (`> …`) before what you typed, so you can ask about exactly that part. Scrolling hides the button.
+- **Stash** a prompt for later: <kbd>⌘S</kbd> (<kbd>Ctrl+S</kbd> off macOS) sets aside what the composer holds (text,
+  files and chips) and empties it. A **Stash** tab with the count sits on the composer's top-right edge; click it (or
+  press <kbd>⌘S</kbd> in an empty composer) to list the stashed prompts, newest first. Click one, or pick it with
+  <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, to take it out of the stash and add it after what you have typed;
+  × deletes one. There is one stash for all projects and threads; it keeps the last 20 and survives restarts.
+  Restored into a thread on another account, a prompt comes back without its quote, terminal and diff-comment chips,
+  so one account's output never reaches another's agent. A restore that would pass 8 chips or 10 files is refused
+  and the entry stays in the stash.
 - **The model chip** (right of the composer: **Opus 5.5 High**) always names the model that will run. Until you pick
   one it shows the account's own default, with the tooltip **Account default model**: the model the thread's last run
   on the default reported, else the `model` in the account's Claude `settings.json` or Codex `config.toml` (SkyeLab reads only that
@@ -57,7 +70,10 @@ the folder's path) with the provider (**Claude** or **Codex**) and
 the account it runs on. While a turn runs, **Working for 1m 12s** above the composer counts how long, and while the
 composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
 ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
-**Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. Threads are saved, and opening an old one and sending a follow-up resumes the
+**Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. **Restart Agent Session**
+(command palette) ends it too, so your next message resumes the same session in a new agent process that loads the
+account's MCP servers, skills and plugins as they are now; while a turn runs it asks first. Like Stop, it ends the
+agent for everything else too: a parent agent can't message the thread any more. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
 another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
 event, and saves them in order once the store works again. Quitting before then loses them.
@@ -85,7 +101,7 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
 
 - **Search.** The field at the top of the sidebar filters the listed threads by title and by what was
   said in them (your prompts and the agent's answers, not tool output).
-- Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Threads and **Fork from here**:
+- Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Chat and **Fork from here**:
   [user-guide-threads.md](user-guide-threads.md).
 - **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**
   it. Archived threads move under **Archived** at the end of the list; click it to show them. Archive and delete
@@ -93,7 +109,7 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   you quit first). A thread that is working can't be archived or deleted (stop it first), and one with its own
   worktree can't be deleted until you discard the worktree.
 - **Manage a project** from the project filter: **Manage projects**, then the project, then **Rename**,
-  **Open in editor**, **Account bindings…** (opens Settings), **Import sessions…** or **Remove from SkyeLab**. **Switch to project** in the
+  **Open in editor**, **Project settings…** (the project's own new-thread defaults), **Account bindings…** (opens Settings), **Import sessions…** or **Remove from SkyeLab**. **Switch to project** in the
   palette narrows the list to that project. Removing never touches the folder or its
   files, and keeps the threads' history: add the same folder again and the project comes back with its threads. If
   agents are running in it, SkyeLab asks first, and removing stops them.
@@ -123,12 +139,23 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
   `$VISUAL`, else `$EDITOR`, else `code` or `zed` from your PATH. The editor gets a terminal's environment, never an
   account's config dir.
 
-The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one; its tab shows the account it runs
-as. In a terminal, <kbd>⌘D</kbd> (<kbd>Ctrl+Shift+D</kbd>) splits it: a second shell beside it in the same tab,
-on the folder's account, and <kbd>⌥⌘→</kbd>/<kbd>⌥⌘←</kbd> (<kbd>Ctrl+Alt+→/←</kbd>) move between the panes. A
-terminal belongs to the thread that was showing when you opened it: another thread hides it, and it comes back,
-still running, with its thread. Terminals opened with no thread showing stay with every thread. Terminals and their
-scrollback end when SkyeLab quits. <kbd>⌥⌘B</kbd> opens a browser tab for your dev server in the right panel.
+The bottom panel (<kbd>⌘J</kbd>) holds terminals. <kbd>⌥⌘T</kbd> opens a new one. Its tab shows what runs in front
+of the shell (`npm`, `vim`), else the folder's name, then the account it runs as. Double-click the title to rename the
+tab (<kbd>Enter</kbd> keeps it, <kbd>Esc</kbd> cancels, an empty name goes back to the automatic one). In a terminal,
+<kbd>⌘D</kbd> (<kbd>Ctrl+Shift+D</kbd>) splits the focused pane side by side and <kbd>⇧⌘D</kbd>
+(<kbd>Ctrl+Alt+Shift+D</kbd>) stacks a new one under it, each a new shell on that folder's account; splits nest.
+Drag the line between two panes to resize them. <kbd>⌥⌘→</kbd>/<kbd>⌥⌘←</kbd> (<kbd>Ctrl+Alt+→/←</kbd>) move between
+the panes. <kbd>⌘W</kbd> (<kbd>Ctrl+Shift+W</kbd>) closes the focused pane, and the tab with its last one; the × on
+the tab closes the whole tab. When a shell you close is still running a command, SkyeLab asks first; turn that off
+with **Terminal close confirmation** in Settings → General. A terminal belongs to the thread that was showing when you
+opened it: another thread hides it, and it comes back, still running, with its thread. Terminals opened with no
+thread showing stay with every thread.
+
+When SkyeLab starts again, each window reopens its terminal tabs with their splits, sizes and names, each pane in the
+folder its shell was last in. They are new shells: running programs and scrollback don't survive a quit, and no
+scrollback is written to disk. A thread's tabs open the first time that thread shows. Terminal text uses the code text
+size from Settings → Appearance, and its colors come from the theme. <kbd>⌥⌘B</kbd> opens a browser tab for your dev
+server in the right panel.
 
 A terminal runs as the folder's account: `claude` or `codex` typed there uses that account's config dir, and
 `gh` and `git push` over https use its GitHub login when it has one (without one, `gh` keeps your default login
@@ -150,22 +177,9 @@ press <kbd>⌘L</kbd> (<kbd>Ctrl+Shift+L</kbd>) or right-click and pick **Add to
 of the thread on screen as a chip (click it to read the text, × to drop it) and is sent after your message as a
 code block, up to 20,000 characters.
 
-### Agent browser tabs
+### Browser tabs
 
-An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read
-`browser_url`, run `browser_eval` (a JavaScript expression; the JSON result comes back, up to 64 KiB, within 10
-seconds) and take a `browser_screenshot` (a PNG of the visible page, at most 1600 px wide and 1 MiB; macOS and Linux, where it is untested so far; not yet on Windows). SkyeLab doesn't keep image bytes in its thread history: the tool row shows **Image (205 KB)**
-while the thread is open, and **Image (205 KB) not kept** after a restart. The same goes for any image or PDF a tool
-returns. Agents may only load http and https pages, including `localhost` dev servers, and never run scripts in a
-local file page. Each thread has one tab, titled **Agent browser**, with a bar saying the agent controls it:
-
-- **Take over** makes it your tab. The agent can't reach it any more; its next `browser_open` opens a new tab.
-- **Close** closes the tab.
-
-An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or another thread's tab. Its tab has private,
-in-memory cookies and storage, so it is not signed in to anything you are, and nothing it sets reaches your tabs.
-Take over reloads the page, which stops any script the agent left running. While the agent still has the tab,
-don't sign in to anything in it: the agent can read that page. macOS and Linux only.
+Browser tabs (yours and the ones agents open) are in [User guide: browser tabs](user-guide-browser.md).
 
 ### Delegated threads
 

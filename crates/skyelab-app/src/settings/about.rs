@@ -1,20 +1,14 @@
-//! Settings → About (T3's About): this build's version and the update check's switch.
+//! Settings → About (T3's About): this build's version and Check now.
 
 use super::{Settings, widgets};
 use crate::ui;
 use crate::updates::{self, UpdateStatus};
-use gpui::{AnyElement, Context, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _, button::Button, h_flex, switch::Switch,
-    v_flex,
-};
+use gpui::{AnyElement, Context, prelude::*};
+use gpui_component::{ActiveTheme as _, Disableable as _, Sizable as _, button::Button};
 
 impl Settings {
     pub(super) fn render_about(&self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme();
-        let muted = theme.muted_foreground;
         let u = cx.try_global::<updates::Updates>();
-        let enabled = u.is_none_or(|u| u.enabled);
         let status = u.map_or(UpdateStatus::Idle, |u| u.status.clone());
         let said = match &status {
             UpdateStatus::Idle => None,
@@ -26,59 +20,33 @@ impl Settings {
             )),
             UpdateStatus::Failed(e) => Some(format!("Couldn't check: {e}")),
         };
-        let text = |title: String, about: String| {
-            v_flex()
-                .flex_1()
-                .min_w_0()
-                .gap_0p5()
-                .child(
-                    div()
-                        .text_size(ui::BODY)
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .child(title),
-                )
-                .child(div().text_size(ui::META).text_color(muted).child(about))
-        };
-        let version = widgets::row(true, cx)
-            .flex()
-            .items_center()
-            .gap_4()
-            .child(text(
-                format!("SkyeLab {}", env!("CARGO_PKG_VERSION")),
-                said.unwrap_or_else(|| "Releases come from GitHub.".to_owned()),
+        let version = widgets::setting(
+            true,
+            &format!("SkyeLab {}", env!("CARGO_PKG_VERSION")),
+            &said.unwrap_or_else(|| "Releases come from GitHub.".to_owned()),
+            Button::new("about-check")
+                .outline()
+                .small()
+                .label("Check now")
+                .disabled(status == UpdateStatus::Checking)
+                .on_click(|_, _, cx| updates::check(true, cx)),
+            cx,
+        );
+        let brand = widgets::row(false, cx)
+            .gap_3()
+            .child(ui::grip_mark(gpui::px(28.), cx.theme().foreground))
+            .child(widgets::label(
+                "Every folder on its own account",
+                "SkyeLab binds each folder to one Claude or Codex login and never starts an agent under another.",
+                cx,
             ))
-            .child(
-                Button::new("about-check")
-                    .outline()
-                    .small()
-                    .label("Check now")
-                    .disabled(status == UpdateStatus::Checking)
-                    .on_click(|_, _, cx| updates::check(true, cx)),
-            )
             .into_any_element();
-        let switch = widgets::row(false, cx)
-            .flex()
-            .items_center()
-            .gap_4()
-            .child(text(
-                "Check for updates".to_owned(),
-                "On start, at most once a day, SkyeLab asks GitHub for its latest release. Nothing is sent but \
-                 the request, and nothing installs: Download opens the release page."
-                    .to_owned(),
-            ))
-            .child(
-                Switch::new("about-updates")
-                    .checked(enabled)
-                    .accessibility_label("Check for updates")
-                    .on_click(cx.listener(|_, on: &bool, _, cx| {
-                        updates::set_enabled(*on, cx).detach_and_log_err(cx);
-                        cx.notify();
-                    })),
-            )
-            .into_any_element();
-        h_flex()
-            .w_full()
-            .child(widgets::section("About", [version, switch], cx).w_full())
-            .into_any_element()
+        widgets::section(
+            "About",
+            "This build, and where releases come from.",
+            [version, brand],
+            cx,
+        )
+        .into_any_element()
     }
 }

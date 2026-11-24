@@ -12,9 +12,9 @@ toml.workspace = true
 dirs.workspace = true
 tempfile.workspace = true
 ignore.workspace = true
+chrono.workspace = true
 grep-searcher.workspace = true
 grep-regex.workspace = true
-chrono.workspace = true
 croner.workspace = true
 
 [dev-dependencies]

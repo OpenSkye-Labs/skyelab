@@ -13,6 +13,9 @@ mod changes_publish;
 mod changes_tree;
 mod changes_turns;
 mod child_slots;
+mod compare;
+mod compare_sidebar;
+mod compare_view;
 mod details_panel;
 mod devices;
 mod diff_comments;
@@ -36,8 +39,12 @@ mod onboarding;
 mod settings_tab;
 mod setup_flow;
 mod side_chat;
+mod terminal_close;
 mod terminal_launch;
 mod terminal_panel;
+mod terminal_restore;
+mod terminal_split;
+mod terminal_tab;
 mod terminals;
 pub(crate) mod usage_page;
 mod usage_page_render;
@@ -55,6 +62,7 @@ mod remote_answers;
 mod remote_queue;
 mod remote_thread;
 mod render;
+mod reopen;
 pub(crate) mod scheduled;
 mod scratch;
 mod scripts;
@@ -63,6 +71,8 @@ mod thread;
 use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
+mod ask_files;
+mod pr_actions;
 mod pr_watch;
 mod shell_card;
 mod surfaces;
@@ -76,12 +86,10 @@ mod subagent;
 mod thread_failure;
 mod thread_find;
 mod thread_model;
-mod thread_record;
 mod thread_render;
 mod thread_rows;
 mod thread_worktree;
 mod timeline_fold;
-mod timeline_keys;
 mod timeline_text;
 mod tool_cards;
 mod turn_files;
@@ -98,7 +106,7 @@ pub use github::{CodexBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task, WeakEntity,
-    Window, actions, div, prelude::*, px,
+    Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _,
@@ -115,24 +123,8 @@ use std::sync::{Arc, Mutex};
 use terminal_panel::TerminalPanel;
 use thread::ThreadView;
 
-actions!(
-    skyelab,
-    [
-        ToggleSidebar,
-        ToggleBottomPanel,
-        NewTerminal,
-        OpenSettings,
-        OpenBrowser,
-        AddProject,
-        NewThread,
-        OpenDevices,
-        ShowAllProjects,
-        GoBack,
-        GoForward,
-        SetUpAccounts,
-        OpenUsage
-    ]
-);
+mod actions;
+pub use actions::*;
 
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;
@@ -183,12 +175,14 @@ pub struct Workspace {
     _dock_events: Subscription,
     _details_events: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
+    terms: terminal_close::Terms,
     browsers: Vec<WeakEntity<BrowserPanel>>,
     /// Tests' fake page engine for agent tabs (see `browser_tabs`).
     #[cfg(test)]
     browser_engine: Option<browser_tabs::FakeEngineFactory>,
     /// Created on first open, then kept, so its form and section survive switching pages.
     settings: Option<Entity<Settings>>,
+    pub(crate) settings_open: bool,
     backend: Backend,
     pub(crate) store_error: Option<SharedString>,
     /// Where scratch threads' per-account folders go (`<data dir>/skyelab/scratch`).
@@ -241,6 +235,7 @@ pub struct Workspace {
     starts: remote::StartQueue,
     /// Archived threads are listed under their toggle row.
     show_archived: bool,
+    compare: compare::State,
     /// A project whose removal waits for the user's OK (it has running agents).
     pending_removal: Option<i64>,
     _dialog_input: Option<Subscription>,
@@ -353,10 +348,12 @@ impl Workspace {
             _dock_events,
             _details_events,
             terminals: Vec::new(),
+            terms: Default::default(),
             browsers: Vec::new(),
             #[cfg(test)]
             browser_engine: None,
             settings: None,
+            settings_open: false,
             backend,
             store_error: None,
             scratch_root: dirs::data_dir().map(|d| d.join("skyelab").join("scratch")),
@@ -394,6 +391,7 @@ impl Workspace {
             env: Default::default(),
             starts: remote::StartQueue::new(),
             show_archived: false,
+            compare: Default::default(),
             pending_removal: None,
             _dialog_input: None,
             thread_search: None,
@@ -420,24 +418,6 @@ impl Workspace {
         this.register_window(window, cx);
         this
     }
-
-    fn toggle(&mut self, at: DockPlacement, window: &mut Window, cx: &mut Context<Self>) {
-        self.dock
-            .update(cx, |dock, cx| dock.toggle_dock(at, window, cx));
-    }
-
-    fn toggle_sidebar(&mut self, _: &ToggleSidebar, window: &mut Window, cx: &mut Context<Self>) {
-        self.toggle(DockPlacement::Left, window, cx);
-    }
-
-    fn toggle_bottom(
-        &mut self,
-        _: &ToggleBottomPanel,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.toggle(DockPlacement::Bottom, window, cx);
-    }
 }
 
 impl Focusable for Workspace {
@@ -456,6 +436,8 @@ mod browser_agent_cap_test;
 mod browser_agent_review_test;
 #[cfg(all(test, unix))]
 mod browser_agent_test;
+#[cfg(all(test, unix))]
+mod browser_controls_test;
 #[cfg(test)]
 mod browser_tests;
 #[cfg(test)]
@@ -482,6 +464,14 @@ mod codex_thread_test;
 mod commit_hook_env_test;
 #[cfg(test)]
 mod commit_snapshot_test;
+#[cfg(all(test, unix))]
+mod compare_base_test;
+#[cfg(all(test, unix))]
+mod compare_cap_test;
+#[cfg(test)]
+mod compare_pin_test;
+#[cfg(all(test, unix))]
+mod compare_test;
 #[cfg(test)]
 mod delegation_test;
 #[cfg(test)]
@@ -529,11 +519,15 @@ mod generate_text_test;
 #[cfg(test)]
 mod image_viewer_test;
 #[cfg(all(test, unix))]
+mod import_refused_test;
+#[cfg(all(test, unix))]
 mod import_sessions_test;
 #[cfg(all(test, unix))]
 mod launch_rebind_test;
 #[cfg(test)]
 mod layout_test;
+#[cfg(all(test, unix))] // the fake claude is a shell script
+mod login_banner_test;
 #[cfg(test)]
 mod long_thread_test;
 #[cfg(test)]
@@ -598,8 +592,8 @@ mod scratch_test;
 mod scripts_env_test;
 #[cfg(test)]
 mod scripts_palette_test;
-#[cfg(all(test, unix))]
-mod settings_reopen_stale_test;
+#[cfg(test)]
+mod settings_modal_test;
 #[cfg(test)]
 mod sidebar_tests;
 #[cfg(all(test, unix))] // the fake agent is a shell script
@@ -610,6 +604,8 @@ mod single_view_test;
 mod stale_idle_test;
 #[cfg(test)]
 mod stale_status_test;
+#[cfg(all(test, unix))]
+mod terminal_close_test;
 #[cfg(test)]
 mod terminal_context_test;
 #[cfg(test)]
@@ -620,8 +616,12 @@ mod terminal_link_subdir_test;
 mod terminal_link_test;
 #[cfg(test)]
 mod terminal_owner_test;
+#[cfg(all(test, unix))]
+mod terminal_restore_test;
 #[cfg(test)]
 mod terminal_split_test;
+#[cfg(all(test, unix))]
+mod terminal_title_test;
 #[cfg(test)]
 mod tests;
 #[cfg(all(test, unix))]

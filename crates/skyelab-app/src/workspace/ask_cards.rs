@@ -16,6 +16,7 @@ use gpui_component::{
     v_flex,
 };
 use skyelab_agent::Decision;
+pub(super) use skyelab_agent::timeline::cards::questions;
 use std::collections::BTreeSet;
 
 /// The option index that means "Other" (typed text) in a question draft.
@@ -26,39 +27,8 @@ pub(super) const OTHER: usize = usize::MAX;
 pub(super) struct QuestionDraft {
     pub(super) picked: Vec<BTreeSet<usize>>,
     pub(super) other: Vec<Option<gpui::Entity<gpui_component::input::InputState>>>,
-}
-
-/// One question of an AskUserQuestion input.
-pub(super) struct Question {
-    pub(super) header: String,
-    pub(super) question: String,
-    pub(super) options: Vec<(String, String)>,
-    pub(super) multi: bool,
-}
-
-pub(super) fn questions(input: &serde_json::Value) -> Vec<Question> {
-    input["questions"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|q| Question {
-            header: q["header"].as_str().unwrap_or_default().to_owned(),
-            question: q["question"].as_str().unwrap_or_default().to_owned(),
-            options: q["options"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|o| {
-                    let label = o["label"].as_str()?.to_owned();
-                    Some((
-                        label,
-                        o["description"].as_str().unwrap_or_default().to_owned(),
-                    ))
-                })
-                .collect(),
-            multi: q["multiSelect"] == true,
-        })
-        .collect()
+    /// Files attached to each question's answer (T3's question attachments); the agent gets their paths.
+    pub(super) files: Vec<Vec<std::path::PathBuf>>,
 }
 
 /// The label an answered question or plan keeps.
@@ -132,6 +102,7 @@ pub(super) fn render_questions<V: ItemsView>(
         return settled_row(a, &title, d, cx);
     }
     let answerable = this.can_answer_questions(cx);
+    let attachable = answerable && this.can_attach_answer_files(cx);
     let mut blocks = Vec::new();
     for (qi, q) in qs.iter().enumerate() {
         let picked = this
@@ -143,6 +114,13 @@ pub(super) fn render_questions<V: ItemsView>(
         } else {
             None
         };
+        let attach = attachable.then(|| {
+            let files = this
+                .draft(&a.id)
+                .and_then(|d| d.files.get(qi).cloned())
+                .unwrap_or_default();
+            super::ask_files::answer_files(&a.id, qi, &files, cx).into_any_element()
+        });
         let theme = cx.theme();
         let mut rows = Vec::new();
         let choices = q
@@ -255,7 +233,8 @@ pub(super) fn render_questions<V: ItemsView>(
                         .child(q.question.clone()),
                 )
                 .children(rows)
-                .children(other.map(|input| div().pl_7().child(Input::new(&input).small()))),
+                .children(other.map(|input| div().pl_7().child(Input::new(&input).small())))
+                .children(attach),
         );
     }
     let actions = if answerable {

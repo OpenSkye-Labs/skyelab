@@ -1,188 +1,229 @@
-//! The Settings page's frame: the section nav on the left, the header, and the chosen section.
+//! The Settings modal's frame (T3's settings modal): the nav on the left, a breadcrumb header with Restore defaults
+//! and close, and the chosen section in a centered column.
 
 use super::*;
-use gpui_component::{Icon, IconName};
+use gpui_component::{Icon, IconName, h_flex, v_flex};
+use gpui_kit_assets::IconName as Lucide;
 
-/// A Settings section, picked in the page's left nav (T3's settings routes).
+/// A Settings section, picked in the nav (T3's settings routes).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Section {
+    General,
+    Appearance,
+    Chat,
+    Diffs,
+    Keys,
     #[default]
     Accounts,
-    GitHub,
-    Sharing,
-    Threads,
     Scheduled,
     Usage,
-    Keys,
-    Appearance,
+    Projects,
+    SourceControl,
+    Worktrees,
+    Sharing,
     About,
 }
 
+/// The nav's groups, in order: a `None` title is an ungrouped run (T3: top items, then Agents, Code, Connections,
+/// then the bottom items).
+pub(super) const GROUPS: [(Option<&str>, &[Section]); 5] = [
+    (
+        None,
+        &[
+            Section::General,
+            Section::Appearance,
+            Section::Chat,
+            Section::Diffs,
+            Section::Keys,
+        ],
+    ),
+    (
+        Some("Agents"),
+        &[Section::Accounts, Section::Scheduled, Section::Usage],
+    ),
+    (
+        Some("Code"),
+        &[
+            Section::Projects,
+            Section::SourceControl,
+            Section::Worktrees,
+        ],
+    ),
+    (Some("Connections"), &[Section::Sharing]),
+    (None, &[Section::About]),
+];
+
 impl Section {
-    pub const ALL: [Section; 9] = [
+    #[cfg(test)]
+    pub const ALL: [Section; 13] = [
+        Section::General,
+        Section::Appearance,
+        Section::Chat,
+        Section::Diffs,
+        Section::Keys,
         Section::Accounts,
-        Section::GitHub,
-        Section::Sharing,
-        Section::Threads,
         Section::Scheduled,
         Section::Usage,
-        Section::Keys,
-        Section::Appearance,
+        Section::Projects,
+        Section::SourceControl,
+        Section::Worktrees,
+        Section::Sharing,
         Section::About,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Section::Accounts => "Accounts & bindings",
-            Section::GitHub => "GitHub",
-            Section::Sharing => "Sharing",
-            Section::Threads => "Threads",
+            Section::General => "General",
+            Section::Appearance => "Appearance",
+            Section::Chat => "Chat",
+            Section::Diffs => "Diffs & pull requests",
+            Section::Keys => "Keybindings",
+            Section::Accounts => "Accounts",
             Section::Scheduled => "Scheduled tasks",
             Section::Usage => "Usage",
-            Section::Keys => "Keyboard shortcuts",
-            Section::Appearance => "Appearance",
+            Section::Projects => "Projects & folders",
+            Section::SourceControl => "Source control",
+            Section::Worktrees => "Worktrees",
+            Section::Sharing => "Sharing & access",
             Section::About => "About",
         }
     }
 
-    /// How settings.toml names it.
     pub fn key(self) -> &'static str {
         match self {
+            Section::General => "general",
+            Section::Appearance => "appearance",
+            Section::Chat => "chat",
+            Section::Diffs => "diffs",
+            Section::Keys => "keys",
             Section::Accounts => "accounts",
-            Section::GitHub => "github",
-            Section::Sharing => "sharing",
-            Section::Threads => "threads",
             Section::Scheduled => "scheduled",
             Section::Usage => "usage",
-            Section::Keys => "keys",
-            Section::Appearance => "appearance",
+            Section::Projects => "projects",
+            Section::SourceControl => "source-control",
+            Section::Worktrees => "worktrees",
+            Section::Sharing => "sharing",
             Section::About => "about",
         }
     }
 
-    pub fn parse(key: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|s| s.key() == key)
+    pub(super) fn icon(self) -> Icon {
+        let lucide = |i: Lucide| Some(Icon::new(i));
+        let icon = match self {
+            Section::Keys => lucide(Lucide::Keyboard),
+            Section::Scheduled => lucide(Lucide::Clock),
+            Section::Chat => lucide(Lucide::MessagesSquare),
+            Section::Diffs => lucide(Lucide::FileDiff),
+            Section::SourceControl => lucide(Lucide::GitBranch),
+            Section::Worktrees => lucide(Lucide::FolderGit2),
+            Section::Projects => lucide(Lucide::Folder),
+            _ => None,
+        };
+        icon.unwrap_or_else(|| {
+            Icon::new(match self {
+                Section::General => IconName::Settings2,
+                Section::Appearance => IconName::Palette,
+                Section::Accounts => IconName::CircleUser,
+                Section::Usage => IconName::ChartPie,
+                Section::Sharing => IconName::Globe,
+                _ => IconName::Info,
+            })
+        })
     }
 
-    fn icon(self) -> Icon {
-        Icon::new(match self {
-            Section::Accounts => IconName::CircleUser,
-            Section::GitHub => IconName::Github,
-            Section::Sharing => IconName::Globe,
-            Section::Threads => IconName::Bot,
-            Section::Scheduled => return Icon::new(gpui_kit_assets::IconName::Clock),
-            Section::Usage => IconName::ChartPie,
-            Section::Keys => return Icon::new(gpui_kit_assets::IconName::Keyboard),
-            Section::Appearance => IconName::Palette,
-            Section::About => IconName::Info,
-        })
+    /// Whether Restore defaults has anything to reset here.
+    pub(super) fn has_defaults(self) -> bool {
+        matches!(
+            self,
+            Section::General
+                | Section::Appearance
+                | Section::Chat
+                | Section::Diffs
+                | Section::Worktrees
+        )
     }
 }
 
 impl Settings {
-    /// The page's left column (T3's settings nav): 240 wide on the sidebar surface, one row per section.
-    fn render_nav(&self, window: &Window, cx: &mut Context<Self>) -> gpui::AnyElement {
+    /// Shows `section` (a nav click, a deep link, or the modal opening).
+    pub fn show(&mut self, section: Section, _: &mut Window, cx: &mut Context<Self>) {
+        if self.section != section {
+            self.section = section;
+            self.error = self.locked.clone();
+            self.threads_error = None;
+            self.error_open = false;
+        }
+        cx.notify();
+    }
+
+    fn render_header(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let theme = cx.theme();
-        let rows = Section::ALL.map(|section| {
-            crate::ui::row(
-                SharedString::from(format!("settings-nav-{}", section.key())),
-                section == self.section,
-                theme,
-            )
-            .child(section.icon().size_4().text_color(theme.muted_foreground))
-            .child(div().flex_1().min_w_0().truncate().child(section.label()))
-            .on_click(move |_, window, cx| {
-                window.dispatch_action(
-                    Box::new(crate::workspace::OpenSettingsSection { section }),
-                    cx,
-                )
-            })
-        });
-        div()
-            .flex()
-            .flex_col()
+        let muted = theme.muted_foreground;
+        h_flex()
+            .h(gpui::px(52.))
             .flex_shrink_0()
-            .w(gpui::px(240.))
-            .h_full()
-            .bg(theme.sidebar)
-            .border_r_1()
+            .px_5()
+            .gap_3()
+            .border_b_1()
             .border_color(theme.border)
             .child(
-                crate::workspace::layout::page_header(window, cx)
-                    .border_b_0()
+                h_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap_2p5()
                     .text_size(crate::ui::BODY)
                     .font_weight(gpui::FontWeight::MEDIUM)
-                    .child("Settings"),
+                    .child(div().text_color(muted).child("Settings"))
+                    .child(div().text_color(muted.opacity(0.6)).child("/"))
+                    .child(div().truncate().child(self.section.label())),
             )
-            .child(div().flex().flex_col().gap_0p5().px_2().children(rows))
+            .when(self.section.has_defaults(), |d| {
+                d.child(
+                    Button::new("settings-restore")
+                        .ghost()
+                        .small()
+                        .icon(IconName::Undo2)
+                        .label("Restore defaults")
+                        .tooltip("Reset this section's settings")
+                        .on_click(
+                            cx.listener(|this, _, window, cx| this.restore_defaults(window, cx)),
+                        ),
+                )
+            })
+            .child(
+                Button::new("settings-close")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Close)
+                    .tooltip("Close (Esc)")
+                    .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Closed))),
+            )
             .into_any_element()
     }
 
     fn render_section(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let theme = cx.theme();
-        if self.section == Section::Sharing {
-            return match &self.remote {
-                Some(remote) => remote.clone().into_any_element(),
-                None => div()
-                    .size_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        crate::ui::EmptyState::new("Sharing isn't available")
-                            .hint("This window has no tailnet connection to share over."),
-                    )
-                    .into_any_element(),
-            };
-        }
-        let (muted, danger, ink_danger) = (
-            theme.muted_foreground,
-            theme.danger,
-            crate::ui::ink(theme, theme.danger),
-        );
         let body = match self.section {
-            Section::Accounts => div()
-                .flex()
-                .flex_col()
-                .gap_8()
-                .child(
-                    div()
-                        .text_size(crate::ui::BODY)
-                        .text_color(muted)
-                        .child("Every folder runs on the account it is bound to. SkyeLab never picks one for you."),
-                )
-                .children(self.error.clone().map(|e| {
-                    div()
-                        .id("settings-error")
-                        .px_4()
-                        .py_3()
-                        .rounded(crate::ui::RADIUS_LG)
-                        .bg(danger.opacity(0.1))
-                        .border_1()
-                        .border_color(danger.opacity(0.35))
-                        .text_size(crate::ui::BODY)
-                        .text_color(ink_danger)
-                        .child(e)
-                }))
-                .child(self.render_accounts(cx))
-                .child(self.render_bindings(cx))
-                .child(self.render_test(cx)),
-            Section::GitHub => div().child(self.render_github(cx)),
-            Section::Threads => div().child(self.render_threads(cx)),
-            Section::Scheduled => div().children(self.scheduled.clone()),
-            Section::Usage => div().children(self.usage.clone()),
-            Section::Keys => div().child(self.render_keys(cx)),
-            Section::Sharing => unreachable!("returned above"),
-            Section::About => div().child(self.render_about(cx)),
-            Section::Appearance => div().child(widgets::section(
-                "Appearance",
-                [widgets::row(true, cx)
-                    .text_size(crate::ui::BODY)
-                    .text_color(muted)
-                    .child("SkyeLab follows the system's light or dark appearance. More choices come later.")
-                    .into_any_element()],
-                cx,
-            )),
+            Section::Sharing => {
+                return match &self.remote {
+                    Some(remote) => remote.clone().into_any_element(),
+                    None => self.centered_empty(
+                        "Sharing isn't available",
+                        "This window has no tailnet connection to share over.",
+                    ),
+                };
+            }
+            Section::General => self.render_general(cx),
+            Section::Appearance => self.render_appearance(cx),
+            Section::Chat => self.render_chat(cx),
+            Section::Diffs => self.render_diffs(cx),
+            Section::Keys => self.render_keys(cx).into_any_element(),
+            Section::Accounts => self.render_accounts(cx),
+            Section::Usage => div().children(self.usage.clone()).into_any_element(),
+            Section::Scheduled => div().children(self.scheduled.clone()).into_any_element(),
+            Section::Projects => self.render_projects(cx),
+            Section::SourceControl => self.render_github(cx),
+            Section::Worktrees => self.render_worktrees(cx),
+            Section::About => self.render_about(cx),
         };
         div()
             .id("settings-body")
@@ -190,45 +231,44 @@ impl Settings {
             .min_h_0()
             .overflow_y_scroll()
             .child(
-                // T3's settings page: 896 wide, 24 padding.
-                div()
+                // T3's settings column: centered, 780 wide.
+                v_flex()
                     .w_full()
-                    .max_w(crate::ui::PAGE_MAX_W)
+                    .max_w(gpui::px(780.))
                     .mx_auto()
-                    .px_6()
-                    .pt_6()
+                    .px_8()
+                    .pt_7()
                     .pb_12()
+                    .gap_8()
+                    .children(self.render_error(cx))
+                    .children(
+                        matches!(self.section, Section::Chat | Section::Worktrees)
+                            .then(|| self.render_scope(cx))
+                            .flatten(),
+                    )
                     .child(body),
             )
+            .into_any_element()
+    }
+
+    fn centered_empty(&self, title: &'static str, hint: &'static str) -> gpui::AnyElement {
+        div()
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(crate::ui::EmptyState::new(title).hint(hint))
             .into_any_element()
     }
 }
 
 impl Render for Settings {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::debug_renders::count("Settings");
-        let theme = cx.theme();
-        let header = crate::ui::header(theme)
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .flex()
-                    .gap_2()
-                    .text_size(crate::ui::BODY)
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(div().text_color(theme.muted_foreground).child("Settings"))
-                    .child(
-                        div()
-                            .text_color(theme.muted_foreground.opacity(0.6))
-                            .child("/"),
-                    )
-                    .child(div().truncate().child(self.section.label())),
-            )
-            .child(crate::workspace::layout::panel_toggles(window, cx));
-        let nav = self.render_nav(window, cx);
+        let nav = self.render_nav(cx);
+        let header = self.render_header(cx);
         let section = self.render_section(cx);
-        let theme = cx.theme();
+        let (bg, fg) = (cx.theme().background, cx.theme().foreground);
         div()
             .id("settings")
             .key_context(CONTEXT)
@@ -236,9 +276,13 @@ impl Render for Settings {
             // The form's keys act only where the form shows.
             .when(self.section == Section::Accounts, |d| {
                 d.on_action(cx.listener(Self::save_account))
-                    .on_action(cx.listener(Self::cancel_edit))
-                    .on_action(cx.listener(Self::bind_folder))
             })
+            .when(
+                matches!(self.section, Section::Accounts | Section::Projects),
+                |d| d.on_action(cx.listener(Self::bind_folder)),
+            )
+            .on_action(cx.listener(Self::cancel_edit))
+            .on_action(cx.listener(Self::focus_search))
             .on_action(cx.listener(Self::edit_account))
             .on_action(cx.listener(Self::remove_account))
             .on_action(cx.listener(Self::gh_log_in))
@@ -246,13 +290,11 @@ impl Render for Settings {
             .on_action(cx.listener(Self::reconfirm_binding))
             .size_full()
             .flex()
-            .bg(theme.background)
-            .text_color(theme.foreground)
+            .bg(bg)
+            .text_color(fg)
             .child(nav)
             .child(
-                div()
-                    .flex()
-                    .flex_col()
+                v_flex()
                     .flex_1()
                     .min_w_0()
                     .h_full()

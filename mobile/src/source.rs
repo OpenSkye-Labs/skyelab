@@ -4,6 +4,8 @@
 
 use std::collections::HashMap;
 
+use skyelab_agent::timeline::Record;
+use skyelab_agent::{Block, Decision, Event};
 use skyelab_protocol::{PermissionAnswer, Project, Thread, ThreadEvent};
 
 /// The connection to the environment, as the screens show it.
@@ -53,11 +55,12 @@ pub trait ThreadSource {
     /// The last failed request, in words.
     fn error(&self) -> Option<String>;
     fn projects(&self) -> Vec<Project>;
-    /// The threads of a project, once [`ThreadSource::load_threads`] has fetched them.
-    fn threads(&self, project_id: i64) -> Vec<Thread>;
+    /// Every project's threads, once [`ThreadSource::load_threads`] has fetched them.
+    fn threads(&self) -> Vec<Thread>;
     /// A watched thread's events, in seq order. Borrowed: the thread screen reads it every frame.
     fn events(&self, thread_id: i64) -> &[ThreadEvent];
-    fn load_threads(&mut self, project_id: i64);
+    /// Lists every project's threads again (their status and previews change; the protocol pushes neither).
+    fn load_threads(&mut self);
     /// Follow this thread's events live, and stop following any other.
     fn watch(&mut self, thread_id: i64);
     fn send_message(&mut self, thread_id: i64, text: &str);
@@ -70,6 +73,13 @@ pub trait ThreadSource {
         _decision: PermissionAnswer,
     ) {
     }
+    /// Answers an AskUserQuestion the thread's agent waits on: one list of picked labels per question.
+    fn answer_questions(&mut self, _thread_id: i64, _request_id: &str, _answers: Vec<Vec<String>>) {
+    }
+    /// Whether the machine speaks protocol 1.`minor` or later (questions need 1.4).
+    fn speaks(&self, _minor: u32) -> bool {
+        true
+    }
     /// Pins the name to `node_id` and connects, if that is still the node the `NodeChanged` warning shows.
     fn trust(&mut self, _node_id: &str) {}
     /// Where background results arrive. Keep receiving from it and pass each to `apply`. `None`: the source
@@ -80,8 +90,8 @@ pub trait ThreadSource {
     fn apply(&mut self, _msg: Msg) {}
 }
 
-/// Canned in-memory data, so the screens can be checked without an environment. Payloads use the desktop store's
-/// kinds: `prompt` (a JSON string) and `agent` (a `skyelab_agent::Event`, externally tagged).
+/// Canned in-memory data, so the screens can be checked without an environment. Rows are built by the desktop's own
+/// serializer ([`Record::to_row`]), never by hand.
 pub struct FakeSource {
     projects: Vec<Project>,
     threads: Vec<Thread>,
@@ -90,71 +100,67 @@ pub struct FakeSource {
 
 impl FakeSource {
     pub fn new() -> Self {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
         let project = |id, name: &str| Project {
             id,
             name: name.into(),
             path: format!("/Users/me/code/{name}"),
         };
-        let thread = |id, project_id, title: &str, account: &str, status: &str| Thread {
+        let thread = |id, project_id, title: &str, status: &str, ago_h: i64| Thread {
             id,
             project_id,
             title: title.into(),
-            account_id: account.into(),
-            account_label: None,
+            account_id: if id == 3 { "personal" } else { "work" }.into(),
+            account_label: (id != 3).then(|| "Work".into()),
             status: status.into(),
-            pinned: false,
-            preview: None,
-            created_at: 0,
-            updated_at: 0,
+            pinned: id == 2,
+            preview: Some(
+                [
+                    "Fixed the redirect: login keeps `next`.",
+                    "Dark mode follows the system now.",
+                ][id as usize % 2]
+                    .into(),
+            ),
+            created_at: now - ago_h * 3_600_000,
+            updated_at: now - ago_h * 3_600_000,
         };
         let mut fake = Self {
             projects: vec![project(1, "skyelab"), project(2, "website")],
             threads: vec![
-                thread(1, 1, "Fix login redirect", "work", "running"),
-                thread(2, 1, "Add dark mode", "work", "idle"),
-                thread(3, 1, "Bump tokio", "personal", "done"),
-                thread(4, 2, "Rewrite the pricing page", "work", "idle"),
+                thread(1, 1, "Fix login redirect", "running", 0),
+                thread(2, 1, "Add dark mode", "idle", 2),
+                thread(3, 1, "Bump tokio", "done", 30),
+                thread(4, 2, "Rewrite the pricing page", "idle", 24 * 9),
             ],
             events: HashMap::new(),
         };
-        fake.prompt(
-            1,
-            "The login page redirects to / instead of the page I came from.",
-        );
-        fake.agent_text(
-            1,
-            "Found it 🔍 the redirect drops the `next` query parameter. Fixing auth/login.rs 🦀✅",
-        );
-        fake.push(
-            1,
-            "agent",
-            serde_json::json!({"Assistant": {"content": [
-                {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "cargo test -p auth"}}
-            ]}}),
-        );
+        for r in crate::demo::thread_one() {
+            fake.record(1, &r);
+        }
         fake.prompt(2, "Add a dark theme that follows the system setting.");
         fake
     }
 
     fn prompt(&mut self, thread_id: i64, text: &str) {
-        self.push(thread_id, "prompt", serde_json::json!(text));
+        self.record(thread_id, &Record::Prompt(text.into()));
     }
 
     fn agent_text(&mut self, thread_id: i64, text: &str) {
-        self.push(
-            thread_id,
-            "agent",
-            serde_json::json!({"Assistant": {"content": [{"type": "text", "text": text}]}}),
-        );
+        let text = text.into();
+        let content = vec![Block::Text { text }];
+        self.record(thread_id, &Record::Agent(Event::Assistant { content }));
     }
 
-    fn push(&mut self, thread_id: i64, kind: &str, payload: serde_json::Value) {
+    fn record(&mut self, thread_id: i64, record: &Record) {
+        let (kind, payload_json) = record.to_row();
         let events = self.events.entry(thread_id).or_default();
         events.push(ThreadEvent {
             thread_id,
             seq: events.len() as i64 + 1,
             kind: kind.into(),
-            payload_json: payload.to_string(),
+            payload_json,
             created_at: 0,
         });
     }
@@ -163,6 +169,14 @@ impl FakeSource {
         if let Some(t) = self.threads.iter_mut().find(|t| t.id == thread_id) {
             t.status = status.into();
         }
+    }
+
+    fn resolve(&mut self, thread_id: i64, id: &str, decision: Decision) {
+        let id = id.into();
+        self.record(
+            thread_id,
+            &Record::Agent(Event::PermissionResolved { id, decision }),
+        );
     }
 }
 
@@ -185,19 +199,15 @@ impl ThreadSource for FakeSource {
         self.projects.clone()
     }
 
-    fn threads(&self, project_id: i64) -> Vec<Thread> {
-        self.threads
-            .iter()
-            .filter(|t| t.project_id == project_id)
-            .cloned()
-            .collect()
+    fn threads(&self) -> Vec<Thread> {
+        self.threads.clone()
     }
 
     fn events(&self, thread_id: i64) -> &[ThreadEvent] {
         self.events.get(&thread_id).map_or(&[], Vec::as_slice)
     }
 
-    fn load_threads(&mut self, _project_id: i64) {}
+    fn load_threads(&mut self) {}
 
     fn watch(&mut self, _thread_id: i64) {}
 
@@ -212,9 +222,15 @@ impl ThreadSource for FakeSource {
     }
 
     fn answer_permission(&mut self, thread_id: i64, request_id: &str, decision: PermissionAnswer) {
-        let decision = serde_json::to_value(decision).unwrap_or_default();
-        let payload =
-            serde_json::json!({ "PermissionResolved": { "id": request_id, "decision": decision } });
-        self.push(thread_id, "agent", payload);
+        let decision = match decision {
+            PermissionAnswer::AllowOnce => Decision::AllowOnce,
+            PermissionAnswer::AllowThread => Decision::AllowThread,
+            PermissionAnswer::Deny => Decision::Deny,
+        };
+        self.resolve(thread_id, request_id, decision);
+    }
+
+    fn answer_questions(&mut self, thread_id: i64, request_id: &str, _answers: Vec<Vec<String>>) {
+        self.resolve(thread_id, request_id, Decision::AllowOnce);
     }
 }

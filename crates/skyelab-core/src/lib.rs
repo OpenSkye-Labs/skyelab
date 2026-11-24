@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 mod app_settings;
+pub mod context;
 pub mod delegation;
 mod editor;
 pub mod schedule;
@@ -18,11 +19,16 @@ pub mod onboarding;
 pub mod process;
 pub mod prompt;
 pub mod scratch;
+pub mod snooze;
 pub use app_settings::{
-    AppSettings, ApprovedDevice, DiffSettings, MAX_RECENT_ENVIRONMENTS, ScheduledSettings,
-    ThreadSettings, WindowLayout,
+    AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
+    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, TerminalSettings, ThreadSettings, WindowLayout,
 };
 pub mod terminal_context;
+pub mod terminal_layout;
+pub mod thread_defaults;
+#[cfg(test)]
+mod thread_defaults_test;
 pub mod update;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
@@ -501,3 +507,7 @@ mod onboarding_test;
 
 #[cfg(test)]
 mod update_test;
+
+#[cfg(test)]
+#[path = "context_test.rs"]
+mod context_test;

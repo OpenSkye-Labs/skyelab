@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use crate::publish::{checked_within, gh_command, invalid};
-use crate::remote::{PR_VIEW_LIMIT, review, rollup};
+use crate::remote::{PR_VIEW_LIMIT, head_sha, review, rollup};
 use crate::{Checks, Error, Result, Review, git, lossy, repo_root};
 
 /// The most rows one list keeps (and asks gh for).
@@ -30,6 +30,8 @@ pub struct PrRow {
     pub review: Review,
     /// gh's `updatedAt`, RFC 3339.
     pub updated_at: String,
+    /// The head commit the checks are for (`headRefOid`), when valid.
+    pub head: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -107,7 +109,8 @@ fn base_args(kind: &str, repo: &str, fields: &str) -> Vec<String> {
 }
 
 pub fn pr_list_args(repo: &str, filter: PrFilter) -> Vec<String> {
-    let fields = "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt";
+    let fields =
+        "number,title,url,author,isDraft,reviewDecision,statusCheckRollup,updatedAt,headRefOid";
     let mut args = base_args("pr", repo, fields);
     match filter {
         PrFilter::Mine => args.extend(["--author".into(), "@me".into()]),
@@ -173,10 +176,14 @@ fn rows(json: &[u8], what: &str) -> Result<Vec<Value>> {
     }
 }
 
-/// A string field, capped, without control or bidi-override characters (they could make a row read as something
-/// else). A body keeps its line breaks.
+/// A string field, capped, without control, bidi or zero-width characters (they could make a row read as something
+/// else, or hide text). A body keeps its line breaks.
 fn text(v: &Value, key: &str, max: usize) -> String {
-    let bidi = |c: char| matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}');
+    let bidi = |c: char| {
+        matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200B}'..='\u{200F}'
+            | '\u{061C}' | '\u{2060}' | '\u{FEFF}')
+            || (key != "body" && matches!(c, '\u{2028}' | '\u{2029}'))
+    };
     v[key]
         .as_str()
         .unwrap_or_default()
@@ -214,6 +221,7 @@ pub fn parse_pr_list(json: &[u8]) -> Result<Vec<PrRow>> {
                 checks: rollup(&v["statusCheckRollup"]).0,
                 review: review(v["reviewDecision"].as_str().unwrap_or_default()),
                 updated_at: text(v, "updatedAt", 64),
+                head: head_sha(v),
             })
         })
         .take(MAX_ROWS)

@@ -32,6 +32,8 @@ mod composer_queue;
 #[cfg(test)]
 #[path = "composer_queue_test.rs"]
 mod composer_queue_test;
+#[path = "composer_quote.rs"]
+mod composer_quote;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "composer_restore_test.rs"]
 mod composer_restore_test;
@@ -40,14 +42,27 @@ mod composer_restore_test;
 mod composer_review_test;
 #[path = "composer_send.rs"]
 mod composer_send;
+#[path = "composer_stash.rs"]
+pub(in crate::workspace) mod composer_stash;
+#[path = "composer_stash_view.rs"]
+mod composer_stash_view;
 #[path = "composer_state.rs"]
 mod composer_state;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "context_chips_test.rs"]
 mod context_chips_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "prompt_stash_test.rs"]
+mod prompt_stash_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "quote_selection_test.rs"]
+mod quote_selection_test;
 #[cfg(test)]
 #[path = "side_commands_test.rs"]
 mod side_commands_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "stash_account_test.rs"]
+mod stash_account_test;
 pub(in crate::workspace) use composer_machine::machine_name;
 
 #[cfg(test)]
@@ -90,6 +105,8 @@ impl ThreadView {
     ) -> AnyElement {
         let menu = self.composer.menu.as_ref();
         let menu_el = menu.map(|m| self.render_menu(m, cx));
+        let stash_menu = self.render_stash_menu(cx);
+        let stash_badge = self.render_stash_badge(cx);
         let picker = self.composer.picker_open.then(|| self.render_picker(cx));
         let attachments = self.render_attachments(cx);
         let contexts = self.render_contexts(cx);
@@ -147,6 +164,7 @@ impl ThreadView {
             }))
             .child(measure)
             .children(menu_el)
+            .children(stash_menu)
             .children(picker)
             .children(attachments)
             .children(contexts)
@@ -155,7 +173,10 @@ impl ThreadView {
                     .px_4()
                     .pt_3()
                     .text_size(ui::BODY)
-                    .when(menu.is_some(), |this| this.key_context(MENU_CONTEXT))
+                    .when(
+                        menu.is_some() || self.composer.stash_open.is_some(),
+                        |this| this.key_context(MENU_CONTEXT),
+                    )
                     .child(input),
             )
             .child(controls);
@@ -163,6 +184,7 @@ impl ThreadView {
             .w_full()
             .max_w(ui::CHAT_MAX_W)
             .children(queue)
+            .children(stash_badge)
             .child(card)
             .children(self.composer.notice.clone().map(|n| {
                 div()
@@ -384,6 +406,14 @@ impl ThreadView {
                 .filter_map(|(pos, &i)| Some((pos, items.get(i)?.clone())))
                 .collect::<Vec<_>>()
         });
+        let models_shown = rows
+            .as_ref()
+            .is_some_and(|r| r.iter().any(|(_, i)| i.model.is_some()));
+        let title = if models_shown {
+            "Models and files"
+        } else {
+            title
+        };
         let body: Vec<AnyElement> = match rows {
             None => vec![hint("Loading…", cx)],
             Some(rows) if rows.is_empty() => vec![hint(empty, cx)],
@@ -400,6 +430,13 @@ impl ThreadView {
                             .text_size(ui::BODY)
                             .when(selected, |this| this.bg(theme.foreground.opacity(0.09)))
                             .hover(|this| this.bg(theme.accent))
+                            .when(item.model.is_some(), |this| {
+                                this.child(
+                                    Icon::new(IconName::Bot)
+                                        .xsmall()
+                                        .text_color(theme.muted_foreground),
+                                )
+                            })
                             .child(
                                 div()
                                     .flex_shrink_0()

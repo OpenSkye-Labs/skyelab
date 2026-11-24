@@ -1,7 +1,7 @@
 //! Settings → Threads: the defaults new threads start with, from `settings.toml`, shared app-wide.
 
 use gpui::{App, AppContext as _, Global, Task};
-use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
+use skyelab_core::{AppSettings, DiffSettings, TerminalSettings, ThreadSettings};
 use std::path::PathBuf;
 
 /// The loaded Threads settings and the file they save to.
@@ -10,6 +10,8 @@ pub(crate) struct ThreadPrefs {
     pub settings: ThreadSettings,
     /// The Changes tab's toggles, saved under `[diff]`.
     pub diff: DiffSettings,
+    /// Settings → General's terminal switch, saved under `[terminal]`.
+    pub terminal: TerminalSettings,
 }
 
 impl Global for ThreadPrefs {}
@@ -24,7 +26,13 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
         path,
         settings: loaded.threads,
         diff: loaded.diff,
+        terminal: loaded.terminal,
     });
+}
+
+/// The settings.toml every preference saves to (`None` in tests and on an OS with no config dir).
+pub(crate) fn path(cx: &App) -> Option<PathBuf> {
+    cx.try_global::<ThreadPrefs>().and_then(|p| p.path.clone())
 }
 
 /// The settings now. With none installed (a test window), titles are off: no setting turned them on.
@@ -38,17 +46,24 @@ pub(crate) fn get(cx: &App) -> ThreadSettings {
     )
 }
 
-/// Uses `settings` from now on and saves them into the file as it is on disk (other settings untouched).
-pub(crate) fn save(settings: ThreadSettings, cx: &mut App) -> Task<anyhow::Result<()>> {
-    let path = cx.try_global::<ThreadPrefs>().and_then(|p| p.path.clone());
+/// Applies `change` to the settings now, and to the file's `[threads]` as it is on disk, so an outside edit to
+/// another field (a project table edited by hand) survives the save.
+pub(crate) fn edit(
+    change: impl Fn(&mut ThreadSettings) + Send + 'static,
+    cx: &mut App,
+) -> Task<anyhow::Result<()>> {
+    let mut next = get(cx);
+    change(&mut next);
+    let path = path(cx);
     cx.set_global(ThreadPrefs {
         path: path.clone(),
-        settings: settings.clone(),
+        settings: next,
         diff: get_diff(cx),
+        terminal: get_terminal(cx),
     });
     cx.background_spawn(async move {
         match path {
-            Some(p) => AppSettings::update(&p, |s| s.threads = settings).map(drop),
+            Some(p) => AppSettings::update(&p, |s| change(&mut s.threads)).map(drop),
             None => Ok(()),
         }
     })
@@ -69,6 +84,7 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
                 path: None,
                 settings: get(cx),
                 diff,
+                terminal: get_terminal(cx),
             });
             return Task::ready(Ok(()));
         }
@@ -77,6 +93,27 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
     cx.background_spawn(async move {
         match path {
             Some(p) => AppSettings::update(&p, |s| s.diff = diff).map(drop),
+            None => Ok(()),
+        }
+    })
+}
+
+/// The terminal settings now (the defaults with none installed: confirmation on).
+pub(crate) fn get_terminal(cx: &App) -> TerminalSettings {
+    cx.try_global::<ThreadPrefs>()
+        .map_or_else(TerminalSettings::default, |p| p.terminal)
+}
+
+/// Uses `terminal` from now on and saves it into the file as it is on disk (other settings untouched).
+pub(crate) fn save_terminal(terminal: TerminalSettings, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let path = path(cx);
+    if cx.try_global::<ThreadPrefs>().is_none() {
+        install(None, cx);
+    }
+    cx.global_mut::<ThreadPrefs>().terminal = terminal;
+    cx.background_spawn(async move {
+        match path {
+            Some(p) => AppSettings::update(&p, |s| s.terminal = terminal).map(drop),
             None => Ok(()),
         }
     })

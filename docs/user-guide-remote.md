@@ -33,7 +33,7 @@ you why it couldn't start (Tailscale not installed, not running, logged out, or 
 Only your own devices can connect: same Tailscale user, not tagged, and not this machine. Each one must also be
 allowed here once:
 
-- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and Settings → Sharing
+- The first time a device connects, the status bar reads **<device> (<you>) wants to connect**, and Settings → Sharing & access
   lists it under **Waiting for approval** with a code of four groups of four characters. The device shows the same code. Click
   **Allow** only if the codes match; any program on one of your devices can ask, and a different code means it isn't
   the app you just opened. **Deny** turns it down until sharing restarts here.
@@ -41,7 +41,7 @@ allowed here once:
   at once and forgets it; it has to ask again.
 - An approval is for one SkyeLab install on one machine. A reinstall, or another app on the same machine, asks again.
 
-Connected devices are listed in Settings → Sharing, each with a **Disconnect** button, which closes the connection at once.
+Connected devices are listed in Settings → Sharing & access, each with a **Disconnect** button, which closes the connection at once.
 A connected device can list projects and threads, start a thread in an existing project, send follow-ups,
 interrupt, answer a permission request, answer an agent's questions and approve or reject its plan (approving moves the
 thread out of Plan mode here, as a click does). Each is answered once the agent took it, or with why it couldn't
@@ -75,6 +75,10 @@ you replaced or renamed that machine. If your Tailscale says the machine isn't y
 so and nothing is sent to it. If the machine claims to be a different node than your Tailscale sees, the status says
 so and nothing is listed or sent after the handshake. After a reconnect nothing is asked of the machine until it is
 checked again, and a refusal clears its projects and threads from the window.
+
+On the phone, the first screen after connecting is the same flat thread list, and a thread shows the same timeline in
+compact rows: tap a "Worked for …" line, a shell command or a subagent card to open it. Questions, plans and
+permission requests wait above the message box with buttons big enough for a thumb.
 
 The mobile app remembers the machine for the name too, with the same **Trust it** warning ("This isn't the machine
 you connected to before"). It can't ask a local Tailscale, so it goes by the node id the machine reports about itself:

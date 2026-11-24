@@ -241,6 +241,8 @@ pub struct PrStatus {
     pub review: Review,
     /// The failing checks, at most [`MAX_FAILED_CHECKS`].
     pub failed: Vec<FailedCheck>,
+    /// The head commit these checks are for (a merge pins it); `None` when gh gave no valid sha.
+    pub head: Option<String>,
 }
 
 /// Whether `config_dir` holds a github.com login, read from gh's `hosts.yml` without running gh: an account that
@@ -255,7 +257,7 @@ pub fn pr_status(gh: &crate::GitHub, url: &str) -> Result<PrStatus> {
     if skyelab_core::github_pr_url(url).as_deref() != Some(url) {
         return Err(invalid("not a GitHub pull request link"));
     }
-    let fields = "state,isDraft,mergedAt,reviewDecision,statusCheckRollup";
+    let fields = "state,isDraft,mergedAt,reviewDecision,statusCheckRollup,headRefOid";
     let args = ["pr", "view", url, "--json", fields];
     // A gh that never answers (a keychain prompt, a dead network) is killed, so polls can't pile up behind it.
     let out = checked_within(
@@ -290,7 +292,15 @@ pub fn parse_pr_view(json: &[u8]) -> Result<PrStatus> {
         checks,
         review,
         failed,
+        head: head_sha(&v),
     })
+}
+
+/// gh's `headRefOid`, only when it is a full hex commit sha (gh's JSON is untrusted, and the sha becomes a gh arg).
+pub(crate) fn head_sha(v: &Value) -> Option<String> {
+    let sha = v["headRefOid"].as_str()?;
+    (matches!(sha.len(), 40 | 64) && sha.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| sha.to_owned())
 }
 
 /// gh's `statusCheckRollup` as one state, with the failing checks (at most [`MAX_FAILED_CHECKS`]): any failure wins,

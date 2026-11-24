@@ -2,7 +2,7 @@
 //! later rows), so a row's index can change under it; element ids and per-row state (markdown cache, selection, an
 //! open fold) are keyed by the row key instead, and stay with their row.
 
-use super::thread_model::Item;
+use super::Item;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Never reused, even by a list built again from the store, so old element state can't attach to a new row.
@@ -51,14 +51,14 @@ impl std::ops::DerefMut for Items {
     }
 }
 
-#[cfg(test)] // tests build lists directly
+// Tests build lists directly.
 impl PartialEq<Vec<Item>> for Items {
     fn eq(&self, other: &Vec<Item>) -> bool {
         self.items == *other
     }
 }
 
-#[cfg(test)] // tests build lists directly
+// Tests build lists directly.
 impl FromIterator<Item> for Items {
     fn from_iter<I: IntoIterator<Item = Item>>(iter: I) -> Self {
         let mut items = Items::default();
@@ -75,7 +75,7 @@ impl<'a> IntoIterator for &'a Items {
     }
 }
 
-#[cfg(test)] // tests build lists directly
+// Tests build lists directly.
 impl From<Vec<Item>> for Items {
     fn from(items: Vec<Item>) -> Self {
         items.into_iter().collect()

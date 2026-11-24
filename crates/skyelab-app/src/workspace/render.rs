@@ -6,18 +6,24 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         crate::debug_renders::count("Workspace");
         let ring = self.render_ring(window, cx);
+        let settings = self.settings_modal(window, cx);
         let theme = cx.theme();
         v_flex()
             .id("workspace")
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::toggle_sidebar))
+            .on_action(cx.listener(Self::open_compare))
+            .on_action(cx.listener(Self::toggle_compare_group))
+            .on_action(cx.listener(Self::keep_compare))
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::toggle_details))
             .on_action(cx.listener(Self::open_in_editor_with))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::split_terminal))
+            .on_action(cx.listener(Self::split_terminal_down))
+            .on_action(cx.listener(Self::close_terminal))
             .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
             .on_action(cx.listener(Self::new_window))
@@ -28,6 +34,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_issues))
             .on_action(cx.listener(Self::set_up_accounts))
             .on_action(cx.listener(Self::open_browser))
+            .on_action(cx.listener(Self::reopen_closed_view))
             .on_action(cx.listener(Self::pick_project))
             .on_action(cx.listener(Self::select_project))
             .on_action(cx.listener(Self::new_thread))
@@ -47,12 +54,14 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::go_back))
             .on_action(cx.listener(Self::go_forward))
             .on_action(cx.listener(Self::open_settings_section))
+            .on_action(cx.listener(Self::log_in_account))
             .on_action(cx.listener(Self::focus_next_area))
             .on_action(cx.listener(Self::focus_previous_area))
             .on_action(cx.listener(Self::focus_composer))
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| this.clear_ring(cx)))
             .map(|el| self.env_actions(el, cx))
             .map(|el| self.manage_actions(el, cx))
+            .map(|el| self.shelf_actions(el, cx))
             .map(|el| self.attention_actions(el, cx))
             .map(|el| self.file_actions(el, cx))
             .map(|el| self.scratch_actions(el, cx))
@@ -74,6 +83,7 @@ impl Render for Workspace {
                     .children(ring),
             )
             .child(self.render_status(cx))
+            .children(settings)
     }
 }
 

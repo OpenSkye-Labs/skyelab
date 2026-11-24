@@ -138,6 +138,9 @@ impl Draft {
         if prompt.is_empty() {
             return Err("Write the prompt each run sends.".into());
         }
+        if let Some(why) = skyelab_core::prompt::over_limit(prompt) {
+            return Err(why);
+        }
         let project = self
             .project
             .and_then(|id| projects.iter().find(|p| p.id == id))

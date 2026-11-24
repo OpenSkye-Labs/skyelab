@@ -15,6 +15,7 @@ fn diff_toggles_are_saved_and_reused(cx: &mut TestAppContext) {
             path: Some(settings.clone()),
             settings: Default::default(),
             diff: Default::default(),
+            terminal: Default::default(),
         })
     });
     let path = dir.path().to_path_buf();

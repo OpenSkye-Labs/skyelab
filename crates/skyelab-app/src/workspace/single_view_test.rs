@@ -11,7 +11,6 @@ use super::threads_test::{
     wait_until,
 };
 use super::*;
-use crate::settings::Section;
 use gpui::{TestAppContext, VisualTestContext};
 use gpui_component::dock::Panel as _;
 
@@ -184,9 +183,8 @@ fn back_and_forward_walk_the_pages(cx: &mut TestAppContext) {
     let f = fixture(true);
     let (ws, cx) = open_workspace(&f, cx);
     let a = project_thread(&f, &ws, cx);
-    cx.dispatch_action(OpenSettings);
+    ws.update_in(cx, |ws, window, cx| ws.show(Page::Welcome, window, cx));
     cx.run_until_parked();
-    assert_eq!(page(&ws, cx), Page::Settings(Section::Accounts));
 
     cx.dispatch_action(GoBack);
     cx.run_until_parked();
@@ -197,7 +195,7 @@ fn back_and_forward_walk_the_pages(cx: &mut TestAppContext) {
     cx.dispatch_action(GoForward);
     cx.dispatch_action(GoForward);
     cx.run_until_parked();
-    assert_eq!(page(&ws, cx), Page::Settings(Section::Accounts));
+    assert_eq!(page(&ws, cx), Page::Welcome);
 
     // A closed thread is skipped.
     ws.update_in(cx, |ws, window, cx| ws.close_thread(&a, window, cx));
@@ -210,35 +208,6 @@ fn back_and_forward_walk_the_pages(cx: &mut TestAppContext) {
         Page::Welcome,
         "the closed thread was skipped"
     );
-}
-
-#[gpui::test]
-fn settings_and_remote_are_pages_with_sections(cx: &mut TestAppContext) {
-    setup(cx);
-    let f = fixture(true);
-    let (ws, cx) = open_workspace(&f, cx);
-    cx.dispatch_action(OpenSettings);
-    cx.run_until_parked();
-    let settings = ws.read_with(cx, |ws, _| ws.settings.clone().expect("settings exists"));
-    assert_eq!(page(&ws, cx), Page::Settings(Section::Accounts));
-    ws.read_with(cx, |ws, cx| {
-        assert!(
-            ws.dock
-                .read(cx)
-                .panel(settings.entity_id().into())
-                .is_none(),
-            "settings is not a tab"
-        )
-    });
-    cx.dispatch_action(crate::remote::OpenRemote);
-    cx.run_until_parked();
-    assert_eq!(page(&ws, cx), Page::Settings(Section::Sharing));
-    assert_eq!(settings.read_with(cx, |s, _| s.section), Section::Sharing);
-    cx.dispatch_action(OpenSettingsSection {
-        section: Section::GitHub,
-    });
-    cx.run_until_parked();
-    assert_eq!(settings.read_with(cx, |s, _| s.section), Section::GitHub);
 }
 
 #[gpui::test]
@@ -255,15 +224,17 @@ fn the_view_is_saved_and_restored(cx: &mut TestAppContext) {
     ws.update_in(cx, |ws, window, cx| {
         ws.restore_layout(Some(path.clone()), None, window, cx)
     });
-    cx.dispatch_action(OpenSettings);
+    cx.dispatch_action(GoBack);
+    cx.dispatch_action(GoForward); // a page change schedules the save
     cx.run_until_parked();
     cx.executor()
         .advance_clock(std::time::Duration::from_secs(2));
+    let thread_key = format!("thread:{id}");
     wait_until(cx, "the saved view", |_| {
         skyelab_core::AppSettings::load(&path)
             .ok()
             .and_then(|s| s.saved_windows().into_iter().next())
-            .is_some_and(|w| w.view == "settings:accounts")
+            .is_some_and(|w| w.view == thread_key)
     });
 
     // With the thread's view gone (as at a fresh start), the saved view opens it from the store.

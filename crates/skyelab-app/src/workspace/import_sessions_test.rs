@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 const OURS: &str = "5f1c2a3b-0000-4000-8000-00000000c1a0";
 
 /// Writes the agent crate's Claude fixture as session `id` in `home`, recorded as run in `cwd`.
-fn session(home: &Path, cwd: &Path, id: &str) {
+pub(super) fn session(home: &Path, cwd: &Path, id: &str) {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../skyelab-agent/tests/fixtures/claude-transcript.jsonl");
     let text = std::fs::read_to_string(fixture).expect("fixture is in the repo");

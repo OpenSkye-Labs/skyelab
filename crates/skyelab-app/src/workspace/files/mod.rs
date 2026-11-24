@@ -30,7 +30,7 @@ actions!(skyelab, [OpenFilePicker, SearchFiles]);
 #[derive(Default)]
 pub(super) struct FileTabs {
     search: Option<WeakEntity<SearchPanel>>,
-    preview: Option<WeakEntity<PreviewPanel>>,
+    pub(super) preview: Option<WeakEntity<PreviewPanel>>,
     _search: Option<Subscription>,
     _preview: Option<Subscription>,
 }

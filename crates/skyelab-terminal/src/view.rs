@@ -400,8 +400,15 @@ impl Focusable for TerminalView {
 impl Render for TerminalView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
+        let ansi = cx.try_global::<crate::AnsiColors>().map(|a| {
+            if theme.mode.is_dark() {
+                a.dark
+            } else {
+                a.light
+            }
+        });
         let style = Style {
-            palette: Palette::new(theme),
+            palette: Palette::new(theme, ansi),
             font: font(theme.mono_font_family.clone()),
             font_size: theme.mono_font_size,
         };

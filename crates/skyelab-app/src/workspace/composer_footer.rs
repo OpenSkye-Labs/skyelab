@@ -134,6 +134,21 @@ impl ThreadView {
             .child(divider())
             .child(checkout)
             .child(div().flex_1())
+            .children(self.context_meter().map(|m| {
+                let color = super::thread::context_meter::meter_color(&m, theme);
+                let tip = m.tooltip();
+                h_flex()
+                    .id("footer-context")
+                    .debug_selector(|| "footer-context".into())
+                    .flex_shrink_0()
+                    .gap_1()
+                    .text_color(color)
+                    .child(m.text())
+                    .when(m.near_full(), |el| el.child("· /compact"))
+                    .tooltip(move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(tip.clone()).build(window, cx)
+                    })
+            }))
             .children(footer.changes.map(|n| {
                 Button::new("footer-changes")
                     .ghost()

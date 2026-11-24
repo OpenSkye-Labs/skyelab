@@ -10,7 +10,7 @@ bound account.
   manager). On a git repo, then:
   - **The branch** opens the branch picker (a worktree thread shows its own branch, which doesn't switch). When the
     branch tracks an upstream, the row ends with how far apart they are (**2 behind / 1 ahead**), counted after the
-    background fetch (Settings → Threads → **Fetch remote**). If that fetch failed, a line under the row says why.
+    background fetch (Settings → Diffs & pull requests → **Fetch remote**). If that fetch failed, a line under the row says why.
   - **Pull N commits** shows while the upstream is ahead. It runs **Pull** (below).
   - **Commit & push** opens a menu that says which GitHub login pushes (the thread's account's own `gh` login, read
     against `accounts.toml` as saved now; if the folder has been bound to another account since, it shows the refusal
@@ -25,9 +25,20 @@ bound account.
     (untracked files aren't counted), and opens Changes.
   - A worktree thread also has **Open terminal here** and **Discard worktree** (see **Worktrees**).
 - **Actions:** **Add project script** (or **Run project script** once the project has some) opens the project's
-  scripts.
-- **Lineage · N running:** the threads this thread's agent delegated that are working now, with how long they have
+  scripts. **Continue in Codex** (or **Continue in Claude**) starts a thread under the other provider with this one's
+  history (see [Threads](user-guide-threads.md#continue-in-the-other-provider)).
+- **Lineage · N running:** the thread this one was forked or continued from (**Forked from** / **Continued from**), then the threads this thread's agent delegated that are working now, with how long they have
   run. **Previous agents** lists the rest with how they ended. Click one to open it.
+- **MCP servers:** the servers the thread's latest agent process was given and what it reported for each:
+  **Connected**, **Starting**, **Failed** (hover for the error when the agent gave one), **Needs sign-in** or
+  **Cancelled**. It shows once an agent has started; a new process (a resume, **Restart Agent Session**) starts the
+  list over. See [Accounts](user-guide-accounts.md) for which servers load.
+- **Context:** how full the thread's context window is after the agent's newest model call: a bar, the percentage
+  and the tokens against the window (**170k / 200k**). The window is the one the agent reports (Claude Code at the end
+  of each turn, Codex with every reading), else the model's known window (200k for Claude, 1M for a `[1m]` model);
+  with neither, only the tokens show. From 80% the row turns amber (red from 90%) and says to send `/compact`, which
+  makes the agent summarize the conversation and free the window. The row appears once the agent has reported a
+  reading. The composer footer shows the same reading as **42% context** on its right, with **· /compact** from 80%.
 - **Usage:** every account in `accounts.toml`: its name and provider, and a small bar per window it reported
   (**5h**, **Weekly**) with the percentage used and how old that window's own reading is (**3m**). A window whose reset
   time has passed is dimmed and reads **reset**: its old percentage no longer holds. When the newest reading says the
@@ -39,13 +50,15 @@ bound account.
   `https://github.com/<owner>/<repo>/pull/<number>` link (anything else is refused) and keeps it on the thread; it
   then shows here and as the `#<number>` badge on the thread's sidebar row. The unlink button at the end of the row
   forgets the link (the pull request itself is untouched) without asking; the notice that follows has **Undo**.
+  While the PR is open, the merge icon before it opens **Pull request actions** (merge, approve, request changes,
+  comment; see the user guide's Pull requests section), and the row is read again after an action.
   Once read, the row shows the PR's state (**Open**, **Draft**, **Merged**, **Closed**, colored like its sidebar badge),
   then its checks (passing, running, or **N checks failing** with each failing check listed; click one to open its
   page) and its review (**Approved**, **Changes requested**, **Awaiting review**). SkyeLab reads it with the thread's
   account's own `gh`, only while the thread's folder is still bound to that account, one PR at a time: an open PR
   every 5 minutes, and the shown thread's again on window focus or when you open it if its last read is a minute old. A merged PR is never read again, across restarts too. A closed one is read again only when you open its thread or focus its window, at most once an hour, so a reopened PR turns Open
   (linking another PR starts over). An account with no GitHub login shows **Sign in to GitHub** (it opens
-  Settings → GitHub) and `gh` is never run for it. The sidebar badge takes the state's icon and color, with a small
+  Settings → Source control) and `gh` is never run for it. The sidebar badge takes the state's icon and color, with a small
   check mark, dot or cross for the checks while the PR is open.
 - **Editor:** **Open in <editor>** runs the editor described under **Open in editor**. The arrow lists the editors on
   your PATH (VS Code, Cursor, Zed, Windsurf, Sublime Text); picking one opens the folder in it and saves it as

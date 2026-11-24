@@ -81,10 +81,80 @@ pub enum Event {
         parent: String,
         content: Vec<Block>,
     },
+    /// MCP servers: with `launch`, the whole list of the agent process now running (what SkyeLab gave a new one, each
+    /// `starting`, then Claude's init `mcp_servers`), so earlier lists no longer count; without, an update of each server
+    /// it names (Codex's `mcpServer/startupStatus/updated`). `warning`: why the account's own servers were left out.
+    Mcp {
+        servers: Vec<McpServer>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        launch: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        warning: Option<String>,
+    },
+    /// How full the context window is: `tokens` the newest model call took in and wrote (Claude: a main assistant
+    /// message's input, cache and output tokens; Codex: `last.totalTokens`), `window` the model's window when the agent
+    /// says (Claude's result `modelUsage.*.contextWindow`, Codex's `modelContextWindow`). Claude sends the two on
+    /// different lines, so either may be missing; the newest of each holds.
+    Context {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tokens: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        window: Option<u64>,
+        /// The model the reading is for (Claude's `message.model`, or the `modelUsage` key): `modelUsage` keeps
+        /// listing every model the process used, so a window counts only for its own model. `None` from Codex, whose
+        /// window is always the running model's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model: Option<String>,
+    },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.
     Unknown(Value),
+}
+
+/// One MCP server's state as the agent reported it: Claude's `connected`, `failed`, `needs-auth` or `pending`, Codex's
+/// `starting`, `ready`, `failed` or `cancelled`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpServer {
+    pub name: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl McpServer {
+    /// What the details card says: the two agents' words for the same state read alike.
+    pub fn state(&self) -> &str {
+        match self.status.as_str() {
+            "connected" | "ready" => "Connected",
+            "failed" => "Failed",
+            "needs-auth" => "Needs sign-in",
+            "pending" | "starting" => "Starting",
+            "cancelled" => "Cancelled",
+            other => other,
+        }
+    }
+}
+
+/// Claude's init `mcp_servers` list as a report, or `None` when it names none.
+pub(crate) fn claude_mcp(init: &Value) -> Option<Event> {
+    let servers: Vec<McpServer> = init["mcp_servers"]
+        .as_array()?
+        .iter()
+        .filter_map(|s| {
+            Some(McpServer {
+                name: s["name"].as_str()?.to_owned(),
+                status: s["status"].as_str().unwrap_or("unknown").to_owned(),
+                error: s["error"].as_str().map(str::to_owned),
+            })
+        })
+        .collect();
+    // The whole list the process connected: it replaces what SkyeLab said it gave it.
+    (!servers.is_empty()).then_some(Event::Mcp {
+        servers,
+        launch: true,
+        warning: None,
+    })
 }
 
 fn one() -> u32 {
@@ -409,4 +479,40 @@ fn claude_usage(u: &Value) -> Usage {
         input: n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens"),
         output: n("output_tokens"),
     }
+}
+
+/// A main-thread assistant line's context reading: input, cache writes, cache reads and output, and its model.
+/// `None` for a subagent's line and for a placeholder usage with no input.
+pub(crate) fn claude_context(v: &Value) -> Option<Event> {
+    if v["type"] != "assistant" || !v["parent_tool_use_id"].is_null() {
+        return None;
+    }
+    let u = v["message"].get("usage").filter(|u| u.is_object())?;
+    let n = |k: &str| u[k].as_u64().unwrap_or_default();
+    let input = n("input_tokens")
+        .saturating_add(n("cache_creation_input_tokens"))
+        .saturating_add(n("cache_read_input_tokens"));
+    (input > 0).then(|| Event::Context {
+        tokens: Some(input.saturating_add(n("output_tokens"))),
+        window: None,
+        model: v["message"]["model"].as_str().map(str::to_owned),
+    })
+}
+
+/// Each model's window from a result's `modelUsage`.
+pub(crate) fn claude_context_windows(v: &Value) -> Vec<Event> {
+    let Some(models) = v["modelUsage"].as_object() else {
+        return Vec::new();
+    };
+    models
+        .iter()
+        .filter_map(|(model, m)| {
+            let window = m["contextWindow"].as_u64().filter(|w| *w > 0)?;
+            Some(Event::Context {
+                tokens: None,
+                window: Some(window),
+                model: Some(model.clone()),
+            })
+        })
+        .collect()
 }

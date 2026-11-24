@@ -121,10 +121,7 @@ impl Workspace {
                 out.push((Area::Timeline, timeline, inside));
             }
             None => {
-                let page = match (&self.page, &self.settings) {
-                    (Page::Settings(_), Some(s)) => s.read(cx).focus_handle(cx),
-                    _ => self.welcome.read(cx).focus_handle(cx),
-                };
+                let page = self.welcome.read(cx).focus_handle(cx);
                 let inside = self
                     .center
                     .read(cx)

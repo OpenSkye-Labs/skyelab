@@ -14,6 +14,7 @@ use anyhow::Context as _;
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
 
 use crate::links::{LinkKind, find_links};
+use crate::probe::Probe;
 
 pub use alacritty_terminal::event::Event;
 
@@ -57,6 +58,8 @@ pub struct Terminal {
     exit: Option<ExitStatus>,
     size: (u16, u16),
     cwd: PathBuf,
+    /// What the tab title and the close check ask about the shell; `None` when its pid couldn't be read.
+    probe: Option<Probe>,
     /// macOS discards unread PTY output when the last slave fd closes; holding one makes the child's exit wait for
     /// the reader to drain it.
     _slave: Slave,
@@ -85,8 +88,9 @@ impl Terminal {
         };
         let window_size = window_size(opts.cols, opts.lines, 0.0, 0.0);
         // The shell is a child like any other: started under the process-wide spawn lock.
-        let (pty, slave) = skyelab_core::process::exclusive(|| open_pty(&options, window_size))
-            .context("spawning the terminal pty")?;
+        let (pty, slave, probe) =
+            skyelab_core::process::exclusive(|| open_pty(&options, window_size))
+                .context("spawning the terminal pty")?;
         let config = Config {
             scrolling_history: HISTORY,
             ..Config::default()
@@ -108,6 +112,7 @@ impl Terminal {
             exit: None,
             size: (opts.cols, opts.lines),
             cwd,
+            probe,
             _slave: slave,
         };
         Ok((this, rx))
@@ -158,6 +163,16 @@ impl Terminal {
     /// Locks the grid. Keep the guard short: the PTY thread waits on it to parse output.
     pub fn term(&self) -> impl std::ops::Deref<Target = Term<Listener>> + '_ {
         self.term.lock()
+    }
+
+    /// Ends the shell now (alacritty hangs it up as its loop stops), not when the last frame lets go of the view.
+    pub fn shutdown(&self) {
+        let _ = self.pty.send(Msg::Shutdown);
+    }
+
+    /// A handle that asks what the shell runs and where, from any thread. `None` once the shell has exited.
+    pub fn probe(&self) -> Option<Probe> {
+        self.exit.is_none().then(|| self.probe.clone()).flatten()
     }
 
     /// The folder the terminal started in; relative path links resolve against it.
@@ -293,9 +308,12 @@ fn viewport_point<T>(term: &Term<T>, row: usize, col: usize) -> Point {
     )
 }
 
-/// The PTY plus a parent-held fd of its slave side (`()` on Windows).
+/// The PTY plus a parent-held fd of its slave side (`()` on Windows), and the shell's probe.
 #[cfg(unix)]
-fn open_pty(options: &tty::Options, size: WindowSize) -> std::io::Result<(tty::Pty, Slave)> {
+fn open_pty(
+    options: &tty::Options,
+    size: WindowSize,
+) -> std::io::Result<(tty::Pty, Slave, Option<Probe>)> {
     let size = rustix_openpty::rustix::termios::Winsize {
         ws_row: size.num_lines,
         ws_col: size.num_cols,
@@ -304,12 +322,26 @@ fn open_pty(options: &tty::Options, size: WindowSize) -> std::io::Result<(tty::P
     };
     let fds = rustix_openpty::openpty(None, Some(&size))?;
     let slave = fds.user.try_clone()?;
-    Ok((tty::from_fd(options, 0, fds.controller, fds.user)?, slave))
+    let controller = Arc::new(fds.controller.try_clone()?);
+    let pty = tty::from_fd(options, 0, fds.controller, fds.user)?;
+    let probe = Probe {
+        pid: pty.child().id(),
+        controller,
+    };
+    Ok((pty, slave, Some(probe)))
 }
 
 #[cfg(windows)]
-fn open_pty(options: &tty::Options, size: WindowSize) -> std::io::Result<(tty::Pty, Slave)> {
-    tty::new(options, size, 0).map(|pty| (pty, ()))
+fn open_pty(
+    options: &tty::Options,
+    size: WindowSize,
+) -> std::io::Result<(tty::Pty, Slave, Option<Probe>)> {
+    let pty = tty::new(options, size, 0)?;
+    let probe = pty
+        .child_watcher()
+        .pid()
+        .map(|pid| Probe { pid: pid.get() });
+    Ok((pty, (), probe))
 }
 
 fn window_size(cols: u16, lines: u16, cell_width: f32, cell_height: f32) -> WindowSize {
@@ -411,7 +443,7 @@ mod tests {
             drain_on_exit: true,
             env: HashMap::new(),
         };
-        let (mut pty, _slave) = open_pty(&options, window_size(80, 24, 0.0, 0.0)).expect("pty");
+        let (mut pty, _slave, _) = open_pty(&options, window_size(80, 24, 0.0, 0.0)).expect("pty");
         // Read nothing until printf is long done: without the held slave its output is gone by then.
         std::thread::sleep(Duration::from_secs(2));
         let mut buf = [0u8; 64];

@@ -6,11 +6,15 @@ mod claude;
 mod codex;
 mod event;
 mod git_text;
+pub mod handoff;
 pub mod import;
 mod launch;
+mod mcp_user;
 mod pipes;
 mod prompts;
 mod reap;
+pub mod thread_list;
+pub mod timeline;
 mod title;
 mod version;
 pub use git_text::{
@@ -29,7 +33,8 @@ mod permission;
 pub use attach::{Attachment, Kind as AttachmentKind, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 pub use claude::{PLAN_TOOL, QUESTION_TOOL};
 pub use event::{
-    Block, DeltaKind, Event, TODO_TOOL, Todo, TodoStatus, Usage, session_gone, todos, turn_cost,
+    Block, DeltaKind, Event, McpServer, TODO_TOOL, Todo, TodoStatus, Usage, session_gone, todos,
+    turn_cost,
 };
 pub use models::{
     CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, account_default_model, list_codex_models, model_label,
@@ -143,6 +148,11 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     }
     let (mut cmd, bin, dir) = launch::agent_command(bin, config, account, dir)?;
     let dir = &dir;
+    // After the folder was checked against `account`: only the bound account's own config is read.
+    let report = mcp_user::launch_report(
+        (account.provider == Provider::Claude).then_some(account.config_dir.as_path()),
+        mcp_config,
+    );
     let codex = match account.provider {
         Provider::Claude => {
             claude_args(&mut cmd, mcp_config, resume, mode);
@@ -176,6 +186,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let stderr = child.stderr.take().context("child stderr was piped")?;
 
     let (tx, events) = flume::unbounded();
+    let _ = tx.send(report); // `events` is held below, so this can't fail
     let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
     // Ask ids carry this, so one stored by an earlier process never names an ask of this one.
     let nonce = format!("{}-", &uuid::Uuid::new_v4().simple().to_string()[..8]);

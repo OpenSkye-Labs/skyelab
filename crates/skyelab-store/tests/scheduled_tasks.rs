@@ -110,12 +110,12 @@ fn a_thread_started_by_a_task_carries_its_id() {
 }
 
 #[test]
-fn schema_is_21() {
+fn schema_is_current() {
     let dir = tempfile::tempdir().expect("tmp");
     let path = dir.path().join("s.db");
     drop(Store::open(&path).expect("open"));
     let conn = rusqlite_version(&path);
-    assert_eq!(conn, 21);
+    assert_eq!(conn, 23);
 }
 
 fn rusqlite_version(path: &Path) -> i64 {
@@ -124,4 +124,49 @@ fn rusqlite_version(path: &Path) -> i64 {
     i64::from(u32::from_be_bytes(
         bytes[60..64].try_into().expect("4 bytes"),
     ))
+}
+
+#[test]
+fn a_new_task_never_takes_a_deleted_tasks_id() {
+    let store = Store::open_in_memory().expect("open");
+    let p = store
+        .create_project("demo", Path::new("/work/demo"))
+        .expect("project");
+    let old = store.save_scheduled_task(&task(p.id)).expect("insert");
+    let run = store
+        .create_thread(&NewThread {
+            project_id: p.id,
+            title: "old run",
+            cwd: Path::new("/work/demo"),
+            account_id: "acme",
+            status: "running",
+        })
+        .expect("thread");
+    store.set_thread_scheduled_task(run.id, old).expect("mark");
+    store.delete_scheduled_task(old).expect("delete");
+    let new = store.save_scheduled_task(&task(p.id)).expect("insert");
+    assert_ne!(
+        new, old,
+        "the deleted task's runs would count as the new one's"
+    );
+    assert_eq!(store.last_scheduled_thread(new).expect("read"), None);
+}
+
+#[test]
+fn an_edit_keeps_a_task_paused_since_the_editor_opened() {
+    let store = Store::open_in_memory().expect("open");
+    let p = store
+        .create_project("demo", Path::new("/work/demo"))
+        .expect("project");
+    let mut t = task(p.id);
+    t.id = store.save_scheduled_task(&t).expect("insert");
+    // The editor holds `t` (enabled); a tick pauses the task; then the editor saves a new title.
+    store
+        .set_scheduled_task_enabled(t.id, false)
+        .expect("pause");
+    t.title = "Renamed".into();
+    store.save_scheduled_task(&t).expect("update");
+    let read = store.scheduled_task(t.id).expect("read").expect("there");
+    assert_eq!(read.title, "Renamed");
+    assert!(!read.enabled, "an edit turned a paused task back on");
 }

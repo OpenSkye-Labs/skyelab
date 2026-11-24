@@ -39,7 +39,7 @@ fn start_sends_initialize_then_thread_start_with_hardening() {
     let (_, lines) = Codex::new(
         Path::new("/w"),
         None,
-        Some(json!({ "skyelab": {} })),
+        Some(json!({ "mcp_servers.skyelab": {} })),
         Mode::Default,
         Pick::default(),
     );
@@ -49,7 +49,7 @@ fn start_sends_initialize_then_thread_start_with_hardening() {
     assert_eq!(p["approvalPolicy"], "untrusted");
     assert_eq!(p["sandbox"], "workspace-write");
     assert_eq!(p["cwd"], "/w");
-    assert!(p["config"]["mcp_servers"]["skyelab"].is_object());
+    assert!(p["config"]["mcp_servers.skyelab"].is_object());
 }
 
 #[test]

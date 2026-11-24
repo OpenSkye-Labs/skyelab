@@ -97,6 +97,15 @@ pub(super) trait ItemsView: Sized + 'static {
     ) -> Option<gpui::Entity<gpui_component::input::InputState>> {
         None
     }
+    /// Whether files can go with a question's answer: only where the agent runs on this machine, since the agent
+    /// gets the files' paths.
+    fn can_attach_answer_files(&self, _cx: &App) -> bool {
+        false
+    }
+    /// Opens the file picker for question `q`'s answer.
+    fn attach_answer_files(&mut self, _id: &str, _q: usize, _cx: &mut Context<Self>) {}
+    /// Drops file `ix` from question `q`'s answer.
+    fn remove_answer_file(&mut self, _id: &str, _q: usize, _ix: usize, _cx: &mut Context<Self>) {}
     fn submit_answers(&mut self, _id: &str, _window: &mut Window, _cx: &mut Context<Self>) {}
     /// ExitPlanMode: approve the plan (the agent may start), or keep planning (it's told no).
     fn answer_plan(
@@ -209,6 +218,7 @@ fn render_row<V: ItemsView>(
         ),
         Item::Text(text) => column(
             v_flex()
+                .debug_selector(|| "reply-text".into())
                 .px_1()
                 .gap_1()
                 .text_size(ui::BODY)

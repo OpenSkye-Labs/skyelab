@@ -256,3 +256,60 @@ fn onboarding_writes_once_a_broken_file_is_fixed(cx: &mut TestAppContext) {
         "the fixed file takes the add"
     );
 }
+
+/// The update check's agent fetch, answering `claude` for Claude Code and `codex` for Codex, counting its calls.
+fn latest_versions(
+    cx: &mut TestAppContext,
+    claude: &'static str,
+    codex: &'static str,
+    check_on: bool,
+) -> std::sync::Arc<std::sync::atomic::AtomicUsize> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = std::sync::Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    let release: crate::updates::Fetch =
+        std::sync::Arc::new(|| Err(std::io::Error::other("unused")));
+    cx.update(|cx| {
+        crate::updates::init(None, release, cx);
+        crate::updates::set_agent_fetch(
+            std::sync::Arc::new(move |p| {
+                seen.fetch_add(1, Ordering::SeqCst);
+                Ok(match p {
+                    skyelab_core::Provider::Claude => claude,
+                    skyelab_core::Provider::Codex => codex,
+                }
+                .to_owned())
+            }),
+            cx,
+        );
+        cx.global_mut::<crate::updates::Updates>().enabled = check_on;
+    });
+    calls
+}
+
+#[gpui::test]
+fn welcome_names_a_newer_agent_cli_release(cx: &mut TestAppContext) {
+    let calls = latest_versions(cx, "2.2.0", "0.99.0", true);
+    let (rig, cx) = rig(cx);
+    wait_until(cx, "the latest versions", |cx| {
+        rig.setup
+            .read_with(cx, |o, _| o.agents.iter().any(|a| a.update.is_some()))
+    });
+    let updates: Vec<_> = rig.setup.read_with(cx, |o, _| {
+        o.agents.iter().map(|a| a.update.clone()).collect()
+    });
+    // Claude Code 2.1.0 is behind 2.2.0; Codex 0.99.0 is current.
+    assert_eq!(updates, [Some("2.2.0".to_owned()), None]);
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+}
+
+#[gpui::test]
+fn welcome_asks_nothing_with_the_update_check_off(cx: &mut TestAppContext) {
+    let calls = latest_versions(cx, "9.0.0", "9.0.0", false);
+    let (rig, cx) = rig(cx);
+    cx.run_until_parked();
+    rig.setup.read_with(cx, |o, _| {
+        assert!(o.agents.iter().all(|a| a.update.is_none()))
+    });
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+}

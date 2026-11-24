@@ -11,8 +11,9 @@ use gpui::{AnyElement, Context, FontWeight, IntoElement, SharedString, div, prel
 use gpui_component::{ActiveTheme as _, Icon, IconName, clipboard::Clipboard, h_flex, v_flex};
 use skyelab_agent::{Todo, TodoStatus};
 
+use skyelab_agent::timeline::cards::DIFF_LINES;
 /// Most diff lines an edit card draws; the Changes tab has the whole file.
-const DIFF_LINES: usize = 400;
+pub(super) use skyelab_agent::timeline::cards::{edit_lines, is_edit, is_shell};
 /// The 24 px icon slot every work-log row starts with.
 pub(super) fn slot(icon: IconName, color: gpui::Hsla) -> impl IntoElement {
     div()
@@ -168,70 +169,6 @@ pub(super) fn render_todo(todos: &[Todo], cx: &Context<impl ItemsView>) -> AnyEl
         )
         .children(rows)
         .into_any_element()
-}
-
-/// Whether a tool call gets the shell card.
-pub(super) fn is_shell(name: &str) -> bool {
-    matches!(name, "Bash" | "shell")
-}
-
-/// Whether a tool call gets the edit card.
-pub(super) fn is_edit(name: &str) -> bool {
-    matches!(name, "Edit" | "Write" | "MultiEdit")
-}
-
-/// A line diff of `old` → `new`: the lines both share at the start and end are context, the rest removed then added.
-/// Numbers count from 1 within the snippet.
-///
-/// shortcut: a prefix/suffix diff, not an LCS; an edit that changes two far-apart spots shows the span between as
-/// changed. Fine for Edit's snippets; use a real diff if whole-file rewrites need it.
-pub(super) fn line_diff(old: &str, new: &str) -> Vec<(Option<u32>, Option<u32>, LineKind, String)> {
-    let a: Vec<&str> = old.lines().collect();
-    let b: Vec<&str> = new.lines().collect();
-    let head = a.iter().zip(&b).take_while(|(x, y)| x == y).count();
-    let tail = a[head..]
-        .iter()
-        .rev()
-        .zip(b[head..].iter().rev())
-        .take_while(|(x, y)| x == y)
-        .count();
-    let n = |i: usize| u32::try_from(i + 1).ok();
-    let mut out = Vec::new();
-    for (i, l) in a[..head].iter().enumerate() {
-        out.push((n(i), n(i), LineKind::Context, (*l).to_owned()));
-    }
-    for (i, l) in a[head..a.len() - tail].iter().enumerate() {
-        out.push((n(head + i), None, LineKind::Removed, (*l).to_owned()));
-    }
-    for (i, l) in b[head..b.len() - tail].iter().enumerate() {
-        out.push((None, n(head + i), LineKind::Added, (*l).to_owned()));
-    }
-    for i in 0..tail {
-        let (x, y) = (a.len() - tail + i, b.len() - tail + i);
-        out.push((n(x), n(y), LineKind::Context, a[x].to_owned()));
-    }
-    out
-}
-
-/// An Edit / Write / MultiEdit's lines: each edit's diff in turn, or every written line added.
-pub(super) fn edit_lines(tool: &ToolItem) -> Vec<(Option<u32>, Option<u32>, LineKind, String)> {
-    let raw = &tool.raw;
-    let s = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
-    match tool.name.as_str() {
-        // Only what the card can draw: a huge file is never split up every frame.
-        "Write" => {
-            let content = s(&raw["content"]);
-            let head: Vec<&str> = content.lines().take(DIFF_LINES + 1).collect();
-            line_diff("", &head.join("\n"))
-        }
-        "MultiEdit" => raw["edits"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .flat_map(|e| line_diff(&s(&e["old_string"]), &s(&e["new_string"])))
-            .collect(),
-        _ => line_diff(&s(&raw["old_string"]), &s(&raw["new_string"])),
-    }
 }
 
 /// An edit, T3's inline diff: the file (click to show it in Changes) with `+N −N`, then its lines as the Changes tab

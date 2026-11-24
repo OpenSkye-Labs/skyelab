@@ -39,7 +39,7 @@ impl ThreadSource for LongSource {
             path: "/src/app".into(),
         }]
     }
-    fn threads(&self, _: i64) -> Vec<Thread> {
+    fn threads(&self) -> Vec<Thread> {
         vec![Thread {
             id: 1,
             project_id: 1,
@@ -57,7 +57,7 @@ impl ThreadSource for LongSource {
     fn events(&self, thread_id: i64) -> &[ThreadEvent] {
         if thread_id == 1 { &self.0 } else { &[] }
     }
-    fn load_threads(&mut self, _: i64) {}
+    fn load_threads(&mut self) {}
     fn watch(&mut self, _: i64) {}
     fn send_message(&mut self, _: i64, text: &str) {
         let seq = self.0.len() as i64 + 1;
@@ -91,16 +91,9 @@ fn a_10k_event_thread_renders_only_visible_rows_and_appends_by_splice(cx: &mut T
         s.set_value("laptop.tail1234.ts.net", window, cx)
     });
     app.update_in(cx, |a, window, cx| a.connect(window, cx));
-    app.update(cx, |a, cx| a.open_project(1, cx));
     app.update_in(cx, |a, window, cx| a.open_thread(1, window, cx));
     app.read_with(cx, |a, _| {
-        assert_eq!(
-            a.screen,
-            Screen::Thread {
-                project_id: 1,
-                thread_id: 1
-            }
-        )
+        assert_eq!(a.screen, Screen::Thread { thread_id: 1 })
     });
 
     let t = Instant::now();

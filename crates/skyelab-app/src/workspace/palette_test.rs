@@ -86,7 +86,10 @@ fn typing_and_enter_runs_the_action_in_the_workspace_and_hands_focus_back(cx: &m
     setup(cx);
     let (ws, cx) = open(test_backend(), cx);
     choose("settings", cx);
-    assert!(!dialog_open(cx), "enter closes the palette");
+    assert!(
+        ws.read_with(cx, |ws, _| ws.settings_open),
+        "the palette closed and Settings opened as a modal"
+    );
     assert!(
         settings_focused(&ws, cx),
         "OpenSettings ran in the workspace and focused its tab"
@@ -211,7 +214,9 @@ fn go_to_tab_opens_the_closed_bottom_dock_and_focuses_the_terminal(cx: &mut Test
     };
     assert!(!bottom_open(&ws, cx), "precondition: bottom dock closed");
 
-    choose("tab terminal 1", cx);
+    // A tab is named after its folder while the shell sits at its prompt.
+    let label = ws.read_with(cx, |ws, cx| ws.terminals[0].read(cx).tab_label());
+    choose(&format!("tab {label}"), cx);
     assert!(bottom_open(&ws, cx), "Go to tab opens the terminal's dock");
     let terminal = ws.read_with(cx, |ws, _| ws.terminals[0].clone());
     let focused = cx.update(|window, cx| {

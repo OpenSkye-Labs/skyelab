@@ -44,8 +44,6 @@ pub struct RemoteSource {
     error: Option<String>,
     projects: Vec<Project>,
     threads: HashMap<i64, Vec<Thread>>,
-    /// The project whose threads are shown; refreshed on reconnect and after a send or stop.
-    open_project: Option<i64>,
     watched: Option<i64>,
     /// The client's handle for `watched`, so only that watch is ended on switching threads.
     watch_id: Option<WatchId>,
@@ -84,7 +82,6 @@ impl RemoteSource {
             error: None,
             projects: Vec::new(),
             threads: HashMap::new(),
-            open_project: None,
             watched: None,
             watch_id: None,
             events: Vec::new(),
@@ -130,11 +127,14 @@ impl RemoteSource {
         }
     }
 
+    /// Lists the projects; their threads follow once the projects arrive.
     fn refresh(&mut self) {
         self.request(self.client.list_projects(), Inbound::Projects);
-        if let Some(project_id) = self.open_project {
-            self.load_threads(project_id);
-        }
+    }
+
+    fn list_threads(&mut self, project_id: i64) {
+        let pending = self.client.list_threads(project_id);
+        self.request(pending, move |r| Inbound::Threads(project_id, r));
     }
 
     /// Whether this hello's node may be trusted for the name: the pinned one, or the first one seen (then pinned).
@@ -180,7 +180,6 @@ impl RemoteSource {
         self.connection = connection;
         self.projects.clear();
         self.threads.clear();
-        self.open_project = None;
         self.events.clear();
         self.watched = None;
         if let Some(old) = self.watch_id.take() {
@@ -253,8 +252,13 @@ impl ThreadSource for RemoteSource {
         self.projects.clone()
     }
 
-    fn threads(&self, project_id: i64) -> Vec<Thread> {
-        self.threads.get(&project_id).cloned().unwrap_or_default()
+    fn threads(&self) -> Vec<Thread> {
+        // Only the projects still listed: a project removed there takes its threads with it.
+        self.projects
+            .iter()
+            .flat_map(|p| self.threads.get(&p.id).into_iter().flatten())
+            .cloned()
+            .collect()
     }
 
     fn events(&self, thread_id: i64) -> &[ThreadEvent] {
@@ -265,10 +269,11 @@ impl ThreadSource for RemoteSource {
         }
     }
 
-    fn load_threads(&mut self, project_id: i64) {
-        self.open_project = Some(project_id);
-        let pending = self.client.list_threads(project_id);
-        self.request(pending, move |r| Inbound::Threads(project_id, r));
+    fn load_threads(&mut self) {
+        if self.connection == Connection::Connected {
+            let ids: Vec<i64> = self.projects.iter().map(|p| p.id).collect();
+            ids.into_iter().for_each(|id| self.list_threads(id));
+        }
     }
 
     fn watch(&mut self, thread_id: i64) {
@@ -303,6 +308,18 @@ impl ThreadSource for RemoteSource {
         self.request(pending, |r| Inbound::Done("answer", r));
     }
 
+    fn answer_questions(&mut self, thread_id: i64, request_id: &str, answers: Vec<Vec<String>>) {
+        self.error = None;
+        let pending = self.client.answer_questions(thread_id, request_id, answers);
+        self.request(pending, |r| Inbound::Done("answer", r));
+    }
+
+    fn speaks(&self, minor: u32) -> bool {
+        self.hello
+            .as_ref()
+            .is_some_and(|h| h.protocol.major == 1 && h.protocol.minor >= minor)
+    }
+
     fn trust(&mut self, node_id: &str) {
         let shown = matches!(&self.connection, Connection::NodeChanged { now: Some(now), .. } if now == node_id);
         // The client's own hello, not ours: a disconnect it hasn't told us about yet must not be trusted.
@@ -330,6 +347,7 @@ impl ThreadSource for RemoteSource {
             Inbound::Projects(Ok(projects)) => {
                 self.projects = projects;
                 self.error = None;
+                self.load_threads();
             }
             Inbound::Threads(project_id, Ok(threads)) => {
                 self.threads.insert(project_id, threads);
@@ -342,14 +360,8 @@ impl ThreadSource for RemoteSource {
                     self.refresh();
                 }
             }
-            Inbound::Done(_, Ok(())) => {
-                // The thread's status changed; the protocol doesn't push that.
-                if let Some(project_id) = self.open_project
-                    && self.connection == Connection::Connected
-                {
-                    self.load_threads(project_id);
-                }
-            }
+            // The thread's status changed; the protocol doesn't push that.
+            Inbound::Done(_, Ok(())) => self.load_threads(),
             Inbound::Projects(Err(e)) => self.list_failed("projects", e),
             Inbound::Threads(_, Err(e)) => self.list_failed("threads", e),
             Inbound::Done(what, Err(e)) => self.error = Some(format!("Couldn't {what}: {e}")),

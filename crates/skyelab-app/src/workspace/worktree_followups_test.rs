@@ -65,7 +65,8 @@ fn discard_asks_before_deleting_ignored_files() {
 #[test]
 fn failed_row_save_removes_the_new_worktree() {
     let f = super::worktree_thread_test::fixture();
-    let created = worktree::create(&f.config, &f.project, "acme", "doomed", None).expect("create");
+    let created =
+        worktree::create(&f.config, &f.project, "acme", "doomed", None, None).expect("create");
     let path = created.path.clone();
     assert!(path.exists());
     // No project 999 in the store, so the row insert fails on its foreign key.
@@ -187,4 +188,44 @@ fn changes_tab_refreshes_for_every_thread_of_its_folder(cx: &mut gpui::TestAppCo
             c.changes.as_ref().is_some_and(|c| c.files.len() == 1)
         })
     });
+}
+
+#[test]
+fn worktrees_made_at_once_with_one_title_all_get_their_own() {
+    // A multi-model send makes one per model in the same moment, from the same prompt.
+    let f = super::worktree_thread_test::fixture();
+    let made: Vec<PathBuf> = std::thread::scope(|s| {
+        let jobs: Vec<_> = (0..4)
+            .map(|_| {
+                s.spawn(|| worktree::create(&f.config, &f.project, "acme", "same", None, None))
+            })
+            .collect();
+        jobs.into_iter()
+            .map(|j| j.join().expect("thread").expect("create").path)
+            .collect()
+    });
+    let unique: std::collections::HashSet<_> = made.iter().collect();
+    assert_eq!(unique.len(), 4, "{made:?}");
+}
+
+#[test]
+fn a_slow_checkout_in_one_repo_does_not_hold_up_another() {
+    let (a, b) = (
+        super::worktree_thread_test::fixture(),
+        super::worktree_thread_test::fixture(),
+    );
+    let a_root = std::fs::canonicalize(&a.project).expect("canonical");
+    let held = worktree::creating(&a_root);
+    let _busy = held.lock().expect("lock"); // repo A is making a worktree
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (config, project) = (b.config.clone(), b.project.clone());
+    std::thread::spawn(move || {
+        let made = worktree::create(&config, &project, "acme", "other repo", None, None);
+        let _ = tx.send(made.map(|m| m.path));
+    });
+    let made = rx.recv_timeout(std::time::Duration::from_secs(30));
+    assert!(
+        matches!(made, Ok(Ok(_))),
+        "repo B waited on repo A: {made:?}"
+    );
 }

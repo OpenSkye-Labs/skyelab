@@ -87,13 +87,28 @@ pub(super) fn open_workspace<'a>(
     };
     let folder = f.project_dir.parent().expect("parent").to_path_buf();
     let path = f.accounts_path.clone();
-    let (ws, cx) = cx.add_window_view(|window, cx| {
-        let ws = Workspace::new(folder, Some(path), config, None, backend, window, cx);
-        window.focus(&ws.focus, cx);
-        ws
+    let (ws, cx) = add_rooted(cx, |window, cx| {
+        Workspace::new(folder, Some(path), config, None, backend, window, cx)
     });
     cx.run_until_parked();
     (ws, cx)
+}
+
+/// A workspace window wrapped in gpui-component's `Root`, as the app's windows are (dialogs and toasts need it), with
+/// the workspace focused.
+pub(super) fn add_rooted(
+    cx: &mut TestAppContext,
+    build: impl FnOnce(&mut Window, &mut Context<Workspace>) -> Workspace,
+) -> (Entity<Workspace>, &mut VisualTestContext) {
+    let mut ws = None;
+    let window = cx.add_window(|window, cx| {
+        let view = cx.new(|cx| build(window, cx));
+        window.focus(&view.read(cx).focus.clone(), cx);
+        ws = Some(view.clone());
+        gpui_component::Root::new(view, window, cx)
+    });
+    let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
+    (ws.expect("workspace built"), cx)
 }
 
 pub(super) use crate::test_wait::wait_until;
@@ -430,3 +445,7 @@ mod session_gone;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "threads_resume_contexts_test.rs"]
 mod resume_contexts;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "restart_session_test.rs"]
+mod restart_session;

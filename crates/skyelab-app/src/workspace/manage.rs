@@ -2,7 +2,6 @@
 //! rename and remove projects. Everything here is local: in remote mode the handlers do nothing.
 
 use super::{OpenThread, Workspace, lock};
-use crate::ui::Status;
 use gpui::{Action, AppContext as _, Context, SharedString, Window, actions};
 use gpui_component::{Sizable as _, WindowExt as _, button::Button, notification::Notification};
 use skyelab_store::Store;
@@ -47,6 +46,8 @@ pub enum ProjectOp {
     OpenFolder,
     /// Settings, where folders are bound to accounts.
     Accounts,
+    /// Settings → Chat, applying to this project only (its own new-thread defaults).
+    Settings,
     /// Its existing Claude Code or Codex sessions, as threads.
     ImportSessions,
     Remove,
@@ -91,9 +92,8 @@ impl Workspace {
     }
 
     /// The thread's agent is mid-turn (or starting): archiving or deleting it would cut the work off.
-    fn working(&self, id: i64, cx: &Context<Self>) -> bool {
-        self.open_view(id, cx)
-            .is_some_and(|v| matches!(v.read(cx).live_status(), Status::Starting | Status::Running))
+    pub(super) fn working(&self, id: i64, cx: &Context<Self>) -> bool {
+        self.open_view(id, cx).is_some_and(|v| v.read(cx).working())
     }
 
     pub(super) fn say(
@@ -109,7 +109,7 @@ impl Workspace {
     }
 
     /// A notice with an Undo button that runs `undo` on this workspace.
-    fn undo_notice(
+    pub(super) fn undo_notice(
         &mut self,
         text: String,
         undo: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
@@ -255,7 +255,7 @@ impl Workspace {
         }
     }
 
-    fn thread_title(&self, id: i64, cx: &Context<Self>) -> Option<String> {
+    pub(super) fn thread_title(&self, id: i64, cx: &Context<Self>) -> Option<String> {
         self.threads
             .iter()
             .find(|t| t.id == id)
@@ -477,6 +477,7 @@ impl Workspace {
         use gpui::InteractiveElement as _;
         el.on_action(cx.listener(Self::manage_thread))
             .on_action(cx.listener(Self::fork_thread))
+            .on_action(cx.listener(Self::hand_off_thread))
             .on_action(cx.listener(Self::manage_project))
             .on_action(
                 cx.listener(|ws, _: &RenameThread, w, cx| ws.act_on_shown(ThreadOp::Rename, w, cx)),
@@ -561,6 +562,7 @@ pub(super) fn project_menu(id: i64) -> Vec<(SharedString, Box<dyn Action>)> {
     [
         ("Rename", ProjectOp::Rename),
         ("Open in editor", ProjectOp::OpenFolder),
+        ("Project settings…", ProjectOp::Settings),
         ("Account bindings…", ProjectOp::Accounts),
         ("Import sessions…", ProjectOp::ImportSessions),
         ("Remove from SkyeLab", ProjectOp::Remove),

@@ -1,4 +1,4 @@
-# <img src="crates/skyelab-app/icons/128x128.png" width="44" height="44" alt=""> SkyeLab
+# <img src="crates/skyelab-app/icons/128x128.png" width="44" height="44" alt="Porcelain Bean"> SkyeLab
 
 SkyeLab is a native agentic development environment (ADE) written in Rust with [GPUI](https://www.gpui.rs/).
 You run Claude Code agents in threads over your projects, review their changes, and keep a terminal, a browser
@@ -26,15 +26,17 @@ What's built today:
   somewhere else (a swapped symlink, a moved folder), it turns *stale* and no agent starts there until you re-confirm.
 - **One thread list.** The sidebar lists every project's threads together (pinned, working, then Today, Yesterday,
   Previous 7 days and Older), each row with the agent's last reply, its project, state (with a running timer while it works), branch, pull
-  request and the account its folder is bound to; hovering a row shows where it runs, on which account and binding. A project filter narrows it, and New thread asks
+  request and the account its folder is bound to; hovering a row shows where it runs, on which account and binding. Settle a
+  finished thread or snooze it until later (both undoable); settled and snoozed ones wait in folded shelves at the
+  bottom, and a snoozed one comes back marked **Woke**. A project filter narrows it, and New thread asks
   which project when it can't tell.
 - **Several windows.** **New Window** (<kbd>⇧⌘N</kbd>) opens another window on the same projects, threads and
   accounts, with its own page, sidebar filter and panels. A thread open in two windows runs one agent; both show it.
 - **Update check.** Once a day at most, and from **Check for Updates**, SkyeLab asks GitHub for its latest release
   and shows a small notice with **Download** (opens the release page) and **Skip this version**. It sends nothing but
-  the request, installs nothing, and Settings → About turns it off.
+  the request, installs nothing, and Settings → General turns it off.
 - **Keyboard.** Every command is an action you can rebind in `keybindings.toml` (reloaded as you save; bad lines
-  are reported with their line number and skipped), listed with its current keys in Settings → Keyboard shortcuts.
+  are reported with their line number and skipped), listed with its current keys in Settings → Keybindings.
   F6 / Shift+F6 move between the sidebar, conversation, message input and the open panels.
 - **Projects and threads.** Each thread runs the `claude` CLI in stream-json mode, or `codex app-server` for a Codex
   account, streams its text and thinking as they arrive, shows tool calls as cards (inline edit diffs, shell
@@ -48,7 +50,8 @@ What's built today:
   <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor. The header is a plain breadcrumb;
   the **thread details** card (<kbd>⇧⌘B</kbd>, floating over the chat) holds the folder, branch (with how far behind or ahead of its upstream, kept
   fresh by a background fetch, and a fast-forward Pull), git actions, scripts, delegated agents, pull request (its
-  state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
+  state, checks and review) and editor, the thread's context window (also in the composer footer as **42% context**,
+  with a `/compact` hint from 80%), plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
   per account and per project, with a daily chart, from what the agents reported (no account is asked).
 - **Scheduled tasks.** Settings → Scheduled tasks saves a prompt that starts a new thread in a project every N
@@ -66,13 +69,18 @@ What's built today:
   `/` and skills with `$`, add another thread's gist or its pull request with `#` (same account only), and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
   files and branch. A long paste (8 KB or 200 lines) attaches as a text file instead, and images you sent or preview
-  open large in a zoomable viewer.
+  open large in a zoomable viewer. <kbd>⌘S</kbd> stashes a prompt for later (a **Stash** list to restore it), and
+  **Quote** on text you select in a reply adds it to the message as a Markdown quote.
 - **Scratch threads.** **New Scratch Thread** asks for an account and runs a quick question in that account's own
   scratch folder, bound to it on first use and listed as **Scratch · <account>**. No default account, even here.
 - **Titles, drafts, history and forks.** After the first reply, the thread's own account names it (off in Settings →
-  Threads, which also holds the defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
-  recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
+  Chat, next to the model and permission defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
+  recalls earlier prompts, **Fork from here** on a reply starts a new thread from that point, and **Continue in
+  Codex** / **Continue in Claude** carries a thread's history to the other provider once the folder is bound to it
   ([guide](docs/user-guide-threads.md)).
+- **Send to several models.** A new thread's prompt can go to 2–4 models of the folder's account at once, each its own
+  thread (in its own worktree if you like), compared side by side with cost, time and changed files; keep the best
+  ([guide](docs/user-guide-threads.md#send-to-several-models)).
 - **Side chats.** `/side <question>` (or `/btw`) asks it in a small chat beside the thread, in the same folder under
   the same account, without interrupting the thread's agent. It is read-only (Plan mode, no SkyeLab tools);
   **Bring back** adds its answer to the thread's composer.
@@ -91,8 +99,11 @@ What's built today:
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder, with
-  split panes, tabs that follow their thread, and **Add to prompt** to send selected output to the agent.
-- **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
+  side-by-side and stacked split panes you can resize, tabs named after what runs in them (rename with a double-click)
+  that follow their thread and reopen after a restart, a confirm before closing a running command, theme colors, and
+  **Add to prompt** to send selected output to the agent.
+- **Browser preview.** A browser tab for your dev server, with zoom, find in page, Copy URL, Duplicate tab, Open in
+  system browser and (development builds) DevTools. Agents can open their own tab and navigate it, read its
   URL, evaluate JavaScript in it and take a screenshot of it (http and https only, localhost included; screenshots
   on macOS and Linux). The tab says an agent controls it;
   **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
@@ -105,8 +116,9 @@ What's built today:
 - **Environment switcher.** Pick another of your machines at the top of the sidebar to see its projects and threads,
   start threads there and send follow-ups. Its agents run there, on its own accounts.
 - **Mobile client (in progress).** An iOS and Android app in GPUI under [`mobile/`](mobile). It connects to a
-  shared machine over your tailnet (`*.ts.net` names, `wss://`), lists projects and threads, streams a thread live,
-  sends or stops, and answers the agent's permission requests. Not packaged for distribution yet.
+  shared machine over your tailnet (`*.ts.net` names, `wss://`), shows the desktop's flat thread list, streams a
+  thread live with the desktop's timeline (folded turns, shell, diff, todo and subagent cards), sends or stops, and
+  answers the agent's permission requests, questions and plans. Not packaged for distribution yet.
 - **Agent orchestration.** An agent can start and drive other threads through SkyeLab's own MCP tools, only in
   projects bound to its own account. A child's breadcrumb links its parent, and the parent's thread details card lists its
   delegated threads under Lineage, with their status. macOS and Linux only for now.
@@ -144,15 +156,14 @@ cargo run -p skyelab-app
 
 ### 3. Set up accounts
 
-Sign in to each Claude account in its own config folder:
+Add each account in Settings → Accounts and press **Log in** on its card: a terminal tab signs it in to its own
+config folder (`claude auth login` with its `CLAUDE_CONFIG_DIR`, or `codex login` with its `CODEX_HOME`). From a
+shell it is the same:
 
 ```sh
 CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
-CLAUDE_CONFIG_DIR=~/.claude claude auth login
+CODEX_HOME=~/.codex-work codex login
 ```
-
-For a Codex account, add it in Settings with **Codex** picked and press **Log in to Codex**, or run
-`CODEX_HOME=~/.codex-work codex login` yourself.
 
 Then start SkyeLab. On first run the Welcome page lists the config folders it found (`~/.claude`, `~/.claude-*`,
 `~/.codex`, `~/.codex-*`): tick the ones to add, then choose a project folder and the account it runs on. You can
@@ -181,35 +192,8 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
 
 ## Security model
 
-- **Account invariant.** A folder resolves to its account or to nothing. There is never a default account. An
-  unknown account id in `accounts.toml` is a load error.
-- **Clean environment, one allowlist.** Each agent starts with an empty environment. A short allowlist passes
-  through (`PATH`, `HOME`, locale, proxy and CA settings, and the like), and then SkyeLab sets `CLAUDE_CONFIG_DIR`
-  or `CODEX_HOME` for the bound account. Nothing that could pick another account, provider or API base URL
-  (`ANTHROPIC_*`, `CLAUDE_CODE_*`, `OPENAI_*`, `CODEX_*`, `GH_TOKEN`, `AWS_*`, the parent's own homes) is inherited.
-  Project terminals and every git/gh call SkyeLab runs use the same list (terminals add shell vars such as
-  `EDITOR`, `PAGER` and `SSH_AUTH_SOCK`). An agent's own `git push` asks only the account's `gh` for https
-  credentials, and gets no ssh-agent unless the account sets `ssh_agent = true`.
-- **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
-  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. Codex runs with the folder and
-  every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and
-  `.rules` never load. Codex keeps its `workspace-write` sandbox (writes stay in the folder, no network) unless a
-  thread picks Plan (read-only) or Full access, and its approval requests come to the thread.
-- **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
-  a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
-  the project's or your Claude settings. Full access asks before it turns on.
-- **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
-  read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
-- **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
-  machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
-  with `tailscale whois`), and carry a device key you approved on this machine for that device (kept in the
-  macOS keychain by release builds on a Mac). Browser pages (any `Origin` header) are refused. A connected device can list and drive
-  threads, but can't add projects, change accounts or bindings, or open terminals. The client checks the
-  certificate against the exact MagicDNS name it dialled, and the desktop app also asks its own Tailscale who it
-  dialled: only your own untagged devices, and the same Tailscale node it saw for that name before. The phone
-  remembers the node too, but only from what the machine says about itself (it has no Tailscale CLI to ask).
-
-The full rules are in [docs/remote.md](docs/remote.md) and [docs/decisions.md](docs/decisions.md).
+One account per folder, never a default; agents start from a clean environment; project settings don't load;
+approvals stay with you; sharing is tailnet-only. The full summary is in [docs/security.md](docs/security.md).
 
 ## Platform support
 

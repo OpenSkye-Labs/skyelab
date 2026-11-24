@@ -310,7 +310,7 @@ impl Workspace {
         if let Some(calls) = orchestrate {
             self.set_orchestrator(calls, window, cx);
         }
-        super::scheduled::start(cx);
+        super::scheduled::start(self.backend.store.clone(), cx);
     }
 
     /// Stops serving the call queues (its window closed); the next window claims them.
@@ -385,7 +385,7 @@ impl Workspace {
         !self.other_windows(cx).is_empty()
     }
 
-    fn other_windows(&self, cx: &App) -> Vec<(AnyWindowHandle, WeakEntity<Workspace>)> {
+    pub(super) fn other_windows(&self, cx: &App) -> Vec<(AnyWindowHandle, WeakEntity<Workspace>)> {
         cx.try_global::<Windows>()
             .map(|reg| {
                 reg.workspaces

@@ -13,7 +13,9 @@ With no accounts or no projects, the Welcome page shows setup instead of its usu
 run **Set Up Accounts** from the command palette.
 
 - **Agents** lists Claude Code and Codex, found on your `PATH` the same way threads find them, with the version each
-  reports. "Not found" means a thread can't start on that provider yet.
+  reports. "Not found" means a thread can't start on that provider yet. While **Check for updates** is on, SkyeLab
+  also asks the npm registry for each CLI's latest release and shows **2.2.0 available** beside an older one. Update
+  it the way you installed it; SkyeLab never installs anything.
 - **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex` and `~/.codex-*` folder that looks like a login
   (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`).
   SkyeLab only checks that those names exist: it never opens a file in them, so no login or token is read. Tick the
@@ -28,18 +30,18 @@ run **Set Up Accounts** from the command palette.
 
 ### Add an account
 
-1. Sign in to the account in its own config folder:
+1. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude** or **Codex**, give
+   it a name (`Work`; the id is made from it unless you type one), choose its config folder
+   (`/Users/you/.claude-work`, or **Choose…**), then click **Add account**. Each account shows as a card: its provider
+   mark in the account's color, its name (click it, or the pencil, to edit in place) and its config folder, with a
+   copy button.
+2. Press **Log in** on its card. For Claude that opens a terminal tab running `claude auth login` with
+   `CLAUDE_CONFIG_DIR` set to the account's folder (and its GitHub folder as `GH_CONFIG_DIR`, when it has one), so
+   the login lands in that folder and nowhere else. SkyeLab creates the folder first, private to you, and never sees
+   the token. Signing in from a shell works too: `CLAUDE_CONFIG_DIR=~/.claude-work claude auth login`.
 
-   ```sh
-   CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
-   ```
-
-2. Open Settings (<kbd>⌘,</kbd>). In **Accounts & bindings**, under **Add account**, pick **Claude** or **Codex**, enter an id (`work`), a label
-   (`Work (Team)`) and the absolute config folder (`/Users/you/.claude-work`), then click **Add**.
-
-For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). After adding it,
-press **Log in to Codex** on its row: that opens a terminal running `codex login` with `CODEX_HOME` set to that
-folder (SkyeLab creates the folder first, private to you). A config file written before Codex support has no
+For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). Its **Log in** runs
+`codex login` with `CODEX_HOME` set to that folder, created the same way. A config file written before Codex support has no
 `provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's
 sessions); to switch, add a new account and re-bind the folder.
 
@@ -48,14 +50,25 @@ but not outside it, and has no network for its commands. When it wants to run a 
 outside the sandbox, the thread asks you (see [Permissions](user-guide-permissions.md#permissions)). The repo's own `.codex/` config, hooks and rules never load; your account's own
 `CODEX_HOME/config.toml` (MCP servers, model) does.
 
+MCP servers you added to an account load in its threads, next to SkyeLab's own: for Claude, the user-scope servers
+in that account's `.claude.json` (`claude mcp add --scope user`, run with that account's `CLAUDE_CONFIG_DIR`); for
+Codex, the `mcp_servers` of its `config.toml`. Only the bound account's servers load, never another account's, and
+never a repo's `.mcp.json` or a folder's local-scope servers, so a cloned repo can't add tools. Their tools ask for
+permission like any other tool. A server whose name starts with `skyelab` is left out, with a note in the thread (SkyeLab's own server keeps that
+name). If the account's
+`.claude.json` can't be read, the thread starts without those servers and says why. Claude Code connects no plugin MCP
+servers in this mode (plugin skills and commands still load). After you add or change a server, run **Restart Agent
+Session** in a thread to pick it up.
+
 Accounts and bindings are saved in `accounts.toml` in the platform config folder:
 `~/Library/Application Support/skyelab/` on macOS, `~/.config/skyelab/` on Linux, `%APPDATA%\skyelab\` on Windows.
 
 ### Bind a folder
 
-In Settings, under **Folder bindings**, pick the account and click **Bind folder…**. Everything under that folder
-now runs on that account. A deeper binding wins over a shallower one, so you can bind `~/work` to your work account
-and `~/work/oss-fork` to your personal one. Use **Test folder** to check which account a path resolves to.
+In Settings → **Projects & folders**, under **Folder bindings**, pick the account and click **Choose folder…**. Each
+binding shows as folder → account. Everything under that folder now runs on that account. A deeper binding wins over a
+shallower one, so you can bind `~/work` to your work account and `~/work/oss-fork` to your personal one. Use **Test a
+folder** to check which account a path resolves to.
 
 The status bar shows the account for the current folder, or **No account** in the warning color. If you send a prompt in an unbound
 folder, the thread asks you to bind it first and offers a **Bind this folder to an account** button.
@@ -66,19 +79,19 @@ When you bind a folder, SkyeLab records the real folder the path pointed to at t
 points somewhere else, the binding turns **stale**: it shows a yellow warning and no agent starts under it. This
 happens when:
 
-- the path became a symlink, or a symlink was pointed at another folder (**Not the folder you confirmed any more**),
-- the binding was written by an older SkyeLab that didn't record the folder (**Not confirmed yet**),
-- the path can't be resolved at all, for example a broken link (**Can't be resolved now**).
+- the path became a symlink, or a symlink was pointed at another folder (it now leads to a different folder),
+- the binding was written by an older SkyeLab that didn't record the folder (bound without confirming),
+- the path can't be resolved at all, for example a moved folder or a broken link (it can't be found).
 
-The warning shows the folder the path points to now and the one you confirmed. If the new folder is right, click
-**Re-confirm**. If not, fix the folder on disk or **Remove** the binding.
+The row says which, in one sentence, and shows where the path leads now. If the new folder is right, click
+**Re-confirm**. If not, fix the folder on disk or remove the binding (the unlink button).
 
 ## GitHub per account
 
-Give an account its own GitHub login: in Settings → **Accounts & bindings**, set the account's GitHub config dir (an
-absolute path such as `/Users/me/.config/gh-work`), then in Settings → **GitHub** press **Log in to GitHub**. That
+Give an account its own GitHub login: in Settings → **Accounts**, edit the account and set its **GitHub folder** (an
+absolute path such as `/Users/me/.config/gh-work`), then in Settings → **Source control** press **Log in**. That
 opens a terminal running `gh auth login` with `GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. The
-**GitHub** section then shows which GitHub user is logged in.
+**Source control** section then shows which GitHub user is logged in.
 
 Agents, project terminals and the Changes tab's **Commit**, **Push**, **Pull** and **Open PR** use the folder's
 account's GitHub login. If the account has none, Push, Pull and Open PR refuse instead of using your global `gh` login.
@@ -108,4 +121,4 @@ places) when it has one. Both send only files inside the thread's folder, never 
 diff (the rest is cut, with a note). The thread's title and last prompt go along as context. The agent gets no
 tools and keeps no session, and if the folder is now bound to another account it refuses. The text only fills the
 fields: nothing is committed or opened until you click. If you edit the field while it writes, your edit stays.
-Turn the sparkles off in **Settings → Threads → Generate commit messages and PRs**.
+Turn the sparkles off in **Settings → Diffs & pull requests → Generate commit messages and PRs**.

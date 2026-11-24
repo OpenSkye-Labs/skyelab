@@ -58,7 +58,8 @@ pub(crate) struct ComposerExtras {
     saved_files: Vec<(String, usize)>,
     /// The history entry shown: its index among this thread's prompts, and its text.
     history: Option<(usize, String)>,
-    /// The thread this one was forked from: (id, title).
+    /// The thread this one was forked or handed off from: its id, and the link's label ("Forked from …" or
+    /// "Continued from …").
     pub forked_from: Option<(i64, SharedString)>,
     /// A draft started from the Pull requests page: the PR its row links once the first message saves it.
     pub pending_pr: Option<String>,
@@ -88,7 +89,8 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         if self.thread.is_none() {
-            let prefs = crate::workspace::thread_extras::prefs::get(cx);
+            // A new thread's cwd is its project's folder, the key of that project's own defaults.
+            let prefs = crate::workspace::thread_extras::prefs::get(cx).for_project(&self.cwd);
             // Full access is never a default: it is confirmed per thread.
             self.mode = match Mode::parse(prefs.permission_mode.as_deref().unwrap_or_default()) {
                 Mode::Bypass => Mode::Default,
@@ -100,12 +102,23 @@ impl ThreadView {
         // change saves them.
         self._subs
             .push(cx.observe_self(|this, cx| this.save_draft(cx)));
+        self.init_stash(cx);
         let (store, owner) = (self.backend.store.clone(), self.draft_owner());
-        let source = self.thread.as_ref().and_then(|t| t.forked_from);
+        let source = self
+            .thread
+            .as_ref()
+            .and_then(|t| Some((t.forked_from?, t.account_id.clone())));
         let task = cx.background_spawn(async move {
             let s = lock(&store)?;
             let title = match source {
-                Some(id) => s.thread(id)?.map(|t| (id, SharedString::from(t.title))),
+                Some((id, account)) => s.thread(id)?.map(|t| {
+                    // A fork keeps its source's account; a handoff runs under the other provider's.
+                    let handoff = t.account_id != account;
+                    (
+                        id,
+                        crate::workspace::thread_extras::fork::forked_label(&t.title, handoff),
+                    )
+                }),
                 None => None,
             };
             anyhow::Ok((s.draft(&owner)?, title))
@@ -226,9 +239,11 @@ impl ThreadView {
         cx.notify();
     }
 
-    /// Whether the key is ours: the prompt has focus and no menu is open.
+    /// Whether the key is ours: the prompt has focus and no menu (nor the stash list) is open.
     fn history_key(&self, window: &Window, cx: &App) -> bool {
-        self.composer.menu.is_none() && self.prompt.read(cx).focus_handle(cx).is_focused(window)
+        self.composer.menu.is_none()
+            && self.composer.stash_open.is_none()
+            && self.prompt.read(cx).focus_handle(cx).is_focused(window)
     }
 
     /// ArrowUp: in an empty prompt, the newest earlier prompt; on a shown one's first line, the one before it.

@@ -1,8 +1,9 @@
 //! A scheduled run's thread: started like a delegated one (a background tab on the hub window), under the account
 //! the folder resolves to now, and only if that is the one the task was saved under.
 
-use super::super::Workspace;
+use super::super::center::Page;
 use super::super::thread::ThreadView;
+use super::super::{Workspace, lock};
 use gpui::{AppContext as _, Context, Entity, Window};
 use skyelab_core::AccountsConfig;
 use skyelab_core::schedule::{check_mode, run_account};
@@ -24,11 +25,13 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Result<Entity<ThreadView>, Refused> {
         check_mode(&task.permission_mode, task.bypass_confirmed).map_err(Refused::Pause)?;
-        let project = self
-            .projects
-            .iter()
+        // The store's list, not this window's: a project added or removed in another window counts at once.
+        let projects = lock(&self.backend.store)
+            .and_then(|s| s.list_projects())
+            .map_err(|e| Refused::Fail(format!("{e:#}")))?;
+        let project = projects
+            .into_iter()
             .find(|p| p.id == task.project_id)
-            .cloned()
             .ok_or_else(|| Refused::Pause("its project was removed from SkyeLab".into()))?;
         // The file as it is now, not this window's copy; one that can't be read binds nothing.
         let config = self
@@ -59,7 +62,26 @@ impl Workspace {
         });
         view.update(cx, |v, cx| v.submit_remote(&task.prompt, window, cx))
             .map_err(Refused::Fail)?;
+        self.close_finished_runs(task.id, window, cx);
         self.add_thread_tab(view.clone(), false, window, cx);
         Ok(view)
+    }
+
+    /// One live agent per task: its earlier runs whose turn ended close (their rows stay, and resume), or an
+    /// every-minute task would keep a new agent process alive per run. The one on screen stays.
+    fn close_finished_runs(&mut self, task: i64, window: &mut Window, cx: &mut Context<Self>) {
+        let done: Vec<_> = self
+            .open_threads
+            .iter()
+            .filter(|v| {
+                let v = v.read(cx);
+                v.scheduled_task == Some(task) && !v.starting && !v.turn_running()
+            })
+            .filter(|v| self.page != Page::Thread(v.downgrade()))
+            .cloned()
+            .collect();
+        for view in done {
+            self.close_thread(&view, window, cx);
+        }
     }
 }

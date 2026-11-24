@@ -4,8 +4,15 @@
 # `fake_answer`; "withdraw" asks and then withdraws the ask; "stderr-flood" writes 200 KiB and then END to stderr;
 # "crash" writes to stderr and exits 3; "stream" replays stream.jsonl (a recorded --include-partial-messages turn);
 # "question" asks an AskUserQuestion and reports the reply; "gone" answers like a --resume of a missing session.
+# The --mcp-config file it got is reported as `fake_mcp`.
 cat "$(dirname "$0")/session.jsonl"
 printf '{"type":"fake_env","config_dir":"%s","api_key":"%s","cwd":"%s","args":"%s","env_keys":"%s"}\n' "$CLAUDE_CONFIG_DIR" "$ANTHROPIC_API_KEY" "$(pwd -P)" "$*" "$(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort | tr '\n' ' ')"
+# The --mcp-config file it was given, on one line, as `fake_mcp` (tests read which servers reached it).
+prev=
+for a in "$@"; do
+  [ "$prev" = --mcp-config ] && [ -f "$a" ] && printf '{"type":"fake_mcp","config":%s}\n' "$(tr -d '\n' < "$a")"
+  prev=$a
+done
 # A grandchild holding stdout open, like a tool or MCP server would: kill() must reach it.
 sleep 30 &
 ask() {

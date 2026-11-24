@@ -127,3 +127,19 @@ fn specs_round_trip_and_read_as_words() {
     assert_eq!(label("weekdays 09:00"), "Weekdays at 09:00");
     assert_eq!(label("cron 0 9 * * 1-5"), "Cron 0 9 * * 1-5");
 }
+
+#[test]
+fn a_cron_that_never_comes_is_refused_and_feb_29_is_not() {
+    for never in [
+        "cron 0 9 31 2 *",
+        "cron 0 0 30 2 *",
+        "cron 0 0 31 4,6,9,11 *",
+    ] {
+        assert!(never.parse::<Schedule>().is_err(), "{never} never runs");
+    }
+    assert!("cron 0 0 29 2 *".parse::<Schedule>().is_ok(), "leap day");
+    assert!(
+        "cron 0 0 31 2 1".parse::<Schedule>().is_ok(),
+        "or any Monday in February"
+    );
+}

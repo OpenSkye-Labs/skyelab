@@ -5,9 +5,13 @@
 #[cfg(unix)]
 mod unix;
 #[cfg(unix)]
+pub(crate) use unix::create_private_file;
+#[cfg(unix)]
 pub(super) use unix::*;
 
 #[cfg(windows)]
 mod windows;
+#[cfg(windows)]
+pub(crate) use windows::create_private_file;
 #[cfg(windows)]
 pub(super) use windows::*;

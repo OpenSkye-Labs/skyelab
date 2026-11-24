@@ -1,7 +1,6 @@
 //! Acceptance 9: "Schedule this prompt…" is offered from a composer and opens Settings → Scheduled tasks with the
 //! composer's text and project in a new task.
 
-use super::super::center::Page;
 use super::super::{NewThread, SelectProject};
 use super::test_util::{open, rig};
 use crate::settings::Section;
@@ -37,8 +36,9 @@ fn schedule_this_prompt_prefills_a_new_task(cx: &mut TestAppContext) {
 
     cx.dispatch_action(super::compose::SchedulePrompt);
     cx.run_until_parked();
-    let shown = ws.read_with(cx, |ws, _| {
-        matches!(ws.page, Page::Settings(Section::Scheduled))
+    let shown = ws.read_with(cx, |ws, cx| {
+        ws.settings_open
+            && ws.settings.as_ref().map(|s| s.read(cx).section) == Some(Section::Scheduled)
     });
     assert!(shown, "Settings → Scheduled tasks is shown");
     let page = ws

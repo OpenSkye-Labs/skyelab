@@ -6,8 +6,9 @@ in a folder under the wrong Claude account.
 
 Read before working: [docs/architecture.md](docs/architecture.md) (what we're building, crate layout, roadmap; it links [remote.md](docs/remote.md), [orchestration.md](docs/orchestration.md) and [decisions.md](docs/decisions.md))
 and [docs/gpui.md](docs/gpui.md) (how to write GPUI code here). Both are rules, not suggestions.
-Every GPUI lesson (a bug, a redraw or perf trap, a pattern that worked) goes into docs/gpui.md in the same change
-that taught it, as a short rule with the why, so the next change starts from it.
+Every GPUI lesson (a bug, a redraw or perf trap, a pattern that worked) goes into docs/gpui.md or its topic files in
+docs/gpui/ (elements, redraw, windows, keyboard; add a file and link it from docs/gpui.md when none fits) in the same
+change that taught it, as a short rule with the why, so the next change starts from it.
 What users see is in [README.md](README.md) and [docs/user-guide.md](docs/user-guide.md); update them when a feature changes.
 
 ## T3 Code reference (always check it)
@@ -40,17 +41,23 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
+  `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir and exits 0 (the Log in terminal),
   `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
   `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
   subagent cards (one holds 4 s mid-run), `login` fails the turn as a signed-out account, a
-  `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, and one starting `crash` writes
+  `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, a `fake-mcp-status.json` list of
+  `{name, status}` in the account dir goes into its init line as `mcp_servers` (the details card's MCP servers), it prints
+  the `--mcp-config` file it got as a `fake_mcp` line, and one starting `crash` writes
   to stderr and exits 3), Codex with
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
   project; a prompt starting `usage` reports 5h and weekly rate limits, and a `.fake-session-gone` file in the folder
-  makes its `thread/resume` fail as a missing thread), and `gh` (Push, Open PR, the
+  makes its `thread/resume` fail as a missing thread; a `fake-mcp-status` file in CODEX_HOME, one `name status [error]`
+  per line, is reported as MCP startup statuses), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
-  and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed; `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there). Never verify against the real `gh`. All of these are debug builds only.
+  and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed; `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there;
+`pr merge` / `pr review` (the PR actions dialog) log their args to `fake-gh.actions` and the review text to `fake-gh.review-body`, fail with the text of a `fake-action-fail` file when there is one,
+and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is that dir's `fake-head` (else 40 `1`s), reported as `headRefOid` by the default `pr view` / `pr list`, and `pr merge` fails unless `--match-head-commit` matches it; `repo view` (the allowed merge methods) answers with `fake-repo.json`, else all three). Never verify against the real `gh`. All of these are debug builds only.
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
   (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.
