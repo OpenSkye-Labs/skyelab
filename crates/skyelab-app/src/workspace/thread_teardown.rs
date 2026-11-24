@@ -47,12 +47,12 @@ impl ThreadView {
     }
 }
 
-/// Drops `session` (which kills and reaps its agent, and waits) off the UI thread, then records `id` stopped.
-fn stop_in_background(session: impl Send + 'static, store: SharedStore, id: i64) {
+/// Kills and reaps `session`'s agent off the UI thread, then records `id` stopped.
+fn stop_in_background(mut session: Session, store: SharedStore, id: i64) {
     let _ = std::thread::Builder::new()
         .name("skyelab-agent-reaper".into())
         .spawn(move || {
-            drop(session);
+            let _ = session.kill();
             if let Ok(store) = lock(&store) {
                 let _ = store.set_thread_status(id, "stopped");
             }
@@ -112,7 +112,12 @@ impl ThreadView {
             .name("skyelab-agent-reaper".into())
             .spawn(move || {
                 let stopped = session.is_some();
-                drop(session);
+                // Reaped before "stopped" is written (dropping only starts the kill; this thread may wait).
+                if let Some(session) = session
+                    && let Ok(mut session) = lock(&session)
+                {
+                    let _ = session.kill();
+                }
                 // A last try for held events; past this they are lost, as the warning said.
                 let _ = unsaved.flush(&store, id);
                 if stopped && let Ok(store) = lock(&store) {

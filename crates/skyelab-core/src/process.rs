@@ -12,15 +12,76 @@
 
 use std::fs::File;
 use std::io::{self, Read as _, Seek as _, SeekFrom, Write as _};
+use std::ops::{Deref, DerefMut};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 /// Starts `cmd` while no other child of this process is being started (see the module docs).
-pub fn spawn(cmd: &mut Command) -> io::Result<Child> {
+pub fn spawn(cmd: &mut Command) -> io::Result<Owned> {
     let started = exclusive(|| cmd.spawn());
     crate::debug::record_spawn(cmd, &started);
-    started
+    started.map(|child| Owned(Some(child)))
+}
+
+/// A child this process started. Dropped before it was reaped, it is killed and reaped, so it never outlives its
+/// owner and never stays a zombie (they count toward the per-user process limit). One meant to outlive its handle
+/// (an editor, the installer) is [`Owned::detach`]ed instead.
+#[derive(Debug)]
+pub struct Owned(Option<Child>);
+
+const TAKEN: &str = "only detach and drop take the child, and both consume the handle";
+
+impl Owned {
+    /// Lets the child run on, and reaps it on a thread of its own once it exits.
+    pub fn detach(mut self) {
+        if let Some(child) = self.0.take() {
+            reap_in_background(child);
+        }
+    }
+}
+
+impl Deref for Owned {
+    type Target = Child;
+    fn deref(&self) -> &Child {
+        self.0.as_ref().expect(TAKEN)
+    }
+}
+
+impl DerefMut for Owned {
+    fn deref_mut(&mut self) -> &mut Child {
+        self.0.as_mut().expect(TAKEN)
+    }
+}
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        let Some(mut child) = self.0.take() else {
+            return;
+        };
+        // std keeps the status of a reaped child, so this never signals a pid that was reused.
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+        let _ = child.kill();
+        // A killed child is usually gone within a few ms; the rare slow one is reaped off the caller (the UI thread).
+        for _ in 0..20 {
+            if !matches!(child.try_wait(), Ok(None)) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        reap_in_background(child);
+    }
+}
+
+fn reap_in_background(mut child: Child) {
+    let spawned = std::thread::Builder::new()
+        .name("skyelab-reap".into())
+        .spawn(move || child.wait());
+    if let Err(e) = spawned {
+        tracing::warn!("no thread to reap a child: {e}");
+    }
 }
 
 /// Runs `start` under [`spawn`]'s lock: a spawn that doesn't go through a `Command` here (a terminal's PTY), or an
@@ -33,7 +94,7 @@ pub fn exclusive<T>(start: impl FnOnce() -> T) -> T {
 
 /// A spawned child whose stdout and stderr go to temp files.
 pub struct Captured {
-    pub child: Child,
+    pub child: Owned,
     stdout: File,
     stderr: File,
     /// Timed for the debug log while debug mode is on.

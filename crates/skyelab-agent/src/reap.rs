@@ -63,7 +63,7 @@ impl Session {
 
     /// Ends the agent's process tree: SIGKILL to its process group on unix (the group is the agent's pid), closing
     /// its kill-on-close Job Object on Windows.
-    fn kill_group(&mut self) {
+    pub(crate) fn kill_group(&mut self) {
         #[cfg(windows)]
         drop(self.job.take());
         #[cfg(unix)]

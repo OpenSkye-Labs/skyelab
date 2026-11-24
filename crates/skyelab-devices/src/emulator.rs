@@ -1,7 +1,8 @@
 //! A running emulator this process started.
 
+use skyelab_core::process::Owned;
 use std::io;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 /// A running emulator started by [`DeviceHub::boot`]. Dropping it leaves the emulator running, and a thread reaps
@@ -9,18 +10,15 @@ use std::time::{Duration, Instant};
 #[derive(Debug)]
 pub struct Emulator {
     /// `None` only inside `drop`, which hands the child to the reaper thread.
-    pub(crate) child: Option<Child>,
+    pub(crate) child: Option<Owned>,
 }
 
 const TAKEN_IN_DROP: &str = "only drop takes the child, and nothing runs after drop";
 
 impl Drop for Emulator {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take()
-            && matches!(child.try_wait(), Ok(None))
-        {
-            // Not reaping leaves a zombie until this process exits. The thread lives as long as the emulator does.
-            std::thread::spawn(move || child.wait());
+        if let Some(child) = self.child.take() {
+            child.detach();
         }
     }
 }
