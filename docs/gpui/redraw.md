@@ -124,3 +124,17 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `Live` row of their own once the tail passes 2 KB (`timeline::split_live`), so a delta re-lays out only the tail
   and the rows on screen; the complete block joins the parts into one row again. Measured with `scripts/perf.sh
   stream`'s p50 per 10 s: flat at 2.0-2.2 ms. Parts sit together (no row padding between them) to read as one message.
+- Why the caret blink redraws the timeline (traced, not fixable in our code): gpui-base's `InputState` observes its
+  `BlinkCursor` and notifies itself on each phase (`state.rs`, `cx.observe(&blink_cursor, .. cx.notify())`); a notify
+  dirties every view on the dispatch-tree path above it (`mark_view_dirty` walks `view_path_reversed`), so
+  `ThreadView` and `Center` go dirty; the center `TabPanel` draws `Center` with `.cached(..)`, the dirty cache misses
+  and sets `window.refreshing` for its whole subtree, and every row is built again. Dead ends: `DockLayout` has only
+  tab panels (always cached), a `deferred` element keeps its parent's dispatch node (so it is still a descendant),
+  and a list row can't be reused without a cached view. What would work: a paint-only invalidation in GPUI, or the
+  composer in a dock panel of its own (its actions then need routing back to the thread). Until then the blink stops
+  after 5 s idle (`ui::CURSOR_BLINK`), ~10 redraws of the visible rows (`scripts/perf.sh idle`: 17 ThreadView renders,
+  590 timeline rows).
+- A `list` lays out its leading overdraw (600 px above the viewport for the timeline) and never paints it: at launch
+  the first rows frame builds 44 rows, 28 with no overdraw (`scripts/perf.sh idle`). It can't be deferred safely:
+  the overdraw is fixed at `ListState::new`, and `set_item_measurement_readiness` marks visible rows provisional and
+  moves the scroll anchor. Keep that frame cheap by keeping each row cheap.
