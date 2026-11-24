@@ -7,15 +7,14 @@ use super::thread_items::ItemsView;
 use super::thread_model::Item;
 use super::timeline_fold::{fold_key, folded_by};
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, KeyBinding, ListState, Subscription, Window,
     actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
+    ActiveTheme as _, Sizable as _, h_flex,
     input::{Input, InputEvent, InputState},
 };
 

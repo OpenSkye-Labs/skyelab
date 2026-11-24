@@ -5,17 +5,13 @@ use super::thread_items::{ItemsView, clip};
 use super::thread_model::ApprovalItem;
 use super::tool_cards::slot;
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::Input,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 use skyelab_agent::Decision;
 pub(super) use skyelab_agent::timeline::cards::questions;
 use std::collections::BTreeSet;
@@ -234,7 +230,7 @@ pub(super) fn render_questions<V: ItemsView>(
                         .child(q.question.clone()),
                 )
                 .children(rows)
-                .children(other.map(|input| div().pl_7().child(Input::new(&input).small())))
+                .children(other.map(|input| div().pl_7().child(TextField::new(&input).small())))
                 .children(attach),
         );
     }

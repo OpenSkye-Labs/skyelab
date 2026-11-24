@@ -7,13 +7,10 @@ use super::super::thread::{GitAction, ThreadView, ThreadViewEvent};
 use super::On;
 use super::card::{chevron, row, tinted_row};
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, App, AppContext as _, Context, SharedString, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, v_flex};
 use skyelab_git::Checks;
 
 impl ThreadView {

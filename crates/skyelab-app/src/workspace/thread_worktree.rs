@@ -3,12 +3,9 @@
 use super::lock;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::worktree::{self, Discard};
+use crate::ui::Button;
 use gpui::{AnyElement, Context, FontWeight, Window, actions, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex};
 
 actions!(
     skyelab,
