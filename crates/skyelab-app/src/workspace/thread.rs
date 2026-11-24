@@ -239,11 +239,12 @@ impl ThreadView {
                     let sides = lock(&store)?.side_chats(id)?;
                     let sides = sides.into_iter().map(|t| (t.id, t.title.into())).collect();
                     let lineage = (parent, children, sides);
-                    anyhow::Ok((row, lineage, rows.len() - records.len(), records))
+                    let mark = lock(&store)?.scroll_mark(id)?;
+                    anyhow::Ok((row, lineage, rows.len() - records.len(), records, mark))
                 })
                 .await;
             let _ = this.update(cx, |this, cx| match loaded {
-                Ok((row, (parent, children, sides), skipped, records)) => {
+                Ok((row, (parent, children, sides), skipped, records, mark)) => {
                     if let Some(row) = row {
                         this.mode = super::side_chat::row_mode(&row);
                         this.thread = Some(row);
@@ -266,6 +267,7 @@ impl ThreadView {
                         this.note_context(r);
                     }
                     this.lists.reset(this.items.len());
+                    this.lists.restore(mark);
                     crate::debug_mode::launch_milestone("thread replayed");
                     this.load_turn_files(cx);
                     if skipped > 0 {

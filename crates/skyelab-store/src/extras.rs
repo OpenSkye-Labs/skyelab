@@ -52,6 +52,31 @@ impl Store {
         Ok(n == 1)
     }
 
+    /// Where the reader left thread `id` scrolled up: (row, offset in the row in px). `None`: at its end.
+    pub fn scroll_mark(&self, id: i64) -> Result<Option<(usize, f32)>> {
+        let mark: Option<String> = self
+            .conn
+            .query_row("SELECT scroll_mark FROM threads WHERE id = ?1", [id], |r| {
+                r.get(0)
+            })
+            .optional()?
+            .flatten();
+        Ok(mark.and_then(|m| {
+            let (row, offset) = m.split_once(':')?;
+            Some((row.parse().ok()?, offset.parse().ok()?))
+        }))
+    }
+
+    /// Keeps where the reader left thread `id` (`None`: at its end). Not an update the sidebar orders by.
+    pub fn set_scroll_mark(&self, id: i64, mark: Option<(usize, f32)>) -> Result<()> {
+        let mark = mark.map(|(row, offset)| format!("{row}:{offset}"));
+        self.conn.execute(
+            "UPDATE threads SET scroll_mark = ?2 WHERE id = ?1",
+            params![id, mark],
+        )?;
+        Ok(())
+    }
+
     /// The draft `owner` (`thread:<id>` or `project:<id>`) holds; empty when none.
     pub fn draft(&self, owner: &str) -> Result<Draft> {
         let text = self

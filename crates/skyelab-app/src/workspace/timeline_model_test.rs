@@ -268,3 +268,125 @@ fn a_gone_session_adds_a_note_and_hides_its_failure() {
         ]
     );
 }
+
+/// A reply of `paras` paragraphs of ~100 bytes, then a fenced code block whose blank lines must never be cut, then
+/// more paragraphs, streamed in 7-byte deltas.
+fn long_reply() -> String {
+    let para = |n: usize| format!("Paragraph {n}: {}\n\n", "word ".repeat(18));
+    let mut text: String = (0..30).map(para).collect();
+    text.push_str("```rust\nfn a() {}\n\n\nfn b() {}\n");
+    text.push_str(&"let x = 1;\n\n".repeat(300));
+    text.push_str("```\n\n");
+    text.extend((30..60).map(para));
+    text
+}
+
+fn live_parts(items: &[Item]) -> Vec<&str> {
+    items
+        .iter()
+        .filter_map(|i| match i {
+            Item::Live {
+                kind: DeltaKind::Text,
+                text,
+            } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_long_streamed_reply_splits_at_whole_blocks_and_finishes_as_one_row() {
+    let text = long_reply();
+    let mut items = crate::workspace::thread_model::Items::default();
+    apply(&mut items, &Record::Prompt("hi".into()));
+    let mut most_parts = 0;
+    for chunk in text.as_bytes().chunks(7) {
+        let changed = apply(
+            &mut items,
+            &delta(DeltaKind::Text, std::str::from_utf8(chunk).expect("ascii")),
+        );
+        assert!(changed.is_some_and(|c| c >= 1), "only the reply's rows change");
+        let parts = live_parts(&items);
+        most_parts = most_parts.max(parts.len());
+        // Every part but the growing tail is whole blocks: it ends with a blank line, outside any fence.
+        for done in &parts[..parts.len() - 1] {
+            assert!(done.ends_with("\n\n"), "a part ends at a block boundary");
+            assert_eq!(done.matches("```").count() % 2, 0, "no part cuts a code fence");
+            assert!(done.len() >= 1024, "parts aren't tiny");
+        }
+        assert_eq!(parts.concat(), text[..parts.concat().len()], "the parts are the reply in order");
+    }
+    assert!(most_parts >= 4, "a ~10 KB reply streams as several rows, got {most_parts}");
+    assert_eq!(live_parts(&items).concat(), text);
+
+    // The complete block replaces all its parts with one row.
+    let changed = apply(&mut items, &blocks(vec![Block::Text { text: text.clone() }]));
+    assert_eq!(changed, Some(1));
+    assert_eq!(
+        *items,
+        vec![Item::Prompt("hi".into()), Item::Text(text)][..]
+    );
+}
+
+#[test]
+fn a_split_reply_cut_off_keeps_all_it_streamed() {
+    let text = long_reply();
+    let mut items = run(&[Record::Prompt("hi".into()), delta(DeltaKind::Text, "")]);
+    for chunk in text.as_bytes().chunks(64) {
+        apply(
+            &mut items,
+            &delta(DeltaKind::Text, std::str::from_utf8(chunk).expect("ascii")),
+        );
+    }
+    assert!(live_parts(&items).len() > 1);
+    // Stop: what streamed is stored whole, and the turn's end settles the parts into one row.
+    match super::thread_model::partial(&items) {
+        Some(Record::Agent(Event::Assistant { content })) => {
+            assert_eq!(content[0], Block::Text { text: text.clone() })
+        }
+        other => panic!("no partial: {other:?}"),
+    }
+    assert_eq!(apply(&mut items, &result(true, None)), Some(1));
+    assert_eq!(items[1], Item::Text(text));
+    assert!(matches!(items[2], Item::Done { .. }));
+    assert_eq!(items.len(), 3);
+}
+
+#[test]
+fn a_streaming_reply_is_not_cut_inside_a_list_item_or_before_its_stderr_id() {
+    // A fenced block indented under a list item continues the item: no row may start at it.
+    let body = format!(
+        "{}\n\n1. step\n\n   ```sh\n   make\n   ```\n{}",
+        "A".repeat(1100),
+        "B".repeat(1000)
+    );
+    // As one delta into a row already streaming, and as the first delta of a row.
+    for records in [
+        vec![delta(DeltaKind::Text, "x"), delta(DeltaKind::Text, &body)],
+        vec![delta(DeltaKind::Text, &body)],
+    ] {
+        let items = run(&records);
+        assert!(live_parts(&items).len() > 1, "{:?}", live_parts(&items));
+        assert!(
+            !live_parts(&items).iter().any(|p| p.starts_with("   ```")),
+            "{:?}",
+            live_parts(&items)
+        );
+    }
+
+    // Stderr while a reply streams split: its id counts the reply as one row, as a reload from the store does.
+    let mut items = run(&[Record::Prompt("hi".into())]);
+    for chunk in long_reply().as_bytes().chunks(64) {
+        apply(
+            &mut items,
+            &delta(DeltaKind::Text, std::str::from_utf8(chunk).expect("ascii")),
+        );
+    }
+    assert!(live_parts(&items).len() > 1);
+    apply(&mut items, &agent(Event::Stderr { text: "warn".into() }));
+    assert!(
+        matches!(items.last(), Some(Item::Output { id, .. }) if id == "output-2"),
+        "{:?}",
+        items.last()
+    );
+}

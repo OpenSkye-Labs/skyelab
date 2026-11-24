@@ -57,6 +57,8 @@ pub struct UiGallery {
     search: Entity<InputState>,
     port: Entity<InputState>,
     locked: Entity<InputState>,
+    /// The pointer is over the loading button: only then does its spinner turn, so an open gallery idles.
+    spinning: bool,
 }
 
 impl UiGallery {
@@ -70,6 +72,7 @@ impl UiGallery {
             search: cx.new(|cx| InputState::new(window, cx).placeholder("Search")),
             port: cx.new(|cx| InputState::new(window, cx).default_value("5173")),
             locked: cx.new(|cx| InputState::new(window, cx).placeholder("Disabled")),
+            spinning: false,
         }
     }
 
@@ -122,7 +125,7 @@ fn caption(text: impl Into<SharedString>, cx: &App) -> impl IntoElement {
         .child(text.into())
 }
 
-fn buttons(cx: &App) -> impl IntoElement {
+fn buttons(loading: impl IntoElement, cx: &App) -> impl IntoElement {
     let grid = VARIANTS.iter().map(|&(v, name)| {
         h_flex()
             .gap_3()
@@ -164,12 +167,7 @@ fn buttons(cx: &App) -> impl IntoElement {
         .child(caption("States", cx))
         .child(Button::new("g-save").primary().label("Save"))
         .child(Button::new("g-later").secondary().label("Later"))
-        .child(
-            Button::new("g-loading")
-                .outline()
-                .label("Pushing")
-                .loading(true),
-        )
+        .child(loading)
         .child(
             Button::new("g-selected")
                 .ghost()
@@ -261,6 +259,20 @@ fn badges(cx: &App) -> impl IntoElement {
 impl Render for UiGallery {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("UiGallery");
+        let loading = div()
+            .id("g-loading-hover")
+            .debug_selector(|| "g-loading".into())
+            .on_hover(cx.listener(|this, over: &bool, _, cx| {
+                this.spinning = *over;
+                cx.notify();
+            }))
+            .child(
+                Button::new("g-loading")
+                    .outline()
+                    .label("Pushing")
+                    .loading(true)
+                    .spin(self.spinning),
+            );
         let theme = cx.theme();
         let toggles = h_flex()
             .gap_6()
@@ -422,7 +434,7 @@ impl Render for UiGallery {
                 .gap_6()
                 .text_color(theme.foreground)
                 .child(title)
-                .child(section("Buttons", buttons(cx)))
+                .child(section("Buttons", buttons(loading, cx)))
                 .child(section("Badges, chips, keys", badges(cx)))
                 .child(section("Switch and checkbox", toggles))
                 .child(section("Segmented control and tabs", choices))

@@ -258,9 +258,9 @@ impl ThreadView {
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
         self.grant = None; // revokes the token and cuts the MCP connection
         self.keep_partial(cx);
+        let old = self.items.len();
         if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
-            let n = self.items.len();
-            self.lists.splice(first..n, n - first);
+            self.lists.splice(first..old, self.items.len() - first);
         }
         // A fork or side chat has no session until its first send starts one (with its context prompt).
         self.read_only = self.thread.as_ref().is_none_or(|t| {

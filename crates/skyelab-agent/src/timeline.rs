@@ -7,10 +7,13 @@ use serde_json::Value;
 pub mod cards;
 pub mod fold;
 mod keys;
+mod live;
 mod record;
 pub mod subagent;
 
 pub use keys::Items;
+pub use live::settle_live;
+use live::{live_run_start, live_text, split_extra, split_live};
 pub use record::Record;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -124,11 +127,15 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
                     t.push_str(text);
                 }
                 first_changed = Some(ix);
+                split_live(items, ix);
             }
-            None => items.push(Item::Live {
-                kind: *kind,
-                text: text.clone(),
-            }),
+            None => {
+                items.push(Item::Live {
+                    kind: *kind,
+                    text: text.clone(),
+                });
+                split_live(items, items.len() - 1);
+            }
         },
         Record::Agent(Event::Assistant { content }) => {
             for block in content {
@@ -330,7 +337,7 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
             explains_failure: false,
         }),
         Record::Agent(Event::Stderr { text }) => items.push(Item::Output {
-            id: format!("output-{before}"),
+            id: format!("output-{}", before - split_extra(items)),
             text: text.clone(),
         }),
         Record::Agent(
@@ -366,30 +373,18 @@ pub fn limit_after(now: Option<Option<i64>>, record: &Record) -> Option<Option<i
     }
 }
 
-/// Settles rows still streaming: a block that never completed (the turn failed or was stopped) stays as it
-/// streamed. Returns the first row that changed.
-pub fn settle_live(items: &mut [Item]) -> Option<usize> {
-    let mut first = None;
-    for (ix, item) in items.iter_mut().enumerate() {
-        if let Item::Live { kind, text } = item {
-            let done = settled(*kind, std::mem::take(text), ix);
-            *item = done;
-            first = first.or(Some(ix));
-        }
-    }
-    first
-}
-
 /// The message a turn cut off before its final one (Stop, a crash, an interrupt): the text still streaming, as an
 /// assistant event marked [`Block::Partial`], so storing it keeps it. `None` when no text is streaming.
 pub fn partial(items: &[Item]) -> Option<Record> {
     // The row `apply` settles, so storing it can't leave a second copy (callers store it before any stderr row).
-    let Item::Live { text, .. } = &items[live(items, DeltaKind::Text)?] else {
-        return None;
-    };
+    let last = live(items, DeltaKind::Text)?;
+    let text = live_text(
+        items,
+        live_run_start(items, last, DeltaKind::Text)..last + 1,
+    );
     (!text.trim().is_empty()).then(|| {
         Record::Agent(Event::Assistant {
-            content: vec![Block::Text { text: text.clone() }, Block::Partial],
+            content: vec![Block::Text { text }, Block::Partial],
         })
     })
 }
@@ -420,17 +415,17 @@ fn settled(kind: DeltaKind, text: String, ix: usize) -> Item {
 /// A complete text or thinking block: it replaces its streaming row (returned as changed), or is pushed. An empty
 /// one (thinking the agent didn't show) keeps what streamed, or adds nothing.
 fn finish(items: &mut Items, kind: DeltaKind, text: &str) -> Option<usize> {
-    let at = live(items, kind);
-    let text = match (text.trim().is_empty(), at) {
+    // The streaming row and the parts split off before it (`split_live`) become the one complete row.
+    let at = live(items, kind).map(|last| live_run_start(items, last, kind)..last + 1);
+    let text = match (text.trim().is_empty(), &at) {
         (false, _) => text.to_owned(),
-        (true, Some(ix)) => match &mut items[ix] {
-            Item::Live { text, .. } => std::mem::take(text),
-            _ => String::new(),
-        },
+        (true, Some(run)) => live_text(items, run.clone()),
         (true, None) => return None,
     };
     match at {
-        Some(ix) => {
+        Some(run) => {
+            let ix = run.start;
+            items.remove(ix + 1..run.end);
             items[ix] = settled(kind, text, ix);
             Some(ix)
         }

@@ -183,6 +183,7 @@ frames are timed without the overlay's tick), drives the app with `SKYELAB_VERIF
   (debug mode prints them and logs them as `frame` entries);
 - frame count, p50, p95, max and how many took over 16 ms, read from the `frame` events (field `ms`) every timed
   frame writes into the `SKYELAB_TRACE` trace;
+- for `stream`, the p50 per 10 s of the run too (flat when a delta costs the same at any reply length);
 - the busiest views' renders in the run.
 
 | Scenario | What it does |

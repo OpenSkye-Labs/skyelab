@@ -118,3 +118,53 @@ pub(super) fn file_link(url: &str) -> Option<String> {
     }
     Some(path.to_owned())
 }
+
+/// A streaming reply's row. A long reply streams as several rows (`timeline::split_live`); its parts sit together,
+/// with no row padding between them, like one message.
+pub(super) fn streaming_row<V: ItemsView>(
+    this: &V,
+    ix: usize,
+    text: &str,
+    root: Option<&std::path::Path>,
+    window: &mut gpui::Window,
+    cx: &mut Context<V>,
+) -> gpui::AnyElement {
+    use super::thread_model::Item;
+    use skyelab_agent::DeltaKind;
+    let part = |i: Option<&Item>| {
+        matches!(
+            i,
+            Some(Item::Live {
+                kind: DeltaKind::Text,
+                ..
+            })
+        )
+    };
+    let after = part(this.items().get(ix + 1));
+    let before = ix > 0 && part(this.items().get(ix - 1));
+    let key = this.items().key(ix);
+    gpui_component::h_flex()
+        .w_full()
+        .justify_center()
+        .px_6()
+        .child(
+            div()
+                .w_full()
+                .max_w(crate::ui::CHAT_MAX_W)
+                .when(!before, |d| d.pt_2())
+                .when(!after, |d| d.pb_2())
+                .debug_selector(|| "streaming-text".into())
+                .px_1()
+                .text_size(crate::ui::BODY)
+                .child(markdown(
+                    ("md", key),
+                    text,
+                    true,
+                    root,
+                    this.find_words(ix),
+                    window,
+                    cx,
+                )),
+        )
+        .into_any_element()
+}

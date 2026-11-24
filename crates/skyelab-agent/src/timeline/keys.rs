@@ -27,6 +27,12 @@ impl Items {
         self.keys.insert(at, NEXT.fetch_add(1, Ordering::Relaxed));
     }
 
+    /// Removes rows `range`, with their keys.
+    pub fn remove(&mut self, range: std::ops::Range<usize>) {
+        self.items.drain(range.clone());
+        self.keys.drain(range);
+    }
+
     /// Row `ix`'s key; 0 (no row has it) past the end.
     pub fn key(&self, ix: usize) -> u64 {
         self.keys.get(ix).copied().unwrap_or(0)
