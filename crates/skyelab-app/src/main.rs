@@ -191,6 +191,7 @@ const MCP_PROXY_FLAG: &str = "--mcp-proxy";
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 fn main() {
+    debug_mode::mark_launch();
     if std::env::args_os()
         .nth(1)
         .is_some_and(|a| a == MCP_PROXY_FLAG)

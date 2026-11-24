@@ -220,8 +220,39 @@ const FRAME_WINDOW: Duration = Duration::from_secs(5);
 /// Frame times of the last [`FRAME_WINDOW`]: each window's root render to its paint.
 static FRAMES: Mutex<VecDeque<(Instant, Duration)>> = Mutex::new(VecDeque::new());
 
-/// One frame drawn in `took`; a slow one goes to stderr and the debug log.
+/// When `main` started, for the launch milestones below.
+static LAUNCHED: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+
+/// The first thing `main` does: launch milestones are measured from here.
+pub(crate) fn mark_launch() {
+    LAUNCHED.get_or_init(Instant::now);
+}
+
+/// A launch milestone (`first frame`, `threads listed`), once each, to stderr and the debug log while debug mode
+/// is on: the cold and warm start numbers in `.agent/perf/`.
+pub(crate) fn launch_milestone(what: &'static str) {
+    static SEEN: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+    let Some(at) = LAUNCHED.get().filter(|_| debug::enabled()) else {
+        return;
+    };
+    let mut seen = SEEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if seen.contains(&what) {
+        return;
+    }
+    seen.push(what);
+    let took = at.elapsed();
+    eprintln!(
+        "skyelab: {what} {:.1} ms after launch",
+        took.as_secs_f64() * 1000.
+    );
+    debug::record(|| debug::Entry::new(debug::Kind::Frame, what).ms(took));
+}
+
+/// One frame drawn in `took`; a slow one goes to stderr and the debug log. Each frame is also a `frame` event
+/// (field `ms`) in a `SKYELAB_TRACE` trace, so a run's frame times can be read back from the trace.
 pub(crate) fn frame_drawn(took: Duration) {
+    launch_milestone("first frame");
+    tracing::info!(target: "skyelab::frame", ms = took.as_secs_f64() * 1000., "frame");
     let now = Instant::now();
     let mut frames = FRAMES.lock().unwrap_or_else(PoisonError::into_inner);
     while frames
@@ -300,6 +331,19 @@ pub(crate) fn child_processes() -> Vec<ChildProc> {
     out
 }
 
+/// This process's resident memory in MB, rounded, if the OS says.
+fn own_memory_mb() -> Option<u64> {
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+    let me = Pid::from_u32(std::process::id());
+    let mut sys = System::new().ok()?;
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[me]),
+        true,
+        ProcessRefreshKind::nothing().with_memory(),
+    );
+    sys.process(me).map(|p| p.memory() / 1_000_000)
+}
+
 /// The dump's JSON: what a leak or perf report needs, nothing a user typed.
 pub(crate) fn snapshot(
     frames: FrameStats,
@@ -325,13 +369,15 @@ pub(crate) fn snapshot(
 /// Writes the snapshot to `debug/state-<unix ms>.json` and returns its path.
 pub(crate) fn dump_state() -> anyhow::Result<PathBuf> {
     use anyhow::Context as _;
-    let value = snapshot(
+    let mut value = snapshot(
         frame_stats(),
         &crate::debug_renders::last_second(),
         &debug::live_counts(),
         &child_processes(),
         &debug::recent(200),
     );
+    // Resident memory, so a leak hunt sees growth as well as counts (docs/debugging.md).
+    value["memory_mb"] = serde_json::json!(own_memory_mb());
     let dir = debug_dir().context("no platform data dir")?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
     let at = std::time::SystemTime::now()

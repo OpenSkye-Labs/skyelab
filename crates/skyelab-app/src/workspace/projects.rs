@@ -133,6 +133,7 @@ impl Workspace {
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok(threads) => {
+                        crate::debug_mode::launch_milestone("threads listed");
                         this.threads = threads;
                         this.rerun_search(cx);
                         this.load_previews(cx);

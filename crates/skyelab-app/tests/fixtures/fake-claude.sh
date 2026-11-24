@@ -10,7 +10,7 @@
 # "turn" ends a plain turn ($0.0125, 1200 in, 80 out) with Claude's running totals.
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
-# plan and a question (left waiting). "subagent" runs two subagents (fake-subagent.sh), and "login" fails the turn
+# plan and a question (left waiting). "stream" streams a long answer fast (fake-stream.sh, ~30 s). "subagent" runs two subagents (fake-subagent.sh), and "login" fails the turn
 # the way a signed-out Claude Code does. "context" ends a turn whose last call held 170k tokens of a 200k window
 # (85%: the meter warns and hints /compact). `auth login` prints which config dir it logs in to and exits 0. With a .fake-session-gone file in the folder, a --resume start fails the way
 # Claude Code does for a session it doesn't have; a fresh start then reports session fake-sess-new.
@@ -110,6 +110,8 @@ while IFS= read -r line; do
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":900,"num_turns":1,"result":"Turn done.","session_id":"fake-sess-1","total_cost_usd":%s,"usage":{"input_tokens":3,"cache_creation_input_tokens":200,"cache_read_input_tokens":997,"output_tokens":80},"modelUsage":{"claude-opus-5-5":{"inputTokens":%s,"outputTokens":%s,"costUSD":%s}}}\n' "$total" "$in_total" "$out_total" "$total" ;;
     *'"content":"timeline'*)
       sh "$(dirname "$0")/fake-timeline.sh" ;;
+    *'"content":"stream'*)
+      sh "$(dirname "$0")/fake-stream.sh" ;;
     *'"content":"mermaid'*)
       # A reply with a mermaid diagram, a broken one and a plain code block (the card next to a normal one).
       printf '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Here is the flow:\\n\\n```mermaid\\nflowchart LR\\n    A[User prompt] --> B{Bound account?}\\n    B -- yes --> C[Start agent]\\n    B -- no --> D[Ask the user]\\n    C --> E[(Thread store)]\\n```\\n\\nAnd one that does not parse:\\n\\n```mermaid\\nnot a diagram ->->\\n```\\n\\nA plain block:\\n\\n```rust\\nfn main() {}\\n```"}]},"parent_tool_use_id":null}\n'

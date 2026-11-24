@@ -244,6 +244,7 @@ impl ThreadView {
                     this.finish(cx);
                     let fork_made = this.thread.as_ref().filter(|t| t.forked_from.is_some());
                     let fork_made = fork_made.map(|t| t.created_at);
+                    let _span = tracing::info_span!("thread.replay").entered();
                     for (r, at) in &records {
                         replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
@@ -255,6 +256,7 @@ impl ThreadView {
                         this.note_context(r);
                     }
                     this.lists.reset(this.items.len());
+                    crate::debug_mode::launch_milestone("thread replayed");
                     this.load_turn_files(cx);
                     if skipped > 0 {
                         this.error =
