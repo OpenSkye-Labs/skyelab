@@ -2,14 +2,12 @@
 
 use super::thread::{CONTEXT, ThreadView};
 use super::thread_find::FindHost as _;
-use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Tooltip};
 use gpui::{
-    AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*,
-    px,
+    AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _, Icon, h_flex,
@@ -222,7 +220,6 @@ impl Render for ThreadView {
         let find = self.render_find(cx);
         let strip = self.render_subagent_strip(cx);
         let quote = self.render_quote_button(cx);
-        let minimap = self.render_minimap(window, cx);
         let timeline = self.quote_listeners(div(), cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
@@ -259,12 +256,7 @@ impl Render for ThreadView {
                 .flex_col()
                 .children(quote)
                 .children(find)
-                .child({
-                    let rows = self.list_in(window.window_handle()).clone();
-                    super::timeline_list::settle_rows_above(&rows);
-                    list(rows, cx.processor(render_item)).flex_1().py_3()
-                })
-                .children(minimap)
+                .child(super::timeline_view::cached(&self.timeline_view))
                 .into_any_element()
         };
         let line = |text: SharedString, color: gpui::Hsla| {

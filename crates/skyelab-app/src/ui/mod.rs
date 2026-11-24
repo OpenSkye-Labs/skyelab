@@ -57,8 +57,8 @@ pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The caret blinks while you type, then holds still: each blink re-renders the dock's center panel and every timeline
-/// row in it (docs/gpui/redraw.md), so an idle window should not redraw twice a second forever.
+/// The caret blinks while you type, then holds still: each blink re-renders the thread page around the composer (not
+/// its timeline rows, docs/gpui/redraw.md), so an idle window should not redraw twice a second forever.
 pub const CURSOR_BLINK: gpui_component::input::CursorBlink =
     gpui_component::input::CursorBlink::blinking(std::time::Duration::from_millis(500))
         .with_idle_timeout(std::time::Duration::from_secs(5));
