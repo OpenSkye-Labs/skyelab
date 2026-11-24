@@ -133,9 +133,11 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   and the rows on screen; the complete block joins the parts into one row again. Measured with `scripts/perf.sh
   stream`'s p50 per 10 s: flat at 2.0-2.2 ms. Parts sit together (no row padding between them) to read as one message.
 - A `list` lays out its leading overdraw (600 px above the viewport for the timeline) and never paints it: at launch
-  the first rows frame builds 44 rows, 28 with no overdraw (`scripts/perf.sh idle`). It can't be deferred safely:
-  the overdraw is fixed at `ListState::new`, and `set_item_measurement_readiness` marks visible rows provisional and
-  moves the scroll anchor. Keep that frame cheap by keeping each row cheap.
+  the first rows frame builds 44 rows, 28 with no overdraw (`scripts/perf.sh idle`). `set_item_measurement_readiness`
+  can't defer it (it marks visible rows provisional and moves the scroll anchor), and deferring it doesn't pay:
+  a list made with no overdraw, swapped for the 600 px one at the same anchor on the next render, made that frame
+  21-29 ms (28 rows) against 18-23 ms (44 rows) without, plus 11-18 ms for the swap frame (`scripts/perf.sh open`,
+  6 runs each, #14). The overdraw rows are cheap next to the visible rows' first layout. Keep each row cheap.
 - A dialog or notification lives in gpui-component's `Root`, so every notify inside it (each palette keystroke or
   hover) re-renders `Root` and, through it, the window's main view. `Root`'s child is therefore a tiny shell that
   returns the workspace as `AnyView::cached` (`windows.rs`, `CachedWorkspace`): the workspace renders only on its own

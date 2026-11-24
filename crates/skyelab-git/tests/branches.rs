@@ -206,3 +206,19 @@ fn a_switch_never_overwrites_an_ignored_file() {
         "mine\n"
     );
 }
+
+/// Git's own "checked out in another worktree" check reads the common dir's worktree list, which a switch on
+/// frozen config doesn't see: SkyeLab checks first.
+#[test]
+fn never_switches_to_a_branch_another_worktree_has() {
+    let (_tmp, repo) = repo();
+    let elsewhere = tempfile::TempDir::new().expect("tempdir");
+    let other = elsewhere.path().join("wt");
+    git(
+        &repo,
+        &["worktree", "add", "-q", &other.to_string_lossy(), "feature"],
+    );
+    let err = switch_branch(&repo, "feature", OnDirty::Refuse).expect_err("refused");
+    assert!(err.to_string().contains("another worktree"), "{err}");
+    assert_eq!(current(&repo), "main");
+}

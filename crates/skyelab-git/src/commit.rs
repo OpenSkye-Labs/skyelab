@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::publish::{MAX_MESSAGE, checked, invalid};
-use crate::{Result, command, git, git_succeeds, lossy, repo_root};
+use crate::{Result, git, git_succeeds, lossy, repo_root};
 
 /// Commits `paths` (every change, untracked files included, when empty) with `message`, and returns the new commit.
 /// With `hooks`, the repo's hooks run, with the scrubbed env plus `env` (the bound account's launch env and git
@@ -115,7 +115,7 @@ pub fn commit(
         }
         names.clone()
     };
-    let mut cmd = crate::user_command(&root, hooks)?;
+    let mut cmd = crate::user_command(&root, hooks, false)?;
     cmd.args(["commit", "-F", "-"])
         .env("GIT_INDEX_FILE", &index)
         .envs(env.iter().map(|(k, v)| (k, v)));
@@ -219,7 +219,7 @@ pub(crate) fn indexed<S: AsRef<OsStr>>(
     args: &[S],
     input: Option<&[u8]>,
 ) -> Result<Vec<u8>> {
-    let mut cmd = command(Path::new("git"), root)?;
+    let mut cmd = crate::frozen::frozen_command(Path::new("git"), root)?;
     cmd.args(args).env("GIT_INDEX_FILE", index);
     crate::finish(root, args, skyelab_core::process::output(&mut cmd, input)?)
 }

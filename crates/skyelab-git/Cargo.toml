@@ -11,10 +11,11 @@ ignore.workspace = true
 notify.workspace = true
 skyelab-core.workspace = true
 serde_json.workspace = true
+# The frozen repo config each git call reads (src/frozen.rs).
+tempfile.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 # The fake https remote (tests/support/https_remote.rs, examples/fake_https_remote.rs).
 base64.workspace = true
 rcgen.workspace = true

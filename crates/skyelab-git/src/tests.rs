@@ -206,3 +206,89 @@ fn no_hook_can_be_planted_under_the_hooks_off_path() {
     assert!(std::fs::create_dir_all(&dir).is_err(), "{}", dir.display());
     assert!(std::fs::write(dir.join("pre-commit"), "x").is_err());
 }
+
+#[test]
+fn git_versions_with_the_ref_store_dir() {
+    for (text, ok) in [
+        ("git version 2.54.0 (Apple Git-157)\n", true),
+        ("git version 2.56.0.windows.1", true),
+        ("git version 3.0.0", true),
+        ("git version 2.53.1", false),
+        ("git version 2.39.5 (Apple Git-154)", false),
+        ("nonsense", false),
+    ] {
+        assert_eq!(frozen::version_at_least(text, (2, 54)), ok, "{text}");
+    }
+}
+
+#[test]
+fn program_keys_are_recognised() {
+    for key in [
+        "filter.lfs.clean",
+        "filter.a.b.smudge",
+        "filter.x.process",
+        "merge.ev.driver",
+        "hook.cfg.command",
+        "core.sshcommand",
+        "gpg.program",
+        "gpg.ssh.program",
+        "gpg.ssh.defaultkeycommand",
+    ] {
+        assert!(frozen::is_program_key(key.as_bytes()), "{key}");
+    }
+    for key in [
+        "filter.lfs.required",
+        "merge.ev.name",
+        "core.editor",
+        "user.name",
+        "filter.clean",
+    ] {
+        assert!(!frozen::is_program_key(key.as_bytes()), "{key}");
+    }
+}
+
+/// The frozen config git reads back holds exactly the listed entries: quotes, backslashes, newlines, dotted and
+/// quoted subsections, valueless and empty values, and multi-valued keys in order.
+#[test]
+fn the_frozen_config_reads_back_as_listed() {
+    let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+        (b"core.bare", Some(b"false")),
+        (
+            b"remote.origin.fetch",
+            Some(b"+refs/heads/*:refs/remotes/origin/*"),
+        ),
+        (b"remote.origin.fetch", Some(b"+refs/tags/*:refs/tags/*")),
+        (b"branch.a.b\"c\\d.merge", Some(b"refs/heads/x")),
+        (b"user.name", Some(b"He said \"hi\" \\ there\n\tend")),
+        (b"core.trustctime", None),
+        (b"core.askpass", Some(b"")),
+        (b"i18n.commitencoding", Some(b"latin1 \xe9")),
+    ];
+    let tmp = tempfile::tempdir().expect("tmp");
+    let file = tmp.path().join("config");
+    std::fs::write(&file, frozen::config_text(entries.iter().copied())).expect("write");
+    let out = std::process::Command::new("git")
+        .args(["config", "--file"])
+        .arg(&file)
+        .args(["--list", "-z"])
+        .output()
+        .expect("git");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let mut want = Vec::new();
+    for (key, value) in &entries {
+        want.extend_from_slice(key);
+        if let Some(v) = value {
+            want.push(b'\n');
+            want.extend_from_slice(v);
+        }
+        want.push(0);
+    }
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&want)
+    );
+}

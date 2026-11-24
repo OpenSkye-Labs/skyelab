@@ -57,15 +57,22 @@
   `--ignore-submodules=dirty`, the review snapshot and a branch switch's stash leave checked-out submodules out of
   their pathspec and read only their HEAD. So the Changes tab shows a submodule's new commit but not edits inside it,
   and a branch-switch stash doesn't take a submodule's changes along. A new worktree is checked out by SkyeLab's own git in it, so a
-  config only that worktree's gitdir or branch includes (`includeIf`) is seen too. Each clean/smudge/process filter and merge driver the repo's own config defines is emptied unless your global
-  config defines the same one (Git LFS installed globally keeps working): an empty filter passes content through, and
+  config only that worktree's gitdir or branch includes (`includeIf`) is seen too. Each clean/smudge/process filter and merge driver the repo's own config defines is dropped unless your global
+  config defines the same one (Git LFS installed globally keeps working): a missing filter passes content through, and
   a `required` one (git-crypt, a `--local` LFS install) fails the command instead, so an encrypting filter never
-  commits plaintext; set such a filter in your global config to use it in SkyeLab. A driver whose name has `=` in it
-  can't be overridden, so the command is refused. Diff drivers (`diff.external`, `textconv`) were already off: every
+  commits plaintext; set such a filter in your global config to use it in SkyeLab. Every git call that can run a
+  filter or merge driver (status, diffs, snapshots, commit, stash, switch, pull, and the git `gh pr create` runs)
+  never reads the repo's config files: SkyeLab lists that config once (includes expanded), drops every program key,
+  hook and include from the copy, and points git at it (`GIT_COMMON_DIR`, with refs and objects still read from the
+  repo through `GIT_REFERENCE_BACKEND` and `GIT_OBJECT_DIRECTORY`). A filter written to `.git/config` after that
+  listing is never seen. The few calls that keep the real config (rev-parse, config reads, worktree add/list/remove,
+  ref listings, push and fetch) run no filter or merge driver. This needs git 2.54 or later; on older git, the
+  repo's drivers are listed just before each call and overridden with `-c` (one whose name has `=` in it can't be,
+  so the command is refused), and one written in the few milliseconds between that listing and git's own read
+  isn't seen. Diff drivers (`diff.external`, `textconv`) were already off: every
   diff passes `--no-ext-diff --no-textconv`. Editors, pagers and trailer commands are never reached (messages come
-  from SkyeLab, there's no terminal). Limit: filters and merge drivers are found by listing the repo's config just
-  before each call, so one written in the few milliseconds between that listing and git's own read isn't seen; fixed
-  keys have no such gap.
+  from SkyeLab, there's no terminal). Fixed-name keys are overridden on every call, so they have no such gap on any
+  git.
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.
