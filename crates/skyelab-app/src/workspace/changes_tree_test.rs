@@ -2,7 +2,7 @@
 //! layout pairs removed lines with the added lines after them.
 
 use super::changes_model::{ChangedFile, LineKind, Row};
-use super::changes_tree::{SplitRow, TreeRow, split_rows, tree_rows};
+use super::changes_tree::{SplitRow, TreeRow, split_rows, tree_order, tree_rows};
 use skyelab_git::ChangeKind;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -100,5 +100,30 @@ fn split_rows_pair_removed_and_added() {
             SplitRow::Pair(Some(6), Some(6)),
             SplitRow::Pair(None, Some(7)),
         ]
+    );
+}
+
+#[test]
+fn the_diff_lists_files_in_the_trees_order() {
+    let mut f = files(&[
+        "README.md",
+        "agent-edit.txt",
+        "docs/guide.md",
+        "src/deep/nested/b.txt",
+        "src/f1.rs",
+    ]);
+    f.sort_by(|a, b| tree_order(&a.path, &b.path));
+    let shown: Vec<usize> = tree_rows(&f, &HashSet::new())
+        .iter()
+        .filter_map(|r| match r {
+            TreeRow::File { ix, .. } => Some(*ix),
+            TreeRow::Dir { .. } => None,
+        })
+        .collect();
+    assert_eq!(shown, [0, 1, 2, 3, 4], "top to bottom, the tree and the diff agree");
+    let order: Vec<_> = f.iter().map(|f| f.path.to_string_lossy().into_owned()).collect();
+    assert_eq!(
+        order,
+        ["docs/guide.md", "src/deep/nested/b.txt", "src/f1.rs", "README.md", "agent-edit.txt"]
     );
 }

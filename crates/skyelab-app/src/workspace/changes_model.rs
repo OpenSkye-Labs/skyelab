@@ -107,7 +107,7 @@ pub fn load_scope(
 fn from_diffs(diffs: Vec<skyelab_git::FileDiff>) -> Changes {
     let mut lines_left = skyelab_git::MAX_TOTAL_LINES;
     let mut entries = diff_entries(diffs, &mut lines_left);
-    entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
+    entries.sort_by(|a, b| super::changes_tree::tree_order(&a.0.path, &b.0.path));
     assemble(entries, None)
 }
 
@@ -186,7 +186,7 @@ fn load_with(dir: &Path, base: Option<&str>, ignore_ws: bool) -> Result<Changes>
         lines_left -= shown;
         entries.push((file(rel, None, ChangeKind::Added, binary), rows));
     }
-    entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
+    entries.sort_by(|a, b| super::changes_tree::tree_order(&a.0.path, &b.0.path));
 
     let after = skyelab_git::snapshot_tree(&root).ok();
     let mut changes = assemble(entries, tree.filter(|t| after.as_ref() == Some(t)));
