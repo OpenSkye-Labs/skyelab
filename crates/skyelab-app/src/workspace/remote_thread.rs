@@ -339,7 +339,7 @@ impl Drop for RemoteThreadView {
 
 impl Render for RemoteThreadView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("RemoteThreadView");
+        let _render = crate::debug_renders::count("RemoteThreadView");
         let header = self.render_header(window, cx);
         let find = self.render_find(cx);
         let theme = cx.theme();

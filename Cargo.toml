@@ -33,6 +33,18 @@ serde = { version = "1", features = ["derive"] }
 toml = "1"
 dirs = "7"
 serde_json = "1"
+# Debug mode (docs/debugging.md): spans in the hot paths; a subscriber exists only with SKYELAB_TRACE.
+tracing = { version = "0.1.44", default-features = false, features = ["std", "attributes"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "std"] }
+tracing-chrome = "0.7.2"
+# Function timing and allocations, only in `--features hotpath` / `hotpath-alloc` builds.
+hotpath = { version = "0.33.0", default-features = false }
+# Live Tracy profiling (`--features tracy`) and tokio-console (`--features tokio-console`), opt-in only.
+# Without its default `broadcast` and with `only-localhost`, so the profiler port is not on the LAN or tailnet.
+tracing-tracy = { version = "0.12.0", default-features = false, features = ["enable", "system-tracing", "context-switch-tracing", "sampling", "code-transfer", "callstack-inlines", "only-localhost"] }
+console-subscriber = "0.5.0"
+# Heap profiling, only in builds with skyelab-app's `dhat-heap` feature.
+dhat = "0.3.3"
 flume = "0.12"
 rusqlite = { version = "0.43", features = ["bundled"] }
 tempfile = "3"
@@ -123,3 +135,9 @@ opt-level = 2 # GPUI is unusably slow unoptimized; our own crates stay fast to c
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# Release code with symbols, for flame graphs (scripts/profile.sh, docs/debugging.md).
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
+strip = false

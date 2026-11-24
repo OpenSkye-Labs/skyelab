@@ -1,3 +1,4 @@
+mod debug_mode;
 mod debug_renders;
 mod environment;
 mod keymap;
@@ -184,6 +185,11 @@ fn app_menus(cx: &mut App) {
 /// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
 const MCP_PROXY_FLAG: &str = "--mcp-proxy";
 
+/// `--features dhat-heap`: dhat counts every allocation (docs/debugging.md). Never in a default build.
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 fn main() {
     if std::env::args_os()
         .nth(1)
@@ -197,6 +203,8 @@ fn main() {
     }
     let path = AccountsConfig::default_path();
     let (config, error) = load_accounts(path.as_deref());
+    let switches = skyelab_core::debug::Switches::from_env();
+    debug_mode::start_profilers(&switches);
 
     let app = gpui_platform::application().with_assets(ui::AppAssets);
     // A dock click with no window open opens one (macOS keeps running without windows).
@@ -215,6 +223,8 @@ fn main() {
             eprintln!("SkyeLab theme not loaded, using the default: {e:#}");
         }
         settings::init(cx);
+        debug_mode::init(&switches, AppSettings::default_path(), cx);
+        debug_mode::finish_on_quit(cx);
         skyelab_terminal::init(cx);
         workspace::init(cx);
         init_keys(skyelab_core::keymap::default_path(), cx);
@@ -374,7 +384,6 @@ fn main() {
             cx.quit();
         }
         verify_actions::dispatch_verify_actions(cx);
-        debug_renders::start();
         cx.activate(true);
     });
 }

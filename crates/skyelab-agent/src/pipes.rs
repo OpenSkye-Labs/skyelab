@@ -61,6 +61,7 @@ pub(crate) fn read_events(
             if line.trim().is_empty() {
                 continue;
             }
+            let _span = tracing::info_span!("agent.parse_line").entered();
             parse(line.trim_end())
         };
         if event.into_iter().any(|e| tx.send(e).is_err()) {

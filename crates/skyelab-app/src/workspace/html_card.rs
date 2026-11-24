@@ -384,7 +384,7 @@ fn open_page(title: String, html: &str, window: &mut Window, cx: &mut App) {
 
 impl Render for PageViewer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("PageViewer");
+        let _render = crate::debug_renders::count("PageViewer");
         // A closing dialog still draws while it fades: the native page must go at once, not over the backdrop.
         let shown = window.has_active_dialog(cx);
         if let Some(page) = &self.page {

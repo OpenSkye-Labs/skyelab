@@ -322,6 +322,7 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Value {
 }
 
 /// The answer to one JSON-RPC message, or `None` for a notification.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 fn respond(
     host: &dyn Host,
     caller: &Caller,
@@ -356,8 +357,21 @@ fn respond(
         "tools/list" => json!({"tools": tools::list()}),
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or_default();
+            // The agent picks the name: the log and the span get at most 64 chars of it.
+            let logged: String = name.chars().take(64).collect();
+            let _span = tracing::info_span!("mcp.tool", tool = %logged).entered();
+            let started = std::time::Instant::now();
             let answer = tools::parse(name, &params["arguments"])
                 .and_then(|tool| host.call_granted(caller, tool, granted));
+            // The tool's name, time and outcome only: its input and answer can hold prompts and page text.
+            skyelab_core::debug::record(|| {
+                let entry = skyelab_core::debug::Entry::new(skyelab_core::debug::Kind::Mcp, logged)
+                    .ms(started.elapsed());
+                match &answer {
+                    Ok(_) => entry,
+                    Err(_) => entry.failed("the tool returned an error"),
+                }
+            });
             match answer {
                 Ok(v)
                     if name == "browser_screenshot"

@@ -91,3 +91,15 @@ fn appearance_round_trips_and_clamps() {
         AppearanceSettings::default()
     );
 }
+
+#[test]
+fn developer_mode_is_off_by_default_and_round_trips() {
+    use skyelab_core::AppSettings;
+    let dir = tempfile::tempdir().expect("temp dir");
+    let path = dir.path().join("settings.toml");
+    assert!(!AppSettings::load(&path).unwrap().developer_mode);
+    AppSettings::update(&path, |s| s.developer_mode = true).unwrap();
+    assert!(AppSettings::load(&path).unwrap().developer_mode);
+    std::fs::write(&path, "developer_mode = true\n").unwrap();
+    assert!(AppSettings::load(&path).unwrap().developer_mode);
+}

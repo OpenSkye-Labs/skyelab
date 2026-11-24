@@ -325,7 +325,7 @@ impl Palette {
 
 impl Render for Palette {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("Palette");
+        let _render = crate::debug_renders::count("Palette");
         let items = self.row_to_entry.iter().map(|&i| {
             let entry = self.entries[i].clone();
             CommandItem::new()

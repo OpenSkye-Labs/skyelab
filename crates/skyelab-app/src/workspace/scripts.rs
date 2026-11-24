@@ -319,7 +319,7 @@ impl ScriptMenu {
 
 impl Render for ScriptMenu {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("ScriptMenu");
+        let _render = crate::debug_renders::count("ScriptMenu");
         let theme = cx.theme();
         let caption = |text: &'static str| {
             div()

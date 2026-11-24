@@ -20,6 +20,11 @@ const INDEX: &[(Section, &str, &str)] = &[
     ),
     (
         Section::General,
+        "Developer mode",
+        "debug overlay advanced profiling performance fps frames log trace leak",
+    ),
+    (
+        Section::General,
         "Check for updates",
         "update release version",
     ),

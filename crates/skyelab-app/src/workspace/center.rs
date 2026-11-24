@@ -66,7 +66,7 @@ impl Focusable for Center {
 
 impl Render for Center {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("Center");
+        let _render = crate::debug_renders::count("Center");
         div()
             .id("center")
             .size_full()
