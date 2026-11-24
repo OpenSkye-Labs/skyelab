@@ -57,6 +57,9 @@ mod composer_voice_test;
 #[path = "context_chips_test.rs"]
 mod context_chips_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "live_rebind_test.rs"]
+mod live_rebind_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "prompt_stash_test.rs"]
 mod prompt_stash_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts

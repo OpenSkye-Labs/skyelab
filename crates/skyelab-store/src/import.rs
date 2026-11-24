@@ -5,6 +5,7 @@ use crate::{NewThread, Store, THREAD_COLS, Thread, images, path_str, thread_from
 use anyhow::{Context as _, Result};
 use rusqlite::{OptionalExtension as _, TransactionBehavior, params};
 use std::collections::HashSet;
+use std::path::Path;
 
 impl Store {
     /// Agent session ids that already have a thread in any project: imported (even if resuming changed the thread's
@@ -27,6 +28,23 @@ impl Store {
             "SELECT status FROM threads WHERE id != ?1 AND (agent_session_id = ?2 OR imported_session = ?2)",
         )?;
         let statuses = stmt.query_map(params![thread_id, session_id], |r| r.get::<_, String>(0))?;
+        for status in statuses {
+            if skyelab_core::delegation::is_busy(&status?) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Whether another thread sharing worktree `path` (a fork or handoff runs in its source's) has an agent starting
+    /// or running: removing the worktree would pull the folder out from under it.
+    pub fn worktree_busy_elsewhere(&self, thread_id: i64, path: &Path) -> Result<bool> {
+        let mut stmt = self.conn.prepare(
+            "SELECT status FROM threads WHERE id != ?1 AND worktree_path = ?2 AND deleted_at IS NULL",
+        )?;
+        let statuses = stmt.query_map(params![thread_id, path_str(path)?], |r| {
+            r.get::<_, String>(0)
+        })?;
         for status in statuses {
             if skyelab_core::delegation::is_busy(&status?) {
                 return Ok(true);

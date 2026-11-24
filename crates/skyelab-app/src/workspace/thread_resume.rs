@@ -3,7 +3,7 @@
 use super::ThreadView;
 use super::launch::BUSY_ELSEWHERE;
 use crate::workspace::lock;
-use gpui::{Context, Window};
+use gpui::{Context, SharedString, Window};
 use skyelab_core::Account;
 use skyelab_store::Thread;
 
@@ -29,36 +29,44 @@ impl ThreadView {
             self.resume_refused = Some(BUSY_ELSEWHERE.into());
             return cx.notify();
         }
-        match resolved {
-            Some(account) if account.id == thread.account_id => {
-                self.resume_refused = None;
-                self.launch(text, attachments, account, Some(thread), window, cx);
-            }
-            Some(other) => {
-                self.composer.attachments.extend(attachments); // kept with the unsent text
-                self.resume_refused = Some(
-                    format!(
-                        "This folder is now bound to {} ({}), but this thread ran under {}. \
-                         Its session can't continue under another account.",
-                        other.label, other.id, thread.account_id
-                    )
-                    .into(),
-                );
-                cx.notify();
-            }
+        match refusal(&thread.account_id, resolved.as_ref()) {
             None => {
-                self.composer.attachments.extend(attachments);
-                // No path: this text also goes to remote clients (submit_remote).
-                self.resume_refused = Some(
-                    format!(
-                        "This folder isn't bound to {} any more (unbound, or its binding needs \
-                         re-confirming in Settings), so this thread can't continue.",
-                        thread.account_id
-                    )
-                    .into(),
-                );
+                self.resume_refused = None;
+                if let Some(account) = resolved {
+                    self.launch(text, attachments, account, Some(thread), window, cx);
+                }
+            }
+            Some(why) => {
+                self.composer.attachments.extend(attachments); // kept with the unsent text
+                self.resume_refused = Some(why.into());
                 cx.notify();
             }
         }
+    }
+
+    /// The folder's binding moved under the running agent (a send re-checked it): the agent ends, and the thread shows
+    /// why it can't continue here, as a resume would.
+    pub(in crate::workspace) fn end_refused(&mut self, why: SharedString, cx: &mut Context<Self>) {
+        self.resume_refused = Some(why);
+        self.stop_requested = true; // ended on purpose, not a crash; the next launch clears it
+        self.kill(cx);
+        cx.notify();
+    }
+}
+
+/// Why a thread that ran under `account_id` can't continue under the folder's binding `now` (its session lives in
+/// that account's dir); `None` when it can. Never another account. No path: this text also goes to remote clients.
+pub(in crate::workspace) fn refusal(account_id: &str, now: Option<&Account>) -> Option<String> {
+    match now {
+        Some(a) if a.id == account_id => None,
+        Some(other) => Some(format!(
+            "This folder is now bound to {} ({}), but this thread ran under {account_id}. Its session can't \
+             continue under another account.",
+            other.label, other.id
+        )),
+        None => Some(format!(
+            "This folder isn't bound to {account_id} any more (unbound, or its binding needs re-confirming in \
+             Settings), so this thread can't continue."
+        )),
     }
 }

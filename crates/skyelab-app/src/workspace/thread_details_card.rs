@@ -207,9 +207,7 @@ impl ThreadView {
                 this.scripts.update(cx, |m, cx| m.set_open(true, cx));
                 cx.notify();
             }));
-        let to = self
-            .provider()
-            .map(super::super::thread_extras::handoff::other);
+        let to = self.handoff_to();
         v_flex()
             .child(scripts)
             .children(to.map(|to| {

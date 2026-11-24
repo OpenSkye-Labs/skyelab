@@ -89,13 +89,8 @@ impl Workspace {
             if from == Some(to) {
                 bail!("this thread already runs on {}", to.label());
             }
-            // A thread that ran in its own worktree continues there, where its branch and edits are.
-            let cwd = if src.cwd.is_dir() {
-                &src.cwd
-            } else {
-                &project.path
-            };
-            let account = match config.resolve(cwd) {
+            let cwd = crate::workspace::thread_extras::fork::start_folder(&src, &project.path);
+            let account = match config.resolve(&cwd) {
                 Some(a) if a.provider == to => a.clone(),
                 bound => {
                     return Ok(Outcome::NeedsBinding {
@@ -134,7 +129,7 @@ impl Workspace {
             let new = NewThread {
                 project_id: project.id,
                 title: &src.title,
-                cwd,
+                cwd: &cwd,
                 account_id: &account.id,
                 status: "stopped",
             };
@@ -223,6 +218,12 @@ impl ThreadView {
             .map(|a| a.provider)
     }
 
+    /// The provider this thread can continue in from this window: the other one, unless the window shows another
+    /// machine (the new thread couldn't open there).
+    pub(in crate::workspace) fn handoff_to(&self) -> Option<Provider> {
+        self.provider().filter(|_| !self.remote_window).map(other)
+    }
+
     /// Asks the workspace to continue this thread in `to`.
     pub(in crate::workspace) fn hand_off(
         &mut self,
@@ -241,9 +242,9 @@ impl ThreadView {
         el: E,
         cx: &Context<Self>,
     ) -> E {
-        match self.provider() {
-            Some(Provider::Claude) => el.on_action(cx.listener(Self::continue_in_codex)),
-            Some(Provider::Codex) => el.on_action(cx.listener(Self::continue_in_claude)),
+        match self.handoff_to() {
+            Some(Provider::Codex) => el.on_action(cx.listener(Self::continue_in_codex)),
+            Some(Provider::Claude) => el.on_action(cx.listener(Self::continue_in_claude)),
             None => el,
         }
     }
@@ -252,7 +253,7 @@ impl ThreadView {
     /// continue there with its history.
     pub(in crate::workspace) fn handoff_cta(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let to = self.folder_account.as_ref()?.provider;
-        self.provider().filter(|from| *from != to)?;
+        self.handoff_to().filter(|t| *t == to)?;
         Some(
             div()
                 .debug_selector(|| "handoff-cta".into())

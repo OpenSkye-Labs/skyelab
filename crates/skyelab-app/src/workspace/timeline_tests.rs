@@ -26,6 +26,10 @@ mod card_path_test;
 mod review_proofs_test;
 
 #[cfg(unix)] // the fake agent is a shell script
+#[path = "answer_rebind_test.rs"]
+mod answer_rebind_test;
+
+#[cfg(unix)] // the fake agent is a shell script
 #[path = "ask_question_e2e_test.rs"]
 mod ask_question_e2e_test;
 

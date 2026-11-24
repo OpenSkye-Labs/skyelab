@@ -2,12 +2,13 @@
 
 use super::{Record, ThreadView};
 use crate::workspace::lock;
+use anyhow::Context as _;
 use gpui::Context;
 use skyelab_core::Account;
 
 impl ThreadView {
-    /// Sends `text` to the running agent, into its turn with `steer`. `false` when it was refused here (the folder
-    /// was rebound); the caller then keeps the prompt.
+    /// Sends `text` to the running agent, into its turn with `steer`. `false` when it was refused here; the caller then
+    /// keeps the prompt. A binding that moved, found where it is sent, ends the agent ([`ThreadView::end_refused`]).
     pub(in crate::workspace) fn follow_up(
         &mut self,
         text: String,
@@ -19,16 +20,18 @@ impl ThreadView {
         let (Some(session), Some(thread)) = (self.session.clone(), &self.thread) else {
             return false;
         };
-        // The running agent keeps the account it started with; a rebound folder needs a new thread.
+        // The running agent keeps the account it started with (the caller checked the view's config).
         if thread.account_id != account.id {
-            let msg = format!(
-                "This folder is now bound to {}. Start a new thread to run under it.",
-                account.label
-            );
-            self.error = Some(msg.into());
-            cx.notify();
             return false;
         }
+        // Checked again where the message is sent, against accounts.toml as saved then: a rebind may have landed
+        // since the view's copy of the config.
+        let (accounts_file, config, account_id) = (
+            cx.try_global::<crate::workspace::AccountsFile>()
+                .map(|f| f.0.clone()),
+            self.config.clone(),
+            thread.account_id.clone(),
+        );
         let (store, id, parent) = (
             self.backend.store.clone(),
             thread.id,
@@ -64,6 +67,17 @@ impl ThreadView {
             }
             let sent = write
                 .spawn(async move {
+                    // An unreadable file refuses this send but leaves the agent alone: it says nothing about a rebind.
+                    let current = match &accounts_file {
+                        Some(path) => skyelab_core::AccountsConfig::load(path).context(
+                            "accounts.toml can't be read, so the folder's binding can't be checked; fix it, then send again",
+                        )?,
+                        None => config,
+                    };
+                    let now = current.resolve(&cwd).cloned();
+                    if let Some(why) = super::resume::refusal(&account_id, now.as_ref()) {
+                        return Err(anyhow::Error::new(Refused { why, now }));
+                    }
                     // An idle child that gets a new turn takes a slot again: claimed with its status write.
                     let (was, idle) = {
                         let store = lock(&store)?;
@@ -116,7 +130,10 @@ impl ThreadView {
                 // Only a limit or an ended agent is the caller's business; store details stay in the tab.
                 let _ = reply.send(sent.as_ref().map(|_| ()).map_err(|e| {
                     let why = format!("{e:#}");
-                    if why.contains("running children") || why.contains("has ended") {
+                    if e.is::<Refused>()
+                        || why.contains("running children")
+                        || why.contains("has ended")
+                    {
                         why
                     } else {
                         "the message couldn't be sent; the thread's tab says why".to_owned()
@@ -134,7 +151,13 @@ impl ThreadView {
                 }
                 Err(e) => {
                     this.composer.restore = Some(draft);
-                    this.show_error(e, cx)
+                    match e.downcast::<Refused>() {
+                        Ok(r) => {
+                            this.folder_account = r.now; // newer than the view's copy of the config
+                            this.end_refused(r.why.into(), cx)
+                        }
+                        Err(e) => this.show_error(e, cx),
+                    }
                 }
             });
             // Back into the prompt now if it is empty, else once the user empties it (`restore_draft`).
@@ -145,3 +168,18 @@ impl ThreadView {
         true
     }
 }
+
+/// A send refused where it is sent: the folder's binding moved since the view last read it.
+#[derive(Debug)]
+struct Refused {
+    why: String,
+    now: Option<Account>,
+}
+
+impl std::fmt::Display for Refused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.why)
+    }
+}
+
+impl std::error::Error for Refused {}

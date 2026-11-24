@@ -30,8 +30,11 @@ impl ThreadView {
         if self.is_side_chat() && !matches!(decision, Decision::Deny | Decision::Withdrawn) {
             return Err(crate::workspace::side_chat::PLAN_ONLY.into());
         }
-        let Some(session) = self.session.clone() else {
-            return Err("the agent isn't running".into());
+        // A no can't set the agent working, so only an allow re-checks the folder's binding.
+        let session = if matches!(decision, Decision::Deny | Decision::Withdrawn) {
+            self.session.clone().ok_or("the agent isn't running")?
+        } else {
+            self.answer_session(cx)?
         };
         let id = id.to_owned();
         self.in_background(cx, move || {
@@ -114,8 +117,9 @@ impl ThreadView {
                 return cx.notify();
             }
         };
-        let Some(session) = self.session.clone() else {
-            return self.show_error(anyhow::anyhow!("the agent isn't running"), cx);
+        let session = match self.answer_session(cx) {
+            Ok(s) => s,
+            Err(why) => return self.show_error(anyhow::anyhow!(why), cx),
         };
         self.error = None;
         let id = id.to_owned();
@@ -158,9 +162,7 @@ impl ThreadView {
         if self.is_side_chat() {
             return Err(crate::workspace::side_chat::PLAN_ONLY.into());
         }
-        let Some(session) = self.session.clone() else {
-            return Err("the agent isn't running".into());
-        };
+        let session = self.answer_session(cx)?;
         let id = id.to_owned();
         let sent =
             cx.background_spawn(async move { lock(&session)?.answer(&id, Decision::AllowOnce) });
@@ -195,9 +197,7 @@ impl ThreadView {
         done: impl FnOnce(Result<(), String>) + Send + 'static,
         cx: &mut Context<Self>,
     ) -> Result<(), String> {
-        let Some(session) = self.session.clone() else {
-            return Err("the agent isn't running".into());
-        };
+        let session = self.answer_session(cx)?;
         let id = id.to_owned();
         self.in_background(cx, move || {
             let r = lock(&session).and_then(|mut s| s.answer_questions(&id, &answers));
@@ -205,6 +205,20 @@ impl ThreadView {
             r
         });
         Ok(())
+    }
+
+    /// The running agent an answer may go to: an answer lets it carry on, so it is a send like any other, and a folder
+    /// rebound (or unbound) since it started ends it instead (`end_refused`).
+    fn answer_session(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> Result<std::sync::Arc<std::sync::Mutex<skyelab_agent::Session>>, String> {
+        let session = self.session.clone().ok_or("the agent isn't running")?;
+        if let Err(why) = self.send_account() {
+            self.end_refused(why.clone(), cx);
+            return Err(why.to_string());
+        }
+        Ok(session)
     }
 
     fn redraw(&mut self, id: &str, cx: &mut Context<Self>) {

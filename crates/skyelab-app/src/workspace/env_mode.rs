@@ -51,6 +51,18 @@ pub struct OpenRemoteThread {
     pub id: i64,
 }
 
+/// The windows that show another machine.
+#[derive(Default)]
+struct RemoteWindows(std::collections::HashSet<gpui::AnyWindowHandle>);
+
+impl gpui::Global for RemoteWindows {}
+
+/// Whether `window` shows another machine.
+pub(super) fn shows_remote(cx: &gpui::App, window: gpui::AnyWindowHandle) -> bool {
+    cx.try_global::<RemoteWindows>()
+        .is_some_and(|w| w.0.contains(&window))
+}
+
 #[derive(Default)]
 pub(super) struct EnvMode {
     picker: Option<Entity<EnvPicker>>,
@@ -227,6 +239,22 @@ impl Workspace {
             });
         }
         self.sync_setup(cx); // setup is for this machine only
+        let (remote, me) = (self.is_remote(), self.window_handle);
+        let windows = &mut cx.default_global::<RemoteWindows>().0;
+        if remote {
+            windows.insert(me);
+        } else {
+            windows.remove(&me);
+        }
+        // Views are shared between windows: only the ones this window owns follow it.
+        for view in &self.open_threads {
+            view.update(cx, |v, cx| {
+                if v.window == me {
+                    v.remote_window = remote;
+                    cx.notify();
+                }
+            });
+        }
         self.refresh_sidebar(cx);
         cx.notify();
     }

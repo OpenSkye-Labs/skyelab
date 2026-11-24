@@ -524,8 +524,6 @@ mod image_viewer_test;
 mod import_refused_test;
 #[cfg(all(test, unix))]
 mod import_sessions_test;
-#[cfg(all(test, unix))]
-mod launch_rebind_test;
 #[cfg(test)]
 mod layout_test;
 #[cfg(all(test, unix))] // the fake claude is a shell script
@@ -576,8 +574,6 @@ mod remote_start_test;
 mod review_cta_folder_test;
 #[cfg(test)]
 mod review_fixes_tests;
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod review_second_row_test;
 #[cfg(test)]
 mod review_stale_config_test;
 #[cfg(test)]

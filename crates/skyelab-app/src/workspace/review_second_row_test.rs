@@ -150,11 +150,11 @@ fn a_rebound_folder_refuses_follow_ups_to_the_old_account(cx: &mut TestAppContex
     cx.run_until_parked();
     let id = view.read_with(cx, |t, _| {
         assert!(
-            t.error
+            t.resume_refused
                 .as_deref()
                 .is_some_and(|e| e.contains("now bound to Beta")),
             "{:?}",
-            t.error
+            t.resume_refused
         );
         t.thread.as_ref().expect("row").id
     });

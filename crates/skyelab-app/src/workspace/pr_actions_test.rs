@@ -357,8 +357,7 @@ fn a_read_that_started_before_the_stored_one_landed_is_dropped(cx: &mut gpui::Te
     let before = views();
     // A newer read already landed (stamped later than this one starts); gh now says merged.
     cx.update(|_, cx| {
-        let e = cx.global_mut::<PrStatuses>().0.get_mut(&id).expect("read");
-        e.checked_ms = crate::ui::now_ms() + 60_000;
+        super::super::pr_watch::PrLanded::get(cx).mark(id, URL, crate::ui::now_ms() + 60_000)
     });
     std::fs::write(gh.join("fake-merged"), "").expect("merged");
     r.ws.update(cx, |ws, cx| ws.reread_pr(id, cx));

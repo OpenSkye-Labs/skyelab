@@ -410,6 +410,9 @@ impl Workspace {
             _subs: [observe, events],
         };
         self.thread_subs.insert(view.entity_id(), subs);
+        view.update(cx, |v, cx| {
+            v.remote_window = super::env_mode::shows_remote(cx, v.window)
+        });
         self.open_threads.push(view.clone());
     }
 

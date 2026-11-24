@@ -159,6 +159,7 @@ impl ThreadView {
             return;
         }
         self.window = window.window_handle();
+        self.remote_window = super::super::env_mode::shows_remote(cx, self.window);
         self.lists.add(self.window);
         let (text, disabled) = (self.prompt.read(cx).value(), self.read_only);
         let prompt = new_prompt(window, cx);
