@@ -475,6 +475,7 @@ impl Workspace {
         use gpui::InteractiveElement as _;
         el.on_action(cx.listener(Self::manage_thread))
             .on_action(cx.listener(Self::fork_thread))
+            .on_action(cx.listener(Self::hand_off_thread))
             .on_action(cx.listener(Self::manage_project))
             .on_action(
                 cx.listener(|ws, _: &RenameThread, w, cx| ws.act_on_shown(ThreadOp::Rename, w, cx)),

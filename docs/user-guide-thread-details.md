@@ -25,8 +25,9 @@ bound account.
     (untracked files aren't counted), and opens Changes.
   - A worktree thread also has **Open terminal here** and **Discard worktree** (see **Worktrees**).
 - **Actions:** **Add project script** (or **Run project script** once the project has some) opens the project's
-  scripts.
-- **Lineage · N running:** the threads this thread's agent delegated that are working now, with how long they have
+  scripts. **Continue in Codex** (or **Continue in Claude**) starts a thread under the other provider with this one's
+  history (see [Threads](user-guide-threads.md#continue-in-the-other-provider)).
+- **Lineage · N running:** the thread this one was forked or continued from (**Forked from** / **Continued from**), then the threads this thread's agent delegated that are working now, with how long they have
   run. **Previous agents** lists the rest with how they ended. Click one to open it.
 - **MCP servers:** the servers the thread's latest agent process was given and what it reported for each:
   **Connected**, **Starting**, **Failed** (hover for the error when the agent gave one), **Needs sign-in** or

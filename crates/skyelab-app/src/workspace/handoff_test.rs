@@ -2,8 +2,8 @@
 //! bound account of the other provider, linked to its source, whose first session gets the source's transcript ahead
 //! of the typed message. With no binding to that provider, nothing is created and a dialog asks to bind the folder.
 
-use crate::workspace::thread_extras::handoff::{ContinueInClaude, ContinueInCodex, HandOffThread};
 use crate::workspace::thread::ThreadView;
+use crate::workspace::thread_extras::handoff::{ContinueInClaude, ContinueInCodex, HandOffThread};
 use crate::workspace::threads_test::{
     Fixture, fixture, open_workspace, project_thread, setup, type_and_send, wait_done, wait_until,
 };
@@ -146,7 +146,10 @@ fn claude_thread_continues_in_codex(cx: &mut TestAppContext) {
             window.is_action_available(&ContinueInClaude, cx),
         )
     });
-    assert!(codex && !claude, "codex offered: {codex}, claude offered: {claude}");
+    assert!(
+        codex && !claude,
+        "codex offered: {codex}, claude offered: {claude}"
+    );
 
     // Still bound to Claude: nothing is created, and a dialog asks to bind the folder.
     let project_id = src.read_with(cx, |t, _| t.project_id);
@@ -159,7 +162,11 @@ fn claude_thread_continues_in_codex(cx: &mut TestAppContext) {
     wait_until(cx, "the bind dialog", |cx| {
         cx.update(|window, cx| window.has_active_dialog(cx))
     });
-    assert_eq!(thread_count(&f, project_id), before, "nothing under a Claude binding");
+    assert_eq!(
+        thread_count(&f, project_id),
+        before,
+        "nothing under a Claude binding"
+    );
     cx.update(|window, cx| window.close_dialog(cx));
 
     // Unbound: the same.
@@ -177,6 +184,11 @@ fn claude_thread_continues_in_codex(cx: &mut TestAppContext) {
     // Bound to Codex: the source can't resume there, and its banner offers the handoff.
     rebind(&f, &ws, Some("oai"), cx);
     src.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
+    // A live process keeps its session; the next one is what the binding is checked for.
+    cx.dispatch_action(crate::workspace::thread::RestartAgentSession);
+    wait_until(cx, "the agent ended", |cx| {
+        src.read_with(cx, |t, _| t.session.is_none())
+    });
     cx.simulate_input("more");
     cx.simulate_keystrokes(if cfg!(target_os = "macos") {
         "cmd-enter"
@@ -188,7 +200,10 @@ fn claude_thread_continues_in_codex(cx: &mut TestAppContext) {
     });
     src.update(cx, |_, cx| cx.notify());
     cx.run_until_parked();
-    assert!(cx.debug_bounds("handoff-cta").is_some(), "the banner offers Continue in Codex");
+    assert!(
+        cx.debug_bounds("handoff-cta").is_some(),
+        "the banner offers Continue in Codex"
+    );
 
     hand_off_and_send(&f, &ws, &src, Provider::Codex, "oai", cx);
 }
@@ -210,7 +225,10 @@ fn codex_thread_continues_in_claude(cx: &mut TestAppContext) {
             window.is_action_available(&ContinueInClaude, cx),
         )
     });
-    assert!(claude && !codex, "codex offered: {codex}, claude offered: {claude}");
+    assert!(
+        claude && !codex,
+        "codex offered: {codex}, claude offered: {claude}"
+    );
     rebind(&f, &ws, Some("acme"), cx);
     hand_off_and_send(&f, &ws, &src, Provider::Claude, "acme", cx);
 }

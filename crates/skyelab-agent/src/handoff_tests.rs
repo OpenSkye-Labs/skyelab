@@ -80,8 +80,16 @@ fn items_condense_tool_calls() {
                 "command",
                 "Command: cargo build\nFailed: yes\nExit code 101\nerror[E0425]".into()
             ),
-            ("assistant", "command", "Command: ls src\nFailed: no\nmain.rs".into()),
-            ("assistant", "file_change", "File change: /r/src/main.rs".into()),
+            (
+                "assistant",
+                "command",
+                "Command: ls src\nFailed: no\nmain.rs".into()
+            ),
+            (
+                "assistant",
+                "file_change",
+                "File change: /r/src/main.rs".into()
+            ),
             ("assistant", "file_change", "File change: a.rs, b.rs".into()),
             ("assistant", "plan", "1. do it".into()),
             ("user", "message", "also run tests".into()),
@@ -95,7 +103,12 @@ fn selection_keeps_priority_items_and_order() {
     // Each message line is ~60 bytes; a budget for four of them must keep the first user message, the latest user
     // and assistant messages, then the newest others, in source order, with the gap marked.
     let items: Vec<Item> = (0..10)
-        .map(|i| msg(if i % 2 == 0 { "user" } else { "assistant" }, &format!("m{i}-{}", "x".repeat(20))))
+        .map(|i| {
+            msg(
+                if i % 2 == 0 { "user" } else { "assistant" },
+                &format!("m{i}-{}", "x".repeat(20)),
+            )
+        })
         .collect();
     let line = |i: &Item| line(i).len() + 1;
     let budget = items.iter().take(4).map(line).sum::<usize>();
@@ -111,7 +124,10 @@ fn selection_keeps_priority_items_and_order() {
             if l.starts_with('[') {
                 l
             } else {
-                l.split("\"text\":\"").nth(1).and_then(|t| t.split('-').next()).unwrap_or(l)
+                l.split("\"text\":\"")
+                    .nth(1)
+                    .and_then(|t| t.split('-').next())
+                    .unwrap_or(l)
             }
         })
         .collect();
@@ -134,5 +150,8 @@ fn prompt_is_quoted_context() {
     // An item too big for the budget is left out whole, never cut.
     let big = vec![msg("user", &"y".repeat(BUDGET * 2))];
     let p = prompt("t", "Claude", "Codex", &big, BUDGET);
-    assert!(!p.contains("yyyy") && p.contains("[1 item left out]"), "{p}");
+    assert!(
+        !p.contains("yyyy") && p.contains("[1 item left out]"),
+        "{p}"
+    );
 }

@@ -73,7 +73,8 @@ What's built today:
   scratch folder, bound to it on first use and listed as **Scratch · <account>**. No default account, even here.
 - **Titles, drafts, history and forks.** After the first reply, the thread's own account names it (off in Settings →
   Chat, next to the model and permission defaults for new threads). Unsent drafts stay per thread across restarts, <kbd>↑</kbd>
-  recalls earlier prompts, and **Fork from here** on a reply starts a new thread from that point
+  recalls earlier prompts, **Fork from here** on a reply starts a new thread from that point, and **Continue in
+  Codex** / **Continue in Claude** carries a thread's history to the other provider once the folder is bound to it
   ([guide](docs/user-guide-threads.md)).
 - **Send to several models.** A new thread's prompt can go to 2–4 models of the folder's account at once, each its own
   thread (in its own worktree if you like), compared side by side with cost, time and changed files; keep the best

@@ -86,10 +86,11 @@ impl ThreadView {
                     }))
                     // The title keeps some room when the center is narrow (a right panel open), the folder gives way first.
                     .child(div().min_w(px(72.)).truncate().child(self.title()))
-                    .children(self.composer.extras.forked_from.clone().map(|(id, title)| {
-                        let label = super::thread_extras::fork::forked_label(&title);
-                        thread_link("forked-from", id, label).flex_shrink_0()
-                    })),
+                    .children(
+                        self.composer.extras.forked_from.clone().map(|(id, label)| {
+                            thread_link("forked-from", id, label).flex_shrink_0()
+                        }),
+                    ),
             )
             .child(
                 div()
@@ -125,16 +126,18 @@ impl ThreadView {
         banner(
             "This thread can't continue here",
             reason,
-            div().debug_selector(|| "new-thread-cta".into()).child(
-                Button::new("new-thread-cta")
-                    .primary()
-                    .small()
-                    .label("Start a new thread")
-                    .on_click(move |_, window, cx| {
-                        // The sidebar may show another project by now; start in this thread's.
-                        window.dispatch_action(Box::new(SelectProject { id: project_id }), cx);
-                        window.dispatch_action(Box::new(NewThread), cx);
-                    }),
+            h_flex().gap_2().children(self.handoff_cta(cx)).child(
+                div().debug_selector(|| "new-thread-cta".into()).child(
+                    Button::new("new-thread-cta")
+                        .primary()
+                        .small()
+                        .label("Start a new thread")
+                        .on_click(move |_, window, cx| {
+                            // The sidebar may show another project by now; start in this thread's.
+                            window.dispatch_action(Box::new(SelectProject { id: project_id }), cx);
+                            window.dispatch_action(Box::new(NewThread), cx);
+                        }),
+                ),
             ),
             cx,
         )
@@ -406,6 +409,7 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::interrupt))
             .on_action(cx.listener(Self::stop))
             .on_action(cx.listener(Self::restart_session))
+            .map(|el| self.handoff_actions(el, cx))
             .on_action(cx.listener(Self::toggle_worktree))
             .on_action(cx.listener(Self::open_changes))
             .on_action(cx.listener(Self::open_worktree_terminal))

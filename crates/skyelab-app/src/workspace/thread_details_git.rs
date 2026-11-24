@@ -142,10 +142,20 @@ impl ThreadView {
 
     /// The running children, then a row to the finished ones; titled with how many run.
     pub(super) fn render_lineage(&self, on: &On, cx: &App) -> Option<(SharedString, AnyElement)> {
-        if self.children.is_empty() {
+        let source = self.composer.extras.forked_from.clone();
+        if self.children.is_empty() && source.is_none() {
             return None;
         }
         let theme = cx.theme();
+        // Where this thread came from: its fork or handoff source.
+        let source = source.map(|(id, label)| {
+            row("details-source", IconName::GitBranch, label, theme).on_click(on.click(
+                move |this, window, cx| {
+                    this.details_home(cx);
+                    window.dispatch_action(Box::new(OpenThread { id }), cx);
+                },
+            ))
+        });
         let running: Vec<&ChildLink> = self
             .children
             .iter()
@@ -157,6 +167,7 @@ impl ThreadView {
             n => format!("Lineage · {n} running").into(),
         };
         let body = v_flex()
+            .children(source)
             .children(running.into_iter().map(|c| self.agent_row(c, on, cx)))
             .when(previous > 0, |v| {
                 v.child(

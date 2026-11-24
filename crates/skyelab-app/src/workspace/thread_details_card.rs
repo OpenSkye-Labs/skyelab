@@ -201,10 +201,27 @@ impl ThreadView {
         } else {
             (IconName::Play, "Run project script")
         };
-        row("details-scripts", icon, label, theme)
-            .on_click(on.click(|this, _, cx| {
+        let scripts =
+            row("details-scripts", icon, label, theme).on_click(on.click(|this, _, cx| {
                 this.scripts.update(cx, |m, cx| m.set_open(true, cx));
                 cx.notify();
+            }));
+        let to = self
+            .provider()
+            .map(super::super::thread_extras::handoff::other);
+        v_flex()
+            .child(scripts)
+            .children(to.map(|to| {
+                row(
+                    "details-handoff",
+                    IconName::ArrowRight,
+                    super::super::thread_extras::handoff::label(to),
+                    theme,
+                )
+                .on_click(on.click(move |this, window, cx| {
+                    this.details_home(cx);
+                    this.hand_off(to, window, cx);
+                }))
             }))
             .into_any_element()
     }

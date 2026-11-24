@@ -58,6 +58,26 @@ count again in the Usage page, and the fork's first turn counts its whole cost, 
 starts in the project's folder, not in the original's worktree, and copies no checkpoints. If the folder is no longer
 bound to the thread's account, nothing is forked.
 
+## Continue in the other provider
+
+A thread can move from Claude to Codex, or from Codex to Claude: **Continue in Codex** (or **Continue in Claude**) is in
+the thread details card, in the command palette, and on the "This thread can't continue here" notice. It makes a new
+thread in the same project whose header says **Continued from** and links to the original; the details card's
+**Lineage** links to it too. The original is not changed.
+
+A folder is bound to one account, so the new thread runs under the account the folder is bound to, and only when that
+account is of the other provider. If the folder is still bound to the original's account (or to nothing), SkyeLab asks
+you to bind it to a Codex (or Claude) account in Settings → Accounts first; it never picks one for you. Once you do,
+the original's threads in that folder can't send any more, and their notice offers the handoff.
+
+A session can't move between providers, so the new thread's first message starts with a portable transcript of the
+original: your messages and the agent's answers kept whole, each command as the command, whether it failed and its
+output, each file edit as the paths it changed, and plans. Reasoning, other tool calls and attached files are left
+out. Up to 16 KB is carried, picking your latest message, the agent's latest answer and your first message first, then
+the newest others; each item goes whole or not at all, and the transcript marks where items were left out. It is
+fenced as quoted context, never as instructions. Your message is shown and stored as you typed it. Like a fork, it
+starts in the project's folder, not in the original's worktree.
+
 ## Send to several models
 
 In a new thread, the model chip's menu has **Send to several models…**. Tick 2 to 4 models of the account the folder

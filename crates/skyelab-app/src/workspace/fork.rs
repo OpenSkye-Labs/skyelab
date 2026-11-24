@@ -10,6 +10,7 @@ use gpui_component::{
     Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
 };
+use skyelab_agent::handoff::quoted;
 use skyelab_agent::{Block, Event};
 use skyelab_store::NewThread;
 
@@ -69,15 +70,6 @@ pub(in crate::workspace) fn cut(
 
 /// Marks the start of a conversation cut to fit.
 const LEFT_OUT: &str = "[earlier messages left out]";
-
-/// `v` as JSON with `<`, U+2028 and U+2029 escaped, so quoted text can't open or close a tag or start a line. They
-/// only ever appear inside a JSON string here, so the escapes keep it valid JSON.
-fn quoted(v: &serde_json::Value) -> String {
-    v.to_string()
-        .replace('<', "\\u003c")
-        .replace('\u{2028}', "\\u2028")
-        .replace('\u{2029}', "\\u2029")
-}
 
 /// The copied conversation's messages (tool calls left out), one [`quoted`] `{"role":..,"text":..}` line each: the
 /// newest whole lines that fit in `cap` bytes, or the newest part of the last message that fits when it alone doesn't.
@@ -224,9 +216,10 @@ impl Workspace {
     }
 }
 
-/// "Forked from <title>" in the header.
-pub(in crate::workspace) fn forked_label(title: &SharedString) -> SharedString {
-    format!("Forked from {title}").into()
+/// "Forked from <title>" in the header, or "Continued from <title>" for a handoff to the other provider.
+pub(in crate::workspace) fn forked_label(title: &str, handoff: bool) -> SharedString {
+    let verb = if handoff { "Continued" } else { "Forked" };
+    format!("{verb} from {title}").into()
 }
 
 #[cfg(test)]
