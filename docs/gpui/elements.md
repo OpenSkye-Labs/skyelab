@@ -49,6 +49,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A
   button's click bubbles on (`ui::Button` stops propagation only while loading), so wrap the buttons in a div
   whose `on_click` calls `cx.stop_propagation()`, or a click also opens the row.
+  Give the absolute buttons the row's own fill (`sidebar_rows.rs`): with none they draw over the title's letters.
 - A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
   `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after
   and over the dock. Not `anchored()`: that snaps to the window, while this one must sit under a button another view

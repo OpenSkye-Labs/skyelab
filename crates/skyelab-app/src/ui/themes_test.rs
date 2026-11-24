@@ -77,6 +77,30 @@ fn switching_applies_family_mode_accent_sizes_and_density(cx: &mut TestAppContex
 }
 
 #[gpui::test]
+fn code_is_highlighted_for_the_shown_mode(cx: &mut TestAppContext) {
+    setup(cx);
+    for (mode, dark) in [
+        (ColorMode::Dark, true),
+        (ColorMode::Light, false),
+        (ColorMode::Dark, true),
+    ] {
+        cx.update(|cx| {
+            let s = AppearanceSettings {
+                mode,
+                ..Default::default()
+            };
+            themes::set(s, cx).detach();
+            // Dark code colors on a dark canvas: `fn main` drew in navy on black.
+            assert_eq!(
+                cx.theme().highlight_theme.appearance.is_dark(),
+                dark,
+                "{mode:?}"
+            );
+        });
+    }
+}
+
+#[gpui::test]
 fn the_choice_is_read_from_and_saved_to_settings_toml(cx: &mut TestAppContext) {
     setup(cx);
     let dir = tempfile::tempdir().expect("temp dir");
