@@ -51,7 +51,7 @@ fn commit_all_ending_a_merge_keeps_orig_head() {
     git(&repo, &["merge", "-q", "--no-commit", "--no-ff", "side"]);
     git(&repo, &["update-ref", "ORIG_HEAD", &before]);
     let reviewed = skyelab_git::snapshot_tree(&repo).expect("snapshot");
-    skyelab_git::commit(&repo, "merge", &[], &[], Some(&reviewed)).expect("merge commit");
+    skyelab_git::commit(&repo, "merge", &[], &[], true, Some(&reviewed)).expect("merge commit");
     assert_eq!(
         git(&repo, &["rev-parse", "ORIG_HEAD"]),
         before,

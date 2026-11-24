@@ -43,7 +43,7 @@ pub use remote::{
 };
 pub use status::{FileChange, Status, status, status_with_ignored};
 pub use summary::{MAX_DIFF, PrContext, TRUNCATED, commit_diff, pr_context};
-pub use worktree::{Worktree, create_worktree, list_worktrees, remove_worktree};
+pub use worktree::{Worktree, create_worktree, hook_folders, list_worktrees, remove_worktree};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -224,6 +224,17 @@ fn command(bin: &Path, dir: &Path) -> Command {
     let mut cmd = hooked_command(bin, dir);
     cmd.args(["-c", "core.hooksPath=/dev/null"]);
     cmd
+}
+
+/// [`hooked_command`] when `hooks`, else [`command`]: Commit, Push and Pull run hooks only while the caller found
+/// no other account sharing the repo (`AccountsConfig::repo_hooks_allowed`).
+fn user_command(dir: &Path, hooks: bool) -> Command {
+    let git = Path::new("git");
+    if hooks {
+        hooked_command(git, dir)
+    } else {
+        command(git, dir)
+    }
 }
 
 /// [`command`] with the repo's hooks on, for Commit and Push (users rely on pre-commit and pre-push). Either way

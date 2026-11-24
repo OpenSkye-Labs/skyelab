@@ -25,13 +25,20 @@
   URL), `sslCAPath`, `sslCert`, `sslKey`, `curloptResolve`, `cookieFile`, `pinnedPubkey`, and
   `core.alternateRefsCommand` / `alternateRefsPrefixes`. The message names the key; set it in your global config
   instead if you mean it. Nothing reaches the remote and `gh` is never asked for the token.
-- **Commit, Push and Pull run the repo's own hooks.** `pre-commit`, `commit-msg`, `pre-push`, `post-merge` and the
-  like run with the bound account's env and the same git credential binding its agents get, so a hook can ask that
-  account's `gh` for its GitHub token. An agent can write `.git/hooks` or set `core.hooksPath`, so this gives an agent
-  nothing its own account's tools don't already have, but one `.git` can serve folders bound to different accounts (a
-  worktree, a subfolder project): a hook planted by one account's agent then runs with the other account's login when
-  you commit, push or pull there. SkyeLab's own background git calls (status, diff, fetch, checkpoints, worktrees) run
-  with hooks off.
+- **Commit, Push and Pull run the repo's own hooks only on a one-account repo.** `pre-commit`, `commit-msg`,
+  `pre-push`, `post-merge` and the like run with the bound account's env and the same git credential binding its
+  agents get, so a hook can ask that account's `gh` for its GitHub token. An agent can write `.git/hooks` or set
+  `core.hooksPath`, and one `.git` can serve folders bound to different accounts (a worktree whose main checkout is
+  bound elsewhere, a project in a subfolder of a repo, a binding nested inside another). So before each Commit, Push
+  or Pull SkyeLab lists where a hook could be written from: the repo's worktrees (`git worktree list`), its git dir
+  (a submodule's or a separate one lives elsewhere) and the hooks dir git would use (`core.hooksPath` included). It
+  runs the hooks only when each of those, every bound folder inside one and every bound folder above one resolve to
+  the acting folder's account. Otherwise (another account, an unbound folder, a stale binding, a repo that sits
+  inside another account's folder, or one whose folders can't be listed) it runs with hooks off, as SkyeLab's own
+  background git calls (status, diff, fetch, checkpoints, worktrees) always do, and the note under the buttons says
+  "Hooks skipped: this repo is shared with another account". Limits: the check reads git's own worktree records,
+  which an agent that can write the shared `.git` can also edit to hide its checkout; and other repo config an agent
+  can write (clean/smudge filters, `gpg.program`) still runs on Commit.
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.

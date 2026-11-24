@@ -87,6 +87,32 @@ pub fn list_worktrees(repo: &Path) -> Result<Vec<Worktree>> {
     )?))
 }
 
+/// Every folder a hook that Commit, Push or Pull in `dir` would run can be written from: each worktree of the repo,
+/// its git common dir (a submodule's or a `--separate-git-dir` one lives outside them) and the hooks dir git would
+/// use (`core.hooksPath` may point anywhere). Non-UTF-8 output is an error: a lossy path could name another folder.
+pub fn hook_folders(dir: &Path) -> Result<Vec<PathBuf>> {
+    let utf8 = |out: Vec<u8>| {
+        String::from_utf8(out).map_err(|_| crate::publish::invalid("a repo path isn't UTF-8"))
+    };
+    let list = git(dir, &["worktree", "list", "--porcelain", "-z"])?;
+    utf8(list.clone())?;
+    let mut folders: Vec<PathBuf> = parse_list(&list).into_iter().map(|w| w.path).collect();
+    // With the repo's own hooks config (no `core.hooksPath=/dev/null`), so `--git-path hooks` names the real dir.
+    let args = [
+        "rev-parse",
+        "--path-format=absolute",
+        "--git-common-dir",
+        "--git-path",
+        "hooks",
+    ];
+    let mut cmd = crate::hooked_command(Path::new("git"), dir);
+    cmd.args(args);
+    let out = skyelab_core::process::output(&mut cmd, None)?;
+    let out = utf8(crate::finish(dir, &args, out)?)?;
+    folders.extend(out.lines().filter(|l| !l.is_empty()).map(PathBuf::from));
+    Ok(folders)
+}
+
 /// Removes the worktree at `path`. Refuses with [`Error::Dirty`] if it has any changes, untracked and
 /// ignored files included (`git worktree remove` deletes ignored files without asking), unless `force`.
 /// The branch is kept.

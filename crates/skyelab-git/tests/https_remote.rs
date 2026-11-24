@@ -176,7 +176,7 @@ fn fetch_updates_tracking_and_pull_fast_forwards() {
         Some((0, 1))
     );
 
-    let msg = skyelab_git::pull_ff(&f.repo, &gh, &[]).expect("pull");
+    let msg = skyelab_git::pull_ff(&f.repo, &gh, &[], true).expect("pull");
     assert_eq!(msg, "Pulled 1 commit(s) into main");
     assert_eq!(git(&f.repo, &["rev-parse", "HEAD"]), theirs);
     assert!(
@@ -210,7 +210,7 @@ fn fetch_refuses_repo_set_keys_before_any_request() {
         let before = requests_to("/refuse.git/").len();
         let err = skyelab_git::fetch(&f.repo, &gh).expect_err(key);
         assert!(err.to_string().contains("won't fetch"), "{key}: {err}");
-        let pull = skyelab_git::pull_ff(&f.repo, &gh, &[]).expect_err(key);
+        let pull = skyelab_git::pull_ff(&f.repo, &gh, &[], true).expect_err(key);
         assert!(pull.to_string().contains("won't fetch"), "{key}: {pull}");
         assert_eq!(
             requests_to("/refuse.git/").len(),

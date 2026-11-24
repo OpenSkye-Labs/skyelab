@@ -39,6 +39,7 @@ fn ticking_a_file_renamed_in_an_earlier_commit_commits() {
         "c",
         &[PathBuf::from("new.txt"), PathBuf::from("old.txt")],
         &[],
+        true,
         None,
     );
     assert!(r.is_ok(), "RENAME_PATHSPEC: {r:?}");

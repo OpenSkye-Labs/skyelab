@@ -38,7 +38,7 @@ fn a_locked_index_never_reports_failure_for_a_commit_that_was_made() {
     let before = git(&repo, &["rev-parse", "HEAD"]);
     let reviewed = skyelab_git::snapshot_tree(&repo).expect("snapshot");
     std::fs::write(repo.join(".git/index.lock"), "").expect("lock");
-    let result = skyelab_git::commit(&repo, "msg", &[], &[], Some(&reviewed));
+    let result = skyelab_git::commit(&repo, "msg", &[], &[], true, Some(&reviewed));
     let after = git(&repo, &["rev-parse", "HEAD"]);
     assert!(
         result.is_ok() || before == after,
