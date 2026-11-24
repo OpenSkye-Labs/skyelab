@@ -26,9 +26,13 @@ folders, importing your sessions and the everyday loop.
 
 What's built today:
 
-- **First-run setup.** With no accounts or projects, the Welcome page shows which agents are installed (and their
-  versions), offers the Claude and Codex config folders it finds in your home folder as accounts, and binds a project
-  folder to the account you pick. It only checks that those folders exist; it never reads a login or token.
+- **First-run onboarding.** One page per step: Welcome, Theme (live), Agents & accounts (installed CLIs and their
+  versions, the Claude and Codex config folders found in your home folder, sign-in), Import projects (folders your
+  agents already worked in, grouped by repo, each bound only to the account you confirm) and Done. It never reads a
+  login or token.
+- **Add project in the palette.** Type a path with live folder completion (git branch shown, Tab completes), pick a
+  recent folder, create a new repo, or clone an https URL with the account's own GitHub login; then pick the account
+  it runs on.
 - **Account bindings.** Add Claude accounts (one `CLAUDE_CONFIG_DIR` each) or OpenAI Codex accounts (one
   `CODEX_HOME` each) and bind folders to them in Settings. The folder decides both the account and the agent.
   The deepest binding wins. Each binding remembers the real folder you confirmed, so if the path later points
@@ -193,8 +197,9 @@ CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
 CODEX_HOME=~/.codex-work codex login
 ```
 
-Then start SkyeLab. On first run the Welcome page lists the config folders it found (`~/.claude`, `~/.claude-*`,
-`~/.codex`, `~/.codex-*`): tick the ones to add, then choose a project folder and the account it runs on. You can
+Then start SkyeLab. On first run, onboarding lists the config folders it found (`~/.claude`, `~/.claude-*`,
+`~/.codex`, `~/.codex-*`) to add as accounts, then the folders their agents worked in to import as projects, each on
+the account you confirm. You can
 also add accounts by hand in Settings (<kbd>⌘,</kbd>, or <kbd>Ctrl+,</kbd> on Linux and Windows). The [user guide](docs/user-guide.md) covers the rest.
 
 ## Architecture

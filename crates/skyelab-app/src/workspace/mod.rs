@@ -46,7 +46,7 @@ mod manage;
 mod manage_projects;
 mod mermaid;
 mod mermaid_block;
-mod onboarding;
+pub(crate) mod onboarding;
 mod settings_tab;
 mod setup_flow;
 mod side_chat;

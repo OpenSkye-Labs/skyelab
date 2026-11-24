@@ -43,7 +43,7 @@ impl Workspace {
             return; // the folder and binding would land on this machine, not the one shown
         }
         if self.config.accounts.is_empty() {
-            return self.set_up_accounts(&super::SetUpAccounts, window, cx);
+            return self.open_onboarding(&super::OpenOnboarding, window, cx);
         }
         let Some(prev) = window.focused(cx) else {
             return;

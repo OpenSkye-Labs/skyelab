@@ -66,7 +66,11 @@ Above the list are the search field, saved views (the bookmark button), the proj
 **New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
 **Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
-it asks which project. **Saved views** keep the ticked projects and the search text under a name: **Save current
+it asks which project in the palette (**New thread in**), whose last row is **Add project…**. With no project at all
+it opens Add project. Neither ever opens the system folder picker.
+
+**Add project** opens a palette page with path completion, recent folders, New project and Clone from URL: see
+[user-guide-projects.md](user-guide-projects.md). **Saved views** keep the ticked projects and the search text under a name: **Save current
 view…** asks for one (a name you already used replaces that view), picking a view brings both back, and **Delete
 view** removes one. The view the list shows now is checked. Views are kept in `settings.toml` (`[[sidebar_views]]`),
 projects by folder, so a project you remove is skipped. The **Working** header shows how many threads work now; click it to fold them away.
@@ -165,7 +169,7 @@ as it was. A copy that can't update itself (built from source) shows **Download*
 
 ## Accounts and bindings
 
-First-run setup on the Welcome page (or **Set Up Accounts** in the palette), binding folders to accounts, and a GitHub
+First-run onboarding (or **Open Onboarding** in the palette), binding folders to accounts, and a GitHub
 login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 
 ## Threads

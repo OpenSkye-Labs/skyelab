@@ -93,6 +93,7 @@ pub fn init(cx: &mut App) {
         ]);
     }
     layout::bind_keys(cx);
+    onboarding::bind_keys(cx);
     surfaces::bind_keys(cx);
     files::bind_keys(cx);
     thread_find::bind_keys(cx);

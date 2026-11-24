@@ -74,6 +74,10 @@ See [gpui/windows.md](gpui/windows.md).
 
 See [gpui/keyboard.md](gpui/keyboard.md).
 
+## Animation
+
+See [gpui/animation.md](gpui/animation.md).
+
 ## Native webviews
 
 See [gpui/webview.md](gpui/webview.md).

@@ -33,9 +33,12 @@ SkyeLab's main rule: **every folder runs on exactly one account.** An account is
 - **Codex:** a `CODEX_HOME`, such as `~/.codex-work`.
 - **GitHub:** a `GH_CONFIG_DIR` per account, such as `~/.config/gh-work`.
 
-On first start, the Welcome page lists the agents it found and offers your existing `~/.claude*` and `~/.codex*`
-folders as accounts. Tick the ones you want and click **Add account**. To add one later, open Settings (<kbd>⌘,</kbd>)
-→ **Accounts** → **Add account**.
+On first start, onboarding walks you through five pages: **Welcome**, **Theme** (the app changes as you click),
+**Agents & accounts** (the Claude Code, Codex and GitHub CLIs it found, and your existing `~/.claude*` and
+`~/.codex*` folders, each with **Add**), **Import projects** (folders your agents already worked in, each with the
+account it will run on) and **Done**. Return or Space goes on, Esc goes back, **Skip** leaves it. Run **Open
+Onboarding** from the palette to see it again. To add an account later, open Settings (<kbd>⌘,</kbd>) → **Accounts**
+→ **Add account**.
 
 Then press **Log in** on each account card. A terminal opens with that account's folder set, so the login lands
 there and nowhere else. SkyeLab never sees the token.

@@ -53,18 +53,30 @@ impl Workspace {
 
     /// Stores `dir` as a project, or finds the one already stored there, and selects it.
     pub fn add_project(&mut self, dir: PathBuf, cx: &mut Context<Self>) {
+        self.add_projects(vec![dir], cx);
+    }
+
+    /// Stores each of `dirs` as a project (or finds the one stored there) in one go, and selects the first.
+    pub fn add_projects(&mut self, dirs: Vec<PathBuf>, cx: &mut Context<Self>) {
         let store = self.backend.store.clone();
         let task = cx.background_spawn(async move {
             let store = lock(&store)?;
-            // A removed project comes back with its threads.
-            if let Some(p) = store.readd_project(&dir)? {
-                return anyhow::Ok(p.id);
+            let mut first = None;
+            for dir in dirs {
+                // A removed project comes back with its threads.
+                let id = match store.readd_project(&dir)? {
+                    Some(p) => p.id,
+                    None => {
+                        let name = dir.file_name().map_or_else(
+                            || dir.display().to_string(),
+                            |n| n.to_string_lossy().into_owned(),
+                        );
+                        store.create_project(&name, &dir)?.id
+                    }
+                };
+                first.get_or_insert(id);
             }
-            let name = dir.file_name().map_or_else(
-                || dir.display().to_string(),
-                |n| n.to_string_lossy().into_owned(),
-            );
-            Ok(store.create_project(&name, &dir)?.id)
+            first.ok_or_else(|| anyhow::anyhow!("no folder to add"))
         });
         self._add = Some(cx.spawn(async move |this, cx| {
             let added = task.await;
@@ -155,9 +167,8 @@ impl Workspace {
 
     /// The palette as a project picker: "New thread in: <project>" for each one, then Add project….
     fn pick_new_thread_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(prev) = window.focused(cx) else {
-            return;
-        };
+        // Nothing focused (onboarding just closed): Back returns to the workspace.
+        let prev = window.focused(cx).unwrap_or_else(|| self.focus.clone());
         let mut entries = self.new_thread_in_entries();
         entries.push(
             crate::palette::Entry::new(

@@ -371,6 +371,8 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
 const HIDDEN: &[&str] = &[
     "skyelab::OpenCommandPalette",
     "skyelab::CompleteFolder",
+    "skyelab::OnboardingNext",
+    "skyelab::OnboardingBack",
     "skyelab::ConnectTyped",
     "skyelab::ConfirmDiscardWorktree",
     "skyelab::CancelDiscardWorktree",

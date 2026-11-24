@@ -268,3 +268,13 @@ mod worktree_review_test;
 mod worktree_thread_test;
 #[cfg(test)]
 mod new_thread_no_finder_test;
+#[cfg(test)]
+mod onboarding_agents_test;
+#[cfg(test)]
+mod onboarding_idle_test;
+#[cfg(test)]
+mod onboarding_import_test;
+#[cfg(test)]
+mod onboarding_steps_test;
+#[cfg(test)]
+mod onboarding_theme_test;

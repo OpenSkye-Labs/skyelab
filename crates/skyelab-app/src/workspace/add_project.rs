@@ -87,9 +87,8 @@ impl Workspace {
         if self.is_remote() {
             return; // it adds this machine's folders while another one is shown
         }
-        let Some(prev) = window.focused(cx) else {
-            return;
-        };
+        // Nothing focused (onboarding just closed): Back returns to the workspace.
+        let prev = window.focused(cx).unwrap_or_else(|| self.focus.clone());
         let spec = self.add_project_page(cx);
         crate::palette::open_spec(spec, prev, window, cx);
     }

@@ -38,7 +38,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::schedule_text))
             .on_action(cx.listener(Self::open_pull_requests))
             .on_action(cx.listener(Self::open_issues))
-            .on_action(cx.listener(Self::set_up_accounts))
+            .on_action(cx.listener(Self::open_onboarding))
             .on_action(cx.listener(Self::open_browser))
             .on_action(cx.listener(Self::reopen_closed_view))
             .on_action(cx.listener(Self::pick_project))

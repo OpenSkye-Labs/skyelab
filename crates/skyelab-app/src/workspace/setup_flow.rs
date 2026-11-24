@@ -24,7 +24,8 @@ impl Workspace {
     pub(super) fn sync_setup(&mut self, cx: &mut Context<Self>) {
         let missing = self.config.accounts.is_empty() || self.projects.is_empty();
         let s = &self.setup;
-        let show = !self.is_remote() && s.loaded && (s.forced || (!s.dismissed && missing));
+        let first = !s.dismissed && !onboarding::first_run::done(cx) && missing;
+        let show = !self.is_remote() && s.loaded && (s.forced || first);
         // Once open it stays until Done or Skip, even after the last missing piece is added.
         self.setup.forced |= show;
         let sync = Sync {
@@ -33,6 +34,7 @@ impl Workspace {
             load_error: self.load_error.clone(),
             claude_bin: self.backend.claude_bin.clone(),
             codex_bin: github::codex_bin(cx),
+            gh_bin: github::gh_bin(cx),
         };
         if show {
             self.refresh_logins(cx);
@@ -46,9 +48,9 @@ impl Workspace {
         });
     }
 
-    pub(super) fn set_up_accounts(
+    pub(super) fn open_onboarding(
         &mut self,
-        _: &SetUpAccounts,
+        _: &OpenOnboarding,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -57,6 +59,9 @@ impl Workspace {
         }
         self.setup.forced = true;
         self.setup.loaded = true; // asked for: no need to wait for the project list
+        // Asked again while open: back to the first page.
+        let setup = self.welcome.read(cx).setup.clone();
+        setup.update(cx, |o, cx| o.go(onboarding::Step::Welcome, cx));
         self.reload_accounts();
         self.push_config(cx);
         self.sync_setup(cx);
@@ -70,18 +75,28 @@ impl Workspace {
         let result = match e {
             OnboardingEvent::Close => {
                 (self.setup.forced, self.setup.dismissed) = (false, true);
+                onboarding::first_run::set_done(cx);
                 Ok(())
             }
             OnboardingEvent::AddAccounts(accounts) => self.edit_accounts(
                 |c| accounts.iter().try_for_each(|a| c.add_account(a.clone())),
                 cx,
             ),
-            OnboardingEvent::AddProject { dir, account } => self
+            OnboardingEvent::Import(picks) => self
                 .edit_accounts(
-                    |c| skyelab_core::onboarding::bind_project(c, dir, account),
+                    |c| {
+                        picks.iter().try_for_each(|(dir, account)| match account {
+                            Some(a) => skyelab_core::onboarding::bind_project(c, dir, a),
+                            None => Ok(()),
+                        })
+                    },
                     cx,
                 )
-                .map(|()| self.add_project(dir.clone(), cx)),
+                .map(|()| {
+                    self.add_projects(picks.iter().map(|(d, _)| d.clone()).collect(), cx);
+                    let setup = self.welcome.read(cx).setup.clone();
+                    setup.update(cx, |o, cx| o.imported(cx));
+                }),
         };
         let setup = self.welcome.read(cx).setup.clone();
         setup.update(cx, |o, cx| {
