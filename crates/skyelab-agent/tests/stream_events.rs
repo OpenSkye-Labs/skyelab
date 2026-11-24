@@ -243,11 +243,14 @@ fn ask_user_question_answers_reach_the_agent() {
         ],
     )
     .expect("answer");
-    let reply = until(
-        &s,
-        |e| matches!(e, Event::Unknown(v) if v["type"] == "fake_answer"),
-    );
-    let Some(Event::Unknown(v)) = reply.last() else {
+    // The agent's reply can come before or after the resolved event (sent once the answer is queued): wait for both.
+    let is_reply = |e: &Event| matches!(e, Event::Unknown(v) if v["type"] == "fake_answer");
+    let is_resolved = |e: &Event| matches!(e, Event::PermissionResolved { id: i, .. } if *i == id);
+    let mut reply = Vec::new();
+    while !(reply.iter().any(is_reply) && reply.iter().any(is_resolved)) {
+        reply.extend(until(&s, |_| true));
+    }
+    let Some(Event::Unknown(v)) = reply.iter().find(|e| is_reply(e)) else {
         panic!("no reply")
     };
     let r = &v["reply"]["response"];
@@ -260,10 +263,5 @@ fn ask_user_question_answers_reach_the_agent() {
     assert_eq!(
         r["response"]["updatedInput"]["questions"][1]["header"],
         "Extras"
-    );
-    assert!(
-        reply
-            .iter()
-            .any(|e| matches!(e, Event::PermissionResolved { id: i, .. } if *i == id))
     );
 }

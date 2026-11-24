@@ -33,6 +33,10 @@ Only macOS is tested locally. Check the others like this before merging somethin
   up" shuts down its write side and drains the client first.
 - Git for Windows checks text out with CRLF (`core.autocrlf=true`). CI turns it off before checkout so fixtures
   are the committed bytes; test repos made in a test set `core.autocrlf=false` themselves.
+- WebView2's `NavigateToString` load is a navigation of its own (not reported as `about:blank` the way WKWebView's
+  `loadHTMLString` is). A navigation handler that allows only `about:blank` cancels the page's own load, and the
+  page measures as an empty viewport (`wkwebview_page`: "height 80"). `page::Page` allows the first navigation,
+  the string load, then only `about:blank`.
 - Fakes that are shell scripts (`fake-claude.sh`, `fake-gh.sh`, …), `mkfifo`, symlinks and Unix permissions:
   `#[cfg(unix)]` on the test (or just that step), never on a test of a feature that also ships on Windows.
 
@@ -57,6 +61,13 @@ Only macOS is tested locally. Check the others like this before merging somethin
 - macos-latest runners can be short: a job GitHub never hands to a runner ends as **cancelled** after about
   15 min with the annotation "The job was not acquired by Runner of type hosted even after multiple attempts".
   That is not a timeout or a hang in the tests; re-run it.
+- The per-user process limit (`kern.maxprocperuid`) is far lower than on a big dev Mac (5,333 here), and zombies
+  count. A child that is started and never waited stays a zombie until the test binary exits; enough of them and
+  every spawn fails with "Resource temporarily unavailable (os error 35)", so fake agents never start and app tests
+  time out "waiting for the question". `frozen::freeze` started two git children and dropped the second unwaited
+  whenever the first failed (every call outside a repo). Reap every `Captured` child, even on an error path
+  (`skyelab-git/tests/no_zombie_children.rs`). To check locally, count the test binary's `Z` children with
+  `ps -A -o ppid=,stat=` while the suite runs.
 - Real file events (FSEvents) arrive late and in batches on a loaded runner: assert "a few", not an exact count,
   when the count is about coalescing (`skyelab-git/tests/watch.rs`).
 - On GitHub's macos-26 image cargo was not in `~/.cargo/bin` when Xcode ran the "Build Rust" phase ("env: cargo:
@@ -70,6 +81,12 @@ Only macOS is tested locally. Check the others like this before merging somethin
   build again with another empty one in verify mode. Gradle's write mode does not record some of these (buildscript
   classpath BOMs); add them by hand with the sha256 of the file from Maven Central, checked against Central's
   `.sha1`.
+
+**All platforms**
+
+- A test that answers the agent and then waits for both the agent's reply and `PermissionResolved` must accept them
+  in either order: the session sends the resolved event after the answer is queued, so a fast agent's reply can come
+  first (`ask_user_question_answers_reach_the_agent` failed this way on Linux).
 
 **Timing and cache**
 

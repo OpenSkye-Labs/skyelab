@@ -100,8 +100,14 @@ impl Page {
             .with_focused(false)
             .with_visible(false)
             .with_html(prepared)
-            // The string load is the one navigation; a link, a script or a meta refresh goes nowhere.
-            .with_navigation_handler(|url| url == "about:blank")
+            // The string load is the one navigation; a link, a script or a meta refresh goes nowhere. It is the first
+            // one, started before the page has any script, and WebView2 names it `data:text/html…`, not `about:blank`.
+            .with_navigation_handler({
+                let first = std::sync::atomic::AtomicBool::new(true);
+                move |url| {
+                    first.swap(false, std::sync::atomic::Ordering::SeqCst) || url == "about:blank"
+                }
+            })
             .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny)
             .with_download_started_handler(|_, _| false)
             .with_on_page_load_handler(move |event, _| {

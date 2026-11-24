@@ -122,12 +122,21 @@ fn claude_allow_reaches_agent_and_waits() {
     let early = s.events().recv_timeout(Duration::from_millis(500));
     assert!(early.is_err(), "the agent went on unanswered: {early:?}");
     s.answer(&id, Decision::AllowOnce).expect("answer");
-    let resolved = until(&s, |e| match e {
-        Event::PermissionResolved { id, decision, .. } => Some((id.clone(), *decision)),
-        _ => None,
-    });
-    assert_eq!(resolved, (id.clone(), Decision::AllowOnce));
-    let r = reply(&s);
+    // The agent's reply can come before or after the resolved event (sent once the answer is queued).
+    let (mut resolved, mut r) = (None, None);
+    while resolved.is_none() || r.is_none() {
+        match s
+            .events()
+            .recv_timeout(Duration::from_secs(60))
+            .expect("event within 60 s")
+        {
+            Event::PermissionResolved { id, decision, .. } => resolved = Some((id, decision)),
+            Event::Unknown(v) if v["type"] == "fake_answer" => r = Some(v["reply"].clone()),
+            _ => {}
+        }
+    }
+    assert_eq!(resolved, Some((id.clone(), Decision::AllowOnce)));
+    let r = r.expect("reply");
     assert_eq!(r["type"], "control_response");
     assert_eq!(r["response"]["request_id"], "perm-1");
     assert_eq!(
