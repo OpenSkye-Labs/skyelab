@@ -72,8 +72,8 @@ fn commit_all_includes_untracked_and_reads_message_from_stdin() {
     let (_tmp, repo, _remote, _gh) = setup();
     fs::write(repo.join("a.txt"), "two\n").expect("write");
     fs::write(repo.join("new.txt"), "new\n").expect("write");
-    let sha =
-        skyelab_git::commit(&repo, "-n looks like a flag\n\nbody", &[], &[], None).expect("commit");
+    let sha = skyelab_git::commit(&repo, "-n looks like a flag\n\nbody", &[], &[], true, None)
+        .expect("commit");
     assert_eq!(git(&repo, &["rev-parse", "HEAD"]), sha);
     assert_eq!(
         git(&repo, &["log", "-1", "--format=%s"]),
@@ -93,6 +93,7 @@ fn commit_selected_paths_only() {
         "pick",
         &[PathBuf::from("a.txt"), PathBuf::from("-x")],
         &[],
+        true,
         None,
     )
     .expect("commit");
@@ -107,7 +108,7 @@ fn commit_selected_paths_only() {
 fn empty_message_is_refused_before_git_runs() {
     let (_tmp, repo, _remote, _gh) = setup();
     fs::write(repo.join("a.txt"), "two\n").expect("write");
-    let err = skyelab_git::commit(&repo, "  \n ", &[], &[], None).expect_err("empty");
+    let err = skyelab_git::commit(&repo, "  \n ", &[], &[], true, None).expect_err("empty");
     assert!(matches!(err, Error::Invalid(_)), "{err:?}");
     assert_eq!(git(&repo, &["status", "--porcelain"]), "M a.txt");
 }
@@ -116,7 +117,7 @@ fn empty_message_is_refused_before_git_runs() {
 fn push_sets_upstream_then_pushes_to_it() {
     let (_tmp, repo, remote, gh_dir) = setup();
     fs::write(repo.join("a.txt"), "two\n").expect("write");
-    skyelab_git::commit(&repo, "change", &[], &[], None).expect("commit");
+    skyelab_git::commit(&repo, "change", &[], &[], true, None).expect("commit");
     let to = skyelab_git::push(&repo, &gh(&gh_dir)).expect("push");
     assert_eq!(to, "origin/feature");
     assert_eq!(
@@ -129,7 +130,7 @@ fn push_sets_upstream_then_pushes_to_it() {
     );
 
     fs::write(repo.join("a.txt"), "three\n").expect("write");
-    skyelab_git::commit(&repo, "again", &[], &[], None).expect("commit");
+    skyelab_git::commit(&repo, "again", &[], &[], true, None).expect("commit");
     skyelab_git::push(&repo, &gh(&gh_dir)).expect("push again");
     assert_eq!(
         git(&remote, &["rev-parse", "refs/heads/feature"]),
@@ -289,7 +290,7 @@ fn token_check_in_child() {
         .status()
         .expect("chmod");
     fs::write(repo.join("a.txt"), "two\n").expect("write");
-    skyelab_git::commit(&repo, "c", &[], &[], None).expect("commit");
+    skyelab_git::commit(&repo, "c", &[], &[], true, None).expect("commit");
     skyelab_git::create_pr(&repo, &gh(&gh_dir), "t", "b").expect("pr");
     let leaked = |file: &Path| {
         let env = fs::read_to_string(file).expect("env file");

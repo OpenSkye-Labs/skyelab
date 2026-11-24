@@ -27,7 +27,7 @@ fn listed(root: &Path) -> (Vec<PathBuf>, String) {
 
 fn refuses(root: &Path, paths: &[PathBuf], tree: &str) {
     let before = head(root);
-    let err = skyelab_git::commit(root, "c", paths, &[], Some(tree)).expect_err("must refuse");
+    let err = skyelab_git::commit(root, "c", paths, &[], true, Some(tree)).expect_err("must refuse");
     assert!(err.to_string().contains("changed since"), "{err}");
     assert_eq!(head(root), before, "something was committed");
 }
@@ -70,7 +70,7 @@ fn an_unchanged_tree_commits_exactly_the_listed_files() {
     std::fs::write(root.join("a.txt"), "two\n").expect("edit");
     std::fs::write(root.join("new.txt"), "n\n").expect("new");
     let (paths, tree) = listed(&root);
-    skyelab_git::commit(&root, "c", &paths, &[], Some(&tree)).expect("commit");
+    skyelab_git::commit(&root, "c", &paths, &[], true, Some(&tree)).expect("commit");
     let out = skyelab_core::process::output(
         Command::new("git")
             .arg("-C")

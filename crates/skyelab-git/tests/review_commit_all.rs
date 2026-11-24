@@ -42,7 +42,7 @@ fn commit_all_records_a_staged_deletion_and_a_rename() {
     git(&repo, &["rm", "-q", "a.txt"]);
     git(&repo, &["mv", "b.txt", "c.txt"]);
     let tree = skyelab_git::snapshot_tree(&repo).expect("snapshot");
-    skyelab_git::commit(&repo, "m", &[], &[], Some(&tree)).expect("commit all");
+    skyelab_git::commit(&repo, "m", &[], &[], true, Some(&tree)).expect("commit all");
     assert_eq!(git(&repo, &["rev-parse", "HEAD^{tree}"]), tree);
     assert_eq!(
         git(&repo, &["ls-tree", "-r", "--name-only", "HEAD"]),
@@ -66,7 +66,7 @@ fn commit_all_finishes_a_resolved_merge() {
         .output();
     std::fs::write(repo.join("a.txt"), "both\n").expect("resolve");
     let tree = skyelab_git::snapshot_tree(&repo).expect("snapshot");
-    skyelab_git::commit(&repo, "merge", &[], &[], Some(&tree)).expect("commit the merge");
+    skyelab_git::commit(&repo, "merge", &[], &[], true, Some(&tree)).expect("commit the merge");
     assert_eq!(
         git(&repo, &["rev-list", "--count", "--merges", "HEAD"]),
         "1"
@@ -80,7 +80,7 @@ fn commit_all_refuses_a_file_that_appeared_after_review() {
     let tree = skyelab_git::snapshot_tree(&repo).expect("snapshot");
     let before = git(&repo, &["rev-parse", "HEAD"]);
     std::fs::write(repo.join("late.env"), "SECRET\n").expect("late");
-    let err = skyelab_git::commit(&repo, "m", &[], &[], Some(&tree)).expect_err("refuse");
+    let err = skyelab_git::commit(&repo, "m", &[], &[], true, Some(&tree)).expect_err("refuse");
     assert!(err.to_string().contains("changed since"), "{err}");
     assert_eq!(git(&repo, &["rev-parse", "HEAD"]), before);
 }

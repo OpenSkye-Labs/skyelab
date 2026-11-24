@@ -89,8 +89,15 @@ fn reviewed(r: &Rig) -> String {
 fn a_ticked_file_commits_its_reviewed_content() {
     let r = rig();
     let tree = reviewed(&r);
-    skyelab_git::commit(&r.repo, "tick", &[PathBuf::from("t.txt")], &[], Some(&tree))
-        .expect("committed");
+    skyelab_git::commit(
+        &r.repo,
+        "tick",
+        &[PathBuf::from("t.txt")],
+        &[],
+        true,
+        Some(&tree),
+    )
+    .expect("committed");
     assert_eq!(git(&r.repo, &["show", "HEAD:t.txt"]), "reviewed\n");
 }
 
@@ -98,7 +105,7 @@ fn a_ticked_file_commits_its_reviewed_content() {
 fn commit_all_commits_its_reviewed_content() {
     let r = rig();
     let tree = reviewed(&r);
-    skyelab_git::commit(&r.repo, "all", &[], &[], Some(&tree)).expect("committed");
+    skyelab_git::commit(&r.repo, "all", &[], &[], true, Some(&tree)).expect("committed");
     assert_eq!(git(&r.repo, &["show", "HEAD:t.txt"]), "reviewed\n");
     assert_eq!(git(&r.repo, &["rev-parse", "HEAD^{tree}"]).trim(), tree);
 }
@@ -109,8 +116,15 @@ fn a_ticked_commit_leaves_other_staged_files_staged_and_out_of_it() {
     std::fs::write(r.repo.join("other.txt"), "staged by the user\n").expect("w");
     git(&r.repo, &["add", "other.txt"]);
     let tree = reviewed(&r);
-    skyelab_git::commit(&r.repo, "tick", &[PathBuf::from("t.txt")], &[], Some(&tree))
-        .expect("committed");
+    skyelab_git::commit(
+        &r.repo,
+        "tick",
+        &[PathBuf::from("t.txt")],
+        &[],
+        true,
+        Some(&tree),
+    )
+    .expect("committed");
     assert_eq!(
         git(
             &r.repo,
@@ -138,8 +152,15 @@ fn a_ticked_commit_is_refused_during_a_merge() {
     git(&r.repo, &["commit", "-q", "-m", "main"]);
     git(&r.repo, &["merge", "-q", "--no-commit", "--no-ff", "side"]);
     let tree = skyelab_git::snapshot_tree(&r.repo).expect("snapshot");
-    let err = skyelab_git::commit(&r.repo, "part", &[PathBuf::from("a.txt")], &[], Some(&tree))
-        .expect_err("a partial commit during a merge");
+    let err = skyelab_git::commit(
+        &r.repo,
+        "part",
+        &[PathBuf::from("a.txt")],
+        &[],
+        true,
+        Some(&tree),
+    )
+    .expect_err("a partial commit during a merge");
     assert!(format!("{err}").contains("merge"), "{err}");
     assert_eq!(
         git(&r.repo, &["rev-list", "--merges", "--count", "HEAD"]).trim(),
@@ -187,8 +208,15 @@ fn a_ticked_commit_is_refused_during_a_cherry_pick_revert_or_rebase() {
         std::fs::write(r.repo.join("a.txt"), "resolved\n").expect("w");
         std::fs::write(r.repo.join("b.txt"), "b\n").expect("w");
         let tree = skyelab_git::snapshot_tree(&r.repo).expect("snapshot");
-        let err = skyelab_git::commit(&r.repo, "part", &[PathBuf::from("b.txt")], &[], Some(&tree))
-            .expect_err(op);
+        let err = skyelab_git::commit(
+            &r.repo,
+            "part",
+            &[PathBuf::from("b.txt")],
+            &[],
+            true,
+            Some(&tree),
+        )
+        .expect_err(op);
         assert!(format!("{err}").contains(op), "{op}: {err}");
     }
 }

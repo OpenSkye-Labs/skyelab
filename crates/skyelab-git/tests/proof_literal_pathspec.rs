@@ -35,7 +35,8 @@ fn a_ticked_file_named_star_commits_only_itself() {
     git(&repo, &["commit", "-q", "-m", "init"]);
     fs::write(repo.join("*"), "star\n").expect("write");
     fs::write(repo.join("secret.txt"), "not ticked\n").expect("write");
-    skyelab_git::commit(&repo, "star only", &[PathBuf::from("*")], &[], None).expect("commit");
+    skyelab_git::commit(&repo, "star only", &[PathBuf::from("*")], &[], true, None)
+        .expect("commit");
     let files = git(&repo, &["show", "--name-only", "--format=", "HEAD"]);
     assert_eq!(files, "*", "committed more than the ticked file: {files}");
 }

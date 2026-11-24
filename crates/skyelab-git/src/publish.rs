@@ -5,7 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use crate::{Error, Result, git, git_succeeds, hooked_command, lossy, repo_root};
+use crate::{Error, Result, git, git_succeeds, lossy, repo_root};
 
 pub(crate) const MAX_MESSAGE: usize = 64 * 1024;
 const MAX_TITLE: usize = 256;
@@ -21,13 +21,20 @@ pub struct GitHub<'a> {
 }
 
 /// Pushes the current branch to its upstream, or to `origin/<branch>` (and sets that as the upstream).
-/// Returns `<remote>/<branch>`. https credentials come only from `gh` (see [`credential_args`]).
+/// Returns `<remote>/<branch>`. https credentials come only from `gh` (see [`credential_args`]). The repo's hooks
+/// don't run: only [`push_with`], after the caller's account check, turns them on.
 pub fn push(dir: &Path, gh: &GitHub) -> Result<String> {
-    push_with(dir, gh, &[])
+    push_with(dir, gh, &[], false)
 }
 
-/// [`push`], with `env` added for the repo's hooks (the bound account's git credential binding).
-pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Result<String> {
+/// [`push`], with `env` added for the repo's hooks (the bound account's git credential binding), or hooks off
+/// without `hooks`.
+pub fn push_with(
+    dir: &Path,
+    gh: &GitHub,
+    env: &[(OsString, OsString)],
+    hooks: bool,
+) -> Result<String> {
     let root = repo_root(dir)?;
     let branch = current_branch(&root)?;
     let config = |key: String| -> Result<Option<String>> {
@@ -58,7 +65,7 @@ pub fn push_with(dir: &Path, gh: &GitHub, env: &[(OsString, OsString)]) -> Resul
     crate::remote::check_repo_config(&root, "push")?;
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let refspec = format!("HEAD:refs/heads/{branch}");
-    let mut cmd = hooked_command(Path::new("git"), &root);
+    let mut cmd = crate::user_command(&root, hooks);
     cmd.args(credential_args(gh, &urls)?)
         .arg("push")
         // A submodule's own remote is never checked, so never pushed to.

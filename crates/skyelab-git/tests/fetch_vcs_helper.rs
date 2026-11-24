@@ -56,6 +56,6 @@ fn isolation_fetch_refuses_a_repo_configured_vcs_helper() {
     git(&repo, &["config", "remote.origin.vcs", "evil"]);
     let err = skyelab_git::fetch(&repo, &gh).expect_err("refused");
     assert!(err.to_string().contains("remote.origin.vcs"), "{err}");
-    let pull = skyelab_git::pull_ff(&repo, &gh, &[]).expect_err("pull fetches first");
+    let pull = skyelab_git::pull_ff(&repo, &gh, &[], true).expect_err("pull fetches first");
     assert!(pull.to_string().contains("remote.origin.vcs"), "{pull}");
 }

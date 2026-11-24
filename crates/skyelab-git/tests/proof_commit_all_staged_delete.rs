@@ -35,6 +35,7 @@ fn commit_all_with_a_staged_deletion_listed() {
         "m",
         &[PathBuf::from("a.txt"), PathBuf::from("b.txt")],
         &[],
+        true,
         None,
     );
     assert!(r.is_ok(), "COMMIT_ALL_FAILED: {r:?}");

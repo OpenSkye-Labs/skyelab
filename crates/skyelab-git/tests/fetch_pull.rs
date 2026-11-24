@@ -128,7 +128,7 @@ fn fetch_counts_behind_and_pull_fast_forwards() {
         skyelab_git::ahead_behind(&f.repo).expect("counts"),
         Some((0, 2))
     );
-    let note = skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).expect("pulls");
+    let note = skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).expect("pulls");
     assert!(note.contains('2'), "{note}");
     assert_eq!(
         git(&f.repo, &["rev-parse", "HEAD"]),
@@ -138,7 +138,7 @@ fn fetch_counts_behind_and_pull_fast_forwards() {
         skyelab_git::ahead_behind(&f.repo).expect("counts"),
         Some((0, 0))
     );
-    let again = skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).expect("nothing to pull");
+    let again = skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).expect("nothing to pull");
     assert!(again.to_lowercase().contains("up to date"), "{again}");
 }
 
@@ -153,7 +153,7 @@ fn ahead_counts_local_commits_and_pull_refuses_a_non_fast_forward() {
         Some((1, 1))
     );
     let head = git(&f.repo, &["rev-parse", "HEAD"]);
-    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).expect_err("diverged");
+    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).expect_err("diverged");
     assert!(err.to_string().contains("fast-forward"), "{err}");
     assert_eq!(git(&f.repo, &["rev-parse", "HEAD"]), head);
 }
@@ -164,7 +164,7 @@ fn pull_refuses_a_dirty_tree() {
     f.upstream_moves(1);
     fs::write(f.repo.join("a.txt"), "edited\n").expect("write");
     let head = git(&f.repo, &["rev-parse", "HEAD"]);
-    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).expect_err("dirty");
+    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).expect_err("dirty");
     assert!(err.to_string().contains("uncommitted"), "{err}");
     assert_eq!(git(&f.repo, &["rev-parse", "HEAD"]), head);
     assert_eq!(
@@ -179,7 +179,7 @@ fn no_upstream_means_no_counts_no_fetch_and_no_pull() {
     git(&f.repo, &["checkout", "-q", "-b", "feature"]);
     assert_eq!(skyelab_git::ahead_behind(&f.repo).expect("counts"), None);
     assert!(!skyelab_git::fetch(&f.repo, &f.gh()).expect("no-op"));
-    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).expect_err("no upstream");
+    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).expect_err("no upstream");
     assert!(err.to_string().contains("upstream"), "{err}");
 }
 
@@ -209,7 +209,7 @@ fn fetch_refuses_ssh_before_ssh_runs() {
     );
     let err = skyelab_git::fetch(&f.repo, &f.gh()).expect_err("ssh");
     assert!(err.to_string().contains("https"), "{err}");
-    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).expect_err("ssh");
+    let err = skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).expect_err("ssh");
     assert!(err.to_string().contains("https"), "{err}");
     assert!(!marker.exists(), "ssh never ran");
     git(
@@ -257,7 +257,7 @@ fn isolation_fetch_refuses_a_repo_configured_upload_pack() {
         "{err}"
     );
     assert!(
-        skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).is_err(),
+        skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).is_err(),
         "pull fetches first"
     );
     assert!(!marker.exists(), "the repo's upload-pack never ran");
@@ -287,7 +287,7 @@ fn pull_keeps_an_ignored_local_file_the_upstream_starts_tracking() {
     fs::write(f.repo.join("u1.txt"), "my only copy\n").expect("write");
     f.upstream_moves(1);
     assert!(
-        skyelab_git::pull_ff(&f.repo, &f.gh(), &[]).is_err(),
+        skyelab_git::pull_ff(&f.repo, &f.gh(), &[], true).is_err(),
         "pull refuses to replace an ignored file"
     );
     assert_eq!(

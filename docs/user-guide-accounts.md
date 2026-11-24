@@ -127,8 +127,12 @@ To let one account's agents push over ssh anyway, add `ssh_agent = true` to that
 
 **Commit** commits the ticked files, or with none ticked exactly the working tree the Changes tab shows (the
 button says how many files). If anything changed since the tab loaded, Commit refuses; refresh, look again, and
-commit. Repo hooks run on Commit and Push, with the same clean environment; if a commit hook adds files you
-didn't review, the commit is undone and they stay staged. Push never pushes submodules.
+commit. Repo hooks run on Commit, Push and Pull, with the same clean environment; if a commit hook adds files you
+didn't review, the commit is undone and they stay staged. When the repo is shared with another account (one of its
+worktrees, a folder inside it, a folder around it, its hooks folder, or the repo itself is bound to another account or
+to none), the hooks are skipped and
+the note says "Hooks skipped: this repo is shared with another account": another account's agent could have written
+them. Push never pushes submodules.
 
 **Generated commit messages and PRs.** The sparkle next to the commit message asks the thread's own account's agent
 for a conventional commit message (a subject of 72 characters at most, and a short body when it helps) from the

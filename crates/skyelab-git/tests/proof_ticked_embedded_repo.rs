@@ -38,6 +38,6 @@ fn ticking_an_untracked_nested_repo_is_not_undone() {
     let sub = repo.join("sub");
     std::fs::create_dir(&sub).expect("mkdir");
     init(&sub);
-    let r = skyelab_git::commit(&repo, "c", &[PathBuf::from("sub/")], &[], None);
+    let r = skyelab_git::commit(&repo, "c", &[PathBuf::from("sub/")], &[], true, None);
     assert!(r.is_ok(), "SPURIOUS_UNDO: {r:?}");
 }

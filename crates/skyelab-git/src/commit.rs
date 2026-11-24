@@ -6,10 +6,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::publish::{MAX_MESSAGE, checked, invalid};
-use crate::{Result, command, git, git_succeeds, hooked_command, lossy, repo_root};
+use crate::{Result, command, git, git_succeeds, lossy, repo_root};
 
 /// Commits `paths` (every change, untracked files included, when empty) with `message`, and returns the new commit.
-/// The repo's hooks run, with the scrubbed env plus `env` (the bound account's launch env and git credential binding).
+/// With `hooks`, the repo's hooks run, with the scrubbed env plus `env` (the bound account's launch env and git
+/// credential binding); without, they are off.
 ///
 /// With `reviewed`, the [`snapshot_tree`] the user looked at: nothing is committed unless the working tree still
 /// matches it. The commit is then built from that tree's blobs in a private index, never from the files again, so a
@@ -30,6 +31,7 @@ pub fn commit(
     message: &str,
     paths: &[PathBuf],
     env: &[(OsString, OsString)],
+    hooks: bool,
     reviewed: Option<&str>,
 ) -> Result<String> {
     if message.trim().is_empty() || message.contains('\0') || message.len() > MAX_MESSAGE {
@@ -113,7 +115,7 @@ pub fn commit(
         }
         names.clone()
     };
-    let mut cmd = hooked_command(Path::new("git"), &root);
+    let mut cmd = crate::user_command(&root, hooks);
     cmd.args(["commit", "-F", "-"])
         .env("GIT_INDEX_FILE", &index)
         .envs(env.iter().map(|(k, v)| (k, v)));

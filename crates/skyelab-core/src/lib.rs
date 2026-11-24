@@ -27,6 +27,7 @@ pub use app_settings::{
     MAX_RECENT_ENVIRONMENTS, ScheduledSettings, SidebarView, TerminalSettings, ThreadSettings,
     WindowLayout,
 };
+mod repo_hooks;
 pub mod terminal_context;
 pub mod terminal_layout;
 pub mod thread_defaults;
@@ -531,7 +532,6 @@ mod onboarding_test;
 mod update_test;
 
 #[cfg(test)]
-#[path = "context_test.rs"]
 mod context_test;
 
 #[cfg(test)]

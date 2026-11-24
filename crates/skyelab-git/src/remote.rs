@@ -141,8 +141,13 @@ pub fn ahead_behind(dir: &Path) -> Result<Option<(u32, u32)>> {
 
 /// Fetches, then fast-forwards the branch to its upstream. Refuses tracked changes (commit or stash them first), a
 /// branch with no upstream, and a branch with commits the upstream lacks: those need a merge or rebase by hand.
-/// `env` is the bound account's env for the repo's hooks, as Commit and Push pass it.
-pub fn pull_ff(dir: &Path, gh: &crate::GitHub, env: &[(OsString, OsString)]) -> Result<String> {
+/// `env` is the bound account's env for the repo's hooks, as Commit and Push pass it; `hooks` false turns them off.
+pub fn pull_ff(
+    dir: &Path,
+    gh: &crate::GitHub,
+    env: &[(OsString, OsString)],
+    hooks: bool,
+) -> Result<String> {
     let root = repo_root(dir)?;
     let branch = current_branch(&root)?;
     let status = crate::status(&root)?;
@@ -166,7 +171,7 @@ pub fn pull_ff(dir: &Path, gh: &crate::GitHub, env: &[(OsString, OsString)]) -> 
              merge or rebase it by hand"
         )));
     }
-    let mut cmd = crate::hooked_command(Path::new("git"), &root);
+    let mut cmd = crate::user_command(&root, hooks);
     // Git counts ignored files as expendable; a local `.env` the upstream starts tracking may be the only copy.
     cmd.args([
         "merge",

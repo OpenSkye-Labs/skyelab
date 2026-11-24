@@ -40,7 +40,8 @@ fn commit_all_in_a_subfolder_leaves_the_rest_of_the_repo() {
     std::fs::write(repo.join("other/a.txt"), "two\n").expect("w");
 
     let tree = skyelab_git::snapshot_tree(&repo).expect("snapshot");
-    skyelab_git::commit(&repo.join("app"), "app only", &[], &[], Some(&tree)).expect("commit all");
+    skyelab_git::commit(&repo.join("app"), "app only", &[], &[], true, Some(&tree))
+        .expect("commit all");
 
     let committed = git(&repo, &["show", "--name-only", "--format=", "HEAD"]);
     assert_eq!(

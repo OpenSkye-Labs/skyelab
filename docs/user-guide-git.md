@@ -33,6 +33,18 @@ On Linux each folder takes its own watch from the system. A project with more th
 watched only at its top level plus git's own state (branch, commits, staging); other edits show when you come back
 to the window, at the end of a turn, or on **Refresh**. macOS and Windows watch the whole tree with one watch.
 
+## Repo hooks
+
+**Commit**, **Push** and **Pull** run the repo's own git hooks (`pre-commit`, `pre-push`, `post-merge`, …) only
+when every checkout of the repo (its worktrees), its `.git` folder, its hooks folder (`core.hooksPath` too), and
+every bound folder inside or above them belong to the same account as the folder you act in. A worktree bound to
+another account, a project in a subfolder of an unbound repo, a folder inside the repo bound to another account, a
+repo inside another account's folder, or a hooks folder elsewhere all let another account reach that `.git`, so another account's agent could have written
+those hooks: SkyeLab then runs the command with hooks off and the note says **Hooks skipped: this repo is shared
+with another account**. Bind the repo's top folder (and its worktrees) to one account, with no other account's binding around it, to get
+them back. See
+[accounts](user-guide-accounts.md) and [security](security.md).
+
 ## Project scripts
 
 The thread details card's **Add project script** / **Run project script** row holds a project's scripts: a name and a command, such as `npm run dev`. Click one to run

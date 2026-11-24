@@ -56,7 +56,7 @@ fn a_failed_commit_all_restores_the_index_exactly() {
     };
     let before = index(&repo);
     let reviewed = skyelab_git::snapshot_tree(&repo).expect("snapshot");
-    let err = skyelab_git::commit(&repo, "all of it", &[], &[], Some(&reviewed))
+    let err = skyelab_git::commit(&repo, "all of it", &[], &[], true, Some(&reviewed))
         .expect_err("the hook refuses");
     assert!(format!("{err}").contains("refused by the hook"), "{err}");
     assert_eq!(index(&repo), before, "the index is what the user staged");
@@ -90,7 +90,8 @@ fn a_commit_all_refused_for_changed_files_leaves_the_index_exactly() {
     let before = index(&repo);
     let reviewed = skyelab_git::snapshot_tree(&repo).expect("snapshot");
     std::fs::write(repo.join("a.txt"), "four\n").expect("w");
-    let err = skyelab_git::commit(&repo, "all", &[], &[], Some(&reviewed)).expect_err("changed");
+    let err =
+        skyelab_git::commit(&repo, "all", &[], &[], true, Some(&reviewed)).expect_err("changed");
     assert!(
         format!("{err}").contains("changed since you looked"),
         "{err}"

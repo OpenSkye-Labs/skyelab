@@ -44,7 +44,14 @@ fn a_pre_commit_hook_cannot_add_a_file_the_user_never_saw() {
     fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).expect("chmod");
     fs::write(repo.join("a.txt"), "two\n").expect("edit");
     let tree = skyelab_git::snapshot_tree(&repo).expect("snapshot");
-    let _ = skyelab_git::commit(&repo, "c", &[PathBuf::from("a.txt")], &[], Some(&tree));
+    let _ = skyelab_git::commit(
+        &repo,
+        "c",
+        &[PathBuf::from("a.txt")],
+        &[],
+        true,
+        Some(&tree),
+    );
     let files = git(&repo, &["ls-tree", "-r", "--name-only", "HEAD"]);
     assert!(
         !files.lines().any(|f| f == "leak.env"),
