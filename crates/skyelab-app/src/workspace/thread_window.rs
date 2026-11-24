@@ -39,7 +39,6 @@ pub(super) fn prompt_subscription(
                 secondary: true, ..
             } => this.send_prompt(&SendPrompt, window, cx),
             InputEvent::Change => {
-                this.dock_digit(window, cx);
                 this.prompt_changed(cx);
                 this.restore_draft(window, cx);
             }
@@ -182,6 +181,7 @@ impl ThreadView {
         }
         self.window = window.window_handle();
         self.remote_window = super::super::env_mode::shows_remote(cx, self.window);
+        self.composer.dock_placeholder = None; // the new prompt starts with the default one
         self.lists.add(self.window);
         let (text, disabled) = (self.prompt.read(cx).value(), self.read_only);
         let prompt = new_prompt(window, cx);

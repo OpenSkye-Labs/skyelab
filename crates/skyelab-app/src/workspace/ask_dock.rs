@@ -26,8 +26,12 @@ impl ThreadView {
     pub(in crate::workspace) fn dock(&self) -> Option<&ApprovalItem> {
         self.session.as_ref()?;
         self.items.iter().rev().find_map(|i| match i {
+            // A question that doesn't parse stays a card in the timeline, where Skip still works.
             super::thread_model::Item::Approval(a)
-                if a.decision.is_none() && a.tool != skyelab_agent::PLAN_TOOL =>
+                if a.decision.is_none()
+                    && a.tool != skyelab_agent::PLAN_TOOL
+                    && (a.tool != skyelab_agent::QUESTION_TOOL
+                        || !questions(&a.raw).is_empty()) =>
             {
                 Some(a)
             }
@@ -56,6 +60,12 @@ impl ThreadView {
             Some(_) => Some(DECLINE_HINT),
             None => None,
         };
+        // Answers sent and the question gone: the composer, which held the last answer, empties.
+        let docked = self.dock().map(|a| a.id.clone());
+        if self.composer.dock_sent.is_some() && self.composer.dock_sent != docked {
+            self.composer.dock_sent = None;
+            self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+        }
         if want == self.composer.dock_placeholder {
             return;
         }
@@ -77,6 +87,10 @@ impl ThreadView {
         let Some(id) = self.dock().map(|a| a.id.clone()) else {
             return;
         };
+        // Sent already and waiting on the agent: a second Submit would send again (an error lets it retry).
+        if self.composer.dock_sent.as_deref() == Some(id.as_str()) && self.error.is_none() {
+            return;
+        }
         let text = self.prompt.read(cx).value().to_string();
         question_drafts::type_answer(&self.items, &mut self.drafts, &id, step, &text);
         let answered = self.drafts.get(&id).is_some_and(|d| {
@@ -102,7 +116,9 @@ impl ThreadView {
                 .update(cx, |p, cx| p.set_value(next, window, cx));
             cx.notify();
         } else {
-            self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+            // The composer keeps the answer until the question is gone (`sync_dock_placeholder`), so a refused send
+            // can be tried again.
+            self.composer.dock_sent = Some(id.clone());
             self.submit_answers(&id, cx);
         }
     }
@@ -134,18 +150,39 @@ impl ThreadView {
         cx.notify();
     }
 
-    /// A lone digit typed into an empty composer picks that option (T3's 1–9 shortcuts).
-    pub(in crate::workspace) fn dock_digit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.dock_step().is_none() {
-            return;
-        }
-        let text = self.prompt.read(cx).value();
-        let digit = match text.as_bytes() {
-            [d @ b'1'..=b'9'] => usize::from(d - b'1'),
-            _ => return,
+    /// A key pressed while the question panel has the focus: 1–9 pick that option (T3's shortcuts, which leave digits
+    /// typed in a field alone), Enter is Next or Submit. Returns whether it was used.
+    pub(in crate::workspace) fn dock_key(
+        &mut self,
+        key: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(id) = self.dock().map(|a| a.id.clone()) else {
+            return false;
         };
-        self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
-        self.dock_pick(digit, window, cx);
+        if self.composer.dock_collapsed.as_deref() == Some(id.as_str()) {
+            return false; // folded away: the options aren't in view
+        }
+        match key.as_bytes() {
+            [d @ b'1'..=b'9'] => {
+                let option = usize::from(d - b'1');
+                let fits = self.dock_step().is_some_and(|(step, _)| {
+                    self.dock()
+                        .and_then(|a| questions(&a.raw).into_iter().nth(step))
+                        .is_some_and(|q| option < q.options.len())
+                });
+                if fits {
+                    self.dock_pick(option, window, cx);
+                }
+                fits
+            }
+            b"enter" => {
+                self.advance_question(window, cx);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// The panel on the composer's top edge, or `None` with nothing to answer.
@@ -177,7 +214,7 @@ impl ThreadView {
     fn render_question_dock(
         &mut self,
         a: &ApprovalItem,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let qs = questions(&a.raw);
@@ -311,9 +348,23 @@ impl ThreadView {
                     ),
             );
         }
-        let _ = window;
+        let focus = self
+            .composer
+            .dock_focus
+            .get_or_insert_with(|| cx.focus_handle())
+            .clone();
         v_flex()
             .debug_selector(|| "question-dock".into())
+            .track_focus(&focus)
+            .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                focus.focus(window, cx)
+            })
+            .on_key_down(cx.listener(|this, e: &gpui::KeyDownEvent, window, cx| {
+                let k = &e.keystroke;
+                if !k.modifiers.modified() && this.dock_key(&k.key, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
             .w_full()
             .gap_1()
             .px_4()

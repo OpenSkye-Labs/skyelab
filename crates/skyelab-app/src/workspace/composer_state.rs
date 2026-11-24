@@ -144,6 +144,10 @@ pub(crate) struct Composer {
     /// The docked ask (`ask_dock.rs`) the user folded away, and the placeholder last set for the dock.
     pub dock_collapsed: Option<String>,
     pub dock_placeholder: Option<&'static str>,
+    /// The docked question whose answers were sent (a second Submit waits).
+    pub dock_sent: Option<String>,
+    /// The docked question panel's focus: 1–9 pick while it has it (T3 leaves digits typed in a field alone).
+    pub dock_focus: Option<gpui::FocusHandle>,
     /// The last long paste made into a chip (its name and text), for "Paste as text".
     pub pasted: Option<(String, String)>,
     /// An interrupt was sent and the turn hasn't ended yet ("Stopping…"); its number, so a late timer can't clear a newer one.

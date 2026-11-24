@@ -71,19 +71,14 @@ fn answers_given_in_the_docked_panel_reach_the_agent(cx: &mut TestAppContext) {
     // Question 1 is single-choice: a click picks and moves on.
     click(cx, "dock-option-0");
     assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
-    // Back to question 1 by hand, then a lone digit in the empty composer picks option 2 and moves on.
+    // Back to question 1 by hand, then 2 on the panel picks option 2 and moves on; 9 has no option.
     let id = ask(&one, cx).expect("asked").0;
     one.view.update(cx, |v, _| v.drafts.get_mut(&id).expect("draft").step = 0);
-    one.view.update_in(cx, |v, window, cx| {
-        v.prompt.update(cx, |p, cx| p.set_value("2", window, cx));
-        v.dock_digit(window, cx);
-    });
+    let used = one.view.update_in(cx, |v, window, cx| v.dock_key("9", window, cx));
+    assert!(!used, "no option 9");
+    let used = one.view.update_in(cx, |v, window, cx| v.dock_key("2", window, cx));
+    assert!(used);
     assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
-    assert_eq!(
-        one.view.read_with(cx, |v, cx| v.prompt.read(cx).value().to_string()),
-        "",
-        "the digit picked, it wasn't typed"
-    );
     // Question 2 is multi-choice: Submit with nothing picked or typed is refused, and says why.
     one.view.update_in(cx, |v, window, cx| v.send_prompt(&super::thread::SendPrompt, window, cx));
     assert!(
@@ -114,6 +109,62 @@ fn answers_given_in_the_docked_panel_reach_the_agent(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     assert!(cx.debug_bounds("question-dock").is_none(), "the panel goes once answered");
+}
+
+#[gpui::test]
+fn a_typed_answer_keeps_its_files_and_a_second_submit_keeps_it(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    let id = ask(&one, cx).expect("asked").0;
+    one.view.update(cx, |v, cx| {
+        v.pick(&id, 0, 1, false, cx);
+        v.attach_answer_paths(&id, 1, vec![Path::new("/tmp/schema.sql").into()], cx);
+        v.drafts.get_mut(&id).expect("draft").step = 1;
+    });
+    one.view.update_in(cx, |v, window, cx| {
+        v.prompt.update(cx, |p, cx| p.set_value("Redis", window, cx));
+        v.send_prompt(&super::thread::SendPrompt, window, cx);
+        // A quick second Submit while the first is on its way changes nothing.
+        v.send_prompt(&super::thread::SendPrompt, window, cx);
+        assert_eq!(v.drafts[&id].typed[1], "Redis");
+    });
+    wait_until(cx, "the agent's report of the answer", |cx| reply(&one, cx).is_some());
+    let r = reply(&one, cx).expect("reply");
+    assert_eq!(
+        r["response"]["updatedInput"]["answers"]["Which extras?"],
+        "Redis, Attached files: \"/tmp/schema.sql\""
+    );
+    wait_until(cx, "the composer to empty once answered", |cx| {
+        one.view.read_with(cx, |v, cx| v.prompt.read(cx).value().is_empty())
+    });
+}
+
+#[gpui::test]
+fn side_and_steer_are_not_taken_as_an_answer(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    one.view.update_in(cx, |v, window, cx| {
+        v.prompt.update(cx, |p, cx| p.set_value("/side what is SQLite?", window, cx));
+        v.send_prompt(&super::thread::SendPrompt, window, cx);
+    });
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((0, 2)));
+    let typed = one.view.read_with(cx, |v, _| {
+        v.drafts.values().any(|d| d.typed.iter().any(|t| !t.is_empty()))
+    });
+    assert!(!typed, "/side didn't become the question's answer");
+}
+
+#[gpui::test]
+fn a_message_declines_a_docked_permission(cx: &mut TestAppContext) {
+    let (one, cx) = start("permit", Mode::Default, cx);
+    wait_until(cx, "the ask", |cx| ask(&one, cx).is_some());
+    one.view.update_in(cx, |v, window, cx| {
+        v.prompt.update(cx, |p, cx| p.set_value("don't deploy, run the tests", window, cx));
+        v.send_prompt(&super::thread::SendPrompt, window, cx);
+    });
+    wait_until(cx, "the ask to be declined", |cx| {
+        ask(&one, cx).is_some_and(|(_, d)| d == Some(Decision::Deny))
+    });
 }
 
 #[gpui::test]

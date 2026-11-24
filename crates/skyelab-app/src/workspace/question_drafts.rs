@@ -135,18 +135,20 @@ pub(super) fn answers(
         .enumerate()
         .map(|(qi, q)| {
             // A typed answer replaces the picks, as T3's: "leave this blank to use the selected option".
-            if let Some(typed) = draft
+            // Files attached to it still go with it.
+            let typed = draft
                 .and_then(|d| d.typed.get(qi))
-                .filter(|t| !t.is_empty())
-            {
-                return Ok(vec![typed.clone()]);
-            }
-            let picked = draft.and_then(|d| d.picked.get(qi));
-            let mut labels: Vec<String> = picked
-                .into_iter()
-                .flatten()
-                .filter_map(|&o| q.options.get(o).map(|(l, _)| l.clone()))
-                .collect();
+                .filter(|t| !t.is_empty());
+            let picked = draft
+                .and_then(|d| d.picked.get(qi))
+                .filter(|_| typed.is_none());
+            let mut labels: Vec<String> = typed.cloned().into_iter().collect();
+            labels.extend(
+                picked
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|&o| q.options.get(o).map(|(l, _)| l.clone())),
+            );
             let files = draft
                 .and_then(|d| d.files.get(qi))
                 .filter(|f| !f.is_empty());
