@@ -8,6 +8,7 @@ mod checkpoint;
 mod commit;
 mod diff;
 mod gh_lists;
+mod pr_actions;
 mod publish;
 mod remote;
 mod status;
@@ -33,6 +34,7 @@ pub use gh_lists::{
     IssueFilter, IssueRow, MAX_BODY, MAX_ROWS, PrFilter, PrRow, issue_list_args, list_issues,
     list_prs, parse_issue_list, parse_pr_list, parse_repo_url, pr_list_args, repo_slug,
 };
+pub use pr_actions::{MergeMethod, Verdict, merge_methods, merge_pr, review_pr};
 pub use publish::{GitHub, create_pr, credential_args, gh_login, push, push_with};
 pub use remote::{
     Checks, FailedCheck, MAX_FAILED_CHECKS, PrState, PrStatus, Review, ahead_behind, fetch,
