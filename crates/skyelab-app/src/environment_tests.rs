@@ -53,3 +53,21 @@ fn states_from_updates() {
         Some(ConnState::VersionMismatch(_))
     ));
 }
+
+#[test]
+fn forwarded_pages_are_told_apart() {
+    use super::forwards::is_forwarded_page;
+    assert!(is_forwarded_page("http://127.0.0.1:3000/", [3000]));
+    assert!(is_forwarded_page(
+        "http://127.0.0.1:3000/a?b#c",
+        [5173, 3000]
+    ));
+    assert!(
+        is_forwarded_page("127.0.0.1:3000/x", [3000]),
+        "a bare address, as typed"
+    );
+    assert!(!is_forwarded_page("http://127.0.0.1:3001/", [3000]));
+    assert!(!is_forwarded_page("http://localhost:3000/", [3000]));
+    assert!(!is_forwarded_page("http://127.0.0.1:3000/", []));
+    assert!(!is_forwarded_page("http://127.0.0.1/", [3000]));
+}

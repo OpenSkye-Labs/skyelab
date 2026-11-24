@@ -33,9 +33,26 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let browser = cx.new(|cx| BrowserView::new(url, window, cx));
+        let browser = self.user_browser(url, window, cx);
         let panel = self.add_browser(browser, None, window, cx);
         panel.read(cx).focus_handle(cx).focus(window, cx);
+    }
+
+    /// A user's tab at `url`, private when it is a forwarded port's page (`RemoteEnv::forwards_page`).
+    fn user_browser(
+        &self,
+        url: Option<&str>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<BrowserView> {
+        let forwarded = url.is_some_and(|url| {
+            self.remote_env()
+                .is_some_and(|env| env.read(cx).forwards_page(url))
+        });
+        match forwarded {
+            true => cx.new(|cx| BrowserView::new_private(url, window, cx)),
+            false => cx.new(|cx| BrowserView::new(url, window, cx)),
+        }
     }
 
     /// A blank browser pane for an agent tab: a test's fake page, or a real webview.
@@ -65,7 +82,7 @@ impl Workspace {
             &browser,
             window,
             |this, _, DuplicateTab(url): &DuplicateTab, window, cx| {
-                let copy = cx.new(|cx| BrowserView::new(url.as_deref(), window, cx));
+                let copy = this.user_browser(url.as_deref(), window, cx);
                 let panel = this.add_browser(copy, None, window, cx);
                 panel.read(cx).focus_handle(cx).focus(window, cx);
             },

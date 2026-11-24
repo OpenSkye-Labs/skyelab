@@ -337,21 +337,14 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
     let cx = cx.add_empty_window();
     let dir = tempfile::tempdir().expect("tempdir");
     let store = Arc::new(Mutex::new(Store::open_in_memory().expect("store")));
-    let (mut h, _calls) = host(dir.path(), Arc::default(), store, DaemonSlot::default());
-    // A fixed port, as in the app: the old listener must be gone before the new one binds. It comes from below the
-    // OS's ephemeral range, so other tests binding port 0 can't take it in the off/on gap.
-    // Started at a random point, so test runs in other checkouts at the same moment don't all try the same port.
-    let start = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| u64::from(d.subsec_nanos()))
-        ^ u64::from(std::process::id());
-    h.config.port = (0..20_000u64)
-        .map(|i| 20_000 + ((start + i * 7_919) % 20_000) as u16)
-        .find(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok())
-        .expect("a free port below the ephemeral range");
+    let (h, _calls) = host(dir.path(), Arc::default(), store, DaemonSlot::default());
     let remote = cx.new(|cx| Remote::new(h, cx));
     remote.update(cx, |r, cx| r.toggle(cx));
     wait_until(cx, "sharing", |cx| sharing_port(&remote, cx).is_some());
+    // Then a fixed port, as in the app: the old listener must be gone before the new one binds. The OS picked it
+    // just now, so no other process holds it (a probed or hard-coded port can be another session's).
+    let port = sharing_port(&remote, cx).expect("port");
+    remote.update(cx, |r, _| r.host.config.port = port);
     for _ in 0..3 {
         remote.update(cx, |r, cx| {
             r.toggle(cx);
@@ -362,6 +355,11 @@ fn remote_off_then_on_quickly_ends_up_sharing(cx: &mut TestAppContext) {
             assert!(!matches!(status, Status::Failed(_)), "{status:?}");
             matches!(status, Status::Sharing { .. })
         });
+        assert_eq!(
+            sharing_port(&remote, cx),
+            Some(port),
+            "it rebinds the same port"
+        );
     }
 }
 

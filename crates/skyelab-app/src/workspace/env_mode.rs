@@ -65,6 +65,9 @@ pub(super) fn shows_remote(cx: &gpui::App, window: gpui::AnyWindowHandle) -> boo
         .is_some_and(|w| w.0.contains(&window))
 }
 
+#[path = "env_mode_save.rs"]
+mod save;
+
 #[derive(Default)]
 pub(super) struct EnvMode {
     pub(super) picker: Option<Entity<EnvPicker>>,
@@ -141,6 +144,20 @@ impl Workspace {
 
     pub(crate) fn is_remote(&self) -> bool {
         self.env.remote.is_some()
+    }
+
+    /// Drops the machine shown and every linked one, with their forwards, tabs and connections (a window closing:
+    /// the workspace may outlive it a while, and nothing remote may).
+    pub(super) fn leave_machines(&mut self, cx: &mut Context<Self>) {
+        let linked = self.env.linked.drain(..).map(|l| l.env);
+        for env in self.env.remote.take().into_iter().chain(linked) {
+            env.update(cx, |env, _| env.drop_forwards());
+        }
+        self.env.tabs.clear();
+        self.env.subs.clear();
+        if let Some(picker) = &self.env.picker {
+            picker.update(cx, |p, _| p.remote = None);
+        }
     }
 
     pub(crate) fn remote_env(&self) -> Option<Entity<RemoteEnv>> {
@@ -389,43 +406,6 @@ impl Workspace {
     ) {
         let host = a.host.clone();
         self.save_env_settings(move |s| s.forget_environment(&host), cx);
-    }
-
-    /// Applies `change` to settings.toml off the UI thread, after any earlier save, and shows the saved recents. A
-    /// file that doesn't parse is left alone and the picker says so.
-    pub(super) fn save_env_settings(
-        &mut self,
-        change: impl FnOnce(&mut AppSettings) + Send + 'static,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(path) = self.env.settings_path.clone() else {
-            return;
-        };
-        let picker = self.env.picker.as_ref().map(|p| p.downgrade());
-        let prev = self.env._save.take();
-        let write = cx.background_executor().clone();
-        // Chained, so quick switches save in the order they happened.
-        self.env._save = Some(cx.spawn(async move |_, cx| {
-            if let Some(prev) = prev {
-                prev.await;
-            }
-            let saved = write
-                .spawn(async move {
-                    let (settings, ()) = AppSettings::update(&path, change)?;
-                    anyhow::Ok(settings.recent_environments)
-                })
-                .await;
-            let Some(picker) = picker else { return };
-            let _ = picker.update(cx, |p, cx| {
-                match saved {
-                    Ok(recents) => p.recents = recents,
-                    Err(e) => {
-                        p.error = Some(format!("couldn't save the machine list: {e:#}").into())
-                    }
-                }
-                cx.notify();
-            });
-        }));
     }
 
     pub(super) fn select_remote_project(

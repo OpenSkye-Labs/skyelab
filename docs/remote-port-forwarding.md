@@ -27,7 +27,16 @@ The client (`Client::forward_port`) binds 127.0.0.1 only, through `skyelab_core:
 remote port number when nothing here answers on it at 127.0.0.1 or ::1, else it takes any free port. A connect
 check is needed because std sets SO_REUSEADDR, and on macOS that lets a bind to 127.0.0.1:P succeed over a local
 server on the wildcard address. The desktop opens and copies `http://127.0.0.1:<port>/`, the socket the client owns,
-never `localhost`, which a browser may send to whatever holds ::1. The client dials at most 3 tunnels at a time
+never `localhost`, which a browser may send to whatever holds ::1. A browser tab opened at a forward's address (also a Duplicate of
+one) gets a private, in-memory web store of its own, as an agent's tab does: cookies ignore the port, so on the shared
+store the other machine's server would get this machine's 127.0.0.1 cookies, and a reused local port would share
+storage and service workers between machines. A unique origin per forward isn't possible: macOS has only 127.0.0.1
+on its loopback, and `*.localhost` may resolve to ::1.
+
+Accepted limits, as with `ssh -L`: any local process and any page in a browser here can connect to the local
+port (the forwarded server's own Host checks guard against DNS rebinding). On Windows, the listener isn't bound with
+`SO_EXCLUSIVEADDRUSE` (std can't set it, and `unsafe` belongs in a `-sys` crate), so a same-user process could bind
+the port over it; a same-user process there can already read the device key (remote.md). The client dials at most 3 tunnels at a time
 across all its forwards, because the gate admits 4 pending per address and drops the rest. It keeps at most 64
 open per forward. A tunnel's hello must name the node the approved main connection named, and the client skips
 any pushed event while it waits for the `open_tunnel` reply. A port is forwarded once per client.

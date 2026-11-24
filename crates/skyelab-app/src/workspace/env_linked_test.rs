@@ -342,3 +342,18 @@ fn a_linked_thread_shown_again_by_forward_is_not_done(cx: &mut TestAppContext) {
         "seen again"
     );
 }
+
+#[gpui::test]
+fn leaving_machines_closes_every_connection(cx: &mut TestAppContext) {
+    let remote = remote_side(FakeTailnet::default());
+    let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
+    linked_and_listed(&ws, cx);
+    connect(&ws, &remote, cx);
+    let daemon = remote.daemon.as_ref().expect("served");
+    wait_until(cx, "both connections", |_| daemon.peers().len() == 2);
+    // What a closing window does, even if the workspace outlives it a while.
+    ws.update(cx, |ws, cx| ws.leave_machines(cx));
+    wait_until(cx, "every connection to close", |_| {
+        daemon.peers().is_empty()
+    });
+}

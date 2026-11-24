@@ -58,6 +58,12 @@ impl BrowserView {
         Self::with_wry(url, false, window, cx)
     }
 
+    /// [`Self::new`] on a private, in-memory web data store of its own, as an agent's tab gets: for a page of
+    /// another machine (a forwarded port), which must not share cookies or storage with this machine's pages.
+    pub fn new_private(url: Option<&str>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self::with_wry(url, true, window, cx)
+    }
+
     /// A blank pane for an agent, on a private, in-memory web data store of its own: no cookies,
     /// storage or cache shared with the user's tabs, other agents' tabs or later runs.
     pub fn new_agent(window: &mut Window, cx: &mut Context<Self>) -> Self {
