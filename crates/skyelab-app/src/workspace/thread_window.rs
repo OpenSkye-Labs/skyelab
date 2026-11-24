@@ -50,8 +50,12 @@ pub(super) fn prompt_subscription(
 /// and rows added or changed reach every window's list. Never empty.
 pub(in crate::workspace) struct Lists(Vec<(AnyWindowHandle, ListState)>);
 
-fn new_list(rows: usize) -> ListState {
-    ListState::new(rows, ListAlignment::Top, px(600.))
+/// A chat log: it follows its end (an opened thread shows its latest rows, streamed ones stay in view) until the user
+/// scrolls up, and follows again once they scroll back to the end.
+pub(in crate::workspace) fn new_list(rows: usize) -> ListState {
+    let list = ListState::new(rows, ListAlignment::Top, px(600.));
+    list.set_follow_mode(gpui::FollowMode::Tail);
+    list
 }
 
 impl Lists {
@@ -75,7 +79,9 @@ impl Lists {
         }
         let first = &self.0[0].1;
         let list = new_list(first.item_count());
-        list.scroll_to(first.logical_scroll_top());
+        if !first.is_following_tail() {
+            list.scroll_to(first.logical_scroll_top());
+        }
         self.0.push((window, list));
     }
 

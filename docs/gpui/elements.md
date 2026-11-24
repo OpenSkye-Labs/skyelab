@@ -5,6 +5,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Anything interactive (click, hover, scroll, drag) needs `.id(..)` for a stable `ElementId`. Ids must be unique among
   siblings. Use the domain id (thread id, path), not the loop index.
 - Long lists: `uniform_list` for fixed-height rows, `list` + `ListState` for variable height. Never `.children(10_000 items)`.
+- A chat-like list (a thread's timeline) sets `ListState::set_follow_mode(FollowMode::Tail)` when made. A plain
+  `ListAlignment::Top` list stays where it is while rows grow under it, so an opened thread shows its first message
+  and a waiting plan or question streams in below the composer, unseen. Tail mode follows the end, stops when the user
+  scrolls up, and starts again once they scroll back down; `scroll_to_end()` on your own send follows again.
 - Controls come from `crate::ui` ([docs/design/components.md](../design/components.md)): `Button`, `icon_button`,
   `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`, `Kbd`, `Tooltip`, `Card`, `Divider`. Use gpui-component
   for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Notification`, `Markdown`, the code

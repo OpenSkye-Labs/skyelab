@@ -44,6 +44,7 @@ mod saves;
 mod session;
 #[path = "thread_window.rs"]
 mod window_owner;
+pub(in crate::workspace) use window_owner::new_list;
 
 #[path = "thread_context.rs"]
 pub(super) mod context_meter;

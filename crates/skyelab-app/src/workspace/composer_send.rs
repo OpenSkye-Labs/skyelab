@@ -262,6 +262,9 @@ impl ThreadView {
             return;
         }
         self.composer.menu = None;
+        if !external {
+            self.own_list().scroll_to_end(); // your own send brings the end back into view, and follows it again
+        }
         if self.session.is_none()
             && let Some(thread) = self.thread.clone()
         {
