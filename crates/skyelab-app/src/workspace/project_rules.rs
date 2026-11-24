@@ -303,7 +303,7 @@ impl Render for RuleDialog {
                 };
                 v_flex()
                     .gap_2()
-                    .child(div().child(pick))
+                    .child(gpui_component::h_flex().child(pick))
                     .child(shown)
                     .child(div().text_size(ui::META).text_color(muted).child(note))
             }
