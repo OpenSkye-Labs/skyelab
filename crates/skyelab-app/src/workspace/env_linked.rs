@@ -96,12 +96,27 @@ impl Workspace {
         self.env.linked.iter().map(|l| l.env.clone()).collect()
     }
 
-    fn linked_names(&self, cx: &gpui::App) -> Vec<String> {
+    fn linked_names(&self) -> Vec<String> {
+        self.env.linked_hosts.clone()
+    }
+
+    /// The linked connections to `host` (one, or none).
+    pub(super) fn linked_envs_of(&self, host: &str, cx: &gpui::App) -> Vec<Entity<RemoteEnv>> {
         self.env
             .linked
             .iter()
-            .map(|l| l.env.read(cx).host.clone())
+            .filter(|l| l.env.read(cx).host.eq_ignore_ascii_case(host))
+            .map(|l| l.env.clone())
             .collect()
+    }
+
+    /// The page shows a linked thread: it is seen, however the page came up (a click, Back, Forward).
+    pub(super) fn seen_linked(&mut self, cx: &gpui::App) {
+        for i in 0..self.env.linked.len() {
+            if let Some(id) = self.shown_on(&self.env.linked[i].env, cx) {
+                self.env.linked[i].done.remove(&id);
+            }
+        }
     }
 
     pub(super) fn toggle_linked(
@@ -113,7 +128,7 @@ impl Workspace {
         if !is_magicdns_name(&a.host) {
             return;
         }
-        let mut names = self.linked_names(cx);
+        let mut names = self.linked_names();
         let before = names.len();
         names.retain(|h| !h.eq_ignore_ascii_case(&a.host));
         let link = names.len() == before;
@@ -150,12 +165,13 @@ impl Workspace {
         for l in gone {
             self.close_tabs_of(&l.env, window, cx);
         }
+        let mut hosts: Vec<String> = Vec::new();
         for name in names {
-            if self
-                .linked_names(cx)
-                .iter()
-                .any(|n| n.eq_ignore_ascii_case(&name))
-            {
+            if hosts.iter().any(|h| h.eq_ignore_ascii_case(&name)) {
+                continue;
+            }
+            hosts.push(name.clone());
+            if !self.linked_envs_of(&name, cx).is_empty() {
                 continue;
             }
             // A connection that can't even start shows nothing; the switcher says why when picked.
@@ -178,6 +194,7 @@ impl Workspace {
                 _subs: subs,
             });
         }
+        self.env.linked_hosts = hosts;
         self.refresh_sidebar(cx);
     }
 
@@ -256,7 +273,7 @@ impl Workspace {
                 window.dispatch_action(action.boxed_clone(), cx)
             }),
         };
-        let mut hosts = self.linked_names(cx);
+        let mut hosts = self.linked_names();
         if let Some(picker) = &self.env.picker {
             for r in &picker.read(cx).recents {
                 if !hosts.iter().any(|h| h.eq_ignore_ascii_case(r)) {
@@ -264,7 +281,7 @@ impl Workspace {
                 }
             }
         }
-        let linked = self.linked_names(cx);
+        let linked = self.linked_names();
         let mut out: Vec<Entry> = hosts
             .into_iter()
             .map(|host| {
@@ -277,8 +294,12 @@ impl Workspace {
                 )
             })
             .collect();
+        // As in the sidebar: a machine that isn't connected lists no threads.
         for l in &self.env.linked {
             let e = l.env.read(cx);
+            if e.state != ConnState::Connected {
+                continue;
+            }
             out.extend(e.threads.iter().map(|t| {
                 entry(
                     format!("Open thread: {} · {}", t.title, short(&e.host)),
@@ -300,16 +321,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(l) = self
-            .env
-            .linked
-            .iter_mut()
-            .find(|l| l.env.read(cx).host.eq_ignore_ascii_case(&a.host))
-        else {
+        let Some(env) = self.linked_envs_of(&a.host, cx).pop() else {
             return;
         };
-        l.done.remove(&a.id);
-        let env = l.env.clone();
         self.open_thread_on(env, a.id, window, cx);
     }
 

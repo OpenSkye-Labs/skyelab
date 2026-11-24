@@ -85,7 +85,8 @@ as `linked_environments` in `settings.toml` and connect again when SkyeLab start
   SkyeLab runs, not saved.
 - A linked machine that isn't connected shows one short row under **Linked machines**, such as
   `desktop · Waiting for approval` or `desktop · Reconnecting`. Hover it for the full reason (the code to approve,
-  the error). To approve, see the code or **Trust it**, switch to that machine.
+  the error). To see the code to approve, or to **Trust it**, switch to that
+  machine; once it is approved or trusted there, the linked row comes back too.
 - The command palette also lists each linked machine's threads as **Open thread: <title> · <machine>**.
 - The thread filter and the project scope cover this machine's threads only, so linked rows hide while either is on.
 - Switching to another machine closes linked threads' pages too, as it closes every remote page. Unlinking closes

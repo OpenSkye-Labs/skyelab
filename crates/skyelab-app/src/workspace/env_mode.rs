@@ -72,6 +72,8 @@ pub(super) struct EnvMode {
     pub(super) tabs: Vec<(Entity<RemoteThreadView>, Subscription)>,
     /// Machines whose threads show in this machine's list (`env_linked.rs`), each on its own connection.
     pub(super) linked: Vec<super::env_linked::Linked>,
+    /// The linked names as saved, also those whose connection couldn't start, so they can still be unlinked.
+    pub(super) linked_hosts: Vec<String>,
     settings_path: Option<PathBuf>,
     options: Options,
     subs: Vec<Subscription>,
@@ -292,8 +294,14 @@ impl Workspace {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(env) = &self.env.remote {
-            env.update(cx, |e, cx| e.trust(&a.node_id, cx));
+        let Some(env) = self.env.remote.clone() else {
+            return;
+        };
+        env.update(cx, |e, cx| e.trust(&a.node_id, cx));
+        // The same machine's linked connection was refused on that node too; it isn't asked again by itself.
+        let host = env.read(cx).host.clone();
+        for linked in self.linked_envs_of(&host, cx) {
+            linked.update(cx, |e, cx| e.trust(&a.node_id, cx));
         }
     }
 

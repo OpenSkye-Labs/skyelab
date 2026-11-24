@@ -290,3 +290,36 @@ fn the_palette_links_machines_and_opens_their_threads(cx: &mut TestAppContext) {
     assert_eq!(ws.read_with(cx, |ws, _| ws.remote_tabs().len()), 1);
     assert!(ws.read_with(cx, |ws, _| !ws.is_remote()));
 }
+
+#[gpui::test]
+fn a_linked_thread_shown_again_by_forward_is_not_done(cx: &mut TestAppContext) {
+    let remote = remote_side(FakeTailnet::default());
+    let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
+    linked_and_listed(&ws, cx);
+    let set = |status: &str| {
+        let store = remote.store.lock().expect("store");
+        store
+            .set_thread_status(remote.thread_id, status)
+            .expect("status");
+    };
+    set("running");
+    relist(&ws, &remote, cx);
+    click_row(&ws, ROW, cx);
+    cx.run_until_parked();
+    cx.dispatch_action(super::GoBack);
+    set("idle");
+    relist(&ws, &remote, cx);
+    assert_eq!(
+        marks_of(&ws, ROW, cx).map(|m| m.1),
+        Some(true),
+        "Done while away"
+    );
+    cx.dispatch_action(super::GoForward);
+    cx.run_until_parked();
+    assert!(ws.read_with(cx, |ws, _| matches!(ws.page, Page::RemoteThread(_))));
+    assert_eq!(
+        marks_of(&ws, ROW, cx).map(|m| m.1),
+        Some(false),
+        "seen again"
+    );
+}

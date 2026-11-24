@@ -171,6 +171,7 @@ impl Workspace {
             cx.notify();
         });
         self.mark_seen(window, cx);
+        self.seen_linked(cx);
         self.refresh_sidebar(cx);
         self.schedule_layout_save(window, cx);
         cx.notify();

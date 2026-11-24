@@ -505,6 +505,8 @@ mod env_identity_gate_test;
 #[cfg(test)]
 mod env_linked_test;
 #[cfg(test)]
+mod env_linked_trust_test;
+#[cfg(test)]
 mod env_picker_test;
 #[cfg(test)]
 mod env_pin_test;
