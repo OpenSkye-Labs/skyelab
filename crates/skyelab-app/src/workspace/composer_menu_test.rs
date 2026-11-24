@@ -2,7 +2,8 @@
 //! account the folder is bound to.
 
 use super::composer_menu::{
-    MenuItem, MenuKind, Trigger, command_items, model_items, rank, skill_items, trigger,
+    MAX_MODEL_ROWS, MenuItem, MenuKind, Trigger, command_items, model_items, rank, skill_items,
+    trigger,
 };
 use super::threads_test::{fixture, open_workspace, project_thread, setup, wait_until};
 use gpui::TestAppContext;
@@ -253,7 +254,7 @@ fn at_models_need_two_letters_match_word_starts_and_rank_first() {
             ("sonnet".into(), "Sonnet".into()),
             ("gpt-5.1-codex".into(), "GPT-5.1 Codex".into()),
         ],
-        "Claude",
+        Provider::Claude,
     );
     items.push(MenuItem {
         label: "src/sonnet.rs".into(),
@@ -280,8 +281,27 @@ fn at_models_need_two_letters_match_word_starts_and_rank_first() {
     assert_eq!(labels("5.1"), ["GPT-5.1 Codex"]);
 }
 
+#[test]
+fn at_models_insert_a_model_reference_and_stop_at_eight() {
+    let models: Vec<(String, String)> = (0..12)
+        .map(|i| (format!("gpt-{i}"), format!("GPT {i}")))
+        .collect();
+    let mut items = model_items(&models, Provider::Codex);
+    assert_eq!(items[3].insert, "model:codex/gpt-3 ");
+    items.push(MenuItem {
+        label: "gpt.md".into(),
+        ..Default::default()
+    });
+    let rows = rank(&items, "gpt");
+    assert_eq!(
+        rows.iter().filter(|&&i| items[i].model.is_some()).count(),
+        MAX_MODEL_ROWS
+    );
+    assert_eq!(items[*rows.last().expect("rows")].label, "gpt.md");
+}
+
 #[gpui::test]
-fn at_model_pick_routes_the_thread_and_leaves_no_text(cx: &mut TestAppContext) {
+fn at_model_pick_inserts_a_reference_and_keeps_the_threads_model(cx: &mut TestAppContext) {
     setup(cx);
     let f = fixture(true);
     let (ws, cx) = open_workspace(&f, cx);
@@ -304,7 +324,10 @@ fn at_model_pick_routes_the_thread_and_leaves_no_text(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("tab");
     cx.run_until_parked();
     thread.read_with(cx, |t, cx| {
-        assert_eq!(t.prompt.read(cx).value().as_ref(), "fix ");
-        assert_eq!(t.composer.pick.model.as_deref(), Some("sonnet"));
+        assert_eq!(
+            t.prompt.read(cx).value().as_ref(),
+            "fix model:claude/sonnet "
+        );
+        assert_eq!(t.composer.pick.model, None, "the thread's model stays");
     });
 }

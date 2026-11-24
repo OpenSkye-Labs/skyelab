@@ -11,7 +11,9 @@
   credentials, and gets no ssh-agent unless the account sets `ssh_agent = true`.
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. The MCP servers you added to the
-  bound account itself (Claude's user scope, Codex's `config.toml`) do load, and ask before each tool call; the thread
+  bound account itself (Claude's user scope, Codex's `config.toml`) do load. Claude asks for their tools as for any
+  other tool (per the thread's permission mode and your "Allow for this thread" answers); Codex follows its own
+  approval setting for them (not yet tested against the real Codex). The thread
   details card lists them with their state, and **Restart Agent Session** reloads them. Codex runs with the folder and
   every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and
   `.rules` never load. Codex keeps its `workspace-write` sandbox (writes stay in the folder, no network) unless a
@@ -19,6 +21,17 @@
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.
+- **Private tabs stay private.** An agent's browser tab and a forwarded port's page have their own in-memory cookies
+  and storage, and the tab itself records that (not whether a forward still exists). Duplicate tab on one (also
+  after Take over or after the forward ends, and on any copy) opens another private, throwaway tab, never one on your
+  own browser profile. Reopen Closed never brings these tabs back, and Open in system browser is refused for them.
+  Their pages may only navigate to http(s) (and in-page `about:blank`, `about:srcdoc`, `blob:` and `data:`
+  documents), never `file:` or another app's scheme; downloads are refused, and a popup opens as another private tab
+  only when it is a web page.
+- **The prompt stash is shared across accounts.** There is one stash for all threads, and a restore brings back its
+  text, files and quote, terminal and diff-comment chips on whatever account the restoring thread runs, so one
+  account's agent output can reach another account's agent when you restore it there. A thread, pull request, issue or
+  side-chat chip comes back only on the account it was picked under, while its folder is still bound to it.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Updates.** Only the shown release's own assets download (redirects only to GitHub's download hosts, size

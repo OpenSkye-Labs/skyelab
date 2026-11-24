@@ -53,8 +53,9 @@ outside the sandbox, the thread asks you (see [Permissions](user-guide-permissio
 MCP servers you added to an account load in its threads, next to SkyeLab's own: for Claude, the user-scope servers
 in that account's `.claude.json` (`claude mcp add --scope user`, run with that account's `CLAUDE_CONFIG_DIR`); for
 Codex, the `mcp_servers` of its `config.toml`. Only the bound account's servers load, never another account's, and
-never a repo's `.mcp.json` or a folder's local-scope servers, so a cloned repo can't add tools. Their tools ask for
-permission like any other tool. A server whose name starts with `skyelab` is left out, with a note in the thread (SkyeLab's own server keeps that
+never a repo's `.mcp.json` or a folder's local-scope servers, so a cloned repo can't add tools. Claude asks for
+permission for their tools like any other tool; Codex follows its own approval setting for them (not yet tested
+against the real Codex). A server whose name starts with `skyelab` is left out, with a note in the thread (SkyeLab's own server keeps that
 name). If the account's
 `.claude.json` can't be read, the thread starts without those servers and says why. Claude Code connects no plugin MCP
 servers in this mode (plugin skills and commands still load). After you add or change a server, run **Restart Agent

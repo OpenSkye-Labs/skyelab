@@ -33,5 +33,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
   (`takeSnapshotWithConfiguration`) at the bounds you give it, so it can render offscreen.
 - A dialog that hosts a webview hides it when `window.has_active_dialog` turns false: a closing dialog is still drawn
   while it fades, and the native page would sit over the backdrop until it is gone.
+- wry calls `with_navigation_handler` for every frame, not only the main one, so a scheme allowlist must keep the
+  in-page documents frames use (`about:blank`, `about:srcdoc`, `blob:`, `data:`). Without a
+  `with_download_started_handler`, WKWebView on macOS still saved an attachment response to ~/Downloads (and
+  WebView2 saves by default), so a tab that must not download sets one that returns `false`. WebKit drops a
+  script's `window.open` without a user gesture before wry's new-window handler sees it.
+- An agent `eval_js` expression is wrapped as one expression: a test that navigates must write
+  `(setTimeout(.., 0), 1)`, never `a; 1`, and let the reply come back before the page leaves.
 - Drop a page's in-flight task (find, eval) when a new page commits: the callback still answers about the old page,
   and landing it showed "No matches" on the new one.

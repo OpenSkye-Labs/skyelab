@@ -77,19 +77,37 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<BrowserPanel> {
-        // Duplicate tab opens a user tab, whoever owns this one.
+        if agent.is_some() {
+            browser.update(cx, |b, _| b.mark_agent_page());
+        }
+        let private = browser.read(cx).is_private();
+        // A copy is never the agent's. A copy of a private tab (an agent's page, taken over or not, or a forwarded
+        // page, whether or not the forward still exists) is private too, so none ever lands in the user's profile.
         cx.subscribe_in(
             &browser,
             window,
-            |this, _, DuplicateTab(url): &DuplicateTab, window, cx| {
-                let copy = this.user_browser(url.as_deref(), window, cx);
+            |this, source, DuplicateTab(url): &DuplicateTab, window, cx| {
+                let (private, agent_page) = {
+                    let source = source.read(cx);
+                    (source.is_private(), source.is_agent_page())
+                };
+                let copy = match private {
+                    true => cx.new(|cx| {
+                        let mut copy = BrowserView::new_private(url.as_deref(), window, cx);
+                        if agent_page {
+                            copy.mark_agent_page();
+                        }
+                        copy
+                    }),
+                    false => this.user_browser(url.as_deref(), window, cx),
+                };
                 let panel = this.add_browser(copy, None, window, cx);
                 panel.read(cx).focus_handle(cx).focus(window, cx);
             },
         )
         .detach();
         let panel = cx.new(|_| BrowserPanel {
-            users: agent.is_none(),
+            users: !private,
             browser,
             agent,
         });

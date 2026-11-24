@@ -17,7 +17,8 @@ use gpui_component::{
 use super::BrowserView;
 use crate::controls::{self, *};
 
-/// Duplicate tab: the host opens a user tab on this URL (`None`: a blank one), never an agent tab.
+/// Duplicate tab, or a private tab's popup: the host opens a user tab on this URL (`None`: a blank one), never an
+/// agent tab, and a private one when this tab is private.
 pub struct DuplicateTab(pub Option<String>);
 
 impl EventEmitter<DuplicateTab> for BrowserView {}
@@ -112,6 +113,14 @@ impl BrowserView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.is_private() {
+            return self.report(
+                Err(anyhow::anyhow!(
+                    "a private tab never opens in your browser; copy its URL instead"
+                )),
+                cx,
+            );
+        }
         match self
             .page_url(cx)
             .as_deref()
@@ -302,7 +311,8 @@ impl BrowserView {
             .dropdown_menu_with_anchor(gpui::Anchor::TopRight, move |menu, _, cx| {
                 let url = this.upgrade().and_then(|b| b.read(cx).page_url(cx));
                 let no_page = url.is_none();
-                let no_web = url.as_deref().and_then(controls::external_url).is_none();
+                let private = this.upgrade().is_some_and(|b| b.read(cx).is_private());
+                let no_web = private || url.as_deref().and_then(controls::external_url).is_none();
                 let menu = menu
                     .action_context(focus.clone())
                     .menu("Reload", Box::new(BrowserReload))

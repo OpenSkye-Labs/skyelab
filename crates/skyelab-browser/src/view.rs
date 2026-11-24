@@ -45,11 +45,17 @@ pub struct BrowserView {
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
     shown: bool,
     menu_open: bool,
+    /// On a private, in-memory web store of its own ([`Self::new_private`], an agent's tab). It stays private for
+    /// good: its copies are private and it never opens in the system browser or comes back on the user's profile.
+    private: bool,
+    /// An agent's page, or a copy of one ([`Self::mark_agent_page`]). Always private too.
+    agent_page: bool,
     find: Option<controls_ui::Find>,
     _find_task: Task<()>,
     _data_dir: Option<tempfile::TempDir>,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
+    _popups: Task<()>,
 }
 
 impl BrowserView {
@@ -69,7 +75,23 @@ impl BrowserView {
     /// A blank pane for an agent, on a private, in-memory web data store of its own: no cookies,
     /// storage or cache shared with the user's tabs, other agents' tabs or later runs.
     pub fn new_agent(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_wry(None, true, window, cx)
+        let mut view = Self::with_wry(None, true, window, cx);
+        view.agent_page = true;
+        view
+    }
+
+    /// Marks this as an agent's page, or a copy of one (see `agent_page`). It stays marked after Take over.
+    pub fn mark_agent_page(&mut self) {
+        self.agent_page = true;
+    }
+
+    pub fn is_agent_page(&self) -> bool {
+        self.agent_page
+    }
+
+    /// Whether this tab is private (see `private`): built private, or an agent's page.
+    pub fn is_private(&self) -> bool {
+        self.private || self.agent_page
     }
 
     fn with_wry(
@@ -101,6 +123,19 @@ impl BrowserView {
                         let _ = loaded_tx.send(url);
                     }
                 });
+        // A private page goes nowhere but the web, saves no download, and its popups come back as private tabs.
+        let (popup_tx, popups) = flume::unbounded::<String>();
+        if private {
+            builder = builder
+                .with_navigation_handler(|url| crate::controls::private_navigation_allowed(&url))
+                .with_new_window_req_handler(move |url, _| {
+                    if let Some(url) = crate::controls::popup_tab(&url) {
+                        let _ = popup_tx.send(url);
+                    }
+                    wry::NewWindowResponse::Deny
+                })
+                .with_download_started_handler(|_, _| false);
+        }
         let mut error = None;
         match url.map(parse_url) {
             Some(Ok(url)) => builder = builder.with_url(url.as_str()),
@@ -124,6 +159,15 @@ impl BrowserView {
         let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
         let mut view = Self::build(webview, engine, loaded_rx, url, error, window, cx);
         view._data_dir = data_dir;
+        view.private = private;
+        view._popups = cx.spawn(async move |this, cx| {
+            while let Ok(url) = popups.recv_async().await {
+                let open = this.update(cx, |_, cx| cx.emit(DuplicateTab(Some(url))));
+                if open.is_err() {
+                    return;
+                }
+            }
+        });
         view
     }
 
@@ -191,11 +235,14 @@ impl BrowserView {
             zoom: 1.0,
             shown: true,
             menu_open: false,
+            private: false,
+            agent_page: false,
             find: None,
             _find_task: Task::ready(()),
             _data_dir: None,
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
+            _popups: Task::ready(()),
         }
     }
 

@@ -37,8 +37,8 @@ struct Stashed {
     text: String,
     #[serde(default)]
     chips: Vec<Chip>,
-    /// The account the composer ran on: chips without a binding of their own (a quote of its agent's reply, terminal
-    /// output, diff comments) go back only into a composer on the same account.
+    /// The account the composer ran on, kept as a record. A restore brings everything back on any account, as T3's
+    /// does; only chips naming a thread (`bound`) are checked again.
     #[serde(default)]
     account: Option<String>,
 }
@@ -68,11 +68,6 @@ impl Stashed {
             ..Default::default()
         })
     }
-}
-
-/// Unbound chips go back only into a composer on the same, known account.
-fn same_account(from: &Option<String>, here: &Option<String>) -> bool {
-    from.is_some() && from == here
 }
 
 /// One entry as the menu lists it.
@@ -309,18 +304,17 @@ impl ThreadView {
         // Read back through the same checks as an attached file.
         let files = files.into_iter();
         (self.composer.attachments).extend(files.filter_map(|(n, d)| Attachment::new(n, d).ok()));
-        let here = self.composer_account().map(|a| a.id);
+        // A chip picked under a binding (thread, PR, issue, side chat) passes `chip_allowed` again, now.
         let mut left_out = 0;
         for c in stashed.chips {
-            if c.bound.is_none() && !same_account(&stashed.account, &here) {
-                left_out += 1;
-                continue;
-            }
-            self.push_context(c.kind, c.label.into(), c.text, c.bound, cx);
+            let bound = c.bound.is_some();
+            left_out += usize::from(
+                !self.push_context(c.kind, c.label.into(), c.text, c.bound, cx) && bound,
+            );
         }
         if left_out > 0 {
             self.composer.notice = Some(
-                format!("{left_out} chip(s) left out: they came from another account's thread.")
+                format!("{left_out} chip(s) left out: they were picked under another account.")
                     .into(),
             );
         }
@@ -393,14 +387,5 @@ mod tests {
         assert_eq!(s.text, "mine");
         assert!(s.chips.is_empty());
         assert_eq!(Stashed::parse(r#"{"broken"#.into()).text, "");
-    }
-
-    #[test]
-    fn unbound_chips_need_the_same_known_account() {
-        let (a, b) = (Some("acme".to_string()), Some("beta".to_string()));
-        assert!(same_account(&a, &a));
-        assert!(!same_account(&a, &b));
-        assert!(!same_account(&None, &a));
-        assert!(!same_account(&None, &None), "no account on either side");
     }
 }

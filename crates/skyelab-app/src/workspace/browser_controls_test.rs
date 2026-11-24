@@ -154,18 +154,64 @@ fn find_in_page(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn duplicate_opens_user_tab(cx: &mut TestAppContext) {
+fn duplicate_of_an_agent_tab_opens_a_private_user_tab(cx: &mut TestAppContext) {
     let (ws, _browser, _page, cx) = agent_tab("http://localhost:3000/a", cx);
     cx.dispatch_action(skyelab_browser::BrowserDuplicate);
     cx.run_until_parked();
     let all = tabs(&ws, cx);
     assert_eq!(all.len(), 2, "a second tab");
-    let copy = all[1].read_with(cx, |p, _| (p.agent.is_none(), p.browser.clone()));
-    assert!(copy.0, "the copy is the user's, never the agent's");
+    let (agent, users, copy) = all[1].read_with(cx, |p, _| (p.agent.is_none(), p.users, p.browser.clone()));
+    assert!(agent, "the copy is the user's, never the agent's");
+    assert!(!users, "closing it never reopens it in the user's profile");
+    assert!(
+        copy.read_with(cx, |b, _| b.is_agent_page()),
+        "the copy stays private, and so do its own copies"
+    );
     assert_eq!(
-        copy.1.read_with(cx, |b, cx| b.url_bar_text(cx)),
+        copy.read_with(cx, |b, cx| b.url_bar_text(cx)),
         "http://localhost:3000/a"
     );
+    // A copy of the copy is private too.
+    copy.update_in(cx, |b, window, cx| b.focus_handle(cx).focus(window, cx));
+    cx.dispatch_action(skyelab_browser::BrowserDuplicate);
+    cx.run_until_parked();
+    let all = tabs(&ws, cx);
+    assert_eq!(all.len(), 3);
+    assert!(all[2].read_with(cx, |p, cx| !p.users && p.browser.read(cx).is_agent_page()));
+}
+
+#[gpui::test]
+fn duplicate_of_a_user_tab_stays_in_the_users_profile(cx: &mut TestAppContext) {
+    let (ws, cx) = workspace(cx);
+    cx.dispatch_action(OpenBrowser);
+    cx.run_until_parked();
+    cx.dispatch_action(skyelab_browser::BrowserDuplicate);
+    cx.run_until_parked();
+    let all = tabs(&ws, cx);
+    assert_eq!(all.len(), 2);
+    assert!(all[1].read_with(cx, |p, cx| p.users && !p.browser.read(cx).is_agent_page()));
+}
+
+#[gpui::test]
+fn an_agent_page_never_opens_in_the_system_browser(cx: &mut TestAppContext) {
+    let (ws, _browser, _page, cx) = agent_tab("https://example.com/a", cx);
+    cx.dispatch_action(skyelab_browser::BrowserOpenExternal);
+    cx.run_until_parked();
+    assert_eq!(cx.opened_url(), None, "the agent's tab");
+    // Taken over, it is still the agent's page.
+    tabs(&ws, cx)[0].update(cx, |p, cx| p.take_over(cx));
+    cx.dispatch_action(skyelab_browser::BrowserOpenExternal);
+    cx.run_until_parked();
+    assert_eq!(cx.opened_url(), None, "after Take over");
+}
+
+#[gpui::test]
+fn a_private_page_never_opens_in_the_system_browser(cx: &mut TestAppContext) {
+    let (_ws, browser, _page, cx) = agent_tab("https://example.com/a", cx);
+    browser.update(cx, |b, _| assert!(b.is_private(), "an agent's page is private"));
+    cx.dispatch_action(skyelab_browser::BrowserOpenExternal);
+    cx.run_until_parked();
+    assert_eq!(cx.opened_url(), None);
 }
 
 #[gpui::test]
@@ -217,4 +263,29 @@ fn a_find_answer_from_the_old_page_does_not_land_on_the_new_one(cx: &mut TestApp
         !browser.read_with(cx, |b, _| b.find_missed()),
         "STALE_FIND: the old page's miss shows on the new page"
     );
+}
+
+/// A private tab that isn't an agent's (a forwarded port's page): private is the tab's own, not the forward's.
+#[gpui::test]
+fn a_private_tab_stays_private_after_its_forward_is_gone(cx: &mut TestAppContext) {
+    let (ws, cx) = workspace(cx);
+    ws.update_in(cx, |ws, window, cx| {
+        let tab = cx.new(|cx| BrowserView::new_private(Some("http://127.0.0.1:4100/"), window, cx));
+        let panel = ws.add_browser(tab, None, window, cx);
+        panel.read(cx).focus_handle(cx).focus(window, cx);
+    });
+    cx.run_until_parked();
+    let first = tabs(&ws, cx)[0].clone();
+    assert!(
+        first.read_with(cx, |p, cx| !p.users && p.browser.read(cx).is_private()),
+        "closing it never reopens it in the user's profile"
+    );
+    // No forward exists in this window: the copy is private because its source is.
+    cx.dispatch_action(skyelab_browser::BrowserDuplicate);
+    cx.run_until_parked();
+    let all = tabs(&ws, cx);
+    assert_eq!(all.len(), 2);
+    assert!(all[1].read_with(cx, |p, cx| !p.users
+        && p.browser.read(cx).is_private()
+        && !p.browser.read(cx).is_agent_page()));
 }

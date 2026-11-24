@@ -25,8 +25,9 @@ to a default account: no pick, no thread. Remove the project or its binding like
   <kbd>Esc</kbd> or a click outside closes it.
 - **`@`** lists the files git tracks in the folder (ignored and untracked files don't show). Type to narrow it,
   then <kbd>↩</kbd> or <kbd>Tab</kbd> inserts `@path`; <kbd>Esc</kbd> closes it. Two or more letters that start a
-  model's name (`@son`, `@gpt-cod`) also list the thread's models above the files: picking one runs the thread on
-  that model from this send on, as the model chip would, and leaves no text in the prompt.
+  model's name (`@son`, `@gpt-cod`) also list up to eight of the thread's provider's models above the files: picking
+  one inserts a reference such as `model:claude/sonnet` into the prompt, for the agent to read (to name a model for
+  a thread it delegates, say). It doesn't change the thread's own model; the model chip does that.
 - **`/`** at the start lists commands: the CLI's own (`/compact`, `/context`, `/cost`, `/init`, `/review`, …), your
   account's `commands/` folder (in its config dir) and the project's `.claude/commands/`. SkyeLab starts Claude
   with only your user settings, so a project command may not run. Codex has no slash commands.
@@ -45,9 +46,11 @@ to a default account: no pick, no thread. Remove the project or its binding like
   press <kbd>⌘S</kbd> in an empty composer) to list the stashed prompts, newest first. Click one, or pick it with
   <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, to take it out of the stash and add it after what you have typed;
   × deletes one. There is one stash for all projects and threads; it keeps the last 20 and survives restarts.
-  Restored into a thread on another account, a prompt comes back without its quote, terminal and diff-comment chips,
-  so one account's output never reaches another's agent. A restore that would pass 8 chips or 10 files is refused
-  and the entry stays in the stash.
+  A restore brings everything back (text, files, quote, terminal and diff-comment chips), whatever account it was
+  stashed under, so a quote of one account's agent can reach another account's agent this way. Only a thread,
+  pull request, issue or side-chat chip is checked again: it comes back only on the account it was picked under,
+  while its folder is still bound to it, else a note says it was left out. A
+  restore that would pass 8 chips or 10 files is refused and the entry stays in the stash.
 - **Dictate** (macOS): click the microphone left of Send, or press <kbd>⌘⇧M</kbd>. Words appear in the prompt at the
   cursor as you speak (replacing what you had selected), and the prompt is read-only meanwhile. <kbd>⌘⇧M</kbd> again
   or the check mark finishes; <kbd>Esc</kbd> or × puts your draft back as it was; Send finishes and sends what is in the
