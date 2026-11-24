@@ -37,6 +37,28 @@ fn stored_running_thread_without_view_is_working(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_only_thread_working_leaves_no_empty_state(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let id = r.thread("only one", cx);
+    r.f.store
+        .lock()
+        .expect("lock")
+        .set_thread_status(id, "running")
+        .expect("status");
+    r.reload(cx);
+    assert_eq!(section(&r, "Working", cx), vec!["only one"]);
+    let sidebar = r.ws.read_with(cx, |ws, _| ws.sidebar.clone());
+    let empties: Vec<String> = sidebar.read_with(cx, |s, _| {
+        s.sections
+            .iter()
+            .filter(|s| !s.empty_title.is_empty())
+            .map(|s| s.empty_title.to_string())
+            .collect()
+    });
+    assert!(empties.is_empty(), "no empty state: {empties:?}");
+}
+
+#[gpui::test]
 fn approval_after_turn_is_working(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
     let view = new_thread(&r, cx);

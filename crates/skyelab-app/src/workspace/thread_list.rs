@@ -206,7 +206,7 @@ impl Workspace {
         pinned.extend(lp);
         working.extend(lw);
         super::env_linked::merge_by_time(&mut rest, lr, &marks);
-        let empty = rest.is_empty() && !shelved;
+        let empty = pinned.is_empty() && working.is_empty() && rest.is_empty() && !shelved;
         let cards = &mut cx.default_global::<super::panels::ThreadCards>().0;
         for (id, m) in &marks {
             let thread = id.strip_prefix("thread-").and_then(|n| n.parse().ok());
@@ -218,7 +218,7 @@ impl Workspace {
         let no_projects = self.projects.is_empty();
         let section = plain_section;
         let mut sections = flat_sections(pinned, working, rest);
-        // Nothing outside Pinned and Working: the list's empty state, which says what to do next.
+        // No row in any section: the list's empty state, which says what to do next.
         if empty {
             sections.push(SidebarSection {
                 empty_title: if searching {
