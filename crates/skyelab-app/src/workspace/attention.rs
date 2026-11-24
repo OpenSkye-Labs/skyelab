@@ -370,8 +370,8 @@ impl Workspace {
                     "No editor found. Set `editor` in settings.toml, or $VISUAL / $EDITOR."
                 )
             })?;
-            let mut child = skyelab_core::process::spawn(&mut editor_command(&argv, &dir)?)?;
-            std::thread::spawn(move || child.wait()); // reap it; the editor outlives nothing of ours
+            // The editor outlives nothing of ours: it runs on, and is reaped when it exits.
+            skyelab_core::process::spawn(&mut editor_command(&argv, &dir)?)?.detach();
             anyhow::Ok(())
         });
         cx.spawn_in(window, async move |this, cx| {

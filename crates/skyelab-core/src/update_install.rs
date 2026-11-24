@@ -389,5 +389,5 @@ pub fn finish(staged: &Staged, pid: u32) -> io::Result<()> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    crate::process::spawn(&mut cmd).map(drop)
+    crate::process::spawn(&mut cmd).map(crate::process::Owned::detach)
 }

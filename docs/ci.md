@@ -66,7 +66,9 @@ Only macOS is tested locally. Check the others like this before merging somethin
   every spawn fails with "Resource temporarily unavailable (os error 35)", so fake agents never start and app tests
   time out "waiting for the question". `frozen::freeze` started two git children and dropped the second unwaited
   whenever the first failed (every call outside a repo). Reap every `Captured` child, even on an error path
-  (`skyelab-git/tests/no_zombie_children.rs`). To check locally, count the test binary's `Z` children with
+  (`skyelab-git/tests/no_zombie_children.rs`). Every handle from `skyelab_core::process::spawn` and `Captured` is a
+  `process::Owned`: dropped unreaped, it kills and reaps its child (off the caller's thread when the child is slow), and
+  one meant to outlive it is `detach`ed (`skyelab-core/tests/no_zombie_children.rs`). To check locally, count the test binary's `Z` children with
   `ps -A -o ppid=,stat=` while the suite runs.
 - Real file events (FSEvents) arrive late and in batches on a loaded runner: assert "a few", not an exact count,
   when the count is about coalescing (`skyelab-git/tests/watch.rs`).

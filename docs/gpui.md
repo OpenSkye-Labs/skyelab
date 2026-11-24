@@ -98,6 +98,11 @@ See [gpui/webview.md](gpui/webview.md).
   `div().debug_selector(..).child(button)` (`thread_failure.rs`, the account card), or `debug_bounds` finds nothing.
   In a `flex_col` the wrapper stretches across the row: give the column `items_start()` when a test clicks the
   wrapper's center (`ui/button_test.rs`).
+- `#[gpui::test]`'s teardown "quits" with `cx.update(|cx| cx.quit())`, which is `App::quit` on the test platform: a
+  no-op. The app is never shut down, so no window drops, no `on_app_quit` hook runs, and nothing a view started ends
+  until the test binary exits (~200 fake agents by the end of the app suite). `workspace::init` calls
+  `test_wait::shut_down_at_test_end`, which runs `App::shutdown` when the test's thread ends; a test that starts
+  processes without `workspace::init` calls it itself.
 - `TestAppContext` runs `background_spawn` work one task at a time on the test dispatcher, so two blocking
   background jobs (two `gh` reads) never overlap there: a held one blocks the other. Stage a race by recording the
   newer side's result (`PrLanded::mark` in `pr_newest_test.rs`), not by holding a fake process.

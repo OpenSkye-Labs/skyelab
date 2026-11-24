@@ -48,7 +48,7 @@ use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
 use skyelab_core::{Account, AccountsConfig, Provider};
 use std::path::Path;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 
 /// Longest stdout line kept whole; a longer one arrives as a truncated [`Event::Unknown`].
@@ -63,7 +63,7 @@ pub const STDERR_TAIL: usize = 64 << 10;
 /// Stdin writes go through a writer thread, so `send_user_message`, `interrupt` and `kill`
 /// never wait behind an agent that stopped reading.
 pub struct Session {
-    child: Child,
+    child: skyelab_core::process::Owned,
     /// Set once the child is reaped. Its pid may then belong to an unrelated process.
     status: Option<ExitStatus>,
     stdin: flume::Sender<String>,
@@ -408,8 +408,11 @@ impl Session {
 }
 
 impl Drop for Session {
+    /// Ends the agent's whole tree; dropping `child` then kills and reaps the agent itself, off this thread when slow.
     fn drop(&mut self) {
-        let _ = self.kill();
+        if self.status.is_none() {
+            self.kill_group();
+        }
     }
 }
 
