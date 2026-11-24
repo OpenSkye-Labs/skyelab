@@ -341,6 +341,8 @@ gpui_kit_assets::icon_assets!(
         CornerDownLeft,
         // The page header's thread details toggle and the right dock's "Open a surface" list.
         SquareMenu,
+        // The sidebar's saved views.
+        Bookmark,
         Globe,
         SquareTerminal,
         Files,

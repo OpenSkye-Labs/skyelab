@@ -3,6 +3,7 @@
 //! its projects.
 
 use super::sidebar_rows::{THREAD_INDENT, scope_button, section_button, sidebar_row};
+use super::sidebar_views::views_button;
 use super::*;
 use gpui::{AnyElement, ListAlignment, ListOffset, ListState, Subscription, list};
 use gpui_component::input::{Input, InputEvent, InputState};
@@ -127,6 +128,8 @@ pub struct ArchivedRows {
 #[derive(Clone, Default)]
 pub struct ScopeMenu {
     pub projects: Vec<ScopeProject>,
+    /// The saved views by name, and whether the sidebar shows that one now.
+    pub views: Vec<(SharedString, bool)>,
 }
 
 #[derive(Clone)]
@@ -448,6 +451,7 @@ impl Render for Sidebar {
                                 ),
                             ),
                         )
+                        .children(self.scope.clone().map(|scope| views_button(scope, &focus)))
                         .children(self.scope.clone().map(|scope| scope_button(scope, &focus)))
                         .child(
                             Button::new("sidebar-new-thread")

@@ -57,10 +57,14 @@ haven't seen) or how long ago it last changed. Hold the pointer still on a row f
 holds cards back until the pointer moves again): the project's name and folder, the worktree and branch, the pull request (click to open it), the account with its provider, the bound folder
 that picks that account, and when the thread was created and last updated.
 
-Above the list are the search field, the project filter (the folder button) and **New thread** (**+**). The project
+Above the list are the search field, saved views (the bookmark button), the project filter (the folder button) and
+**New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
 **Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
-it asks which project. The **Working** header shows how many threads work now; click it to fold them away.
+it asks which project. **Saved views** keep the ticked projects and the search text under a name: **Save current
+view…** asks for one (a name you already used replaces that view), picking a view brings both back, and **Delete
+view** removes one. The view the list shows now is checked. Views are kept in `settings.toml` (`[[sidebar_views]]`),
+projects by folder, so a project you remove is skipped. The **Working** header shows how many threads work now; click it to fold them away.
 
 **Settle and snooze.** Hover a thread row for two buttons where its time was: the check **settles** it (it's done:
 it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25 at a time with **Show N more**), and

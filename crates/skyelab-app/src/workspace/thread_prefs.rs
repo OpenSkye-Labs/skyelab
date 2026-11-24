@@ -22,6 +22,9 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
         .as_deref()
         .and_then(|p| AppSettings::load(p).ok())
         .unwrap_or_default();
+    cx.set_global(super::super::saved_views::SidebarViews(
+        loaded.sidebar_views,
+    ));
     cx.set_global(ThreadPrefs {
         path,
         settings: loaded.threads,

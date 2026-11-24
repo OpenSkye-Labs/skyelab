@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+#[path = "sidebar_views_test.rs"]
+mod sidebar_views_test;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AppSettings {
@@ -36,6 +40,19 @@ pub struct AppSettings {
     pub scheduled: ScheduledSettings,
     /// Settings → General: the terminal.
     pub terminal: TerminalSettings,
+    /// The sidebar's saved views (T3's saved views), in the order they were saved.
+    pub sidebar_views: Vec<SidebarView>,
+}
+
+/// A named sidebar filter: the scope's projects, by folder (a project's id changes if it is added again), and the
+/// filter text.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SidebarView {
+    pub name: String,
+    /// Empty: all projects.
+    pub projects: Vec<PathBuf>,
+    pub search: String,
 }
 
 /// Settings → General's terminal switch.
