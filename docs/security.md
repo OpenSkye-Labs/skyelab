@@ -25,6 +25,9 @@
   and storage, and the tab itself records that (not whether a forward still exists). Duplicate tab on one (also
   after Take over or after the forward ends, and on any copy) opens another private, throwaway tab, never one on your
   own browser profile. Reopen Closed never brings these tabs back, and Open in system browser is refused for them.
+  Their pages may only navigate to http(s) (and in-page `about:blank`, `about:srcdoc`, `blob:` and `data:`
+  documents), never `file:` or another app's scheme; downloads are refused, and a popup opens as another private tab
+  only when it is a web page.
 - **The prompt stash is shared across accounts.** There is one stash for all threads, and a restore brings back its
   text, files and quote, terminal and diff-comment chips on whatever account the restoring thread runs, so one
   account's agent output can reach another account's agent when you restore it there. A thread, pull request, issue or

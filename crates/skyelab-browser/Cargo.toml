@@ -44,5 +44,10 @@ harness = false
 name = "wkwebview_page"
 harness = false
 
+# A private tab's navigation, download and popup rules, main thread too.
+[[test]]
+name = "wkwebview_private"
+harness = false
+
 [lints]
 workspace = true

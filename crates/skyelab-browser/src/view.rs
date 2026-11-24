@@ -55,6 +55,7 @@ pub struct BrowserView {
     _data_dir: Option<tempfile::TempDir>,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
+    _popups: Task<()>,
 }
 
 impl BrowserView {
@@ -122,6 +123,19 @@ impl BrowserView {
                         let _ = loaded_tx.send(url);
                     }
                 });
+        // A private page goes nowhere but the web, saves no download, and its popups come back as private tabs.
+        let (popup_tx, popups) = flume::unbounded::<String>();
+        if private {
+            builder = builder
+                .with_navigation_handler(|url| crate::controls::private_navigation_allowed(&url))
+                .with_new_window_req_handler(move |url, _| {
+                    if let Some(url) = crate::controls::popup_tab(&url) {
+                        let _ = popup_tx.send(url);
+                    }
+                    wry::NewWindowResponse::Deny
+                })
+                .with_download_started_handler(|_, _| false);
+        }
         let mut error = None;
         match url.map(parse_url) {
             Some(Ok(url)) => builder = builder.with_url(url.as_str()),
@@ -146,6 +160,14 @@ impl BrowserView {
         let mut view = Self::build(webview, engine, loaded_rx, url, error, window, cx);
         view._data_dir = data_dir;
         view.private = private;
+        view._popups = cx.spawn(async move |this, cx| {
+            while let Ok(url) = popups.recv_async().await {
+                let open = this.update(cx, |_, cx| cx.emit(DuplicateTab(Some(url))));
+                if open.is_err() {
+                    return;
+                }
+            }
+        });
         view
     }
 
@@ -220,6 +242,7 @@ impl BrowserView {
             _data_dir: None,
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
+            _popups: Task::ready(()),
         }
     }
 

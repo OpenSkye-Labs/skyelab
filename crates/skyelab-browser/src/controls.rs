@@ -96,6 +96,20 @@ pub(crate) fn external_url(url: &str) -> Option<url::Url> {
         .filter(|u| matches!(u.scheme(), "http" | "https"))
 }
 
+/// Where a private tab's page may go (every frame): web pages, and the in-page `about:blank`, `about:srcdoc`, `blob:`
+/// and `data:` documents. Never `file:`, `javascript:` or an app's own scheme, which could open another app.
+pub(crate) fn private_navigation_allowed(url: &str) -> bool {
+    matches!(url, "about:blank" | "about:srcdoc")
+        || url::Url::parse(url)
+            .is_ok_and(|u| matches!(u.scheme(), "http" | "https" | "blob" | "data"))
+}
+
+/// A private tab's popup (`window.open`, a `target=_blank` link) opens as another private tab when it is a web page,
+/// as T3 opens one as a new tab; anything else is refused.
+pub(crate) fn popup_tab(url: &str) -> Option<String> {
+    external_url(url).map(|u| u.to_string())
+}
+
 #[cfg(test)]
 #[path = "controls_test.rs"]
 mod tests;

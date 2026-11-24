@@ -17,7 +17,8 @@ use gpui_component::{
 use super::BrowserView;
 use crate::controls::{self, *};
 
-/// Duplicate tab: the host opens a user tab on this URL (`None`: a blank one), never an agent tab.
+/// Duplicate tab, or a private tab's popup: the host opens a user tab on this URL (`None`: a blank one), never an
+/// agent tab, and a private one when this tab is private.
 pub struct DuplicateTab(pub Option<String>);
 
 impl EventEmitter<DuplicateTab> for BrowserView {}

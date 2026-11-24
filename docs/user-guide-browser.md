@@ -41,6 +41,8 @@ don't sign in to anything in it: the agent can read that page. macOS and Linux o
 An agent's page, or any other private tab (a forwarded port's page), never moves into your own browser profile.
 **Duplicate tab** on one (an agent's tab before or after Take over, or a copy of one) opens a private, throwaway tab:
 its own in-memory cookies and storage, gone when it closes. **Reopen Closed** never brings these tabs back, and
-**Open in system browser** is off for them. To open the
+**Open in system browser** is off for them. A private tab's page also stays on the web: it can't go to a
+`file:` page or open another app through its link scheme, a download is refused, and a link or script that opens a
+new window opens the page as another private tab instead (web pages only). To open the
 page in your profile anyway, use **Copy URL** and paste it into a tab of yours. Your own tabs duplicate into your
 profile as before.

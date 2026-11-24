@@ -1,4 +1,4 @@
-use super::{external_url, find_script, zoom_step};
+use super::{external_url, find_script, popup_tab, private_navigation_allowed, zoom_step};
 
 #[test]
 fn zoom_steps() {
@@ -73,5 +73,46 @@ fn find_script_returns_its_own_boolean() {
             "{js}"
         );
         assert!(js.contains("catch"), "a throwing page answers false: {js}");
+    }
+}
+
+#[test]
+fn a_private_tab_navigates_only_to_web_and_in_page_urls() {
+    for ok in [
+        "http://127.0.0.1:3000/",
+        "https://example.com/a?b#c",
+        "about:blank",
+        "about:srcdoc",
+        "blob:http://127.0.0.1:3000/1b2c",
+        "data:text/html,hi",
+    ] {
+        assert!(private_navigation_allowed(ok), "{ok}");
+    }
+    for refused in [
+        "file:///etc/hosts",
+        "javascript:alert(1)",
+        "x-apple-systempreferences:com.apple.preference",
+        "vscode://file/etc/hosts",
+        "ftp://example.com/",
+        "about:config",
+        "not a url",
+    ] {
+        assert!(!private_navigation_allowed(refused), "{refused}");
+    }
+}
+
+#[test]
+fn a_private_tabs_popup_becomes_a_tab_only_for_web_pages() {
+    assert_eq!(
+        popup_tab("https://example.com/login").as_deref(),
+        Some("https://example.com/login")
+    );
+    for refused in [
+        "file:///etc/hosts",
+        "javascript:void(0)",
+        "about:blank",
+        "zoommtg://x",
+    ] {
+        assert_eq!(popup_tab(refused), None, "{refused}");
     }
 }
