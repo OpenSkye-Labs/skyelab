@@ -27,7 +27,9 @@ pub(crate) fn wait_until(
 }
 
 /// [`wait_until`] for work that also waits on the executor's clock (a retry timer, an exit watch): each poll moves
-/// that clock 100 ms on, so the timers fire while the real process takes its time.
+/// that clock 100 ms on, so the timers fire while the real process takes its time. Unix only: its callers drive the
+/// fake agent, a shell script.
+#[cfg(unix)]
 pub(crate) fn wait_ticking(
     cx: &mut VisualTestContext,
     what: &str,
