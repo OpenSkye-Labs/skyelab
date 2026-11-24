@@ -65,7 +65,11 @@
   never reads the repo's config files: SkyeLab lists that config once (includes expanded), drops every program key,
   hook and include from the copy, and points git at it (`GIT_COMMON_DIR`, with refs and objects still read from the
   repo through `GIT_REFERENCE_BACKEND` and `GIT_OBJECT_DIRECTORY`). A filter written to `.git/config` after that
-  listing is never seen. The few calls that keep the real config (rev-parse, config reads, worktree add/list/remove,
+  listing is never seen. Anything such a call writes to the repo's config would land in the copy and be lost, so those calls
+  write none: branch upstreams are set by the live-config calls, and `gh pr create` gets `--head` with prompts off, so
+  it never pushes, adds a remote or saves `gh-resolved` (it still reads that). rerere's records (`rr-cache`, data
+  only) are linked into the copy's dir, so a commit ending a merge keeps its resolution (not on Windows without
+  Developer Mode, which refuses the link). The few calls that keep the real config (rev-parse, config reads, worktree add/list/remove,
   ref listings, push and fetch) run no filter or merge driver. This needs git 2.54 or later; on older git, the
   repo's drivers are listed just before each call and overridden with `-c` (one whose name has `=` in it can't be,
   so the command is refused), and one written in the few milliseconds between that listing and git's own read

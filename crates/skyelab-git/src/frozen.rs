@@ -250,6 +250,18 @@ fn write_common_dir(to: &Path, common: &Path, entries: &[Entry<'_>]) -> io::Resu
             }
         }
     }
+    // rerere's records (data, no program): a commit ending a merge writes its resolution there, and one written to
+    // the private dir would be lost. Linked only when there: git makes it at the conflicted merge, outside SkyeLab.
+    let rr_cache = common.join("rr-cache");
+    if rr_cache.is_dir() {
+        // Dropping the private dir removes the link, never what it points to (std's remove_dir_all).
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&rr_cache, to.join("rr-cache"))?;
+        // shortcut: Windows refuses a dir symlink without Developer Mode, so the record is lost there; a junction
+        // would fix that if anyone asks.
+        #[cfg(windows)]
+        let _ = std::os::windows::fs::symlink_dir(&rr_cache, to.join("rr-cache"));
+    }
     Ok(())
 }
 
