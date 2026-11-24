@@ -12,6 +12,17 @@ Use [Grip](../../crates/skyelab-app/icons/grip.svg) in larger native placements 
 
 Set **SkyeLab** in a medium or semibold system sans, with normal spacing and capital S and L. Vertically align the mark and wordmark, with at least a quarter of the mark's width between them. The README lockup uses a 44 px launcher icon beside live text.
 
+## In-app icons
+
+The [Cloud-touched icon gallery](brand/icons/README.md) shows the SVGs used in the workspace. Draw on a
+16 × 16 grid with simple silhouettes, rounded corners, and open counters. Use 1.5-unit rounded strokes
+for line controls and details. Keep Bean's cloud shape for SkyeLab actions and identities such as new
+thread, side chat, agents, and remote work.
+
+Use one `currentColor` for the entire glyph. Cutouts are transparent so the active theme and existing
+account and status tints carry through. Use generic shapes for provider glyphs. Check new assets at
+14 and 16 px in both themes at 1× and 2×.
+
 ## Palette
 
 | Role | Light | Dark |

@@ -1,4 +1,4 @@
-//! A PR read asked before another read of it landed is older news: it changes neither the UI's status nor the stored
+//! A PR read that started before one already taken is older news: it changes neither the UI's status nor the stored
 //! state. The store follows the same newest-wins rule as the UI (one decision, made where the read lands). The test
 //! executor runs background work one task at a time, so the newer landing is recorded rather than raced.
 
@@ -67,7 +67,7 @@ fn an_older_read_landing_late_changes_nothing(cx: &mut gpui::TestAppContext) {
     });
     assert_eq!(stored().as_deref(), Some("draft"));
 
-    // A newer read landed (an action's reread, say) after this one is asked: this one is older news.
+    // A read that started later (an action's reread, say) was taken already: this one is older news.
     let later = crate::ui::now_ms() + 60 * 60_000;
     cx.update(|_, cx| PrLanded::get(cx).mark(id, URL, later));
     pr("OPEN", false);
@@ -91,7 +91,7 @@ fn an_older_read_landing_late_changes_nothing(cx: &mut gpui::TestAppContext) {
     );
     assert_eq!(stored().as_deref(), Some("draft"), "the store drops it too");
 
-    // Not older news: a read asked after the last landing is taken by both.
+    // Not older news: a read that started after the last taken one is taken by both.
     cx.update(|_, cx| PrLanded::get(cx).mark(id, URL, 0));
     r.ws.update(cx, |ws, cx| ws.reread_pr(id, cx));
     wait_until(cx, "the next read landed", |cx| {

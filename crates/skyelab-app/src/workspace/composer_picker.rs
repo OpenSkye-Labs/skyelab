@@ -3,10 +3,9 @@
 use super::thread::ThreadView;
 use super::{hint, popover};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
-use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _, checkbox::Checkbox, h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, checkbox::Checkbox, h_flex, v_flex};
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS};
 use skyelab_core::Provider;
 use skyelab_store::ModelChoice;
@@ -74,7 +73,7 @@ impl ThreadView {
                         .text_size(ui::BODY)
                         .hover(|this| this.bg(theme.accent))
                         .child(
-                            Icon::new(gpui_kit_assets::IconName::Columns2)
+                            Icon::new(crate::ui::SkyeIcon::Columns2)
                                 .xsmall()
                                 .text_color(theme.muted_foreground),
                         )
@@ -103,7 +102,7 @@ impl ThreadView {
                 .when(on, |this| this.bg(theme.foreground.opacity(0.09)))
                 .hover(|this| this.bg(theme.accent))
                 .child(div().flex_1().child(label))
-                .when(on, |this| this.child(Icon::new(IconName::Check).xsmall()))
+                .when(on, |this| this.child(Icon::new(SkyeIcon::Check).xsmall()))
                 .on_click(cx.listener(move |this, _, _, cx| this.pick_model(choice.clone(), cx)))
         };
         let default_row = format!("Account default ({})", self.default_model_name());
@@ -269,7 +268,7 @@ impl ThreadView {
                     .child(
                         row("compare-stop".into())
                             .child(
-                                Icon::new(IconName::Close)
+                                Icon::new(SkyeIcon::Close)
                                     .xsmall()
                                     .text_color(theme.muted_foreground),
                             )

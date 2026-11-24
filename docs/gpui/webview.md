@@ -26,3 +26,5 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
 - A menu left open when its pane stops being drawn is dropped without `on_open_change(false)`: clear the
   menu-open flag when the host hides the pane, or the page stays hidden when the tab comes back.
 - Zoom with `gpui_webview::WebView::set_zoom`, not wry's `zoom`: on Linux it also makes up for GTK's integer scale.
+- Drop a page's in-flight task (find, eval) when a new page commits: the callback still answers about the old page,
+  and landing it showed "No matches" on the new one.

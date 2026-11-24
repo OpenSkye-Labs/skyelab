@@ -68,6 +68,7 @@ mod side_commands_test;
 mod stash_account_test;
 pub(in crate::workspace) use composer_machine::machine_name;
 
+use crate::ui::SkyeIcon;
 #[cfg(test)]
 use crate::workspace::*;
 use crate::workspace::{lock, thread, thread_worktree};
@@ -82,13 +83,12 @@ use gpui::{
     AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Disableable as _, Icon, Sizable as _,
     button::{Button, ButtonRounded, ButtonVariants as _},
     h_flex,
     input::Textarea,
     v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 use skyelab_agent::AttachmentKind;
 use thread::{SendPrompt, ThreadView};
 
@@ -233,7 +233,7 @@ impl ThreadView {
                 Button::new("attach")
                     .ghost()
                     .small()
-                    .icon(Icon::new(Lucide::Paperclip))
+                    .icon(Icon::new(SkyeIcon::Paperclip))
                     .tooltip("Attach images or files")
                     .disabled(self.read_only)
                     .on_click(cx.listener(|this, _, window, cx| {
@@ -246,6 +246,7 @@ impl ThreadView {
                 Button::new("model-picker")
                     .ghost()
                     .small()
+                    .icon(SkyeIcon::Model)
                     .label(chip)
                     .dropdown_caret(true)
                     .tooltip(if account_default {
@@ -327,7 +328,7 @@ impl ThreadView {
         } else {
             Button::new("send")
                 .primary()
-                .icon(IconName::ArrowUp)
+                .icon(SkyeIcon::Send)
                 .rounded(round)
                 .tooltip(if running {
                     "Queue for when the agent finishes (⌘↩). ⌘⇧↩ sends it now."
@@ -358,8 +359,8 @@ impl ThreadView {
                 .pt_3()
                 .children(self.composer.attachments.iter().enumerate().map(|(ix, a)| {
                     let icon = match a.kind {
-                        AttachmentKind::Image(_) => IconName::GalleryVerticalEnd,
-                        AttachmentKind::Pdf | AttachmentKind::Text => IconName::File,
+                        AttachmentKind::Image(_) => SkyeIcon::Image,
+                        AttachmentKind::Pdf | AttachmentKind::Text => SkyeIcon::File,
                     };
                     h_flex()
                         .id(SharedString::from(format!("attachment-{ix}")))
@@ -378,7 +379,7 @@ impl ThreadView {
                             Button::new(SharedString::from(format!("remove-attachment-{ix}")))
                                 .ghost()
                                 .xsmall()
-                                .icon(Icon::new(Lucide::X))
+                                .icon(Icon::new(SkyeIcon::X))
                                 .tooltip("Remove")
                                 .on_click(cx.listener(move |this, _, window, cx| {
                                     this.remove_attachment(ix, cx);
@@ -435,7 +436,7 @@ impl ThreadView {
                             .hover(|this| this.bg(theme.accent))
                             .when(item.model.is_some(), |this| {
                                 this.child(
-                                    Icon::new(IconName::Bot)
+                                    Icon::new(SkyeIcon::Bot)
                                         .xsmall()
                                         .text_color(theme.muted_foreground),
                                 )

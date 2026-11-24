@@ -54,12 +54,25 @@ struct Chip {
 
 impl Stashed {
     fn parse(raw: String) -> Self {
-        // An entry this build can't read (a newer chip kind) still gives its text back.
-        serde_json::from_str(&raw).unwrap_or(Stashed {
-            text: raw,
+        // An entry this build can't read (a newer chip kind) gives back only its text: its chips and account stay out.
+        #[derive(Deserialize)]
+        struct TextOnly {
+            text: String,
+        }
+        serde_json::from_str(&raw).unwrap_or_else(|_| Stashed {
+            text: match serde_json::from_str::<TextOnly>(&raw) {
+                Ok(t) => t.text,
+                Err(_) if raw.trim_start().starts_with('{') => String::new(),
+                Err(_) => raw,
+            },
             ..Default::default()
         })
     }
+}
+
+/// Unbound chips go back only into a composer on the same, known account.
+fn same_account(from: &Option<String>, here: &Option<String>) -> bool {
+    from.is_some() && from == here
 }
 
 /// One entry as the menu lists it.
@@ -299,7 +312,7 @@ impl ThreadView {
         let here = self.composer_account().map(|a| a.id);
         let mut left_out = 0;
         for c in stashed.chips {
-            if c.bound.is_none() && stashed.account != here {
+            if c.bound.is_none() && !same_account(&stashed.account, &here) {
                 left_out += 1;
                 continue;
             }
@@ -371,5 +384,23 @@ mod tests {
         assert_eq!(snippet(&s(""), 2), "(2 files)");
         assert_eq!(snippet(&s(&"x".repeat(100)), 0).chars().count(), 91);
         assert_eq!(Stashed::parse("not json".into()).text, "not json");
+    }
+
+    #[test]
+    fn unreadable_entry_gives_back_only_its_text() {
+        let raw = r#"{"text":"mine","chips":[{"kind":"FutureKind","label":"a","text":"ACME_ONLY","bound":null}],"account":"acme"}"#;
+        let s = Stashed::parse(raw.into());
+        assert_eq!(s.text, "mine");
+        assert!(s.chips.is_empty());
+        assert_eq!(Stashed::parse(r#"{"broken"#.into()).text, "");
+    }
+
+    #[test]
+    fn unbound_chips_need_the_same_known_account() {
+        let (a, b) = (Some("acme".to_string()), Some("beta".to_string()));
+        assert!(same_account(&a, &a));
+        assert!(!same_account(&a, &b));
+        assert!(!same_account(&None, &a));
+        assert!(!same_account(&None, &None), "no account on either side");
     }
 }

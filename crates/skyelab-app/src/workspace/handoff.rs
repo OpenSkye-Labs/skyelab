@@ -42,6 +42,11 @@ pub(in crate::workspace) fn label(to: Provider) -> SharedString {
     format!("Continue in {}", to.label()).into()
 }
 
+/// Source threads whose handoff is still being created: a second click would make a second thread.
+#[derive(Default)]
+struct HandingOff(std::collections::HashSet<i64>);
+impl gpui::Global for HandingOff {}
+
 enum Outcome {
     Started(Box<Thread>),
     /// The folder isn't bound to a `to` account: what it is bound to now, if anything.
@@ -62,8 +67,8 @@ impl Workspace {
         if self.is_remote() {
             return; // a remote window's threads live on another machine; their history isn't here
         }
-        if !self.copying.insert((a.id, "handoff")) {
-            return; // one already being made from this thread
+        if !cx.default_global::<HandingOff>().0.insert(a.id) {
+            return;
         }
         let (store, config, id, to) = (
             self.backend.store.clone(),
@@ -139,12 +144,11 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;
             let _ = this.update_in(cx, |ws, window, cx| {
-                ws.copying.remove(&(id, "handoff"));
+                cx.default_global::<HandingOff>().0.remove(&id);
                 match done {
                     Ok(Outcome::Started(thread)) => {
-                        let id = thread.id;
                         ws.thread_started(&thread, cx);
-                        ws.open_thread(&OpenThread { id }, window, cx);
+                        ws.open_thread(&OpenThread { id: thread.id }, window, cx);
                     }
                     Ok(Outcome::NeedsBinding { folder, bound }) => {
                         ask_bind(folder, bound, to, window, cx)

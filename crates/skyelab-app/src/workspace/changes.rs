@@ -18,12 +18,13 @@ use super::changes_model::{self, Changes, Scope};
 use super::changes_tree::{self, SplitRow, TreeRow};
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, FontWeight, ListAlignment, ListOffset, ListState,
     MouseButton, SharedString, Task, Window, actions, div, list, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    ActiveTheme as _, IconName, Sizable as _,
+    ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{InputState, TextareaState},
@@ -346,7 +347,7 @@ impl Render for ChangesView {
                 Button::new("refresh-changes")
                     .ghost()
                     .xsmall()
-                    .icon(IconName::RefreshCw)
+                    .icon(SkyeIcon::RefreshCw)
                     .label("Refresh")
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.on_refresh(&RefreshChanges, window, cx)

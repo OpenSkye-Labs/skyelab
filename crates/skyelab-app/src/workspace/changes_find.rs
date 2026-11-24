@@ -2,6 +2,7 @@
 //! and find in diff (mod+F while the tab is focused, the thread's find bar).
 
 use super::ChangesView;
+use crate::ui::SkyeIcon;
 use crate::workspace::changes_model::Row;
 use crate::workspace::thread_find::{CloseFind, Find, FindNext, FindPrevious, find_bar};
 use gpui::{AnyElement, App, AppContext as _, Context, KeyBinding, Window, actions, prelude::*};
@@ -11,7 +12,6 @@ use gpui_component::{
     h_flex,
     input::{InputEvent, InputState},
 };
-use gpui_kit_assets::IconName as Lucide;
 use skyelab_core::DiffSettings;
 
 actions!(skyelab, [FindInChanges]);
@@ -78,7 +78,7 @@ impl ChangesView {
     /// The toggles at the right of the header: split/unified, wrap, whitespace.
     pub(super) fn render_toggles(&self, cx: &mut Context<Self>) -> AnyElement {
         let p = self.prefs;
-        let toggle = |id: &'static str, icon: Lucide, on: bool, tip: &'static str| {
+        let toggle = |id: &'static str, icon: SkyeIcon, on: bool, tip: &'static str| {
             Button::new(id)
                 .xsmall()
                 .icon(Icon::new(icon))
@@ -88,18 +88,18 @@ impl ChangesView {
         h_flex()
             .gap_0p5()
             .child(
-                toggle("diff-unified", Lucide::Rows3, !p.split, "Unified diff").on_click(
+                toggle("diff-unified", SkyeIcon::Rows3, !p.split, "Unified diff").on_click(
                     cx.listener(|this, _, _, cx| this.set_prefs(|p| p.split = false, cx)),
                 ),
             )
             .child(
-                toggle("diff-split", Lucide::Columns2, p.split, "Split diff")
+                toggle("diff-split", SkyeIcon::Columns2, p.split, "Split diff")
                     .on_click(cx.listener(|this, _, _, cx| this.set_prefs(|p| p.split = true, cx))),
             )
             .child(
                 toggle(
                     "diff-wrap",
-                    Lucide::TextWrap,
+                    SkyeIcon::TextWrap,
                     p.wrap,
                     if p.wrap {
                         "Disable line wrapping"
@@ -112,7 +112,7 @@ impl ChangesView {
             .child(
                 toggle(
                     "diff-whitespace",
-                    Lucide::Pilcrow,
+                    SkyeIcon::Pilcrow,
                     p.ignore_whitespace,
                     if p.ignore_whitespace {
                         "Show whitespace changes"

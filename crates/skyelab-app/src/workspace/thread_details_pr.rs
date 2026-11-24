@@ -7,13 +7,13 @@ use super::super::thread::{GitAction, ThreadView, ThreadViewEvent};
 use super::On;
 use super::card::{chevron, row, tinted_row};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, App, AppContext as _, Context, SharedString, div, prelude::*};
 use gpui_component::{
     ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     v_flex,
 };
-use gpui_kit_assets::IconName;
 use skyelab_git::Checks;
 
 impl ThreadView {
@@ -26,7 +26,7 @@ impl ThreadView {
             return Some(
                 row(
                     "details-link-pr",
-                    IconName::Plus,
+                    SkyeIcon::Plus,
                     "Link pull request…",
                     theme,
                 )
@@ -63,7 +63,7 @@ impl ThreadView {
                     Button::new("details-pr-actions")
                         .ghost()
                         .xsmall()
-                        .icon(IconName::GitMerge)
+                        .icon(SkyeIcon::GitMerge)
                         .tooltip("Merge or review…")
                         .on_click(on.click(|this, window, cx| {
                             cx.stop_propagation(); // not the row's open-in-browser
@@ -75,7 +75,7 @@ impl ThreadView {
                 Button::new("details-unlink-pr")
                     .ghost()
                     .xsmall()
-                    .icon(IconName::Unlink)
+                    .icon(SkyeIcon::Unlink)
                     .tooltip("Unlink pull request")
                     .on_click(on.click(|this, _, cx| {
                         cx.stop_propagation(); // not the row's open-in-browser
@@ -99,11 +99,11 @@ impl ThreadView {
             Some(PrView::SignIn) => rows.push(
                 row(
                     "details-pr-sign-in",
-                    IconName::Github,
+                    SkyeIcon::Github,
                     "Sign in to GitHub",
                     theme,
                 )
-                .child(chevron(IconName::ChevronRight, theme))
+                .child(chevron(SkyeIcon::ChevronRight, theme))
                 .on_click(|_, window, cx| {
                     let section = crate::settings::Section::SourceControl;
                     window.dispatch_action(Box::new(OpenSettingsSection { section }), cx);
@@ -132,14 +132,14 @@ impl ThreadView {
                     rows.push(
                         tinted_row(
                             SharedString::from(format!("details-pr-check-{i}")),
-                            IconName::CircleX,
+                            SkyeIcon::CircleX,
                             ui::ink(theme, theme.danger),
                             f.name.clone(),
                             theme,
                         )
                         .pl_6()
                         .when(url.is_some(), |r| {
-                            r.child(chevron(IconName::ExternalLink, theme))
+                            r.child(chevron(SkyeIcon::ExternalLink, theme))
                         })
                         .when(url.is_none(), |r| r.cursor_default())
                         .on_click(move |_, _, cx| {
@@ -216,7 +216,7 @@ impl ThreadView {
         let pull = (behind > 0).then(|| {
             row(
                 "details-pull",
-                IconName::ArrowDown,
+                SkyeIcon::ArrowDown,
                 format!("Pull {}", plural(behind as usize, "commit")),
                 theme,
             )

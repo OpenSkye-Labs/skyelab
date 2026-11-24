@@ -73,8 +73,8 @@ count again in the Usage page, and the fork's first turn counts its whole cost, 
 starts where the original runs: in its worktree, sharing that worktree and its branch (discarding the worktree from
 either thread removes it for both, and is refused while the other thread's agent runs there), or in the project's
 folder once that worktree is gone. It copies no checkpoints.
-If that folder is no longer bound to the thread's account, nothing is forked. A second click while a fork (or a
-handoff) of the same thread is being made does nothing, so a double click makes one thread.
+If that folder is no longer bound to the thread's account, nothing is forked. A second click while a fork of the
+same thread is being made (from any window) does nothing, so a double click makes one fork.
 
 ## Continue in the other provider
 

@@ -3,13 +3,13 @@
 use super::thread::ThreadView;
 use super::thread_worktree::{OpenChanges, ToggleWorktree};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme as _, Disableable as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 
 impl ThreadView {
     /// Messages waiting for the running turn: dashed, unfilled bubbles (a turn not sent yet), each with Steer and Remove.
@@ -49,7 +49,7 @@ impl ThreadView {
                                 .gap_1()
                                 .text_size(ui::META)
                                 .text_color(theme.muted_foreground)
-                                .child(Icon::new(Lucide::Clock).xsmall())
+                                .child(Icon::new(SkyeIcon::Clock).xsmall())
                                 .child("Sends when the agent finishes")
                                 .child(
                                     Button::new(SharedString::from(format!("steer-{id}")))
@@ -65,7 +65,7 @@ impl ThreadView {
                                     Button::new(SharedString::from(format!("unqueue-{id}")))
                                         .ghost()
                                         .xsmall()
-                                        .icon(Icon::new(Lucide::X))
+                                        .icon(Icon::new(SkyeIcon::X))
                                         .tooltip("Remove from the queue")
                                         .on_click(cx.listener(move |this, _, _, cx| {
                                             this.remove_queued(id, cx)
@@ -87,7 +87,7 @@ impl ThreadView {
         };
         let footer = &self.composer.footer;
         let divider = || div().w(px(1.)).h(px(14.)).bg(theme.border);
-        let item = |icon: Lucide, label: SharedString| {
+        let item = |icon: SkyeIcon, label: SharedString| {
             h_flex()
                 .min_w_0()
                 .gap_1p5()
@@ -96,14 +96,14 @@ impl ThreadView {
         };
         let worktree = self.thread.as_ref().and_then(|t| t.worktree_branch.clone());
         let checkout: AnyElement = match (&self.thread, worktree) {
-            (_, Some(_)) => item(Lucide::FolderGit2, "Worktree".into()).into_any_element(),
-            (Some(_), None) => item(Lucide::Folder, "Local checkout".into()).into_any_element(),
+            (_, Some(_)) => item(SkyeIcon::FolderGit2, "Worktree".into()).into_any_element(),
+            (Some(_), None) => item(SkyeIcon::Folder, "Local checkout".into()).into_any_element(),
             // Before the first send: a toggle between this checkout and a new worktree.
             (None, None) => {
                 let (icon, label) = if self.wt.use_worktree {
-                    (Lucide::FolderGit2, "New worktree")
+                    (SkyeIcon::FolderGit2, "New worktree")
                 } else {
-                    (Lucide::Folder, "Local checkout")
+                    (SkyeIcon::Folder, "Local checkout")
                 };
                 Button::new("checkout-mode")
                     .ghost()
@@ -128,7 +128,7 @@ impl ThreadView {
             .gap_2()
             .text_size(ui::META)
             .text_color(fg)
-            .children(footer.machine.clone().map(|m| item(Lucide::Laptop, m)))
+            .children(footer.machine.clone().map(|m| item(SkyeIcon::Monitor, m)))
             .children(footer.machine.as_ref().map(|_| divider()))
             .child(div().id("provider-badge").child(self.account_badge()))
             .child(divider())
@@ -153,7 +153,7 @@ impl ThreadView {
                 Button::new("footer-changes")
                     .ghost()
                     .xsmall()
-                    .icon(Icon::new(Lucide::FileDiff))
+                    .icon(Icon::new(SkyeIcon::FileDiff))
                     .label(if n == 0 {
                         "No changes".into()
                     } else {
@@ -164,7 +164,7 @@ impl ThreadView {
                         this.open_changes(&OpenChanges, window, cx)
                     }))
             }))
-            .children(footer.branch.clone().map(|b| item(Lucide::GitBranch, b)))
+            .children(footer.branch.clone().map(|b| item(SkyeIcon::GitBranch, b)))
             .into_any_element()
     }
 }

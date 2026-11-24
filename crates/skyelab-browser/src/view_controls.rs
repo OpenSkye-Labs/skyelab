@@ -79,6 +79,7 @@ impl BrowserView {
 
     /// A new page committed: the find bar's last answer was about the old one.
     pub(super) fn page_changed(&mut self) {
+        self._find_task = gpui::Task::ready(()); // a search still running on the old page answers about it
         if let Some(find) = &mut self.find {
             find.missed = false;
             find.searched.clear();

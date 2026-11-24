@@ -7,15 +7,16 @@ use super::changes_model::LineKind;
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::ToolItem;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, IntoElement, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, IconName, clipboard::Clipboard, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, clipboard::Clipboard, h_flex, v_flex};
 use skyelab_agent::{Todo, TodoStatus};
 
 use skyelab_agent::timeline::cards::DIFF_LINES;
 /// Most diff lines an edit card draws; the Changes tab has the whole file.
 pub(super) use skyelab_agent::timeline::cards::{edit_lines, is_edit, is_shell};
 /// The 24 px icon slot every work-log row starts with.
-pub(super) fn slot(icon: IconName, color: gpui::Hsla) -> impl IntoElement {
+pub(super) fn slot(icon: SkyeIcon, color: gpui::Hsla) -> impl IntoElement {
     div()
         .w(px(24.))
         .flex()
@@ -26,9 +27,9 @@ pub(super) fn slot(icon: IconName, color: gpui::Hsla) -> impl IntoElement {
 
 pub(super) fn chevron(open: bool, cx: &gpui::App) -> impl IntoElement {
     Icon::new(if open {
-        IconName::ChevronDown
+        SkyeIcon::ChevronDown
     } else {
-        IconName::ChevronRight
+        SkyeIcon::ChevronRight
     })
     .size_3()
     .text_color(cx.theme().muted_foreground.opacity(0.7))
@@ -37,7 +38,7 @@ pub(super) fn chevron(open: bool, cx: &gpui::App) -> impl IntoElement {
 /// A row that expands: icon, label, a muted one-line preview, chevron.
 fn header<V: ItemsView>(
     id: &str,
-    icon: (IconName, gpui::Hsla),
+    icon: (SkyeIcon, gpui::Hsla),
     label: SharedString,
     preview: String,
     cx: &mut Context<V>,
@@ -111,7 +112,7 @@ pub(super) fn render_thinking<V: ItemsView>(
         .debug_selector(|| "thinking-row".into())
         .w_full()
         .child(
-            header(id, (IconName::Asterisk, color), label.into(), first, cx)
+            header(id, (SkyeIcon::Asterisk, color), label.into(), first, cx)
                 .child(chevron(open, cx)),
         )
         .children(body)
@@ -127,9 +128,9 @@ pub(super) fn render_todo(todos: &[Todo], cx: &Context<impl ItemsView>) -> AnyEl
         .count();
     let rows = todos.iter().map(|t| {
         let (icon, color) = match t.status {
-            TodoStatus::Completed => (IconName::CircleCheck, theme.success),
-            TodoStatus::InProgress => (IconName::LoaderCircle, theme.info),
-            TodoStatus::Pending => (IconName::Square, theme.muted_foreground.opacity(0.6)),
+            TodoStatus::Completed => (SkyeIcon::CircleCheck, theme.success),
+            TodoStatus::InProgress => (SkyeIcon::LoaderCircle, theme.info),
+            TodoStatus::Pending => (SkyeIcon::Square, theme.muted_foreground.opacity(0.6)),
         };
         h_flex()
             .min_h(px(24.))
@@ -183,9 +184,9 @@ pub(super) fn render_edit<V: ItemsView>(tool: &ToolItem, cx: &mut Context<V>) ->
     let added = lines.iter().filter(|l| l.2 == LineKind::Added).count();
     let removed = lines.iter().filter(|l| l.2 == LineKind::Removed).count();
     let (icon, color) = match (&tool.result, tool.is_error) {
-        (None, _) => (IconName::LoaderCircle, theme.info),
-        (Some(_), true) => (IconName::CircleAlert, theme.danger),
-        (Some(_), false) => (IconName::FileText, theme.muted_foreground),
+        (None, _) => (SkyeIcon::LoaderCircle, theme.info),
+        (Some(_), true) => (SkyeIcon::CircleAlert, theme.danger),
+        (Some(_), false) => (SkyeIcon::FileText, theme.muted_foreground),
     };
     let name = std::path::Path::new(&path)
         .file_name()
@@ -325,7 +326,7 @@ pub(super) fn render_output<V: ItemsView>(
                 .justify_center()
                 .flex_shrink_0()
                 .child(
-                    Icon::new(IconName::CircleAlert)
+                    Icon::new(SkyeIcon::CircleAlert)
                         .size_4()
                         .text_color(theme.danger),
                 ),
@@ -348,9 +349,9 @@ pub(super) fn render_output<V: ItemsView>(
         )
         .child(
             Icon::new(if open {
-                IconName::ChevronDown
+                SkyeIcon::ChevronDown
             } else {
-                IconName::ChevronRight
+                SkyeIcon::ChevronRight
             })
             .size_3()
             .text_color(theme.muted_foreground.opacity(0.7)),

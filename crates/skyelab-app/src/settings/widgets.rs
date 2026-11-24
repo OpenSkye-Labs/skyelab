@@ -3,9 +3,10 @@
 //! truncated in the middle with a copy button, and short errors with details on demand.
 
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, App, ClipboardItem, SharedString, div, prelude::*, rems};
 use gpui_component::{
-    ActiveTheme as _, IconName, Sizable as _,
+    ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     tooltip::Tooltip,
@@ -119,7 +120,7 @@ pub(super) fn path_line(id: String, path: &Path, cx: &App) -> gpui::Div {
             Button::new(SharedString::from(format!("copy-{id}")))
                 .ghost()
                 .xsmall()
-                .icon(IconName::Copy)
+                .icon(SkyeIcon::Copy)
                 .tooltip("Copy path")
                 .on_click(move |_, _, cx| {
                     cx.write_to_clipboard(ClipboardItem::new_string(text.clone()))

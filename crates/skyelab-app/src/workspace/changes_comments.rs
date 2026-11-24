@@ -4,6 +4,7 @@
 
 use super::ChangesView;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use crate::workspace::diff_comments::{DiffComment, DiffComments};
 use crate::workspace::thread::composer::composer_context::ChipKind;
 use gpui::{
@@ -17,7 +18,6 @@ use gpui_component::{
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 
 /// The editor under the lines being commented on. `anchor` holds them as an unsaved comment, so a reload moves
 /// the draft with its lines or drops it with them.
@@ -306,7 +306,7 @@ impl ChangesView {
             .bg(theme.primary.opacity(0.045))
             .font_family(theme.font_family.clone())
             .child(
-                Icon::new(Lucide::MessageCircle)
+                Icon::new(SkyeIcon::MessageCircle)
                     .size_3p5()
                     .mt_0p5()
                     .text_color(theme.primary.opacity(0.7)),
@@ -328,7 +328,7 @@ impl ChangesView {
                 Button::new(("delete-diff-comment", id))
                     .ghost()
                     .xsmall()
-                    .icon(Icon::new(Lucide::Trash))
+                    .icon(Icon::new(SkyeIcon::Trash))
                     .tooltip("Delete comment")
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.update_review(cx, |r| r.remove(id));
@@ -424,7 +424,7 @@ impl ChangesView {
                 .border_color(theme.border)
                 .text_size(ui::META)
                 .child(
-                    Icon::new(Lucide::MessageCircle)
+                    Icon::new(SkyeIcon::MessageCircle)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.primary)),
                 )

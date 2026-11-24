@@ -14,6 +14,11 @@ use skyelab_agent::Event;
 use skyelab_agent::handoff::{self, quoted};
 use skyelab_store::NewThread;
 
+/// Source threads whose fork is still being created: a second click would make a second thread.
+#[derive(Default)]
+struct Forking(std::collections::HashSet<i64>);
+impl gpui::Global for Forking {}
+
 /// Forks thread `id` after its `turns`-th finished turn.
 #[derive(Clone, Debug, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
@@ -30,7 +35,7 @@ pub(in crate::workspace) fn button(action: ForkThread) -> AnyElement {
             Button::new(SharedString::from(format!("fork-{}", action.turns)))
                 .ghost()
                 .xsmall()
-                .icon(Icon::new(gpui_kit_assets::IconName::GitBranch))
+                .icon(Icon::new(crate::ui::SkyeIcon::GitBranch))
                 .tooltip("Fork from here")
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx)),
         )
@@ -109,8 +114,8 @@ impl Workspace {
         if self.is_remote() {
             return; // another machine's threads fork there
         }
-        if !self.copying.insert((a.id, "fork")) {
-            return; // one already being made from this thread
+        if !cx.default_global::<Forking>().0.insert(a.id) {
+            return; // one already being made from this thread (in any window)
         }
         let (store, config, id, turns) = (
             self.backend.store.clone(),
@@ -151,7 +156,7 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;
             let _ = this.update_in(cx, |ws, window, cx| {
-                ws.copying.remove(&(id, "fork"));
+                cx.default_global::<Forking>().0.remove(&id);
                 match done {
                     Ok(fork) => {
                         let id = fork.id;

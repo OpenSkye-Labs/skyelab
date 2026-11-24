@@ -2,13 +2,14 @@
 //! numbers, syntect highlighting) at the asked line; images draw as images; binary and huge files get a note.
 
 use crate::ui;
+use crate::ui::SkyeIcon;
 use anyhow::Context as _;
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, ObjectFit,
     SharedString, Task, Window, div, img, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, IconName, Sizable as _,
+    ActiveTheme as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
@@ -257,7 +258,7 @@ impl Render for PreviewPanel {
                 Button::new("preview-open-editor")
                     .ghost()
                     .xsmall()
-                    .icon(IconName::ExternalLink)
+                    .icon(SkyeIcon::ExternalLink)
                     .tooltip("Open in editor")
                     .on_click(cx.listener(|this, _, _, cx| {
                         cx.emit(OpenInEditor {

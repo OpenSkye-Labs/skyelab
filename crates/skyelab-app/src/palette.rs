@@ -1,13 +1,14 @@
 //! The command palette: one key to find and run any action, switch project, open a thread or focus a tab.
 //! Entries come from the workspace; this file ranks them and hosts gpui-component's `Command` in a dialog.
 
+use crate::ui::SkyeIcon;
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding, NoAction,
     ParentElement as _, Render, SharedString, Styled as _, Task, WeakEntity, Window, actions, div,
     prelude::FluentBuilder as _, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _, WindowExt as _,
+    ActiveTheme as _, Icon, Sizable as _, WindowExt as _,
     command::{Command, CommandItem, CommandState},
     h_flex,
     kbd::Kbd,
@@ -280,7 +281,7 @@ fn row(entry: &Entry, cx: &App) -> gpui::Div {
                         .border_color(if on { theme.primary } else { muted })
                         .when(on, |b| {
                             b.bg(theme.primary).child(
-                                Icon::new(IconName::Check)
+                                Icon::new(SkyeIcon::Check)
                                     .xsmall()
                                     .text_color(theme.primary_foreground),
                             )

@@ -34,7 +34,7 @@ pub(super) fn answer_files<V: ItemsView>(
             .bg(theme.muted)
             .text_size(ui::META)
             .child(
-                Icon::new(gpui_kit_assets::IconName::File)
+                Icon::new(crate::ui::SkyeIcon::File)
                     .xsmall()
                     .text_color(theme.muted_foreground),
             )
@@ -43,7 +43,7 @@ pub(super) fn answer_files<V: ItemsView>(
                 Button::new(SharedString::from(format!("unattach-{id}-{qi}-{ix}")))
                     .ghost()
                     .xsmall()
-                    .icon(Icon::new(gpui_kit_assets::IconName::X))
+                    .icon(Icon::new(crate::ui::SkyeIcon::X))
                     .tooltip("Remove")
                     .on_click(
                         cx.listener(move |this, _, _, cx| this.remove_answer_file(&id, qi, ix, cx)),
@@ -56,7 +56,7 @@ pub(super) fn answer_files<V: ItemsView>(
             .debug_selector(move || format!("question-attach-{qi}"))
             .ghost()
             .xsmall()
-            .icon(Icon::new(gpui_kit_assets::IconName::Paperclip))
+            .icon(Icon::new(crate::ui::SkyeIcon::Paperclip))
             .label("Attach files")
             .on_click(
                 cx.listener(move |this, _, _, cx| this.attach_answer_files(&attach_id, qi, cx)),

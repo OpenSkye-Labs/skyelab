@@ -3,9 +3,10 @@
 
 use super::widgets::{heading, section, setting};
 use super::*;
+use crate::ui::SkyeIcon;
 use crate::ui::{self, themes};
 use gpui::Hsla;
-use gpui_component::{Disableable as _, Icon, IconName, h_flex, try_parse_color, v_flex};
+use gpui_component::{Disableable as _, Icon, h_flex, try_parse_color, v_flex};
 use skyelab_core::{AppearanceSettings, ColorMode};
 
 /// A theme config color by its key, for the previews.
@@ -42,10 +43,10 @@ impl Settings {
                 (
                     ColorMode::System,
                     "System",
-                    Icon::new(gpui_kit_assets::IconName::Monitor),
+                    Icon::new(crate::ui::SkyeIcon::Monitor),
                 ),
-                (ColorMode::Light, "Light", Icon::new(IconName::Sun)),
-                (ColorMode::Dark, "Dark", Icon::new(IconName::Moon)),
+                (ColorMode::Light, "Light", Icon::new(SkyeIcon::Sun)),
+                (ColorMode::Dark, "Dark", Icon::new(SkyeIcon::Moon)),
             ],
             s.mode,
             |s, m| s.mode = m,
@@ -54,12 +55,8 @@ impl Settings {
         let density = self.segmented(
             "density",
             &[
-                (
-                    false,
-                    "Comfortable",
-                    Icon::new(gpui_kit_assets::IconName::Rows3),
-                ),
-                (true, "Compact", Icon::new(IconName::Minus)),
+                (false, "Comfortable", Icon::new(crate::ui::SkyeIcon::Rows3)),
+                (true, "Compact", Icon::new(SkyeIcon::Minus)),
             ],
             s.compact,
             |s, c| s.compact = c,
@@ -233,7 +230,7 @@ impl Settings {
                             .child(f.label)
                             .when(on, |d| {
                                 d.child(
-                                    Icon::new(IconName::Check)
+                                    Icon::new(SkyeIcon::Check)
                                         .size_3p5()
                                         .text_color(theme.primary),
                                 )
@@ -366,7 +363,7 @@ impl Settings {
         set: fn(&mut AppearanceSettings, u8),
         cx: &mut Context<Self>,
     ) -> gpui::Div {
-        let step = |dir: i8, icon: IconName, cx: &mut Context<Self>| {
+        let step = |dir: i8, icon: SkyeIcon, cx: &mut Context<Self>| {
             let next = value
                 .saturating_add_signed(dir)
                 .clamp(*range.start(), *range.end());
@@ -381,7 +378,7 @@ impl Settings {
         };
         h_flex()
             .gap_2()
-            .child(step(-1, IconName::Minus, cx))
+            .child(step(-1, SkyeIcon::Minus, cx))
             .child(
                 div()
                     .w(gpui::px(44.))
@@ -390,6 +387,6 @@ impl Settings {
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .child(format!("{value} pt")),
             )
-            .child(step(1, IconName::Plus, cx))
+            .child(step(1, SkyeIcon::Plus, cx))
     }
 }

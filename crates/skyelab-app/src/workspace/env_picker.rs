@@ -3,12 +3,13 @@
 
 use super::env_mode::SwitchEnvironment;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     Action as _, AppContext as _, Context, Entity, FontWeight, IntoElement, SharedString, Task,
     Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -156,7 +157,7 @@ impl Render for EnvPicker {
                     ),
             )
             .child(
-                Icon::new(IconName::ChevronsUpDown)
+                Icon::new(SkyeIcon::ChevronsUpDown)
                     .size_3p5()
                     .text_color(theme.muted_foreground),
             );

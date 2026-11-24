@@ -3,10 +3,11 @@
 
 use super::ChangesView;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use crate::workspace::changes_model::{LineKind, Row};
 use crate::workspace::changes_tree::{SplitRow, TreeRow};
 use gpui::{AnyElement, App, Context, FontWeight, Hsla, SharedString, Window, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, IconName, Sizable as _, checkbox::Checkbox, h_flex};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, checkbox::Checkbox, h_flex};
 use skyelab_git::ChangeKind;
 use std::ops::Range;
 
@@ -270,9 +271,9 @@ impl ChangesView {
                         row.text_color(theme.muted_foreground)
                             .child(
                                 Icon::new(if *open {
-                                    IconName::ChevronDown
+                                    SkyeIcon::ChevronDown
                                 } else {
-                                    IconName::ChevronRight
+                                    SkyeIcon::ChevronRight
                                 })
                                 .xsmall(),
                             )

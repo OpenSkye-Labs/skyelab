@@ -6,10 +6,11 @@ use super::super::layout::ToggleThreadDetails;
 use super::super::subagent::SubagentStatus;
 use super::super::thread::{ChildLink, Interrupt, Stop, ThreadView};
 use super::super::thread_model::Item;
+use crate::ui::SkyeIcon;
 use crate::ui::{self, Status};
 use gpui::{Action, AnyElement, Context, SharedString, Window, div, prelude::*};
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
 };
@@ -89,7 +90,7 @@ impl ThreadView {
                 .gap_1p5()
                 .text_size(ui::META)
                 .text_color(theme.muted_foreground)
-                .child(Icon::new(IconName::LoaderCircle).size_3p5())
+                .child(Icon::new(SkyeIcon::LoaderCircle).size_3p5())
                 .child(
                     div()
                         .flex_shrink_0()

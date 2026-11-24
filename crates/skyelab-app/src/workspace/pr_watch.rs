@@ -6,9 +6,9 @@
 use super::Workspace;
 use super::worktree::resolves_to;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AppContext as _, Context, Global, Hsla, SharedString, Task};
 use gpui_component::Theme;
-use gpui_kit_assets::IconName;
 use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, PrState, PrStatus};
 use std::collections::HashMap;
@@ -57,10 +57,10 @@ impl PrStatuses {
     }
 }
 
-/// When each thread's PR read last landed, for its link, shared by every window's reads. A read is taken where it
-/// lands, off the UI thread, under this lock: it is dropped when another landed after it was asked, else its state
-/// is stored before the lock is let go. The UI keeps exactly the reads taken here, so the stored state and the shown
-/// one keep the same newest read.
+/// When the read each thread's PR shows last started, for its link, shared by every window's reads. A read is taken
+/// where it lands, off the UI thread, under this lock: it is dropped when one that started later was taken already,
+/// else its state is stored before the lock is let go. The UI keeps only taken reads, newest start first, so the
+/// stored state and the shown one keep the same newest read.
 #[derive(Clone, Default)]
 pub(crate) struct PrLanded(Arc<Mutex<HashMap<i64, (String, i64)>>>);
 
@@ -71,14 +71,14 @@ impl PrLanded {
         cx.default_global::<Self>().clone()
     }
 
-    /// Records that a read of `thread`'s PR at `url` landed `at` (tests stage a newer landing with it).
+    /// Records that a read of `thread`'s PR at `url` that started `at` was taken (tests stage a newer read with it).
     #[cfg(test)]
     pub fn mark(&self, thread: i64, url: &str, at: i64) {
         self.lock().insert(thread, (url.to_owned(), at));
     }
 
-    /// Takes a read of `thread`'s PR at `url` asked at `asked`, unless another landed after that: `store` runs first,
-    /// under the lock, so taken reads are stored in the order they land. The landing time, or `None` when dropped.
+    /// Takes a read of `thread`'s PR at `url` that started at `asked`, unless one that started later was taken: `store`
+    /// runs first, under the lock, so taken reads are stored in order. Its stamp (`asked`), or `None` when dropped.
     fn land(&self, thread: i64, url: &str, asked: i64, store: impl FnOnce()) -> Option<i64> {
         let mut landed = self.lock();
         if landed
@@ -88,9 +88,8 @@ impl PrLanded {
             return None;
         }
         store();
-        let at = crate::ui::now_ms();
-        landed.insert(thread, (url.to_owned(), at));
-        Some(at)
+        landed.insert(thread, (url.to_owned(), asked));
+        Some(asked)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<i64, (String, i64)>> {
@@ -254,7 +253,8 @@ impl Workspace {
 
     /// Reads `jobs` one after another off the UI thread; `started` is the batch mark it clears when done.
     fn read_prs(&mut self, jobs: Vec<Job>, started: Option<i64>, cx: &mut Context<Self>) {
-        // A read asked before another one landed is older news: dropped, from the store and the UI alike.
+        // Each read is stamped with when it started: one that started before the one taken last is older news,
+        // dropped from the store and the UI alike.
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         let (config, store, landed) = (
@@ -375,22 +375,22 @@ pub(super) fn badge(t: &skyelab_store::Thread, url: &str, cx: &gpui::App) -> PrB
 }
 
 /// T3's PR state glyphs and tones: open green, draft muted, merged violet, closed red; unread muted.
-pub(crate) fn state_look(state: Option<PrState>, theme: &Theme) -> (IconName, Hsla, &'static str) {
+pub(crate) fn state_look(state: Option<PrState>, theme: &Theme) -> (SkyeIcon, Hsla, &'static str) {
     match state {
-        None => (IconName::GitPullRequest, theme.muted_foreground, ""),
+        None => (SkyeIcon::GitPullRequest, theme.muted_foreground, ""),
         Some(PrState::Open) => (
-            IconName::GitPullRequest,
+            SkyeIcon::GitPullRequest,
             ui::ink(theme, theme.success),
             "Open",
         ),
         Some(PrState::Draft) => (
-            IconName::GitPullRequestDraft,
+            SkyeIcon::GitPullRequestDraft,
             theme.muted_foreground,
             "Draft",
         ),
-        Some(PrState::Merged) => (IconName::GitMerge, ui::ink(theme, theme.magenta), "Merged"),
+        Some(PrState::Merged) => (SkyeIcon::GitMerge, ui::ink(theme, theme.magenta), "Merged"),
         Some(PrState::Closed) => (
-            IconName::GitPullRequestClosed,
+            SkyeIcon::GitPullRequestClosed,
             ui::ink(theme, theme.danger),
             "Closed",
         ),
@@ -398,21 +398,21 @@ pub(crate) fn state_look(state: Option<PrState>, theme: &Theme) -> (IconName, Hs
 }
 
 /// The checks' glyph and tone, `None` when the PR has no checks.
-pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hsla, &'static str)> {
+pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(SkyeIcon, Hsla, &'static str)> {
     match checks {
         Checks::None => None,
         Checks::Passing => Some((
-            IconName::CircleCheck,
+            SkyeIcon::CircleCheck,
             ui::ink(theme, theme.success),
             "Checks passing",
         )),
         Checks::Pending => Some((
-            IconName::CircleDot,
+            SkyeIcon::CircleDot,
             ui::ink(theme, theme.warning),
             "Checks running",
         )),
         Checks::Failing => Some((
-            IconName::CircleX,
+            SkyeIcon::CircleX,
             ui::ink(theme, theme.danger),
             "Checks failing",
         )),
@@ -423,21 +423,21 @@ pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hs
 pub(crate) fn review_look(
     review: skyelab_git::Review,
     theme: &Theme,
-) -> Option<(IconName, Hsla, &'static str)> {
+) -> Option<(SkyeIcon, Hsla, &'static str)> {
     use skyelab_git::Review;
     match review {
         Review::None => None,
         Review::Approved => Some((
-            IconName::UserCheck,
+            SkyeIcon::UserCheck,
             ui::ink(theme, theme.success),
             "Approved",
         )),
         Review::ChangesRequested => Some((
-            IconName::UserRoundX,
+            SkyeIcon::UserRoundX,
             ui::ink(theme, theme.warning),
             "Changes requested",
         )),
-        Review::Required => Some((IconName::User, theme.muted_foreground, "Awaiting review")),
+        Review::Required => Some((SkyeIcon::User, theme.muted_foreground, "Awaiting review")),
     }
 }
 

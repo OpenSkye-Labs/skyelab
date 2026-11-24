@@ -4,7 +4,8 @@
 use super::widgets::{path_line, path_text, section};
 use super::*;
 use crate::ui;
-use gpui_component::{Icon, IconName, h_flex, v_flex};
+use crate::ui::SkyeIcon;
+use gpui_component::{Icon, h_flex, v_flex};
 
 /// Why a stale binding stops agents, in one sentence.
 fn stale_reason(confirmed: bool, resolves: bool) -> &'static str {
@@ -111,7 +112,7 @@ impl Settings {
                     .gap_3()
                     .child(
                         div().pt_0p5().child(
-                            Icon::new(IconName::Folder)
+                            Icon::new(SkyeIcon::Folder)
                                 .size_4()
                                 .text_color(theme.muted_foreground),
                         ),
@@ -148,7 +149,7 @@ impl Settings {
                             .w(gpui::px(200.))
                             .gap_2()
                             .child(
-                                Icon::new(IconName::ArrowRight)
+                                Icon::new(SkyeIcon::ArrowRight)
                                     .size_3p5()
                                     .text_color(theme.muted_foreground),
                             )
@@ -156,7 +157,7 @@ impl Settings {
                     )
                     .child(
                         Button::new(SharedString::from(format!("unbind-{id}")))
-                            .icon(gpui_kit_assets::IconName::Unlink)
+                            .icon(SkyeIcon::Unlink)
                             .tooltip("Remove binding")
                             .small()
                             .ghost()
@@ -203,7 +204,7 @@ impl Settings {
                 .child(
                     Button::new("bind-folder")
                         .label("Choose folder…")
-                        .icon(IconName::FolderOpen)
+                        .icon(SkyeIcon::FolderOpen)
                         .small()
                         .primary()
                         .on_click(cx.listener(|this, _, window, cx| {

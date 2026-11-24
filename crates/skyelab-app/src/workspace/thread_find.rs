@@ -7,12 +7,13 @@ use super::thread_items::ItemsView;
 use super::thread_model::Item;
 use super::timeline_fold::{fold_key, folded_by};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, KeyBinding, ListState, Subscription, Window,
     actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, IconName, Sizable as _,
+    ActiveTheme as _, Disableable as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -268,7 +269,7 @@ pub(super) fn find_bar<V: 'static>(
     let query = input.read(cx).value().to_string();
     let theme = cx.theme();
     let none = !query.trim().is_empty() && f.matches.is_empty();
-    let step_button = |id: &'static str, icon: IconName, forward: bool| {
+    let step_button = |id: &'static str, icon: SkyeIcon, forward: bool| {
         Button::new(id)
             .ghost()
             .xsmall()
@@ -313,13 +314,13 @@ pub(super) fn find_bar<V: 'static>(
                             })
                             .child(f.count(&query)),
                     )
-                    .child(step_button("find-prev", IconName::ChevronUp, false))
-                    .child(step_button("find-next", IconName::ChevronDown, true))
+                    .child(step_button("find-prev", SkyeIcon::ChevronUp, false))
+                    .child(step_button("find-next", SkyeIcon::ChevronDown, true))
                     .child(
                         Button::new("find-close")
                             .ghost()
                             .xsmall()
-                            .icon(IconName::Close)
+                            .icon(SkyeIcon::Close)
                             .on_click(
                                 cx.listener(move |this, _, window, cx| close(this, window, cx)),
                             ),

@@ -239,3 +239,75 @@ fn codex_thread_continues_in_claude(cx: &mut TestAppContext) {
     rebind(&f, &ws, Some("acme"), cx);
     hand_off_and_send(&f, &ws, &src, Provider::Claude, "acme", cx);
 }
+
+fn handoffs(f: &Fixture, project_id: i64, src: i64) -> Vec<skyelab_store::Thread> {
+    let s = f.store.lock().expect("lock");
+    let rows = s.list_threads(project_id).expect("list");
+    rows.into_iter()
+        .filter(|t| t.forked_from == Some(src))
+        .collect()
+}
+
+#[gpui::test]
+fn handoff_dispatched_twice_creates_one_thread(cx: &mut TestAppContext) {
+    setup(cx);
+    cx.update(|cx| cx.set_global(CodexBin(fake_codex())));
+    let f = fixture(true);
+    bind(&f, Some("acme"));
+    let (ws, cx) = open_workspace(&f, cx);
+    let src = project_thread(&f, &ws, cx);
+    type_and_send(&src, cx);
+    wait_done(&src, cx);
+    rebind(&f, &ws, Some("oai"), cx);
+    let (project_id, src_id) = src.read_with(cx, |t, _| {
+        (t.project_id, t.thread.as_ref().expect("row").id)
+    });
+    // Both clicks land before the first handoff's background work does.
+    cx.update(|window, cx| {
+        for _ in 0..2 {
+            window.dispatch_action(
+                Box::new(HandOffThread {
+                    id: src_id,
+                    to: Provider::Codex,
+                }),
+                cx,
+            );
+        }
+    });
+    cx.run_until_parked();
+    let n = handoffs(&f, project_id, src_id).len();
+    assert_eq!(n, 1, "DOUBLE_HANDOFF created {n} threads");
+}
+
+#[gpui::test]
+fn handoff_keeps_the_source_worktree(cx: &mut TestAppContext) {
+    setup(cx);
+    cx.update(|cx| cx.set_global(CodexBin(fake_codex())));
+    let f = fixture(true);
+    bind(&f, Some("acme"));
+    let (ws, cx) = open_workspace(&f, cx);
+    let src = project_thread(&f, &ws, cx);
+    let project_id = src.read_with(cx, |t, _| t.project_id);
+    let wt = f.project_dir.join(".skyelab/worktrees/feat");
+    std::fs::create_dir_all(&wt).expect("worktree dir");
+    let wt_row = (f.store.lock().expect("lock"))
+        .create_thread(&skyelab_store::NewThread {
+            project_id,
+            title: "feat",
+            cwd: &wt,
+            account_id: "acme",
+            status: "stopped",
+        })
+        .expect("worktree thread");
+    rebind(&f, &ws, Some("oai"), cx);
+    cx.dispatch_action(HandOffThread {
+        id: wt_row.id,
+        to: Provider::Codex,
+    });
+    wait_until(cx, "the handoff row", |_| {
+        !handoffs(&f, project_id, wt_row.id).is_empty()
+    });
+    let row = handoffs(&f, project_id, wt_row.id).remove(0);
+    assert_eq!(row.account_id, "oai");
+    assert_eq!(row.cwd, wt, "HANDOFF_LOST_WORKTREE");
+}

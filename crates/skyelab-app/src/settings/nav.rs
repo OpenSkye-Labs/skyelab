@@ -3,7 +3,8 @@
 
 use super::page::GROUPS;
 use super::*;
-use gpui_component::{Icon, IconName, h_flex, kbd::Kbd, v_flex};
+use crate::ui::SkyeIcon;
+use gpui_component::{Icon, h_flex, kbd::Kbd, v_flex};
 
 /// Every setting the search finds: its section, its row title, and other words it answers to.
 const INDEX: &[(Section, &str, &str)] = &[
@@ -223,7 +224,7 @@ impl Settings {
                         .rounded(crate::ui::RADIUS)
                         .hover(|s| s.bg(theme.sidebar_accent.opacity(0.6)))
                         .child(
-                            Icon::new(IconName::Search)
+                            Icon::new(SkyeIcon::Search)
                                 .size_4()
                                 .text_color(theme.muted_foreground),
                         )

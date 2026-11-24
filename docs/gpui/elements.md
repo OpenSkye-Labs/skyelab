@@ -15,9 +15,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   (no change). Put the handler on the row only and leave the checkbox as its picture.
 - `items_baseline()` puts a box with no text (a status dot) on the line's baseline, so it sits below the text's
   middle. A row that mixes a dot or icon with text uses `items_center()`; keep baseline for text-only rows.
-- Every `IconName` compiles, but only gpui-kit-assets' default set and the icons listed in `ui::ExtraIcons`
-  (`icon_assets!` in `ui/mod.rs`) ship; any other draws nothing, with no error. Add a new icon to that list in the
-  same change, and look for it in a live screenshot.
+- Register app SVGs in `ui/icons.rs` and use `SkyeIcon` at the call site. The registry
+  embeds the file and supplies the same path to `AppAssets::load` and `AppAssets::list`.
+  GPUI tints the SVG with the element's text color. Check the glyph in a live screenshot.
 - Text input is not built into GPUI. Use `gpui_component::input`, never hand-roll `EntityInputHandler`.
 - `img()` takes its height from its width and the image's aspect ratio, even with `.h(..)` set: a wide box draws a
   square image as tall as the box is wide. Cap it with `.max_h(..)` (the image viewer does), and check a fit in a live
