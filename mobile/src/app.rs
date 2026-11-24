@@ -1,5 +1,8 @@
 use crate::text::connection_text;
+use appearance::follow_appearance;
 
+#[path = "appearance.rs"]
+mod appearance;
 #[path = "ask_rows.rs"]
 pub mod ask_rows;
 #[path = "thread_screen.rs"]
@@ -14,7 +17,7 @@ use gpui::{
     Subscription, Task, Window, WindowOptions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Root, Theme,
+    ActiveTheme as _, Root,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -87,6 +90,8 @@ pub struct MobileApp {
     expanded: HashSet<String>,
     /// AskUserQuestion picks not sent yet: request id → per question, the option indexes.
     drafts: HashMap<String, Vec<BTreeSet<usize>>>,
+    /// The text fields of questions that have no options to pick: (request id, question index) → field.
+    typed: HashMap<(String, usize), Entity<InputState>>,
     /// Event rows built so far, so tests can check a frame builds only the visible ones.
     pub rows_built: usize,
     _subscriptions: [Subscription; 3],
@@ -139,6 +144,7 @@ impl MobileApp {
             usage: Usage::default(),
             expanded: HashSet::new(),
             drafts: HashMap::new(),
+            typed: HashMap::new(),
             rows_built: 0,
             _subscriptions,
         }
@@ -416,6 +422,7 @@ impl Render for MobileApp {
         // Keep clear of the status bar, notch, home indicator and (on iOS) the keyboard.
         let safe = window.insets().effective();
         self.sync_items();
+        self.ensure_typed(window, cx);
         let body = match self.screen {
             Screen::Picker => self.picker(cx),
             Screen::Threads => self.thread_list(cx),
@@ -482,27 +489,6 @@ impl Render for MobileApp {
             .children(source_error.map(|e| div().text_sm().text_color(theme.danger).child(e)))
             .child(v_flex().flex_1().min_h_0().child(body))
     }
-}
-
-/// The theme the phone's appearance asks for. Debug builds: `SKYELAB_VERIFY_THEME=dark|light` forces one, so a
-/// screenshot can be taken in each without changing the device setting.
-fn follow_appearance(window: &mut Window, cx: &mut App) {
-    let forced = match std::env::var("SKYELAB_VERIFY_THEME").as_deref() {
-        Ok("dark") if cfg!(debug_assertions) => Some(gpui_component::ThemeMode::Dark),
-        Ok("light") if cfg!(debug_assertions) => Some(gpui_component::ThemeMode::Light),
-        _ => None,
-    };
-    match forced {
-        Some(mode) => Theme::change(mode, Some(window), cx),
-        None => Theme::sync_system_appearance(Some(window), cx),
-    }
-    // gpui_ios keeps dark status-bar text unless told: light text on the dark theme.
-    #[cfg(target_os = "ios")]
-    gpui_ios::ios::set_status_bar_style(if cx.theme().mode.is_dark() {
-        gpui_ios::StatusBarContentStyle::Light
-    } else {
-        gpui_ios::StatusBarContentStyle::Dark
-    });
 }
 
 /// The app body both platform entry points run. `data_dir` is where the environment name and pinned nodes live.

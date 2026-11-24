@@ -111,12 +111,12 @@ fn a_question_needs_a_pick_before_submit() {
     ]}));
     let none = Vec::new();
     assert_eq!(
-        answers(&qs, &none),
+        answers(&qs, &none, &[]),
         Err("Pick an answer to \"One?\".".into())
     );
     let picked = vec![[1].into_iter().collect(), [0, 1].into_iter().collect()];
     assert_eq!(
-        answers(&qs, &picked),
+        answers(&qs, &picked, &[]),
         Ok(vec![vec!["y".into()], vec!["p".into(), "q".into()]])
     );
 }

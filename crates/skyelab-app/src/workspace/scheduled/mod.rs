@@ -49,6 +49,9 @@ const TICK: Duration = Duration::from_secs(15);
 const MISSED: &str = "Missed while SkyeLab wasn't running; skipped (Settings → Scheduled tasks).";
 const STILL_RUNNING: &str = "Its last run was still going, so this one was skipped.";
 
+/// Opens a workspace window, as the dock does with none open.
+pub(crate) type Opener = Rc<dyn Fn(&mut App)>;
+
 #[derive(Default)]
 pub(crate) struct Scheduler {
     settings: ScheduledSettings,
@@ -64,7 +67,7 @@ pub(crate) struct Scheduler {
     /// The store the hub window served, so ticks still read the tasks when every window is closed (macOS).
     store: Option<SharedStore>,
     /// Opens a window (as the dock does) for a run that comes due while none is open.
-    opener: Option<Rc<dyn Fn(&mut App)>>,
+    opener: Option<Opener>,
     _tick: Option<Task<()>>,
 }
 
@@ -83,7 +86,7 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
 }
 
 /// How a tick opens a window when a run comes due with none open.
-pub(crate) fn set_opener(open: Rc<dyn Fn(&mut App)>, cx: &mut App) {
+pub(crate) fn set_opener(open: Opener, cx: &mut App) {
     cx.default_global::<Scheduler>().opener = Some(open);
 }
 
