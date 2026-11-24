@@ -141,7 +141,7 @@ fn open_with(
         p.find_more(cx);
         p
     });
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     cx.set_global(OpenPalette(palette.downgrade()));
     window.open_dialog(cx, move |dialog, _, _| {
         let palette = palette.clone();
@@ -249,14 +249,14 @@ impl Palette {
 gpui::actions!(skyelab, [CompleteFolder]);
 
 /// Tests: the palette opened last.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 struct OpenPalette(WeakEntity<Palette>);
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 impl gpui::Global for OpenPalette {}
 
 /// Tests: what the open palette shows.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct Shown {
     /// The page's title, `None` at the root.
@@ -268,7 +268,7 @@ pub struct Shown {
     pub selected: Option<usize>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 pub fn shown(cx: &App) -> Option<Shown> {
     let p = cx.try_global::<OpenPalette>()?.0.upgrade()?;
     let p = p.read(cx);
