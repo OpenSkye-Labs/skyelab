@@ -5,13 +5,10 @@
 use super::mermaid::{Block, Palette, Render};
 use super::tool_cards;
 use crate::ui;
+use crate::ui::Button;
 use gpui::{AnyElement, App, ObjectFit, SharedString, Window, div, img, prelude::*, px, relative};
 use gpui_component::text::MarkdownNode;
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 /// The markdown block renderer for [`super::mermaid::NODE`] nodes.
 pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> AnyElement {

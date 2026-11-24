@@ -5,13 +5,26 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Anything interactive (click, hover, scroll, drag) needs `.id(..)` for a stable `ElementId`. Ids must be unique among
   siblings. Use the domain id (thread id, path), not the loop index.
 - Long lists: `uniform_list` for fixed-height rows, `list` + `ListState` for variable height. Never `.children(10_000 items)`.
-- Use `gpui-component` before building a widget: `Input`, `Button`, `List`, `Table`, `Dock`, `Tabs`, `Dialog`, `Notification`,
-  `Markdown`, the code editor. Only drop to raw `div()` for layout.
+- Controls come from `crate::ui` ([docs/design/components.md](../design/components.md)): `Button`, `icon_button`,
+  `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`, `Kbd`, `Tooltip`, `Card`, `Divider`. Use gpui-component
+  for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Notification`, `Markdown`, the code
+  editor). Only drop to raw `div()` for layout.
+- A `ui` component is a `#[derive(IntoElement)]` + `RenderOnce` builder: no entity, no `cx.notify()`, no state across
+  frames. Hover and press are GPUI styles (`.hover(..)`, `.active(..)`, `.focus_visible(..)`), never a hovered flag in
+  view state. Build ids from the domain (`SharedString`, `(name, ix)` tuples), never `format!` in a row that redraws often.
+  Only a tooltip is a view, built when the pointer rests. Colors come from one function per component over theme
+  fields, and geometry from `ui::Size`.
+- `ui::Button` is gpui-base's headless `Button` (role, focus, Enter/Space, the disabled click guard) styled by us. It
+  takes the caller's own style (`.w_full()`, `.rounded(..)`) after its own, so the caller wins, and on mouse down it
+  calls `window.prevent_default()` so a press never moves focus off the field being typed in
+  (`ui/button_test.rs`). Without that, clicking any composer button blurs the prompt.
+- gpui-component's `DropdownMenu` works for any `Styled + Selectable + InteractiveElement` trigger, so
+  `impl DropdownMenu for ui::Button {}` keeps `.dropdown_menu(..)` on our own button.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
-- gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
+- gpui-component's `DialogClose` (0.10 and 0.11) wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.
-- A click on a gpui-component `Checkbox` also reaches a clickable row around it, so handlers on both toggle twice
+- A click on a `ui::Checkbox` or `ui::Switch` also reaches a clickable row around it, so handlers on both toggle twice
   (no change). Put the handler on the row only and leave the checkbox as its picture.
 - `items_baseline()` puts a box with no text (a status dot) on the line's baseline, so it sits below the text's
   middle. A row that mixes a dot or icon with text uses `items_center()`; keep baseline for text-only rows.
@@ -30,7 +43,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Hover-only buttons over a row (settle, snooze): `.group(name)` on the row, the buttons `absolute()` with
   `.invisible().group_hover(name, |s| s.visible())` and the text under them `group_hover(.., |s| s.invisible())`. A
   hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A
-  gpui-component `Button`'s click bubbles on (it stops propagation only while loading), so wrap the buttons in a div
+  button's click bubbles on (`ui::Button` stops propagation only while loading), so wrap the buttons in a div
   whose `on_click` calls `cx.stop_propagation()`, or a click also opens the row.
 - A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
   `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after
@@ -49,7 +62,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `anchored().position(click).anchor(Anchor::BottomLeft).snap_to_window_with_margin(..)`. The backdrop eats the press,
   so a second click on the trigger closes the menu instead of closing and reopening it, and nothing under it reacts.
   The trigger passes `ClickEvent::position()` in its action, since only it knows where it was drawn. The card itself
-  stops `on_mouse_down` propagation so its own rows don't reach the backdrop. In gpui-pre 0.3.12 the corner enum is
+  stops `on_mouse_down` propagation so its own rows don't reach the backdrop. In gpui-pre 0.3.12 and 0.3.14 the corner enum is
   `gpui::Anchor`, not `Corner`.
 - A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
   `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight

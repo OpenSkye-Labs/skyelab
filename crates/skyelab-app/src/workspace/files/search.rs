@@ -3,15 +3,16 @@
 
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Subscription, Task, Window, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
+    ActiveTheme as _, Icon,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
-    input::{Input, InputEvent, InputState},
+    input::{InputEvent, InputState},
     v_flex,
 };
 use skyelab_core::files::{Found, search};
@@ -307,7 +308,7 @@ impl Render for SearchPanel {
             .bg(theme.background)
             .child(
                 div().p_2().child(
-                    Input::new(&self.input).small().cleanable(true).prefix(
+                    TextField::new(&self.input).small().cleanable(true).prefix(
                         Icon::new(SkyeIcon::Search)
                             .size_3p5()
                             .text_color(theme.muted_foreground),

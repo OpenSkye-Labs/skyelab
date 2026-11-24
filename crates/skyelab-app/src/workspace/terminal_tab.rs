@@ -4,6 +4,7 @@
 use super::terminal_panel::{Pane, TabEvent, TerminalPanel};
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui::{
     App, ClickEvent, Context, EventEmitter, Focusable as _, IntoElement, KeyBinding, SharedString,
     Window, actions, div, prelude::*, px,
@@ -12,7 +13,7 @@ use gpui_component::{
     ActiveTheme as _, Icon, Sizable as _,
     dock::{BasePanel, Panel, PanelControl, PanelEvent},
     h_flex,
-    input::{Input, InputEvent, InputState},
+    input::{InputEvent, InputState},
 };
 
 actions!(skyelab, [CancelTerminalRename]);
@@ -101,7 +102,7 @@ impl TerminalPanel {
                 .key_context(RENAME)
                 .on_action(cx.listener(Self::cancel_rename))
                 .w(px(140.))
-                .child(Input::new(input).xsmall())
+                .child(TextField::new(input).xsmall())
                 .into_any_element(),
             None => div()
                 .id("terminal-title")

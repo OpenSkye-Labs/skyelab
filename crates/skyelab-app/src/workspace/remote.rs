@@ -9,14 +9,11 @@ use crate::remote::{
     AllowDevice, DenyDevice, DisconnectPeer, OpenRemote, Remote, RemoteCall, RemotePanel, Reply,
     RevokeDevice, ToggleSharing,
 };
+use crate::ui::Button;
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Subscription, Task, Window, div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex};
 use skyelab_protocol::{ErrorCode, RpcError};
 use std::time::Duration;
 

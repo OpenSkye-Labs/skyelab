@@ -7,15 +7,12 @@ use super::thread::{ThreadView, ThreadViewEvent};
 use super::thread_model::Item;
 use super::{OpenThread, SharedStore, Workspace, lock};
 use crate::ui;
+use crate::ui::Button;
 use gpui::{
     AppContext as _, Context, Entity, FocusHandle, Focusable, FontWeight, SharedString,
     Subscription, Task, WeakEntity, Window, div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use std::collections::{HashMap, HashSet};
 
 pub struct CompareView {

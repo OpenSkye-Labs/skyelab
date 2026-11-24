@@ -3,9 +3,11 @@
 
 use super::Settings;
 use super::widgets::{section, setting};
+use crate::ui::Switch;
+use crate::ui::TextField;
 use crate::workspace::thread_extras::prefs;
 use gpui::{AnyElement, Context, div, prelude::*};
-use gpui_component::{Sizable as _, h_flex, input::Input, switch::Switch, v_flex};
+use gpui_component::{h_flex, v_flex};
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS, Mode};
 use skyelab_core::thread_defaults::ThreadField;
 use skyelab_core::{DiffSettings, ThreadSettings};
@@ -142,7 +144,7 @@ impl Settings {
                     .child(
                         div()
                             .w(gpui::px(160.))
-                            .child(Input::new(&self.codex_model_input).small()),
+                            .child(TextField::new(&self.codex_model_input).small()),
                     )
                     .child(self.field_choice(
                         "threads-codex-effort",

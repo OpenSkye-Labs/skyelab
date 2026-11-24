@@ -1,6 +1,7 @@
 //! Restart agent session: end the agent so the next send resumes its session in a new process.
 
 use super::{RestartAgentSession, ThreadView};
+use crate::ui::Button;
 use gpui::{Context, ParentElement as _, Window};
 
 impl ThreadView {
@@ -12,9 +13,7 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_component::{
-            Sizable as _, WindowExt as _, button::Button, button::ButtonVariants as _,
-        };
+        use gpui_component::WindowExt as _;
         if self.starting {
             // The process starting now reads the account's config as it is: nothing to restart yet.
             return super::super::manage::push_note(

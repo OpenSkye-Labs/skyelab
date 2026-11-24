@@ -17,7 +17,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Work that answers an outside caller (a delegated start's reply) never lives in one window's view: a
   `Global` holds the state and App-level `cx.observe` waits, so closing the window that took the call loses
   neither the answer nor the request id → thread map.
-- gpui-component 0.10's input keeps its undo stack private (`InputBaseState::undo_manager` is `pub(super)`, no
+- gpui-component's input (0.10; gpui-base in 0.11) keeps its undo stack private (`InputBaseState::undo_manager` is `pub(super)`, no
   getter or setter), and its focus and blink hooks are bound to the window that made it. A prompt moving windows is
   a new `TextareaState` with the same text: the undo history starts over (Undo then does nothing, never empties it).
   Keep anything else the draft has (files, chips) on the view, not in the input.

@@ -5,19 +5,16 @@ use super::form::Kind;
 use super::page::{Editor, Pick, Row, ScheduledPage};
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::{Button, Checkbox, Switch, TextField};
 use crate::workspace::OpenThread;
 use gpui::{
     AnyElement, Context, IntoElement, ParentElement as _, Render, SharedString, Styled as _,
     Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
-    h_flex,
-    input::{Input, Textarea},
+    ActiveTheme as _, Icon, h_flex,
+    input::Textarea,
     menu::{DropdownMenu as _, PopupMenuItem},
-    switch::Switch,
     v_flex,
 };
 use skyelab_agent::Mode;
@@ -233,17 +230,17 @@ impl ScheduledPage {
             .border_color(theme.border)
             .bg(theme.popover)
             .child(ui::section_title(if d.id == 0 { "New task" } else { "Edit task" }, theme))
-            .child(h_flex().gap_3().child(div().flex_1().child(field("Name", Input::new(&e.title).small().into_any_element()))).child(field("Project", menu("sched-project", project_name, projects).into_any_element())))
+            .child(h_flex().gap_3().child(div().flex_1().child(field("Name", TextField::new(&e.title).small().into_any_element()))).child(field("Project", menu("sched-project", project_name, projects).into_any_element())))
             .child(field("Prompt", Textarea::new(&e.prompt).into_any_element()))
             .child(
                 h_flex()
                     .gap_3()
                     .items_end()
                     .child(field("Schedule", menu("sched-kind", d.kind.label().to_owned(), kinds).into_any_element()))
-                    .child(div().w(gpui::px(160.)).child(field(if d.kind == Kind::Cron { "Expression" } else { "Value" }, Input::new(&e.value).small().into_any_element())))
+                    .child(div().w(gpui::px(160.)).child(field(if d.kind == Kind::Cron { "Expression" } else { "Value" }, TextField::new(&e.value).small().into_any_element())))
                     .child(field("Runs in", menu("sched-where", where_label.to_owned(), places).into_any_element()))
                     .child(field("Permissions", menu("sched-mode", ScheduledPage::mode_label(d.mode).to_owned(), modes).into_any_element()))
-                    .child(div().w(gpui::px(160.)).child(field("Model", Input::new(&e.model).small().into_any_element()))),
+                    .child(div().w(gpui::px(160.)).child(field("Model", TextField::new(&e.model).small().into_any_element()))),
             )
             .when(d.mode == Mode::Bypass, |this| {
                 this.child(

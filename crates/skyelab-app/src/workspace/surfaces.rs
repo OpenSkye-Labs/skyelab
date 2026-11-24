@@ -4,6 +4,7 @@
 use super::thread::ThreadView;
 use super::{NewTerminal, OpenBrowser, OpenDevices, Workspace, files::SearchFiles};
 use crate::ui;
+use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding,
@@ -12,9 +13,7 @@ use gpui::{
 use gpui_component::{
     ActiveTheme as _, Icon,
     dock::{BasePanel, Panel, PanelControl, PanelEvent},
-    h_flex,
-    kbd::Kbd,
-    v_flex,
+    h_flex, v_flex,
 };
 
 actions!(skyelab, [OpenThreadChanges, OpenThreadPr, OpenSideChat]);

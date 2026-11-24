@@ -2,6 +2,7 @@
 //! numbers, syntect highlighting) at the asked line; images draw as images; binary and huge files get a note.
 
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use anyhow::Context as _;
 use gpui::{
@@ -9,8 +10,7 @@ use gpui::{
     SharedString, Task, Window, div, img, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
+    ActiveTheme as _,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{Editor, EditorState, Position},

@@ -6,8 +6,9 @@ use super::sidebar_rows::{THREAD_INDENT, scope_button, section_button, sidebar_r
 use super::sidebar_views::views_button;
 use super::*;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui::{AnyElement, ListAlignment, ListOffset, ListState, Subscription, list};
-use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::input::{InputEvent, InputState};
 
 /// Which account a project row runs on.
 #[derive(Clone)]
@@ -446,7 +447,7 @@ impl Render for Sidebar {
                         .gap_1()
                         .child(
                             div().flex_1().min_w_0().child(
-                                Input::new(&self.search).small().cleanable(true).prefix(
+                                TextField::new(&self.search).small().cleanable(true).prefix(
                                     Icon::new(SkyeIcon::Search)
                                         .size_3p5()
                                         .text_color(theme.muted_foreground),

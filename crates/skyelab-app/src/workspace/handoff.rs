@@ -3,6 +3,7 @@
 //! ([`skyelab_agent::handoff`]). A folder has one binding, so a handoff starts only once the folder is bound to an
 //! account of that provider; until then the user is asked to bind it. Never another account.
 
+use crate::ui::Button;
 use crate::workspace::thread::ThreadView;
 use crate::workspace::{OpenSettingsSection, OpenThread, Workspace, lock};
 use anyhow::{Context as _, bail};
@@ -10,11 +11,7 @@ use gpui::{
     Action, AnyElement, AppContext as _, Context, InteractiveElement, IntoElement as _,
     ParentElement as _, SharedString, Window, actions, div,
 };
-use gpui_component::{
-    Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    dialog::DialogFooter,
-};
+use gpui_component::{WindowExt as _, dialog::DialogFooter};
 use skyelab_agent::{handoff, timeline::Record};
 use skyelab_core::Provider;
 use skyelab_store::{NewThread, Thread};

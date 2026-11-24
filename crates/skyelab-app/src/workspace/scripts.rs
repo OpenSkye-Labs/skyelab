@@ -6,19 +6,13 @@ use super::lock;
 use super::thread::{ThreadView, ThreadViewEvent};
 use super::{SharedStore, Workspace};
 use crate::ui;
+use crate::ui::{Button, Checkbox, TextField};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
     Action, AppContext as _, Context, Entity, FontWeight, SharedString, Task, WeakEntity, Window,
     div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
-    h_flex,
-    input::{Input, InputState},
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, input::InputState, v_flex};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::ProjectScript;
 use skyelab_terminal::SpawnOptions;
@@ -385,8 +379,8 @@ impl Render for ScriptMenu {
             })
             .children(rows)
             .child(caption("Add a script"))
-            .child(Input::new(&self.name).small())
-            .child(Input::new(&self.command).small())
+            .child(TextField::new(&self.name).small())
+            .child(TextField::new(&self.command).small())
             .child(
                 h_flex()
                     .gap_2()

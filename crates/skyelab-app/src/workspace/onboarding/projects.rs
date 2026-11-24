@@ -4,13 +4,10 @@
 use super::Onboarding;
 use super::render::{card, home_relative, name_and_folder, step};
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{Context, Div, FontWeight, ParentElement as _, SharedString, div, prelude::*, px};
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 impl Onboarding {
     pub(super) fn projects_step(&self, cx: &mut Context<Self>) -> Div {

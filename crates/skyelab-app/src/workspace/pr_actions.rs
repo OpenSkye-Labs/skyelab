@@ -8,18 +8,17 @@ use super::usage_page_render::segments;
 use super::worktree::resolves_to;
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::{Button, Checkbox, TextField};
 use anyhow::bail;
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Task, Window, div,
     prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
+    ActiveTheme as _, Icon, Sizable as _, WindowExt as _,
     dialog::DialogFooter,
     h_flex,
-    input::{Input, InputEvent, InputState},
+    input::{InputEvent, InputState},
     v_flex,
 };
 use skyelab_core::AccountsConfig;
@@ -337,7 +336,7 @@ impl PrActions {
             .child(methods)
             .child(
                 Checkbox::new("pr-delete-branch")
-                    .small()
+                    .xsmall()
                     .label("Delete the branch on GitHub")
                     .checked(delete)
                     .on_click(cx.listener(|this, on: &bool, _, cx| {
@@ -374,7 +373,7 @@ impl PrActions {
         v_flex()
             .gap_2()
             .child(section("Review", theme))
-            .child(Input::new(&self.body).small().disabled(self.busy))
+            .child(TextField::new(&self.body).small().disabled(self.busy))
             .child(
                 h_flex()
                     .gap_2()

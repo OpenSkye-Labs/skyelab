@@ -8,16 +8,13 @@ use super::orchestrate::Reply;
 use super::thread_items::ItemsView;
 use super::thread_model::ToolItem;
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, FontWeight, Global, Hsla, Image,
     ImageFormat, IntoElement, Render, SharedString, Window, div, img, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _, Theme, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Theme, WindowExt as _, h_flex, v_flex};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::{HTML_COLUMN_WIDTH, HTML_MAX_CHARS};
 use skyelab_browser::page::{self, MAX_SHOT_HEIGHT, Page, PageTheme};

@@ -162,12 +162,14 @@ Tinted surfaces (`--warning-surface`, `--error-surface`) are the color at 8% (li
   `RADIUS_XL` 16), type in rems of the theme font size (`META` 12, `CODE` 13, `BODY` 14, `SECTION` 16, `PAGE` 20 at the default 14), geometry (`ROW_H` 32, `HEADER_H` 52,
   `CHAT_MAX_W` 736, `PAGE_MAX_W` 896). `ui::ink` darkens a status color for text in light themes (T3's 700 shades).
 - **Components** in `ui/components.rs`: `row` (sidebar menu row), `SectionHeader` (caption + rule + trailing control),
-  `StatusDot`, `Pill` (T3 badge), `EmptyState` (§7; `.page()` for the large one), `KeyHint` (label + gpui-component
-  `Kbd`), `Monogram`, `header` (52 px view header), `page_title`, `section_title`, `group`/`group_row` (settings groups),
+  `StatusDot`, `Pill` (T3 badge), `EmptyState` (§7; `.page()` for the large one), `KeyHint` (label + `ui::Kbd`), `Monogram`, `header` (52 px view header), `page_title`, `section_title`, `group`/`group_row` (settings groups),
   `mono`, `AccountBadge`.
-- **gpui-component reused as is:** `Button` (ghost/outline/primary; xsmall = 24, small = 28), `Kbd`, `Input`/`Textarea`
-  (with `appearance(false)` inside the composer), `Checkbox`, `Switch`, `Tooltip`, `IconName` icons (needs
-  `gpui-kit-assets` registered), the dock's tab bar (styled through `tab_bar.*`/`tab.*` theme fields).
+- **Controls are SkyeLab's own** ([components.md](components.md)): `Button` (primary/secondary/ghost/outline/danger/
+  warning; `Size` xs 24, sm 28, md 32), `icon_button`, `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`,
+  `Kbd`, `Tooltip`, `Card`, `Divider` and the dialog shell, each matching §6, shown together in the debug UI Gallery.
+- **gpui-component reused as is:** `Input`/`Textarea` (inside `TextField`, or bare with `appearance(false)` inside the
+  composer), the popup menu, `Dialog`, `Notification`, `HoverCard`, `IconName` icons (needs `gpui-kit-assets`
+  registered), the dock's tab bar (styled through `tab_bar.*`/`tab.*` theme fields).
 - **SkyeLab's one addition: the account badge.** T3 has no account concept. Ours follows T3's context chip: inline,
   no box in sidebar rows (6 px dot in the account's color, label `font-medium`), and a 20 px tinted chip (color 12%,
   radius 4, like T3's badge, plus the provider in muted text) where it labels a surface: thread header, composer,

@@ -6,16 +6,14 @@ use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::{Button, Tooltip};
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*,
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
+    ActiveTheme as _, Icon, h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
-    tooltip::Tooltip,
     v_flex,
 };
 

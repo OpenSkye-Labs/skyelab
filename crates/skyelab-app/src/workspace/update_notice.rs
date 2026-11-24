@@ -2,14 +2,11 @@
 //! install's progress, Restart to update, or what failed. Shown only while `updates` has one.
 
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::updates::{Step, UpdateStatus, Updates};
 use gpui::{AnyElement, App, IntoElement, ParentElement as _, Styled as _, div, px, relative};
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 pub(super) fn notice(cx: &App) -> Option<AnyElement> {
     let (tag, step) = match &cx.try_global::<Updates>()?.status {

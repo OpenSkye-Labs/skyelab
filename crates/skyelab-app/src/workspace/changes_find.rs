@@ -2,14 +2,13 @@
 //! and find in diff (mod+F while the tab is focused, the thread's find bar).
 
 use super::ChangesView;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::workspace::changes_model::Row;
 use crate::workspace::thread_find::{CloseFind, Find, FindNext, FindPrevious, find_bar};
 use gpui::{AnyElement, App, AppContext as _, Context, KeyBinding, Window, actions, prelude::*};
 use gpui_component::{
-    Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
+    Icon, h_flex,
     input::{InputEvent, InputState},
 };
 use skyelab_core::DiffSettings;

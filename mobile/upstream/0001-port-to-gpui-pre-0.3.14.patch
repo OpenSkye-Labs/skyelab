@@ -1,5 +1,5 @@
 diff --git a/Cargo.toml b/Cargo.toml
-index 29d68a2..2e4dae8 100644
+index 29d68a2..c922480 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -68,7 +68,7 @@ raw-window-handle = "0.6"
@@ -7,7 +7,7 @@ index 29d68a2..2e4dae8 100644
  
  # ── GPUI core crate (provides Platform trait, event types, geometry, etc.) ───
 -gpui = { package = "gpui-pre", version = "=0.3.10", default-features = false }
-+gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false }
++gpui = { package = "gpui-pre", version = "=0.3.14", default-features = false }
  
  # ── iOS ──────────────────────────────────────────────────────────────────────
  
@@ -16,7 +16,7 @@ index 29d68a2..2e4dae8 100644
  
  # wgpu renderer (Metal backend on iOS/Android)
 -gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.10", features = ["font-kit"] }
-+gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12", features = ["font-kit"] }
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.14", features = ["font-kit"] }
  wgpu = "30.0.1"
  
  # Text / font stack
@@ -25,7 +25,7 @@ index 29d68a2..2e4dae8 100644
  # wgpu renderer (Vulkan backend on Android)
  # Android uses Cosmic Text and system fonts; font-kit pulls in desktop Fontconfig.
 -gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.10" }
-+gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12" }
++gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.14" }
  
  # TalkBack: exposes GPUI's AccessKit tree (accesskit 0.24, as gpui-pre).
  accesskit_android = "0.7.5"
@@ -34,7 +34,7 @@ index 29d68a2..2e4dae8 100644
  
  [dev-dependencies]
 -gpui = { package = "gpui-pre", version = "=0.3.10", default-features = false, features = ["test-support"] }
-+gpui = { package = "gpui-pre", version = "=0.3.12", default-features = false, features = ["test-support"] }
++gpui = { package = "gpui-pre", version = "=0.3.14", default-features = false, features = ["test-support"] }
  
  # ── profiles ─────────────────────────────────────────────────────────────────
  
@@ -43,7 +43,7 @@ index 29d68a2..2e4dae8 100644
  debug     = true
  
 -# `gpui-pre-wgpu` 0.3.10 with its headless renderer behind an `offscreen` feature
-+# `gpui-pre-wgpu` 0.3.12 with its headless renderer behind an `offscreen` feature
++# `gpui-pre-wgpu` 0.3.14 with its headless renderer behind an `offscreen` feature
  # instead of `test-support` / `bench-support`, a constructor that takes the wgpu
  # instance (iOS needs Metal), and methods that release its render target and
  # clear its sprite atlas between captures. Applications that enable `offscreen`

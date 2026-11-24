@@ -1,13 +1,19 @@
 # GPUI rules
 
 GPUI is pre-1.0 and its API breaks often. These rules keep us on one consistent version and out of the known traps.
-When in doubt, the source of truth is the pinned crate's own code and examples (`~/.cargo/registry/src/*/gpui-pre-0.3.12/`)
+When in doubt, the source of truth is the pinned crate's own code and examples (`~/.cargo/registry/src/*/gpui-pre-0.3.14/`)
 and how Zed uses it, not blog posts or memory.
+
+GPUI now lives in its own repo, https://github.com/zed-industries/gpui (it used to be `crates/gpui` in Zed), and may
+publish its own crate releases as crates.io `gpui`. Read it there for GPUI itself, and Zed's `crates/ui` for how a
+component crate is built on it. We still follow gpui-component's pin (`gpui-pre`, a snapshot of that code) until
+gpui-component moves to the official `gpui` crate; then we move with it.
 
 ## Version pin
 
-- We use **`gpui-pre` =0.3.12** (snapshot of Zed main, aliased as `gpui`) + `gpui-pre-platform`, because
-  `gpui-component` 0.10 pins exactly that. crates.io `gpui` 0.2.x is a year stale; don't use it.
+- We use **`gpui-pre` =0.3.14** (a snapshot of GPUI main, aliased as `gpui`) + `gpui-pre-platform`, because
+  `gpui-component` 0.11 pins exactly that (with `gpui-base`, `gpui-kit-assets` and `gpui-webview` at the same 0.11).
+  crates.io `gpui` 0.2.x is a year stale; don't use it.
 - All three are pinned in `[workspace.dependencies]`. **Bump them together, in one PR, and nothing else in it.**
 - The same PR re-ports gpui-mobile: raise the same pins in `mobile/Cargo.toml`, regenerate the patches in
   `mobile/upstream/` against the new `gpui-pre` (see [mobile/UPSTREAM.md](../mobile/UPSTREAM.md)), and build `mobile/` for
@@ -81,8 +87,10 @@ See [gpui/webview.md](gpui/webview.md).
   then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
   `debug_selector` records only with debug assertions on: `mobile/` turns them off in dev (Android emulator), so its
   `[profile.test]` turns them back on, or every `debug_bounds` is `None`.
-  A gpui-component `Button`'s id is not a debug selector and `Button` has no `.debug_selector`: wrap it in
+  A button's id is not a debug selector: give `ui::Button` its own `.debug_selector(..)`, or wrap it in
   `div().debug_selector(..).child(button)` (`thread_failure.rs`, the account card), or `debug_bounds` finds nothing.
+  In a `flex_col` the wrapper stretches across the row: give the column `items_start()` when a test clicks the
+  wrapper's center (`ui/button_test.rs`).
 - `TestAppContext` runs `background_spawn` work one task at a time on the test dispatcher, so two blocking
   background jobs (two `gh` reads) never overlap there: a held one blocks the other. Stage a race by recording the
   newer side's result (`PrLanded::mark` in `pr_newest_test.rs`), not by holding a fake process.

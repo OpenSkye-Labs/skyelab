@@ -4,14 +4,9 @@
 
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::{Button, Tooltip};
 use gpui::{AnyElement, App, ClipboardItem, SharedString, div, prelude::*, rems};
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    tooltip::Tooltip,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use std::path::Path;
 
 /// A row description's size: 13 px at the default text size.

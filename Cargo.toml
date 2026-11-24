@@ -11,17 +11,17 @@ license = "MIT"
 rust-version = "1.100"
 
 [workspace.dependencies]
-# One pin for the whole UI stack: gpui-component 0.10 requires gpui-pre =0.3.12. Bump them together.
-gpui = { package = "gpui-pre", version = "=0.3.12" }
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features = ["font-kit", "x11", "wayland"] }
+# One pin for the whole UI stack: gpui-component 0.11 requires gpui-pre =0.3.14. Bump them together.
+gpui = { package = "gpui-pre", version = "=0.3.14" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.14", features = ["font-kit", "x11", "wayland"] }
 # syntect: the lighter highlighter (file preview, chat code blocks); tree-sitter costs tens of MB more.
-gpui-component = { version = "=0.10.0", features = ["syntect"] }
+gpui-component = { version = "=0.11.0", features = ["syntect"] }
 # The system clipboard with an HTML flavor (Copy table as HTML): GPUI's clipboard carries only text, images and paths.
 arboard = { version = "3.7.0", default-features = false, features = ["wayland-data-control"] }
 # Its window text selection (`TextSelection`), which gpui-component doesn't re-export; the version it pins.
-gpui-base = "=0.10.0"
+gpui-base = "=0.11.0"
 # The icon SVGs gpui-component draws; same release as gpui-component, so one copy.
-gpui-kit-assets = "=0.10.0"
+gpui-kit-assets = "=0.11.0"
 # Local time: the sidebar's date sections and the timeline's clock times.
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # Scheduled tasks: cron and daily/weekday times, DST-aware, in the local zone.
@@ -65,7 +65,7 @@ windows-sys = "0.61.2"
 uuid = { version = "1.29", features = ["v4"] }
 base64 = "0.23"
 # Webview: no `gpui-fast` feature (that is a second GPUI). wry must match the version gpui-webview uses.
-gpui-webview = "0.10.0"
+gpui-webview = "0.11.0"
 wry = { package = "lb-wry", version = "0.53.3" }
 # The WKWebView snapshot (skyelab-webkit-sys); same majors as lb-wry, so one copy in the tree.
 # The WebKit inspector's private `detach` (skyelab-webkit-sys), same objc2 as objc2-web-kit.

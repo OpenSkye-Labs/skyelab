@@ -6,14 +6,11 @@ use super::super::layout::ToggleThreadDetails;
 use super::super::subagent::SubagentStatus;
 use super::super::thread::{ChildLink, Interrupt, Stop, ThreadView};
 use super::super::thread_model::Item;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, Status};
 use gpui::{Action, AnyElement, Context, SharedString, Window, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex};
 
 /// Stops thread `id`'s running children: each delegated thread open in any window, and its turn when in-turn
 /// subagents run.

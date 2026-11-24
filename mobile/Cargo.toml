@@ -12,14 +12,14 @@ rust-version = "1.100"
 
 [workspace.dependencies]
 # The desktop's exact GPUI pins (root Cargo.toml); scripts/check-pins.sh fails CI when they differ.
-gpui = { package = "gpui-pre", version = "=0.3.12" }
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", default-features = false }
-gpui-component = "=0.10.0"
+gpui = { package = "gpui-pre", version = "=0.3.14" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.14", default-features = false }
+gpui-component = "=0.11.0"
 # gpui-mobile's Android text system, run on the host by android/tests/emoji_font.rs. Follows the gpui pin (check-pins.sh).
-gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.12" }
+gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.14" }
 # The iOS platform gpui-pre-platform already pulls in; named here only for its status-bar style. Follows the gpui pin.
-gpui_ios = { package = "gpui-pre-ios", version = "=0.3.12" }
-# longbridge/gpui-mobile ported to gpui-pre 0.3.12: scripts/fetch-gpui-mobile.sh clones and patches it.
+gpui_ios = { package = "gpui-pre-ios", version = "=0.3.14" }
+# longbridge/gpui-mobile ported to gpui-pre 0.3.14: scripts/fetch-gpui-mobile.sh clones and patches it.
 gpui-mobile = { package = "gpui-pre-mobile", path = "target/gpui-mobile", default-features = false }
 
 [workspace.lints.rust]
@@ -60,7 +60,7 @@ anyhow = "1"
 flume = "0.12"
 serde_json = "1"
 
-# gpui-pre-platform 0.3.12 pulls gpui-pre-ios on target_os = "ios". It has no Android arm (android/ uses gpui-mobile).
+# gpui-pre-platform 0.3.14 pulls gpui-pre-ios on target_os = "ios". It has no Android arm (android/ uses gpui-mobile).
 [target.'cfg(not(target_os = "android"))'.dependencies]
 gpui_platform.workspace = true
 

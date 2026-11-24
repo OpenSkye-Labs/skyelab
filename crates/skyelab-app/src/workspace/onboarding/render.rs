@@ -4,18 +4,14 @@
 
 use super::{Onboarding, OnboardingEvent};
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui::{
     AnyElement, Context, Div, FontWeight, IntoElement, ParentElement as _, SharedString, Window,
     div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::Input,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 pub(super) fn home_relative(p: &std::path::Path, home: Option<&std::path::Path>) -> SharedString {
     match home.and_then(|h| p.strip_prefix(h).ok()) {
@@ -182,7 +178,7 @@ impl Onboarding {
             let name: AnyElement = match &f.label {
                 Some(input) => div()
                     .max_w(px(240.))
-                    .child(Input::new(input).small())
+                    .child(TextField::new(input).small())
                     .into_any_element(),
                 None => h_flex()
                     .gap_1()

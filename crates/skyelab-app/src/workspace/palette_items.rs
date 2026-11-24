@@ -3,10 +3,11 @@
 use super::env_mode::{OpenRemoteThread, SelectRemoteProject};
 use super::{OpenThread, SelectProject, Workspace};
 use crate::palette::{self, Entry, Kind, OpenCommandPalette};
+use crate::ui::Kbd;
 use gpui::{
     Action, App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Window,
 };
-use gpui_component::{dock::DockPlacement, kbd::Kbd};
+use gpui_component::dock::DockPlacement;
 use std::rc::Rc;
 
 fn dispatch(label: String, kind: Kind, action: Box<dyn Action>) -> Entry {
@@ -87,7 +88,7 @@ impl Workspace {
             if !window.is_action_available_in(action.as_ref(), prev) {
                 continue;
             }
-            let binding = Kbd::binding_for_action_in(action.as_ref(), prev, window);
+            let binding = Kbd::for_action_in(action.as_ref(), prev, window);
             let mut entry = dispatch(palette::humanize(name), Kind::Action(name), action);
             entry.binding = binding;
             // A toggle shows where it stands now, as T3's toggle rows do.

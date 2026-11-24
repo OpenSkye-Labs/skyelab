@@ -4,12 +4,13 @@ use super::Workspace;
 use super::manage::{Job, ManageProject, ProjectOp};
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::Button;
+use crate::ui::TextField;
 use gpui::{AppContext as _, Context, Entity, ParentElement as _, Window};
 use gpui_component::{
-    Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
+    WindowExt as _,
     dialog::DialogFooter,
-    input::{Input, InputEvent, InputState},
+    input::{InputEvent, InputState},
     v_flex,
 };
 
@@ -176,7 +177,7 @@ impl Workspace {
             dialog
                 .w(gpui::px(420.))
                 .title(title)
-                .child(v_flex().child(Input::new(&field)))
+                .child(v_flex().child(TextField::new(&field)))
                 .footer(
                     DialogFooter::new()
                         .child(ui::dialog_cancel("rename-cancel"))

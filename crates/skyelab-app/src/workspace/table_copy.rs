@@ -45,11 +45,10 @@ fn escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+use crate::ui::Button;
 use gpui::{App, ClipboardItem, IntoElement, ParentElement as _, Styled as _, Window};
 use gpui_component::{
-    Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
+    WindowExt as _, h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
 };
 use std::sync::Mutex;

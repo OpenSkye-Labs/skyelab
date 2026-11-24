@@ -6,17 +6,16 @@ use super::super::thread::{GitAction, ThreadViewEvent};
 use super::super::thread_worktree::{DiscardWorktree, OpenChanges, OpenWorktreeTerminal};
 use super::card::{chevron, row};
 use super::{On, Page, is_running};
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
-use crate::ui::{self, Status};
+use crate::ui::{self, Status, TextField};
 use gpui::Focusable as _;
 use gpui::{
     AnyElement, App, AppContext as _, Context, FontWeight, SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::{Input, InputEvent, InputState},
+    ActiveTheme as _, h_flex,
+    input::{InputEvent, InputState},
     v_flex,
 };
 
@@ -367,7 +366,12 @@ impl ThreadView {
                 .px_2p5()
                 .py_1()
                 .gap_2()
-                .child(div().flex_1().min_w_0().child(Input::new(input).small()))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .child(TextField::new(input).small()),
+                )
                 .child(
                     Button::new("details-link-pr-save")
                         .small()

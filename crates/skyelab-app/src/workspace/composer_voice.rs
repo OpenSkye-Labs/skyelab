@@ -5,6 +5,7 @@
 
 use super::thread::{self, ThreadView};
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use futures::StreamExt as _;
 use futures::channel::mpsc::UnboundedSender;
@@ -12,11 +13,7 @@ use gpui::{
     AnyElement, App, Context, Global, InteractiveElement as _, KeyBinding, Task, Window, actions,
     div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex};
 use skyelab_core::dictation::{Edit, Phase};
 use skyelab_speech_sys::{Event, Refusal};
 use std::rc::Rc;
@@ -327,7 +324,7 @@ impl ThreadView {
                 .text_color(ui::ink(theme, theme.warning))
                 .child("Sent to Apple")
                 .tooltip(|window, cx| {
-                    gpui_component::tooltip::Tooltip::new(
+                    crate::ui::Tooltip::new(
                         "This Mac can't recognize your language on the device, so macOS sends the audio to Apple.",
                     )
                     .build(window, cx)
@@ -376,7 +373,7 @@ impl ThreadView {
                     Button::new("voice-finish")
                         .primary()
                         .xsmall()
-                        .rounded(gpui_component::button::ButtonRounded::Size(px(12.)))
+                        .rounded(px(12.))
                         .icon(Icon::new(SkyeIcon::Check))
                         .disabled(finishing)
                         .tooltip_with_action(

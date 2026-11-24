@@ -5,8 +5,10 @@ use super::widgets::{DESC, section, setting};
 use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::Switch;
+use crate::ui::TextField;
 use crate::workspace::thread_extras::prefs;
-use gpui_component::{h_flex, switch::Switch, v_flex};
+use gpui_component::{h_flex, v_flex};
 use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
 
 /// The "Open in editor" command saved in settings.toml (empty: the default lookup).
@@ -65,7 +67,7 @@ impl Settings {
                     "Open in editor",
                     "The command \"Open in editor\" runs, with the folder added at the end. Empty tries $VISUAL, \
                      $EDITOR, then code or zed.",
-                    div().w(gpui::px(220.)).child(Input::new(&self.editor_input).small()),
+                    div().w(gpui::px(220.)).child(TextField::new(&self.editor_input).small()),
                     cx,
                 )],
                 cx,

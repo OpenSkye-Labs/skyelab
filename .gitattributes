@@ -1,1 +1,3 @@
 mobile/android-host/gradle/verification-metadata.xml linguist-generated
+# Generated: the crates.io gpui-pre-wgpu diff applied to gpui-mobile's vendored copy (mobile/UPSTREAM.md).
+mobile/upstream/0002-refresh-vendored-gpui-pre-wgpu-*.patch linguist-generated

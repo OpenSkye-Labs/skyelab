@@ -78,6 +78,21 @@ impl Default for Options {
     }
 }
 
+impl Options {
+    /// The defaults with this install's device key. A struct literal can't build `Options` where `test-support`
+    /// adds its private fields, and assigning after `default()` trips clippy where it doesn't.
+    pub fn with_device_key(mut self, key: String) -> Self {
+        self.device_key = Some(key);
+        self
+    }
+
+    /// The defaults with every connection checked by `verify` (same reason as [`Options::with_device_key`]).
+    pub fn with_verify_peer(mut self, verify: PeerVerifier) -> Self {
+        self.verify_peer = Some(verify);
+        self
+    }
+}
+
 /// Says who a dialled address is: `Ok` with the node StableID of one of the user's own devices, `Err` with why not.
 /// Runs on a blocking thread, so it may shell out; it must return within its own timeout (an error fails closed).
 ///

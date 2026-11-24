@@ -4,16 +4,13 @@
 //! only, never stored) and the Preview tab's image file.
 
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Image, ImageFormat, ImageSource, IntoElement,
     ObjectFit, SharedString, Window, div, img, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, WindowExt as _, h_flex, v_flex};
 use skyelab_agent::{Attachment, AttachmentKind};
 use std::sync::Arc;
 

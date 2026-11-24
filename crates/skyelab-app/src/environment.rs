@@ -119,9 +119,7 @@ fn peer_verifier(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::Peer
 /// The desktop's client options: every connection checked with `tailnet`. Without a verifier the pin is only the
 /// server's word, so the app never builds them any other way.
 pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client::Options {
-    let mut options = skyelab_client::Options::default();
-    options.verify_peer = Some(peer_verifier(tailnet));
-    options
+    skyelab_client::Options::default().with_verify_peer(peer_verifier(tailnet))
 }
 
 pub enum EnvEvent {

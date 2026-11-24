@@ -2,7 +2,7 @@
 
 Android runs on longbridge's [gpui-mobile](https://github.com/longbridge/gpui-mobile) (crate `gpui-pre-mobile`).
 We pin commit `7548ebc4b24f00494af9976af8852c7163ded9ce`, which targets `gpui-pre =0.3.10`. Our GPUI is
-`=0.3.12`, so [`scripts/fetch-gpui-mobile.sh`](scripts/fetch-gpui-mobile.sh) fetches that exact commit into
+`=0.3.14`, so [`scripts/fetch-gpui-mobile.sh`](scripts/fetch-gpui-mobile.sh) fetches that exact commit into
 `target/gpui-mobile` and applies five patches in order. Every cargo command in `mobile/` needs it first, because
 cargo resolves the Android-only path dependency on every target.
 
@@ -16,7 +16,7 @@ fetched checkout at build time, and ships gpui-mobile's `LICENSE-APACHE` in the 
 - **Reproducible.** The fetch names a full commit sha, which is content-addressed, and `git apply` fails loudly if a
   patch stops fitting. Every build gets the same bytes.
 - **Small.** gpui-mobile is 51k lines of Rust. Vendoring it would add 2 MB of someone else's code to every review and
-  every GPUI bump. The patches are about 20 KB.
+  every GPUI bump. The patches are about 140 KB, nearly all of it the vendored wgpu refresh (0002).
 - **The risk** is that the GitHub repo or commit goes away. If it does, or once our own remote is live, fork it and
   pin the fork by rev (docs/mobile.md step 2).
 
@@ -24,13 +24,13 @@ fetched checkout at build time, and ships gpui-mobile's `LICENSE-APACHE` in the 
 
 | File | Send upstream? | What it does |
 |---|---|---|
-| `upstream/0001-port-to-gpui-pre-0.3.12.patch` | Yes | Raises the `gpui-pre` / `gpui-pre-wgpu` pins to `=0.3.12`. Passes the new `&WgpuSurfaceConfig` argument to `WgpuContext::new` on Android (`src/android/window.rs`) and iOS (`src/ios/window.rs`). Implements `PlatformWindow::insets` on Android from the safe area gpui-mobile already tracks, so `window.insets()` works there as it does on `gpui_ios`. |
-| `upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch` | Yes | Rebases the vendored `gpui-pre-wgpu` (the `offscreen` feature) from 0.3.10 onto 0.3.12. Its own changes apply to 0.3.12 without edits. |
+| `upstream/0001-port-to-gpui-pre-0.3.14.patch` | Yes | Raises the `gpui-pre` / `gpui-pre-wgpu` pins to `=0.3.14`. Passes the new `&WgpuSurfaceConfig` argument to `WgpuContext::new` on Android (`src/android/window.rs`) and iOS (`src/ios/window.rs`). Implements `PlatformWindow::insets` on Android from the safe area gpui-mobile already tracks, so `window.insets()` works there as it does on `gpui_ios`. |
+| `upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.14.patch` | Yes | Rebases the vendored `gpui-pre-wgpu` (the `offscreen` feature) from 0.3.10 onto 0.3.14 (the crates.io 0.3.12 → 0.3.14 diff applied on top of the 0.3.12 rebase). Two edits to gpui-mobile's own offscreen code: 0.3.14's new `cfg` gates (the core's `target_format`, the headless constructor) also open for `offscreen`, and `release_render_target` drops the depth texture, since 0.3.14 draws paths without the intermediate textures it used to drop (its test checks `depth_texture`). About 120 KB, most of it the upstream wgpu diff. |
 | `upstream/0003-android-report-ime-insets.patch` | Yes | On every content-rect change (keyboard shown or hidden included), reads the decor view's root `WindowInsets` over JNI (API 30+): `systemBars() \| displayCutout()` becomes the safe area and `ime()` the keyboard inset, so `window.insets().ime` is real on Android and the safe area no longer carries the keyboard. Below API 30, or before the view is attached, the content-rect estimate stays. |
 | `upstream/0004-android-skip-system-flags-font.patch` | Yes | Stops loading `/system/fonts/NotoColorEmojiFlags.ttf`. gpui-pre-wgpu draws colour only for the PostScript name `NotoColorEmoji`, so flags that fell back to the flags font were not drawn in colour. Stock Android before 13 keeps flags in its one CBDT emoji font, and the bundled fallback has them too; an OEM image that keeps a CBDT font on 13+ and splits flags out would lose them (not seen). |
 | `upstream/local-no-offscreen.patch` | No | Ours only. A `[patch]` in a dependency is ignored, so as a path dependency gpui-mobile gets crates.io `gpui-pre-wgpu`, which has no `offscreen` feature. This drops that feature reference and the unused `[patch]`. We don't use `offscreen`. |
 
-0001 + 0002 were checked in gpui-mobile's own workspace with `--features offscreen`:
+0001 + 0002 (at 0.3.14) were checked in gpui-mobile's own workspace with `--features offscreen`:
 `cargo ndk -t arm64-v8a -P 26 check --lib` and `cargo check --lib --target aarch64-apple-ios-sim` both pass.
 
 ## Sending it
@@ -38,10 +38,10 @@ fetched checkout at build time, and ships gpui-mobile's `LICENSE-APACHE` in the 
 Plain `git diff` output, no author line. From a clone at the pinned commit:
 
 ```sh
-git apply ../skyelab/mobile/upstream/0001-port-to-gpui-pre-0.3.12.patch
-git commit -am "Port to gpui-pre 0.3.12; implement PlatformWindow::insets on Android"
-git apply ../skyelab/mobile/upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.12.patch
-git commit -am "Refresh vendored gpui-pre-wgpu to 0.3.12"
+git apply ../skyelab/mobile/upstream/0001-port-to-gpui-pre-0.3.14.patch
+git commit -am "Port to gpui-pre 0.3.14; implement PlatformWindow::insets on Android"
+git apply ../skyelab/mobile/upstream/0002-refresh-vendored-gpui-pre-wgpu-0.3.14.patch
+git commit -am "Refresh vendored gpui-pre-wgpu to 0.3.14"
 git apply ../skyelab/mobile/upstream/0003-android-report-ime-insets.patch
 git commit -am "Android: report system-bar and IME insets from WindowInsets"
 git apply ../skyelab/mobile/upstream/0004-android-skip-system-flags-font.patch
@@ -52,9 +52,10 @@ git commit -am "Android: don't load the system flags font, which renders without
 
 Then open a PR against longbridge/gpui-mobile with this description:
 
-> Ports gpui-mobile to `gpui-pre` 0.3.12, the version `gpui-component` 0.10 pins.
+> Ports gpui-mobile to `gpui-pre` 0.3.14, the version `gpui-component` 0.11 pins.
 > `WgpuContext::new` gained a `&WgpuSurfaceConfig` argument in 0.3.12; the Android and iOS windows now pass theirs.
-> The vendored `gpui-pre-wgpu` is rebased onto 0.3.12 with the `offscreen` changes unchanged.
+> The vendored `gpui-pre-wgpu` is rebased onto 0.3.14; the `offscreen` code follows 0.3.14's new `cfg` gates and
+> drops the depth texture in `release_render_target` (0.3.14 has no path intermediate textures).
 > Android's `PlatformWindow` now implements `insets()` from the content-rect safe area, so apps can read
 > `window.insets().safe_area` on both platforms.
 > Android also reads the root `WindowInsets` on each content-rect change, so `insets().ime` reports the keyboard

@@ -7,6 +7,7 @@ use super::env_mode::SwitchEnvironment;
 use crate::environment::RemoteEnv;
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::Tooltip;
 use gpui::{
     Action, AppContext as _, Context, Entity, FocusHandle, FontWeight, Hsla, IntoElement, Pixels,
     Point, SharedString, Task, Window, actions, div, prelude::*, px,
@@ -14,7 +15,6 @@ use gpui::{
 use gpui_component::{
     ActiveTheme as _, Icon,
     input::{InputEvent, InputState},
-    tooltip::Tooltip,
     v_flex,
 };
 use skyelab_daemon::SharedTailnet;
