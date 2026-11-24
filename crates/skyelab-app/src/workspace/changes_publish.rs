@@ -184,7 +184,14 @@ impl ChangesView {
                     "the files were changing while the Changes tab loaded; refresh it, then commit",
                 )?;
                 let (env, hooks) = hook_env(&t.config, &t.dir)?;
-                let sha = skyelab_git::commit(&t.dir, &message, &paths, &env, hooks, Some(&tree))?;
+                let sha = skyelab_git::commit(
+                    &t.dir,
+                    &message,
+                    &paths,
+                    &env,
+                    hooks == Some(true),
+                    Some(&tree),
+                )?;
                 Ok(hooks_note(
                     format!("Committed {}", sha.get(..8).unwrap_or(&sha)),
                     hooks,
@@ -225,7 +232,7 @@ impl ChangesView {
             |t, gh| {
                 let (env, hooks) = hook_env(&t.config, &t.dir)?;
                 let gh = gh.context("no GitHub login")?;
-                let to = skyelab_git::push_with(&t.dir, &gh, &env, hooks)?;
+                let to = skyelab_git::push_with(&t.dir, &gh, &env, hooks == Some(true))?;
                 Ok(hooks_note(format!("Pushed to {to}"), hooks))
             },
             |this, note, _, cx| {
@@ -244,7 +251,7 @@ impl ChangesView {
             |t, gh| {
                 let (env, hooks) = hook_env(&t.config, &t.dir)?;
                 let gh = gh.context("no GitHub login")?;
-                let note = skyelab_git::pull_ff(&t.dir, &gh, &env, hooks)?;
+                let note = skyelab_git::pull_ff(&t.dir, &gh, &env, hooks == Some(true))?;
                 Ok(hooks_note(note, hooks))
             },
             |this, note, _, cx| {
@@ -413,20 +420,22 @@ pub(super) fn commit_label(selected: usize, total: usize) -> String {
     }
 }
 
-/// `note`, plus why the repo's hooks didn't run when they were off.
-fn hooks_note(note: String, hooks: bool) -> String {
-    if hooks {
-        note
-    } else {
-        format!("{note}. Hooks skipped: this repo is shared with another account")
+/// `note`, plus why the repo's hooks didn't run when they were off (`hooks` as [`hook_env`] returns it).
+pub(super) fn hooks_note(note: String, hooks: Option<bool>) -> String {
+    match hooks {
+        Some(true) => note,
+        Some(false) => format!("{note}. Hooks skipped: this repo is shared with another account"),
+        None => format!("{note}. Hooks skipped: couldn't confirm this repo is single-account"),
     }
 }
+
+type HookEnv = Vec<(OsString, OsString)>;
 
 /// The env the repo's hooks run with on Commit, Push and Pull: the bound account's launch env plus the git credential
 /// binding its agents get (only its gh answers https, ssh only if the account allows it), and no prompts. The bool
 /// says whether hooks may run at all: not while another account (or no account) shares the repo's git dir, since its
-/// agents could have written them.
-fn hook_env(config: &AccountsConfig, dir: &Path) -> Result<(Vec<(OsString, OsString)>, bool)> {
+/// agents could have written them; `None` when the repo's folders couldn't be listed, so nobody knows.
+fn hook_env(config: &AccountsConfig, dir: &Path) -> Result<(HookEnv, Option<bool>)> {
     let account = config
         .resolve(dir)
         .with_context(|| format!("{} isn't bound to an account", dir.display()))?;
@@ -446,6 +455,8 @@ fn hook_env(config: &AccountsConfig, dir: &Path) -> Result<(Vec<(OsString, OsStr
     }
     // A repo whose folders can't be listed keeps hooks off: the safe side.
     let hooks = skyelab_git::hook_folders(dir)
-        .is_ok_and(|folders| config.repo_hooks_allowed(dir, &folders));
+        .ok()
+        .filter(|folders| !folders.is_empty())
+        .map(|folders| config.repo_hooks_allowed(dir, &folders));
     Ok((env, hooks))
 }

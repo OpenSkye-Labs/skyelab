@@ -38,7 +38,7 @@ pub fn capture_checkpoint(dir: &Path, key: &str, turn: u32) -> Result<String> {
     let name = format!("{}{turn}", prefix(key)?);
     let root = repo_root(dir)?;
     let tree = snapshot_tree(&root)?;
-    let mut cmd = crate::command(Path::new("git"), &root);
+    let mut cmd = crate::command(Path::new("git"), &root)?;
     // Fixed identity: a repo without user.name must still checkpoint, and nothing here is the user's commit.
     for (k, v) in [
         ("GIT_AUTHOR_NAME", "SkyeLab"),
@@ -104,7 +104,7 @@ pub fn delete_checkpoints(dir: &Path, key: &str) -> Result<()> {
         return Ok(());
     }
     let root = repo_root(dir)?;
-    let mut cmd = crate::command(Path::new("git"), &root);
+    let mut cmd = crate::command(Path::new("git"), &root)?;
     let args = ["update-ref", "--stdin"];
     cmd.args(args);
     crate::finish(

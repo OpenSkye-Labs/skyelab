@@ -1,5 +1,5 @@
 //! Acceptance: git and gh that SkyeLab runs get the scrubbed env (the agents' allowlist), never the parent's
-//! credentials. Read-only calls and worktree creation run no repo hooks; Commit runs them with the scrubbed env plus
+//! credentials. Read-only calls and worktree creation run no repo hooks or filters; Commit runs hooks with the scrubbed env plus
 //! the account env it is given. The hostile parent env lives in a child test process.
 #![cfg(unix)] // hooks and the fake gh are shell scripts
 
@@ -133,7 +133,11 @@ fn scrubbed_in_child() {
     ] {
         assert!(!base.join(format!("{name}.ran")).exists(), "{name} ran");
     }
-    assert_clean_env(&base.join("filter.env"));
+    // Stronger than a scrubbed env: a filter from the repo's own config never runs on these calls.
+    assert!(
+        !base.join("filter.env").exists(),
+        "the repo's clean filter ran"
+    );
 
     let account = [("CLAUDE_CONFIG_DIR".into(), "/acct/claude".into())];
     skyelab_git::commit(&repo, "change", &[], &account, true, None).expect("commit");

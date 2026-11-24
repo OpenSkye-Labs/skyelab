@@ -42,6 +42,7 @@ const DIFF: &[&str] = &[
     "--no-color",
     "--no-ext-diff",
     "--no-textconv",
+    "--ignore-submodules=dirty",
     "--no-relative",
     "-M",
     "--submodule=short",

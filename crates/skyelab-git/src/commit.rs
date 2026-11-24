@@ -115,7 +115,7 @@ pub fn commit(
         }
         names.clone()
     };
-    let mut cmd = crate::user_command(&root, hooks);
+    let mut cmd = crate::user_command(&root, hooks)?;
     cmd.args(["commit", "-F", "-"])
         .env("GIT_INDEX_FILE", &index)
         .envs(env.iter().map(|(k, v)| (k, v)));
@@ -219,7 +219,7 @@ pub(crate) fn indexed<S: AsRef<OsStr>>(
     args: &[S],
     input: Option<&[u8]>,
 ) -> Result<Vec<u8>> {
-    let mut cmd = command(Path::new("git"), root);
+    let mut cmd = command(Path::new("git"), root)?;
     cmd.args(args).env("GIT_INDEX_FILE", index);
     crate::finish(root, args, skyelab_core::process::output(&mut cmd, input)?)
 }
@@ -320,7 +320,26 @@ pub fn snapshot_tree(dir: &Path) -> Result<String> {
     let scratch = Scratch::new()?;
     let index = scratch.index();
     copy_index(&root, &index)?;
-    indexed(&root, &index, &["add", "-A"], None)?;
+    // `add -A` checks each submodule for dirt by running git inside it, under the submodule's own config, which no
+    // override reaches. So it skips the gitlinks, and `update-index` (which only reads a submodule's HEAD) takes
+    // them; a submodule that is gone is removed.
+    let staged = indexed(&root, &index, &["ls-files", "-z", "-s"], None)?;
+    let gitlinks: Vec<&[u8]> = staged
+        .split(|b| *b == 0)
+        .filter(|entry| entry.starts_with(b"160000 "))
+        .filter_map(|entry| Some(&entry[entry.iter().position(|b| *b == b'\t')? + 1..]))
+        .collect();
+    let mut add: Vec<OsString> = ["add", "-A", "--", "."].map(OsString::from).to_vec();
+    for path in &gitlinks {
+        let mut exclude = OsString::from(":(exclude,literal)");
+        exclude.push(lossy(path));
+        add.push(exclude);
+    }
+    indexed(&root, &index, &add, None)?;
+    if !gitlinks.is_empty() {
+        let update = ["update-index", "-z", "--remove", "--stdin"];
+        indexed(&root, &index, &update, Some(&gitlinks.join(&0u8)))?;
+    }
     let tree = indexed(&root, &index, &["write-tree"], None)?;
     Ok(lossy(&tree).trim().to_owned())
 }

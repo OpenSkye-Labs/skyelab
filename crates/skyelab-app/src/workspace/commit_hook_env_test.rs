@@ -109,3 +109,17 @@ fn commit_hooks_get_the_accounts_git_credential_binding(cx: &mut TestAppContext)
     assert!(lines.contains(&"prompt=0"), "{report}");
     git(&bare, &["rev-parse", "--verify", "refs/heads/from-hook"]);
 }
+
+#[test]
+fn the_note_says_why_hooks_were_skipped() {
+    use super::changes_publish::hooks_note;
+    assert_eq!(hooks_note("Pushed".into(), Some(true)), "Pushed");
+    assert_eq!(
+        hooks_note("Pushed".into(), Some(false)),
+        "Pushed. Hooks skipped: this repo is shared with another account"
+    );
+    assert_eq!(
+        hooks_note("Pushed".into(), None),
+        "Pushed. Hooks skipped: couldn't confirm this repo is single-account"
+    );
+}

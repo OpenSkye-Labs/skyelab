@@ -39,7 +39,7 @@ worktree /r/wt with space\0HEAD 2222222222222222222222222222222222222222\0detach
 /// `get_envs` can't show `env_clear` itself; scrubbed_env_hooks.rs checks the real child env.
 #[test]
 fn command_env_is_only_the_allowlist() {
-    let cmd = command(Path::new("git"), Path::new("."));
+    let cmd = command(Path::new("git"), Path::new(".")).expect("command");
     for (k, _) in cmd.get_envs() {
         let ok = skyelab_core::env::agent_allowed(k, cfg!(windows), false)
             || k == "LC_ALL"
@@ -52,7 +52,7 @@ fn command_env_is_only_the_allowlist() {
 /// scrubbed_env_hooks.rs plants them in a real parent env).
 #[test]
 fn command_strips_inherited_repo_env() {
-    let cmd = command(Path::new("git"), Path::new("."));
+    let cmd = command(Path::new("git"), Path::new(".")).expect("command");
     let set: Vec<_> = cmd.get_envs().map(|(k, _)| k).collect();
     for var in [
         "GIT_DIR",
@@ -97,7 +97,7 @@ fn isolation_fetch_runs_with_the_account_gh_only() {
         gh: &gh,
         config_dir: Path::new("/acct/gh"),
     };
-    let cmd = remote::fetch_command(Path::new("/r"), "origin", &[], &gh).expect("command");
+    let cmd = remote::fetch_command(Path::new("."), "origin", &[], &gh).expect("command");
     let env: Vec<(String, Option<String>)> = cmd
         .get_envs()
         .map(|(k, v)| {
@@ -123,4 +123,47 @@ fn isolation_fetch_runs_with_the_account_gh_only() {
     ] {
         assert!(get(leaked).is_none(), "{leaked} leaked: {env:?}");
     }
+}
+
+#[test]
+fn repo_programs_are_switched_off_and_trusted_ones_kept() {
+    let listing =
+        b"global\0gpg.openpgp.program\n/opt/gpg\0global\0filter.lfs.clean\ngit-lfs clean -- %f\0\
+local\0filter.lfs.clean\nevil\0local\0filter.ev.process\nevil\0worktree\0merge.ev.driver\nevil\0\
+local\0gpg.program\nevil\0local\0core.sshcommand\nevil\0";
+    let got = overrides_from(listing).expect("overrides");
+    let get = |k: &str| {
+        got.iter()
+            .rev()
+            .find(|(key, _)| key == k)
+            .map(|(_, v)| v.as_str())
+    };
+    // Fixed names: the global value, else git's own default; never the repo's.
+    assert_eq!(get("gpg.program"), Some("/opt/gpg"));
+    assert_eq!(get("core.sshcommand"), Some("ssh"));
+    assert_eq!(get("gpg.ssh.program"), Some("ssh-keygen"));
+    assert_eq!(get("gpg.ssh.defaultkeycommand"), Some(""));
+    // Drivers the repo defines: the global one survives, the repo's own goes empty.
+    assert_eq!(get("filter.lfs.clean"), Some("git-lfs clean -- %f"));
+    assert_eq!(get("filter.ev.process"), Some(""));
+    assert_eq!(get("merge.ev.driver"), Some(""));
+    for (k, v) in [
+        ("core.hooksPath", "/dev/null"),
+        ("core.fsmonitor", "false"),
+        ("submodule.recurse", "false"),
+        ("credential.helper", ""),
+        ("core.askPass", ""),
+    ] {
+        assert_eq!(get(k), Some(v), "{k}");
+    }
+    assert!(!got.iter().any(|(_, v)| v == "evil"), "{got:?}");
+    // A global-only driver is left to the global config.
+    let global_only = overrides_from(b"global\0filter.lfs.smudge\ngit-lfs smudge\0").expect("ok");
+    assert!(!global_only.iter().any(|(k, _)| k == "filter.lfs.smudge"));
+}
+
+#[test]
+fn a_repo_driver_named_with_equals_or_non_utf8_is_refused() {
+    assert!(overrides_from(b"local\0filter.a=b.clean\nx\0").is_err());
+    assert!(overrides_from(b"local\0filter.\xff.clean\nx\0").is_err());
 }

@@ -1,6 +1,7 @@
 //! What gets committed is what the user reviewed. A file whose content git sees change after the review
-//! check (an agent still writing it; modelled here by a clean filter that answers differently on later runs) must
-//! not have its later content committed, for ticked files and for commit-all.
+//! check (an agent still writing it; modelled here by the repo's own clean filter answering differently) must
+//! not have its later content committed, for ticked files and for commit-all. SkyeLab never runs a filter from the
+//! repo's own config, so the review and the commit both see the file as written.
 #![cfg(unix)]
 
 use std::os::unix::fs::PermissionsExt as _;
@@ -29,8 +30,8 @@ struct Rig {
     limit: PathBuf,
 }
 
-/// A repo where `t.txt` goes through a clean filter. The filter passes content through for its first `limit`
-/// runs (the number in the `limit` file), then answers `LATER` instead.
+/// A repo where `t.txt` goes through a clean filter set in the repo's own config. The filter passes content through
+/// for its first `limit` runs (the number in the `limit` file), then answers `LATER` instead.
 fn rig() -> Rig {
     let tmp = tempfile::tempdir().expect("tmp");
     let root = std::fs::canonicalize(tmp.path()).expect("canon");
@@ -70,19 +71,12 @@ fn rig() -> Rig {
     }
 }
 
-/// Edits t.txt, reviews it, and arms the filter so every run after the review check sees `LATER`.
+/// Arms the filter so any run of it answers `LATER`, then edits t.txt and reviews it.
 fn reviewed(r: &Rig) -> String {
+    std::fs::write(&r.limit, "0").expect("limit");
     std::fs::write(r.repo.join("t.txt"), "reviewed\n").expect("w");
     let _ = std::fs::remove_file(&r.counter);
-    let tree = skyelab_git::snapshot_tree(&r.repo).expect("snapshot");
-    let per_snapshot: u32 = std::fs::read_to_string(&r.counter)
-        .expect("the filter ran")
-        .trim()
-        .parse()
-        .expect("count");
-    // The review above, then commit's own check of it: both see the real content.
-    std::fs::write(&r.limit, (2 * per_snapshot).to_string()).expect("limit");
-    tree
+    skyelab_git::snapshot_tree(&r.repo).expect("snapshot")
 }
 
 #[test]

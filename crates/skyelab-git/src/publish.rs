@@ -65,9 +65,10 @@ pub fn push_with(
     crate::remote::check_repo_config(&root, "push")?;
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
     let refspec = format!("HEAD:refs/heads/{branch}");
-    let mut cmd = crate::user_command(&root, hooks);
+    let mut cmd = crate::user_command(&root, hooks)?;
     cmd.args(credential_args(gh, &urls)?)
         .arg("push")
+        .arg(receive_pack())
         // A submodule's own remote is never checked, so never pushed to.
         .arg("--recurse-submodules=no")
         .args(set_upstream.then_some("--set-upstream"))
@@ -78,6 +79,17 @@ pub fn push_with(
         .env("GIT_TERMINAL_PROMPT", "0");
     checked(cmd, "git push", None)?;
     Ok(format!("{remote}/{branch}"))
+}
+
+/// The receiving side of a push to a local path, with its hooks off whatever `hooks` says: git drops our `-c`
+/// config for a local transport, and that repo's hooks (another account's, possibly) would get this account's env.
+/// Ignored over https.
+fn receive_pack() -> String {
+    let mut cmd = "--receive-pack=git -c core.hooksPath=/dev/null".to_owned();
+    for event in crate::HOOK_EVENTS {
+        cmd.push_str(&format!(" -c hook.{event}.enabled=false"));
+    }
+    cmd + " receive-pack"
 }
 
 /// Every URL `remote` pushes to (git pushes to all of them), or fetches from without `push`, each only an https URL
@@ -172,11 +184,15 @@ pub fn create_pr(dir: &Path, gh: &GitHub, title: &str, body: &str) -> Result<Str
         "--body-file",
         "-",
     ];
-    let out = checked(
-        gh_command(gh, &root, &args)?,
-        "gh pr create",
-        Some(body.as_bytes()),
-    )?;
+    let mut cmd = gh_command(gh, &root, &args)?;
+    // gh runs git in the repo (its uncommitted-changes check is a `git status`): the same overrides as SkyeLab's own.
+    let overrides = crate::program_overrides(Path::new("git"), &root)?;
+    cmd.env("GIT_CONFIG_COUNT", overrides.len().to_string());
+    for (i, (key, value)) in overrides.iter().enumerate() {
+        cmd.env(format!("GIT_CONFIG_KEY_{i}"), key)
+            .env(format!("GIT_CONFIG_VALUE_{i}"), value);
+    }
+    let out = checked(cmd, "gh pr create", Some(body.as_bytes()))?;
     lossy(&out.stdout)
         .lines()
         .rev()

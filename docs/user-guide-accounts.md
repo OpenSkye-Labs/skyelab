@@ -132,7 +132,10 @@ didn't review, the commit is undone and they stay staged. When the repo is share
 worktrees, a folder inside it, a folder around it, its hooks folder, or the repo itself is bound to another account or
 to none), the hooks are skipped and
 the note says "Hooks skipped: this repo is shared with another account": another account's agent could have written
-them. Push never pushes submodules.
+them (or "couldn't confirm this repo is single-account" when SkyeLab couldn't list the repo's folders). A worktree
+counts wherever it is, even one missing from git's own list. Filters, merge drivers and signing programs set only in
+the repo's own `.git/config` don't run either (put them in your global git config to use them). Push never pushes
+submodules.
 
 **Generated commit messages and PRs.** The sparkle next to the commit message asks the thread's own account's agent
 for a conventional commit message (a subject of 72 characters at most, and a short body when it helps) from the

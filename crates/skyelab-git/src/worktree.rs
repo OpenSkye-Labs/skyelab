@@ -48,6 +48,7 @@ pub fn create_worktree(
             &[
                 "worktree".as_ref(),
                 "add".as_ref(),
+                "--no-checkout".as_ref(),
                 "--".as_ref(),
                 dest_arg,
                 branch.as_ref(),
@@ -68,6 +69,7 @@ pub fn create_worktree(
         let args = [
             "worktree".as_ref(),
             "add".as_ref(),
+            "--no-checkout".as_ref(),
             "-b".as_ref(),
             branch.as_ref(),
             "--".as_ref(),
@@ -76,6 +78,9 @@ pub fn create_worktree(
         ];
         git(&root, &args)?;
     }
+    // Checked out by our own git in the new worktree, not by the child `worktree add` starts: that child reads a
+    // config this worktree's gitdir or branch may include (`includeIf`), which the overrides listed in `root` missed.
+    git(&dest, &["reset", "-q", "--hard", "HEAD"])?;
     Ok(dest)
 }
 

@@ -60,7 +60,7 @@ pub(crate) fn fetch_command(
     gh: &crate::GitHub,
 ) -> Result<std::process::Command> {
     let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
-    let mut cmd = command(Path::new("git"), root);
+    let mut cmd = command(Path::new("git"), root)?;
     cmd.args(credential_args(gh, &urls)?)
         // A stalled transfer gives up instead of holding the background fetch for good.
         .args([
@@ -171,7 +171,7 @@ pub fn pull_ff(
              merge or rebase it by hand"
         )));
     }
-    let mut cmd = crate::user_command(&root, hooks);
+    let mut cmd = crate::user_command(&root, hooks)?;
     // Git counts ignored files as expendable; a local `.env` the upstream starts tracking may be the only copy.
     cmd.args([
         "merge",

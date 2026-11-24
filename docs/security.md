@@ -36,9 +36,31 @@
   the acting folder's account. Otherwise (another account, an unbound folder, a stale binding, a repo that sits
   inside another account's folder, or one whose folders can't be listed) it runs with hooks off, as SkyeLab's own
   background git calls (status, diff, fetch, checkpoints, worktrees) always do, and the note under the buttons says
-  "Hooks skipped: this repo is shared with another account". Limits: the check reads git's own worktree records,
-  which an agent that can write the shared `.git` can also edit to hide its checkout; and other repo config an agent
-  can write (clean/smudge filters, `gpg.program`) still runs on Commit.
+  "Hooks skipped: this repo is shared with another account" (or "couldn't confirm this repo is single-account" when
+  the folders couldn't be listed). Git's worktree records can be edited by whoever writes the shared `.git` to hide a
+  checkout, so SkyeLab also reads every bound folder's own `.git` (its `gitdir:` and `commondir`, or a folder git
+  takes as a git dir itself): one that leads into the repo shares it, listed or not, and a `.git` it can't read as a
+  small file (a FIFO, say) counts as sharing. Hooks set in config (`hook.<name>.command`, newer git) are off whenever
+  hook scripts are. A push to a local-path remote always starts that repo's `receive-pack` with its hooks off: git
+  doesn't pass SkyeLab's config across a local transport, and that repo may be another account's.
+- **Git never runs a program from the repo's own config unless hooks may run.** Every background git call (status,
+  diff, fetch, checkpoints, worktrees, branch switches), Commit, Push and Pull with hooks off, and the git that
+  `gh pr create` runs in the repo, override with `-c` every config key that names a program, since an agent can write
+  `.git/config` (and whatever it includes): `core.sshCommand`, `gpg.program` / `gpg.<format>.program` and
+  `gpg.ssh.defaultKeyCommand` get your global (or system) value, else git's own default (`ssh`, `gpg`, `gpgsm`,
+  `ssh-keygen`, no key command), so signing still uses your tools; `credential.helper` and `core.askPass` are emptied
+  (push and fetch then add only the account's gh); `core.fsmonitor`, `core.hooksPath` and `submodule.recurse` are
+  off, and a submodule's dirty check (git run inside it, under its own config) is skipped, so the Changes tab shows a
+  submodule's new commit but not edits inside it. A new worktree is checked out by SkyeLab's own git in it, so a
+  config only that worktree's gitdir or branch includes (`includeIf`) is seen too. Each clean/smudge/process filter and merge driver the repo's own config defines is emptied unless your global
+  config defines the same one (Git LFS installed globally keeps working): an empty filter passes content through, and
+  a `required` one (git-crypt, a `--local` LFS install) fails the command instead, so an encrypting filter never
+  commits plaintext; set such a filter in your global config to use it in SkyeLab. A driver whose name has `=` in it
+  can't be overridden, so the command is refused. Diff drivers (`diff.external`, `textconv`) were already off: every
+  diff passes `--no-ext-diff --no-textconv`. Editors, pagers and trailer commands are never reached (messages come
+  from SkyeLab, there's no terminal). Limit: filters and merge drivers are found by listing the repo's config just
+  before each call, so one written in the few milliseconds between that listing and git's own read isn't seen; fixed
+  keys have no such gap.
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.
