@@ -16,9 +16,13 @@ const MIC_KEY: &str = "cmd-shift-m";
 
 type Sink = Box<dyn Fn(Event) + Send + Sync>;
 
+type Done = Box<dyn FnOnce(Result<(), Refusal>) + Send>;
+
 #[derive(Default)]
 struct Fake {
     sink: Arc<Mutex<Option<Sink>>>,
+    /// Set: the permission answer waits here until the test gives it (a prompt still up).
+    held: Option<Arc<Mutex<Option<Done>>>>,
     refuse: Option<Refusal>,
     server: bool,
     /// Running sessions: a start adds one, a drop takes it away.
@@ -48,7 +52,11 @@ impl Drop for FakeSession {
 }
 
 impl Recognizer for Fake {
-    fn authorize(&self, done: Box<dyn FnOnce(Result<(), Refusal>) + Send>) {
+    fn authorize(&self, done: Done) {
+        if let Some(held) = &self.held {
+            *held.lock().expect("held") = Some(done);
+            return;
+        }
         let refuse = self.refuse;
         // From another thread, as Apple's callbacks come.
         std::thread::spawn(move || done(refuse.map_or(Ok(()), Err)));
@@ -257,4 +265,92 @@ fn send_stops_dictation_and_sends_the_words(cx: &mut TestAppContext) {
     // The recognizer's final after the send lands nowhere.
     h.say("hello there friend", true, cx);
     assert_eq!(prompt(&thread, cx).0, "", "FINAL_AFTER_SEND_APPLIED");
+}
+
+#[gpui::test]
+fn a_prompt_written_elsewhere_ends_dictation_without_losing_it(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    let h = install(Fake::default(), cx);
+    type_at(&thread, "", 0, cx);
+    cx.simulate_keystrokes(MIC_KEY);
+    wait_until(cx, "started", |_| h.live() == 1);
+    h.say("first", false, cx);
+    // A stash restore (or Paste as text) writes the prompt meanwhile.
+    thread.update_in(cx, |t, window, cx| {
+        t.prompt.update(cx, |p, cx| {
+            p.set_value("restored from the stash", window, cx)
+        });
+    });
+    h.say("first second", false, cx);
+    assert_eq!(
+        prompt(&thread, cx).0,
+        "restored from the stash",
+        "OUTSIDE_WRITE_OVERWRITTEN"
+    );
+    assert!(!listening(&thread, cx));
+    assert_eq!(h.live(), 0, "MIC_ON_AFTER_OUTSIDE_WRITE");
+}
+
+#[gpui::test]
+fn leaving_the_tab_turns_the_mic_off(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    let h = install(Fake::default(), cx);
+    cx.update(|window, _| window.activate_window()); // focus-out fires only in the active window
+    type_at(&thread, "keep", 4, cx);
+    cx.simulate_keystrokes(MIC_KEY);
+    wait_until(cx, "started", |_| h.live() == 1);
+    h.say("this", false, cx);
+    // Clicking the pill's check mark is inside the thread: it finishes, the focus-out hook doesn't end it.
+    let pill = cx.debug_bounds("voice-pill").expect("pill drawn");
+    let check = gpui::point(pill.right() - gpui::px(14.), pill.center().y);
+    cx.simulate_mouse_down(check, gpui::MouseButton::Left, gpui::Modifiers::none());
+    cx.simulate_mouse_up(check, gpui::MouseButton::Left, gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(h.stops.load(Ordering::SeqCst), 1, "CHECK_CLICK_DIDNT_FINISH");
+    assert!(listening(&thread, cx), "CLICK_IN_THREAD_ENDED_IT");
+    cx.dispatch_action(crate::workspace::NewThread);
+    cx.run_until_parked();
+    assert_eq!(h.live(), 0, "MIC_ON_IN_HIDDEN_TAB");
+    assert!(!listening(&thread, cx));
+    assert_eq!(prompt(&thread, cx).0, "keep this", "words heard are kept");
+}
+
+#[gpui::test]
+fn stop_during_the_permission_prompt_starts_nothing(cx: &mut TestAppContext) {
+    setup(cx);
+    let f = fixture(true);
+    let (ws, cx) = open_workspace(&f, cx);
+    let thread = project_thread(&f, &ws, cx);
+    let held = Arc::new(Mutex::new(None));
+    let h = install(
+        Fake {
+            held: Some(held.clone()),
+            ..Fake::default()
+        },
+        cx,
+    );
+    type_at(&thread, "draft", 5, cx);
+    cx.simulate_keystrokes(MIC_KEY);
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("voice-pill").is_some(),
+        "the pill shows while asking"
+    );
+    cx.simulate_keystrokes(MIC_KEY);
+    let done = held.lock().expect("held").take().expect("asked");
+    done(Ok(()));
+    cx.run_until_parked();
+    assert_eq!(h.live(), 0, "MIC_STARTED_AFTER_STOP");
+    assert!(!listening(&thread, cx));
+    assert!(
+        thread.read_with(cx, |t, _| t.composer.notice.is_none()),
+        "NOTICE_AFTER_PLAIN_STOP"
+    );
+    assert_eq!(prompt(&thread, cx).0, "draft");
 }

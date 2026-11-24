@@ -66,6 +66,8 @@ pub struct Dictation {
     after: String,
     original: Edit,
     heard: String,
+    /// The draft as dictation last wrote it, so a write from elsewhere can be told apart.
+    shown: String,
     /// The recognizer sends audio to Apple's servers (the Mac can't recognize this language on the device).
     server: bool,
 }
@@ -89,6 +91,10 @@ impl Dictation {
         matches!(self.phase, Phase::Listening | Phase::Finishing)
     }
 
+    pub fn shown(&self) -> &str {
+        &self.shown
+    }
+
     pub fn server(&self) -> bool {
         self.active() && self.server
     }
@@ -109,6 +115,7 @@ impl Dictation {
             cursor: end,
         };
         self.heard.clear();
+        self.shown = text.to_owned();
         self.server = false;
         Some(self.session)
     }
@@ -133,22 +140,33 @@ impl Dictation {
         if is_final {
             self.phase = Phase::Idle;
         }
-        Some(self.edit())
+        let edit = self.edit();
+        self.shown.clone_from(&edit.text);
+        Some(edit)
     }
 
     fn edit(&self) -> Edit {
         if self.heard.is_empty() {
             return self.original.clone();
         }
-        let gap = |c: Option<char>| c.is_some_and(|c| !c.is_whitespace());
+        // Scripts written without spaces between words (CJK and up) never get one.
+        let spaced = |c: char| !c.is_whitespace() && (c as u32) < 0x2E80;
+        let words = |c: Option<char>| c.is_some_and(spaced);
         let mut text = self.before.clone();
-        if gap(self.before.chars().next_back()) {
+        let prev = self.before.chars().next_back();
+        if words(prev)
+            && words(self.heard.chars().next())
+            && !prev.is_some_and(|c| "([{\"'".contains(c))
+        {
             text.push(' ');
         }
         text.push_str(&self.heard);
         let cursor = text.len();
         let next = self.after.chars().next();
-        if gap(next) && !next.is_some_and(|c| c.is_ascii_punctuation()) {
+        if words(next)
+            && words(self.heard.chars().next_back())
+            && !next.is_some_and(|c| c.is_ascii_punctuation())
+        {
             text.push(' ');
         }
         text.push_str(&self.after);

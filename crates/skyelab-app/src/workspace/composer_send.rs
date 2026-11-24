@@ -220,7 +220,9 @@ impl ThreadView {
     ) {
         use super::composer_queue::SendMode;
         let external = how == super::composer_state::Submit::External;
-        self.end_dictation(cx);
+        if !external {
+            self.end_dictation(cx); // a send from another device leaves this Mac's dictation alone
+        }
         let text = self.prompt.read(cx).value().trim().to_string();
         let has_files = !external
             && !(self.composer.attachments.is_empty() && self.composer.contexts.is_empty());

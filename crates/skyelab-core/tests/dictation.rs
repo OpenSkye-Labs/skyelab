@@ -144,3 +144,25 @@ fn refusals_say_what_to_do() {
         assert!(text.contains(words), "{r:?}: {text}");
     }
 }
+
+#[test]
+fn no_spaces_around_cjk_or_inside_brackets() {
+    let mut d = Dictation::default();
+    let s = d.start("修复。", 6..6).expect("starts");
+    assert_eq!(d.heard(s, "错误", false), edit("修复错误。", 12));
+    let mut d = Dictation::default();
+    let s = d.start("hello 世界", 6..6).expect("starts");
+    assert_eq!(d.heard(s, "你好", false), edit("hello 你好世界", 12));
+    let mut d = Dictation::default();
+    let s = d.start("call ()", 6..6).expect("starts");
+    assert_eq!(d.heard(s, "x", false), edit("call (x)", 7));
+}
+
+#[test]
+fn shown_is_what_dictation_last_put_in_the_prompt() {
+    let mut d = Dictation::default();
+    let s = d.start("draft", 5..5).expect("starts");
+    assert_eq!(d.shown(), "draft");
+    d.heard(s, "more", false);
+    assert_eq!(d.shown(), "draft more");
+}

@@ -143,6 +143,8 @@ mod mac {
 
     /// A running dictation. Dropping it cancels the recognition and turns the microphone off.
     pub struct Session {
+        // Kept for the task's life, as Apple's sample does: a released recognizer may stop delivering results.
+        _recognizer: Retained<SFSpeechRecognizer>,
         engine: Retained<AVAudioEngine>,
         request: Retained<SFSpeechAudioBufferRecognitionRequest>,
         task: Retained<SFSpeechRecognitionTask>,
@@ -255,6 +257,7 @@ mod mac {
             engine.startAndReturnError()
         };
         let session = Session {
+            _recognizer: recognizer,
             engine,
             request,
             task,

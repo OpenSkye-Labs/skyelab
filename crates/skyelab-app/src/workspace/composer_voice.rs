@@ -1,4 +1,4 @@
-//! Dictation in the composer (macOS), T3's microphone and recording pill (docs/user/voice-input.md): the mic button
+//! Dictation in the composer (macOS), T3's microphone and recording pill (T3's docs/user/voice-input.md): the mic button
 //! or ⌘⇧M starts it, partial results stream into the prompt at the cursor, ⌘⇧M or the check mark finishes, Esc or the
 //! cross puts the draft back, and Send ends it and sends what is there. The words come from Apple's Speech framework
 //! (`skyelab-speech-sys`); where they go is `skyelab_core::dictation`.
@@ -82,7 +82,7 @@ struct Voice(Rc<dyn Recognizer>);
 impl Global for Voice {}
 
 /// Replaces Apple's recognizer (tests).
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 pub(in crate::workspace) fn use_recognizer(r: Rc<dyn Recognizer>, cx: &mut App) {
     cx.set_global(Voice(r));
 }
@@ -105,6 +105,8 @@ enum Msg {
 pub(crate) struct VoiceRun {
     session: Option<Box<dyn Listening>>,
     _events: Option<Task<()>>,
+    /// Ends dictation when the focus leaves the thread (another tab, the sidebar): no hidden composer keeps listening.
+    _focus_out: Option<gpui::Subscription>,
 }
 
 impl ThreadView {
@@ -137,6 +139,7 @@ impl ThreadView {
         };
         self.composer.notice = None;
         self.composer.menu = None;
+        self.composer.stash_open = None; // its keys would lose to Esc's dictation binding
         let (tx, mut rx) = futures::channel::mpsc::unbounded();
         let allowed = tx.clone();
         recognizer(cx).authorize(Box::new(move |r| {
@@ -148,13 +151,22 @@ impl ThreadView {
                     this.voice_message(id, msg, &tx, window, cx)
                 });
                 if applied.is_err() {
+                    // The window closed: end here, or the microphone would stay on with no one to stop it.
+                    let _ = this.update(cx, |this, cx| this.end_dictation(cx));
                     break;
                 }
+            }
+        });
+        // Going inactive (another app) is reported as a focus-out too: dictating while reading elsewhere goes on.
+        let focus_out = cx.on_focus_out(&self.focus, window, |this, _, window, cx| {
+            if window.is_window_active() {
+                this.end_dictation(cx);
             }
         });
         self.composer.voice = VoiceRun {
             session: None,
             _events: Some(events),
+            _focus_out: Some(focus_out),
         };
         cx.notify();
     }
@@ -170,9 +182,13 @@ impl ThreadView {
         match msg {
             Msg::Allowed(Err(refusal)) => self.voice_failed(id, refusal.to_string(), cx),
             Msg::Allowed(Ok(())) => {
-                // Stopped or sent while the permission prompt was up.
+                // Sent or cancelled while the permission prompt was up.
                 if !self.composer.dictation.active() || self.composer.voice.session.is_some() {
                     return;
+                }
+                // Stopped meanwhile: nothing was heard, so end without turning the microphone on.
+                if self.composer.dictation.phase() == &Phase::Finishing {
+                    return self.end_dictation(cx);
                 }
                 let tx = tx.clone();
                 let sink = Box::new(move |e| {
@@ -182,18 +198,15 @@ impl ThreadView {
                     Ok(session) => {
                         self.composer.dictation.started(id, session.on_device());
                         self.composer.voice.session = Some(session);
-                        // Stopped before the microphone came on: finish with nothing heard.
-                        if self.composer.dictation.phase() == &Phase::Finishing
-                            && let Some(s) = &self.composer.voice.session
-                        {
-                            s.stop();
-                        }
                         cx.notify();
                     }
                     Err(why) => self.voice_failed(id, why, cx),
                 }
             }
             Msg::Event(Event::Heard { words, is_final }) => {
+                if self.written_elsewhere(cx) {
+                    return self.end_dictation(cx);
+                }
                 if let Some(edit) = self.composer.dictation.heard(id, &words, is_final) {
                     self.show_dictated(edit, window, cx);
                     if is_final {
@@ -203,6 +216,11 @@ impl ThreadView {
             }
             Msg::Event(Event::Failed(why)) => self.voice_failed(id, why, cx),
         }
+    }
+
+    /// Something else wrote the prompt (a stash restore, Paste as text): dictation must not overwrite it.
+    fn written_elsewhere(&self, cx: &App) -> bool {
+        *self.prompt.read(cx).value() != *self.composer.dictation.shown()
     }
 
     fn show_dictated(&mut self, edit: Edit, window: &mut Window, cx: &mut Context<Self>) {
@@ -234,7 +252,7 @@ impl ThreadView {
         if !self.composer.dictation.stop() {
             return;
         }
-        // Without a session it is still asking for permission: the start sees Finishing and stops at once.
+        // Without a session it is still asking for permission: the answer sees Finishing and ends it.
         if let Some(s) = &self.composer.voice.session {
             s.stop();
         }
@@ -247,6 +265,9 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.composer.dictation.active() && self.written_elsewhere(cx) {
+            return self.end_dictation(cx); // putting the old draft back would undo that write
+        }
         match self.composer.dictation.cancel() {
             Some(edit) => {
                 self.show_dictated(edit, window, cx);
@@ -265,7 +286,11 @@ impl ThreadView {
 
     /// The mic button, or while dictating T3's pill: cancel, a red dot and the state, and finish.
     pub(in crate::workspace) fn render_voice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if !skyelab_speech_sys::SUPPORTED && cx.try_global::<Voice>().is_none() || self.read_only {
+        // While dictating the pill stays, even if the thread turned read-only meanwhile, so it can still be stopped.
+        let dictating = self.composer.dictation.active();
+        if !skyelab_speech_sys::SUPPORTED && cx.try_global::<Voice>().is_none()
+            || self.read_only && !dictating
+        {
             return None;
         }
         let dictation = &self.composer.dictation;
