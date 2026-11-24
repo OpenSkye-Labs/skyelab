@@ -86,6 +86,9 @@ Spans in the trace:
 | Span | Where |
 |---|---|
 | `render` (field `view`) | every view's `render` (the same calls the render counter makes) |
+| `thread.replay` | a thread's stored events turned into timeline rows when it opens (UI thread) |
+| `sidebar.refresh` | the sidebar's rows rebuilt from the thread list |
+| `frame` event (field `ms`) | each frame debug mode timed (`scripts/perf.sh` reads them) |
 | `store.events_since`, `store.append_event`, `store.thread`, `store.list_threads`, `store.list_all_threads`, `store.search_threads` | SQLite queries |
 | `agent.parse_line` | one stdout line of Claude or Codex parsed into events |
 | `process` (field `program`) | every short-lived child: git, gh, tailscale, the agents' one-shot calls |
