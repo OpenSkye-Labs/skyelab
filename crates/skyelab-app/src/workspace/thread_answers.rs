@@ -267,6 +267,32 @@ impl ItemsView for ThreadView {
     fn allow_for_project(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.open_rule_dialog(id, window, cx)
     }
+    fn thread_prefix(&self, a: &crate::workspace::thread_model::ApprovalItem) -> Option<String> {
+        use skyelab_core::project_rules as rules;
+        // Codex's shell only: Claude's own thread allow already takes its suggested rule.
+        let local = self.session.is_some() && !self.is_side_chat() && self.mode != Mode::Plan;
+        (local && a.tool == "shell" && rules::propose(&a.tool, &a.raw, &self.cwd).is_some())
+            .then(|| a.raw["command"].as_str().and_then(rules::suggested_prefix))
+            .flatten()
+            // One word (`git`) or a script the agent can rewrite (`./build.sh`) allows far more than it looks.
+            .filter(|p| p.split_whitespace().count() == 2 && !p.contains('/'))
+    }
+    fn allow_thread_prefix(
+        &mut self,
+        id: &str,
+        prefix: &str,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let session = match self.answer_session(cx) {
+            Ok(s) => s,
+            Err(why) => return self.show_error(anyhow::anyhow!(why), cx),
+        };
+        let (id, prefix) = (id.to_owned(), prefix.to_owned());
+        self.in_background(cx, move || {
+            lock(&session)?.allow_thread_prefix(&id, &prefix)
+        });
+    }
     fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.interrupt(&super::Interrupt, window, cx)
     }

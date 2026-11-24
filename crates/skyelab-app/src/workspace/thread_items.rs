@@ -47,6 +47,19 @@ pub(super) trait ItemsView: Sized + 'static {
     fn offers_project_rule(&self, _tool: &str) -> bool {
         false
     }
+    /// The words "Allow `…` for this thread" would allow commands by, for a pending Codex shell ask that can take one.
+    fn thread_prefix(&self, _a: &super::thread_model::ApprovalItem) -> Option<String> {
+        None
+    }
+    /// Allows ask `id`, and later commands in this thread starting with `prefix`.
+    fn allow_thread_prefix(
+        &mut self,
+        _id: &str,
+        _prefix: &str,
+        _window: &mut Window,
+        _cx: &mut Context<Self>,
+    ) {
+    }
     /// Opens the dialog that shows the project rule for ask `id` before saving it.
     fn allow_for_project(&mut self, _id: &str, _window: &mut Window, _cx: &mut Context<Self>) {}
     /// Stops the running turn instead of answering (T3 keeps Interrupt beside a pending ask).

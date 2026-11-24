@@ -60,7 +60,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
   project; `login status` says "Logged in using ChatGPT" while CODEX_HOME has a `fake-login` file, else "Not logged in", and `login` writes it;
 a prompt starting `usage` reports 5h and weekly rate limits, one starting `hook` starts a `sessionStart` hook
-  ("Reporting status to Orca") and holds it until the folder has a `.fake-hook-done` file (the working row's hook line), and a `.fake-session-gone` file in the folder
+  ("Reporting status to Orca") and holds it until the folder has a `.fake-hook-done` file (the working row's hook line),, `approve2` asks to run `cargo test --lib`, then `cargo test --doc` (the thread prefix allow), and a `.fake-session-gone` file in the folder
   makes its `thread/resume` fail as a missing thread; a `fake-mcp-status` file in CODEX_HOME, one `name status [error]`
   per line, is reported as MCP startup statuses), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in

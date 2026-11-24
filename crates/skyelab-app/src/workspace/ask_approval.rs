@@ -82,8 +82,11 @@ pub(super) fn render_approval<V: ItemsView>(
                     .flex_shrink_0()
                     .text_size(ui::META)
                     .text_color(color)
+                    // Which rule answered for the user, so an allow nobody clicked is never silent.
                     .child(match &a.rule {
-                        // Which rule answered for the user, so an allow nobody clicked is never silent.
+                        Some(rule) if d == Decision::AllowThread => {
+                            format!("Allowed for this thread · {rule}")
+                        }
                         Some(rule) => format!("Allowed by project rule · {rule}"),
                         None => decided(d).to_owned(),
                     }),
@@ -101,8 +104,10 @@ pub(super) fn render_approval<V: ItemsView>(
                 cx.listener(move |this, _, window, cx| this.answer(&id, decision, window, cx)),
             )
     };
+    let prefix = this.thread_prefix(a);
     let actions = if answerable {
         h_flex()
+            .flex_wrap()
             .gap_2()
             .child(button("Allow once", "allow-once", Decision::AllowOnce).primary())
             .child(
@@ -113,6 +118,22 @@ pub(super) fn render_approval<V: ItemsView>(
                 )
                 .outline(),
             )
+            .when_some(prefix, |d, prefix| {
+                let id = a.id.clone();
+                d.child(
+                    Button::new(SharedString::from(format!("allow-prefix-{}", a.id)))
+                        .xsmall()
+                        .outline()
+                        .label(format!("Allow \"{prefix} …\" for this thread"))
+                        .tooltip(format!(
+                            "Commands starting with {prefix}, while this agent runs: one plain command each, never one \
+                             that chains, pipes, substitutes or redirects"
+                        ))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.allow_thread_prefix(&id, &prefix, window, cx)
+                        })),
+                )
+            })
             .when(this.offers_project_rule(&a.tool), |d| {
                 let id = a.id.clone();
                 d.child(

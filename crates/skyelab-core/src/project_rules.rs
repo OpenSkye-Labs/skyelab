@@ -167,14 +167,14 @@ fn protected(rel: &str) -> bool {
 }
 
 /// The input fields a shell ask may carry and still be matched: anything else (Claude's
-/// `dangerouslyDisableSandbox`, a field from a newer agent) may change what running it means.
+/// `dangerouslyDisableSandbox`, Codex's `reason`, which is how it asks to retry a command outside its sandbox, a field
+/// from a newer agent) may change what running it means.
 const COMMAND_FIELDS: &[&str] = &[
     "command",
     "description",
     "timeout",
     "run_in_background",
     "cwd",
-    "reason",
 ];
 
 fn plain_command_ask(input: &Value) -> bool {

@@ -143,3 +143,21 @@ fn many_stars_do_not_hang() {
         started.elapsed()
     );
 }
+
+#[test]
+fn a_codex_retry_without_sandbox_ask_is_never_matched() {
+    let rule = Rule {
+        tool: "shell".into(),
+        kind: Kind::Prefix,
+        pattern: "cargo test".into(),
+    };
+    let root = std::path::Path::new("/w");
+    let plain = serde_json::json!({ "command": "cargo test --all", "cwd": "/w" });
+    assert!(matches(&rule, "shell", &plain, root));
+    let retry = serde_json::json!({ "command": "cargo test --all", "cwd": "/w",
+        "reason": "command failed; retry without sandbox?" });
+    assert!(
+        !matches(&rule, "shell", &retry, root),
+        "running it would leave the sandbox"
+    );
+}

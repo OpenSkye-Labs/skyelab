@@ -8,6 +8,7 @@
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
 # A folder with a .fake-session-gone file has no rollouts: thread/resume is refused as real codex refuses it.
 # A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval;
+# "approve2" asks for `cargo test --lib` and then `cargo test --doc` (in the folder), reading an answer after each;
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%); one starting "hook" first starts a
 # sessionStart hook ("Reporting status to Orca") and holds it until the folder has a .fake-hook-done file.
 # With a fake-mcp-status file in CODEX_HOME, thread/start/resume first reports its lines as MCP startup statuses
@@ -87,6 +88,13 @@ while IFS= read -r line; do
         *)
           printf '{"id":%s,"result":{"turn":{"id":"turn_fake","status":"inProgress","items":[]}}}\n' "$id"
           case "$line" in
+            *approve2*)
+              for n in 1 2; do
+                cmd=$([ $n = 1 ] && echo 'cargo test --lib' || echo 'cargo test --doc')
+                printf '{"id":%s,"method":"item/commandExecution/requestApproval","params":{"threadId":"thr_fake","turnId":"turn_fake","itemId":"item_%s","command":"%s","cwd":"%s"}}\n' "$((98 + n))" "$n" "$cmd" "$(pwd -P)"
+                IFS= read -r reply
+                printf '{"method":"fake/request","params":%s}\n' "$reply"
+              done ;;
             *approve*)
               printf '{"id":99,"method":"item/commandExecution/requestApproval","params":{"threadId":"thr_fake","turnId":"turn_fake","itemId":"item_9","command":"make deploy"}}\n'
               IFS= read -r reply

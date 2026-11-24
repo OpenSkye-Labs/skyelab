@@ -34,6 +34,8 @@ mod codex_hook_status_test;
 #[cfg(all(test, unix))]
 mod codex_open_failure_turns_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
+mod codex_thread_prefix_test;
+#[cfg(all(test, unix))] // the fake codex is a shell script
 mod codex_session_gone_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
 mod codex_thread_test;

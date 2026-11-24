@@ -4,6 +4,8 @@
 //! SkyeLab sees the same stream as from `claude`.
 
 use crate::{Decision, DeltaKind, Event, Mode, Usage};
+#[path = "codex_allow.rs"]
+mod allow;
 #[path = "codex_config.rs"]
 mod config;
 #[path = "codex_items.rs"]
@@ -54,6 +56,8 @@ pub(crate) struct Codex {
     mode_change: Option<Mode>,
     /// The mode the `turn/start` in flight carries, put back if codex refuses that turn.
     mode_sent: Option<Mode>,
+    /// The thread's own allows, which SkyeLab answers by.
+    allow: allow::ThreadAllow,
     /// Starts every ask id, new per process (see `claude::Book`).
     pub(crate) nonce: String,
 }
@@ -91,6 +95,7 @@ impl Codex {
             mode_sent: None,
             nonce: String::new(),
             resuming: resume.is_some(),
+            allow: allow::ThreadAllow::new(dir, mode),
         };
         let init = c.request("initialize", initialize_params());
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
@@ -152,79 +157,7 @@ impl Codex {
 
     pub(crate) fn set_mode(&mut self, mode: Mode) {
         self.mode_change = Some(mode);
-    }
-
-    /// The reply to approval request `id`, or `None` when it isn't waiting. It stays open until [`Self::forget`].
-    pub(crate) fn answer(&mut self, id: &str, decision: Decision) -> Option<String> {
-        let rpc = self.asks.get(id)?;
-        if self.questions.contains_key(id) {
-            return Some(json!({ "id": rpc, "result": { "answers": {} } }).to_string());
-        }
-        let decision = match decision {
-            Decision::AllowOnce => "accept",
-            Decision::AllowThread => "acceptForSession",
-            Decision::Deny | Decision::Withdrawn => "decline",
-        };
-        Some(json!({ "id": rpc, "result": { "decision": decision } }).to_string())
-    }
-
-    pub(crate) fn forget(&mut self, id: &str) {
-        self.asks.remove(id);
-        self.questions.remove(id);
-    }
-
-    /// Every open request, withdrawn: its turn or its process is over.
-    pub(crate) fn withdraw_all(&mut self) -> Vec<Event> {
-        self.questions.clear();
-        self.patches.clear();
-        std::mem::take(&mut self.asks)
-            .into_keys()
-            .map(|id| Event::PermissionResolved {
-                id,
-                decision: Decision::Withdrawn,
-                rule: None,
-            })
-            .collect()
-    }
-
-    /// A server request: an approval waits for the user; anything else is answered now.
-    fn on_request(
-        &mut self,
-        method: &str,
-        rpc: Value,
-        params: &Value,
-    ) -> (Vec<Event>, Vec<String>) {
-        // A secret answer would be typed into a plain field, so those stay unsupported.
-        let secret = params["questions"]
-            .as_array()
-            .is_some_and(|qs| qs.iter().any(|q| q["isSecret"] == true));
-        if method == "item/tool/requestUserInput" && params["questions"].is_array() && !secret {
-            return self.on_question(rpc, params);
-        }
-        let (tool, keys): (_, &[&str]) = match method {
-            "item/commandExecution/requestApproval" => ("shell", &["command", "cwd", "reason"]),
-            "item/fileChange/requestApproval" => ("apply_patch", &["grantRoot", "reason"]),
-            _ => return (Vec::new(), vec![answer(method, rpc)]),
-        };
-        // Only the fields codex sent: an absent `grantRoot` must not show as null.
-        let input: serde_json::Map<String, Value> = keys
-            .iter()
-            .filter(|k| !params[**k].is_null())
-            .map(|k| ((*k).to_owned(), params[*k].clone()))
-            .collect();
-        let mut input = Value::Object(input);
-        // What the patch does, so the card never asks to approve an edit it can't show.
-        if let Some(changes) = params["itemId"].as_str().and_then(|i| self.patches.get(i)) {
-            input["changes"] = changes.clone();
-        }
-        let id = format!("{}codex-{}", self.nonce, rpc);
-        self.asks.insert(id.clone(), rpc);
-        let event = Event::Permission {
-            id,
-            tool: tool.to_owned(),
-            input,
-        };
-        (vec![event], Vec::new())
+        self.allow.picked = mode;
     }
 
     /// Stops the running turn; before its id is known, as soon as it is.
@@ -309,6 +242,10 @@ impl Codex {
         self.turn_req = None;
         match error {
             None => {
+                // The turn runs with the mode it carried, if any (a refused one never applied it).
+                if let Some(mode) = self.mode_sent {
+                    self.allow.running = mode;
+                }
                 let turn = v["result"]["turn"]["id"].as_str();
                 (Vec::new(), self.turn_known(turn))
             }
@@ -367,6 +304,7 @@ impl Codex {
             "serverRequest/resolved" => {
                 let id = format!("{}codex-{}", self.nonce, p["requestId"]);
                 self.questions.remove(&id);
+                self.allow.forget(&id);
                 let events = self.asks.remove(&id).map(|_| Event::PermissionResolved {
                     id,
                     decision: Decision::Withdrawn,
@@ -458,3 +396,10 @@ mod context_stream_test;
 #[cfg(test)]
 #[path = "codex_hook_tests.rs"]
 mod hook_tests;
+
+#[cfg(test)]
+#[path = "codex_allow_tests.rs"]
+mod allow_tests;
+
+#[path = "codex_asks.rs"]
+mod asks;
