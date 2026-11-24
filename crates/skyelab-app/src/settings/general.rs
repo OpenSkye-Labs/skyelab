@@ -103,6 +103,27 @@ impl Settings {
                 cx,
             ))
             .child(section(
+                "Quitting",
+                "What happens on Quit while work is in flight.",
+                [setting(
+                    true,
+                    "Quit confirmation",
+                    "Ask before quitting while a thread is working or waiting for you, or a terminal is running a \
+                     command. Quitting stops them.",
+                    Switch::new("quit-confirm")
+                        .checked(crate::workspace::quit_guard::asks(cx))
+                        .accessibility_label("Quit confirmation")
+                        .on_click(cx.listener(|this, on: &bool, _, cx| {
+                            if let Err(e) = crate::workspace::quit_guard::set_asks(*on, cx) {
+                                this.error = Some(format!("Saving the quit setting failed: {e:#}"));
+                            }
+                            cx.notify();
+                        })),
+                    cx,
+                )],
+                cx,
+            ))
+            .child(section(
                 "Advanced",
                 "Tools for working on SkyeLab itself.",
                 [setting(

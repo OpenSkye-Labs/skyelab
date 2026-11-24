@@ -68,6 +68,7 @@ mod palette_items;
 mod panels;
 mod projects;
 mod question_drafts;
+pub(crate) mod quit_guard;
 mod remote;
 mod remote_answers;
 mod remote_queue;

@@ -157,7 +157,7 @@ actions!(skyelab, [Quit]);
 /// The app's own keys, then the user's keybindings file over them (the keymap keeps only the bindings made before it
 /// starts, so nothing binds a key after this), then the menus, which show the keys bound by then.
 fn init_keys(path: Option<std::path::PathBuf>, cx: &mut App) {
-    cx.on_action(|_: &Quit, cx| cx.quit());
+    cx.on_action(|_: &Quit, cx| workspace::quit_guard::request_quit(cx));
     // Off macOS ctrl-q belongs to the shell (XON), and the window's close button quits.
     if cfg!(target_os = "macos") {
         cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
@@ -294,6 +294,7 @@ fn main() {
         let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
         // The last frame when it still shows on a connected display, else most of the primary display.
         workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
+        workspace::quit_guard::install(AppSettings::default_path(), cx);
         ui::themes::load(AppSettings::default_path(), cx);
         workspace::scheduled::install(AppSettings::default_path(), cx);
         let saved = AppSettings::default_path()
