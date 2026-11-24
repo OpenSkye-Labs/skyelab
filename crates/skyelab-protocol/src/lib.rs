@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 4 };
+pub const VERSION: Version = Version { major: 1, minor: 5 };
 
 /// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7287;
@@ -157,6 +157,21 @@ pub enum Call {
         request_id: String,
         answers: Vec<Vec<String>>,
     },
+    /// Lets this connection's device tunnel to `port` on the serving machine's loopback (1.5), until it calls
+    /// `stop_forward` or this connection ends. Refused for system and denylisted ports, and when nothing listens.
+    ForwardPort {
+        port: u16,
+    },
+    /// Ends a `forward_port` and every tunnel opened through it (1.5).
+    StopForward {
+        port: u16,
+    },
+    /// Turns this connection into a tunnel to `port` on the serving machine's loopback (1.5). Allowed only while
+    /// another live connection of the same approved device forwards that port. After the `Ok` reply the
+    /// connection carries raw TCP bytes in binary frames both ways, and nothing else.
+    OpenTunnel {
+        port: u16,
+    },
 }
 
 /// What a remote user may answer a permission request with (1.3).
@@ -203,7 +218,8 @@ pub enum Reply {
     ThreadStarted {
         thread_id: i64,
     },
-    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`).
+    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`,
+    /// `forward_port`, `stop_forward`, `open_tunnel`).
     Ok,
 }
 

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use tokio::sync::Notify;
+use tokio::sync::{Notify, watch};
 
 /// A connection that passed the gate, as whois named it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,6 +26,10 @@ pub(crate) struct Entry {
     pub(crate) gate: crate::CallGate,
     /// Set once hello passed with an approved key; a revoke of it closes the connection.
     pub(crate) approval: Option<crate::Approval>,
+    /// Ports this connection forwards (1.5). Each tunnel watches its port's sender and ends when it drops.
+    pub(crate) forwards: BTreeMap<u16, watch::Sender<()>>,
+    /// A tunnel of another connection's forward: not listed as a connected device.
+    pub(crate) tunnel: bool,
 }
 
 pub(crate) type Peers = Arc<Mutex<BTreeMap<u64, Entry>>>;

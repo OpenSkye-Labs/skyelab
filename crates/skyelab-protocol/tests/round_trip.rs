@@ -42,7 +42,7 @@ fn round_trip_hello() {
             capabilities: vec!["events".into()],
             device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 4}, "capabilities": ["events"], "device_key": "k"}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 5}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 
@@ -241,4 +241,20 @@ fn device_keys_hash_and_code() {
     // SHA-256("abc"), so the hash is the standard one, not something only this code agrees with.
     assert!(skyelab_protocol::device_key_hash("abc").starts_with("ba7816bf"));
     assert!(!skyelab_protocol::is_device_key(&key.to_uppercase()));
+}
+
+#[test]
+fn round_trip_port_forwarding() {
+    round_trip_request(
+        Call::ForwardPort { port: 5173 },
+        json!({"id": 7, "method": "forward_port", "params": {"port": 5173}}),
+    );
+    round_trip_request(
+        Call::StopForward { port: 5173 },
+        json!({"id": 7, "method": "stop_forward", "params": {"port": 5173}}),
+    );
+    round_trip_request(
+        Call::OpenTunnel { port: 5173 },
+        json!({"id": 7, "method": "open_tunnel", "params": {"port": 5173}}),
+    );
 }

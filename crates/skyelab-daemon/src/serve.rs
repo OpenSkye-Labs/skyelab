@@ -13,10 +13,16 @@ use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::access::{self, Verdict, Who};
-use crate::{Backend, Shared, Ws};
+use crate::{Backend, Shared, Ws, forward};
 
 enum Step {
     Send(ServerMessage),
+    /// `open_tunnel` was admitted: dial the port, answer, then carry bytes until it ends.
+    Tunnel {
+        id: skyelab_protocol::RequestId,
+        port: u16,
+        ended: tokio::sync::watch::Receiver<()>,
+    },
     SendAndClose(ServerMessage),
     Nothing,
     Close,
@@ -75,6 +81,33 @@ pub(crate) async fn serve(ws: Ws, peer: SocketAddr, shared: &Shared, who: &Who, 
             Some(_) = running.join_next(), if !running.is_empty() => Step::Nothing,
         };
         let (msg, close) = match step {
+            Step::Tunnel { id, port, ended } => {
+                let tcp = tokio::select! {
+                    biased;
+                    () = kick.notified() => break,
+                    tcp = forward::dial_loopback(port) => tcp,
+                };
+                let reply = match &tcp {
+                    Ok(_) => ServerMessage::Response {
+                        id,
+                        result: Reply::Ok,
+                    },
+                    Err(why) => ServerMessage::Error {
+                        id: Some(id),
+                        error: RpcError::new(ErrorCode::NotFound, why),
+                    },
+                };
+                let sent = tokio::select! {
+                    biased;
+                    () = kick.notified() => break,
+                    sent = timeout(config.idle_timeout, sink.send(Message::text(reply.to_json()))) => sent,
+                };
+                if let (Ok(tcp), Ok(Ok(()))) = (tcp, sent) {
+                    eprintln!("skyelab-daemon: {peer} tunnels to loopback port {port}");
+                    forward::pump(sink, stream, tcp, ended, kick, config.idle_timeout).await;
+                }
+                break;
+            }
             Step::Send(m) => (Some(m), false),
             Step::SendAndClose(m) => (Some(m), true),
             Step::Nothing => (None, false),
@@ -123,7 +156,7 @@ fn on_text(
         Err(msg) => return Step::Send(msg),
     };
     let id = req.id;
-    let error = |code, message: &str| ServerMessage::Error {
+    let error = move |code, message: &str| ServerMessage::Error {
         id: Some(id),
         error: RpcError::new(code, message),
     };
@@ -153,6 +186,47 @@ fn on_text(
             Step::Send(error(ErrorCode::BadRequest, "already said hello"))
         }
         (_, false) => Step::Send(error(ErrorCode::HelloRequired, "send hello first")),
+        (Call::ForwardPort { port }, true) => {
+            if let Some(why) = forward::refusal(port, &shared.own_ports) {
+                return Step::Send(error(ErrorCode::BadRequest, &why));
+            }
+            let Ok(permit) = in_flight.clone().try_acquire_owned() else {
+                return Step::Send(error(
+                    ErrorCode::TooManyRequests,
+                    "too many requests in flight",
+                ));
+            };
+            let (peers, replies, peer) = (shared.peers.clone(), replies.clone(), who.peer_id);
+            running.spawn(async move {
+                // Probe first, so the user hears at once that nothing listens there.
+                let reply = match forward::dial_loopback(port).await {
+                    Err(why) => error(ErrorCode::NotFound, &why),
+                    Ok(_probe) => match forward::allow(&peers, peer, port) {
+                        Ok(()) => ServerMessage::Response {
+                            id,
+                            result: Reply::Ok,
+                        },
+                        Err(why) => error(ErrorCode::BadRequest, &why),
+                    },
+                };
+                let _ = replies.send(reply).await;
+                drop(permit);
+            });
+            Step::Nothing
+        }
+        (Call::StopForward { port }, true) => {
+            forward::stop(&shared.peers, who.peer_id, port);
+            Step::Send(ServerMessage::Response {
+                id,
+                result: Reply::Ok,
+            })
+        }
+        (Call::OpenTunnel { port }, true) => {
+            match forward::join(&shared.peers, who.peer_id, port) {
+                Ok(ended) => Step::Tunnel { id, port, ended },
+                Err(why) => Step::SendAndClose(error(ErrorCode::BadRequest, &why)),
+            }
+        }
         (call, true) => {
             let Ok(permit) = in_flight.clone().try_acquire_owned() else {
                 return Step::Send(error(
@@ -232,6 +306,10 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
             backend.send_message(thread_id, &text).map(|()| Reply::Ok)
         }
         Call::Interrupt { thread_id } => backend.interrupt(thread_id).map(|()| Reply::Ok),
+        // `on_text` serves these itself: they act on the connection, not the backend.
+        Call::ForwardPort { .. } | Call::StopForward { .. } | Call::OpenTunnel { .. } => {
+            Err(RpcError::new(ErrorCode::BadRequest, "not a backend call"))
+        }
         Call::AnswerPermission {
             thread_id,
             request_id,
