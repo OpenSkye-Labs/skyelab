@@ -258,14 +258,11 @@ impl Render for ThreadView {
                 .flex()
                 .flex_col()
                 .children(quote)
-                .child(
-                    list(
-                        self.list_in(window.window_handle()).clone(),
-                        cx.processor(render_item),
-                    )
-                    .flex_1()
-                    .py_3(),
-                )
+                .child({
+                    let rows = self.list_in(window.window_handle()).clone();
+                    super::timeline_list::settle_rows_above(&rows);
+                    list(rows, cx.processor(render_item)).flex_1().py_3()
+                })
                 .children(minimap)
                 .children(find)
                 .into_any_element()

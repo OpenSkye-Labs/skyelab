@@ -93,3 +93,16 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   eased out, and end with an exact `scroll_to(target)` (rows measured on the way move the estimate). Stop when
   `logical_scroll_top()` isn't where the last step left it: the user scrolled. The task ends when it arrives, so an
   idle view never redraws for it (`smooth_scroll.rs`). Tests advance it with `executor().advance_clock`.
+
+- A `ListState` anchors on (row, offset in row), so rows above the first drawn one never move what is shown, but it
+  keeps each row's height from when it was measured in the leading overdraw (600 px above the viewport) and maps a
+  wheel delta to a row through those heights. A row that finishes laying out later keeps a stale, smaller height there:
+  gpui-component parses a `TextView` over 4 KB in the background (its first layout is nearly empty), and diagrams,
+  images and HTML cards land late. The wheel step that crosses into such a row lands at its top, a jump of its whole
+  height (5,500 px for a 9 KB reply in `timeline_scroll_jump_test`). The timelines call
+  `timeline_list::settle_rows_above` as they build the `list`: it `remeasure_items` the 8 rows above the first drawn
+  one, so a parse or asset that lands (and re-renders the view) fixes their heights before the reader gets there.
+- `ListState::splice` puts a reader whose top row is in the spliced range back at that row's top (offset 0), and drops
+  the rows' heights. For rows changed in place (a tool result, a fold toggle, a row refreshed) use `remeasure_items`,
+  which keeps the offset; `timeline_list::splice` does that for the rows a change keeps and splices only the rows added or
+  removed. Test scrolling with `ScrollEvent` pixel deltas and check each step moves a drawn row by exactly the delta.

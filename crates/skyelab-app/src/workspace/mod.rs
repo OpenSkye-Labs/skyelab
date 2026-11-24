@@ -91,6 +91,7 @@ mod thread_details;
 pub(crate) mod thread_extras;
 mod thread_items;
 mod thread_list;
+mod timeline_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod saved_views;
 mod subagent;

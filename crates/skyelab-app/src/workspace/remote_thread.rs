@@ -174,7 +174,7 @@ impl RemoteThreadView {
         if let Some(first) = apply(&mut self.items, &record) {
             stamp_done(&mut self.items, event.created_at);
             self.find_rows_changed();
-            self.list.splice(first..old, self.items.len() - first);
+            super::timeline_list::splice(&self.list, first..old, self.items.len() - first);
             if matches!(
                 record,
                 Record::Agent(skyelab_agent::Event::Permission { .. })
@@ -369,11 +369,12 @@ impl Render for RemoteThreadView {
                 .flex_1()
                 .min_h_0()
                 .flex()
-                .child(
+                .child({
+                    super::timeline_list::settle_rows_above(&self.list);
                     list(self.list.clone(), cx.processor(render_item))
                         .flex_1()
-                        .py_2(),
-                )
+                        .py_2()
+                })
                 .children(find)
                 .into_any_element()
         };
