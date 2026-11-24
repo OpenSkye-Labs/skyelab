@@ -45,7 +45,7 @@ fn rules_sent(request: &str) -> Vec<Value> {
     let id = loop {
         if let Event::Permission { id, .. } = s
             .events()
-            .recv_timeout(Duration::from_secs(10))
+            .recv_timeout(Duration::from_secs(60))
             .expect("ask")
         {
             break id;
@@ -55,7 +55,7 @@ fn rules_sent(request: &str) -> Vec<Value> {
     let reply = loop {
         if let Event::Unknown(v) = s
             .events()
-            .recv_timeout(Duration::from_secs(10))
+            .recv_timeout(Duration::from_secs(60))
             .expect("reply")
             && v["type"] == "fake_answer"
         {

@@ -78,7 +78,7 @@ fn client_hello() -> Vec<u8> {
 }
 
 fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
-    let until = Instant::now() + Duration::from_secs(5);
+    let until = Instant::now() + Duration::from_secs(60);
     while !done() {
         assert!(Instant::now() < until, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(20));
@@ -118,7 +118,7 @@ fn rejected_peer_gets_no_tls() {
 #[test]
 fn stalled_tls_handshake_is_dropped() {
     let tailnet = FakeTailnet::new(Peer::Own);
-    let daemon = start(tailnet, Arc::new(Counting::default()), test_config());
+    let daemon = start(tailnet, Arc::new(Counting::default()), short_gate_config());
     let started = Instant::now();
     let mut sock = tcp(daemon.local_addrs()[0]);
     let hello = client_hello();
@@ -127,7 +127,7 @@ fn stalled_tls_handshake_is_dropped() {
     let n = sock.read(&mut buf).unwrap_or(0);
     assert_eq!(n, 0, "expected a close");
     assert!(
-        started.elapsed() < Duration::from_secs(3),
+        started.elapsed() < Duration::from_secs(8), // the 500 ms gate, under the 30 s read timeout
         "a stalled handshake held the connection for {:?}",
         started.elapsed()
     );
@@ -276,14 +276,14 @@ fn hung_renewal_doesnt_block_the_gate() {
         ..test_config()
     };
     let daemon = start(tailnet.clone(), Arc::new(Counting::default()), config);
-    *tailnet.cert_hang.lock().expect("lock") = Duration::from_secs(5);
+    *tailnet.cert_hang.lock().expect("lock") = Duration::from_secs(20);
     wait_for("a renewal to start", || {
         tailnet.cert_calls.load(Ordering::SeqCst) >= 2
     });
     let started = Instant::now();
     connect_hello(daemon.local_addrs()[0]);
     assert!(
-        started.elapsed() < Duration::from_secs(2),
+        started.elapsed() < Duration::from_secs(10), // under the 20 s hung renewal
         "the gate waited {:?} behind a hung renewal",
         started.elapsed()
     );

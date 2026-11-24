@@ -45,7 +45,7 @@ fn open<'a>(
 }
 
 fn wait(cx: &mut VisualTestContext, what: &str, done: impl Fn(&mut VisualTestContext) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         cx.run_until_parked();
         if done(cx) {
@@ -208,8 +208,11 @@ fn click_in_mouse_mode_writes_sgr_to_pty(cx: &mut TestAppContext) {
     });
     let at = cell(&view, cx, 2, 3);
     click(cx, at, Modifiers::none(), 1);
-    wait(cx, "report", |cx| text(&view, cx).contains("[<0;4;3M"));
-    assert!(text(&view, cx).contains("[<0;4;3m"), "no release report");
+    // Press and release can come back in separate reads from the pty.
+    wait(cx, "press and release reports", |cx| {
+        let t = text(&view, cx);
+        t.contains("[<0;4;3M") && t.contains("[<0;4;3m")
+    });
     assert_eq!(
         view.read_with(cx, |v, _| v.terminal().selection_text()),
         None

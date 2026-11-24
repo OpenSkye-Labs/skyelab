@@ -13,21 +13,7 @@ use skyelab_agent::Event;
 use skyelab_store::Store;
 use std::time::Duration;
 
-fn tick(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.executor().advance_clock(Duration::from_millis(100));
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_ticking;
 
 fn failing(f: &mut Fixture) -> rusqlite::Connection {
     let path = f._home.path().join("store.db");
@@ -40,7 +26,7 @@ const FAIL: &str = "CREATE TRIGGER fail_agent BEFORE INSERT ON events WHEN NEW.k
 
 fn first_turn_unsaved(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     type_and_send(thread, cx);
-    tick(cx, "the first turn shown, unsaved", |cx| {
+    wait_ticking(cx, "the first turn shown, unsaved", |cx| {
         thread.read_with(cx, |t, _| {
             t.items.iter().any(|i| matches!(i, Item::Done { .. })) && t.unsaved_events > 0
         })
@@ -57,7 +43,7 @@ fn held_events_survive_a_stop_and_are_retried_on_a_timer(cx: &mut TestAppContext
     db.execute_batch(FAIL).expect("inject failure");
     first_turn_unsaved(&thread, cx);
     thread.update_in(cx, |t, window, cx| t.stop(&Stop, window, cx));
-    tick(cx, "stopped", |cx| {
+    wait_ticking(cx, "stopped", |cx| {
         thread.read_with(cx, |t, _| t.session.is_none())
     });
     for _ in 0..40 {
@@ -70,7 +56,7 @@ fn held_events_survive_a_stop_and_are_retried_on_a_timer(cx: &mut TestAppContext
     );
 
     db.execute_batch("DROP TRIGGER fail_agent").expect("heal");
-    tick(cx, "the held events saved with nothing sent", |cx| {
+    wait_ticking(cx, "the held events saved with nothing sent", |cx| {
         thread.read_with(cx, |t, _| t.unsaved_events == 0)
     });
     let id = thread.read_with(cx, |t, _| t.thread.as_ref().expect("row").id);
@@ -92,7 +78,7 @@ fn a_follow_up_is_stored_after_the_replies_held_before_it(cx: &mut TestAppContex
     first_turn_unsaved(&thread, cx);
     type_and_send(&thread, cx); // a follow-up while the first turn's replies are still held
     db.execute_batch("DROP TRIGGER fail_agent").expect("heal");
-    tick(cx, "everything saved", |cx| {
+    wait_ticking(cx, "everything saved", |cx| {
         thread.read_with(cx, |t, _| t.unsaved_events == 0)
     });
 

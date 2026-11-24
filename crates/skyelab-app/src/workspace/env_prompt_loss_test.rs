@@ -4,7 +4,6 @@ use super::env_harness::*;
 use super::*;
 use gpui::TestAppContext;
 use skyelab_daemon::testing::NODE_NAME;
-use std::time::Duration;
 
 #[gpui::test]
 fn remote_send_while_reconnecting_keeps_the_prompt(cx: &mut TestAppContext) {
@@ -44,13 +43,10 @@ fn remote_send_while_reconnecting_keeps_the_prompt(cx: &mut TestAppContext) {
     view.update_in(cx, |v, window, cx| {
         v.submit("a long prompt I typed", window, cx)
     });
-    for _ in 0..30 {
-        cx.run_until_parked();
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    let left = view.read_with(cx, |v, cx| v.prompt.read(cx).value().to_string());
-    assert_eq!(
-        left, "a long prompt I typed",
-        "the failed send kept the text"
-    );
+    // A send that went out fails on the client's network thread and puts the text back later.
+    wait_until(cx, "the failed send to give the text back", |cx| {
+        view.read_with(cx, |v, cx| {
+            v.prompt.read(cx).value() == "a long prompt I typed"
+        })
+    });
 }

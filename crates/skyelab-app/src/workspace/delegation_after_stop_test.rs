@@ -64,7 +64,7 @@ fn a_stopped_parent_cannot_open_a_tab_or_keep_waiting(cx: &mut TestAppContext) {
     )
     .expect_err("a stopped parent's wait ends");
     assert!(err.contains("isn't running"), "{err}");
-    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert!(started.elapsed() < std::time::Duration::from_secs(30)); // not the wait's own 60 s
 }
 
 /// Stop then resume between two polls leaves the row live, but the old grant is gone: its wait ends anyway.
@@ -110,8 +110,8 @@ fn a_wait_ends_when_its_grant_is_revoked(cx: &mut TestAppContext) {
     std::thread::sleep(std::time::Duration::from_millis(300));
     granted.store(false, Ordering::SeqCst);
     let err = rx
-        .recv_timeout(std::time::Duration::from_secs(5))
-        .expect("the wait ended within 5 s of the revocation")
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("the wait ended well before its own 60 s after the revocation")
         .expect_err("a revoked caller's wait");
     assert!(err.contains("isn't running"), "{err}");
 }

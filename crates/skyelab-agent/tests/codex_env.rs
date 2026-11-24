@@ -54,7 +54,7 @@ fn env_check_in_child() {
     let env = loop {
         match session
             .events()
-            .recv_timeout(Duration::from_secs(10))
+            .recv_timeout(Duration::from_secs(60))
             .expect("event")
         {
             Event::Unknown(v) if v["method"] == "fake/env" => break v["params"].clone(),

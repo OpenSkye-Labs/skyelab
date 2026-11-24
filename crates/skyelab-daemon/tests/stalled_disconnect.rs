@@ -34,7 +34,7 @@ fn disconnect_closes_a_stalled_writer() {
     let asked = Instant::now();
     while !daemon.peers().is_empty() {
         assert!(
-            asked.elapsed() < Duration::from_secs(2),
+            asked.elapsed() < Duration::from_secs(30), // far under the 300 s write bound, far over a slow machine
             "still connected: Disconnect waited for the stalled write"
         );
         std::thread::sleep(Duration::from_millis(10));

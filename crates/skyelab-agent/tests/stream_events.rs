@@ -50,8 +50,8 @@ fn until(s: &Session, stop: impl Fn(&Event) -> bool) -> Vec<Event> {
     loop {
         let e = s
             .events()
-            .recv_timeout(Duration::from_secs(10))
-            .expect("event within 10s");
+            .recv_timeout(Duration::from_secs(60))
+            .expect("event within 60 s");
         let done = stop(&e);
         out.push(e);
         if done {

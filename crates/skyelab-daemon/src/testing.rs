@@ -111,7 +111,7 @@ pub fn tls_connect(
     let server = ServerName::try_from(name.to_owned()).expect("test server name");
     let conn = ClientConnection::new(Arc::new(config), server).expect("client connection");
     let tcp = TcpStream::connect(addr)?;
-    tcp.set_read_timeout(Some(Duration::from_secs(5)))?;
+    tcp.set_read_timeout(Some(Duration::from_secs(30)))?;
     let mut tls = StreamOwned::new(conn, tcp);
     // Finish the handshake here, so a refused certificate fails this call, not the first WebSocket read.
     while tls.conn.is_handshaking() {
@@ -138,12 +138,12 @@ pub fn approvals() -> Vec<crate::Approval> {
 mod tailnet;
 pub use tailnet::{FakeTailnet, Peer, node};
 
-/// Daemon settings for tests: `port` (0 picks one), a short gate timeout, and the test key approved
-/// ([`approvals`]).
+/// Daemon settings for tests: `port` (0 picks one), the default gate timeout, and the test key approved
+/// ([`approvals`]). The gate covers whois and the TLS handshake, so a short one rejects good clients on a loaded
+/// machine: only tests about the timeout shorten it.
 pub fn config(port: u16) -> Config {
     Config {
         port,
-        gate_timeout: Duration::from_millis(500),
         approved: approvals(),
         ..Config::default()
     }

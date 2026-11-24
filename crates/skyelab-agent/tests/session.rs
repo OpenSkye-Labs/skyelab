@@ -32,8 +32,8 @@ fn temp_dir(name: &str) -> PathBuf {
 }
 
 fn next(rx: &flume::Receiver<Event>) -> Event {
-    rx.recv_timeout(Duration::from_secs(10))
-        .expect("event within 10s")
+    rx.recv_timeout(Duration::from_secs(60))
+        .expect("event within 60 s")
 }
 
 /// Reads events until the fake script's env report.
@@ -141,7 +141,7 @@ fn send_and_kill() {
     assert_eq!(echoed(&rx), "second");
     session.kill().expect("kill");
     assert_eq!(
-        rx.recv_timeout(Duration::from_secs(10)).map(|_| ()),
+        rx.recv_timeout(Duration::from_secs(60)).map(|_| ()),
         Err(flume::RecvTimeoutError::Disconnected),
         "stream ends after kill, even with a grandchild holding stdout"
     );

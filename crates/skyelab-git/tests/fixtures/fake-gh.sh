@@ -34,6 +34,8 @@ case "$1 $2" in
   ;;
 "pr view")
   echo "$*" >> "$dir/fake-gh.prview"
+  # A slow read: "fake-view-delay" holds the seconds to wait before answering.
+  [ -f "$dir/fake-view-delay" ] && sleep "$(cat "$dir/fake-view-delay")"
   if [ ! -f "$dir/fake-login" ]; then
     echo "To get started with GitHub CLI, please run:  gh auth login" >&2
     exit 4

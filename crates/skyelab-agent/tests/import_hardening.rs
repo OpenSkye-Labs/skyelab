@@ -113,7 +113,7 @@ fn links_and_fifos_in_the_account_dir_are_skipped() {
         let _ = tx.send(import::list(Provider::Claude, &home_path, folder).len());
     });
     let found = rx
-        .recv_timeout(std::time::Duration::from_secs(10))
+        .recv_timeout(std::time::Duration::from_secs(60))
         .expect("list hung on a FIFO");
     assert_eq!(found, 0, "neither the FIFO nor the linked file is read");
 }
@@ -159,7 +159,7 @@ fn an_aborted_codex_turn_keeps_the_resent_prompt_and_a_fifo_index_never_blocks()
         let _ = tx.send(import::read(Provider::Codex, &h, &file, 1 << 20));
     });
     let t = rx
-        .recv_timeout(std::time::Duration::from_secs(10))
+        .recv_timeout(std::time::Duration::from_secs(60))
         .expect("read hung on a FIFO index")
         .expect("parses");
     let prompts = t

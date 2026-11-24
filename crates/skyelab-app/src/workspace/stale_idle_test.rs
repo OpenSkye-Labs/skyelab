@@ -8,21 +8,7 @@ use gpui::VisualTestContext;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-fn tick(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1500 {
-        cx.executor().advance_clock(Duration::from_millis(100));
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_ticking;
 
 #[gpui::test]
 fn a_held_idle_does_not_overwrite_stopped(cx: &mut gpui::TestAppContext) {
@@ -39,13 +25,13 @@ fn a_held_idle_does_not_overwrite_stopped(cx: &mut gpui::TestAppContext) {
     let store = rig.store.clone();
     let view = start(&ws, rig.work_a, "plain work", cx);
     let id = thread_id(&view, cx);
-    tick(cx, "result shown, idle held", |cx| {
+    wait_ticking(cx, "result shown, idle held", |cx| {
         view.read_with(cx, |v, _| {
             v.turns.load(Ordering::SeqCst) == 0 && v.unsaved_events > 0
         })
     });
     view.update_in(cx, |v, w, cx| v.stop(&Stop, w, cx));
-    tick(cx, "stopped stored", |_| {
+    wait_ticking(cx, "stopped stored", |_| {
         store
             .lock()
             .expect("lock")
@@ -56,7 +42,7 @@ fn a_held_idle_does_not_overwrite_stopped(cx: &mut gpui::TestAppContext) {
             == "stopped"
     });
     db.execute_batch("DROP TRIGGER fail_idle;").expect("heal");
-    tick(cx, "held writes drained", |cx| {
+    wait_ticking(cx, "held writes drained", |cx| {
         view.read_with(cx, |v, _| v.unsaved_events == 0)
     });
     let status = store
@@ -107,12 +93,12 @@ fn a_held_idle_does_not_overwrite_a_closed_or_quit_thread(cx: &mut gpui::TestApp
     // Closed: the tab goes while its idle is held; the store heals right after.
     let closed = start(&ws, rig.work_a, "plain work", vcx);
     let closed_id = thread_id(&closed, vcx);
-    tick(vcx, "result shown, idle held", |cx| held(&closed, cx));
+    wait_ticking(vcx, "result shown, idle held", |cx| held(&closed, cx));
     ws.update_in(vcx, |ws, window, cx| {
         ws.close_thread(&closed, window, cx);
     });
     drop(closed);
-    tick(vcx, "the closed thread stopped", |_| {
+    wait_ticking(vcx, "the closed thread stopped", |_| {
         status(&store, closed_id) == "stopped"
     });
     db.execute_batch("DROP TRIGGER fail_idle;").expect("heal");
@@ -126,7 +112,7 @@ fn a_held_idle_does_not_overwrite_a_closed_or_quit_thread(cx: &mut gpui::TestApp
     let _db = hold_idle(rig._home.path());
     let quit = start(&ws, rig.work_a, "plain work", vcx);
     let quit_id = thread_id(&quit, vcx);
-    tick(vcx, "result shown, idle held", |cx| held(&quit, cx));
+    wait_ticking(vcx, "result shown, idle held", |cx| held(&quit, cx));
     db.execute_batch("DROP TRIGGER fail_idle;").expect("heal");
     cx.quit();
     assert_eq!(status(&store, quit_id), "stopped", "quit");

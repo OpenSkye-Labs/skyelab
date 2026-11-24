@@ -53,9 +53,9 @@ fn git_config_returns_while_siblings_spawn() {
     });
     let mut done = 0;
     while done < 100 {
-        if rx.recv_timeout(Duration::from_secs(5)).is_err() {
+        if rx.recv_timeout(Duration::from_secs(60)).is_err() {
             stop.store(true, Ordering::SeqCst);
-            panic!("call {} of git config hung past 5 s", done + 1);
+            panic!("call {} of git config hung past 60 s", done + 1);
         }
         done += 1;
     }

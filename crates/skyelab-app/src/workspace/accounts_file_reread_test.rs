@@ -134,12 +134,7 @@ fn a_terminal_for_a_folder_left_meanwhile_does_not_open(cx: &mut TestAppContext)
         ws.folder = back;
         ws.new_terminal(&NewTerminal, window, cx);
     });
-    for _ in 0..200 {
-        cx.run_until_parked();
-        if ws.read_with(cx, |ws, _| ws.terminals.len()) == 1 {
-            return;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    panic!("the terminal for the current folder opened");
+    crate::test_wait::wait_until(cx, "the terminal for the current folder", |cx| {
+        ws.read_with(cx, |ws, _| ws.terminals.len()) == 1
+    });
 }

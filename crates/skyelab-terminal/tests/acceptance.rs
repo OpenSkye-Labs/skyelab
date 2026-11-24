@@ -12,10 +12,10 @@ use gpui::Keystroke;
 use skyelab_terminal::{Event, SpawnOptions, Terminal};
 use skyelab_terminal::{OptionKey, key_to_bytes};
 
-/// Feeds events into the model until `done` holds or 10s pass.
+/// Feeds events into the model until `done` holds or 60 s pass.
 #[cfg(unix)]
 fn pump(term: &mut Terminal, rx: &mut UnboundedReceiver<Event>, done: impl Fn(&Terminal) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(60);
     while !done(term) {
         assert!(
             Instant::now() < deadline,
@@ -92,7 +92,13 @@ fn unbound_terminal_has_no_config_dir() {
         &["-c", "echo \"dir=[$CLAUDE_CONFIG_DIR]\""],
         HashMap::new(),
     );
-    pump(&mut term, &mut rx, |t| t.text().contains("dir=["));
+    // Wait for the whole line: the closing ] can come in a later read than "dir=[".
+    pump(&mut term, &mut rx, |t| {
+        t.text()
+            .split("dir=[")
+            .nth(1)
+            .is_some_and(|rest| rest.contains(']'))
+    });
     assert!(term.text().contains("dir=[]"), "{}", term.text());
 }
 

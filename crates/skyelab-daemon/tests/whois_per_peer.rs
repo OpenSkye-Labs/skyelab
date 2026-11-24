@@ -21,7 +21,8 @@ fn two_address_tailnet() -> Arc<FakeTailnet> {
 }
 
 fn wait_for_whois(tailnet: &FakeTailnet, n: usize) {
-    for _ in 0..500 {
+    let until = std::time::Instant::now() + Duration::from_secs(60);
+    while std::time::Instant::now() < until {
         if tailnet.whois_calls() >= n {
             return;
         }
@@ -42,7 +43,7 @@ fn a_flooding_peer_cannot_starve_another_peers_admission() {
     let daemon = start(
         tailnet.clone(),
         Arc::new(Counting::default()),
-        test_config(),
+        short_gate_config(),
     );
     let (flood_addr, own_addr) = (daemon.local_addrs()[0], daemon.local_addrs()[1]);
     assert_eq!((flood_addr.ip(), own_addr.ip()), (V4, V6));

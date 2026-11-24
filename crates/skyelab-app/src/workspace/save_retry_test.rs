@@ -8,27 +8,11 @@ use super::threads_test::{
     Fixture, fixture, open_workspace, project_thread, setup, stored_records, type_and_send,
 };
 use super::*;
-use gpui::{TestAppContext, VisualTestContext};
+use gpui::TestAppContext;
 use skyelab_agent::Event;
 use skyelab_store::Store;
-use std::time::Duration;
 
-/// Like `wait_until`, but moves the test clock too, so retry timers fire.
-fn wait_ticking(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1000 {
-        cx.executor().advance_clock(Duration::from_millis(100));
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_ticking;
 
 fn agent_records(f: &Fixture, thread: i64) -> Vec<Event> {
     stored_records(&f.store, thread)

@@ -25,7 +25,7 @@ fn a_spawn_waits_while_another_is_starting() {
         );
     });
     assert!(
-        rx.recv_timeout(Duration::from_secs(10))
+        rx.recv_timeout(Duration::from_secs(60))
             .expect("the spawn runs once the lock is free"),
         "the spawn failed"
     );

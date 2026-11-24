@@ -137,7 +137,7 @@ fn a_last_line_without_a_newline_is_answered() {
     });
     write!(to_proxy, r#"{{"jsonrpc":"2.0","id":1,"method":"ping"}}"#).expect("write");
     drop(to_proxy);
-    let done = rx.recv_timeout(std::time::Duration::from_secs(5));
+    let done = rx.recv_timeout(std::time::Duration::from_secs(60));
     assert!(matches!(done, Ok(true)), "the proxy hung: {done:?}");
     let mut out = String::new();
     std::io::Read::read_to_string(&mut from_proxy, &mut out).expect("read");

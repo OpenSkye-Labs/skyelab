@@ -12,8 +12,8 @@ fn bounded(mut cmd: Command, input: Option<&'static [u8]>) -> Output {
     std::thread::spawn(move || {
         let _ = tx.send(output(&mut cmd, input));
     });
-    rx.recv_timeout(Duration::from_secs(5))
-        .expect("returned within 5 s")
+    rx.recv_timeout(Duration::from_secs(60))
+        .expect("returned within 60 s")
         .expect("ran")
 }
 

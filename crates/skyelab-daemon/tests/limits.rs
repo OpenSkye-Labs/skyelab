@@ -48,7 +48,7 @@ fn idle_connection_closed() {
     let started = Instant::now();
     assert!(recv(&mut ws).is_none());
     assert!(
-        started.elapsed() < Duration::from_secs(3),
+        started.elapsed() < Duration::from_secs(30), // the default idle timeout is 300 s
         "{:?}",
         started.elapsed()
     );

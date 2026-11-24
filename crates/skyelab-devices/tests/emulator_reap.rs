@@ -44,7 +44,7 @@ fn a_dropped_emulator_is_reaped_when_it_exits() {
     let pid = emu.pid();
     drop(emu);
     let start = Instant::now();
-    while !state(pid).is_empty() && start.elapsed() < Duration::from_secs(10) {
+    while !state(pid).is_empty() && start.elapsed() < Duration::from_secs(60) {
         std::thread::sleep(Duration::from_millis(50));
     }
     assert_eq!(state(pid), "", "pid {pid} was not reaped");

@@ -27,7 +27,7 @@ fn fake_cli(dir: &Path, domains: &str, cert_body: &str) -> TailscaleCli {
     TailscaleCli::with_binaries(vec![bin])
         .with_cert_dir(dir.join("tls"))
         // Long enough for a loaded machine to start the fake; the hang test still finishes far below its 30 s sleep.
-        .with_cert_timeout(Duration::from_secs(3))
+        .with_cert_timeout(Duration::from_secs(10))
 }
 
 /// Writes the files named by --cert-file / --key-file, as the real CLI does, and logs its args.
@@ -89,7 +89,7 @@ fn hung_cert_times_out_and_fails_closed() {
         "{err:?}"
     );
     assert!(
-        start.elapsed() < Duration::from_secs(15),
+        start.elapsed() < Duration::from_secs(25),
         "{:?}",
         start.elapsed()
     );

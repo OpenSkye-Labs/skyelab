@@ -174,10 +174,10 @@ fn only_the_repos_methods_are_offered_reviews_send_their_text_and_errors_stay_sh
     dialog.update_in(cx, |d, window, cx| {
         d.review(Verdict::RequestChanges, window, cx)
     });
-    wait_until(cx, "review sent", |_| {
-        !lines(&gh.join("fake-gh.actions")).is_empty()
+    // fake-gh logs the call before it reads the body, and the dialog closes once gh has exited.
+    wait_until(cx, "review sent and the dialog closed", |cx| {
+        !dialog_open(cx) && !lines(&gh.join("fake-gh.actions")).is_empty()
     });
-    cx.run_until_parked();
     assert_eq!(
         lines(&gh.join("fake-gh.actions")),
         [format!("pr review {URL} --request-changes --body-file -")]
@@ -186,7 +186,6 @@ fn only_the_repos_methods_are_offered_reviews_send_their_text_and_errors_stay_sh
         std::fs::read_to_string(gh.join("fake-gh.review-body")).expect("body"),
         "Please add a test."
     );
-    assert!(!dialog_open(cx));
 
     // gh refuses the merge: its words show in the dialog, which stays open.
     std::fs::write(
@@ -419,18 +418,20 @@ fn a_merge_without_a_known_head_is_refused_and_a_moved_branch_shows_ghs_refusal(
 #[gpui::test]
 fn a_read_is_stamped_when_it_started_not_when_it_landed(cx: &mut gpui::TestAppContext) {
     let (r, cx) = rig(cx);
-    let _gh = github(&r, cx);
+    let gh = github(&r, cx);
     let (id, _dialog) = thread_dialog(&r, cx);
     let landed = |cx: &mut VisualTestContext| {
         cx.update(|_, cx| cx.global::<PrStatuses>().0.get(&id).map(|e| e.checked_ms))
     };
     let first = landed(cx);
+    // The read takes a second, so its start and its landing are far apart on the clock.
+    std::fs::write(gh.join("fake-view-delay"), "1").expect("delay");
     r.ws.update(cx, |ws, cx| ws.reread_pr(id, cx));
-    let asked_by = crate::ui::now_ms();
     wait_until(cx, "read landed", |cx| landed(cx) != first);
+    let seen = crate::ui::now_ms();
     let stamp = landed(cx).expect("stamped");
     assert!(
-        stamp <= asked_by,
-        "STAMPED_ON_LANDING: {stamp} is after the read started ({asked_by})"
+        stamp + 500 <= seen,
+        "STAMPED_ON_LANDING: {stamp} is within 500 ms of the read landing ({seen})"
     );
 }

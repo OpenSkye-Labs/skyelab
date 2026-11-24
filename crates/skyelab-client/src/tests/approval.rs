@@ -51,8 +51,8 @@ fn allowing_a_waiting_device_connects_it_within_seconds() {
     opts.backoff_min = Duration::from_millis(500);
     opts.backoff_max = Duration::from_secs(60);
     let client = Client::connect(HOST, opts).expect("client");
-    // Several refusals push the normal backoff past 4 s.
-    for _ in 0..4 {
+    // Five refusals: the delay after the last is 8 s uncapped, 3 s with the not-approved cap.
+    for _ in 0..5 {
         assert_eq!(kind(&client), DisconnectKind::NotApproved);
     }
     daemon.set_approved(vec![skyelab_daemon::Approval {
@@ -61,14 +61,14 @@ fn allowing_a_waiting_device_connects_it_within_seconds() {
     }]);
     let allowed = Instant::now();
     loop {
-        match client.updates().recv_timeout(Duration::from_secs(5)) {
+        match client.updates().recv_timeout(Duration::from_secs(60)) {
             Ok(Update::Connected(_)) => break,
             Ok(Update::Disconnected(_)) => continue,
             other => panic!("expected to connect, got {other:?}"),
         }
     }
     assert!(
-        allowed.elapsed() < Duration::from_secs(4),
+        allowed.elapsed() < Duration::from_secs(6), // between the capped 3 s and the uncapped 8 s
         "{:?}",
         allowed.elapsed()
     );

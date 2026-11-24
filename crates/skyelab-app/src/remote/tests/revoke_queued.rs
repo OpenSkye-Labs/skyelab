@@ -17,7 +17,7 @@ fn a_call_queued_before_a_revoke_never_runs(cx: &mut TestAppContext) {
         },
     );
     // Not pumping the app, so the call waits in the Workspace's queue.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + crate::test_wait::DEADLINE;
     while f.queue.is_empty() {
         assert!(
             std::time::Instant::now() < deadline,

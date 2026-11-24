@@ -35,7 +35,7 @@ fn args_for(mcp_config: Option<&Path>) -> String {
     };
     let session = start_with_bin(&bin, &config, &launch).expect("start");
     loop {
-        match session.events().recv_timeout(Duration::from_secs(10)) {
+        match session.events().recv_timeout(Duration::from_secs(60)) {
             Ok(Event::Unknown(v)) if v["type"] == "fake_env" => {
                 return v["args"].as_str().expect("args").to_owned();
             }

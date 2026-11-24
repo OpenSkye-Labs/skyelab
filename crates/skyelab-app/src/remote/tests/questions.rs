@@ -138,7 +138,13 @@ fn a_remote_client_answers_a_question_and_approves_a_plan(cx: &mut TestAppContex
     wait_until(cx, "the thread leaves Plan", |cx| {
         f.ws.read_with(cx, |ws, cx| ws.thread_mode(thread_id, cx)) == Some(Mode::Default)
     });
-    let reply = fake_reply(&f, thread_id).expect("the agent got the approval");
+    // The mode flips when the answer is sent; the fake reports it back later, so wait for that event too.
+    let mut reply = None;
+    wait_until(cx, "the agent's report of the approval", |_| {
+        reply = fake_reply(&f, thread_id);
+        reply.is_some()
+    });
+    let reply = reply.expect("the agent got the approval");
     assert_eq!(reply["response"]["response"]["behavior"], "allow");
 }
 
@@ -165,7 +171,7 @@ fn a_revoked_device_cannot_answer_questions(cx: &mut TestAppContext) {
         },
     );
     // Not pumping the app, so the call waits in the Workspace's queue.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + crate::test_wait::DEADLINE;
     while f.queue.is_empty() {
         assert!(std::time::Instant::now() < deadline, "never queued");
         std::thread::sleep(std::time::Duration::from_millis(5));

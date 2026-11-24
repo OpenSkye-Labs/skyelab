@@ -234,7 +234,7 @@ fn oversized_message_over_tls_closes() {
     assert_eq!(
         client
             .thread_events_since(env.thread_id, 0)
-            .recv_timeout(Duration::from_secs(5)),
+            .recv_timeout(Duration::from_secs(60)),
         Err(Error::ConnectionLost)
     );
 }

@@ -136,7 +136,6 @@ impl Tailnet for FakeTailnet {
     }
 
     fn whois(&self, addr: SocketAddr) -> Result<WhoIs, TailnetError> {
-        self.whois_calls.fetch_add(1, Ordering::SeqCst);
         // Copy out first: holding the lock through a Hang would serialize every whois.
         let by_ip = self
             .peer_by_ip
@@ -145,6 +144,8 @@ impl Tailnet for FakeTailnet {
             .get(&addr.ip())
             .copied();
         let peer = by_ip.unwrap_or_else(|| *self.peer.lock().expect("peer lock"));
+        // Counted after the peer is read, so a test that waits for the count may then change the peer.
+        self.whois_calls.fetch_add(1, Ordering::SeqCst);
         match peer {
             Peer::Own => Ok(whois(ME, vec![])),
             Peer::OwnNode(id) => Ok(whois_node(id, ME, vec![])),

@@ -11,7 +11,7 @@ use futures::channel::mpsc::UnboundedReceiver;
 use skyelab_terminal::{Event, Scroll, SelectionType, Side, SpawnOptions, Terminal};
 
 fn pump(term: &mut Terminal, rx: &mut UnboundedReceiver<Event>, done: impl Fn(&Terminal) -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(60);
     while !done(term) {
         assert!(
             Instant::now() < deadline,

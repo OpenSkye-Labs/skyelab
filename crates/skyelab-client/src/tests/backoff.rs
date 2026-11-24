@@ -17,15 +17,22 @@ fn rejected_connections_back_off() {
         ..options(port(&daemon))
     };
     let client = Client::connect(HOST, opts).expect("client");
-    std::thread::sleep(Duration::from_secs(2));
-    // Each refused attempt reports one Disconnected. Counted here, not by the daemon's whois calls, which would
+    // Each refused attempt reports one Disconnected. Timed here, not by the daemon's whois calls, which would
     // also count strays (another test's client retrying a port this daemon now holds).
-    let attempts = client
-        .updates()
-        .try_iter()
-        .filter(|u| matches!(u, Update::Disconnected(_)))
-        .count();
-    // 0, 0.25, 0.75, 1.75 s: four attempts; a missing delay would make hundreds.
-    assert!((2..=5).contains(&attempts), "{attempts} attempts in 2 s");
+    let refused = || loop {
+        if matches!(next(&client), Update::Disconnected(_)) {
+            return std::time::Instant::now();
+        }
+    };
+    let first = refused();
+    refused();
+    let third = refused();
+    // Delays of 0.25 then 0.5 s put the third attempt at least 0.75 s after the first; a missing delay would
+    // make it milliseconds. A slow machine only stretches the gap, so this lower bound can't flake.
+    assert!(
+        third - first >= Duration::from_millis(700),
+        "three attempts in {:?}",
+        third - first
+    );
     drop(client);
 }

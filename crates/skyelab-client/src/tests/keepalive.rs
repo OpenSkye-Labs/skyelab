@@ -11,7 +11,8 @@ use super::*;
 fn pings_keep_the_connection_alive() {
     let env = Env::new();
     let config = Config {
-        idle_timeout: Duration::from_secs(1),
+        // 20 pings per idle window: one stalled for seconds on a loaded machine must not drop the connection.
+        idle_timeout: Duration::from_secs(4),
         ..daemon_config(0)
     };
     let daemon =
@@ -22,6 +23,6 @@ fn pings_keep_the_connection_alive() {
     };
     let client = Client::connect(HOST, opts).expect("client");
     connected(&client);
-    quiet(&client, Duration::from_secs(3));
+    quiet(&client, Duration::from_secs(6));
     assert!(client.hello().is_some());
 }

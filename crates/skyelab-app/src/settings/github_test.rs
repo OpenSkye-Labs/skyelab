@@ -61,13 +61,9 @@ fn github_dir_is_saved_login_shown_and_log_in_requested(cx: &mut TestAppContext)
     );
 
     // The row learns who is logged in there, off the UI thread.
-    for _ in 0..500 {
-        cx.run_until_parked();
-        if view.read_with(cx, |v, _| v.gh_logins.contains_key("acme")) {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
+    crate::test_wait::wait_until(cx, "the gh login", |cx| {
+        view.read_with(cx, |v, _| v.gh_logins.contains_key("acme"))
+    });
     view.read_with(cx, |v, _| {
         assert_eq!(
             v.gh_logins.get("acme").map(|l| l.as_deref()),

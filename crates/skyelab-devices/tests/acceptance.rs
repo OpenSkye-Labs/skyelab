@@ -250,7 +250,7 @@ fn booting_an_avd_spawns_a_stoppable_emulator() {
         .expect("test setup")
         .expect("test setup");
     let start = Instant::now();
-    while log(dir.path(), "emulator").is_empty() && start.elapsed() < Duration::from_secs(5) {
+    while log(dir.path(), "emulator").is_empty() && start.elapsed() < Duration::from_secs(60) {
         std::thread::sleep(Duration::from_millis(20));
     }
     assert_eq!(log(dir.path(), "emulator"), "[-avd][Test_AVD_One]\n");

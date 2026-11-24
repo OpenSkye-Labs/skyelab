@@ -35,8 +35,8 @@ fn drop_after_self_exit_kills_group() {
     loop {
         if let Event::Unknown(v) = session
             .events()
-            .recv_timeout(Duration::from_secs(10))
-            .expect("event within 10s")
+            .recv_timeout(Duration::from_secs(60))
+            .expect("event within 60 s")
             && v["type"] == "bye"
         {
             break;
@@ -44,13 +44,20 @@ fn drop_after_self_exit_kills_group() {
     }
     std::thread::sleep(Duration::from_millis(300)); // the leader exits, unreaped
     drop(session);
-    std::thread::sleep(Duration::from_millis(300));
     let pid = std::fs::read_to_string(dir.join("grandchild.pid")).expect("pid file");
-    let alive = std::process::Command::new("/bin/kill")
-        .args(["-0", pid.trim()])
-        .status()
-        .expect("kill -0")
-        .success();
+    let running = || {
+        std::process::Command::new("/bin/kill")
+            .args(["-0", pid.trim()])
+            .status()
+            .expect("kill -0")
+            .success()
+    };
+    // The kill lands at once, but a loaded machine may take a while to reap it.
+    let until = std::time::Instant::now() + Duration::from_secs(60);
+    while running() && std::time::Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let alive = running();
     if alive {
         let _ = std::process::Command::new("/bin/kill")
             .args(["-KILL", pid.trim()])

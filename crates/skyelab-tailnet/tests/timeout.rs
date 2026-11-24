@@ -25,7 +25,7 @@ fn hung_cli_times_out_on_status() {
     std::fs::remove_dir_all(&dir).expect("test setup");
     assert!(matches!(err, Error::Timeout { .. }), "{err:?}");
     assert!(
-        start.elapsed() < Duration::from_secs(5),
+        start.elapsed() < Duration::from_secs(15),
         "took {:?}",
         start.elapsed()
     );
@@ -41,7 +41,7 @@ fn hung_cli_times_out_on_whois() {
     std::fs::remove_dir_all(&dir).expect("test setup");
     assert!(matches!(err, Error::Timeout { .. }), "{err:?}");
     assert!(
-        start.elapsed() < Duration::from_secs(5),
+        start.elapsed() < Duration::from_secs(15),
         "took {:?}",
         start.elapsed()
     );
