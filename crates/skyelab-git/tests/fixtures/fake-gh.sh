@@ -3,6 +3,7 @@
 # GH_CONFIG_DIR it was given, so a missing or wrong dir shows up as a missing record:
 #   fake-gh.args  one arg per line     fake-gh.env  its GH_/GITHUB_/GIT_ env     fake-gh.body  stdin of `pr create`
 #   fake-gh.fullenv  its whole env, from the last call
+#   fake-gh.resolved  what `pr create`'s git sees of remote.*.gh-resolved (real gh reads it to pick the base repo)
 #   fake-gh.prview  one line per `pr view` call (its args)
 #   fake-gh.list  one line per `pr list` / `issue list` call: its args, cwd, GH_CONFIG_DIR and whether GH_TOKEN was set
 # Logged in when "$GH_CONFIG_DIR/fake-login" exists (its content is the login). `pr view` prints
@@ -103,6 +104,7 @@ case "$1 $2" in
   printf '%s\n' "$@" > "$dir/fake-gh.args"
   env | grep -E '^(GH_|GITHUB_|GIT_)' > "$dir/fake-gh.env"
   cat > "$dir/fake-gh.body"
+  git config --get-regexp '^remote\..*\.gh-resolved$' > "$dir/fake-gh.resolved"
   head=""
   prev=""
   for a in "$@"; do

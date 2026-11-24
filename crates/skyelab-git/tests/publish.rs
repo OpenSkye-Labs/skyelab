@@ -221,6 +221,19 @@ fn create_pr_passes_body_on_stdin_and_returns_the_url() {
     );
 }
 
+/// gh picks the base repo from `remote.<name>.gh-resolved` (`gh repo set-default`); the frozen config gh's git reads
+/// keeps it. With `--head` and prompts off gh never writes it (no push, no fork remote), so nothing is lost there.
+#[test]
+fn create_pr_sees_the_repos_default_remote() {
+    let (_tmp, repo, _remote, gh_dir) = setup();
+    git(&repo, &["config", "remote.origin.gh-resolved", "base"]);
+    skyelab_git::create_pr(&repo, &gh(&gh_dir), "Add feature", "").expect("pr");
+    assert_eq!(
+        fs::read_to_string(gh_dir.join("fake-gh.resolved")).expect("gh read it"),
+        "remote.origin.gh-resolved base\n"
+    );
+}
+
 #[test]
 fn create_pr_validates_before_gh_runs() {
     let (_tmp, repo, _remote, gh_dir) = setup();
