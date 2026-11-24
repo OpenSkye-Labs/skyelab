@@ -109,7 +109,8 @@ impl Palette {
     fn arrange(&mut self) {
         self.groups = match &self.page {
             Some(page) => {
-                let rows = rank(&self.query, page.entries.iter().map(|e| e.label.as_ref()));
+                // By the shown title: a page's labels share a prefix ("Theme: …") that would match every row.
+                let rows = rank(&self.query, page.entries.iter().map(|e| e.shown().as_ref()));
                 let label = page.title.clone();
                 (!rows.is_empty())
                     .then_some(Group { label, rows })
@@ -176,8 +177,12 @@ fn show_page(palette: &Entity<Palette>, page: Option<Page>, window: &mut Window,
         p.set_query("", cx);
         p.state.clone()
     });
-    // Outside the palette's update: the query callback updates the palette.
-    state.update(cx, |s, cx| s.set_query("", window, cx));
+    // Outside the palette's update: the query callback updates the palette. An unchanged (empty) query keeps the
+    // old highlight, so start the new list at its first row.
+    state.update(cx, |s, cx| {
+        s.set_query("", window, cx);
+        s.set_selected_index(Some(IndexPath::default()), window, cx);
+    });
 }
 
 /// Escape, Backspace on an empty query and the Back row: a page goes back to the root; the root (or a page opened
@@ -398,8 +403,9 @@ impl Render for Palette {
                     .child("No matching commands, projects, or threads.")
             })
             .footer({
-                let paged = paged.is_some();
-                move |_, _, cx| footer(paged, cx)
+                // A page opened on its own has no root to go back to: its keys close.
+                let back = paged.is_some() && !self.entries.is_empty();
+                move |_, _, cx| footer(back, cx)
             })
             .on_query({
                 let this = this.clone();

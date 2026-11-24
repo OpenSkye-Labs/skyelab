@@ -129,3 +129,27 @@ fn match_ranges_mark_the_matched_letters_and_the_bold_part() {
     // Byte ranges stay on char boundaries.
     assert_eq!(match_ranges("é", "Café", None), vec![3..5]);
 }
+
+#[test]
+fn a_submenu_item_found_by_a_query_lists_under_its_submenu_not_its_kind() {
+    // "New thread in…" items are Kind::Project; listed under Projects they'd look like "Switch to project".
+    let entries = flatten(vec![
+        e("Switch to project: demo", Kind::Project),
+        action("New thread in…")
+            .submenu(vec![e("New thread in: demo", Kind::Project).title("demo")]),
+    ]);
+    let groups = arrange("demo", &entries, 2, entries.len());
+    assert_eq!(
+        shown(&groups, &entries),
+        [
+            (
+                "Projects".to_owned(),
+                vec!["Switch to project: demo".to_owned()]
+            ),
+            (
+                "New thread in…".to_owned(),
+                vec!["New thread in: demo".to_owned()]
+            ),
+        ]
+    );
+}

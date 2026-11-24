@@ -67,6 +67,8 @@ pub struct Entry {
     pub submenu: Option<Rc<[Entry]>>,
     /// When a thread was last used (ms since the epoch), for Recent threads.
     pub recency: i64,
+    /// The section it lists under when not its kind's: a submenu item found by a query lists under its submenu.
+    pub group: Option<SharedString>,
 }
 
 impl Entry {
@@ -83,6 +85,7 @@ impl Entry {
             bold: None,
             submenu: None,
             recency: 0,
+            group: None,
         }
     }
 
@@ -126,7 +129,7 @@ impl Entry {
         self
     }
 
-    fn shown(&self) -> &SharedString {
+    pub(crate) fn shown(&self) -> &SharedString {
         self.title.as_ref().unwrap_or(&self.label)
     }
 }
@@ -135,9 +138,13 @@ impl Entry {
 pub(crate) fn flatten(mut entries: Vec<Entry>) -> Vec<Entry> {
     let nested: Vec<Entry> = entries
         .iter()
-        .filter_map(|e| e.submenu.as_deref())
-        .flatten()
-        .cloned()
+        .filter_map(|e| Some((e.shown().clone(), e.submenu.as_deref()?)))
+        .flat_map(|(parent, items)| {
+            items.iter().map(move |item| Entry {
+                group: Some(parent.clone()),
+                ..item.clone()
+            })
+        })
         .collect();
     entries.extend(nested);
     entries
@@ -255,11 +262,15 @@ pub struct Group {
     pub rows: Vec<usize>,
 }
 
-fn push_to(groups: &mut Vec<Group>, label: &'static str, row: usize) {
-    match groups.iter_mut().find(|g| g.label.as_ref() == label) {
+fn push_to(groups: &mut Vec<Group>, entry: &Entry, row: usize) {
+    let label = match &entry.group {
+        Some(label) => label.clone(),
+        None => group_of(&entry.kind).into(),
+    };
+    match groups.iter_mut().find(|g| g.label == label) {
         Some(group) => group.rows.push(row),
         None => groups.push(Group {
-            label: label.into(),
+            label,
             rows: vec![row],
         }),
     }
@@ -302,7 +313,7 @@ pub fn arrange(query: &str, entries: &[Entry], nested: usize, found: usize) -> V
     }
     let ranked = rank(query, entries[..found].iter().map(|e| e.label.as_ref()));
     for i in ranked.into_iter().chain(found..entries.len()) {
-        push_to(&mut groups, group_of(&entries[i].kind), i);
+        push_to(&mut groups, &entries[i], i);
     }
     groups
 }
