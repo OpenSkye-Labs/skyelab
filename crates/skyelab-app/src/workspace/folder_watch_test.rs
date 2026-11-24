@@ -108,6 +108,24 @@ fn one_watch_per_folder_ended_with_its_last_view(cx: &mut TestAppContext) {
     assert_eq!(cx.read(FolderWatches::live), 0, "no view, no watch");
 }
 
+/// Two views reaching one folder, one of them through a symlink, share its watch.
+#[cfg(unix)]
+#[gpui::test]
+fn a_symlinked_folder_shares_its_watch(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(folder_watch::init);
+    let a = fixture();
+    let link = a.project.parent().expect("parent").join("link");
+    std::os::unix::fs::symlink(&a.project, &link).expect("symlink");
+    let probe = |dir: std::path::PathBuf, cx: &mut TestAppContext| {
+        cx.new(|cx| Probe(folder_watch::watch(&dir, cx, |_: &mut Probe, _| {})))
+    };
+    let _one = probe(a.project.clone(), cx);
+    let _two = probe(link.clone(), cx);
+    assert_eq!(cx.read(FolderWatches::live), 1, "one folder, one watch");
+    assert!(cx.read(|cx| FolderWatches::ready(&link, cx)), "found by either path");
+}
+
 #[gpui::test]
 fn off_without_the_global(cx: &mut TestAppContext) {
     let a = fixture();

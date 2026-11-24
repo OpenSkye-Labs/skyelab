@@ -4,7 +4,7 @@
 //! One thread per watched folder. It asks git where the repo's git dirs are, watches the folder and the git state,
 //! drops events no status can show (gitignored paths, `.git` internals other than HEAD, the index and refs, our own
 //! checkpoint refs, lock files) and calls back once per burst: after 300 ms without a new event, or 2 s into a
-//! steady stream.
+//! steady stream. A folder that isn't in a repo yet is watched for one to appear there (`git init`, a clone).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -17,6 +17,10 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::event::{CreateKind, EventKind, ModifyKind};
 use notify::{Config, EventKindMask, RecommendedWatcher, RecursiveMode, Watcher};
 use skyelab_core::debug::{self, Entry, Kind};
+
+#[path = "watch_scan.rs"]
+mod scan;
+use scan::{tracked_ignored, walk};
 
 /// Folders watched one by one past which a folder falls back to its top level plus git state.
 pub const DIR_CAP: usize = 8192;
@@ -58,7 +62,7 @@ pub struct FolderWatch {
 
 impl FolderWatch {
     /// Starts watching `dir` on its own thread and returns at once; `on_change` runs on that thread. A folder that
-    /// isn't in a git repo is not watched (the thread ends).
+    /// isn't in a git repo waits, watching only its own entries, until it is one, then is watched as any repo.
     pub fn start(dir: &Path, mode: Mode, on_change: impl Fn() + Send + 'static) -> Self {
         let (tx, rx) = mpsc::channel();
         let ready: Ready = Arc::default();
@@ -72,8 +76,8 @@ impl FolderWatch {
         Self { tx, ready }
     }
 
-    /// Waits until the watches are in place: `true` once watching, `false` when it gave up (not a repo) or `timeout`
-    /// passed first.
+    /// Waits until the watches are in place: `true` once watching, `false` when it can't watch yet (not a repo), gave
+    /// up, or `timeout` passed first.
     pub fn wait_ready(&self, timeout: Duration) -> bool {
         let (lock, cvar) = &*self.ready;
         let guard = lock.lock().unwrap_or_else(PoisonError::into_inner);
@@ -105,11 +109,17 @@ fn run(
     on_change: impl Fn(),
 ) {
     let _live = debug::Live::new("folder watches");
-    let Some(mut state) = State::open(dir, mode) else {
-        set_ready(ready, false);
-        return;
-    };
     let config = Config::default().with_event_kinds(EventKindMask::CORE);
+    let mut state = match State::open(dir, mode) {
+        Some(s) => s,
+        None => {
+            set_ready(ready, false);
+            let Some(s) = wait_for_repo(dir, mode, config.clone(), &tx, rx) else {
+                return;
+            };
+            s
+        }
+    };
     let handler = move |e| {
         let _ = tx.send(Msg::Event(e));
     };
@@ -160,6 +170,61 @@ fn run(
     debug::record(|| Entry::new(Kind::Watch, "folder watch stopped"));
 }
 
+/// Watches `dir`'s own entries until it is in a git repo (read again once its events go quiet, so a `git init` has
+/// finished); `None` when stopped first or `dir` can't be watched.
+// shortcut: a repo made in a parent folder (`git init ..`) isn't noticed until the views open again; watch the
+// parents too if that turns up.
+fn wait_for_repo(
+    dir: &Path,
+    mode: Mode,
+    config: Config,
+    tx: &mpsc::Sender<Msg>,
+    rx: &mpsc::Receiver<Msg>,
+) -> Option<State> {
+    let tx = tx.clone();
+    let mut watcher = RecommendedWatcher::new(
+        move |e| {
+            let _ = tx.send(Msg::Event(e));
+        },
+        config,
+    )
+    .ok()?;
+    watcher.watch(dir, RecursiveMode::NonRecursive).ok()?;
+    // The first event since the last check: after `QUIET` without one, or `MAX_WAIT` into a stream, it checks.
+    let mut first: Option<Instant> = None;
+    loop {
+        if first.is_some_and(|f| f.elapsed() >= MAX_WAIT) {
+            first = None;
+            if let Some(s) = State::open(dir, mode) {
+                return Some(s);
+            }
+        }
+        let msg = match first {
+            None => rx.recv().ok(),
+            Some(f) => {
+                let wait = QUIET.min((f + MAX_WAIT).saturating_duration_since(Instant::now()));
+                match rx.recv_timeout(wait) {
+                    Ok(m) => Some(m),
+                    Err(RecvTimeoutError::Timeout) => {
+                        first = None;
+                        if let Some(s) = State::open(dir, mode) {
+                            return Some(s);
+                        }
+                        continue;
+                    }
+                    Err(RecvTimeoutError::Disconnected) => None,
+                }
+            }
+        };
+        match msg {
+            None | Some(Msg::Stop) => return None,
+            Some(Msg::Event(_)) => {
+                first.get_or_insert_with(Instant::now);
+            }
+        }
+    }
+}
+
 struct State {
     /// The repo's top folder: status and the diff cover the whole repo, so a subfolder project watches all of it.
     dir: PathBuf,
@@ -175,8 +240,7 @@ struct State {
     tracked_ignored: HashSet<PathBuf>,
     /// The index changed: `tracked_ignored` is read again before the next callback.
     index_moved: bool,
-    /// Per-folder watches in place.
-    // shortcut: never shrinks when folders go, so heavy folder churn can reach the cap early; track removals if seen.
+    /// Per-folder watches in place; a folder deleted or moved away leaves it.
     dirs: HashSet<PathBuf>,
     /// Over the cap: new folders are no longer watched.
     capped: bool,
@@ -386,6 +450,18 @@ impl State {
         self.dirs.insert(d.to_owned());
     }
 
+    /// Folder `gone` and everything watched under it went (deleted, moved away): their watches leave the count.
+    fn forget_dirs(&mut self, gone: &Path, w: &mut RecommendedWatcher) {
+        self.dirs.retain(|d| {
+            let keep = !d.starts_with(gone);
+            if !keep {
+                // The OS may have dropped it already (inotify does on delete).
+                let _ = w.unwatch(d);
+            }
+            keep
+        });
+    }
+
     /// Takes one event: `true` when it may change what the app shows.
     fn handle(&mut self, e: notify::Result<notify::Event>, w: &mut RecommendedWatcher) -> bool {
         let e = match e {
@@ -404,6 +480,13 @@ impl State {
             EventKind::Create(CreateKind::Folder | CreateKind::Any)
                 | EventKind::Modify(ModifyKind::Name(_))
         );
+        if matches!(self.mode, Mode::PerDir { .. }) {
+            for p in &e.paths {
+                if self.dirs.contains(p) && !p.exists() {
+                    self.forget_dirs(p, w);
+                }
+            }
+        }
         let mut hit = false;
         let mut rebuild = false;
         for p in &e.paths {
@@ -427,6 +510,10 @@ impl State {
                 && p.is_dir()
                 && p.starts_with(&self.dir)
             {
+                // Gone and back before its Remove was read (`rm -rf a && mkdir a`): its old watch died with it.
+                if self.dirs.contains(p) {
+                    self.forget_dirs(p, w);
+                }
                 for d in walk(p, cap).0 {
                     self.watch_dir(w, &d, cap);
                 }
@@ -439,103 +526,6 @@ impl State {
     }
 }
 
-/// Tracked files under `toplevel` that an ignore pattern matches, as absolute paths.
-fn tracked_ignored(toplevel: &Path) -> HashSet<PathBuf> {
-    let args = [
-        "ls-files",
-        "-z",
-        "--cached",
-        "--ignored",
-        "--exclude-standard",
-    ];
-    let out = crate::git(toplevel, &args).unwrap_or_default();
-    out.split(|b| *b == 0)
-        .filter(|p| !p.is_empty())
-        .map(|p| toplevel.join(String::from_utf8_lossy(p).as_ref()))
-        .collect()
-}
-
-/// The folders under `root` git can see (gitignored ones and `.git` skipped), up to `cap`, and the `.gitignore`
-/// files in them. The flag says the walk stopped at the cap.
-fn walk(root: &Path, cap: usize) -> (Vec<PathBuf>, Vec<PathBuf>, bool) {
-    let (mut dirs, mut ignores) = (Vec::new(), Vec::new());
-    let walker = ignore::WalkBuilder::new(root)
-        .hidden(false)
-        .parents(true)
-        .filter_entry(|e| e.file_name() != ".git")
-        .build();
-    for entry in walker.flatten() {
-        let Some(ft) = entry.file_type() else {
-            continue;
-        };
-        if ft.is_dir() {
-            if dirs.len() == cap {
-                return (dirs, ignores, true);
-            }
-            dirs.push(entry.into_path());
-        } else if entry.file_name() == ".gitignore" {
-            ignores.push(entry.into_path());
-        }
-    }
-    (dirs, ignores, false)
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn state(dir: &str, git_dir: &str, common: &str) -> State {
-        State {
-            dir: dir.into(),
-            toplevel: dir.into(),
-            git_dir: git_dir.into(),
-            common: common.into(),
-            mode: Mode::Recursive,
-            nested: Vec::new(),
-            ignores: Vec::new(),
-            tracked_ignored: HashSet::new(),
-            index_moved: false,
-            dirs: HashSet::new(),
-            capped: false,
-        }
-    }
-
-    #[test]
-    fn git_state_that_counts() {
-        let s = state("/r", "/r/.git", "/r/.git");
-        for (p, want) in [
-            ("/r/.git/HEAD", true),
-            ("/r/.git/index", true),
-            ("/r/.git/index.lock", false),
-            ("/r/.git/refs/heads/main", true),
-            ("/r/.git/refs/heads/main.lock", false),
-            ("/r/.git/packed-refs", true),
-            ("/r/.git/refs/skyelab/checkpoints/k/1", false),
-            ("/r/.git/objects/ab/cdef", false),
-            ("/r/.git/logs/HEAD", false),
-            ("/r/.git/worktrees/wt/HEAD", false),
-            ("/r/src/a.rs", true),
-            ("/r/vendor/x/.git/HEAD", false),
-            ("/elsewhere/a.rs", false),
-        ] {
-            assert_eq!(s.relevant(Path::new(p)), want, "{p}");
-        }
-    }
-
-    #[test]
-    fn a_linked_worktree_reads_its_own_head_and_the_shared_refs() {
-        let s = state("/wt", "/r/.git/worktrees/wt", "/r/.git");
-        for (p, want) in [
-            ("/r/.git/worktrees/wt/HEAD", true),
-            ("/r/.git/worktrees/wt/index", true),
-            ("/r/.git/worktrees/wt/logs/HEAD", false),
-            ("/r/.git/HEAD", false),
-            ("/r/.git/index", false),
-            ("/r/.git/refs/heads/x", true),
-            ("/r/src/a.rs", false),
-            ("/wt/a.rs", true),
-        ] {
-            assert_eq!(s.relevant(Path::new(p)), want, "{p}");
-        }
-    }
-}
+#[path = "watch_tests.rs"]
+mod tests;

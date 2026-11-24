@@ -27,7 +27,9 @@ or a terminal writes, a commit, a `git switch` or a pull updates the Changes tab
 branch, and the details card's **Changes vs** line within about a second, with SkyeLab still in front. It waits until
 the edits pause (or 2 seconds into a steady stream), then reads the folder once. Files git ignores and doesn't track
 (`target/`, `node_modules/`, anything in `.gitignore`) don't count, so a running build costs nothing, and nothing redraws when
-what is shown didn't change. A folder stops being watched when its last thread tab and Changes tab close.
+what is shown didn't change. A folder that isn't a git repo yet is watched from the moment you `git init` it (or clone
+into it). Views reaching one folder through a symlink share one watcher. A folder stops being watched when its last
+thread tab and Changes tab close.
 
 On Linux each folder takes its own watch from the system. A project with more than 8,192 folders git can see is
 watched only at its top level plus git's own state (branch, commits, staging); other edits show when you come back
