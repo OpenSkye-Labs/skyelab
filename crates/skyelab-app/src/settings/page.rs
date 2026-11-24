@@ -20,6 +20,7 @@ pub enum Section {
     Projects,
     SourceControl,
     Worktrees,
+    Machines,
     Sharing,
     About,
 }
@@ -49,13 +50,13 @@ pub(super) const GROUPS: [(Option<&str>, &[Section]); 5] = [
             Section::Worktrees,
         ],
     ),
-    (Some("Connections"), &[Section::Sharing]),
+    (Some("Connections"), &[Section::Machines, Section::Sharing]),
     (None, &[Section::About]),
 ];
 
 impl Section {
     #[cfg(test)]
-    pub const ALL: [Section; 13] = [
+    pub const ALL: [Section; 14] = [
         Section::General,
         Section::Appearance,
         Section::Chat,
@@ -67,6 +68,7 @@ impl Section {
         Section::Projects,
         Section::SourceControl,
         Section::Worktrees,
+        Section::Machines,
         Section::Sharing,
         Section::About,
     ];
@@ -84,6 +86,7 @@ impl Section {
             Section::Projects => "Projects & folders",
             Section::SourceControl => "Source control",
             Section::Worktrees => "Worktrees",
+            Section::Machines => "Machines",
             Section::Sharing => "Sharing & access",
             Section::About => "About",
         }
@@ -102,6 +105,7 @@ impl Section {
             Section::Projects => "projects",
             Section::SourceControl => "source-control",
             Section::Worktrees => "worktrees",
+            Section::Machines => "machines",
             Section::Sharing => "sharing",
             Section::About => "about",
         }
@@ -120,6 +124,7 @@ impl Section {
             Section::Projects => SkyeIcon::Folder,
             Section::SourceControl => SkyeIcon::GitBranch,
             Section::Worktrees => SkyeIcon::FolderGit2,
+            Section::Machines => SkyeIcon::Monitor,
             Section::Sharing => SkyeIcon::Globe,
             Section::About => SkyeIcon::Info,
         })
@@ -197,6 +202,15 @@ impl Settings {
 
     fn render_section(&self, cx: &mut Context<Self>) -> gpui::AnyElement {
         let body = match self.section {
+            Section::Machines => {
+                return match &self.machines {
+                    Some(machines) => machines.clone().into_any_element(),
+                    None => self.centered_empty(
+                        "Machines aren't available",
+                        "This window has no tailnet connection to reach other machines.",
+                    ),
+                };
+            }
             Section::Sharing => {
                 return match &self.remote {
                     Some(remote) => remote.clone().into_any_element(),

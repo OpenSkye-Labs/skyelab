@@ -71,6 +71,7 @@ mod side_commands_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "stash_account_test.rs"]
 mod stash_account_test;
+pub(in crate::workspace) use composer_footer::machine_chip;
 pub(in crate::workspace) use composer_machine::machine_name;
 
 use crate::ui::SkyeIcon;

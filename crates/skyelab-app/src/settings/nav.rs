@@ -99,6 +99,11 @@ const INDEX: &[(Section, &str, &str)] = &[
         "worktree branch",
     ),
     (
+        Section::Machines,
+        "Add by MagicDNS name",
+        "machine device remote connect switch tailnet forget",
+    ),
+    (
         Section::Sharing,
         "Share on your tailnet",
         "tailscale remote devices access",

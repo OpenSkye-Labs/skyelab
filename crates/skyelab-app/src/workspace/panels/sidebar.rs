@@ -1,4 +1,4 @@
-//! The sidebar: the environment picker, the search / project scope / new thread row, then every project's threads in
+//! The sidebar: the SkyeLab mark, the search / project scope / new thread row, then every project's threads in
 //! one flat list (T3's default layout), and Settings at the bottom. Another machine's sidebar shows the same list, then
 //! its projects.
 
@@ -151,8 +151,6 @@ pub struct SidebarSearch(pub SharedString);
 
 pub struct Sidebar {
     pub sections: Vec<SidebarSection>,
-    /// The environment switcher, drawn in place of the title once the workspace sets it.
-    pub picker: Option<Entity<super::super::env_picker::EnvPicker>>,
     /// Thread rows' pin, unread and menu, by row id.
     pub marks: std::collections::HashMap<SharedString, RowMarks>,
     pub archived: Option<ArchivedRows>,
@@ -227,7 +225,6 @@ impl Sidebar {
         });
         let mut this = Self {
             sections,
-            picker: None,
             marks: Default::default(),
             archived: None,
             shelves: Vec::new(),
@@ -417,7 +414,8 @@ impl Render for Sidebar {
             .size_full()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
-            // The window's top row: on macOS the traffic lights sit at its start, so the picker starts after them.
+            // The window's top row (T3's: the brand only); on macOS the traffic lights sit at its start. Machines switch
+            // from the composer's machine chip.
             .child(
                 div()
                     .px_2()
@@ -426,17 +424,15 @@ impl Render for Sidebar {
                     .flex_col()
                     .justify_center()
                     .when(cfg!(target_os = "macos"), |d| d.pl(ui::TRAFFIC_LIGHTS_W))
-                    .child(match &self.picker {
-                        Some(picker) => picker.clone().into_any_element(),
-                        None => h_flex()
+                    .child(
+                        h_flex()
                             .gap_1p5()
                             .px_2p5()
                             .text_size(ui::BODY)
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .child(ui::brand_mark(gpui::px(16.), theme.sidebar_foreground))
-                            .child("SkyeLab")
-                            .into_any_element(),
-                    }),
+                            .child("SkyeLab"),
+                    ),
             )
             .when(self.searchable, |this| {
                 this.child(

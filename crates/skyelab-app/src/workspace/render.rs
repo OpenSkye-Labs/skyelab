@@ -86,6 +86,7 @@ impl Render for Workspace {
                     .children(ring),
             )
             .child(self.render_status(cx))
+            .children(self.env_menu(window, cx))
             .children(settings)
     }
 }

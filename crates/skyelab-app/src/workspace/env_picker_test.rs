@@ -34,9 +34,9 @@ fn picker_offers_this_mac_and_only_your_online_devices(cx: &mut TestAppContext) 
     wait_until(cx, "peers", |cx| {
         picker.read_with(cx, |p, _| !p.peers.is_empty())
     });
-    picker.read_with(cx, |p, _| {
+    picker.read_with(cx, |p, cx| {
         assert!(p.open);
-        assert_eq!(p.entries(), ["This Mac", "laptop.example.ts.net"]);
+        assert_eq!(p.entries(cx), ["This Mac", "laptop.example.ts.net"]);
     });
 
     // Add by MagicDNS name: the typed name becomes the remote environment, and it connects.
@@ -81,7 +81,7 @@ fn picker_remembers_recent_environments_and_keeps_other_settings(cx: &mut TestAp
     );
     // Recents show in the picker.
     let picker = ws.read_with(cx, |ws, _| ws.env_picker().expect("picker"));
-    picker.read_with(cx, |p, _| {
-        assert!(p.entries().contains(&"laptop.example.ts.net".to_owned()))
+    picker.read_with(cx, |p, cx| {
+        assert!(p.entries(cx).contains(&"laptop.example.ts.net".to_owned()))
     });
 }

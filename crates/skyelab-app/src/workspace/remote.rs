@@ -126,6 +126,11 @@ impl Workspace {
         self.open_settings_at(crate::settings::Section::Sharing, window, cx);
     }
 
+    /// This machine's sharing, for Settings → Machines; `None` without a tailnet hook.
+    pub(super) fn sharing(&self) -> Option<Entity<Remote>> {
+        self.remote.as_ref().map(|h| h.remote.clone())
+    }
+
     /// What the Sharing section shows; `None` without a tailnet hook.
     pub(super) fn remote_panel(&mut self, cx: &mut Context<Self>) -> Option<Entity<RemotePanel>> {
         let hook = self.remote.as_mut()?;

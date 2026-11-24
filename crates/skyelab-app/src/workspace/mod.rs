@@ -32,6 +32,7 @@ mod import_sessions;
 mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
+pub(crate) mod machines_page;
 mod manage;
 mod manage_projects;
 mod mermaid;
@@ -533,6 +534,10 @@ mod layout_test;
 mod login_banner_test;
 #[cfg(test)]
 mod long_thread_test;
+#[cfg(test)]
+mod machine_menu_test;
+#[cfg(test)]
+mod machines_page_test;
 #[cfg(test)]
 mod manage_harness;
 #[cfg(test)]

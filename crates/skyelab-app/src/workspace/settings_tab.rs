@@ -173,12 +173,17 @@ impl Workspace {
             self.load_error.clone(),
         );
         let remote = self.remote_panel(cx);
+        let sharing = self.sharing();
+        let machines = self
+            .env_picker()
+            .map(|p| cx.new(|cx| machines_page::MachinesPage::new(p, sharing, cx)));
         let usage = cx.new(usage_page::UsagePage::new);
         let (store, accounts) = (self.backend.store.clone(), self.accounts_path.clone());
         let scheduled = cx.new(|cx| scheduled::ScheduledPage::new(store, accounts, cx));
         let settings = cx.new(|cx| {
             let mut s = Settings::new(path, config, error, window, cx);
             s.remote = remote;
+            s.machines = machines;
             s.usage = Some(usage);
             s.scheduled = Some(scheduled);
             s
