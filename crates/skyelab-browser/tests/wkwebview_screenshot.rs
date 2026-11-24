@@ -92,7 +92,8 @@ mod mac {
         cx.update_entity(browser, |b, cx| b.navigate(url, cx))?;
         // Started fires before the page paints: retry until the colour shows.
         let mut last = String::new();
-        for _ in 0..100 {
+        let until = std::time::Instant::now() + Duration::from_secs(60);
+        while std::time::Instant::now() < until {
             cx.background_executor()
                 .timer(Duration::from_millis(100))
                 .await;

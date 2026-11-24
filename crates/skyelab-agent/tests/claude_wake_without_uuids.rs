@@ -50,7 +50,7 @@ sleep 5
     let prompts = loop {
         match session
             .events()
-            .recv_timeout(Duration::from_secs(5))
+            .recv_timeout(Duration::from_secs(60))
             .expect("an event")
         {
             Event::Result { prompts, .. } => break prompts,

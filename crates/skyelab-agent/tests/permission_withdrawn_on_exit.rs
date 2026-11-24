@@ -39,15 +39,15 @@ fn killed_agent_withdraws_its_open_ask() {
     let asked = loop {
         let e = s
             .events()
-            .recv_timeout(Duration::from_secs(10))
-            .expect("the ask within 10s");
+            .recv_timeout(Duration::from_secs(60))
+            .expect("the ask within 60 s");
         if let Event::Permission { id, .. } = e {
             break id;
         }
     };
     s.kill().expect("kill");
     let mut rest = Vec::new();
-    while let Ok(e) = s.events().recv_timeout(Duration::from_secs(10)) {
+    while let Ok(e) = s.events().recv_timeout(Duration::from_secs(60)) {
         rest.push(e);
     }
     assert!(

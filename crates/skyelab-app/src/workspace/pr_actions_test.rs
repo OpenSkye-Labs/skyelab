@@ -174,10 +174,10 @@ fn only_the_repos_methods_are_offered_reviews_send_their_text_and_errors_stay_sh
     dialog.update_in(cx, |d, window, cx| {
         d.review(Verdict::RequestChanges, window, cx)
     });
-    wait_until(cx, "review sent", |_| {
-        !lines(&gh.join("fake-gh.actions")).is_empty()
+    // fake-gh logs the call before it reads the body, and the dialog closes once gh has exited.
+    wait_until(cx, "review sent and the dialog closed", |cx| {
+        !dialog_open(cx) && !lines(&gh.join("fake-gh.actions")).is_empty()
     });
-    cx.run_until_parked();
     assert_eq!(
         lines(&gh.join("fake-gh.actions")),
         [format!("pr review {URL} --request-changes --body-file -")]
@@ -186,7 +186,6 @@ fn only_the_repos_methods_are_offered_reviews_send_their_text_and_errors_stay_sh
         std::fs::read_to_string(gh.join("fake-gh.review-body")).expect("body"),
         "Please add a test."
     );
-    assert!(!dialog_open(cx));
 
     // gh refuses the merge: its words show in the dialog, which stays open.
     std::fs::write(

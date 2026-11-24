@@ -82,6 +82,19 @@ See [gpui/webview.md](gpui/webview.md).
 - `TestAppContext` runs `background_spawn` work one task at a time on the test dispatcher, so two blocking
   background jobs (two `gh` reads) never overlap there: a held one blocks the other. Stage a race by recording the
   newer side's result (`PrLanded::mark` in `pr_newest_test.rs`), not by holding a fake process.
+- Tests that wait on real processes or threads (a fake agent, gh, a shell, a daemon) must hold at load 30–40, where
+  a process starts seconds late:
+  - Wait for the exact thing you assert, with `crate::test_wait::wait_until` / `wait_ticking` (60 s by the clock).
+    Never wait for one event and then read another once: a mode flip, a "busy" flag or the first half of a line
+    comes before the reply, the command name or the rest of the line (`questions.rs`, `probe.rs`, `view.rs`).
+  - No fixed `sleep` before a positive assert, no poll loop bounded by an iteration count, and no helper that
+    quietly returns when it runs out of time: it must fail with what it waited for.
+  - Short timeouts belong only to the behavior under test. A test harness's own budgets (the daemon's gate
+    timeout, socket read timeouts, `recv_timeout`) stay long; only the test about that timeout shortens it.
+  - An "under N s" bound sits halfway between the fast path and the slow path it rules out (a 300 s idle
+    timeout, a 20 s hang), never just above the fast path. A lower bound measured from the first event is safer
+    still: load only stretches it (`backoff.rs`).
+  - Waiting for a fake's output file: wait for the file the assert reads, or for something written after it.
 - Visual or behavior check of the real app: `/loop-verify-ui`.
 
 ## Platform notes

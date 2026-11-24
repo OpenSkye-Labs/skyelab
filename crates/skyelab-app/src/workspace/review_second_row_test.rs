@@ -6,15 +6,8 @@ use gpui::{TestAppContext, VisualTestContext};
 use skyelab_core::{Account, Binding};
 use std::time::Duration;
 
-fn wait(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
-    for _ in 0..1000 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out");
+fn wait(cx: &mut VisualTestContext, done: impl FnMut(&mut VisualTestContext) -> bool) {
+    crate::test_wait::wait_until(cx, "the fake agent", done);
 }
 
 fn send(view: &Entity<ThreadView>, text: &'static str, cx: &mut VisualTestContext) {

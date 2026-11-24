@@ -19,7 +19,7 @@ fn link_at_on_the_bottom_row_returns() {
         let _ = tx.send(());
     });
     assert!(
-        done.recv_timeout(Duration::from_secs(5)).is_ok(),
+        done.recv_timeout(Duration::from_secs(60)).is_ok(),
         "link_at hung on the bottom row"
     );
 }

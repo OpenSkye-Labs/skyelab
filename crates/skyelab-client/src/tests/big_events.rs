@@ -27,7 +27,7 @@ fn large_events_stream_without_a_reconnect_loop() {
 
     let mut got = Vec::new();
     for _ in 0..42 {
-        match client.updates().recv_timeout(Duration::from_secs(20)) {
+        match client.updates().recv_timeout(Duration::from_secs(60)) {
             Ok(Update::Event(ev)) => got.push(ev),
             other => panic!("expected an event, got {other:?}"),
         }

@@ -71,7 +71,7 @@ fn start(f: &Fixture, bin: &Path, resume: Option<&str>, prompt: &str) -> Session
 
 fn next_result(rx: &flume::Receiver<Event>) -> Option<Event> {
     loop {
-        match rx.recv_timeout(Duration::from_secs(10)) {
+        match rx.recv_timeout(Duration::from_secs(60)) {
             Ok(e @ Event::Result { .. }) => return Some(e),
             Ok(_) => {}
             Err(_) => return None,

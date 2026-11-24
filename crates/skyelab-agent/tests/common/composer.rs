@@ -55,7 +55,8 @@ pub fn recorder(f: &Fixture) -> PathBuf {
 
 /// Waits for `file` in the project to hold at least `lines` lines.
 pub fn lines_of(f: &Fixture, file: &str, lines: usize) -> Vec<String> {
-    for _ in 0..500 {
+    let until = std::time::Instant::now() + Duration::from_secs(60);
+    while std::time::Instant::now() < until {
         if let Ok(t) = std::fs::read_to_string(f.dir.join(file)) {
             let got: Vec<String> = t.lines().map(str::to_owned).collect();
             if got.len() >= lines {
@@ -94,7 +95,7 @@ pub fn codex_fake() -> PathBuf {
 pub fn codex_requests(s: &Session, method: &str, count: usize) -> Vec<Value> {
     let mut got = Vec::new();
     while got.len() < count {
-        match s.events().recv_timeout(Duration::from_secs(10)) {
+        match s.events().recv_timeout(Duration::from_secs(60)) {
             Ok(Event::Unknown(v))
                 if v["method"] == "fake/request" && v["params"]["method"] == method =>
             {

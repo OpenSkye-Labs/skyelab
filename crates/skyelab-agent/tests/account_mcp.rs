@@ -83,7 +83,7 @@ fn run(f: &Fixture, bin: &str) -> (Vec<Event>, Value, String) {
     let session = start_with_bin(&bin, &f.config, &launch).expect("start");
     let (mut events, mut mcp, mut args) = (Vec::new(), Value::Null, String::new());
     loop {
-        match session.events().recv_timeout(Duration::from_secs(10)) {
+        match session.events().recv_timeout(Duration::from_secs(60)) {
             Ok(Event::Unknown(v)) if v["type"] == "fake_mcp" => {
                 mcp = v["config"].clone();
                 return (events, mcp, args);

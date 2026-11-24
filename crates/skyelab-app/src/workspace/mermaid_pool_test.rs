@@ -19,7 +19,7 @@ fn pool_runs_on_fixed_threads_and_survives_a_panic() {
     }
     let threads: HashSet<_> = (0..20)
         .map(|_| {
-            rx.recv_timeout(Duration::from_secs(10))
+            rx.recv_timeout(crate::test_wait::DEADLINE)
                 .expect("every job ran")
         })
         .collect();
@@ -33,7 +33,7 @@ fn pool_runs_on_fixed_threads_and_survives_a_panic() {
         pool.run(move || tx.send(std::thread::current().id()).expect("send"));
     }
     for _ in 0..4 {
-        rx.recv_timeout(Duration::from_secs(10))
+        rx.recv_timeout(crate::test_wait::DEADLINE)
             .expect("the workers outlive a panicking job");
     }
 }

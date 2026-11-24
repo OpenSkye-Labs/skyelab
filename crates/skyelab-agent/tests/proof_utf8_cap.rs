@@ -35,8 +35,8 @@ fn capped_line_stays_within_cap() {
     let next = || {
         session
             .events()
-            .recv_timeout(Duration::from_secs(10))
-            .expect("event within 10s")
+            .recv_timeout(Duration::from_secs(60))
+            .expect("event within 60 s")
     };
     assert!(matches!(next(), Event::Mcp { launch: true, .. }));
     match next() {

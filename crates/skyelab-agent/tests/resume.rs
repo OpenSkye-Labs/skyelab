@@ -42,7 +42,7 @@ fn config(dir: &Path, bound_to: &str) -> AccountsConfig {
 
 fn next_unknown(rx: &flume::Receiver<Event>, ty: &str) -> serde_json::Value {
     loop {
-        match rx.recv_timeout(Duration::from_secs(10)) {
+        match rx.recv_timeout(Duration::from_secs(60)) {
             Ok(Event::Unknown(v)) if v["type"] == ty => return v,
             Ok(_) => {}
             Err(e) => panic!("no {ty} line: {e}"),

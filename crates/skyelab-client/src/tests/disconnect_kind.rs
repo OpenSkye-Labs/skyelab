@@ -113,7 +113,7 @@ fn a_refused_peer_gets_not_a_single_byte() {
     assert_eq!(peer.port(), port, "it checks the socket's own peer address");
     drop(client);
     let bytes = got
-        .recv_timeout(Duration::from_secs(5))
+        .recv_timeout(Duration::from_secs(60))
         .expect("server saw the hang-up");
     assert_eq!(
         bytes, 0,

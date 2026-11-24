@@ -45,8 +45,8 @@ fn script(path: &Path, body: &str) {
 }
 
 fn next(rx: &flume::Receiver<Event>) -> Event {
-    rx.recv_timeout(Duration::from_secs(10))
-        .expect("event within 10s")
+    rx.recv_timeout(Duration::from_secs(60))
+        .expect("event within 60 s")
 }
 
 /// The next unmodelled line (of type `ty`, if given), as raw JSON.
@@ -280,7 +280,7 @@ fn exit_status_of_self_exit() {
         "hi",
     )
     .expect("start");
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(60);
     let status = loop {
         if let Some(s) = session.try_wait().expect("try_wait") {
             break s;

@@ -49,7 +49,7 @@ fn reports(provider: Provider, bin: &Path, setup: impl FnOnce(&Path)) -> Vec<Vec
     };
     let session = start_with_bin(bin, &config, &launch).expect("start");
     // Without a grant the launch report is an empty list: it still clears an earlier process's.
-    match session.events().recv_timeout(Duration::from_secs(10)) {
+    match session.events().recv_timeout(Duration::from_secs(60)) {
         Ok(Event::Mcp {
             servers,
             launch: true,
@@ -59,7 +59,7 @@ fn reports(provider: Provider, bin: &Path, setup: impl FnOnce(&Path)) -> Vec<Vec
     }
     let mut out = Vec::new();
     loop {
-        match session.events().recv_timeout(Duration::from_secs(10)) {
+        match session.events().recv_timeout(Duration::from_secs(60)) {
             Ok(Event::Mcp { servers, .. }) => out.push(servers),
             Ok(Event::Init { .. }) if provider == Provider::Codex => return out,
             Ok(_) => {}

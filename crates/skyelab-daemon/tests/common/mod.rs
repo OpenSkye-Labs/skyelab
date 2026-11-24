@@ -70,6 +70,14 @@ pub fn test_config() -> Config {
     config(0)
 }
 
+/// For tests about the gate timeout itself: a hanging whois is cut off after 500 ms.
+pub fn short_gate_config() -> Config {
+    Config {
+        gate_timeout: Duration::from_millis(500),
+        ..test_config()
+    }
+}
+
 pub fn start(tailnet: Arc<FakeTailnet>, backend: Arc<dyn Backend>, config: Config) -> Daemon {
     Daemon::start(config, tailnet, backend).expect("test setup")
 }
@@ -117,7 +125,7 @@ pub fn try_connect_with_origin(
 /// A plain TCP socket with a read timeout, for tests that speak raw bytes.
 pub fn tcp(addr: SocketAddr) -> TcpStream {
     let tcp = TcpStream::connect(addr).expect("test setup");
-    tcp.set_read_timeout(Some(Duration::from_secs(5)))
+    tcp.set_read_timeout(Some(Duration::from_secs(30)))
         .expect("test setup");
     tcp
 }

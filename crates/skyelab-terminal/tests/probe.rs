@@ -9,7 +9,7 @@ use std::{
 use skyelab_terminal::{SpawnOptions, Terminal};
 
 fn wait(what: &str, mut done: impl FnMut() -> bool) {
-    let deadline = Instant::now() + Duration::from_secs(15);
+    let deadline = Instant::now() + Duration::from_secs(60);
     while !done() {
         assert!(Instant::now() < deadline, "timed out waiting for {what}");
         std::thread::sleep(Duration::from_millis(50));
@@ -38,8 +38,10 @@ fn a_running_command_is_busy_and_named_and_the_folder_follows_cd() {
     });
 
     term.write(b"sleep 30\n".as_slice());
-    wait("sleep in front", || probe.is_busy());
-    assert_eq!(probe.foreground().command.as_deref(), Some("sleep"));
+    // Busy shows as soon as the shell forks; the name only once the child has exec'd sleep.
+    wait("sleep in front", || {
+        probe.is_busy() && probe.foreground().command.as_deref() == Some("sleep")
+    });
 
     term.write(b"\x03".as_slice()); // ctrl-c
     wait("the prompt again", || !probe.is_busy());

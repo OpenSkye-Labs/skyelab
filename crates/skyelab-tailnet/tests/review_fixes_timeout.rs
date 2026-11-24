@@ -12,15 +12,16 @@ fn whois_and_its_status_follow_up_share_one_deadline() {
     let bin = dir.path().join("tailscale");
     std::fs::write(
         &bin,
-        "#!/bin/sh\nif [ \"$1\" = whois ]; then sleep 0.6; echo nope >&2; exit 1; fi\nexec sleep 30\n",
+        "#!/bin/sh\nif [ \"$1\" = whois ]; then sleep 3; echo nope >&2; exit 1; fi\nexec sleep 30\n",
     )
     .unwrap();
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let cli = TailscaleCli::with_binaries(vec![bin]).with_timeout(Duration::from_secs(1));
+    let cli = TailscaleCli::with_binaries(vec![bin]).with_timeout(Duration::from_secs(6));
     let started = Instant::now();
     assert!(cli.whois("100.64.0.2:4000".parse().unwrap()).is_err());
     assert!(
-        started.elapsed() < Duration::from_millis(1500),
+        // One shared deadline ends at 6 s; a fresh one for the follow-up would end at 9 s.
+        started.elapsed() < Duration::from_millis(7500),
         "took {:?}",
         started.elapsed()
     );

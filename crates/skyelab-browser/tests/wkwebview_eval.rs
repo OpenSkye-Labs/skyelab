@@ -118,7 +118,8 @@ mod mac {
         }
         // Started fires before the document parses; wait for the title.
         let mut title = serde_json::Value::Null;
-        for _ in 0..100 {
+        let until = std::time::Instant::now() + Duration::from_secs(60);
+        while std::time::Instant::now() < until {
             title = eval(browser, "document.title", cx).await?;
             if title == "Eval page" {
                 break;

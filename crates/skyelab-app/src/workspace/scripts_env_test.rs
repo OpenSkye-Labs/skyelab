@@ -7,7 +7,6 @@ use super::scripts::{script_options, typed};
 use super::thread_worktree::ToggleWorktree;
 use super::worktree_thread_test::{fixture, open_thread, send, wait_until};
 use gpui::TestAppContext;
-use std::time::Duration;
 
 #[test]
 fn a_script_terminal_gets_only_the_bound_accounts_env() {
@@ -88,13 +87,9 @@ fn a_setup_script_runs_in_each_new_worktree(cx: &mut TestAppContext) {
         .and_then(|t| t.worktree_path)
         .expect("worktree");
     let out = wt.join("setup-ran.txt");
-    for _ in 0..3000 {
-        cx.run_until_parked();
-        if std::fs::read_to_string(&out).is_ok_and(|s| s.contains('|')) {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    crate::test_wait::wait_until(cx, "the setup script", |_| {
+        std::fs::read_to_string(&out).is_ok_and(|s| s.contains('|'))
+    });
     let ran = std::fs::read_to_string(&out).expect("the setup script ran in the worktree");
     assert_eq!(
         ran,

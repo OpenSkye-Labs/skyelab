@@ -25,3 +25,17 @@ pub(crate) fn wait_until(
     }
     panic!("timed out waiting for {what}");
 }
+
+/// [`wait_until`] for work that also waits on the executor's clock (a retry timer, an exit watch): each poll moves
+/// that clock 100 ms on, so the timers fire while the real process takes its time.
+pub(crate) fn wait_ticking(
+    cx: &mut VisualTestContext,
+    what: &str,
+    mut done: impl FnMut(&mut VisualTestContext) -> bool,
+) {
+    wait_until(cx, what, |cx| {
+        cx.executor().advance_clock(Duration::from_millis(100));
+        cx.run_until_parked();
+        done(cx)
+    });
+}

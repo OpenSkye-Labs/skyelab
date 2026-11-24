@@ -39,12 +39,12 @@ fn own_device_can_connect_and_hello() {
 fn assert_rejected(peer: Peer) {
     let tailnet = FakeTailnet::new(peer);
     let backend = Arc::new(Counting::default());
-    let daemon = start(tailnet.clone(), backend.clone(), test_config());
+    let daemon = start(tailnet.clone(), backend.clone(), short_gate_config());
     let started = Instant::now();
     let result = try_connect(daemon.local_addrs()[0]);
     assert!(result.is_err(), "handshake must not complete");
     assert!(
-        started.elapsed() < Duration::from_secs(3),
+        started.elapsed() < Duration::from_secs(8), // the 500 ms gate, not the 10 s whois hang
         "rejection took {:?}",
         started.elapsed()
     );
@@ -99,11 +99,19 @@ fn rejected_peer_does_not_block_own_device() {
     let daemon = start(
         tailnet.clone(),
         Arc::new(Counting::default()),
-        test_config(),
+        short_gate_config(),
     );
     let addr = daemon.local_addrs()[0];
     let stuck = std::thread::spawn(move || try_connect(addr).is_err());
-    std::thread::sleep(Duration::from_millis(50));
+    // Switch only once the stuck connection's whois is running, or it would read Own too.
+    let until = Instant::now() + Duration::from_secs(60);
+    while tailnet.whois_calls.load(Ordering::SeqCst) == 0 {
+        assert!(
+            Instant::now() < until,
+            "the stuck connection never reached whois"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
     *tailnet.peer.lock().expect("test setup") = Peer::Own;
     let mut ws = connect(addr);
     assert!(matches!(

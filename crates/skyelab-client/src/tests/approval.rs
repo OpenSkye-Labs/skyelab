@@ -61,14 +61,14 @@ fn allowing_a_waiting_device_connects_it_within_seconds() {
     }]);
     let allowed = Instant::now();
     loop {
-        match client.updates().recv_timeout(Duration::from_secs(5)) {
+        match client.updates().recv_timeout(Duration::from_secs(60)) {
             Ok(Update::Connected(_)) => break,
             Ok(Update::Disconnected(_)) => continue,
             other => panic!("expected to connect, got {other:?}"),
         }
     }
     assert!(
-        allowed.elapsed() < Duration::from_secs(4),
+        allowed.elapsed() < Duration::from_secs(6), // the normal backoff would wait 8 s
         "{:?}",
         allowed.elapsed()
     );

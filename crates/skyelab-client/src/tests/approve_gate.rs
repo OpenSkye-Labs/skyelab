@@ -32,7 +32,7 @@ fn nothing_reaches_the_server_until_the_hello_is_approved() {
         daemon.push_event(append(&env, 1));
     }
     assert_eq!(
-        client.list_projects().recv_timeout(Duration::from_secs(5)),
+        client.list_projects().recv_timeout(Duration::from_secs(60)),
         Err(crate::Error::NotConnected)
     );
     quiet(&client, Duration::from_millis(300));

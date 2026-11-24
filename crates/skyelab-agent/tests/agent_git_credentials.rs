@@ -42,8 +42,8 @@ fn agent_env(base: &Path, name: &str, ssh_agent: bool) -> HashMap<String, String
     loop {
         let event = session
             .events()
-            .recv_timeout(Duration::from_secs(10))
-            .expect("event within 10s");
+            .recv_timeout(Duration::from_secs(60))
+            .expect("event within 60 s");
         if let Event::Unknown(v) = event
             && v["type"] == "fake_env_written"
         {

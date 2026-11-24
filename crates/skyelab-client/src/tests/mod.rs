@@ -59,12 +59,12 @@ pub fn port(daemon: &Daemon) -> u16 {
     daemon.local_addrs()[0].port()
 }
 
-/// The next update, failing the test after 5 s.
+/// The next update, failing the test after 60 s (a loaded machine can take many seconds to connect).
 pub fn next(client: &Client) -> Update {
     client
         .updates()
-        .recv_timeout(Duration::from_secs(5))
-        .expect("no update within 5 s")
+        .recv_timeout(Duration::from_secs(60))
+        .expect("no update within 60 s")
 }
 
 pub fn connected(client: &Client) {

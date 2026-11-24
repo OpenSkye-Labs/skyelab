@@ -33,7 +33,7 @@ fn an_agent_that_exits_ends_its_row_and_its_group(cx: &mut TestAppContext) {
         row(&one, cx).is_some_and(|(status, _)| status == "exited")
     });
     assert!(
-        exited.elapsed() < Duration::from_secs(5),
+        exited.elapsed() < Duration::from_secs(12), // not when the holder's 20 s sleep ends
         "exited only after {:?}",
         exited.elapsed()
     );

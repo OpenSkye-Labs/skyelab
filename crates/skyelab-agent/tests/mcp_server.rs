@@ -85,7 +85,7 @@ impl Client {
     fn connect(r: &Rig, token: &str) -> Client {
         let mut writer = UnixStream::connect(r.server.socket_path()).expect("connect");
         writer
-            .set_read_timeout(Some(Duration::from_secs(10)))
+            .set_read_timeout(Some(Duration::from_secs(60)))
             .expect("timeout");
         writeln!(writer, "{token}").expect("token");
         let reader = BufReader::new(writer.try_clone().expect("clone"));

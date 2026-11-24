@@ -108,17 +108,9 @@ pub(super) fn send(view: &Entity<ThreadView>, text: &'static str, cx: &mut Visua
     cx.run_until_parked();
 }
 
-pub(super) fn settle(
-    cx: &mut VisualTestContext,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..500 {
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
+/// Waits for `done` on the fake agent's work; fails the test past [`crate::test_wait::DEADLINE`].
+pub(super) fn settle(cx: &mut VisualTestContext, done: impl FnMut(&mut VisualTestContext) -> bool) {
+    crate::test_wait::wait_until(cx, "the fake agent", done);
 }
 
 pub(super) fn rebind(config: &mut AccountsConfig, dir: &Path, to: &str) {

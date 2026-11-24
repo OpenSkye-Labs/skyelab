@@ -49,7 +49,7 @@ fn read_text(ws: &mut WebSocket<TcpStream>) -> Option<String> {
 
 fn serve(stream: TcpStream, n: usize, how: Misbehave, log: &Log) {
     stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(Duration::from_secs(60)))
         .expect("timeout");
     let Ok(mut ws) = tungstenite::accept(stream) else {
         return;
@@ -94,7 +94,7 @@ fn serve(stream: TcpStream, n: usize, how: Misbehave, log: &Log) {
                 Misbehave::Drop => return,
             }
             // Longer than the test waits, so only the client can be the one that closes.
-            std::thread::sleep(Duration::from_secs(5));
+            std::thread::sleep(Duration::from_secs(90));
             return;
         }
     }
@@ -111,7 +111,7 @@ fn check(how: Misbehave) {
     connected(&client);
     let pending = client.list_projects();
     assert_eq!(
-        pending.recv_timeout(Duration::from_secs(2)),
+        pending.recv_timeout(Duration::from_secs(60)),
         Err(Error::ConnectionLost)
     );
     match next(&client) {

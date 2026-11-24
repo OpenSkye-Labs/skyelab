@@ -36,8 +36,8 @@ fn gh_env(gh_config_dir: Option<&Path>) -> serde_json::Value {
     loop {
         let event = session
             .events()
-            .recv_timeout(Duration::from_secs(10))
-            .expect("event within 10s");
+            .recv_timeout(Duration::from_secs(60))
+            .expect("event within 60 s");
         if let Event::Unknown(v) = event
             && v["type"] == "fake_gh_env"
         {

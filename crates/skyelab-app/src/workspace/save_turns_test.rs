@@ -9,24 +9,8 @@ use gpui::VisualTestContext;
 use skyelab_agent::Event;
 use skyelab_agent::mcp::{Caller, Tool};
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 
-/// Like `wait_until`, but moves the test clock too, so the retry timers fire.
-fn tick(
-    cx: &mut VisualTestContext,
-    what: &str,
-    mut done: impl FnMut(&mut VisualTestContext) -> bool,
-) {
-    for _ in 0..1500 {
-        cx.executor().advance_clock(Duration::from_millis(100));
-        cx.run_until_parked();
-        if done(cx) {
-            return;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    panic!("timed out waiting for {what}");
-}
+use crate::test_wait::wait_ticking;
 
 #[gpui::test]
 fn a_late_saved_result_ends_its_turn_once_and_frees_the_slot(cx: &mut gpui::TestAppContext) {
@@ -72,7 +56,7 @@ fn a_late_saved_result_ends_its_turn_once_and_frees_the_slot(cx: &mut gpui::Test
         ws.read_with(cx, |ws, cx| ws.open_view(id, cx))
             .expect("child tab open")
     };
-    tick(cx, "every child's result shown but unsaved", |cx| {
+    wait_ticking(cx, "every child's result shown but unsaved", |cx| {
         kids.iter().all(|id| {
             view(cx, *id).read_with(cx, |v, _| {
                 v.turns.load(Ordering::SeqCst) == 0 && v.unsaved_events > 0
@@ -85,7 +69,7 @@ fn a_late_saved_result_ends_its_turn_once_and_frees_the_slot(cx: &mut gpui::Test
 
     db.execute_batch("DROP TRIGGER fail_agent; DROP TRIGGER fail_idle;")
         .expect("heal");
-    tick(cx, "every held write saved", |cx| {
+    wait_ticking(cx, "every held write saved", |cx| {
         kids.iter()
             .all(|id| view(cx, *id).read_with(cx, |v, _| v.unsaved_events == 0))
     });

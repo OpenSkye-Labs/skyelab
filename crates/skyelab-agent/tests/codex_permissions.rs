@@ -40,8 +40,8 @@ fn start(prompt: &str, mode: Mode) -> (Session, tempfile::TempDir) {
 
 fn next(s: &Session) -> Event {
     s.events()
-        .recv_timeout(Duration::from_secs(10))
-        .expect("event within 10s")
+        .recv_timeout(Duration::from_secs(60))
+        .expect("event within 60 s")
 }
 
 /// The params of the first line the fake echoes back that `pick` accepts.

@@ -184,18 +184,18 @@ fn a_refused_send_records_the_thread_stopped(cx: &mut TestAppContext) {
     view.update(cx, |t, cx| t.set_config(config, cx));
     send(&view, "two", cx);
     refused(&view, cx);
-    for _ in 0..20 {
-        cx.run_until_parked();
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    let status = view.read_with(cx, |t, _| {
-        let id = t.thread.as_ref().expect("row").id;
-        crate::workspace::lock(&t.backend.store)
-            .expect("store")
-            .thread(id)
-            .expect("read")
-            .expect("row")
-            .status
-    });
-    assert_eq!(status, "stopped", "ended on purpose, not exited");
+    let status = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |t, _| {
+            let id = t.thread.as_ref().expect("row").id;
+            crate::workspace::lock(&t.backend.store)
+                .expect("store")
+                .thread(id)
+                .expect("read")
+                .expect("row")
+                .status
+        })
+    };
+    // Written once the killed agent has ended, which can take seconds on a loaded machine.
+    settle(cx, |cx| matches!(status(cx).as_str(), "stopped" | "exited"));
+    assert_eq!(status(cx), "stopped", "ended on purpose, not exited");
 }

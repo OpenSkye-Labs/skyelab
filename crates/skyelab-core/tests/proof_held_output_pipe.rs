@@ -24,7 +24,7 @@ fn a_held_stdout_does_not_hang_scoped_extra_headers() {
         let _ = tx.send(skyelab_core::env::scoped_extra_headers_with(&git, &dir));
     });
     let urls = rx
-        .recv_timeout(Duration::from_secs(5))
+        .recv_timeout(Duration::from_secs(60))
         .expect("returned while another process still held git's stdout");
     assert_eq!(urls, vec!["https://example.com/".to_owned()]);
 }

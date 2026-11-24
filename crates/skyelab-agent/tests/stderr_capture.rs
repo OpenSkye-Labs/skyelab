@@ -44,7 +44,7 @@ fn tempdir() -> (tempfile::TempDir, std::path::PathBuf) {
 fn stderr_capture_is_capped() {
     let (_tmp, dir) = tempdir();
     let s = start("stderr-flood", &dir);
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(60);
     let (mut all, mut largest) = (String::new(), 0);
     while !all.ends_with("END") {
         assert!(
@@ -70,7 +70,7 @@ fn stderr_capture_is_capped() {
 fn crash_leaves_its_stderr_and_a_nonzero_exit() {
     let (_tmp, dir) = tempdir();
     let mut s = start("crash", &dir);
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(60);
     let status = loop {
         if let Some(st) = s.try_wait().expect("try_wait") {
             break st;

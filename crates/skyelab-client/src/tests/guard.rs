@@ -81,11 +81,16 @@ fn refuses_a_loopback_name_before_connecting() {
     // The first attempt and the retries after it: each one is the guard's refusal. Counting the daemon's whois
     // calls instead would also count strays (another process's client retrying a port this daemon now holds).
     let mut refusals = 0;
+    // The first one may take seconds on a loaded machine; then any retries within 500 ms.
+    let first = next(&client);
     let until = std::time::Instant::now() + Duration::from_millis(500);
-    while let Ok(update) = client
-        .updates()
-        .recv_timeout(until.saturating_duration_since(std::time::Instant::now()))
-    {
+    let retries = std::iter::from_fn(|| {
+        client
+            .updates()
+            .recv_timeout(until.saturating_duration_since(std::time::Instant::now()))
+            .ok()
+    });
+    for update in std::iter::once(first).chain(retries) {
         match update {
             Update::Disconnected(reason) => {
                 assert!(reason.message.contains("refusing"), "{reason}");

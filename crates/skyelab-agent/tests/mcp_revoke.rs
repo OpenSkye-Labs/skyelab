@@ -27,7 +27,7 @@ fn revoking_cuts_an_idle_connection() {
     };
     let grant = server.grant(caller, &proxy).expect("grant");
     let mut conn = UnixStream::connect(server.socket_path()).expect("connect");
-    conn.set_read_timeout(Some(Duration::from_secs(10)))
+    conn.set_read_timeout(Some(Duration::from_secs(60)))
         .expect("timeout");
     writeln!(conn, "{}", grant.token()).expect("token");
     writeln!(conn, r#"{{"jsonrpc":"2.0","id":1,"method":"ping"}}"#).expect("ping");
