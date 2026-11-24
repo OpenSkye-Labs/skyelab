@@ -82,14 +82,19 @@ fn width(distance: Option<usize>) -> f32 {
         }
 }
 
-/// `text` (markdown) as plain text on one line, cut for the card.
-fn preview(text: &str) -> SharedString {
+/// A reply (markdown) as plain text on one line, cut for the card.
+fn reply_preview(text: &str) -> SharedString {
     let mut plain = String::new();
     match markdown::to_mdast(text, &markdown::ParseOptions::gfm()) {
         Ok(tree) => plain_text(&tree, &mut plain),
         Err(_) => plain.push_str(text), // GFM never fails to parse (only MDX can); the raw text then
     }
-    let flat = plain.split_whitespace().collect::<Vec<_>>().join(" ");
+    preview(&plain)
+}
+
+/// `text` on one line, cut for the card. A prompt is plain text already, shown as typed.
+fn preview(text: &str) -> SharedString {
+    let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
     match flat.char_indices().nth(PREVIEW) {
         Some((cut, _)) => format!("{}…", &flat[..cut]).into(),
         None => flat.into(),
@@ -103,6 +108,7 @@ fn plain_text(node: &markdown::mdast::Node, out: &mut String) {
         Node::Text(t) => out.push_str(&t.value),
         Node::InlineCode(c) => out.push_str(&c.value),
         Node::Code(c) => out.push_str(&c.value),
+        Node::Html(h) => out.push_str(&h.value), // `<Button>` in a sentence is a word, not markup to drop
         Node::Break(_) => out.push(' '),
         _ => {}
     }
@@ -246,7 +252,7 @@ impl ThreadView {
                         .text_size(ui::BODY)
                         .text_color(muted)
                         .line_clamp(3)
-                        .child(preview(r))
+                        .child(reply_preview(r))
                 }))
         });
         let height = (n - 1) as f32 * SPACING;

@@ -76,15 +76,15 @@ pub(super) fn mark_words<V: 'static>(
     window: &mut gpui::Window,
     cx: &mut Context<V>,
 ) {
-    type Marked = Option<(RenderedText, Option<(String, Option<usize>)>)>;
+    type Marked = Option<(RenderedText, Option<(String, Option<usize>)>, Hsla)>;
     let rendered = state.read(cx).rendered_text();
     let want = find.map(|(q, active)| (q.to_owned(), active));
+    let warning = cx.theme().warning; // part of the key: a theme switch paints them again
     let id = SharedString::from(format!("{}/find", state.entity_id()));
     let last = window.use_keyed_state(id, cx, |_, _| Marked::None);
-    if last.read(cx).as_ref() == Some(&(rendered.clone(), want.clone())) {
+    if last.read(cx).as_ref() == Some(&(rendered.clone(), want.clone(), warning)) {
         return;
     }
-    let warning = cx.theme().warning;
     state.update(cx, |s, cx| match &want {
         None => s.clear_range_highlights(cx),
         Some((query, active)) => {
@@ -94,10 +94,13 @@ pub(super) fn mark_words<V: 'static>(
                 .enumerate()
                 .map(|(n, r)| RangeHighlight::new(r, tint(n)));
             // The ranges come from this same rendered text, so they are valid.
+            // shortcut: find counts a reply's markdown source but marks its rendered text, so a match only in a link
+            // target (`[a](a.rs)`) is counted yet unmarked and shifts which word reads as current; count rendered text
+            // if that confuses.
             let _ = s.set_range_highlights(marks, cx);
         }
     });
-    last.update(cx, |l, _| *l = Some((rendered, want)));
+    last.update(cx, |l, _| *l = Some((rendered, want, warning)));
 }
 
 /// Where `query` occurs in `text`, case-insensitive, as byte ranges of `text` (non-overlapping, as find counts).

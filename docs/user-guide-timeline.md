@@ -73,7 +73,7 @@ Stopping a turn yourself (Stop, Interrupt) shows no banner.
 
 A thread with two or more of your messages gets a thin rail at the left edge of the timeline: one short line per
 message, top to bottom. The line of the turn you are reading is brighter. Hover the rail to see that message and the
-turn's last reply as plain text; click a line to scroll its message to the top.
+turn's last reply (as plain text); click a line to scroll its message to the top.
 
 ## Find in thread
 

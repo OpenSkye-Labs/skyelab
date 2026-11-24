@@ -230,10 +230,7 @@ impl Workspace {
                     "Add a folder to start. It runs on the account it is bound to.",
                 )
             } else if all_archived {
-                (
-                    "All threads are archived",
-                    "Show them, or start a new one with New thread.",
-                )
+                ("All threads are archived", "They're under Archived below.")
             } else {
                 ("No threads yet", "Start one with New thread.")
             };
