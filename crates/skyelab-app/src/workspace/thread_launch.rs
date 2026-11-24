@@ -266,7 +266,7 @@ impl ThreadView {
                         lock(&store)?.set_thread_status(thread.id, status)?;
                         // From here on, a closed tab can't leave the row running with nothing behind it.
                         let session = session
-                            .map(|s| super::session::NewSession::new(s, store.clone(), thread.id));
+                            .map(|s| super::teardown::NewSession::new(s, store.clone(), thread.id));
                         anyhow::Ok((thread, session, grant))
                     })();
                     // A slot is never held by a thread that isn't running.

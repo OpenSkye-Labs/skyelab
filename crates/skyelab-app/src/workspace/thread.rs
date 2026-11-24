@@ -23,6 +23,8 @@ actions!(skyelab, [SendPrompt, Interrupt, Stop, RestartAgentSession]);
 
 pub(super) const CONTEXT: &str = "Thread";
 
+#[path = "thread_access.rs"]
+mod access;
 #[path = "thread_answers.rs"]
 mod answers;
 /// The composer under the thread (`composer.rs` and its parts).
@@ -34,6 +36,8 @@ mod follow_up;
 mod launch;
 #[path = "thread_mode.rs"]
 mod mode;
+#[path = "thread_release.rs"]
+pub(super) mod release;
 #[path = "thread_restart.rs"]
 mod restart;
 #[path = "thread_resume.rs"]
@@ -42,6 +46,8 @@ mod resume;
 mod saves;
 #[path = "thread_session.rs"]
 mod session;
+#[path = "thread_teardown.rs"]
+mod teardown;
 #[path = "thread_window.rs"]
 mod window_owner;
 
@@ -145,6 +151,8 @@ pub struct ThreadView {
     /// Attachments, menus, the model pick, the queue and the footer (`composer_state.rs`).
     pub(super) composer: composer::Composer,
     _pump: Option<Task<()>>,
+    /// Ends the agent once it has sat idle a while (`thread_release.rs`).
+    pub(super) release: release::Release,
     _task: Option<Task<()>>,
     pub(super) _subs: Vec<Subscription>,
 }
@@ -351,6 +359,7 @@ impl ThreadView {
             on_sent: None,
             composer: Default::default(),
             _pump: None,
+            release: Default::default(),
             _task: None,
             _subs: subs,
         }
@@ -361,61 +370,6 @@ impl ThreadView {
         (self.session.is_some() || self.starting) && !self.stop_requested
     }
 
-    /// Accounts changed on disk (Settings saved). Used for the next start and the badge.
-    pub fn set_config(&mut self, config: AccountsConfig, cx: &mut Context<Self>) {
-        self.config = config;
-        let old = self.composer_account().map(|a| a.id);
-        self.folder_account = self.config.resolve(&self.cwd).cloned();
-        if self.composer_account().map(|a| a.id) != old {
-            // Another account now: its own default model and Codex list.
-            (self.composer.account_model, self.composer.codex_models) = (None, None);
-            self.load_account_model(cx);
-        }
-        self.resume_refused = None; // the next send checks the new bindings again
-        self.drop_unbound_chips();
-        if self.needs_binding && self.config.resolve(&self.cwd).is_some() {
-            self.needs_binding = false;
-        }
-        cx.notify();
-    }
-
-    /// A PR was opened from this thread (already stored on its row).
-    pub fn set_pr_url(&mut self, url: Option<String>, cx: &mut Context<Self>) {
-        if let Some(t) = self.thread.as_mut() {
-            t.pr_url = url;
-            t.pr_state = None; // the store clears it with the link
-            cx.notify();
-        }
-    }
-
-    pub fn focus_prompt(&self, window: &mut Window, cx: &mut App) {
-        self.prompt.read(cx).focus_handle(cx).focus(window, cx);
-    }
-
-    pub fn title(&self) -> SharedString {
-        match &self.thread {
-            Some(t) => t.title.clone().into(),
-            None => "New thread".into(),
-        }
-    }
-
-    /// What the sidebar shows for this thread: its live session's state, or with no session, stopped (the stored row
-    /// may still say running from before).
-    pub fn is_expanded(&self, tool_id: &str) -> bool {
-        self.expanded.contains(tool_id)
-    }
-
-    pub fn toggle_tool(&mut self, tool_id: &str, cx: &mut Context<Self>) {
-        if !self.expanded.remove(tool_id) {
-            self.expanded.insert(tool_id.to_owned());
-        }
-        if let Some(rows) = super::timeline_fold::rows_of(&self.items, tool_id) {
-            let n = rows.len();
-            self.lists.splice(rows, n);
-        }
-        cx.notify();
-    }
-
     fn show_error(&mut self, e: anyhow::Error, cx: &mut Context<Self>) {
         self.error = Some(format!("{e:#}").into());
         cx.notify();
@@ -423,6 +377,9 @@ impl ThreadView {
 
     pub(super) fn push(&mut self, record: &Record, cx: &mut Context<Self>) {
         // A prompt with no turn running starts one (a steer or queued send joins it).
+        if matches!(record, Record::Prompt(_) | Record::Steer(_)) {
+            self.release.disarm();
+        }
         if matches!(record, Record::Prompt(_)) && !self.turn_running() {
             self.turn_started_ms = Some(crate::ui::now_ms());
             self.tick_while_working(cx);

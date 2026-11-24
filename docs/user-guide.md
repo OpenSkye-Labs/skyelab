@@ -82,7 +82,9 @@ The sidebar's bottom row: **Settings**, **Pull requests**, **Issues**, **Usage**
 The center shows one page at a time: a thread, a new thread, Settings, or nothing open yet. Clicking a thread in the
 sidebar (or picking it in the palette) switches the page; there are no center tabs. The window follows the thread's
 project: the status bar, terminals and Open in editor use its folder and account. A thread you switch away from keeps
-running, and its row keeps its state. A thread that starts on its own (delegated, or from another device) doesn't take
+running, and its row keeps its state. An agent that has sat idle for 10 minutes is ended to free its memory (not
+while it has a background command, a subagent or a question open); your next message resumes its session, as after
+a restart. A thread that starts on its own (delegated, or from another device) doesn't take
 the page: its row says **Done** until you open it (see **Unread** below). While the agent waits on threads it delegated, or on subagents in its turn, a line over the composer says
 **Waiting on N subagents** with their names: **Details** opens or closes the thread details card (Lineage lists them),
 and **Stop** stops them (a subagent stops with the turn that runs it). Tools open in the right panel beside the
