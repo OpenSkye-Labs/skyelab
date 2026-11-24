@@ -65,3 +65,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - The caret blink alone kept an idle window redrawing twice a second (the center panel plus ~17 timeline rows each time).
   `ui::CURSOR_BLINK` stops blinking after 5 s idle (`CursorBlink::with_idle_timeout`); measured with
   `SKYELAB_DEBUG_RENDERS=1`, idle redraws drop to zero.
+
+- A list's wheel scroll notifies the view that drew the `list` (`cx.notify(current_view)` in `ListState`), so that
+  view's render can read `logical_scroll_top()` for "where am I" marks (the minimap's current tick) with no scroll
+  handler of its own.
+- An overlay drawn from a view's own rows (the timeline minimap) stays in that view's render: inside a dock panel a
+  child entity would render on every frame of its parent anyway. Keep its per-frame work to a tag scan of the rows
+  and one div per mark, notify only when its hover changes, and derive text (previews) only for the hovered mark.

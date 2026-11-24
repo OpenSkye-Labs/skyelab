@@ -4,6 +4,9 @@
 //! without a divider, or a turn that took none (the folder wasn't a repo yet), turns the rows off rather than list
 //! another turn's files.
 
+#[path = "minimap.rs"]
+pub(super) mod minimap;
+
 use super::thread::ThreadView;
 use super::thread_items::ItemsView;
 use super::thread_model::Item;
@@ -28,13 +31,16 @@ pub struct FileStat {
     pub removed: usize,
 }
 
-/// A thread view's timeline state beyond its items: turn files, the find bar, a dismissed failure banner.
+/// A thread view's timeline state beyond its items: turn files, the find bar, a dismissed failure banner, the
+/// minimap's hovered tick.
 #[derive(Default)]
 pub struct Timeline {
     pub files: TurnFiles,
     pub find: super::thread_find::Find,
     /// The failed row whose banner the user closed.
     pub dismissed_failure: Option<usize>,
+    /// The minimap tick under the pointer, by prompt number.
+    pub minimap_hover: Option<usize>,
 }
 
 #[derive(Default)]

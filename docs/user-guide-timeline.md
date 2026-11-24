@@ -55,6 +55,12 @@ account's own config folder); when it finishes, press **Retry**. **Open Settings
 SkyeLab never retries under another account: the folder's binding decides.
 Stopping a turn yourself (Stop, Interrupt) shows no banner.
 
+## Minimap
+
+A thread with two or more of your messages gets a thin rail at the left edge of the timeline: one short line per
+message, top to bottom. The line of the turn you are reading is brighter. Hover the rail to see that message and the
+turn's last reply; click a line to scroll its message to the top.
+
 ## Find in thread
 
 **⌘F** (Ctrl+F elsewhere) in a thread opens a find bar at the timeline's top right. It counts every match of what you
