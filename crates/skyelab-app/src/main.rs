@@ -304,6 +304,13 @@ fn main() {
             ),
             cx,
         );
+        updates::set_agent_fetch(
+            updates::agent_fetcher(
+                std::env::var("SKYELAB_AGENT_LATEST_FAKE").ok(),
+                cfg!(debug_assertions),
+            ),
+            cx,
+        );
         // A window opened with none left (the dock, the menu): the same store, the accounts as on disk now.
         let fresh = {
             let (path, backend) = (path.clone(), backend.clone());

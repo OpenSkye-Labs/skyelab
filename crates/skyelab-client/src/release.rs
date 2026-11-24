@@ -1,4 +1,5 @@
-//! The update check's one request: a plain HTTPS GET of a public JSON document (GitHub's latest release).
+//! The update checks' one request: a plain HTTPS GET of a public JSON document (GitHub's latest release, or an
+//! agent CLI's npm `latest` record).
 //! No auth, no cookies, nothing but the request line, `Host`, `User-Agent` and `Accept`. Tokio and rustls are already
 //! here for the remote client, so no HTTP client is added for one GET.
 
@@ -20,6 +21,31 @@ pub struct Release {
 
 /// GETs `url` (`https://host/path` only) and parses GitHub's release JSON. Blocks; call it off the UI thread.
 pub fn latest_release(url: &str) -> io::Result<Release> {
+    parse_release(&get(url, "application/vnd.github+json")?)
+}
+
+/// GETs an npm registry `.../<package>/latest` record (`url`, `https://` only) and returns its `version`. Blocks.
+pub fn npm_latest(url: &str) -> io::Result<String> {
+    parse_npm_latest(&get(url, "application/json")?)
+}
+
+/// `version` from an npm registry version record: short, digits and dots first (untrusted until compared).
+pub(crate) fn parse_npm_latest(body: &[u8]) -> io::Result<String> {
+    let v: serde_json::Value = serde_json::from_slice(body).map_err(io::Error::other)?;
+    v.get("version")
+        .and_then(|s| s.as_str())
+        .filter(|s| {
+            !s.is_empty()
+                && s.len() <= 64
+                && s.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || ".-+".contains(c))
+        })
+        .map(str::to_owned)
+        .ok_or_else(|| invalid("the npm record has no version"))
+}
+
+/// One bounded GET of `url` over TLS, returning a 200's body.
+fn get(url: &str, accept: &str) -> io::Result<Vec<u8>> {
     let rest = url
         .strip_prefix("https://")
         .ok_or_else(|| invalid("not an https URL"))?;
@@ -37,16 +63,15 @@ pub fn latest_release(url: &str) -> io::Result<Release> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let body = runtime.block_on(async {
+    runtime.block_on(async {
         tokio::time::timeout(TIMEOUT, async {
             let tcp = tokio::net::TcpStream::connect((host, 443)).await?;
             let tls = connector.connect(name, tcp).await?;
-            get_over(tls, host, path).await
+            get_over(tls, host, path, accept).await
         })
         .await
-        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "the release check timed out"))?
-    })?;
-    parse_release(&body)
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "the update check timed out"))?
+    })
 }
 
 fn invalid(msg: &str) -> io::Error {
@@ -58,9 +83,10 @@ pub(crate) async fn get_over<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
     host: &str,
     path: &str,
+    accept: &str,
 ) -> io::Result<Vec<u8>> {
     let request = format!(
-        "GET {path} HTTP/1.0\r\nHost: {host}\r\nUser-Agent: SkyeLab/{}\r\nAccept: application/vnd.github+json\r\n\r\n",
+        "GET {path} HTTP/1.0\r\nHost: {host}\r\nUser-Agent: SkyeLab/{}\r\nAccept: {accept}\r\n\r\n",
         env!("CARGO_PKG_VERSION")
     );
     stream.write_all(request.as_bytes()).await?;
@@ -83,7 +109,7 @@ pub(crate) async fn get_over<S: AsyncRead + AsyncWrite + Unpin>(
         .and_then(|l| l.split_whitespace().nth(1))
         .ok_or_else(|| invalid("no HTTP status"))?;
     if status != "200" {
-        return Err(io::Error::other(format!("GitHub answered {status}")));
+        return Err(io::Error::other(format!("{host} answered {status}")));
     }
     let body = raw.split_off(split + 4);
     if body.len() > MAX_BODY {

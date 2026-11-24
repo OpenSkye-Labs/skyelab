@@ -78,3 +78,19 @@ pub fn due(last_check: Option<u64>, now: u64) -> bool {
         Some(last) => now < last || now - last >= CHECK_EVERY_SECS,
     }
 }
+
+/// Where an agent CLI's newest release is published: the npm registry's `latest` record of its package (T3 asks
+/// the package manager that installed it; the registry is what both CLIs publish to).
+pub fn agent_latest_url(provider: crate::Provider) -> &'static str {
+    match provider {
+        crate::Provider::Claude => "https://registry.npmjs.org/@anthropic-ai/claude-code/latest",
+        crate::Provider::Codex => "https://registry.npmjs.org/@openai/codex/latest",
+    }
+}
+
+/// The version in a `--version` line: its first word that reads as one (`2.1.3 (Claude Code)`, `codex-cli 0.46.0`).
+pub fn version_in(line: &str) -> Option<&str> {
+    line.split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_ascii_alphanumeric()))
+        .find(|w| w.contains('.') && parts(w).is_some())
+}

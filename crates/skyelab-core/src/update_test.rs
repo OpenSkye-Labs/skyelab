@@ -61,3 +61,22 @@ fn settings_default_on_and_round_trip() {
     );
     assert_eq!(display_version("v0.3.0"), "0.3.0");
 }
+
+#[test]
+fn version_in_finds_the_version_word_of_a_version_line() {
+    use crate::update::version_in;
+    assert_eq!(version_in("2.1.3 (Claude Code)"), Some("2.1.3"));
+    assert_eq!(version_in("codex-cli 0.46.0"), Some("0.46.0"));
+    assert_eq!(version_in("claude v1.0.0-beta.2"), Some("v1.0.0-beta.2"));
+    assert_eq!(version_in("unknown"), None);
+    assert_eq!(version_in(""), None);
+}
+
+#[test]
+fn each_agent_asks_its_own_npm_package() {
+    use crate::update::agent_latest_url;
+    assert!(
+        agent_latest_url(crate::Provider::Claude).ends_with("/@anthropic-ai/claude-code/latest")
+    );
+    assert!(agent_latest_url(crate::Provider::Codex).ends_with("/@openai/codex/latest"));
+}
