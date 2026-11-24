@@ -46,4 +46,16 @@ fn every_model_starts_from_the_picked_base(cx: &mut TestAppContext) {
         1,
         "models started from different bases: {bases:?}"
     );
+    // Every column holds the one pin, so a branch that moves between their worktrees can't split them.
+    let pins: Vec<_> = ws.read_with(cx, |ws, cx| {
+        ws.open_threads
+            .iter()
+            .filter_map(|v| v.read(cx).wt.pin.clone())
+            .collect()
+    });
+    assert_eq!(pins.len(), 2, "each column got the pin");
+    assert!(
+        std::sync::Arc::ptr_eq(&pins[0], &pins[1]),
+        "the columns hold different pins"
+    );
 }

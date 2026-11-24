@@ -201,7 +201,7 @@ pub(super) fn tick(cx: &mut App) {
     // A hand-edited 0 would hold every task forever.
     let cap = settings.max_concurrent.max(1) as usize;
     let mut changed = false;
-    let mut hub = hub;
+    let (mut hub, mut tried_open) = (hub, false);
     for task in tasks.iter().filter(|t| t.enabled) {
         // The machine's zone changed since its next run was computed: it moves, and isn't due on the old time.
         if let Some(moved) = rezoned(task, now) {
@@ -220,7 +220,9 @@ pub(super) fn tick(cx: &mut App) {
             // Waits, still due, until a run ends.
             Due::Run if busy.len() >= cap => continue,
             Due::Run => {
-                if hub.is_none() {
+                // One try a tick: a window that can't open isn't retried for every due task.
+                if hub.is_none() && !tried_open {
+                    tried_open = true;
                     hub = hub_or_open(cx);
                 }
                 // No window could open: it stays due for the next tick.

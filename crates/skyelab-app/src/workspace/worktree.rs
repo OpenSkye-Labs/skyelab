@@ -61,12 +61,14 @@ pub(super) fn creating(repo: &Path) -> Arc<Mutex<()>> {
     repos.entry(repo.to_owned()).or_default().clone()
 }
 
-/// The base commit a multi-model send's columns share: empty until the first column resolves it.
-pub(super) type BasePin = Arc<Mutex<Option<String>>>;
+/// The base commit a multi-model send's columns share, with the base branch it was resolved for (`None`: HEAD):
+/// empty until the first column resolves it.
+pub(super) type BasePin = Arc<Mutex<Option<(Option<String>, String)>>>;
 
 /// Creates a worktree of `project` on `skyelab/<slug>` from local branch `base_branch` (its HEAD when `None`), and
 /// returns it once it resolves to `account_id`. Anything else is refused and the worktree removed again. With `pin`,
-/// the first call resolves the base into it and later calls start from that commit, wherever the branch is by then.
+/// the first call resolves the base into it and later calls for the same base branch start from that commit, wherever
+/// the branch is by then. A call for another branch (a column re-sent after a new pick) resolves its own.
 pub(super) fn create(
     config: &AccountsConfig,
     project: &Path,
@@ -110,7 +112,9 @@ pub(super) fn create(
     let dest = parent.join(&slug);
     // Under the repo lock, so the first column's resolve is the one every later column reads.
     let mut pinned = pin.map(|p| p.lock().unwrap_or_else(PoisonError::into_inner));
-    let base = match (pinned.as_deref().cloned().flatten(), base_branch) {
+    let same = |(b, _): &&(Option<String>, String)| b.as_deref() == base_branch;
+    let reuse = pinned.as_deref().and_then(|p| p.as_ref().filter(same));
+    let base = match (reuse.map(|(_, sha)| sha.clone()), base_branch) {
         (Some(sha), _) => sha,
         // Only a listed local branch, never a revision expression.
         (None, Some(b)) if local.iter().any(|l| l == b) => {
@@ -120,7 +124,7 @@ pub(super) fn create(
         (None, None) => skyelab_git::rev_parse(&project, "HEAD")?,
     };
     if let Some(p) = pinned.as_deref_mut() {
-        p.get_or_insert_with(|| base.clone());
+        p.get_or_insert_with(|| (base_branch.map(str::to_owned), base.clone()));
     }
     drop(pinned);
     let path = skyelab_git::create_worktree(&project, &branch, &base, Some(&dest), false)?;
