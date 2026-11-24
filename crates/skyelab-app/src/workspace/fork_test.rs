@@ -41,6 +41,16 @@ fn fork_copies_history_and_starts_with_context(cx: &mut TestAppContext) {
             turns: 1
         }
     );
+    // The source's model pick goes along (a real fork ran on the account default instead).
+    let pick = skyelab_store::ModelChoice {
+        model: Some("haiku".into()),
+        effort: Some("low".into()),
+    };
+    f.store
+        .lock()
+        .expect("lock")
+        .set_thread_model(src_id, &pick)
+        .expect("pick");
     cx.dispatch_action(action.clone());
     wait_until(cx, "the fork opened", |cx| {
         ws.read_with(cx, |ws, _| {
@@ -56,6 +66,14 @@ fn fork_copies_history_and_starts_with_context(cx: &mut TestAppContext) {
         })
         .expect("row");
     assert_eq!(fork_row.account_id, "acme");
+    assert_eq!(
+        f.store
+            .lock()
+            .expect("lock")
+            .thread_model(fork_row.id)
+            .expect("read"),
+        pick
+    );
     assert_eq!(fork_row.project_id, src.read_with(cx, |t, _| t.project_id));
     let copied = stored_records(&f.store, fork_row.id);
     assert!(matches!(copied.first(), Some(Record::Prompt(p)) if p == "hi\nthere"));
