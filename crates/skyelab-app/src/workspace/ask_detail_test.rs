@@ -214,3 +214,53 @@ fn a_file_change_with_anything_unusual_shows_its_json() {
         );
     }
 }
+
+#[test]
+fn a_hidden_character_deep_in_a_big_write_shows_the_json() {
+    // Past what the card or its 20-line preview draws: the whole content is checked.
+    let mut lines: Vec<String> = (1..=2000).map(|i| format!("line {i}")).collect();
+    lines[1899] = "line\u{200B} 1900".into();
+    let content = lines.join("\n");
+    let write = tool_item(
+        "Write",
+        "/r/big.rs",
+        json!({"file_path": "/r/big.rs", "content": content}),
+    );
+    assert_eq!(detail(&write, PREVIEW_LINES), Detail::Json);
+    assert_eq!(patch(&write), None, "no View all either");
+}
+
+#[test]
+fn view_all_holds_every_line() {
+    use gpui_component::diff::DiffFile;
+    let content: String = (1..=2000).map(|i| format!("line {i}\n")).collect();
+    let write = tool_item(
+        "Write",
+        "/r/big.rs",
+        json!({"file_path": "/r/big.rs", "content": content}),
+    );
+    let files = DiffFile::parse(&patch(&write).expect("a patch")).expect("parses");
+    assert_eq!(files.len(), 1);
+    assert_eq!((files[0].additions(), files[0].deletions()), (2000, 0));
+    assert_eq!(files[0].path().as_ref(), "/r/big.rs");
+
+    // Each MultiEdit edit is its own section, as the card's divider shows.
+    let multi = tool_item(
+        "MultiEdit",
+        "/r/a.rs",
+        json!({"file_path": "/r/a.rs", "edits": [
+            {"old_string": "x\ny", "new_string": "x\nz"},
+            {"old_string": "", "new_string": "p\nq"},
+        ]}),
+    );
+    assert_eq!(preview(detail(&multi, PREVIEW_LINES)).breaks, vec![3]);
+    let files = DiffFile::parse(&patch(&multi).expect("a patch")).expect("parses");
+    let counts: Vec<_> = files
+        .iter()
+        .map(|f| (f.additions(), f.deletions()))
+        .collect();
+    assert_eq!(counts, vec![(1, 1), (2, 0)]);
+
+    let bash = item("make", json!({"command": "make"}));
+    assert_eq!(patch(&bash), None);
+}

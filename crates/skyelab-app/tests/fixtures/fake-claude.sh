@@ -15,7 +15,7 @@ fi
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,
-# reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write and "permit edit" an Edit
+# reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write, "permit edit" an Edit and "permit multi" a two-edit MultiEdit
 # instead); one starting "crash" writes to stderr and exits 3, and one starting
 # "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
 # "turn" ends a plain turn ($0.0125, 1200 in, 80 out) with Claude's running totals.
@@ -104,6 +104,11 @@ while IFS= read -r line; do
       # A 2,000-line Write: the approval shows its first lines, not its JSON.
       body=$(awk 'BEGIN { for (i = 1; i <= 2000; i++) printf "fn line_%d() {}\\n", i }')
       printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"Write","input":{"file_path":"%s/src/big.rs","content":"%s"},"tool_use_id":"toolu_p"}}\n' "$PWD" "$body"
+      IFS= read -r reply
+      printf '{"type":"fake_answer","reply":%s}\n' "$reply"
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
+    *'"content":"permit multi'*)
+      printf '{"type":"control_request","request_id":"perm-1","request":{"subtype":"can_use_tool","tool_name":"MultiEdit","input":{"file_path":"%s/src/lib.rs","edits":[{"old_string":"pub fn a() {}","new_string":"pub fn a() -> u8 {\\n    1\\n}"},{"old_string":"// old note","new_string":"// new note"}]},"tool_use_id":"toolu_p"}}\n' "$PWD"
       IFS= read -r reply
       printf '{"type":"fake_answer","reply":%s}\n' "$reply"
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;

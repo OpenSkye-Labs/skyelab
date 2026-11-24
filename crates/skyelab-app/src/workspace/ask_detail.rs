@@ -5,8 +5,9 @@ use super::changes_model::LineKind;
 use super::thread_items::clip;
 use super::thread_model::ApprovalItem;
 use serde_json::Value;
+use skyelab_agent::timeline::cards::line_diff;
 
-/// How many diff lines a file-change approval shows before "+N more lines".
+/// How many diff lines a file-change approval shows; View all opens the rest.
 pub(super) const PREVIEW_LINES: usize = 20;
 
 /// What a permission card shows under its one-line summary.
@@ -29,6 +30,8 @@ pub(super) struct Preview {
     pub(super) removed: usize,
     /// Lines after `lines`.
     pub(super) more: usize,
+    /// Where each MultiEdit edit after the first starts in `lines` (the card draws a divider there).
+    pub(super) breaks: Vec<usize>,
     /// An Edit that replaces every match, not just one.
     pub(super) replace_all: bool,
 }
@@ -122,7 +125,20 @@ fn diff(
             (fields.len() == 2).then_some(any)?
         }
     };
-    let mut lines = skyelab_agent::timeline::cards::input_lines(&a.tool, &a.raw, limit);
+    let mut breaks = Vec::new();
+    let mut lines = if a.tool == "MultiEdit" {
+        let s = |e: &Value, k: &str| e[k].as_str().unwrap_or_default().to_owned();
+        let mut out = Vec::new();
+        for e in fields["edits"].as_array().into_iter().flatten() {
+            if !out.is_empty() && breaks.last() != Some(&out.len()) {
+                breaks.push(out.len());
+            }
+            out.extend(line_diff(&s(e, "old_string"), &s(e, "new_string")));
+        }
+        out
+    } else {
+        skyelab_agent::timeline::cards::input_lines(&a.tool, &a.raw, limit)
+    };
     let (added, removed, total) = if a.tool == "Write" {
         let n = fields["content"].as_str().map_or(0, |c| c.lines().count());
         (n, 0, n)
@@ -135,13 +151,54 @@ fn diff(
         )
     };
     lines.truncate(limit);
+    breaks.retain(|&b| b < lines.len());
     Some(Preview {
         more: total - lines.len(),
+        breaks,
         lines,
         added,
         removed,
         replace_all,
     })
+}
+
+/// The whole change as a unified patch for View all (gpui-component's diff viewer): a Write as a new file, each
+/// edit as its own section. `None` unless the card shows it as a diff, so the same checks cover every line.
+pub(super) fn patch(a: &ApprovalItem) -> Option<String> {
+    let Detail::Diff(p) = detail(a, usize::MAX) else {
+        return None;
+    };
+    let path = &a.summary;
+    let mut out = String::new();
+    let mut starts = std::iter::once(0)
+        .chain(p.breaks.iter().copied())
+        .peekable();
+    while let Some(start) = starts.next() {
+        let end = starts.peek().copied().unwrap_or(p.lines.len());
+        let part = &p.lines[start..end];
+        if part.is_empty() {
+            continue;
+        }
+        let old = part.iter().filter(|l| l.0.is_some()).count();
+        let new = part.iter().filter(|l| l.1.is_some()).count();
+        let from = if a.tool == "Write" { "/dev/null" } else { path };
+        out += &format!(
+            "--- {from}\n+++ {path}\n@@ -{},{old} +{},{new} @@\n",
+            usize::from(old > 0),
+            usize::from(new > 0)
+        );
+        for (_, _, kind, text) in part {
+            let sign = match kind {
+                LineKind::Context => ' ',
+                LineKind::Added => '+',
+                LineKind::Removed => '-',
+            };
+            out.push(sign);
+            out += text;
+            out.push('\n');
+        }
+    }
+    Some(out)
 }
 
 #[cfg(test)]

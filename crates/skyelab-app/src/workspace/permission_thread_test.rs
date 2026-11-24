@@ -163,25 +163,23 @@ fn docked_diff<'a>(
 }
 
 #[gpui::test]
-fn a_big_write_asks_with_its_first_lines(cx: &mut TestAppContext) {
-    let (one, cx, id) = docked_diff("permit write", cx);
-    let more = cx.debug_bounds("approval-more").expect("+N more lines");
-    cx.simulate_click(more.center(), gpui::Modifiers::none());
+fn a_big_write_asks_with_its_first_lines_and_view_all(cx: &mut TestAppContext) {
+    let (_one, cx, _) = docked_diff("permit write", cx);
+    assert!(cx.debug_bounds("approval-view-all-dialog").is_none());
+    let all = cx.debug_bounds("approval-view-all").expect("View all");
+    cx.simulate_click(all.center(), gpui::Modifiers::none());
     cx.run_until_parked();
-    assert!(
-        one.view.read_with(cx, |v, _| v.is_expanded(&id)),
-        "+N more lines expands it"
-    );
-    let dock = cx.debug_bounds("ask-dock").expect("still docked");
-    let half = cx.update(|window, _| window.viewport_size().height / 2.);
-    assert!(dock.size.height <= half, "expanded, the diff scrolls instead");
+    let dialog = cx
+        .debug_bounds("approval-view-all-dialog")
+        .expect("the whole change opens");
+    assert!(dialog.size.height > gpui::px(160.), "{dialog:?}");
 }
 
 #[gpui::test]
 fn an_edit_asks_with_its_diff(cx: &mut TestAppContext) {
     let (_one, cx, _) = docked_diff("permit edit", cx);
     assert!(
-        cx.debug_bounds("approval-more").is_none(),
+        cx.debug_bounds("approval-view-all").is_none(),
         "a short edit shows whole"
     );
 }

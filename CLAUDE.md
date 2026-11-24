@@ -47,7 +47,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `chart` calls `html_render` with a small bar chart (a visual reply card) and `peek` calls `html_preview` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
-  `make deploy` and waits for the answer (`permit write` asks a 2,000-line Write, `permit edit` an Edit), `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
+  `make deploy` and waits for the answer (`permit write` asks a 2,000-line Write, `permit edit` an Edit, `permit multi` a MultiEdit), `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir, writes `fake-login` (`fake@example.com`) there and exits 0 (the Log in terminal),
 `auth status` answers Claude Code's JSON, signed in as `fake-login`'s content while the account dir has that file, else `loggedIn: false` (the account cards' sign-in),
   `table` replies with a markdown table, `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,

@@ -159,7 +159,7 @@ pub fn input_lines(
         // Only what the card can draw: a huge file is never split up every frame.
         "Write" => {
             let content = s(&raw["content"]);
-            let head: Vec<&str> = content.lines().take(limit + 1).collect();
+            let head: Vec<&str> = content.lines().take(limit.saturating_add(1)).collect();
             line_diff("", &head.join("\n"))
         }
         "MultiEdit" => raw["edits"]
