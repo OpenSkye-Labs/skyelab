@@ -1,5 +1,5 @@
-//! AskUserQuestion end to end on the fake claude: it asks, the user picks in the card (a single-choice option, a
-//! multi-choice option plus typed "Other" text) and submits, and the agent gets Claude's answer shape. ExitPlanMode:
+//! AskUserQuestion end to end on the fake claude: it asks, the user answers in the panel docked on the composer (a
+//! click, a digit, typed text) and submits, and the agent gets Claude's answer shape. ExitPlanMode:
 //! Approve allows and leaves the thread in Ask mode; Keep planning denies.
 
 use super::claude_folded_turns_test::{One, one_view, wait_until};
@@ -59,46 +59,46 @@ fn click(cx: &mut VisualTestContext, selector: &'static str) {
 }
 
 #[gpui::test]
-fn answers_picked_in_the_card_reach_the_agent(cx: &mut TestAppContext) {
+fn answers_given_in_the_docked_panel_reach_the_agent(cx: &mut TestAppContext) {
     let (one, cx) = start("question please", Mode::Default, cx);
-    wait_until(cx, "the question card", |cx| ask(&one, cx).is_some());
-    // The card is the last row: scroll it to the top so every option is on screen.
-    one.view.update(cx, |v, _| {
-        let item_ix = v.items.len() - 1;
-        v.own_list().scroll_to(gpui::ListOffset {
-            item_ix,
-            offset_in_item: gpui::px(0.),
-        })
-    });
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
     cx.run_until_parked();
-    assert!(cx.debug_bounds("question-card").is_some());
-    // Question 1 is single-choice: the second click replaces the first.
-    click(cx, "question-option-0-0");
-    click(cx, "question-option-0-1");
-    // Question 2 is multi-choice: Cache, and Other with typed text.
-    click(cx, "question-option-1-0");
-    let other = format!("question-option-1-{}", usize::MAX);
-    let other: &'static str = Box::leak(other.into_boxed_str());
-    click(cx, other);
-    let (id, _) = ask(&one, cx).expect("asked");
-    // Submitting before the Other text is typed is refused, and says why.
-    one.view.update(cx, |v, cx| v.submit_answers(&id, cx));
+    // The question is docked on the composer (T3's), one at a time; the timeline keeps one line.
+    assert!(cx.debug_bounds("question-dock").is_some(), "the panel is drawn");
+    assert!(cx.debug_bounds("waiting-row").is_some(), "the timeline row says to answer below");
+    assert!(cx.debug_bounds("question-card").is_none(), "no second copy in the timeline");
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((0, 2)));
+    // Question 1 is single-choice: a click picks and moves on.
+    click(cx, "dock-option-0");
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
+    // Back to question 1 by hand, then a lone digit in the empty composer picks option 2 and moves on.
+    let id = ask(&one, cx).expect("asked").0;
+    one.view.update(cx, |v, _| v.drafts.get_mut(&id).expect("draft").step = 0);
+    one.view.update_in(cx, |v, window, cx| {
+        v.prompt.update(cx, |p, cx| p.set_value("2", window, cx));
+        v.dock_digit(window, cx);
+    });
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
+    assert_eq!(
+        one.view.read_with(cx, |v, cx| v.prompt.read(cx).value().to_string()),
+        "",
+        "the digit picked, it wasn't typed"
+    );
+    // Question 2 is multi-choice: Submit with nothing picked or typed is refused, and says why.
+    one.view.update_in(cx, |v, window, cx| v.send_prompt(&super::thread::SendPrompt, window, cx));
     assert!(
         one.view
-            .read_with(cx, |v, _| v.error.clone())
-            .is_some_and(|e| e.contains("Type your answer")),
-        "an empty Other answer is refused: {:?} {:?}",
-        one.view.read_with(cx, |v, _| v.error.clone()),
-        one.view
-            .read_with(cx, |v, _| v.drafts.get(&id).map(|d| d.picked.clone()))
+            .read_with(cx, |v, _| v.composer.notice.clone())
+            .is_some_and(|n| n.contains("Pick an option")),
+        "an empty answer is refused"
     );
-    let input = one.view.read_with(cx, |v, _| {
-        v.drafts[&id].other[1]
-            .clone()
-            .expect("the Other field exists")
+    // A pick, then text in the composer: the text is the answer, as T3's "leave this blank to use the selected option".
+    click(cx, "dock-option-0");
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)), "a multi pick stays");
+    one.view.update_in(cx, |v, window, cx| {
+        v.prompt.update(cx, |p, cx| p.set_value("Redis", window, cx));
+        v.send_prompt(&super::thread::SendPrompt, window, cx);
     });
-    input.update_in(cx, |i, window, cx| i.set_value("Redis", window, cx));
-    one.view.update(cx, |v, cx| v.submit_answers(&id, cx));
     wait_until(cx, "the agent's report of the answer", |cx| {
         reply(&one, cx).is_some()
     });
@@ -107,11 +107,13 @@ fn answers_picked_in_the_card_reach_the_agent(cx: &mut TestAppContext) {
     assert_eq!(r["response"]["behavior"], "allow");
     assert_eq!(
         r["response"]["updatedInput"]["answers"],
-        json!({ "Which database?": "SQLite", "Which extras?": "Cache, Redis" })
+        json!({ "Which database?": "SQLite", "Which extras?": "Redis" })
     );
-    wait_until(cx, "the card to say it was answered", |cx| {
+    wait_until(cx, "the question to say it was answered", |cx| {
         ask(&one, cx).is_some_and(|(_, d)| d == Some(Decision::AllowOnce))
     });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("question-dock").is_none(), "the panel goes once answered");
 }
 
 #[gpui::test]

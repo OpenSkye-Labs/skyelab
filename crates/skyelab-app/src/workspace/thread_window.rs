@@ -10,7 +10,8 @@ use gpui::{
 use gpui_component::ActiveTheme as _;
 use gpui_component::input::{InputEvent, TextareaState};
 
-const PLACEHOLDER: &str = "Ask anything. @ files, $ skills, / commands, # threads";
+pub(in crate::workspace) const PLACEHOLDER: &str =
+    "Ask anything. @ files, $ skills, / commands, # threads";
 
 /// The composer's text field, made in `window`: its focus and caret-blink hooks live in that window.
 pub(super) fn new_prompt(
@@ -38,6 +39,7 @@ pub(super) fn prompt_subscription(
                 secondary: true, ..
             } => this.send_prompt(&SendPrompt, window, cx),
             InputEvent::Change => {
+                this.dock_digit(window, cx);
                 this.prompt_changed(cx);
                 this.restore_draft(window, cx);
             }

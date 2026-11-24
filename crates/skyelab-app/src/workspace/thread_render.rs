@@ -215,6 +215,8 @@ impl Render for ThreadView {
             .resume_refused
             .clone()
             .map(|r| self.render_refused(r, cx));
+        self.sync_dock_placeholder(window, cx);
+        let dock = self.render_dock(window, cx);
         let composer = self.render_composer(window, cx);
         let failure = self.render_failure(cx);
         let find = self.render_find(cx);
@@ -345,6 +347,7 @@ impl Render for ThreadView {
                         line(w.into(), theme.muted_foreground).debug_selector(|| "working-for".into())
                     }))
                     .children(strip)
+                    .children(dock)
                     .child(composer),
             )
     }

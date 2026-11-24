@@ -141,6 +141,9 @@ pub(crate) struct Composer {
     pub footer: Footer,
     /// Why the last attach or send was refused.
     pub notice: Option<SharedString>,
+    /// The docked ask (`ask_dock.rs`) the user folded away, and the placeholder last set for the dock.
+    pub dock_collapsed: Option<String>,
+    pub dock_placeholder: Option<&'static str>,
     /// The last long paste made into a chip (its name and text), for "Paste as text".
     pub pasted: Option<(String, String)>,
     /// An interrupt was sent and the turn hasn't ended yet ("Stopping…"); its number, so a late timer can't clear a newer one.

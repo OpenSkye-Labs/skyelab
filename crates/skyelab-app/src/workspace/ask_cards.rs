@@ -1,6 +1,7 @@
 //! The cards that wait for the user: AskUserQuestion's questions (options, multi-select, "Other") and ExitPlanMode's
 //! proposed plan. Their drafts live in the thread view (`thread_answers.rs`).
 
+use super::ask_detail::{Detail, detail};
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::ApprovalItem;
 use super::tool_cards::slot;
@@ -26,6 +27,10 @@ pub(super) struct QuestionDraft {
     pub(super) other: Vec<Option<gpui::Entity<gpui_component::input::InputState>>>,
     /// Files attached to each question's answer (T3's question attachments); the agent gets their paths.
     pub(super) files: Vec<Vec<std::path::PathBuf>>,
+    /// The docked panel's question (T3 shows one at a time) and each question's answer typed in the composer, which
+    /// replaces its picks.
+    pub(super) step: usize,
+    pub(super) typed: Vec<String>,
 }
 
 /// The label an answered question or plan keeps.
@@ -70,7 +75,61 @@ fn settled_row(
         .into_any_element()
 }
 
-fn card(theme: &gpui_component::Theme) -> gpui::Div {
+/// An option's radio (one pick) or checkbox (any).
+pub(super) fn option_mark(on: bool, multi: bool, theme: &gpui_component::Theme) -> gpui::Div {
+    let base = div()
+        .size(px(14.))
+        .flex_shrink_0()
+        .border_1()
+        .border_color(theme.foreground.opacity(0.55))
+        .flex()
+        .items_center()
+        .justify_center();
+    if multi {
+        base.rounded(ui::RADIUS_SM).when(on, |d| {
+            d.bg(theme.primary).border_color(theme.primary).child(
+                Icon::new(SkyeIcon::Check)
+                    .size_3()
+                    .text_color(theme.primary_foreground),
+            )
+        })
+    } else {
+        base.rounded_full().when(on, |d| {
+            d.bg(theme.primary).border_color(theme.primary).child(
+                div()
+                    .size(px(6.))
+                    .rounded_full()
+                    .bg(theme.primary_foreground),
+            )
+        })
+    }
+}
+
+/// A pending ask's line in the timeline while the panel on the composer holds it.
+fn waiting_row(icon: SkyeIcon, label: &str, cx: &Context<impl ItemsView>) -> AnyElement {
+    let theme = cx.theme();
+    h_flex()
+        .debug_selector(|| "waiting-row".into())
+        .min_h(px(28.))
+        .gap_1p5()
+        .px_1()
+        .text_size(ui::BODY)
+        .child(slot(icon, ui::ink(theme, theme.warning)))
+        .child(
+            div()
+                .font_weight(FontWeight::MEDIUM)
+                .child(label.to_owned()),
+        )
+        .child(
+            div()
+                .text_size(ui::META)
+                .text_color(ui::ink(theme, theme.warning))
+                .child("Waiting for your answer below"),
+        )
+        .into_any_element()
+}
+
+pub(super) fn card(theme: &gpui_component::Theme) -> gpui::Div {
     v_flex()
         .w_full()
         .gap_2()
@@ -97,6 +156,9 @@ pub(super) fn render_questions<V: ItemsView>(
             _ => format!("{} questions", qs.len()),
         };
         return settled_row(a, &title, d, cx);
+    }
+    if this.docks_asks(&a.id) {
+        return waiting_row(SkyeIcon::Info, "Question", cx);
     }
     let answerable = this.can_answer_questions(cx);
     let attachable = answerable && this.can_attach_answer_files(cx);
@@ -130,38 +192,7 @@ pub(super) fn render_questions<V: ItemsView>(
             let on = picked.contains(&oi);
             let id = a.id.clone();
             let multi = q.multi;
-            let mark = if q.multi {
-                div()
-                    .size(px(14.))
-                    .rounded(ui::RADIUS_SM)
-                    .border_1()
-                    .border_color(theme.foreground.opacity(0.55))
-                    .when(on, |d| d.bg(theme.primary).border_color(theme.primary))
-                    .child(div().when(on, |d| {
-                        d.child(
-                            Icon::new(SkyeIcon::Check)
-                                .size_3()
-                                .text_color(theme.primary_foreground),
-                        )
-                    }))
-            } else {
-                div()
-                    .size(px(14.))
-                    .rounded_full()
-                    .border_1()
-                    .border_color(theme.foreground.opacity(0.55))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .when(on, |d| {
-                        d.bg(theme.primary).border_color(theme.primary).child(
-                            div()
-                                .size(px(6.))
-                                .rounded_full()
-                                .bg(theme.primary_foreground),
-                        )
-                    })
-            };
+            let mark = option_mark(on, q.multi, theme);
             rows.push(
                 h_flex()
                     .id(SharedString::from(format!("opt-{}-{qi}-{oi}", a.id)))
@@ -377,8 +408,12 @@ fn decided(d: Decision) -> &'static str {
 pub(super) fn render_approval<V: ItemsView>(
     this: &V,
     a: &ApprovalItem,
+    docked: bool,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    if a.decision.is_none() && !docked && this.docks_asks(&a.id) {
+        return waiting_row(SkyeIcon::TriangleAlert, &a.tool, cx);
+    }
     let theme = cx.theme();
     let summary = div()
         .flex_1()
@@ -524,35 +559,3 @@ pub(super) fn render_approval<V: ItemsView>(
         .child(actions)
         .into_any_element()
 }
-
-/// What a permission card shows under its one-line summary.
-#[derive(Debug, PartialEq)]
-pub(super) enum Detail {
-    /// The input as JSON: anything beyond a plain command, so nothing it asks for is hidden.
-    Json,
-    /// A plain command's description (the command itself is the summary).
-    Note(String),
-    Nothing,
-}
-
-pub(super) fn detail(a: &ApprovalItem) -> Detail {
-    let Some(fields) = a.raw.as_object() else {
-        return Detail::Json;
-    };
-    let plain = fields.keys().all(|k| k == "command" || k == "description")
-        && fields.get("command").and_then(|c| c.as_str()) == Some(a.summary.as_str())
-        // The JSON escapes control characters; drawn raw they could hide part of the command.
-        && !a.summary.chars().any(|c| {
-            c.is_control()
-                || matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
-        });
-    match fields.get("description").and_then(|d| d.as_str()) {
-        _ if !plain => Detail::Json,
-        Some(d) if !d.trim().is_empty() => Detail::Note(clip(d)),
-        _ => Detail::Nothing,
-    }
-}
-
-#[cfg(test)]
-#[path = "ask_cards_test.rs"]
-mod tests;

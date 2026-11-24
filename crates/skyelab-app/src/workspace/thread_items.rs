@@ -75,6 +75,11 @@ pub(super) trait ItemsView: Sized + 'static {
     fn can_answer_questions(&self, _cx: &App) -> bool {
         false
     }
+    /// Pending questions and permission asks are answered in a panel docked on the composer (T3's), so the timeline
+    /// shows them as one line. Remote threads keep the cards in the timeline.
+    fn docks_asks(&self, _id: &str) -> bool {
+        false
+    }
     fn draft(&self, _id: &str) -> Option<&QuestionDraft> {
         None
     }
@@ -296,7 +301,7 @@ fn render_row<V: ItemsView>(
         Item::Approval(a) if a.tool == skyelab_agent::PLAN_TOOL => {
             column(ask_cards::render_plan(this, a, window, cx))
         }
-        Item::Approval(a) => column(ask_cards::render_approval(this, a, cx)),
+        Item::Approval(a) => column(ask_cards::render_approval(this, a, false, cx)),
         Item::Limit { resets_at } => column(
             h_flex()
                 .debug_selector(|| "limit-row".into())

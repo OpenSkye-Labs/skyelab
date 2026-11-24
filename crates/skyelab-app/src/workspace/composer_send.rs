@@ -206,6 +206,10 @@ impl ThreadView {
         if !external {
             self.end_dictation(cx); // a send from another device leaves this Mac's dictation alone
         }
+        // A docked question takes the composer's text as its answer: Send is its Next.
+        if !external && self.dock_step().is_some() {
+            return self.advance_question(window, cx);
+        }
         let text = self.prompt.read(cx).value().trim().to_string();
         let has_files = !external
             && !(self.composer.attachments.is_empty() && self.composer.contexts.is_empty());

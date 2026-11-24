@@ -23,7 +23,20 @@ fn draft_mut<'a>(items: &[Item], drafts: &'a mut Drafts, id: &str) -> &'a mut Qu
         .resize_with(n.max(d.picked.len()), Default::default);
     d.other.resize_with(n.max(d.other.len()), Default::default);
     d.files.resize_with(n.max(d.files.len()), Default::default);
+    d.typed.resize_with(n.max(d.typed.len()), Default::default);
     d
+}
+
+/// The composer's text as question `q`'s own answer (empty clears it, so its picks count again).
+pub(super) fn type_answer(items: &[Item], drafts: &mut Drafts, id: &str, q: usize, text: &str) {
+    if let Some(slot) = draft_mut(items, drafts, id).typed.get_mut(q) {
+        *slot = text.trim().to_owned();
+    }
+}
+
+/// Moves the docked panel to question `step`.
+pub(super) fn set_step(items: &[Item], drafts: &mut Drafts, id: &str, step: usize) {
+    draft_mut(items, drafts, id).step = step;
 }
 
 /// The most files one set of answers carries (T3's limit).
@@ -121,6 +134,13 @@ pub(super) fn answers(
     qs.iter()
         .enumerate()
         .map(|(qi, q)| {
+            // A typed answer replaces the picks, as T3's: "leave this blank to use the selected option".
+            if let Some(typed) = draft
+                .and_then(|d| d.typed.get(qi))
+                .filter(|t| !t.is_empty())
+            {
+                return Ok(vec![typed.clone()]);
+            }
             let picked = draft.and_then(|d| d.picked.get(qi));
             let mut labels: Vec<String> = picked
                 .into_iter()

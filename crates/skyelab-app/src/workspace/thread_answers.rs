@@ -285,6 +285,9 @@ impl ItemsView for ThreadView {
     fn find_mark(&self, ix: usize) -> Option<bool> {
         self.timeline.find.mark(ix)
     }
+    fn docks_asks(&self, id: &str) -> bool {
+        self.dock().is_some_and(|a| a.id == id)
+    }
     fn can_answer_questions(&self, _: &App) -> bool {
         self.session.is_some()
     }

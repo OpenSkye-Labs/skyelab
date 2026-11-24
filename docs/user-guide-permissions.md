@@ -17,12 +17,13 @@ applies at once for Claude and from the next turn for Codex. Claude takes Full a
 running Claude thread to Full access saves the choice and says so; stop it (**Stop Agent**) and send a message to
 continue in Full access.
 
-When the agent asks, the thread shows a **Waiting for approval** card with the tool and what it wants to do (the
+When the agent asks, a **Waiting for approval** card docks on top of the composer, so it never scrolls out of view
+(the timeline keeps a one-line **Waiting for your answer below** row; once answered, the row says what was decided). The card shows with the tool and what it wants to do (the
 command, or the file; for a plain shell command, the agent's own description of it under the command, and for anything
 else the full input it sent), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
 for this call, or this exact command when it has none; while this agent runs; after a resume it asks again) or **Deny**,
 or **Interrupt** to stop the turn instead. Afterwards the row says what was decided.
-An ask the agent withdraws (an interrupt, its turn ended, or the agent stopped) shows **Withdrawn**. A request in a thread whose agent has
+An ask the agent withdraws (an interrupt, its turn ended, or the agent stopped) shows **Withdrawn**. Sending a message instead declines the ask and redirects the agent (the composer says so). A request in a thread whose agent has
 stopped can't be answered; send a message to continue. Another machine viewing the thread, and the mobile app, show
 the same card and can answer it.
 
@@ -31,11 +32,15 @@ When a turn fails, or the agent exits with an error, what it wrote to stderr (th
 
 ## Questions and plans
 
-When the agent asks you something (Claude's `AskUserQuestion`, Codex's user-input request), the thread shows a
-question card: each question with its options (one choice, or **Pick any** for several) and **Other** for a typed
-answer. **Attach files** under a question adds files to that answer (up to 100 in all; × drops one): the agent gets
-their paths with your answer and reads them with its own tools. A file alone answers a question. Attaching is
-offered only on the machine that runs the thread. **Submit answers** sends them all; **Skip** declines. In Plan mode, when the agent is ready it shows a
+When the agent asks you something (Claude's `AskUserQuestion`, Codex's user-input request), the question docks on top of
+the composer, one at a time, as T3 shows it: its label, **1/2** when there are several (click the label row to fold
+the panel), the question, then its options numbered 1 to 9 (one choice, or a box for each when you can pick several).
+Click an option, or type its number into the empty composer, to pick it; a one-choice question then moves on to the
+next. Whatever you type in the composer is that question's own answer and replaces the picks (leave it blank to use
+the selected option). **Next** (<kbd>⌘↩</kbd>) goes to the next question and **Submit** on the last one sends them all;
+× skips the question. **Attach files** under a question adds files to that answer (up to 100 in all; × drops one): the
+agent gets their paths with your answer and reads them with its own tools. A file alone answers a question. Attaching
+is offered only on the machine that runs the thread. In Plan mode, when the agent is ready it shows a
 **Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep
 planning** tells it to keep refining. From another machine's view the plan's buttons work but don't switch the
 thread's mode, and the question card can only be read.

@@ -78,6 +78,8 @@ mod thread;
 use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
+mod ask_detail;
+mod ask_dock;
 mod ask_files;
 mod pr_actions;
 mod pr_watch;
