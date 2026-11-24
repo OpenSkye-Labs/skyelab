@@ -173,8 +173,8 @@ impl ThreadView {
         let thread = self.thread.as_ref()?;
         let url = thread.pr_url.clone()?;
         let checks = match PrStatuses::view(cx, thread.id, &url) {
-            Some(PrView::Status(s)) => s.checks,
-            _ => Checks::None,
+            Some(PrView::Status(s)) => Some(s.checks),
+            _ => None,
         };
         let target = super::super::pr_actions::Target {
             number: url

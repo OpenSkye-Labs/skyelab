@@ -171,7 +171,7 @@ dialog that acts on GitHub with the account the project's folder is bound to, ne
 
 - **Merge**: pick **Squash**, **Merge commit** or **Rebase** (only the ones the repository allows), tick **Delete the
   branch on GitHub** if you want it gone (your local checkout is never touched), then click the merge button and click
-  it again to confirm. While the PR's checks are failing it asks a third time, **Merge anyway**. GitHub's own branch
+  it again to confirm. While the PR's checks are failing (or weren't read yet) it asks a third time, **Merge anyway**. GitHub's own branch
   rules still apply: SkyeLab never merges as an admin.
 - **Review**: **Approve**, or write a comment and **Comment** or **Request changes** (both need text).
 

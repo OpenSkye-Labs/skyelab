@@ -197,7 +197,7 @@ impl GhPage {
         let target = super::pr_actions::Target {
             url,
             number,
-            checks: pr.checks,
+            checks: Some(pr.checks),
             dir: source.path.clone(),
             account: group.account.as_ref()?.0.clone(),
             config: self.inputs.as_ref()?.config.clone(),
@@ -205,7 +205,13 @@ impl GhPage {
         let page = cx.weak_entity();
         Some(super::pr_actions::open(
             target,
-            move |_, cx| _ = page.update(cx, |p, cx| p.refresh(cx)),
+            move |_, cx| {
+                _ = page.update(cx, |p, cx| {
+                    // The PR changed: every filter's cached list may hold it.
+                    p.groups.retain(|key, _| key.1 == p.filter);
+                    p.refresh(cx)
+                })
+            },
             window,
             cx,
         ))

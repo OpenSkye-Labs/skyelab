@@ -33,7 +33,8 @@ pub(crate) struct Target {
     /// A canonical GitHub PR link.
     pub url: String,
     pub number: u64,
-    pub checks: Checks,
+    /// `None` when the PR wasn't read yet: merging then asks once more, as for failing checks.
+    pub checks: Option<Checks>,
     /// The folder whose binding picks the account.
     pub dir: PathBuf,
     /// The account the caller showed (the thread's, or the page group's): the folder must still be bound to it.
@@ -49,7 +50,7 @@ type OnDone = Rc<dyn Fn(&mut Window, &mut App)>;
 pub(crate) enum Stage {
     Idle,
     Confirm,
-    /// The checks are failing: one more click.
+    /// The checks are failing (or unknown): one more click.
     ConfirmFailing,
 }
 
@@ -72,7 +73,6 @@ pub(crate) struct PrActions {
     pub(crate) body: Entity<InputState>,
     on_done: OnDone,
     _read: Task<()>,
-    _act: Option<Task<()>>,
 }
 
 /// The bound account's gh config dir for `dir`, read from `config` (accounts.toml as saved now): the folder must
@@ -148,7 +148,6 @@ pub(crate) fn open(
             body,
             on_done: Rc::new(on_done),
             _read: read,
-            _act: None,
         }
     });
     let title: SharedString = format!("Pull request #{}", target.number).into();
@@ -187,7 +186,7 @@ impl PrActions {
         }
         self.stage = match (self.stage, self.target.checks) {
             (Stage::Idle, _) => Stage::Confirm,
-            (Stage::Confirm, Checks::Failing) => Stage::ConfirmFailing,
+            (Stage::Confirm, Some(Checks::Failing) | None) => Stage::ConfirmFailing,
             _ => {
                 self.stage = Stage::Idle;
                 return self.run(Act::Merge(self.method, self.delete_branch), window, cx);
@@ -228,20 +227,24 @@ impl PrActions {
             }
             anyhow::Ok(())
         });
-        self._act = Some(cx.spawn_in(window, async move |this, cx| {
+        let on_done = self.on_done.clone();
+        cx.spawn_in(window, async move |this, cx| {
             let done = done.await;
+            let ok = done.is_ok();
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
                 match done {
                     Err(e) => this.error = Some(format!("{e:#}").into()),
-                    Ok(()) => {
-                        window.close_dialog(cx);
-                        (this.on_done.clone())(window, cx);
-                    }
+                    Ok(()) => window.close_dialog(cx),
                 }
                 cx.notify();
             });
-        }));
+            // Also when the dialog was cancelled while gh ran: the PR changed all the same.
+            if ok {
+                let _ = cx.update(|window, cx| on_done(window, cx));
+            }
+        })
+        .detach(); // gh is killed at its timeout; `this` is weak
         cx.notify();
     }
 
@@ -288,10 +291,10 @@ impl PrActions {
             }
         };
         let theme = cx.theme();
-        let failing = self.target.checks == Checks::Failing;
-        let warn = match self.stage {
-            Stage::ConfirmFailing => Some("Checks are failing. Merge anyway?"),
-            _ if failing => Some("Checks are failing."),
+        let warn = match (self.stage, self.target.checks) {
+            (Stage::ConfirmFailing, None) => Some("The checks weren't read yet. Merge anyway?"),
+            (Stage::ConfirmFailing, _) => Some("Checks are failing. Merge anyway?"),
+            (_, Some(Checks::Failing)) => Some("Checks are failing."),
             _ => None,
         };
         let label = match self.stage {

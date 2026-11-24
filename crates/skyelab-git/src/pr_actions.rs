@@ -58,16 +58,20 @@ fn pr_link(url: &str) -> Result<&str> {
     }
 }
 
+/// `github.com/<owner>/<repo>` of a canonical PR link (`https://github.com/<owner>/<repo>/pull/<n>`).
+fn repo_of(url: &str) -> String {
+    let mut parts = url.trim_start_matches("https://github.com/").split('/');
+    let (owner, name) = (parts.next(), parts.next());
+    format!(
+        "github.com/{}/{}",
+        owner.unwrap_or_default(),
+        name.unwrap_or_default()
+    )
+}
+
 /// The merge methods the PR's repository allows, read with `gh repo view`, in [`MergeMethod::ALL`] order.
 pub fn merge_methods(gh: &crate::GitHub, url: &str) -> Result<Vec<MergeMethod>> {
-    let url = pr_link(url)?;
-    // A canonical link is https://github.com/<owner>/<repo>/pull/<n>.
-    let mut parts = url.trim_start_matches("https://github.com/").split('/');
-    let repo = format!(
-        "github.com/{}/{}",
-        parts.next().unwrap_or_default(),
-        parts.next().unwrap_or_default()
-    );
+    let repo = repo_of(pr_link(url)?);
     let fields = "mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed";
     let args = ["repo", "view", &repo, "--json", fields];
     let out = checked_within(
@@ -95,7 +99,9 @@ pub fn merge_pr(
     delete_branch: bool,
 ) -> Result<()> {
     let url = pr_link(url)?;
-    let mut args = vec!["pr", "merge", url, method.flag()];
+    // With --repo, gh never deletes or switches a local branch, whatever git repo its cwd is in.
+    let repo = repo_of(url);
+    let mut args = vec!["pr", "merge", url, "--repo", &repo, method.flag()];
     if delete_branch {
         args.push("--delete-branch");
     }

@@ -38,9 +38,9 @@ fn merge_passes_the_method_and_the_delete_flag_in_the_account_dir() {
     assert_eq!(
         actions(&dir),
         [
-            format!("pr merge {URL} --squash --delete-branch"),
-            format!("pr merge {URL} --merge"),
-            format!("pr merge {URL} --rebase"),
+            format!("pr merge {URL} --repo github.com/acme/demo --squash --delete-branch"),
+            format!("pr merge {URL} --repo github.com/acme/demo --merge"),
+            format!("pr merge {URL} --repo github.com/acme/demo --rebase"),
         ]
     );
     let env = std::fs::read_to_string(dir.join("fake-gh.fullenv")).expect("env");

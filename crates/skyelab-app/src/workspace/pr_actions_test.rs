@@ -103,7 +103,7 @@ fn merging_with_failing_checks_takes_a_third_click_then_the_pr_reads_merged(
     assert!(dialog_open(cx));
     assert_eq!(
         dialog.read_with(cx, |d, _| d.target.checks),
-        Checks::Failing
+        Some(Checks::Failing)
     );
     assert_eq!(
         dialog.read_with(cx, |d, _| d.methods.clone()),
@@ -133,7 +133,9 @@ fn merging_with_failing_checks_takes_a_third_click_then_the_pr_reads_merged(
     );
     assert_eq!(
         lines(&gh.join("fake-gh.actions")),
-        [format!("pr merge {URL} --squash --delete-branch")]
+        [format!(
+            "pr merge {URL} --repo github.com/acme/demo --squash --delete-branch"
+        )]
     );
     assert!(!dialog_open(cx), "the dialog closes after the merge");
     assert_eq!(
@@ -222,15 +224,56 @@ fn a_folder_bound_to_another_account_is_refused_before_gh_runs(cx: &mut gpui::Te
     let (r, cx) = rig(cx);
     let gh = github(&r, cx);
     let (_, dialog) = thread_dialog(&r, cx);
-    // The folder loses its binding to the thread's account after the dialog opened.
+    // After the dialog opened, the folder is rebound to another account (with its own GitHub login), then unbound.
+    let root = r.f.project_dir.parent().expect("root").to_path_buf();
+    let beta_gh = root.join("gh-beta");
+    std::fs::create_dir_all(&beta_gh).expect("mkdir");
+    std::fs::write(beta_gh.join("fake-login"), "other").expect("login");
+    std::fs::write(beta_gh.join("hosts.yml"), "github.com:\n").expect("hosts");
+    let mut config = AccountsConfig::load(&r.f.accounts_path).expect("load");
+    config
+        .add_account(skyelab_core::Account {
+            id: "beta".into(),
+            label: "Beta".into(),
+            config_dir: root.join(".claude-beta"),
+            provider: Default::default(),
+            gh_config_dir: Some(beta_gh.clone()),
+            ssh_agent: false,
+        })
+        .expect("account");
+    config.remove_binding(&r.f.project_dir).expect("unbind");
+    config
+        .add_binding(skyelab_core::Binding::new(
+            r.f.project_dir.clone(),
+            "beta".into(),
+        ))
+        .expect("rebind");
+    config.save(&r.f.accounts_path).expect("save");
+    let refused = |cx: &mut VisualTestContext| {
+        dialog.update(cx, |d, cx| {
+            d.error = None;
+            cx.notify();
+        });
+        dialog.update_in(cx, |d, window, cx| d.review(Verdict::Approve, window, cx));
+        wait_until(cx, "refused", |cx| {
+            dialog.read_with(cx, |d, _| d.error.is_some())
+        });
+        dialog.read_with(cx, |d, _| d.error.clone()).expect("error")
+    };
+    let error = refused(cx);
+    assert!(
+        error.contains("is bound to Beta, not this thread's account"),
+        "{error}"
+    );
+    assert!(
+        lines(&beta_gh.join("fake-gh.actions")).is_empty(),
+        "never the other account's gh"
+    );
+
     let mut config = AccountsConfig::load(&r.f.accounts_path).expect("load");
     config.remove_binding(&r.f.project_dir).expect("unbind");
     config.save(&r.f.accounts_path).expect("save");
-    dialog.update_in(cx, |d, window, cx| d.review(Verdict::Approve, window, cx));
-    wait_until(cx, "refused", |cx| {
-        dialog.read_with(cx, |d, _| d.error.is_some())
-    });
-    let error = dialog.read_with(cx, |d, _| d.error.clone()).expect("error");
+    let error = refused(cx);
     assert!(error.contains("isn't bound"), "{error}");
     assert!(lines(&gh.join("fake-gh.actions")).is_empty());
     assert!(dialog_open(cx));
@@ -276,4 +319,53 @@ fn a_pull_requests_page_row_acts_with_its_groups_account_and_lists_again(
         ["pr review https://github.com/acme/demo/pull/12 --approve --body-file -"]
     );
     assert!(!dialog_open(cx));
+}
+
+#[gpui::test]
+fn unread_checks_ask_once_more_and_a_cancelled_merge_still_reads_the_pr_again(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    let (id, dialog) = thread_dialog(&r, cx);
+    // As if the PR was never read this session.
+    dialog.update(cx, |d, _| d.target.checks = None);
+    for _ in 0..2 {
+        dialog.update_in(cx, |d, window, cx| d.press_merge(window, cx));
+    }
+    assert_eq!(dialog.read_with(cx, |d, _| d.stage), Stage::ConfirmFailing);
+    // The last click, then Cancel before gh answers: the merge happened, so the PR is read again anyway.
+    dialog.update_in(cx, |d, window, cx| {
+        d.press_merge(window, cx);
+        window.close_dialog(cx);
+    });
+    drop(dialog);
+    wait_until(
+        cx,
+        "merged read again",
+        |cx| matches!(status(id, cx), Some(PrView::Status(s)) if s.state == PrState::Merged),
+    );
+    assert_eq!(lines(&gh.join("fake-gh.actions")).len(), 1);
+}
+
+#[gpui::test]
+fn a_read_that_started_before_the_stored_one_landed_is_dropped(cx: &mut gpui::TestAppContext) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    let (id, _dialog) = thread_dialog(&r, cx);
+    let views = || lines(&gh.join("fake-gh.prview")).len();
+    let before = views();
+    // A newer read already landed (stamped later than this one starts); gh now says merged.
+    cx.update(|_, cx| {
+        let e = cx.global_mut::<PrStatuses>().0.get_mut(&id).expect("read");
+        e.checked_ms = crate::ui::now_ms() + 60_000;
+    });
+    std::fs::write(gh.join("fake-merged"), "").expect("merged");
+    r.ws.update(cx, |ws, cx| ws.reread_pr(id, cx));
+    wait_until(cx, "read ran", |_| views() == before + 1);
+    cx.run_until_parked();
+    assert!(
+        matches!(status(id, cx), Some(PrView::Status(s)) if s.state == PrState::Open),
+        "the older read must not replace the newer one"
+    );
 }
