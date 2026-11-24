@@ -28,6 +28,12 @@ bound account.
   scripts.
 - **Lineage · N running:** the threads this thread's agent delegated that are working now, with how long they have
   run. **Previous agents** lists the rest with how they ended. Click one to open it.
+- **Context:** how full the thread's context window is after the agent's newest model call: a bar, the percentage
+  and the tokens against the window (**170k / 200k**). The window is the one the agent reports (Claude Code at the end
+  of each turn, Codex with every reading), else the model's known window (200k for Claude, 1M for a `[1m]` model);
+  with neither, only the tokens show. From 80% the row turns amber (red from 90%) and says to send `/compact`, which
+  makes the agent summarize the conversation and free the window. The row appears once the agent has reported a
+  reading. The composer footer shows the same reading as **42% context** on its right, with **· /compact** from 80%.
 - **Usage:** every account in `accounts.toml`: its name and provider, and a small bar per window it reported
   (**5h**, **Weekly**) with the percentage used and how old that window's own reading is (**3m**). A window whose reset
   time has passed is dimmed and reads **reset**: its old percentage no longer holds. When the newest reading says the

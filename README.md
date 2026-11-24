@@ -50,7 +50,8 @@ What's built today:
   <kbd>⌘1</kbd>–<kbd>⌘9</kbd>. <kbd>⌘O</kbd> opens the folder in your editor. The header is a plain breadcrumb;
   the **thread details** card (<kbd>⇧⌘B</kbd>, floating over the chat) holds the folder, branch (with how far behind or ahead of its upstream, kept
   fresh by a background fetch, and a fast-forward Pull), git actions, scripts, delegated agents, pull request (its
-  state, checks and review) and editor, plus every account's latest usage reading. Dialogs dim the window behind them.
+  state, checks and review) and editor, the thread's context window (also in the composer footer as **42% context**,
+  with a `/compact` hint from 80%), plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
   per account and per project, with a daily chart, from what the agents reported (no account is asked).
 - **Scheduled tasks.** Settings → Scheduled tasks saves a prompt that starts a new thread in a project every N
@@ -150,15 +151,14 @@ cargo run -p skyelab-app
 
 ### 3. Set up accounts
 
-Sign in to each Claude account in its own config folder:
+Add each account in Settings → Accounts and press **Log in** on its card: a terminal tab signs it in to its own
+config folder (`claude auth login` with its `CLAUDE_CONFIG_DIR`, or `codex login` with its `CODEX_HOME`). From a
+shell it is the same:
 
 ```sh
 CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
-CLAUDE_CONFIG_DIR=~/.claude claude auth login
+CODEX_HOME=~/.codex-work codex login
 ```
-
-For a Codex account, add it in Settings with **Codex** picked and press **Log in** on its card, or run
-`CODEX_HOME=~/.codex-work codex login` yourself.
 
 Then start SkyeLab. On first run the Welcome page lists the config folders it found (`~/.claude`, `~/.claude-*`,
 `~/.codex`, `~/.codex-*`): tick the ones to add, then choose a project folder and the account it runs on. You can
