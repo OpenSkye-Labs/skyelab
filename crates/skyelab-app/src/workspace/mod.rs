@@ -83,6 +83,7 @@ mod thread_items;
 mod thread_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod subagent;
+mod table_copy;
 mod thread_failure;
 mod thread_find;
 mod thread_model;

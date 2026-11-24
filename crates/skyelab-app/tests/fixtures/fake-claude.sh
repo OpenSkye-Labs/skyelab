@@ -114,6 +114,10 @@ while IFS= read -r line; do
       # A reply with a mermaid diagram, a broken one and a plain code block (the card next to a normal one).
       printf '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Here is the flow:\\n\\n```mermaid\\nflowchart LR\\n    A[User prompt] --> B{Bound account?}\\n    B -- yes --> C[Start agent]\\n    B -- no --> D[Ask the user]\\n    C --> E[(Thread store)]\\n```\\n\\nAnd one that does not parse:\\n\\n```mermaid\\nnot a diagram ->->\\n```\\n\\nA plain block:\\n\\n```rust\\nfn main() {}\\n```"}]},"parent_tool_use_id":null}\n'
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
+    *'"content":"table'*)
+      # A reply with a markdown table (the copy menu under it).
+      printf '{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Here are the accounts:\\n\\n| Account | Provider | Threads |\\n|---|---|---:|\\n| work | Claude | 12 |\\n| personal | Codex | 3 |\\n\\nThat is all."}]},"parent_tool_use_id":null}\n'
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
     *'"content":"subagent'*)
       sh "$(dirname "$0")/fake-subagent.sh" ;;
     *'"content":"context'*)

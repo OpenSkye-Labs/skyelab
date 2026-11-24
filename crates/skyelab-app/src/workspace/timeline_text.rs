@@ -1,5 +1,5 @@
-//! The timeline's text: agent markdown (streamed words fade in, code blocks get a copy button, mermaid fences draw as
-//! diagrams, links are checked),
+//! The timeline's text: agent markdown (streamed words fade in, code blocks get a copy button, tables a copy menu,
+//! mermaid fences draw as diagrams, links are checked),
 //! the turn divider and the usage-limit line.
 
 use super::files::{lexically_inside, link_line, linkify};
@@ -61,6 +61,7 @@ pub(super) fn markdown<V: ItemsView>(
                 .debug_selector(|| "code-copy".into())
                 .child(tool_cards::copy(("copy-code", key), code))
         })
+        .table_actions(super::table_copy::actions)
         .on_link_click(move |url, _, _, cx| {
             if opens_in_browser(url) {
                 cx.open_url(url);
