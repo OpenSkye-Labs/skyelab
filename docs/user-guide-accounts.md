@@ -32,7 +32,9 @@ run **Set Up Accounts** from the command palette.
 
 1. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude** or **Codex**, give
    it a name (`Work`; the id is made from it unless you type one), choose its config folder
-   (`/Users/you/.claude-work`, or **Choose…**), then click **Add account**. Each account shows as a card: its provider
+   (`/Users/you/.claude-work`, or **Choose…**; left empty it is `~/.claude-<id>`, or `~/.codex-<id>` for Codex), then
+   click **Add account**. Two accounts never share a config folder: adding or editing one onto a folder another
+   account already uses is refused, since it would be one login under two names. Each account shows as a card: its provider
    mark in the account's color, its name (click it, or the pencil, to edit in place) and its config folder, with a
    copy button.
 2. Press **Log in** on its card. For Claude that opens a terminal tab running `claude auth login` with
@@ -97,8 +99,10 @@ The row says which, in one sentence, and shows where the path leads now. If the 
 
 ## GitHub per account
 
-Give an account its own GitHub login: in Settings → **Accounts**, edit the account and set its **GitHub folder** (an
-absolute path such as `/Users/me/.config/gh-work`), then in Settings → **Source control** press **Log in**. That
+Give an account its own GitHub login: in Settings → **Source control** press **Set up** on its row. That gives the
+account the GitHub folder `~/.config/gh-<id>` and opens the login below. To use another folder, edit the account in
+Settings → **Accounts** and set its **GitHub folder** (an absolute path such as `/Users/me/.config/gh-work`), then
+press **Log in** in Source control. That
 opens a terminal running `gh auth login` with `GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. The
 **Source control** section then shows which GitHub user is logged in.
 

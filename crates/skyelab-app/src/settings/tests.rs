@@ -215,3 +215,69 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
         assert_eq!(v.stale, vec![(acme.clone(), Some(root.clone()))])
     });
 }
+
+#[test]
+fn binding_picker_shows_labels_and_picks_ids() {
+    use gpui_component::select::SelectItem as _;
+    let account = |id: &str, label: &str| Account {
+        id: id.into(),
+        label: label.into(),
+        config_dir: "/c".into(),
+        provider: skyelab_core::Provider::Claude,
+        gh_config_dir: None,
+        ssh_agent: false,
+    };
+    let config = AccountsConfig {
+        accounts: vec![
+            account("work", "Work (Acme)"),
+            account("home", ""),
+            account("a", "Same"),
+            account("b", "Same"),
+        ],
+        ..Default::default()
+    };
+    let choices = account_ids(&config);
+    let shown: Vec<_> = choices
+        .iter()
+        .map(|c| (c.title(), c.value().clone()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("Work (Acme)".into(), "work".into()),
+            ("home".into(), "home".into()),
+            ("Same (a)".into(), "a".into()),
+            ("Same (b)".into(), "b".into()),
+        ]
+    );
+}
+
+#[gpui::test]
+fn an_empty_config_folder_defaults_to_home_dot_provider_id(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        init(cx);
+    });
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("accounts.toml");
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        Settings::new(
+            Some(path.clone()),
+            AccountsConfig::default(),
+            None,
+            window,
+            cx,
+        )
+    });
+    let label = view.read_with(cx, |v, _| v.label_input.clone());
+    label.update_in(cx, |s, window, cx| s.set_value("Side Project", window, cx));
+    view.update_in(cx, |v, window, cx| v.save_account(&SaveAccount, window, cx));
+    let saved = AccountsConfig::load(&path).expect("saved");
+    let home = dirs::home_dir().expect("a home dir");
+    assert_eq!(saved.accounts[0].id, "side-project");
+    assert_eq!(
+        saved.accounts[0].config_dir,
+        home.join(".claude-side-project"),
+        "nothing typed: the folder find_accounts would offer"
+    );
+}

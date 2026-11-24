@@ -193,10 +193,10 @@ impl Render for RemotePanel {
             .child(
                 v_flex()
                     .w_full()
-                    .max_w(ui::PAGE_MAX_W)
+                    .max_w(ui::SETTINGS_MAX_W)
                     .mx_auto()
-                    .px_6()
-                    .pt_6()
+                    .px_8()
+                    .pt_7()
                     .pb_12()
                     .gap_8()
                     .text_size(ui::BODY)

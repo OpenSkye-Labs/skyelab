@@ -239,10 +239,9 @@ impl Settings {
             .min_h_0()
             .overflow_y_scroll()
             .child(
-                // T3's settings column: centered, 780 wide.
                 v_flex()
                     .w_full()
-                    .max_w(gpui::px(780.))
+                    .max_w(crate::ui::SETTINGS_MAX_W)
                     .mx_auto()
                     .px_8()
                     .pt_7()

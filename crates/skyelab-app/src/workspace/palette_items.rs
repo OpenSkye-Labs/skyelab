@@ -173,7 +173,8 @@ impl Workspace {
             tabs.push(self.tab_in(DockPlacement::Bottom, title, panel, cx));
         }
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {
-            tabs.push(self.tab_in(DockPlacement::Right, "Browser".into(), &panel, cx));
+            let title = panel.read(cx).tab_title(cx);
+            tabs.push(self.tab_in(DockPlacement::Right, title, &panel, cx));
         }
         if let Some(devices) = self.devices.as_ref().and_then(|d| d.upgrade()) {
             tabs.push(self.tab_in(DockPlacement::Right, "Devices".into(), &devices, cx));

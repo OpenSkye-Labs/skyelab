@@ -40,6 +40,8 @@ pub struct BrowserView {
     /// The URL of the page that committed last (wry's `Started`), which the user sees. The engine's own URL can
     /// name a pending load.
     committed_url: Option<String>,
+    /// The page's `document.title` after its last load; untrusted page text.
+    title: Option<SharedString>,
     focus: FocusHandle,
     zoom: f64,
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
@@ -56,6 +58,7 @@ pub struct BrowserView {
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
     _popups: Task<()>,
+    _sync_title: Task<()>,
 }
 
 impl BrowserView {
@@ -101,6 +104,7 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
+        let (finished_tx, finished_rx) = flume::unbounded::<()>();
         let mut no_folder = None;
         let override_env = std::env::var_os("WEBVIEW2_USER_DATA_FOLDER");
         let data_dir = crate::webview_data_dir(cfg!(windows), private, override_env.as_deref())
@@ -115,14 +119,12 @@ impl BrowserView {
             Some(context) => wry::WebViewBuilder::new_with_web_context(context),
             None => wry::WebViewBuilder::new(),
         };
-        let mut builder =
-            builder
-                .with_incognito(private)
-                .with_on_page_load_handler(move |event, url| {
-                    if matches!(event, wry::PageLoadEvent::Started) {
-                        let _ = loaded_tx.send(url);
-                    }
-                });
+        let mut builder = builder.with_incognito(private).with_on_page_load_handler(
+            move |event, url| match event {
+                wry::PageLoadEvent::Started => _ = loaded_tx.send(url),
+                wry::PageLoadEvent::Finished => _ = finished_tx.send(()),
+            },
+        );
         // A private page goes nowhere but the web, saves no download, and its popups come back as private tabs.
         let (popup_tx, popups) = flume::unbounded::<String>();
         if private {
@@ -165,6 +167,36 @@ impl BrowserView {
                 let open = this.update(cx, |_, cx| cx.emit(DuplicateTab(Some(url))));
                 if open.is_err() {
                     return;
+                }
+            }
+        });
+        // Asked after each load, not through wry's title-changed observer: lb-wry 0.53 dereferences WebKit's
+        // nullable title there. A title a page sets later shows from its next load on.
+        let page = view.webview.clone();
+        view._sync_title = cx.spawn(async move |this, cx| {
+            let Some(page) = page else { return };
+            while finished_rx.recv_async().await.is_ok() {
+                let (tx, rx) = flume::bounded::<String>(1);
+                let asked = cx.update(|cx| {
+                    page.read(cx)
+                        .evaluate_script_with_callback("document.title", move |raw| {
+                            let _ = tx.try_send(raw);
+                        })
+                        .is_ok()
+                });
+                if !asked {
+                    continue;
+                }
+                let Ok(raw) = rx.recv_async().await else {
+                    continue;
+                };
+                let title = page_title(&raw);
+                let shown = this.update(cx, |this, cx| {
+                    this.title = title;
+                    cx.notify();
+                });
+                if shown.is_err() {
+                    break;
                 }
             }
         });
@@ -231,6 +263,7 @@ impl BrowserView {
             loaded: false,
             loads: 0,
             committed_url: None,
+            title: None,
             focus: cx.focus_handle(),
             zoom: 1.0,
             shown: true,
@@ -243,6 +276,7 @@ impl BrowserView {
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
             _popups: Task::ready(()),
+            _sync_title: Task::ready(()),
         }
     }
 
@@ -306,84 +340,6 @@ impl BrowserView {
     /// How many pages have committed since the pane opened; one more after a load the caller started.
     pub fn load_count(&self) -> u64 {
         self.loads
-    }
-
-    /// The page for an agent call, and its URL as the engine reports it (which may be a pending load).
-    /// Refused before the first load (wry panics on the nil URL then) and on non-http(s) pages.
-    fn agent_page(&self, cx: &gpui::App) -> anyhow::Result<(&dyn Engine, String)> {
-        let url = match self.loaded {
-            true => self.engine()?.url(cx)?,
-            false => String::new(),
-        };
-        check_agent_eval(&url, self.loaded)?;
-        Ok((self.engine()?, url))
-    }
-
-    /// The URL the page is on now, as the engine reports it. Refused for local files, so an agent
-    /// doesn't learn the user's paths.
-    pub fn current_url(&self, cx: &gpui::App) -> anyhow::Result<String> {
-        Ok(self.agent_page(cx)?.1)
-    }
-
-    /// Evaluates a JS *expression* in the page and returns its JSON value. Refused before the first
-    /// load and in any page that isn't http or https, checked again inside the page itself. A thrown
-    /// exception is an `Err` with its message. Values JSON can't hold (DOM nodes, functions) come
-    /// back as `{}` or `null`; a Promise is not awaited.
-    pub fn eval_js(
-        &self,
-        expression: &str,
-        cx: &gpui::App,
-    ) -> impl Future<Output = anyhow::Result<serde_json::Value>> + use<> {
-        let (tx, rx) = oneshot::channel();
-        let started = self.agent_page(cx).and_then(|(page, _)| {
-            page.eval(
-                &js::wrap(expression),
-                Box::new(move |raw| _ = tx.send(raw)),
-                cx,
-            )
-        });
-        async move {
-            started?;
-            // wry drops the callback of a script it queued for the next load.
-            let raw = rx
-                .await
-                .context("the webview queued the script instead of running it")?;
-            js::decode(&raw)
-        }
-    }
-
-    /// What the page shows now, as the engine's encoded image (see [`crate::encode_png`] for the PNG the agent
-    /// gets). Refused before the first load and unless the painted document itself is http or https and parsed:
-    /// the engine URL can name a pending load while the old page, maybe a local file, is still on screen. An image
-    /// taken while a new page committed is dropped.
-    pub fn screenshot(
-        this: &Entity<Self>,
-        cx: &mut gpui::App,
-    ) -> impl Future<Output = anyhow::Result<Vec<u8>>> + use<> {
-        let this = this.clone();
-        let cx = cx.to_async();
-        async move {
-            // The in-page guard of eval_js checks `location` in the document that is actually there.
-            let (state, before) = cx.read_entity(&this, |b, cx| {
-                (b.eval_js("document.readyState", cx), b.loads)
-            });
-            if state.await? == "loading" {
-                anyhow::bail!("the page is still loading; try again in a moment");
-            }
-            let (tx, rx) = oneshot::channel();
-            cx.read_entity(&this, |b, cx| {
-                let (page, _) = b.agent_page(cx)?;
-                page.snapshot(Box::new(move |r| _ = tx.send(r)), cx)
-            })?;
-            let raw = rx
-                .await
-                .context("the webview dropped the snapshot")?
-                .map_err(|e| anyhow::anyhow!("snapshot failed: {e}"))?;
-            if cx.read_entity(&this, |b, _| b.loads) != before {
-                anyhow::bail!("a new page loaded while the screenshot was taken; try again");
-            }
-            Ok(raw)
-        }
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
@@ -472,6 +428,31 @@ impl Render for BrowserView {
     }
 }
 
+#[path = "view_agent.rs"]
+mod agent_ui;
 #[path = "view_controls.rs"]
 mod controls_ui;
 pub use controls_ui::DuplicateTab;
+
+/// `document.title` as wry hands it back (a JSON string), trimmed, with control characters (newlines, bidi
+/// overrides) dropped so a page can't break or disguise its tab's label. `None` when empty or not a string.
+fn page_title(raw: &str) -> Option<SharedString> {
+    let title: String = serde_json::from_str::<String>(raw)
+        .ok()?
+        .chars()
+        .filter(|c| {
+            !c.is_control() && !matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+        })
+        .collect();
+    let title = title.trim();
+    (!title.is_empty()).then(|| SharedString::from(title.to_owned()))
+}
+
+#[cfg(test)]
+#[test]
+fn page_titles_are_cleaned() {
+    assert_eq!(page_title("\"QA page\"").as_deref(), Some("QA page"));
+    assert_eq!(page_title("\"  \""), None);
+    assert_eq!(page_title("null"), None, "no title");
+    assert_eq!(page_title("\"a\\nb\\u202ec\"").as_deref(), Some("abc"));
+}

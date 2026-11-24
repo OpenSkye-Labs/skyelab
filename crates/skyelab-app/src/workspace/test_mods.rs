@@ -194,6 +194,8 @@ mod terminal_link_test;
 #[cfg(test)]
 mod terminal_owner_test;
 #[cfg(all(test, unix))]
+mod login_terminal_test;
+#[cfg(all(test, unix))]
 mod terminal_restore_test;
 #[cfg(test)]
 mod terminal_split_test;

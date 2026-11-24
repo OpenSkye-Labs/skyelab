@@ -15,6 +15,26 @@ pub struct FoundAccount {
     pub label: String,
 }
 
+/// Where a new account keeps its login when the user names no folder: `~/.claude-<id>` or `~/.codex-<id>`, the
+/// pattern [`find_accounts`] offers back. `None` unless the id is a plain name that can't climb out of home.
+pub fn default_config_dir(home: &Path, provider: Provider, id: &str) -> Option<PathBuf> {
+    plain(id).then(|| home.join(format!(".{}-{id}", provider.label().to_lowercase())))
+}
+
+/// Where an account keeps its own `gh` login when the user names no folder: `~/.config/gh-<id>`; `None` as above.
+pub fn default_gh_dir(home: &Path, id: &str) -> Option<PathBuf> {
+    plain(id).then(|| home.join(".config").join(format!("gh-{id}")))
+}
+
+/// Letters, digits, `-`, `_` and `.`, not starting with `.`: one path component, never `..`.
+fn plain(id: &str) -> bool {
+    !id.is_empty()
+        && !id.starts_with('.')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
 /// Names whose presence marks a provider's config dir. Never credential files: only their absence matters here.
 fn markers(provider: Provider) -> &'static [&'static str] {
     match provider {

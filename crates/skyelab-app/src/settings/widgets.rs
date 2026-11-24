@@ -92,13 +92,14 @@ pub(super) fn label(title: &str, about: &str, cx: &App) -> gpui::Div {
 /// Middle-truncated so both the root and the folder name stay visible; full path on hover.
 pub(super) fn path_text(id: String, path: &Path) -> gpui::Stateful<gpui::Div> {
     let full = SharedString::from(path.display().to_string());
+    let shown = ui::short_path(path, dirs::home_dir().as_deref());
     div()
         .id(SharedString::from(id))
         .min_w_0()
         .overflow_hidden()
         .whitespace_nowrap()
         .text_ellipsis_middle()
-        .child(full.clone())
+        .child(shown)
         .tooltip(move |window, cx| Tooltip::new(full.clone()).build(window, cx))
 }
 

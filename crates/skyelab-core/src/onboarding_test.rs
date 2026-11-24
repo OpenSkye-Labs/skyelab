@@ -193,3 +193,65 @@ fn onboarding_skips_a_link_to_a_dir_already_offered_or_added() {
         .collect();
     assert_eq!(ids, ["claude-work", "codex"], "added through its link");
 }
+
+#[test]
+fn a_new_accounts_default_folder_is_one_find_accounts_offers_back() {
+    let home = tempfile::tempdir().expect("tempdir");
+    let h = home.path();
+    let dir = default_config_dir(h, Provider::Claude, "work").expect("plain id");
+    assert_eq!(dir, h.join(".claude-work"));
+    assert_eq!(
+        default_config_dir(h, Provider::Codex, "ci"),
+        Some(h.join(".codex-ci"))
+    );
+    fs::create_dir_all(&dir).expect("mkdir");
+    fs::write(dir.join("settings.json"), "{}").expect("write");
+    let found = find_accounts(h, &AccountsConfig::default());
+    assert!(found.iter().any(|f| f.config_dir == dir), "{found:?}");
+}
+
+#[test]
+fn a_new_account_never_shares_another_accounts_config_folder() {
+    let home = tempfile::tempdir().expect("tempdir");
+    let h = home.path();
+    let found_dir = h.join(".claude-work");
+    fs::create_dir_all(&found_dir).expect("mkdir");
+    fs::write(found_dir.join("settings.json"), "{}").expect("write");
+    let mut config = AccountsConfig::default();
+    let f = find_accounts(h, &config).remove(0);
+    let account = |id: &str, dir: PathBuf| Account {
+        id: id.into(),
+        label: id.into(),
+        provider: Provider::Claude,
+        config_dir: dir,
+        gh_config_dir: None,
+        ssh_agent: false,
+    };
+    config
+        .add_account(account(&f.id, f.config_dir.clone()))
+        .expect("onboarding add");
+    // Settings → Add account "Work", folder left empty: the default is the folder already added.
+    let dir = default_config_dir(h, Provider::Claude, "work").expect("plain id");
+    let err = config
+        .add_account(account("work", dir.clone()))
+        .expect_err("two accounts on one login folder");
+    assert!(format!("{err:#}").contains("claude-work"), "{err:#}");
+    // And an edit can't move an account onto another's folder either.
+    config
+        .add_account(account("home", h.join(".claude-home")))
+        .expect("add");
+    assert!(config.update_account(account("home", dir)).is_err());
+}
+
+#[test]
+fn only_a_plain_id_names_a_default_folder() {
+    let h = Path::new("/home/me");
+    assert_eq!(
+        default_gh_dir(h, "acme"),
+        Some(h.join(".config").join("gh-acme"))
+    );
+    for bad in ["", "a/b", "x/../..", "..", ".hidden", "a\\b"] {
+        assert_eq!(default_config_dir(h, Provider::Claude, bad), None, "{bad}");
+        assert_eq!(default_gh_dir(h, bad), None, "{bad}");
+    }
+}

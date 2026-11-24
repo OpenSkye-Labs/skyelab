@@ -47,7 +47,53 @@ impl Settings {
         }));
     }
 
-    pub(super) fn gh_log_in(&mut self, a: &GhLogIn, _: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn gh_log_in(&mut self, a: &GhLogIn, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(account) = self
+            .config
+            .accounts
+            .iter()
+            .find(|acct| acct.id == a.id)
+            .cloned()
+        else {
+            self.error = Some(format!("no account '{}'", a.id));
+            return cx.notify();
+        };
+        // No GitHub folder yet: give it `~/.config/gh-<id>`, saved before the login so it lands where it's read.
+        if account.gh_config_dir.is_none() {
+            let Some(home) = dirs::home_dir() else {
+                self.error = Some("no home folder to put a GitHub login in".into());
+                return cx.notify();
+            };
+            let Some(gh) = skyelab_core::onboarding::default_gh_dir(&home, &account.id) else {
+                self.error = Some(format!(
+                    "'{}' can't name a folder: set its GitHub folder in Accounts",
+                    account.id
+                ));
+                return cx.notify();
+            };
+            let id = account.id.clone();
+            // Only that field, on the account as the file has it now (apply re-reads it): nothing else reverts.
+            let saved = self.apply(
+                move |c| {
+                    let mut now = c
+                        .accounts
+                        .iter()
+                        .find(|x| x.id == id)
+                        .cloned()
+                        .ok_or_else(|| anyhow::anyhow!("no account '{id}'"))?;
+                    if now.gh_config_dir.is_none() {
+                        now.gh_config_dir = Some(gh);
+                        c.update_account(now)?;
+                    }
+                    Ok(())
+                },
+                window,
+                cx,
+            );
+            if !saved {
+                return; // apply shows why
+            }
+        }
         let dir = self
             .config
             .accounts
@@ -88,7 +134,7 @@ impl Settings {
                 ) {
                     (None, _, _) => (
                         theme.muted_foreground,
-                        "No GitHub folder: edit the account to add one".to_owned(),
+                        "No GitHub login yet".to_owned(),
                     ),
                     (Some(_), Some(Some(login)), _) => {
                         (theme.success, format!("Signed in as {login}"))
@@ -101,16 +147,23 @@ impl Settings {
                 };
                 let error = self.gh_errors.get(&a.id).cloned();
                 let log_in = GhLogIn { id: a.id.clone() };
-                let control = a.gh_config_dir.as_ref().map(|_| {
+                let control = {
+                    let tip = match &a.gh_config_dir {
+                        Some(_) => "Opens a terminal running gh auth login for this account".to_owned(),
+                        None => format!(
+                            "Gives this account its own GitHub folder (~/.config/gh-{}), then runs gh auth login there",
+                            a.id
+                        ),
+                    };
                     Button::new(SharedString::from(format!("gh-login-{}", a.id)))
-                        .label("Log in")
-                        .tooltip("Opens a terminal running gh auth login for this account")
+                        .label(if a.gh_config_dir.is_some() { "Log in" } else { "Set up" })
+                        .tooltip(tip)
                         .small()
                         .outline()
                         .on_click(cx.listener(move |this, _, window, cx| {
                             this.gh_log_in(&log_in, window, cx)
                         }))
-                });
+                };
                 let theme = cx.theme();
                 super::widgets::row(i == 0, cx)
                     .gap_4()
@@ -153,7 +206,7 @@ impl Settings {
                                     .map(|dir| path_line(format!("gh-{}", a.id), dir, cx)),
                             ),
                     )
-                    .children(control)
+                    .child(control)
                     .into_any_element()
             })
             .collect();

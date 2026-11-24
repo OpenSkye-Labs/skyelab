@@ -248,3 +248,24 @@ fn new_thread_and_add_project_do_nothing_while_on_another_machine(cx: &mut TestA
     let local_tabs = ws.read_with(cx, |ws, _| ws.open_threads.len());
     assert_eq!(local_tabs, 0, "no local agent starts while remote");
 }
+
+#[gpui::test]
+fn thread_actions_are_not_offered_without_a_shown_thread(cx: &mut TestAppContext) {
+    setup(cx);
+    let (ws, cx) = open(test_backend(), cx);
+    let names: Vec<&str> = entries(&ws, cx)
+        .iter()
+        .filter_map(|e| match e.kind {
+            Kind::Action(name) => Some(name),
+            _ => None,
+        })
+        .collect();
+    for gone in [
+        "skyelab::RenameThread",
+        "skyelab::TogglePinThread",
+        "skyelab::ArchiveThread",
+        "skyelab::DeleteThread",
+    ] {
+        assert!(!names.contains(&gone), "{gone} listed with no thread open");
+    }
+}

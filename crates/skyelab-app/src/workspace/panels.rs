@@ -122,7 +122,7 @@ impl Render for Welcome {
                 .child(ui::KeyHint::new(label, action))
         };
         let welcome = ui::EmptyState::new("Pick a thread to continue")
-            .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
+            .hint("Or start a new one. Every folder runs on the account it is bound to.")
             .page();
         let body = div().flex_1().flex().items_center().justify_center().child(
             v_flex()
@@ -137,6 +137,7 @@ impl Render for Welcome {
                 .child(
                     v_flex()
                         .gap_0p5()
+                        .child(shortcut("New thread", Box::new(super::NewThread)))
                         .child(shortcut("Toggle sidebar", Box::new(super::ToggleSidebar)))
                         .child(shortcut(
                             "Toggle bottom panel",
@@ -254,15 +255,39 @@ impl BasePanel for BrowserPanel {
     }
 }
 impl Panel for BrowserPanel {
-    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        if self.agent.is_some() {
-            "Agent browser"
-        } else {
-            "Browser"
-        }
+    fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.tab_title(cx)
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None
+    }
+}
+
+impl BrowserPanel {
+    /// What its tab and its palette entry say.
+    pub(super) fn tab_title(&self, cx: &App) -> SharedString {
+        browser_tab_title(
+            self.browser.read(cx).title().map(|t| t.as_ref()),
+            self.agent.is_some(),
+        )
+    }
+}
+
+/// The page's title, at most 28 characters, else what kind of tab it is. An agent's tab keeps saying so.
+pub(super) fn browser_tab_title(page: Option<&str>, agent: bool) -> SharedString {
+    const MAX: usize = 28;
+    let kind = if agent { "Agent browser" } else { "Browser" };
+    let Some(page) = page.map(str::trim).filter(|p| !p.is_empty()) else {
+        return kind.into();
+    };
+    let page = match page.char_indices().nth(MAX) {
+        Some((at, _)) => format!("{}…", page[..at].trim_end()),
+        None => page.to_owned(),
+    };
+    if agent {
+        format!("Agent: {page}").into()
+    } else {
+        page.into()
     }
 }
 

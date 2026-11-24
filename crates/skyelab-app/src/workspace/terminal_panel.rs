@@ -107,6 +107,8 @@ pub struct TerminalPanel {
     pub docked: bool,
     /// The inline rename field while the title is being renamed.
     pub(super) renaming: Option<(Entity<InputState>, Subscription)>,
+    /// Runs one command (a Log in): not saved, so a restart doesn't reopen it as a plain shell.
+    pub one_shot: bool,
     _poll: Task<()>,
 }
 
@@ -142,6 +144,7 @@ impl TerminalPanel {
             owner,
             docked: true,
             renaming: None,
+            one_shot: false,
             _poll: Task::ready(()),
         };
         this.order();

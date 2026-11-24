@@ -40,27 +40,34 @@ impl DevicesPanel {
             let device = device.clone();
             cx.listener(move |this, _, window, cx| f(this, &device, window, cx))
         };
-        let mut actions = h_flex().gap_1();
+        // On a line of their own under the name, so a narrow panel never cuts the device's name.
+        let mut actions: Vec<gpui::AnyElement> = Vec::new();
         if emulated && device.state == DeviceState::Shutdown {
-            actions =
-                actions.child(button("boot", "Boot").on_click(on(|t, d, _, cx| t.boot(d, cx))));
+            actions.push(
+                button("boot", "Boot")
+                    .on_click(on(|t, d, _, cx| t.boot(d, cx)))
+                    .into_any_element(),
+            );
         }
         if emulated && matches!(device.state, DeviceState::Booted | DeviceState::Booting) {
-            actions = actions.child(
-                button("shutdown", "Shutdown").on_click(on(|t, d, _, cx| t.shutdown(d, cx))),
+            actions.push(
+                button("shutdown", "Shutdown")
+                    .on_click(on(|t, d, _, cx| t.shutdown(d, cx)))
+                    .into_any_element(),
             );
         }
         if booted {
-            actions = actions
-                .child(button("shot", "Screenshot").on_click(on(|t, d, _, cx| t.screenshot(d, cx))))
-                .child(
-                    button("url", "Open URL…")
-                        .on_click(on(|t, d, w, cx| t.show_url_row(&d.id, w, cx))),
-                )
-                .child(
-                    button("install", "Install app…")
-                        .on_click(on(|t, d, w, cx| t.pick_app(d, w, cx))),
-                );
+            actions.extend([
+                button("shot", "Screenshot")
+                    .on_click(on(|t, d, _, cx| t.screenshot(d, cx)))
+                    .into_any_element(),
+                button("url", "Open URL…")
+                    .on_click(on(|t, d, w, cx| t.show_url_row(&d.id, w, cx)))
+                    .into_any_element(),
+                button("install", "Install app…")
+                    .on_click(on(|t, d, w, cx| t.pick_app(d, w, cx)))
+                    .into_any_element(),
+            ]);
         }
         let url_row = (self.url_for.as_deref() == Some(device.id.as_str())).then(|| {
             h_flex()
@@ -124,9 +131,11 @@ impl DevicesPanel {
                             .text_color(theme.muted_foreground)
                             .child(Spinner::new().xsmall())
                             .child(label)
-                    }))
-                    .child(actions),
+                    })),
             )
+            .when(!actions.is_empty(), |d| {
+                d.child(h_flex().flex_wrap().gap_1().children(actions))
+            })
             .children(holder)
             .children(url_row)
             .children(ops.and_then(|o| o.error.clone()).map(|e| {
