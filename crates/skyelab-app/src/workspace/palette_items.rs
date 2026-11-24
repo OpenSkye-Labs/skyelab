@@ -3,7 +3,7 @@
 use super::env_mode::{OpenRemoteThread, SelectRemoteProject};
 use super::{OpenThread, SelectProject, Workspace};
 use crate::palette::{self, Entry, Kind, OpenCommandPalette};
-use crate::ui::Kbd;
+use crate::ui::{Kbd, SkyeIcon};
 use gpui::{
     Action, App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Window,
 };
@@ -11,13 +11,27 @@ use gpui_component::dock::DockPlacement;
 use std::rc::Rc;
 
 fn dispatch(label: String, kind: Kind, action: Box<dyn Action>) -> Entry {
-    Entry {
-        label: label.into(),
+    Entry::new(
+        label,
         kind,
-        binding: None,
-        checked: None,
-        run: Rc::new(move |window, cx| window.dispatch_action(action.boxed_clone(), cx)),
-    }
+        Rc::new(move |window, cx| window.dispatch_action(action.boxed_clone(), cx)),
+    )
+}
+
+/// A project's folder as its row's second line, home written `~`.
+fn short(path: &std::path::Path) -> String {
+    crate::ui::short_path(path, dirs::home_dir().as_deref())
+}
+
+/// A row that only opens its submenu.
+fn submenu(label: &str, icon: SkyeIcon, items: Vec<Entry>) -> Entry {
+    Entry::new(
+        label.to_owned(),
+        Kind::Action("skyelab::Submenu"),
+        Rc::new(|_, _| {}),
+    )
+    .icon(icon)
+    .submenu(items)
 }
 
 impl Workspace {
@@ -60,13 +74,21 @@ impl Workspace {
                     .unwrap_or_default()
                     .into_iter()
                     .map(|t| {
-                        let label = match names.get(&t.project_id) {
-                            Some(name) if Some(t.project_id) != current => {
-                                format!("Open thread: {} · {name}", t.title)
-                            }
-                            _ => format!("Open thread: {}", t.title),
+                        let other = names
+                            .get(&t.project_id)
+                            .filter(|_| Some(t.project_id) != current);
+                        let label = match other {
+                            Some(name) => format!("Open thread: {} · {name}", t.title),
+                            None => format!("Open thread: {}", t.title),
                         };
-                        dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
+                        let entry =
+                            dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
+                                .title(t.title.clone())
+                                .recency(t.updated_at);
+                        match other {
+                            Some(name) => entry.subtitle(name.clone()),
+                            None => entry,
+                        }
                     })
                     .collect()
             })
@@ -89,11 +111,18 @@ impl Workspace {
                 continue;
             }
             let binding = Kbd::for_action_in(action.as_ref(), prev, window);
-            let mut entry = dispatch(palette::humanize(name), Kind::Action(name), action);
-            entry.binding = binding;
+            let mut entry =
+                dispatch(palette::humanize(name), Kind::Action(name), action).binding(binding);
             // A toggle shows where it stands now, as T3's toggle rows do.
             if name == "skyelab::ToggleSharing" {
                 entry.checked = self.sharing_enabled(cx);
+            }
+            // T3's "New thread in **project**".
+            if let (Some(p), "skyelab::NewThread") = (&self.project, name) {
+                let title = format!("New thread in {}", p.name);
+                entry = entry
+                    .bold(title.len() - p.name.len()..title.len())
+                    .title(title);
             }
             actions.push(entry);
         }
@@ -102,7 +131,10 @@ impl Workspace {
         let mut out = actions;
         // Another machine shown: its projects and the selected one's threads, as the switcher lists them.
         if let Some(env) = self.remote_env() {
-            out.extend(self.forward_entries(cx));
+            let forwards = self.forward_entries(cx);
+            if !forwards.is_empty() {
+                out.push(submenu("Forwarded ports", SkyeIcon::Plug, forwards));
+            }
             let env = env.read(cx);
             out.extend(env.projects.iter().map(|p| {
                 let label = format!("Switch to project: {}", p.name);
@@ -111,15 +143,23 @@ impl Workspace {
                     Kind::Project,
                     Box::new(SelectRemoteProject { id: p.id }),
                 )
+                .title(p.name.clone())
             }));
             out.extend(env.threads.iter().map(|t| {
                 let label = format!("Open thread: {}", t.title);
                 dispatch(label, Kind::Thread, Box::new(OpenRemoteThread { id: t.id }))
+                    .title(t.title.clone())
             }));
         } else {
+            if !self.projects.is_empty() {
+                let items = self.new_thread_in_entries();
+                out.push(submenu("New thread in…", SkyeIcon::NewThread, items));
+            }
             out.extend(self.projects.iter().map(|p| {
                 let label = format!("Switch to project: {}", p.name);
                 dispatch(label, Kind::Project, Box::new(SelectProject { id: p.id }))
+                    .title(p.name.clone())
+                    .subtitle(short(&p.path))
             }));
             out.extend(self.scripts.iter().map(|s| {
                 let label = format!("Run script: {}", s.name);
@@ -129,6 +169,7 @@ impl Workspace {
                     Kind::Action("skyelab::RunProjectScript"),
                     Box::new(action),
                 )
+                .title(s.name.clone())
             }));
             // Every project's threads; another project's name their project, as search results do.
             let current = self.project.as_ref().map(|p| p.id);
@@ -141,7 +182,13 @@ impl Workspace {
                     Some(p) => format!("Open thread: {} · {}", t.title, p.name),
                     None => format!("Open thread: {}", t.title),
                 };
-                dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
+                let entry = dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
+                    .title(t.title.clone())
+                    .recency(t.updated_at);
+                match other {
+                    Some(p) => entry.subtitle(p.name.clone()),
+                    None => entry,
+                }
             }));
         }
         // Linked machines' toggles and threads; only on this machine, where their rows show.
@@ -149,8 +196,25 @@ impl Workspace {
             out.extend(self.linked_palette_entries(cx));
         }
         out.extend(self.tabs(cx));
-        out.extend(theme_entries(cx));
+        out.push(submenu(
+            "Change theme",
+            SkyeIcon::Palette,
+            theme_entries(cx),
+        ));
         out
+    }
+
+    /// "New thread in: <project>" for each project: the "New thread in…" page.
+    pub(super) fn new_thread_in_entries(&self) -> Vec<Entry> {
+        self.projects
+            .iter()
+            .map(|p| {
+                let action = Box::new(super::NewThreadIn { id: p.id });
+                dispatch(format!("New thread in: {}", p.name), Kind::Project, action)
+                    .title(p.name.clone())
+                    .subtitle(short(&p.path))
+            })
+            .collect()
     }
 
     /// The docks' tabs (terminals, Changes, browsers, Devices). The center has pages, not tabs: threads and
@@ -159,7 +223,10 @@ impl Workspace {
         let mut tabs = Vec::new();
         for view in self.changes_views.iter().filter_map(|v| v.upgrade()) {
             let title = view.read(cx).title();
-            tabs.push(self.tab_in(DockPlacement::Right, title, &view, cx));
+            tabs.push(
+                self.tab_in(DockPlacement::Right, title, &view, cx)
+                    .icon(SkyeIcon::FileDiff),
+            );
         }
         // Another thread's terminals are out of the dock until it shows.
         let docked: Vec<_> = self
@@ -170,14 +237,23 @@ impl Workspace {
             .collect();
         for panel in &docked {
             let title = panel.read(cx).tab_label();
-            tabs.push(self.tab_in(DockPlacement::Bottom, title, panel, cx));
+            tabs.push(
+                self.tab_in(DockPlacement::Bottom, title, panel, cx)
+                    .icon(SkyeIcon::SquareTerminal),
+            );
         }
         for panel in self.browsers.iter().filter_map(|b| b.upgrade()) {
             let title = panel.read(cx).tab_title(cx);
-            tabs.push(self.tab_in(DockPlacement::Right, title, &panel, cx));
+            tabs.push(
+                self.tab_in(DockPlacement::Right, title, &panel, cx)
+                    .icon(SkyeIcon::Browser),
+            );
         }
         if let Some(devices) = self.devices.as_ref().and_then(|d| d.upgrade()) {
-            tabs.push(self.tab_in(DockPlacement::Right, "Devices".into(), &devices, cx));
+            tabs.push(
+                self.tab_in(DockPlacement::Right, "Devices".into(), &devices, cx)
+                    .icon(SkyeIcon::Smartphone),
+            );
         }
         tabs
     }
@@ -194,12 +270,11 @@ impl Workspace {
             view.entity_id(),
             view.read(cx).focus_handle(cx),
         );
-        Entry {
-            label: format!("Go to tab: {title}").into(),
-            kind: Kind::Tab,
-            binding: None,
-            checked: None,
-            run: Rc::new(move |window: &mut Window, cx: &mut App| {
+        let label = format!("Go to tab: {title}");
+        Entry::new(
+            label,
+            Kind::Tab,
+            Rc::new(move |window: &mut Window, cx: &mut App| {
                 _ = ws.update(cx, |ws, cx| {
                     ws.dock.update(cx, |dock, cx| {
                         if !dock.is_dock_open(at) {
@@ -210,7 +285,8 @@ impl Workspace {
                 });
                 focus.focus(window, cx);
             }),
-        }
+        )
+        .title(title)
     }
 }
 
@@ -220,19 +296,21 @@ fn theme_entries(cx: &App) -> Vec<Entry> {
     use crate::ui::themes;
     use skyelab_core::ColorMode;
     let now = themes::get(cx);
-    let entry = |label: String,
-                 on: bool,
-                 change: Rc<dyn Fn(&mut skyelab_core::AppearanceSettings)>| Entry {
-        label: label.into(),
-        kind: Kind::Action("skyelab::Theme"),
-        binding: None,
-        checked: Some(on),
-        run: Rc::new(move |_, cx| {
-            let mut s = themes::get(cx);
-            change(&mut s);
-            gpui::TaskExt::detach_and_log_err(themes::set(s, cx), cx);
-        }),
-    };
+    let entry =
+        |label: &str, on: bool, change: Rc<dyn Fn(&mut skyelab_core::AppearanceSettings)>| {
+            let run: palette::Run = Rc::new(move |_, cx| {
+                let mut s = themes::get(cx);
+                change(&mut s);
+                gpui::TaskExt::detach_and_log_err(themes::set(s, cx), cx);
+            });
+            Entry::new(
+                format!("Theme: {label}"),
+                Kind::Action("skyelab::Theme"),
+                run,
+            )
+            .title(label.to_owned())
+            .checked(Some(on))
+        };
     let modes = [
         (ColorMode::System, "System"),
         (ColorMode::Light, "Light"),
@@ -240,21 +318,11 @@ fn theme_entries(cx: &App) -> Vec<Entry> {
     ];
     let mut out: Vec<Entry> = modes
         .into_iter()
-        .map(|(m, l)| {
-            entry(
-                format!("Theme: {l}"),
-                now.mode == m,
-                Rc::new(move |s| s.mode = m),
-            )
-        })
+        .map(|(m, l)| entry(l, now.mode == m, Rc::new(move |s| s.mode = m)))
         .collect();
     out.extend(themes::FAMILIES.iter().map(|f| {
         let on = themes::family(&now.theme).key == f.key;
-        entry(
-            format!("Theme: {}", f.label),
-            on,
-            Rc::new(move |s| s.theme = f.key.into()),
-        )
+        entry(f.label, on, Rc::new(move |s| s.theme = f.key.into()))
     }));
     out
 }

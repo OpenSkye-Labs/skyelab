@@ -46,3 +46,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `window.focus` sets `window.focused()` at once, not at the next frame, so when several views may take the focus in
   one draw (side chat panes on a Compare page each getting a question), "only while nothing is focused" lets the first
   one win and keeps the rest from stealing it back (`focus_new_question`).
+- To override a gpui-component widget's own key action (Command's Escape first clears the query), wrap it in a div
+  with `.capture_action::<gpui_base::actions::Cancel>` and `cx.stop_propagation()`: capture runs root-down before the
+  widget's bubble handler (`palette_view.rs`). Don't call a widget's `set_query` inside your own view's `update` when its
+  query callback updates that view: do it after the update (`show_page`).

@@ -5,14 +5,19 @@ Shortcuts are shown for macOS. On Linux and Windows, use <kbd>Ctrl</kbd> for <kb
 ## Command palette
 
 Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with its shortcut), a project to switch to, a
-thread of the current project to open, or a terminal, Changes or browser tab to go to. Threads of every project are
+thread to open, or a terminal, Changes or browser tab to go to. With nothing typed it lists **Actions** and your
+**Recent threads** (the twelve used last). Typing searches everything, grouped under **Actions**, **Threads**,
+**Projects**, **Scripts** and **Tabs**, best match first, with the matched letters in bold. Threads of every project are
 also found by their messages: type a few words from a prompt or an answer (three letters or more) and matching
 threads list after the rest, with their project's name. Type a few letters in order (`os` finds
-**Open Settings**), move with the arrow keys, press <kbd>↩</kbd> to run it and <kbd>Esc</kbd> to close. The action runs
+**Open Settings**), move with the arrow keys (they wrap around) or the mouse, press <kbd>Enter</kbd> to run it and
+<kbd>Esc</kbd> to close. Rows with a chevron open a page: **New thread in…** (pick a project), **Change theme**, and on
+another machine **Forwarded ports**. <kbd>Esc</kbd>, <kbd>Backspace</kbd> in an empty search, or the Back row above the
+search go back from a page. The action runs
 where you were, so actions that only make sense in a thread or in Settings are listed only while you're there.
 In a terminal on Linux and Windows, <kbd>Ctrl+K</kbd> stays the shell's; use <kbd>Ctrl+Shift+P</kbd> there.
 While the window shows another machine, the palette lists that machine's projects and the selected project's
-threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** shows whether it is **On** or **Off**.
+threads, and opens them there. A toggle such as **Toggle Sharing on Tailnet** shows a ticked box while it is on.
 
 ## Keyboard
 
@@ -126,7 +131,7 @@ Sections with preferences have **Restore defaults** in the header.
 **Settings → Appearance** picks a theme (**SkyeLab**, **Skye**, **Graphite**, **Dawn** or **Grove**; each has a light
 and a dark side), the **Mode** (System, Light or Dark), an **Accent color**, **Density** (Compact tightens rows) and
 the **Text size** and **Code text size**. Changes apply at once in every window and are saved under `[appearance]` in
-`settings.toml`. The palette has the same choices as **Theme: …** entries.
+`settings.toml`. The palette has the same choices under **Change theme**.
 
 **Settings → General → Advanced → Developer mode** is for people working on SkyeLab itself: a **Debug** chip in the
 status bar, an overlay with frame times and live counts, and a debug log of network calls and child processes (no

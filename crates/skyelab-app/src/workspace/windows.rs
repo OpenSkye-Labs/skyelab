@@ -192,9 +192,24 @@ pub fn open(
         let focus = view.read(cx).focus_handle(cx);
         window.focus(&focus, cx);
         made = Some(view.clone());
-        cx.new(|cx| gpui_component::Root::new(view, window, cx))
+        let shell = cx.new(|_| CachedWorkspace(view.into()));
+        cx.new(|cx| gpui_component::Root::new(shell, window, cx))
     })?;
     made.ok_or_else(|| anyhow::anyhow!("the window opened without its workspace"))
+}
+
+/// Root's child: the workspace as a cached view. A dialog in Root (the command palette) re-renders Root on every
+/// keystroke and hover, which would re-render the workspace too; cached, it renders only on its own notify or a
+/// window refresh (docs/gpui/redraw.md).
+struct CachedWorkspace(gpui::AnyView);
+
+impl gpui::Render for CachedWorkspace {
+    fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl gpui::IntoElement {
+        use gpui::Styled as _;
+        self.0
+            .clone()
+            .cached(gpui::StyleRefinement::default().size_full())
+    }
 }
 
 /// A window closed: it leaves the registry, and the next window on its store owns what it owned and serves the call

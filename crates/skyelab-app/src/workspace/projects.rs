@@ -178,23 +178,8 @@ impl Workspace {
         let Some(prev) = window.focused(cx) else {
             return;
         };
-        let entries = self
-            .projects
-            .iter()
-            .map(|p| {
-                let id = p.id;
-                crate::palette::Entry {
-                    label: format!("New thread in: {}", p.name).into(),
-                    kind: crate::palette::Kind::Project,
-                    binding: None,
-                    checked: None,
-                    run: std::rc::Rc::new(move |window, cx| {
-                        window.dispatch_action(Box::new(NewThreadIn { id }), cx)
-                    }),
-                }
-            })
-            .collect();
-        crate::palette::open(entries, None, prev, window, cx);
+        let entries = self.new_thread_in_entries();
+        crate::palette::open_page("New thread in", entries, prev, window, cx);
     }
 
     /// A new thread in project `id`. Its folder's bound account is resolved when the thread starts, never defaulted.

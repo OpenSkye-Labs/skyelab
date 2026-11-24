@@ -16,13 +16,7 @@ pub(crate) fn typed_port(query: &str) -> Option<u16> {
 }
 
 fn entry(label: String, run: palette::Run) -> Entry {
-    Entry {
-        label: label.into(),
-        kind: Kind::Action("skyelab::ForwardPort"),
-        binding: None,
-        checked: None,
-        run,
-    }
+    Entry::new(label, Kind::Action("skyelab::ForwardPort"), run)
 }
 
 impl Workspace {
