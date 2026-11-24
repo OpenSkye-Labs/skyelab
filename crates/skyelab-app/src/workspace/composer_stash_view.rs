@@ -10,13 +10,17 @@ use gpui::{AnyElement, Context, FontWeight, div, prelude::*, px};
 use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex};
 
 impl ThreadView {
-    /// The tab on the composer's top-right shoulder: "Stash" and the count. Hidden while empty or open.
+    /// The tab on the composer's top-right shoulder: "Stash" and the count. Hidden while empty or open, and while a
+    /// question docks on that edge (its panel runs under the composer's top, where the tab would cover it).
     pub(in crate::workspace) fn render_stash_badge(
         &self,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let count = PromptStash::rows(cx).len();
-        if count == 0 || self.composer.stash_open.is_some() {
+        let question = self
+            .dock()
+            .is_some_and(|a| a.tool == skyelab_agent::QUESTION_TOOL);
+        if count == 0 || self.composer.stash_open.is_some() || question {
             return None;
         }
         let theme = cx.theme();
