@@ -71,7 +71,8 @@ servers in this mode (plugin skills and commands still load). After you add or c
 Session** in a thread to pick it up.
 
 Accounts and bindings are saved in `accounts.toml` in the platform config folder:
-`~/Library/Application Support/skyelab/` on macOS, `~/.config/skyelab/` on Linux, `%APPDATA%\skyelab\` on Windows.
+`~/Library/Application Support/skyelab/` on macOS, `~/.config/skyelab/` on Linux, `%APPDATA%\skyelab\` on Windows
+(`skyelab-dev` for a build from source, see [debugging.md](debugging.md#dev-builds-own-dirs)).
 
 ### Bind a folder
 

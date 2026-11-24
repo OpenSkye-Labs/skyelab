@@ -43,3 +43,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - In tests, a `VisualTestContext` whose window was removed panics on `update` ("window not found"); after
   `window.remove_window()` reach the app through `TestAppContext::update(cx, |cx| ..)`, and open a new
   `VisualTestContext::from_window` for a window opened later.
+- An app-level action bound to a key (⌘Q's `cx.on_action`) runs inside the focused window's update, so that window
+  can't be updated from the handler: open its dialog with `cx.defer`, and treat a `window.update` that fails there as
+  "can't tell", not "no dialog" (`quit_guard::asking`). Tests send such actions with `TestAppContext::update`.

@@ -22,6 +22,7 @@ use anyhow::Context as _;
 use gpui::{
     App, AppContext as _, Bounds, WindowBounds, WindowKind, WindowOptions, actions, px, size,
 };
+use skyelab_core::instance::APP_DIR;
 use skyelab_core::{AccountsConfig, AppSettings};
 use skyelab_store::Store;
 use std::sync::{Arc, Mutex};
@@ -63,7 +64,7 @@ fn device_key() -> Option<String> {
             .map_err(|e| eprintln!("skyelab: no device key from the keychain: {e}"))
             .ok();
     }
-    let path = dirs::config_dir()?.join("skyelab").join("device-key");
+    let path = dirs::config_dir()?.join(APP_DIR).join("device-key");
     skyelab_client::load_or_create_device_key(&path)
         .map_err(|e| eprintln!("skyelab: no device key in {}: {e}", path.display()))
         .ok()
@@ -80,14 +81,14 @@ fn tailnet() -> skyelab_tailnet::TailscaleCli {
     };
     // Local, not roaming, app data: a private key must not sync to a Windows roaming profile.
     match dirs::data_local_dir() {
-        Some(d) => cli.with_cert_dir(d.join("skyelab").join("tls")),
+        Some(d) => cli.with_cert_dir(d.join(APP_DIR).join("tls")),
         None => cli,
     }
 }
 
 /// Where threads and projects persist: the platform data dir.
 fn store_path() -> Option<std::path::PathBuf> {
-    dirs::data_dir().map(|d| d.join("skyelab").join("skyelab.db"))
+    dirs::data_dir().map(|d| d.join(APP_DIR).join("skyelab.db"))
 }
 
 /// Opens the store, or an in-memory one (with the reason) so the app still runs.
@@ -123,7 +124,7 @@ fn orchestration(
         // Local, not roaming: on Windows a roaming profile can live on a file share, and grant files hold tokens.
         let runs = dirs::data_local_dir()
             .context("no platform data dir")?
-            .join("skyelab")
+            .join(APP_DIR)
             .join("run");
         skyelab_agent::mcp::remove_stale_runs(&runs);
         let run = runs.join(std::process::id().to_string());
@@ -157,7 +158,7 @@ actions!(skyelab, [Quit]);
 /// The app's own keys, then the user's keybindings file over them (the keymap keeps only the bindings made before it
 /// starts, so nothing binds a key after this), then the menus, which show the keys bound by then.
 fn init_keys(path: Option<std::path::PathBuf>, cx: &mut App) {
-    cx.on_action(|_: &Quit, cx| cx.quit());
+    cx.on_action(|_: &Quit, cx| workspace::quit_guard::request_quit(cx));
     // Off macOS ctrl-q belongs to the shell (XON), and the window's close button quits.
     if cfg!(target_os = "macos") {
         cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
@@ -182,6 +183,72 @@ fn app_menus(cx: &mut App) {
     }]);
 }
 
+/// One SkyeLab per data dir (`skyelab_core::instance`). `None` (logged): the lock file couldn't be opened or locked
+/// at all (not held by another copy), and the app opens anyway.
+fn claim_instance() -> Option<skyelab_core::instance::Claim> {
+    let dir = dirs::data_dir()?.join(APP_DIR);
+    skyelab_core::instance::claim(&dir)
+        .map_err(|e| eprintln!("skyelab: no single-instance lock: {e:#}"))
+        .ok()
+}
+
+/// A second launch asked this copy to show itself: the first window comes forward, or one opens when none is left.
+fn show_on_second_launch(instance: skyelab_core::instance::Instance, cx: &mut App) {
+    let (tx, rx) = flume::unbounded::<()>();
+    let spawned = std::thread::Builder::new()
+        .name("skyelab-instance".into())
+        .spawn(
+            move || {
+                while instance.wait_for_show().is_ok() && tx.send(()).is_ok() {}
+            },
+        );
+    if let Err(e) = spawned {
+        eprintln!("skyelab: a second launch can't reach this one: {e}");
+        return;
+    }
+    cx.spawn(async move |cx| {
+        while rx.recv_async().await.is_ok() {
+            cx.update(|cx| {
+                cx.activate(true);
+                match workspace::window_handles(cx).first() {
+                    Some(w) => _ = w.update(cx, |_, window, _| window.activate_window()),
+                    None => {
+                        if let Some(open) = cx.try_global::<FreshWindow>().map(|f| f.0.clone()) {
+                            open(cx);
+                        }
+                    }
+                }
+            });
+        }
+    })
+    .detach();
+}
+
+/// Debug builds keep their own config dir: the first one starts from a copy of the installed app's accounts (not its
+/// store or settings), so bound folders keep their accounts.
+fn seed_dev_accounts(dev: Option<&std::path::Path>) {
+    let Some(dev) = dev.filter(|p| cfg!(debug_assertions) && !p.exists()) else {
+        return;
+    };
+    let Some(installed) = dirs::config_dir().map(|d| d.join("skyelab").join("accounts.toml"))
+    else {
+        return;
+    };
+    if !installed.is_file() {
+        return;
+    }
+    let copied = dev
+        .parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| std::fs::copy(&installed, dev));
+    if let Err(e) = copied {
+        eprintln!(
+            "skyelab: couldn't copy {} for the dev build: {e}",
+            installed.display()
+        );
+    }
+}
+
 /// `skyelab --mcp-proxy`: claude runs this as SkyeLab's MCP server (see skyelab_agent::mcp).
 const MCP_PROXY_FLAG: &str = "--mcp-proxy";
 
@@ -202,7 +269,22 @@ fn main() {
         }
         return;
     }
+    let instance = match claim_instance() {
+        Some(skyelab_core::instance::Claim::Running) => {
+            eprintln!(
+                "SkyeLab is already running on this data dir; it was asked to show a window."
+            );
+            return;
+        }
+        Some(skyelab_core::instance::Claim::Unreachable(e)) => {
+            eprintln!("SkyeLab is already running on this data dir but didn't answer: {e:#}");
+            return;
+        }
+        Some(skyelab_core::instance::Claim::First(i)) => Some(i),
+        None => None,
+    };
     let path = AccountsConfig::default_path();
+    seed_dev_accounts(path.as_deref());
     let (config, error) = load_accounts(path.as_deref());
     let switches = skyelab_core::debug::Switches::from_env();
     debug_mode::start_profilers(&switches);
@@ -294,6 +376,7 @@ fn main() {
         let orchestrate = orchestration(cx, backend.store.clone(), config.clone());
         // The last frame when it still shows on a connected display, else most of the primary display.
         workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
+        workspace::quit_guard::install(AppSettings::default_path(), cx);
         ui::themes::load(AppSettings::default_path(), cx);
         workspace::scheduled::install(AppSettings::default_path(), cx);
         let saved = AppSettings::default_path()
@@ -389,6 +472,9 @@ fn main() {
         if let Err(e) = opened {
             eprintln!("failed to open window: {e:#}");
             cx.quit();
+        }
+        if let Some(instance) = instance {
+            show_on_second_launch(instance, cx);
         }
         verify_actions::dispatch_verify_actions(cx);
         cx.activate(true);

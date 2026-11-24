@@ -25,14 +25,14 @@ fn main() -> Result<()> {
         num(args.next(), 15),
         num(args.next(), 600),
     );
-    if home
-        .join("Library/Application Support/skyelab/skyelab.db")
-        .exists()
-    {
+    // The app's own data dir: `skyelab-dev` in perf.sh's profiling build (debug assertions on).
+    let support = home
+        .join("Library/Application Support")
+        .join(skyelab_core::instance::APP_DIR);
+    if support.join("skyelab.db").exists() {
         bail!("{} already has a store: use a fresh folder", home.display());
     }
     let work = home.join("work");
-    let support = home.join("Library/Application Support/skyelab");
     std::fs::create_dir_all(&support)?;
     std::fs::create_dir_all(home.join(".claude-work"))?;
     let work = canonical_dir(&work)?;

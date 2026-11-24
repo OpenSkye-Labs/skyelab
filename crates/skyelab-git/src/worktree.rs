@@ -144,7 +144,7 @@ pub(crate) fn default_dest(root: &Path, branch: &str) -> Result<PathBuf> {
     let dir = format!("{name}-{:016x}", fnv1a(root.as_os_str().as_encoded_bytes()));
     let data = dirs::data_dir().ok_or(Error::NoDataDir)?;
     Ok(data
-        .join("skyelab")
+        .join(skyelab_core::instance::APP_DIR)
         .join("worktrees")
         .join(dir)
         .join(branch))

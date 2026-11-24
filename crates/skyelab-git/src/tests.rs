@@ -79,7 +79,8 @@ fn default_dest_is_per_repo_and_stable() {
         a.starts_with(
             dirs::data_dir()
                 .expect("data dir")
-                .join("skyelab/worktrees")
+                .join(skyelab_core::instance::APP_DIR)
+                .join("worktrees")
         )
     );
     let dir = a

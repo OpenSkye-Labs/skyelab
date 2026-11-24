@@ -35,9 +35,9 @@ pub struct WindowKit {
 
 impl Global for WindowKit {}
 
-struct Registered {
+pub(super) struct Registered {
     window: AnyWindowHandle,
-    workspace: WeakEntity<Workspace>,
+    pub(super) workspace: WeakEntity<Workspace>,
     store: SharedStore,
     /// Its frame, panel and page as last laid out: every layout save writes each open window's.
     layout: Option<WindowLayout>,
@@ -46,8 +46,8 @@ struct Registered {
 /// Every workspace window and every thread view; the call queues and which window consumes them.
 #[derive(Default)]
 pub(crate) struct Windows {
-    workspaces: Vec<Registered>,
-    threads: Vec<Entity<ThreadView>>,
+    pub(super) workspaces: Vec<Registered>,
+    pub(super) threads: Vec<Entity<ThreadView>>,
     remote_calls: Option<flume::Receiver<RemoteCall>>,
     orchestrate: Option<flume::Receiver<OrchCall>>,
     hub: Option<AnyWindowHandle>,
@@ -294,6 +294,10 @@ impl Workspace {
             if !open.contains(&view.read(cx).window) {
                 view.update(cx, |v, cx| v.attach(window, cx));
             }
+        }
+        // Off macOS closing the last window quits: it asks first like ⌘Q.
+        if !super::MAC {
+            window.on_window_should_close(cx, super::quit_guard::may_close);
         }
         if !std::mem::replace(&mut cx.default_global::<Windows>().watching, true) {
             cx.on_window_closed(|cx, id| window_closed(id, cx)).detach();

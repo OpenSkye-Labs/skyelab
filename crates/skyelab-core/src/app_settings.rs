@@ -46,6 +46,9 @@ pub struct AppSettings {
     pub sidebar_views: Vec<SidebarView>,
     /// Settings → General → Advanced: debug mode at every launch (docs/debugging.md). Off unless turned on.
     pub developer_mode: bool,
+    /// Settings → General: quit at once even while threads work or terminals run ("Don't ask again" on the quit
+    /// dialog). Off: the dialog asks.
+    pub quit_without_asking: bool,
 }
 
 /// A named sidebar filter: the scope's projects, by folder (a project's id changes if it is added again), and the
@@ -246,7 +249,7 @@ pub const MAX_RECENT_ENVIRONMENTS: usize = 8;
 
 impl AppSettings {
     pub fn default_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("skyelab").join("settings.toml"))
+        crate::instance::config_file("settings.toml")
     }
 
     /// The windows to open at launch: the list, else an older file's single slot.

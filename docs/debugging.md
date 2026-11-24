@@ -24,6 +24,21 @@ cargo-flamegraph 0.6.15 for flame graphs, tracing 0.1 with tracing-chrome 0.7 (s
 tracing-tracy 0.12, console-subscriber 0.5, dhat 0.3. tracing-perfetto (0.1.5) was passed over: Perfetto reads
 Chrome JSON and tracing-chrome is the more used crate.
 
+## Dev builds' own dirs
+
+A debug build (`cargo run`) keeps its config, data and cache under `skyelab-dev` instead of `skyelab`
+(`skyelab_core::instance::APP_DIR`): its own `skyelab.db`, `settings.toml`, worktrees, run dirs and `debug/`. So a dev
+branch's store migration never makes the installed app refuse to open, and both can run at once with separate thread
+lists. The first debug launch copies the installed app's `accounts.toml` (only that file); after that the two are
+separate. Paths below say `skyelab`; read `skyelab-dev` for a debug build.
+
+One copy runs per data dir. The first takes an OS lock on `skyelab.lock` there (the OS releases it when the process
+ends, crash included, so it is never stale), listens on 127.0.0.1 and writes its port and a random token to
+`skyelab.instance` (0600). A second launch of the same build kind finds the lock held, asks the running copy to show a
+window, and exits with a message; when the running copy holds the lock but doesn't answer within about 2 s
+(still starting, or hung), it says so and exits too, never opening the same store twice. A throwaway `HOME` (the live checks in CLAUDE.md) is another data dir, so it never
+meets your running app.
+
 ## Turning debug mode on
 
 Any of these turns it on:

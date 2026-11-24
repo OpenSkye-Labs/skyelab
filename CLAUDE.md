@@ -85,7 +85,13 @@ and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is th
   `tap <id>` calls `device_tap` at 50,100. Never drive a real simulator or emulator in tests. All of these are debug builds only.
 - A real-account run (only with the user's explicit OK) needs the REAL `HOME`: on macOS, Claude Code reads its login from the
   keychain, and a throwaway `HOME` makes it report "Not logged in". It then uses the real SkyeLab data dir
-  (`~/Library/Application Support/skyelab`), so back up or clean up whatever the run creates there.
+  (`~/Library/Application Support/skyelab-dev` for a debug build, `skyelab` for a release build), so back up or clean
+  up whatever the run creates there.
+- Debug builds keep their own config, data and cache dirs (`skyelab-dev`, `skyelab_core::instance::APP_DIR`; the first
+  one copies the installed app's `accounts.toml`), so a dev store migration never reaches the installed app. One copy
+  runs per data dir: a second launch of the same build kind asks the running one for a window and exits. A throwaway
+  `HOME` has its own data dir, so live checks never collide with your running app; in it, hand-written files go under
+  `Library/Application Support/skyelab-dev/`.
 - Never kill processes by command-line match (`pkill -f`, `pgrep -f … | xargs kill`): other sessions on this machine run
   the same commands. Kill only PIDs you started and recorded yourself.
 - Hand-written `accounts.toml` bindings in a throwaway HOME need `resolved = "<same path>"`, or they load as stale
@@ -120,7 +126,7 @@ and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is th
   or `CODEX_HOME` for a Codex account). Never inherit the parent's `CLAUDE_CONFIG_DIR` / `CODEX_HOME`. Clear it, then set it.
 - Any child process (agent, terminal, git, gh) starts from `env_clear()` plus `skyelab_core::env`'s allowlist
   (`inherited_agent_env`, or `terminal_allowed` for terminals), never from a hand-written `env_remove` list.
-- Config: `~/.config/skyelab/accounts.toml` (platform config dir). An unknown account id is a load error, not a warning.
+- Config: `~/.config/skyelab/accounts.toml` (platform config dir; `skyelab-dev` in debug builds). An unknown account id is a load error, not a warning.
 
 ## Platform setup
 

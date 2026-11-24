@@ -11,7 +11,7 @@
 #   scripts/perf.sh startup     launch and quit twice on the same HOME: cold, then warm
 #   scripts/perf.sh idle        launch, wait 10 s, quit (frames drawn while idle; the overlay is off)
 #   scripts/perf.sh leaks       open 48 threads, 20 terminals, settings 20 times, the gallery 5 times, Dump Debug
-#                               State after each round (live counts and memory_mb in home/.../skyelab/debug/state-*.json)
+#                               State after each round (live counts and memory_mb in home/.../skyelab-dev/debug/state-*.json)
 #   PERF_SAMPLY=1 scripts/perf.sh open     also record a samply CPU profile of the run
 #   PERF_FEATURES=dhat-heap scripts/perf.sh open   build with extra features (hotpath, dhat-heap, ...)
 #
@@ -93,14 +93,14 @@ report() {
 }
 
 if [ "$scenario" = startup ]; then
-  sed -i '' '/^view = /d' "$out/home/Library/Application Support/skyelab/settings.toml"
+  sed -i '' '/^view = /d' "$out/home/Library/Application Support/skyelab-dev/settings.toml"
   run "$out/trace-cold.json"; report "$out/trace-cold.json"
   : > "$out/stderr.txt"
   run "$out/trace-warm.json"; report "$out/trace-warm.json"
 else
   run "$out/trace.json"; report "$out/trace.json"
 fi
-for f in "$out"/home/Library/Application\ Support/skyelab/debug/state-*.json; do
+for f in "$out"/home/Library/Application\ Support/skyelab-dev/debug/state-*.json; do
   [ -f "$f" ] && jq -c '{memory_mb, live, children: (.child_processes | length)}' "$f"
 done
 echo "  output: $out"

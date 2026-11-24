@@ -63,7 +63,7 @@ fn hex(id: &str) -> String {
 pub(super) fn unbound_root() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .context("no platform data dir for the unbound terminal homes")?
-        .join("skyelab")
+        .join(skyelab_core::instance::APP_DIR)
         .join("unbound"))
 }
 
