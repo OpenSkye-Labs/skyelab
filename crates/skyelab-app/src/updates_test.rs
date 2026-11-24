@@ -256,3 +256,31 @@ fn no_installer_means_no_install_button(cx: &mut TestAppContext) {
     });
     assert!(!cx.update(|cx| updates::can_install(cx)));
 }
+
+#[gpui::test]
+fn a_failed_install_shows_on_the_next_start(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let downloads = dir.path().join("downloads");
+    std::fs::create_dir_all(&downloads).expect("mkdir");
+    let marker = downloads.join(skyelab_core::update_install::FAILURE_MARKER);
+    std::fs::write(&marker, "v99.0.0\nthe installer failed (2)\n").expect("marker");
+    // The marker is read when the installer is set, before the start check answers.
+    let deb = installable(cx, dir.path(), b"package", b"package");
+    match status(cx) {
+        UpdateStatus::Updating {
+            tag,
+            step: updates::Step::Failed(e),
+            ..
+        } => {
+            assert_eq!(tag, "v99.0.0");
+            assert!(e.contains("installer failed (2)"), "{e}");
+        }
+        other => panic!("expected the failure, got {other:?}"),
+    }
+    assert!(!marker.exists(), "shown once");
+    // Try again works: the start check's release was kept.
+    cx.update(updates::install);
+    cx.run_until_parked();
+    assert_eq!(step(cx), Some(updates::Step::Ready));
+    assert!(downloads.join(deb).exists());
+}

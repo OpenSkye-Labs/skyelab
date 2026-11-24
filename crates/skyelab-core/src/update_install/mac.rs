@@ -16,15 +16,18 @@ pub struct Signature {
     pub team: Option<String>,
     /// Gatekeeper (`spctl --assess`) accepts it: signed with a Developer ID and notarized.
     pub accepted: bool,
+    /// `CFBundleIdentifier` from its `Info.plist`; `None` when it can't be read.
+    pub bundle_id: Option<String>,
 }
 
 const HDIUTIL: &str = "/usr/bin/hdiutil";
 const DITTO: &str = "/usr/bin/ditto";
 const CODESIGN: &str = "/usr/bin/codesign";
 const SPCTL: &str = "/usr/sbin/spctl";
+const PLUTIL: &str = "/usr/bin/plutil";
 
 /// A tool that runs longer than this (a stuck mount, `spctl` waiting on the network) fails the update.
-const TOOL_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+pub(super) const TOOL_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
 
 fn tool(program: &str) -> Command {
     let mut cmd = Command::new(program);
@@ -101,8 +104,17 @@ pub(super) fn check_app(target: &Path, new: &Path) -> anyhow::Result<()> {
         installed_team(out.status.success(), &String::from_utf8_lossy(&out.stderr))
             .map_err(|e| anyhow!(e))
     };
+    let bundle_id = |app: &Path| {
+        run(tool(PLUTIL)
+            .args(["-extract", "CFBundleIdentifier", "raw", "-o", "-"])
+            .arg(app.join("Contents").join("Info.plist")))
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
+        .filter(|id| !id.is_empty())
+    };
     let current = Signature {
         team: team(target)?,
+        bundle_id: bundle_id(target),
         ..Default::default()
     };
     let new_sig = Signature {
@@ -111,6 +123,7 @@ pub(super) fn check_app(target: &Path, new: &Path) -> anyhow::Result<()> {
             .arg(new)),
         team: team(new).unwrap_or(None),
         accepted: ok(tool(SPCTL).args(["--assess", "--type", "execute"]).arg(new)),
+        bundle_id: bundle_id(new),
     };
     signature_policy(&current, &new_sig).map_err(|e| anyhow!(e))
 }
@@ -140,9 +153,13 @@ pub fn team_id(codesign_dv: &str) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// Whether `new` may replace `current`: a signed install takes only a valid, Gatekeeper-accepted build from the same
-/// team. An unsigned install (a local or unsigned release build) relies on the checksum alone.
+/// Whether `new` may replace `current`: always the same app (`CFBundleIdentifier`, both readable); for a signed
+/// install also a valid, Gatekeeper-accepted build from the same team. An unsigned install (a local or unsigned
+/// release build) otherwise relies on the checksum alone.
 pub fn signature_policy(current: &Signature, new: &Signature) -> Result<(), String> {
+    if current.bundle_id.is_none() || new.bundle_id != current.bundle_id {
+        return Err("the update is a different app (its bundle identifier doesn't match)".into());
+    }
     let Some(team) = &current.team else {
         return Ok(());
     };

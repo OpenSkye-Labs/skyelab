@@ -296,12 +296,17 @@ fn swap_replaces_a_bundle_and_rolls_back_on_failure() {
 
 #[test]
 fn signature_policy_refuses_unsigned_over_signed() {
+    let id = Some("dev.openskye.skyelab".to_owned());
     let signed = |team: &str| Signature {
         valid: true,
         team: Some(team.into()),
         accepted: true,
+        bundle_id: Some("dev.openskye.skyelab".into()),
     };
-    let unsigned = Signature::default();
+    let unsigned = Signature {
+        bundle_id: id.clone(),
+        ..Signature::default()
+    };
     assert!(
         signature_policy(&unsigned, &unsigned).is_ok(),
         "unsigned install: checksum only"
@@ -309,7 +314,7 @@ fn signature_policy_refuses_unsigned_over_signed() {
     assert!(signature_policy(&unsigned, &signed("T1")).is_ok());
     assert!(signature_policy(&signed("T1"), &signed("T1")).is_ok());
     let refused = |new: Signature| signature_policy(&signed("T1"), &new).expect_err("refused");
-    assert!(refused(unsigned).contains("isn't signed"));
+    assert!(refused(unsigned.clone()).contains("isn't signed"));
     assert!(refused(signed("T2")).contains("different developer"));
     assert!(
         refused(Signature {
@@ -325,6 +330,119 @@ fn signature_policy_refuses_unsigned_over_signed() {
         })
         .contains("Gatekeeper")
     );
+}
+
+#[test]
+fn the_update_must_be_the_same_app() {
+    let app = |id: Option<&str>, team: Option<&str>| Signature {
+        valid: true,
+        team: team.map(Into::into),
+        accepted: true,
+        bundle_id: id.map(Into::into),
+    };
+    let ours = Some("dev.openskye.skyelab");
+    // Another app, even from the same team or with no signature at all, is refused.
+    let other = signature_policy(
+        &app(ours, Some("T1")),
+        &app(Some("dev.openskye.other"), Some("T1")),
+    )
+    .expect_err("other app");
+    assert!(other.contains("different app"), "{other}");
+    assert!(signature_policy(&app(ours, None), &app(Some("x.y"), None)).is_err());
+    assert!(
+        signature_policy(&app(ours, None), &app(None, None)).is_err(),
+        "unreadable id"
+    );
+    assert!(
+        signature_policy(&app(None, None), &app(ours, None)).is_err(),
+        "installed id unreadable"
+    );
+    assert!(signature_policy(&app(ours, Some("T1")), &app(ours, Some("T1"))).is_ok());
+}
+
+#[test]
+fn authenticode_policy_keeps_a_signed_install_signed() {
+    let sig = |out: &str| parse_authenticode(out);
+    let ours = sig("Valid\nCN=OpenSkye, O=OpenSkye, C=US\n");
+    assert_eq!(ours.status, "Valid");
+    assert_eq!(ours.subject, "CN=OpenSkye, O=OpenSkye, C=US");
+    let unsigned = sig("NotSigned\n\n");
+    assert!(
+        authenticode_policy(&unsigned, &unsigned).is_ok(),
+        "unsigned install: checksum only"
+    );
+    assert!(authenticode_policy(&unsigned, &ours).is_ok());
+    assert!(authenticode_policy(&ours, &ours).is_ok());
+    let refused = |new: &str| authenticode_policy(&ours, &sig(new)).expect_err("refused");
+    assert!(refused("NotSigned\n").contains("isn't validly signed"));
+    assert!(
+        refused("HashMismatch\nCN=OpenSkye, O=OpenSkye, C=US").contains("isn't validly signed")
+    );
+    assert!(refused("Valid\nCN=Someone Else").contains("different publisher"));
+    // An installed signature that can't be read never counts as unsigned.
+    assert!(authenticode_policy(&sig("UnknownError\n"), &ours).is_err());
+    assert!(authenticode_policy(&sig(""), &ours).is_err());
+}
+
+#[test]
+fn the_installer_script_reports_a_failed_install() {
+    let cmd = installer_command(
+        Path::new(r"C:\Users\u\AppData\Local\skyelab\updates\SkyeLab_1.0.0_x64-setup.exe"),
+        Path::new(r"C:\Program Files\SkyeLab\skyelab.exe"),
+        42,
+        Path::new(r"C:\Users\u\AppData\Local\skyelab\updates\update-failed"),
+        "v1.0.0",
+    );
+    assert!(
+        cmd.get_program()
+            .to_string_lossy()
+            .ends_with("powershell.exe")
+    );
+    assert!(Path::new(cmd.get_program()).is_absolute() || !cfg!(windows));
+    let script = cmd
+        .get_args()
+        .last()
+        .expect("script")
+        .to_string_lossy()
+        .into_owned();
+    assert!(script.contains("ExitCode"), "{script}");
+    assert!(script.contains("SKYELAB_UPDATE_MARKER"), "{script}");
+    assert!(
+        !script.contains("skyelab.exe") && !script.contains("setup.exe"),
+        "no paths in the script"
+    );
+    let env: Vec<(String, Option<String>)> = cmd
+        .get_envs()
+        .map(|(k, v)| {
+            (
+                k.to_string_lossy().into(),
+                v.map(|v| v.to_string_lossy().into()),
+            )
+        })
+        .collect();
+    let get = |k: &str| {
+        env.iter()
+            .find(|(n, _)| n == k)
+            .and_then(|(_, v)| v.clone())
+    };
+    assert_eq!(get("SKYELAB_UPDATE_PID").as_deref(), Some("42"));
+    assert_eq!(get("SKYELAB_UPDATE_TAG").as_deref(), Some("v1.0.0"));
+    assert!(get("SKYELAB_UPDATE_MARKER").is_some_and(|m| m.ends_with("update-failed")));
+    assert!(get("CLAUDE_CONFIG_DIR").is_none() && get("GH_TOKEN").is_none());
+}
+
+#[test]
+fn a_failure_marker_names_the_version_and_why() {
+    assert_eq!(
+        parse_failure("v1.0.0\nthe installer failed (2)\n"),
+        Some(("v1.0.0".into(), "the installer failed (2)".into()))
+    );
+    assert_eq!(
+        parse_failure("v1.0.0\n"),
+        Some(("v1.0.0".into(), "the installer failed".into()))
+    );
+    assert_eq!(parse_failure(""), None);
+    assert_eq!(parse_failure("../evil\nx"), None);
 }
 
 #[test]

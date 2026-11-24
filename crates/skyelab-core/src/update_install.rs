@@ -14,8 +14,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 mod mac;
+mod windows;
 pub use mac::{Signature, installed_team, signature_policy, team_id};
 use mac::{check_app, stage_app};
+pub use windows::{
+    Authenticode, FAILURE_MARKER, authenticode_policy, installer_command, parse_authenticode,
+    parse_failure,
+};
 
 /// How this copy of SkyeLab was installed, which decides what an update downloads and how it lands.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,11 +45,14 @@ pub enum Staged {
         target: PathBuf,
         sha256: Option<String>,
     },
-    /// The installer to run once this process has quit, then the app at `exe`.
+    /// The installer for release `tag` to run once this process has quit, then the app at `exe`; a failure is
+    /// written to `marker` for the next start.
     Installer {
         installer: PathBuf,
         exe: PathBuf,
         sha256: String,
+        tag: String,
+        marker: PathBuf,
     },
     /// A package the user installs themselves: shown in its folder.
     Folder(PathBuf),
@@ -201,7 +209,7 @@ pub fn prepare(
         remove_all(&part);
         return Err(e);
     }
-    let staged = stage(install, &file, &want);
+    let staged = stage(install, &file, &want, tag);
     if staged.is_err() {
         remove_all(&file);
     }
@@ -243,18 +251,23 @@ fn beside(target: &Path, tag: &str) -> anyhow::Result<PathBuf> {
     Ok(target.with_file_name(format!(".{}.{tag}", name.to_string_lossy())))
 }
 
-fn stage(install: &Install, file: &Path, sha256: &str) -> anyhow::Result<Staged> {
+fn stage(install: &Install, file: &Path, sha256: &str, tag: &str) -> anyhow::Result<Staged> {
     match install {
         Install::MacApp(target) => Ok(Staged::Swap {
             new: stage_app(file, target)?,
             target: target.clone(),
             sha256: None,
         }),
-        Install::Nsis(exe) => Ok(Staged::Installer {
-            installer: file.to_owned(),
-            exe: exe.clone(),
-            sha256: sha256.to_owned(),
-        }),
+        Install::Nsis(exe) => {
+            windows::check_installer(exe, file)?;
+            Ok(Staged::Installer {
+                installer: file.to_owned(),
+                exe: exe.clone(),
+                sha256: sha256.to_owned(),
+                tag: tag.to_owned(),
+                marker: file.with_file_name(FAILURE_MARKER),
+            })
+        }
         Install::AppImage(target) => {
             let new = beside(target, "update")?;
             let copied = (|| -> io::Result<()> {
@@ -365,28 +378,13 @@ pub fn finish(staged: &Staged, pid: u32) -> io::Result<()> {
             cmd.arg(target);
             cmd
         }
-        Staged::Installer { installer, exe, .. } => {
-            let root = std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into());
-            let mut cmd =
-                clean(&Path::new(&root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe"));
-            // Paths go in as env vars, so nothing is quoted into the script.
-            cmd.args(["-NoProfile", "-NonInteractive", "-Command"])
-                .arg(
-                    "Wait-Process -Id $env:SKYELAB_UPDATE_PID -ErrorAction SilentlyContinue; \
-                     Start-Process -Wait -FilePath $env:SKYELAB_UPDATE_INSTALLER -ArgumentList '/S'; \
-                     Start-Process -FilePath $env:SKYELAB_UPDATE_EXE",
-                )
-                .env("SKYELAB_UPDATE_PID", pid.to_string())
-                .env("SKYELAB_UPDATE_INSTALLER", installer)
-                .env("SKYELAB_UPDATE_EXE", exe);
-            #[cfg(windows)]
-            {
-                use std::os::windows::process::CommandExt as _;
-                const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-                cmd.creation_flags(CREATE_NO_WINDOW);
-            }
-            cmd
-        }
+        Staged::Installer {
+            installer,
+            exe,
+            tag,
+            marker,
+            ..
+        } => installer_command(installer, exe, pid, marker, tag),
     };
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())

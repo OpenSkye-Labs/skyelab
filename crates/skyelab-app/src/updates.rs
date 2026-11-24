@@ -7,12 +7,15 @@
 
 use gpui::{App, AppContext as _, Global, Task, actions};
 use skyelab_client::release::Release;
-use skyelab_core::update::{self, Asset, LATEST_RELEASE_URL};
+use skyelab_core::update;
 use skyelab_core::update_install::{self as install, Install, Staged};
 use skyelab_core::{AppSettings, Provider};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+mod sources;
+pub use sources::{downloader, fetcher};
 
 actions!(skyelab, [CheckForUpdates]);
 
@@ -93,55 +96,6 @@ pub struct Updates {
 
 impl Global for Updates {}
 
-/// The real fetch, or in debug builds `SKYELAB_UPDATE_FAKE=<tag>`'s release (no network), listing the files in
-/// `SKYELAB_UPDATE_FAKE_DIR` (`fake_dir`) as its assets.
-pub fn fetcher(fake: Option<String>, fake_dir: Option<PathBuf>, debug: bool) -> Fetch {
-    match fake.filter(|_| debug) {
-        Some(tag) => Arc::new(move || {
-            let names = fake_dir
-                .as_deref()
-                .and_then(|d| std::fs::read_dir(d).ok())
-                .into_iter()
-                .flatten()
-                .filter_map(|e| e.ok()?.file_name().into_string().ok());
-            Ok(Release {
-                url: format!("{}tag/{tag}", update::RELEASES_PAGE),
-                assets: names
-                    .map(|name| Asset {
-                        url: format!("{}download/{tag}/{name}", update::RELEASES_PAGE),
-                        name,
-                    })
-                    .collect(),
-                tag: tag.clone(),
-            })
-        }),
-        None => Arc::new(|| skyelab_client::release::latest_release(LATEST_RELEASE_URL)),
-    }
-}
-
-/// The real download, or in debug builds with `SKYELAB_UPDATE_FAKE_DIR` the file of that name from the folder,
-/// slowed so the progress shows.
-pub fn downloader(fake_dir: Option<PathBuf>, debug: bool) -> Download {
-    match fake_dir.filter(|_| debug) {
-        Some(dir) => Arc::new(move |url, out, progress| {
-            let name = url.rsplit('/').next().unwrap_or_default();
-            let bytes = std::fs::read(dir.join(name))?;
-            let total = bytes.len() as u64;
-            let mut done = 0;
-            for chunk in bytes.chunks(bytes.len().div_ceil(40).max(1)) {
-                out.write_all(chunk)?;
-                done += chunk.len() as u64;
-                progress(done, Some(total));
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            Ok(())
-        }),
-        None => {
-            Arc::new(|url, out, progress| skyelab_client::release::download(url, out, progress))
-        }
-    }
-}
-
 /// How this copy installs updates: from its exe path and `$APPIMAGE`, or in debug builds the bundle or AppImage at
 /// `SKYELAB_UPDATE_FAKE_APP` (`fake_app`). `None`: it can't (a dev build), and Download opens the release page.
 pub fn installer(fake_app: Option<PathBuf>, debug: bool, download: Download) -> Option<Installer> {
@@ -167,10 +121,28 @@ pub fn installer(fake_app: Option<PathBuf>, debug: bool, download: Download) -> 
     })
 }
 
-/// Sets how this copy installs updates.
+/// Sets how this copy installs updates. A failed install from before this start (Windows notes it in the updates
+/// folder) is shown once in the notice.
 pub fn set_installer(installer: Option<Installer>, cx: &mut App) {
-    if cx.has_global::<Updates>() {
-        cx.global_mut::<Updates>().installer = installer;
+    if !cx.has_global::<Updates>() {
+        return;
+    }
+    let failed = installer.as_ref().and_then(|i| {
+        let marker = i.dir.join(install::FAILURE_MARKER);
+        let text = std::fs::read_to_string(&marker).ok()?;
+        let _ = std::fs::remove_file(&marker);
+        install::parse_failure(&text)
+    });
+    cx.global_mut::<Updates>().installer = installer;
+    if let Some((tag, why)) = failed {
+        set_status(
+            UpdateStatus::Updating {
+                url: format!("{}tag/{tag}", update::RELEASES_PAGE),
+                tag,
+                step: Step::Failed(why),
+            },
+            cx,
+        );
     }
 }
 
@@ -277,6 +249,15 @@ pub fn check(manual: bool, cx: &mut App) {
             if !matches!(cx.global::<Updates>().status, UpdateStatus::Checking)
                 && busy(&cx.global::<Updates>().status)
             {
+                return;
+            }
+            // A failed install of this same release (shown from the last start) stays up; Try again needs the release.
+            let failed_same = matches!(
+                (&cx.global::<Updates>().status, &next),
+                (UpdateStatus::Updating { tag, step: Step::Failed(_), .. }, UpdateStatus::Available { tag: t, .. }) if tag == t
+            );
+            if !manual && failed_same {
+                cx.global_mut::<Updates>().release = release;
                 return;
             }
             // A failed automatic check leaves a notice already shown in place.
