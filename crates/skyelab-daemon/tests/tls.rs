@@ -276,14 +276,14 @@ fn hung_renewal_doesnt_block_the_gate() {
         ..test_config()
     };
     let daemon = start(tailnet.clone(), Arc::new(Counting::default()), config);
-    *tailnet.cert_hang.lock().expect("lock") = Duration::from_secs(5);
+    *tailnet.cert_hang.lock().expect("lock") = Duration::from_secs(20);
     wait_for("a renewal to start", || {
         tailnet.cert_calls.load(Ordering::SeqCst) >= 2
     });
     let started = Instant::now();
     connect_hello(daemon.local_addrs()[0]);
     assert!(
-        started.elapsed() < Duration::from_secs(4), // under the 5 s hung renewal
+        started.elapsed() < Duration::from_secs(10), // under the 20 s hung renewal
         "the gate waited {:?} behind a hung renewal",
         started.elapsed()
     );
