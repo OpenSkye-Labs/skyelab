@@ -149,7 +149,7 @@ local\0gpg.program\nevil\0local\0core.sshcommand\nevil\0";
     assert_eq!(get("filter.ev.process"), Some(""));
     assert_eq!(get("merge.ev.driver"), Some(""));
     for (k, v) in [
-        ("core.hooksPath", "/dev/null"),
+        ("core.hooksPath", crate::NO_HOOKS),
         ("core.fsmonitor", "false"),
         ("submodule.recurse", "false"),
         ("credential.helper", ""),
@@ -196,4 +196,13 @@ fn the_scratch_index_keeps_the_index_mtime() {
             .expect("mtime"),
         old
     );
+}
+
+/// #13: nothing (another account's agent included) can make the folder git would look in for hooks with them off.
+#[test]
+fn no_hook_can_be_planted_under_the_hooks_off_path() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let dir = tmp.path().join(crate::NO_HOOKS);
+    assert!(std::fs::create_dir_all(&dir).is_err(), "{}", dir.display());
+    assert!(std::fs::write(dir.join("pre-commit"), "x").is_err());
 }

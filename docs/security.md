@@ -51,7 +51,8 @@
   `gpg.ssh.defaultKeyCommand` get your global (or system) value, else git's own default (`ssh`, `gpg`, `gpgsm`,
   `ssh-keygen`, no key command), so signing still uses your tools; `credential.helper` and `core.askPass` are emptied
   (push and fetch then add only the account's gh); `core.fsmonitor`, `core.hooksPath` and `submodule.recurse` are
-  off, as are automatic gc and maintenance (gc runs `gc.recentObjectsHook`). A submodule's dirty check (git run
+  off (`core.hooksPath=/dev/null`; on Windows `*`, a name NTFS refuses, since `\dev\null` there is a folder any user
+  can create), as are automatic gc and maintenance (gc runs `gc.recentObjectsHook`). A submodule's dirty check (git run
   inside it, under its own config, which `.gitmodules` can switch back on) never runs: status and diffs pass
   `--ignore-submodules=dirty`, the review snapshot and a branch switch's stash leave checked-out submodules out of
   their pathspec and read only their HEAD. So the Changes tab shows a submodule's new commit but not edits inside it,

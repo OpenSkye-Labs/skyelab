@@ -61,8 +61,10 @@ rustix = { version = "1.1", features = ["process", "termios"] }
 sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
 # Windows Job Objects (kill an agent with its whole process tree), a safe API.
 win32job = "2.1"
-# The MCP pipe's security descriptor (skyelab-pipe-sys).
+# The MCP pipe's security descriptor (skyelab-pipe-sys), SO_EXCLUSIVEADDRUSE (skyelab-net-sys).
 windows-sys = "0.61.2"
+# The exclusive forward listener on Windows (skyelab-net-sys); already in the tree through tokio.
+socket2 = "0.6.5"
 # Prompt ids claude echoes back in a result (user_message_uuids).
 uuid = { version = "1.29", features = ["v4"] }
 base64 = "0.23"
@@ -113,6 +115,7 @@ skyelab-browser = { path = "crates/skyelab-browser" }
 skyelab-webkit-sys = { path = "crates/skyelab-webkit-sys" }
 skyelab-speech-sys = { path = "crates/skyelab-speech-sys" }
 skyelab-pipe-sys = { path = "crates/skyelab-pipe-sys" }
+skyelab-net-sys = { path = "crates/skyelab-net-sys" }
 skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }
 skyelab-client = { path = "crates/skyelab-client" }

@@ -8533,6 +8533,7 @@ dependencies = [
  "serde_json",
  "skyelab-core",
  "skyelab-daemon",
+ "skyelab-net-sys",
  "skyelab-protocol",
  "skyelab-store",
  "skyelab-tailnet",
@@ -8617,6 +8618,14 @@ dependencies = [
  "skyelab-core",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "skyelab-net-sys"
+version = "0.1.0"
+dependencies = [
+ "socket2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
