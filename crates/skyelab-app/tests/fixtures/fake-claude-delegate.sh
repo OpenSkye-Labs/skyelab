@@ -4,6 +4,8 @@
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
 # in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (echoed as text plus a base64 image block, as real claude does), `chart` for an html_render of a small bar chart, `peek` for an html_preview of it (light), `device <id>` for a device_open and `tap <id>` for a device_tap at 50,100; `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
+# A title, commit or PR call (`-p ... --no-session-persistence`) answers as fake-claude.sh does, not with the session.
+case " $* " in *" --no-session-persistence "*) exec sh "$(dirname "$0")/fake-claude.sh" "$@" ;; esac
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
