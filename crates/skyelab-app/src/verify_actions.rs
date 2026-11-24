@@ -35,7 +35,12 @@ pub(crate) fn dispatch_verify_actions(cx: &mut App) {
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(500))
                     .await;
-                let text = std::fs::read_to_string(file).unwrap_or_default();
+                // Off the main thread: a read that stalls (a busy external disk) must not freeze the app.
+                let path = file.clone();
+                let text = cx
+                    .background_executor()
+                    .spawn(async move { std::fs::read_to_string(path).unwrap_or_default() })
+                    .await;
                 let lines: Vec<&str> = text.lines().collect();
                 if lines.len() > seen {
                     queue.extend(
