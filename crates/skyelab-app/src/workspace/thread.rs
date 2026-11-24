@@ -238,7 +238,10 @@ impl ThreadView {
                         replay(&mut this.items, r, *at, fork_made);
                         this.limited = limit_after(this.limited, r);
                         this.note_model(r, false);
-                        super::thread_details::fold_mcp(&mut this.details.mcp, r);
+                        // A fork's copied rows are its source's processes, not its own.
+                        if fork_made.is_none_or(|made| *at > made) {
+                            super::thread_details::fold_mcp(&mut this.details.mcp, r);
+                        }
                     }
                     this.lists.reset(this.items.len());
                     this.load_turn_files(cx);

@@ -15,6 +15,16 @@ impl ThreadView {
         use gpui_component::{
             Sizable as _, WindowExt as _, button::Button, button::ButtonVariants as _,
         };
+        if self.starting {
+            // The process starting now reads the account's config as it is: nothing to restart yet.
+            return super::super::manage::push_note(
+                window,
+                gpui_component::notification::Notification::info(
+                    "The agent is still starting, and it loads your MCP servers, skills and plugins as they are now.",
+                ),
+                cx,
+            );
+        }
         if !self.turn_running() {
             return self.restart_now(window, cx);
         }

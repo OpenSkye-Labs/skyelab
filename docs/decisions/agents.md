@@ -78,9 +78,11 @@ Each entry is dated; newest at the bottom.
   repo's `.mcp.json` stays out) and copies the top-level `mcpServers` of the bound account's
   `$CLAUDE_CONFIG_DIR/.claude.json` (Claude Code's user scope) into the `--mcp-config` file next to its own server, after
   the folder was re-checked against the account. Per-folder `projects.*.mcpServers` (local scope) are left out too:
-  they are keyed by a path the repo doesn't choose, but they are still per-folder config we don't need. A server named
-  `skyelab` in any case is skipped, so SkyeLab's server and its pre-allowed `mcp__skyelab` tools can't be replaced;
-  the account's servers are not pre-allowed and ask like any tool. A file that doesn't parse starts the agent with only
+  they are keyed by a path the repo doesn't choose, but they are still per-folder config we don't need. A server whose
+  name starts with `skyelab` once Claude normalizes it (any case; `skyelab__x` included, as its tools would read as
+  `mcp__skyelab__…`) is skipped with a warning, so SkyeLab's server and its pre-allowed `mcp__skyelab` tools can't be
+  replaced or borrowed; the account's servers are not pre-allowed and ask like any tool. Whether Claude's
+  `mcp__skyelab` rule would match `skyelab__x`'s tools is unverified; the prefix rule makes it moot. A file that doesn't parse starts the agent with only
   SkyeLab's server and a warning row. Claude Code (2.1.330, from its own strings: "This session runs with
   --strict-mcp-config, which connects no plugin servers") connects no plugin MCP servers in strict mode; not checked by
   a run. Codex reads `CODEX_HOME/config.toml` itself; SkyeLab now sends its server as the one dotted override key
@@ -89,4 +91,6 @@ Each entry is dated; newest at the bottom.
   whatever `env` the account's config gives them. (2026-11-24)
 - **Restart agent session ends the process, it doesn't start one.** Like T3's: the palette command stops the agent
   (asking first when a turn is running), and the next send resumes the same session in a new process, which reads the
-  account's MCP servers, skills and plugins again. (2026-11-24)
+  account's MCP servers, skills and plugins again. It counts as an ended agent everywhere else too: an orchestrating
+  parent's `send_message` and a remote send are refused, as after Stop. While the agent is still starting there is
+  nothing to restart (it already reads the config as it is). (2026-11-24)
