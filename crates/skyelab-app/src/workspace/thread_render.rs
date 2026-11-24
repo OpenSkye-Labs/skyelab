@@ -101,11 +101,12 @@ impl ThreadView {
                     }))
                     // The title keeps some room when the center is narrow (a right panel open), the folder gives way first.
                     .child(div().min_w(px(72.)).truncate().child(self.title()))
-                    .children(
-                        self.composer.extras.forked_from.clone().map(|(id, label)| {
-                            thread_link("forked-from", id, label).flex_shrink_0()
-                        }),
-                    ),
+                    .children(self.composer.extras.forked_from.clone().map(|(id, label)| {
+                        // Gives way first: kept whole, a long source title squeezed the project to "bou…".
+                        thread_link("forked-from", id, label)
+                            .flex_shrink(8.)
+                            .min_w(px(72.))
+                    })),
             )
             .child(
                 div()
