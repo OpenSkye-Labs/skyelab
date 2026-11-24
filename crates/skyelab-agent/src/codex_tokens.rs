@@ -24,11 +24,11 @@ pub(super) fn reading(usage: &Value, base: &mut Option<Usage>) -> Option<Usage> 
     Some(total)
 }
 
-/// How full the context is after the newest model call: its `last.totalTokens` against `modelContextWindow`.
 pub(super) fn context(usage: &Value) -> Option<Event> {
     let tokens = usage["last"]["totalTokens"].as_u64().filter(|t| *t > 0)?;
     Some(Event::Context {
         tokens: Some(tokens),
         window: usage["modelContextWindow"].as_u64().filter(|w| *w > 0),
+        model: None,
     })
 }

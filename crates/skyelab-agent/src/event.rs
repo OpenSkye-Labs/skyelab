@@ -90,6 +90,11 @@ pub enum Event {
         tokens: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         window: Option<u64>,
+        /// The model the reading is for (Claude's `message.model`, or the `modelUsage` key): `modelUsage` keeps
+        /// listing every model the process used, so a window counts only for its own model. `None` from Codex, whose
+        /// window is always the running model's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model: Option<String>,
     },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
@@ -421,25 +426,38 @@ fn claude_usage(u: &Value) -> Usage {
     }
 }
 
-/// A main-thread assistant line's context tokens: input, cache writes, cache reads and output. `None` for a subagent's
-/// line and for a placeholder usage with no input.
-pub(crate) fn claude_context_tokens(v: &Value) -> Option<u64> {
+/// A main-thread assistant line's context reading: input, cache writes, cache reads and output, and its model.
+/// `None` for a subagent's line and for a placeholder usage with no input.
+pub(crate) fn claude_context(v: &Value) -> Option<Event> {
     if v["type"] != "assistant" || !v["parent_tool_use_id"].is_null() {
         return None;
     }
     let u = v["message"].get("usage").filter(|u| u.is_object())?;
     let n = |k: &str| u[k].as_u64().unwrap_or_default();
-    let input = n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens");
-    (input > 0).then(|| input + n("output_tokens"))
+    let input = n("input_tokens")
+        .saturating_add(n("cache_creation_input_tokens"))
+        .saturating_add(n("cache_read_input_tokens"));
+    (input > 0).then(|| Event::Context {
+        tokens: Some(input.saturating_add(n("output_tokens"))),
+        window: None,
+        model: v["message"]["model"].as_str().map(str::to_owned),
+    })
 }
 
-/// The context window a result's `modelUsage` reports. shortcut: the largest of its models (a subagent's Haiku is
-/// listed next to the main model, which in practice has the larger window); upgrade when results name the main model.
-pub(crate) fn claude_context_window(v: &Value) -> Option<u64> {
-    v["modelUsage"]
-        .as_object()?
-        .values()
-        .filter_map(|m| m["contextWindow"].as_u64())
-        .filter(|w| *w > 0)
-        .max()
+/// Each model's window from a result's `modelUsage`.
+pub(crate) fn claude_context_windows(v: &Value) -> Vec<Event> {
+    let Some(models) = v["modelUsage"].as_object() else {
+        return Vec::new();
+    };
+    models
+        .iter()
+        .filter_map(|(model, m)| {
+            let window = m["contextWindow"].as_u64().filter(|w| *w > 0)?;
+            Some(Event::Context {
+                tokens: None,
+                window: Some(window),
+                model: Some(model.clone()),
+            })
+        })
+        .collect()
 }

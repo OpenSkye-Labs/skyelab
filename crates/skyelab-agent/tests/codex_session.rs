@@ -157,7 +157,8 @@ fn a_turn_streams_as_claude_events_under_the_bound_codex_home() {
             },
             Event::Context {
                 tokens: Some(1200),
-                window: Some(272_000)
+                window: Some(272_000),
+                model: None,
             },
             Event::Result {
                 is_error: false,

@@ -24,7 +24,8 @@ fn a_claude_assistant_message_reports_its_context_tokens() {
         readings(&events),
         vec![Event::Context {
             tokens: Some(81_243),
-            window: None
+            window: None,
+            model: Some("claude-opus-5-5".into()),
         }]
     );
 }
@@ -47,12 +48,26 @@ fn a_claude_result_reports_the_window_from_model_usage() {
         events.iter().any(|e| matches!(e, Event::Result { .. })),
         "{events:?}"
     );
+    // modelUsage is the process's running total, so it lists every model used: each window goes with its model.
+    let mut windows = readings(&events);
+    windows.sort_by_key(|e| match e {
+        Event::Context { window, .. } => *window,
+        _ => None,
+    });
     assert_eq!(
-        readings(&events),
-        vec![Event::Context {
-            tokens: None,
-            window: Some(1_000_000)
-        }]
+        windows,
+        vec![
+            Event::Context {
+                tokens: None,
+                window: Some(200_000),
+                model: Some("claude-haiku-4-5".into()),
+            },
+            Event::Context {
+                tokens: None,
+                window: Some(1_000_000),
+                model: Some("claude-opus-5-5".into()),
+            },
+        ]
     );
     let bare = r#"{"type":"result","is_error":false,"duration_ms":1,"result":"ok","total_cost_usd":0,"modelUsage":{"m":{"inputTokens":3}}}"#;
     assert_eq!(readings(&claude(bare)), vec![]);
@@ -72,7 +87,8 @@ fn codex_token_usage_reports_the_last_call_and_its_window_for_its_own_thread_onl
         readings(&c.on_line(usage("thr")).0),
         vec![Event::Context {
             tokens: Some(50_500),
-            window: Some(258_400)
+            window: Some(258_400),
+            model: None,
         }]
     );
     assert_eq!(readings(&c.on_line(usage("child")).0), vec![]);
