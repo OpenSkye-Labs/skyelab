@@ -76,14 +76,14 @@ fn add_a_codex_account_and_log_in(cx: &mut TestAppContext) {
     let seen = asked.clone();
     let _sub = cx.update(|_, cx| {
         cx.subscribe(&view, move |_, e: &SettingsEvent, _| {
-            if let SettingsEvent::CodexLogin { dir } = e {
-                seen.borrow_mut().push(dir.clone());
+            if let SettingsEvent::AgentLogin { id } = e {
+                seen.borrow_mut().push(id.clone());
             }
         })
     });
-    view.update(cx, |v, cx| v.codex_log_in("oai", cx));
+    view.update(cx, |v, cx| v.log_in("oai", cx));
     cx.run_until_parked();
-    assert_eq!(*asked.borrow(), vec![codex_home.clone()]);
+    assert_eq!(*asked.borrow(), vec!["oai".to_string()]);
 
     let opts = crate::workspace::github::codex_login_options(Path::new("/opt/codex"), &codex_home)
         .expect("options");
@@ -108,47 +108,4 @@ fn add_a_codex_account_and_log_in(cx: &mut TestAppContext) {
             .mode();
         assert_eq!(mode & 0o777, 0o700);
     }
-}
-
-#[gpui::test]
-fn a_claude_account_has_no_codex_login(cx: &mut TestAppContext) {
-    cx.update(|cx| {
-        gpui_component::init(cx);
-        init(cx);
-    });
-    let mut config = AccountsConfig::default();
-    config
-        .add_account(Account {
-            id: "acme".into(),
-            label: "Acme".into(),
-            provider: Provider::Claude,
-            config_dir: "/home/me/.claude-acme".into(),
-            gh_config_dir: None,
-            ssh_agent: false,
-        })
-        .expect("add");
-    let (view, cx) = cx.add_window_view(|window, cx| Settings::new(None, config, None, window, cx));
-    let asked = std::rc::Rc::new(RefCell::new(0));
-    let seen = asked.clone();
-    let _sub = cx.update(|_, cx| {
-        cx.subscribe(&view, move |_, _: &SettingsEvent, _| {
-            *seen.borrow_mut() += 1
-        })
-    });
-    cx.run_until_parked();
-    assert!(cx.debug_bounds("provider-acme").is_some());
-    assert!(
-        cx.debug_bounds("codex-login-acme").is_none(),
-        "no Codex login on a Claude row"
-    );
-    view.update(cx, |v, cx| v.codex_log_in("acme", cx));
-    cx.run_until_parked();
-    assert_eq!(*asked.borrow(), 0);
-    view.read_with(cx, |v, _| {
-        assert!(
-            v.error
-                .as_deref()
-                .is_some_and(|e| e.contains("not a Codex account"))
-        )
-    });
 }

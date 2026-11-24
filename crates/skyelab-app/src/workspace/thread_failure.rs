@@ -1,10 +1,10 @@
 //! A failed turn's banner over the composer (T3's ThreadErrorBanner): what went wrong, Retry (the last prompt again)
-//! and View output (the agent's stderr row). A signed-out account says so by name and points at Settings → Accounts;
-//! it never offers another account.
+//! and View output (the agent's stderr row). A signed-out account says so by name and offers Log in (a terminal
+//! logging that same account in) and Settings → Accounts; it never offers another account.
 
-use super::OpenSettingsSection;
 use super::thread::ThreadView;
 use super::thread_model::Item;
+use super::{LogInAccount, OpenSettingsSection};
 use crate::ui;
 use gpui::{AnyElement, Context, FontWeight, Window, div, prelude::*};
 use gpui_component::{
@@ -157,9 +157,13 @@ impl ThreadView {
         let title = self.failure_title(&f);
         // What the agent said, then (signed out) what to do about it, on its own line.
         let hint = f.signed_out.then_some(
-            "Sign in to this account again in Settings → Accounts, then retry. This folder only runs on its bound \
-             account.",
+            "Log in to this account again, then retry. This folder only runs on its bound account.",
         );
+        // Log in names the thread's own account only: a folder never runs on another one.
+        let login = f
+            .signed_out
+            .then(|| self.thread.as_ref().map(|t| t.account_id.clone()))
+            .flatten();
         let detail = f.text.clone();
         let row = f.row;
         let actions = h_flex()
@@ -174,6 +178,20 @@ impl ThreadView {
                         .on_click(cx.listener(|this, _, window, cx| this.retry_failed(window, cx))),
                 )
             })
+            .children(login.map(|id| {
+                div().debug_selector(|| "failure-login".into()).child(
+                Button::new("failure-login")
+                    .outline()
+                    .small()
+                    .label("Log in")
+                    .tooltip(
+                        "Opens a terminal that logs this account in, with its own config folder",
+                    )
+                    .on_click(move |_, window, cx| {
+                        window.dispatch_action(Box::new(LogInAccount { id: id.clone() }), cx);
+                    }),
+                )
+            }))
             .when(f.signed_out, |el| {
                 el.child(
                     Button::new("failure-settings")

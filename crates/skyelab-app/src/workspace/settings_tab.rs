@@ -192,10 +192,9 @@ impl Workspace {
                     }
                     SettingsEvent::Closed => return this.close_settings(window, cx),
                     SettingsEvent::GhLogin { dir } => (gh_login_options(&gh_bin(cx), dir), dir),
-                    SettingsEvent::CodexLogin { dir } => (
-                        github::codex_login_options(&github::codex_bin(cx), dir),
-                        dir,
-                    ),
+                    SettingsEvent::AgentLogin { id } => {
+                        return this.log_in_account(&LogInAccount { id: id.clone() }, window, cx);
+                    }
                 };
                 // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
                 this.close_settings(window, cx);
@@ -212,6 +211,33 @@ impl Workspace {
         ));
         self.settings = Some(settings.clone());
         settings
+    }
+
+    /// Opens a terminal tab that logs account `id` in to its agent, under that account's own config dir: from its
+    /// card in Settings → Accounts, and from a thread's "isn't signed in" banner (which only names its own account).
+    pub(super) fn log_in_account(
+        &mut self,
+        a: &LogInAccount,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(account) = self.config.accounts.iter().find(|x| x.id == a.id).cloned() else {
+            eprintln!("no account '{}' to log in", a.id);
+            return;
+        };
+        let options = match account.provider {
+            skyelab_core::Provider::Claude => {
+                github::claude_login_options(&self.backend.claude_bin, &account)
+            }
+            skyelab_core::Provider::Codex => {
+                github::codex_login_options(&github::codex_bin(cx), &account.config_dir)
+            }
+        };
+        // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
+        self.close_settings(window, cx);
+        if let Err(e) = options.and_then(|o| self.add_terminal_with(o, Some(account), window, cx)) {
+            eprintln!("failed to open the login terminal: {e:#}");
+        }
     }
 
     pub(super) fn reload_accounts(&mut self) {

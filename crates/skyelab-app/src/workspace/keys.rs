@@ -22,6 +22,14 @@ pub struct OpenSettingsSection {
     pub section: crate::settings::Section,
 }
 
+/// Open a terminal that logs account `id` in to its agent (`claude auth login` or `codex login`), with that
+/// account's own config dir.
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
+pub struct LogInAccount {
+    pub id: String,
+}
+
 #[derive(Clone, PartialEq, gpui::Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct SelectProject {

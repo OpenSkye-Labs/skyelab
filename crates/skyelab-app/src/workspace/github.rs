@@ -51,6 +51,40 @@ pub(crate) fn codex_login_options(codex: &Path, dir: &Path) -> anyhow::Result<Sp
     })
 }
 
+/// A terminal running `claude auth login` with `account`'s launch env (its `CLAUDE_CONFIG_DIR`, and its
+/// `GH_CONFIG_DIR` when set), so the login lands in that account's config dir and nowhere else. The dir is made
+/// private first, like a Codex home.
+pub(crate) fn claude_login_options(
+    claude: &Path,
+    account: &skyelab_core::Account,
+) -> anyhow::Result<SpawnOptions> {
+    let claude = claude
+        .to_str()
+        .with_context(|| format!("{} is not valid UTF-8", claude.display()))?;
+    let mut env = HashMap::new();
+    for (var, path) in account.launch_env()? {
+        let text = path
+            .to_str()
+            .with_context(|| format!("{} is not valid UTF-8", path.display()))?;
+        env.insert(var.to_string(), text.to_string());
+    }
+    let dir = &account.config_dir;
+    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+            .with_context(|| format!("making {} private", dir.display()))?;
+    }
+    Ok(SpawnOptions {
+        cwd: dirs::home_dir().unwrap_or_else(|| dir.to_owned()),
+        command: Some((claude.into(), vec!["auth".into(), "login".into()])),
+        env,
+        cols: 80,
+        lines: 24,
+    })
+}
+
 /// A terminal running `gh auth login` under `dir` only. `--insecure-storage` keeps the token in
 /// `<dir>/hosts.yml`: gh's keyring entry for the active user is shared by every config dir.
 pub(crate) fn gh_login_options(gh: &Path, dir: &Path) -> anyhow::Result<SpawnOptions> {

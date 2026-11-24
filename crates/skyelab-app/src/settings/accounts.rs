@@ -223,7 +223,14 @@ impl Settings {
             EditAccount { id: a.id.clone() },
             RemoveAccount { id: a.id.clone() },
         );
-        let codex_id = (a.provider == Provider::Codex).then(|| a.id.clone());
+        let (login_id, login_cmd) = (
+            a.id.clone(),
+            match a.provider {
+                Provider::Claude => "claude auth login with this account's CLAUDE_CONFIG_DIR",
+                Provider::Codex => "codex login with this account's CODEX_HOME",
+            },
+        );
+        let login_key = format!("{}-login-{}", a.provider.label().to_lowercase(), a.id);
         let selector = format!("provider-{}", a.id);
         v_flex()
             .id(SharedString::from(format!("account-{}", a.id)))
@@ -251,7 +258,9 @@ impl Settings {
                                     .child(a.label.clone())
                                     .on_click(cx.listener({
                                         let edit = edit.clone();
-                                        move |this, _, window, cx| this.edit_account(&edit, window, cx)
+                                        move |this, _, window, cx| {
+                                            this.edit_account(&edit, window, cx)
+                                        }
                                     })),
                             )
                             .child(
@@ -266,24 +275,28 @@ impl Settings {
                                     .child(ui::mono(a.id.clone(), theme).text_size(ui::META)),
                             ),
                     )
-                    .children(codex_id.map(|id| {
-                        let selector = format!("codex-login-{id}");
+                    .child({
+                        let selector = login_key.clone();
                         div().debug_selector(move || selector).child(
-                            Button::new(SharedString::from(format!("codex-login-{id}")))
+                            Button::new(SharedString::from(login_key))
                                 .label("Log in")
-                                .tooltip("Opens a terminal running codex login with this account's CODEX_HOME")
+                                .tooltip(format!("Opens a terminal running {login_cmd}"))
                                 .small()
                                 .outline()
-                                .on_click(cx.listener(move |this, _, _, cx| this.codex_log_in(&id, cx))),
+                                .on_click(
+                                    cx.listener(move |this, _, _, cx| this.log_in(&login_id, cx)),
+                                ),
                         )
-                    }))
+                    })
                     .child(
                         Button::new(SharedString::from(format!("edit-{}", a.id)))
                             .icon(Lucide::PenLine)
                             .tooltip("Edit")
                             .small()
                             .ghost()
-                            .on_click(cx.listener(move |this, _, window, cx| this.edit_account(&edit, window, cx))),
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.edit_account(&edit, window, cx)
+                            })),
                     )
                     .child(
                         Button::new(SharedString::from(format!("remove-account-{}", a.id)))
@@ -296,7 +309,11 @@ impl Settings {
                             })),
                     ),
             )
-            .child(div().pl(gpui::px(44.)).child(path_line(format!("dir-{}", a.id), &a.config_dir, cx)))
+            .child(div().pl(gpui::px(44.)).child(path_line(
+                format!("dir-{}", a.id),
+                &a.config_dir,
+                cx,
+            )))
             .into_any_element()
     }
 

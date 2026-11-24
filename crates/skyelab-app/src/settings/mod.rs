@@ -37,8 +37,8 @@ pub struct GhLogIn {
 pub enum SettingsEvent {
     /// The user asked to log in to GitHub under `dir` (an account's `GH_CONFIG_DIR`).
     GhLogin { dir: PathBuf },
-    /// The user asked to log in to Codex under `dir` (a Codex account's `CODEX_HOME`).
-    CodexLogin { dir: PathBuf },
+    /// The user asked to log account `id` in to its agent (Claude or Codex), in that account's own config dir.
+    AgentLogin { id: String },
     /// Open keybindings.toml in the user's editor, writing the commented template first if it doesn't exist.
     OpenKeysFile { path: PathBuf },
     /// Close the modal (the header's ×, Esc with nothing to cancel, or the focus leaving it).
@@ -409,6 +409,9 @@ mod tests;
 #[cfg(all(test, unix))] // the fake gh is a shell script
 mod github_test;
 
+#[cfg(test)]
+#[path = "claude_login_test.rs"]
+mod claude_login_test;
 #[cfg(test)]
 mod codex_test;
 #[cfg(test)]

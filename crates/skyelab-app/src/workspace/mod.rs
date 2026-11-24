@@ -527,6 +527,8 @@ mod import_sessions_test;
 mod launch_rebind_test;
 #[cfg(test)]
 mod layout_test;
+#[cfg(all(test, unix))] // the fake claude is a shell script
+mod login_banner_test;
 #[cfg(test)]
 mod long_thread_test;
 #[cfg(test)]
