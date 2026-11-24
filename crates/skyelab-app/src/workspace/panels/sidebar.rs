@@ -73,6 +73,8 @@ pub struct RowMarks {
     pub group: Option<(usize, bool, i64)>,
     /// A comparison group's thread, listed under the group's row.
     pub nested: bool,
+    /// A linked machine's row: that machine's short name, drawn in the meta line (T3's environment label).
+    pub machine: Option<SharedString>,
 }
 
 /// A thread row's hover card (T3's thread tooltip): where it runs and on which account.
@@ -90,6 +92,8 @@ pub struct RowCard {
     pub account: Option<RowAccount>,
     /// "Bound at ~/work" (the binding that picks it), or that the folder is bound elsewhere now.
     pub binding: Option<SharedString>,
+    /// Text drawn wrapped under the lines (a linked machine's full state).
+    pub note: Option<SharedString>,
     pub created_ms: i64,
     pub updated_ms: i64,
 }

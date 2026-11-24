@@ -502,6 +502,8 @@ fn write_atomic(path: &Path, text: &str) -> Result<()> {
 mod tests;
 
 #[cfg(test)]
+mod linked_envs_test;
+#[cfg(test)]
 mod recent_envs_test;
 
 #[cfg(test)]

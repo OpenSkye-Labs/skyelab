@@ -215,6 +215,14 @@ fn thread_row(
                 .child(ui::Monogram::new(&project))
                 // The account keeps its room (it is what SkyeLab is for); the project name gives way first.
                 .child(div().min_w(gpui::px(24.)).truncate().child(project))
+                .children(marks.machine.clone().map(|m| {
+                    h_flex()
+                        .flex_shrink_0()
+                        .max_w(gpui::px(96.))
+                        .gap_0p5()
+                        .child(Icon::new(SkyeIcon::Monitor).size_3().flex_shrink_0())
+                        .child(div().min_w_0().truncate().child(m))
+                }))
                 .children(account.map(|badge| {
                     div()
                         .flex_shrink_0()

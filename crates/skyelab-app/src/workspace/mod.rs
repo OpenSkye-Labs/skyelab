@@ -20,6 +20,7 @@ mod details_panel;
 mod device_agent;
 mod devices;
 mod diff_comments;
+mod env_linked;
 mod env_mode;
 mod env_picker;
 mod env_sidebar;

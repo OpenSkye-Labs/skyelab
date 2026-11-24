@@ -9,7 +9,7 @@ use super::env_mode::{
 };
 use super::panels::{RowAccount, RowCard, RowMarks, SidebarItem, SidebarSection};
 use super::thread_list::{flat_sections, plain_section, preview_text};
-use crate::environment::ConnState;
+use crate::environment::{ConnState, RemoteEnv};
 use crate::ui::Status;
 use gpui::{Context, SharedString};
 use skyelab_client::Thread;
@@ -34,6 +34,55 @@ fn account_of(t: &Thread) -> RowAccount {
     })
 }
 
+/// A thread row of another machine and its marks, as the switcher's list and a linked machine's rows draw it. Its
+/// action opens it through the switcher; a linked row replaces it.
+pub(super) fn remote_row(
+    env: &RemoteEnv,
+    names: &HashMap<i64, &skyelab_client::Project>,
+    t: &Thread,
+    selected: bool,
+) -> (SidebarItem, RowMarks) {
+    let project: SharedString = names
+        .get(&t.project_id)
+        .map(|p| p.name.clone().into())
+        .unwrap_or_default();
+    let card = RowCard {
+        title: t.title.clone().into(),
+        project: project.clone(),
+        path: names
+            .get(&t.project_id)
+            .map(|p| p.path.clone().into())
+            .unwrap_or_default(),
+        account: Some(account_of(t)),
+        binding: Some(format!("Runs on {}", env.host).into()),
+        created_ms: t.created_at,
+        updated_ms: t.updated_at,
+        ..RowCard::default()
+    };
+    let marks = RowMarks {
+        pinned: t.pinned,
+        preview: t
+            .preview
+            .as_deref()
+            .map(preview_text)
+            .filter(|p| !p.is_empty())
+            .map(Into::into),
+        card: Some(std::rc::Rc::new(card)),
+        ..RowMarks::default()
+    };
+    let item = SidebarItem {
+        id: format!("remote-thread-{}", t.id).into(),
+        label: t.title.clone().into(),
+        selected,
+        action: Box::new(OpenRemoteThread { id: t.id }),
+        status: Some(Status::parse(&t.status)),
+        updated_ms: Some(t.updated_at),
+        account: Some(account_of(t)),
+        project: Some(project),
+    };
+    (item, marks)
+}
+
 impl Workspace {
     /// The sidebar in remote mode. `None` on this machine.
     pub(super) fn remote_sections(&self, cx: &Context<Self>) -> Option<RemoteSidebar> {
@@ -47,52 +96,11 @@ impl Workspace {
         let mut marks = HashMap::new();
         let (mut pinned, mut working, mut rest) = (Vec::new(), Vec::new(), Vec::new());
         for t in &env.threads {
-            let id: SharedString = format!("remote-thread-{}", t.id).into();
-            let project: SharedString = names
-                .get(&t.project_id)
-                .map(|p| p.name.clone().into())
-                .unwrap_or_default();
-            let status = Status::parse(&t.status);
-            let card = RowCard {
-                title: t.title.clone().into(),
-                project: project.clone(),
-                path: names
-                    .get(&t.project_id)
-                    .map(|p| p.path.clone().into())
-                    .unwrap_or_default(),
-                account: Some(account_of(t)),
-                binding: Some(format!("Runs on {}", env.host).into()),
-                created_ms: t.created_at,
-                updated_ms: t.updated_at,
-                ..RowCard::default()
-            };
-            marks.insert(
-                id.clone(),
-                RowMarks {
-                    pinned: t.pinned,
-                    preview: t
-                        .preview
-                        .as_deref()
-                        .map(preview_text)
-                        .filter(|p| !p.is_empty())
-                        .map(Into::into),
-                    card: Some(std::rc::Rc::new(card)),
-                    ..RowMarks::default()
-                },
-            );
-            let item = SidebarItem {
-                id,
-                label: t.title.clone().into(),
-                selected: shown == Some(t.id),
-                action: Box::new(OpenRemoteThread { id: t.id }),
-                status: Some(status),
-                updated_ms: Some(t.updated_at),
-                account: Some(account_of(t)),
-                project: Some(project),
-            };
-            match (t.pinned, status) {
+            let (item, m) = remote_row(env, &names, t, shown == Some(t.id));
+            marks.insert(item.id.clone(), m);
+            match (t.pinned, item.status) {
                 (true, _) => pinned.push(item),
-                (false, Status::Starting | Status::Running) => working.push(item),
+                (false, Some(Status::Starting | Status::Running)) => working.push(item),
                 _ => rest.push(item),
             }
         }

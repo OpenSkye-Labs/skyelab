@@ -65,11 +65,15 @@ pub(super) fn shows_remote(cx: &gpui::App, window: gpui::AnyWindowHandle) -> boo
 
 #[derive(Default)]
 pub(super) struct EnvMode {
-    picker: Option<Entity<EnvPicker>>,
+    pub(super) picker: Option<Entity<EnvPicker>>,
     remote: Option<Entity<RemoteEnv>>,
     /// Each remote thread view opened on this machine, with its subscription. Kept (and watching) while another page
     /// shows; dropped when the machine changes.
     pub(super) tabs: Vec<(Entity<RemoteThreadView>, Subscription)>,
+    /// Machines whose threads show in this machine's list (`env_linked.rs`), each on its own connection.
+    pub(super) linked: Vec<super::env_linked::Linked>,
+    /// The linked names as saved, also those whose connection couldn't start, so they can still be unlinked.
+    pub(super) linked_hosts: Vec<String>,
     settings_path: Option<PathBuf>,
     options: Options,
     subs: Vec<Subscription>,
@@ -91,7 +95,7 @@ impl Workspace {
         let load = settings_path.clone().map(|path| {
             let load = cx.background_spawn(async move { AppSettings::load(&path) });
             let weak = picker.downgrade();
-            cx.spawn(async move |_, cx| {
+            cx.spawn_in(window, async move |this, cx| {
                 // A broken file shows no recents (the save path then reports it, and leaves the file alone).
                 if let Ok(settings) = load.await {
                     let _ = weak.update(cx, |p, cx| {
@@ -99,6 +103,10 @@ impl Workspace {
                         p.recents.retain(|h| is_magicdns_name(h));
                         cx.notify();
                     });
+                    let mut linked = settings.linked_environments;
+                    linked.retain(|h| is_magicdns_name(h));
+                    let _ =
+                        this.update_in(cx, |this, window, cx| this.sync_linked(linked, window, cx));
                 }
             })
         });
@@ -127,6 +135,8 @@ impl Workspace {
             .on_action(cx.listener(Self::open_remote_thread))
             .on_action(cx.listener(Self::new_remote_thread))
             .on_action(cx.listener(Self::trust_remote_node))
+            .on_action(cx.listener(Self::toggle_linked))
+            .on_action(cx.listener(Self::open_linked_thread))
     }
 
     pub(crate) fn is_remote(&self) -> bool {
@@ -208,13 +218,8 @@ impl Workspace {
         }
         let mut error = None;
         if let Some(host) = a.host.clone() {
-            // Every connection waits for `RemoteEnv` to check its node before anything is asked of it.
-            let mut options = self.env.options.clone();
-            options.approve_each_connection = true;
-            match skyelab_client::Client::connect(host.clone(), options) {
-                Ok(client) => {
-                    let settings = self.env.settings_path.clone();
-                    let env = cx.new(|cx| RemoteEnv::new(host.clone(), client, settings, cx));
+            match self.dial(&host, cx) {
+                Ok(env) => {
                     self.env.subs.push(cx.observe(&env, |this, _, cx| {
                         this.refresh_sidebar(cx);
                         cx.notify();
@@ -233,7 +238,7 @@ impl Workspace {
                     self.env.remote = Some(env);
                     self.remember(host, cx);
                 }
-                Err(e) => error = Some(format!("can't start the connection: {e}").into()),
+                Err(e) => error = Some(e),
             }
         }
         let current = self.env.remote.as_ref().map(|e| e.read(cx).host.clone());
@@ -266,6 +271,20 @@ impl Workspace {
         cx.notify();
     }
 
+    /// A connection to `host`, held until `RemoteEnv` checked its node (nothing is asked of it before).
+    pub(super) fn dial(
+        &self,
+        host: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<Entity<RemoteEnv>, SharedString> {
+        let mut options = self.env.options.clone();
+        options.approve_each_connection = true;
+        let client = skyelab_client::Client::connect(host.to_owned(), options)
+            .map_err(|e| SharedString::from(format!("can't start the connection: {e}")))?;
+        let settings = self.env.settings_path.clone();
+        Ok(cx.new(|cx| RemoteEnv::new(host.to_owned(), client, settings, cx)))
+    }
+
     fn close_remote_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         for (tab, _) in std::mem::take(&mut self.env.tabs) {
             tab.update(cx, |t, cx| t.closed(cx));
@@ -282,13 +301,29 @@ impl Workspace {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(env) = &self.env.remote {
-            env.update(cx, |e, cx| e.trust(&a.node_id, cx));
+        let Some(env) = self.env.remote.clone() else {
+            return;
+        };
+        env.update(cx, |e, cx| e.trust(&a.node_id, cx));
+        // The same machine's linked connection was refused on that node too; it isn't asked again by itself.
+        let host = env.read(cx).host.clone();
+        for linked in self.linked_envs_of(&host, cx) {
+            linked.update(cx, |e, cx| e.trust(&a.node_id, cx));
         }
     }
 
     /// Saves `host` first in the recents, off the UI thread. A file that doesn't parse is left alone.
     fn remember(&mut self, host: String, cx: &mut Context<Self>) {
+        self.save_env_settings(move |s| s.remember_environment(&host), cx);
+    }
+
+    /// Applies `change` to settings.toml off the UI thread, after any earlier save, and shows the saved recents. A
+    /// file that doesn't parse is left alone and the picker says so.
+    pub(super) fn save_env_settings(
+        &mut self,
+        change: impl FnOnce(&mut AppSettings) + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
         let Some(path) = self.env.settings_path.clone() else {
             return;
         };
@@ -302,8 +337,7 @@ impl Workspace {
             }
             let saved = write
                 .spawn(async move {
-                    let (settings, ()) =
-                        AppSettings::update(&path, |s| s.remember_environment(&host))?;
+                    let (settings, ()) = AppSettings::update(&path, change)?;
                     anyhow::Ok(settings.recent_environments)
                 })
                 .await;
@@ -312,7 +346,7 @@ impl Workspace {
                 match saved {
                     Ok(recents) => p.recents = recents,
                     Err(e) => {
-                        p.error = Some(format!("couldn't save recent machines: {e:#}").into())
+                        p.error = Some(format!("couldn't save the machine list: {e:#}").into())
                     }
                 }
                 cx.notify();
@@ -337,17 +371,26 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(env) = self.env.remote.clone() else {
-            return;
-        };
-        if let Some(tab) = self
-            .remote_tabs()
-            .into_iter()
-            .find(|t| t.read(cx).thread_id() == Some(a.id))
-        {
+        if let Some(env) = self.env.remote.clone() {
+            self.open_thread_on(env, a.id, window, cx);
+        }
+    }
+
+    /// Shows thread `id` of `env`: its open view, else a new one.
+    pub(super) fn open_thread_on(
+        &mut self,
+        env: Entity<RemoteEnv>,
+        id: i64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(tab) = self.remote_tabs().into_iter().find(|t| {
+            let t = t.read(cx);
+            t.thread_id() == Some(id) && *t.env() == env
+        }) {
             return self.show(Page::RemoteThread(tab.downgrade()), window, cx);
         }
-        let Some(thread) = env.read(cx).threads.iter().find(|t| t.id == a.id).cloned() else {
+        let Some(thread) = env.read(cx).threads.iter().find(|t| t.id == id).cloned() else {
             return;
         };
         let view = cx.new(|cx| {
@@ -384,11 +427,10 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let sub = cx.subscribe(&view, |this, _, e: &RemoteThreadEvent, cx| match e {
+        let sub = cx.subscribe(&view, |_, view, e: &RemoteThreadEvent, cx| match e {
             RemoteThreadEvent::Started => {
-                if let Some(env) = &this.env.remote {
-                    env.update(cx, |e, cx| e.load_threads(cx));
-                }
+                let env = view.read(cx).env().clone();
+                env.update(cx, |e, cx| e.load_threads(cx));
             }
         });
         self.env.tabs.push((view.clone(), sub));

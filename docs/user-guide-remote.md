@@ -87,6 +87,35 @@ For each forwarded port, the palette then lists **Open Forwarded Port** (a brows
 - The other machine must run a SkyeLab that knows forwarding (protocol 1.5). For an older one, the palette says
   it runs an older SkyeLab.
 
+## Linked machines: other machines' threads in this list
+
+To see another machine's threads next to this one's without switching, link it: open the command palette and pick
+**Show threads from <machine> in this list** (it lists the machines you connected to before, and the ones already
+linked, with a checkbox). Pick it again to unlink. Linked machines are saved
+as `linked_environments` in `settings.toml` and connect again when SkyeLab starts.
+
+- On **This Mac**, the linked machine's threads join the list under **Pinned**, **Working** and the days, mixed in by
+  when they last changed. Each row's bottom line names the machine after a screen icon (`desktop` for
+  `desktop.example.ts.net`), and its hover card says **Runs on** the full name.
+- Click a row to open the thread right here, as the page. You can send follow-ups, stop it, answer its permission
+  requests and questions, as in the switcher. Its agent runs on that machine, on that machine's accounts; nothing
+  here can change its accounts, bindings or projects.
+- A linked thread that finishes while you look elsewhere reads **Done** until you open it. That mark is kept while
+  SkyeLab runs, not saved.
+- A linked machine that isn't connected shows one short row under **Linked machines**, such as
+  `desktop · Waiting for approval` or `desktop · Reconnecting`. Hover it for the full reason (the code to approve,
+  the error). To see the code to approve, or to **Trust it**, switch to that
+  machine; once it is approved or trusted there, the linked row comes back too.
+- The command palette also lists each linked machine's threads as **Open thread: <title> · <machine>**.
+- The thread filter and the project scope cover this machine's threads only, so linked rows hide while either is on.
+- Switching to another machine closes linked threads' pages too, as it closes every remote page. Unlinking closes
+  that machine's pages.
+- A linked machine keeps its own connection. If you also switch to it, the window holds two connections to it;
+  that is harmless.
+
+T3 Code can also show a thread on a machine reached only through another machine's link (read-only, "via"). SkyeLab
+machines don't link to each other yet, so every linked machine is one this app connects to directly.
+
 Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
 one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
 name. If the name later answers from another node, its threads close and a warning offers **Trust it**: trust it only if

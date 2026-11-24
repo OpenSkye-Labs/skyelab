@@ -33,3 +33,9 @@ mod launch_rebind_test;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "review_second_row_test.rs"]
 mod review_second_row_test;
+
+#[path = "env_linked_test.rs"]
+mod env_linked_test;
+
+#[path = "env_linked_trust_test.rs"]
+mod env_linked_trust_test;
