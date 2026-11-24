@@ -4,13 +4,10 @@ use super::composer_stash::{PromptStash, SHORTCUT};
 use super::popover;
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, div, prelude::*, px};
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex};
 
 impl ThreadView {
     /// The tab on the composer's top-right shoulder: "Stash" and the count. Hidden while empty or open.

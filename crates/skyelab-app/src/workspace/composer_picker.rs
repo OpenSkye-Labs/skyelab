@@ -3,9 +3,10 @@
 use super::thread::ThreadView;
 use super::{hint, popover};
 use crate::ui;
+use crate::ui::Checkbox;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, checkbox::Checkbox, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS};
 use skyelab_core::Provider;
 use skyelab_store::ModelChoice;

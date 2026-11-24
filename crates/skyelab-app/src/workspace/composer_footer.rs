@@ -3,13 +3,10 @@
 use super::thread::ThreadView;
 use super::thread_worktree::{OpenChanges, ToggleWorktree};
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 
 /// The machine the thread runs on, as a chip that opens the machine menu (T3's environment selector).
 pub(in crate::workspace) fn machine_chip(
@@ -27,9 +24,7 @@ pub(in crate::workspace) fn machine_chip(
         .rounded(ui::RADIUS)
         .cursor_pointer()
         .hover(move |s| s.bg(hover))
-        .tooltip(move |window, cx| {
-            gpui_component::tooltip::Tooltip::new(tip.clone()).build(window, cx)
-        })
+        .tooltip(move |window, cx| crate::ui::Tooltip::new(tip.clone()).build(window, cx))
         .on_click(|e, window, cx| {
             window.dispatch_action(
                 Box::new(crate::workspace::env_picker::ShowEnvironments::at(
@@ -183,7 +178,7 @@ impl ThreadView {
                     .child(m.text())
                     .when(m.near_full(), |el| el.child("· /compact"))
                     .tooltip(move |window, cx| {
-                        gpui_component::tooltip::Tooltip::new(tip.clone()).build(window, cx)
+                        crate::ui::Tooltip::new(tip.clone()).build(window, cx)
                     })
             }))
             .children(footer.changes.map(|n| {

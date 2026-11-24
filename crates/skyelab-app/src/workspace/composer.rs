@@ -83,18 +83,13 @@ pub(in crate::workspace) use composer_state::{
 };
 
 use crate::ui;
+use crate::ui::Button;
 use composer_menu::MenuKind;
 use composer_state::{AttachFiles, MENU_CONTEXT, Menu};
 use gpui::{
     AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, Sizable as _,
-    button::{Button, ButtonRounded, ButtonVariants as _},
-    h_flex,
-    input::Textarea,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, input::Textarea, v_flex};
 use thread::{SendPrompt, ThreadView};
 
 /// Under this card width the control row goes compact (T3 collapses its chips the same way).
@@ -278,7 +273,7 @@ impl ThreadView {
         let empty = self.prompt.read(cx).value().trim().is_empty()
             && self.composer.attachments.is_empty()
             && self.composer.contexts.is_empty();
-        let round = ButtonRounded::Size(px(16.));
+        let round = px(16.);
         let mut out = Vec::new();
         if running && self.composer.stalled {
             out.push(
@@ -320,7 +315,7 @@ impl ThreadView {
                 .hover(move |this| this.bg(danger))
                 .cursor_pointer()
                 .tooltip(|window, cx| {
-                    gpui_component::tooltip::Tooltip::new("Interrupt")
+                    crate::ui::Tooltip::new("Interrupt")
                         .action(&thread::Interrupt, Some(thread::CONTEXT))
                         .build(window, cx)
                 })

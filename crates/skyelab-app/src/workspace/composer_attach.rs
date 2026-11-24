@@ -4,16 +4,13 @@
 use super::composer_state::AttachFiles;
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, AppContext as _, ClipboardEntry, ClipboardItem, Context, SharedString, Window, div,
     prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex};
 use skyelab_agent::AttachmentKind;
 use skyelab_agent::{Attachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 use std::path::PathBuf;
