@@ -72,7 +72,9 @@ impl BrowserView {
     /// A blank pane for an agent, on a private, in-memory web data store of its own: no cookies,
     /// storage or cache shared with the user's tabs, other agents' tabs or later runs.
     pub fn new_agent(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_wry(None, true, window, cx)
+        let mut view = Self::with_wry(None, true, window, cx);
+        view.agent_page = true;
+        view
     }
 
     /// Marks this as an agent's page, or a copy of one (see `agent_page`). It stays marked after Take over.

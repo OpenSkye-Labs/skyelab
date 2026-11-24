@@ -81,8 +81,8 @@ impl Workspace {
             browser.update(cx, |b, _| b.mark_agent_page());
         }
         let agent_page = browser.read(cx).is_agent_page();
-        // Duplicate tab opens a user tab, whoever owns this one. A copy of an agent's page (taken over or not) is a
-        // private, throwaway tab that stays marked, so no copy of it ever lands in the user's profile.
+        // A copy is never the agent's. A copy of an agent's page (taken over or not) is private and stays marked, so
+        // no copy of it ever lands in the user's profile.
         cx.subscribe_in(
             &browser,
             window,
