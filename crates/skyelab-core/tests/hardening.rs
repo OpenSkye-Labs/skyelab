@@ -3,8 +3,18 @@
 use skyelab_core::{Account, AccountsConfig, Binding};
 use std::path::{Path, PathBuf};
 
+/// A Unix-style absolute path, on drive C: on Windows so it is absolute there too.
+fn abs(p: &str) -> PathBuf {
+    if cfg!(windows) && p.starts_with('/') {
+        format!("C:{p}").into()
+    } else {
+        p.into()
+    }
+}
+
 fn account(id: &str, dir: &str) -> String {
-    format!("[[account]]\nid = \"{id}\"\nlabel = \"{id}\"\nconfig_dir = \"{dir}\"\n")
+    let dir = abs(dir).display().to_string();
+    format!("[[account]]\nid = \"{id}\"\nlabel = \"{id}\"\nconfig_dir = {dir:?}\n")
 }
 
 /// Written as the app writes it: with the snapshot taken at bind time.
@@ -40,7 +50,7 @@ fn relative_config_dir_rejected_on_load_add_and_update() {
             ssh_agent: false,
         };
         assert!(c.add_account(acc(bad)).is_err(), "add accepted {bad:?}");
-        c.add_account(acc("/abs/.claude"))
+        c.add_account(acc(&abs("/abs/.claude").display().to_string()))
             .expect("absolute is fine");
         assert!(
             c.update_account(acc(bad)).is_err(),
@@ -119,6 +129,6 @@ fn empty_or_relative_binding_rejected() {
         let mut c = load(&accounts).expect("valid");
         let b = Binding::new(PathBuf::from(bad), "a".into());
         assert!(c.add_binding(b).is_err(), "add_binding accepted {bad:?}");
-        assert!(c.resolve(Path::new("/anywhere")).is_none());
+        assert!(c.resolve(&abs("/anywhere")).is_none());
     }
 }

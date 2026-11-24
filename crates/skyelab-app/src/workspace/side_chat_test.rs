@@ -4,23 +4,31 @@
 //! a folder rebound to another account (or unbound) refuses to make one.
 
 use super::*;
+#[cfg(unix)]
 use crate::workspace::thread::composer::Submit;
+#[cfg(unix)]
 use crate::workspace::thread::composer::composer_context::ChipKind;
+#[cfg(unix)]
 use crate::workspace::thread_model::Record;
-use crate::workspace::worktree_thread_test::{fixture, open_thread, send, wait_until};
+use crate::workspace::worktree_thread_test::fixture;
+#[cfg(unix)]
+use crate::workspace::worktree_thread_test::{open_thread, send, wait_until};
 use skyelab_core::Binding;
 
+#[cfg(unix)]
 fn stored(f: &crate::workspace::worktree_thread_test::Fixture, id: i64) -> Thread {
     let s = f.store.lock().expect("store");
     s.thread(id).expect("read").expect("row")
 }
 
+#[cfg(unix)]
 fn event_count(f: &crate::workspace::worktree_thread_test::Fixture, id: i64) -> usize {
     let s = f.store.lock().expect("store");
     s.events_since(id, 0).expect("events").len()
 }
 
 /// The fake agent's `fake_env` report (its config dir, folder and pid), once stored.
+#[cfg(unix)]
 fn fake_env(
     f: &crate::workspace::worktree_thread_test::Fixture,
     id: i64,
@@ -48,6 +56,7 @@ fn side_question_reads_side_and_btw_only() {
     assert_eq!(side_question("fix /side x"), None);
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn a_side_chat_runs_beside_its_thread_and_brings_its_answer_back(cx: &mut gpui::TestAppContext) {
     let f = fixture();

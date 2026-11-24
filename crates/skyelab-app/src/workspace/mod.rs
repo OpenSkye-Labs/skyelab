@@ -38,7 +38,7 @@ mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
 pub(crate) mod login_status;
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake claude is a shell script
 mod login_status_test;
 pub(crate) mod machines_page;
 mod manage;

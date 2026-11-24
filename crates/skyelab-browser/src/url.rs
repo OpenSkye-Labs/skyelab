@@ -10,8 +10,14 @@ pub fn parse_url(input: &str) -> anyhow::Result<url::Url> {
     if input.is_empty() {
         bail!("enter a URL");
     }
-    if input.starts_with('/') {
-        return url::Url::from_file_path(input).map_err(|()| anyhow!("not a file path: {input}"));
+    // `/x` on unix, `C:\x` on Windows (where a rooted `/x` has no drive and fails). A UNC path gets a host.
+    if input.starts_with('/') || std::path::Path::new(input).is_absolute() {
+        let url =
+            url::Url::from_file_path(input).map_err(|()| anyhow!("not a file path: {input}"))?;
+        if let Some(host) = url.host_str().filter(|h| !h.is_empty()) {
+            bail!("file URLs must be local, not on {host}");
+        }
+        return Ok(url);
     }
     let bare = is_bare_host(input);
     let url = if bare {

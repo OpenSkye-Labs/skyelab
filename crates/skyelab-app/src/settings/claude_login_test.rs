@@ -64,9 +64,11 @@ fn a_claude_card_offers_log_in_for_that_account(cx: &mut TestAppContext) {
         gpui_component::init(cx);
         init(cx);
     });
+    // An absolute path on every OS: `/home/me` has no drive, so Windows would refuse it as relative.
+    let home = tempfile::tempdir().expect("tempdir");
     let mut config = AccountsConfig::default();
     config
-        .add_account(claude_account(Path::new("/home/me/.claude-acme"), None))
+        .add_account(claude_account(&home.path().join(".claude-acme"), None))
         .expect("add");
     let (view, cx) = cx.add_window_view(|window, cx| Settings::new(None, config, None, window, cx));
     let asked = std::rc::Rc::new(RefCell::new(Vec::new()));

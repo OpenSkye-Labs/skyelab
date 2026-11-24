@@ -30,6 +30,8 @@ fn a_file_replaced_by_a_folder_is_restored_not_skipped_as_ignored() {
         ("user.name", "t"),
         ("user.email", "t@example.com"),
         ("commit.gpgsign", "false"),
+        // Git for Windows defaults to autocrlf; these tests read back files git writes.
+        ("core.autocrlf", "false"),
     ] {
         git(&repo, &["config", k, v]);
     }
@@ -66,6 +68,7 @@ fn a_case_only_rename_is_rewound() {
         .join("repo");
     std::fs::create_dir(&repo).expect("mkdir");
     git(&repo, &["init", "-q", "-b", "main"]);
+    git(&repo, &["config", "core.autocrlf", "false"]);
     std::fs::write(repo.join("Readme.md"), "hi\n").expect("w");
     let t0 = capture_checkpoint(&repo, "k", 0).expect("turn 0");
     std::fs::rename(repo.join("Readme.md"), repo.join("README.md")).expect("rename");

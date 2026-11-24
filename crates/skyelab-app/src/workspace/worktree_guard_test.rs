@@ -37,12 +37,12 @@ fn assert_refused(f: &Fixture, cx: &mut TestAppContext, why: &str) {
     assert!(threads.is_empty(), "no thread row was written");
 }
 
+#[cfg(unix)] // the link is a unix symlink
 #[gpui::test]
 fn a_symlinked_skyelab_folder_is_refused(cx: &mut TestAppContext) {
     let f = fixture();
     let elsewhere = f.project.parent().expect("parent").join("elsewhere");
     std::fs::create_dir(&elsewhere).expect("mkdir");
-    #[cfg(unix)]
     std::os::unix::fs::symlink(&elsewhere, f.project.join(".skyelab")).expect("symlink");
     assert_refused(&f, cx, "not a plain folder");
     assert_eq!(

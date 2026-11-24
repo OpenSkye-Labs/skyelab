@@ -76,10 +76,12 @@ fn loopback_defaults_to_http() {
 
 #[test]
 fn absolute_path_is_a_file_url() {
-    assert_eq!(
-        parse_url("/tmp/index.html").expect("abs path").as_str(),
-        "file:///tmp/index.html"
-    );
+    let (path, url) = if cfg!(windows) {
+        (r"C:\tmp\index.html", "file:///C:/tmp/index.html")
+    } else {
+        ("/tmp/index.html", "file:///tmp/index.html")
+    };
+    assert_eq!(parse_url(path).expect("abs path").as_str(), url);
 }
 
 #[test]
@@ -87,4 +89,7 @@ fn rejects_file_urls_with_a_remote_host() {
     // On Windows this is a UNC path: opening it leaks the user's NTLM hash.
     assert!(parse_url("file://attacker.example/share/x").is_err());
     assert!(parse_url("file://localhost/tmp/x").is_ok());
+    if cfg!(windows) {
+        assert!(parse_url(r"\\attacker.example\share\x").is_err());
+    }
 }

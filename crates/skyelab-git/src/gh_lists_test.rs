@@ -142,6 +142,7 @@ fn list_args_name_the_repo_and_filter() {
 }
 
 /// Through the fake gh: runs in the account's dir with the repo by flag, and refuses a dir with no login.
+#[cfg(unix)] // the fake gh is a shell script
 #[test]
 fn lists_through_gh_under_the_given_config_dir() {
     let gh = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-gh.sh");
@@ -180,6 +181,7 @@ fn rejects_a_bad_repo_before_running_gh() {
 }
 
 /// A gh that never answers is killed at the limit, so a page's fetch can't hang for good.
+#[cfg(unix)] // the fake gh is a shell script
 #[test]
 fn times_out_a_hung_gh() {
     let gh = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-gh.sh");

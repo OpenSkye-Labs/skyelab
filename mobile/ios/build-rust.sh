@@ -13,7 +13,13 @@ esac
 profile=debug flags=()
 [[ $CONFIGURATION == Release ]] && profile=release flags=(--release)
 mobile="$SRCROOT/.."
-env -i HOME="$HOME" PATH="$HOME/.cargo/bin:/usr/bin:/bin:/usr/sbin:/sbin" DEVELOPER_DIR="$DEVELOPER_DIR" \
+# cargo wherever it is installed (~/.cargo/bin with rustup's installer; Homebrew's rustup on GitHub's macOS runners).
+cargo=$(PATH="$PATH:${CARGO_HOME:-$HOME/.cargo}/bin" command -v cargo) || { echo "error: cargo not found on PATH" >&2; exit 1; }
+homes=()
+[[ -z ${CARGO_HOME:-} ]] || homes+=(CARGO_HOME="$CARGO_HOME")
+[[ -z ${RUSTUP_HOME:-} ]] || homes+=(RUSTUP_HOME="$RUSTUP_HOME")
+env -i HOME="$HOME" PATH="$(dirname "$cargo"):/usr/bin:/bin:/usr/sbin:/sbin" DEVELOPER_DIR="$DEVELOPER_DIR" \
+    ${homes[@]+"${homes[@]}"} \
     IPHONEOS_DEPLOYMENT_TARGET="$IPHONEOS_DEPLOYMENT_TARGET" \
     cargo build --locked --manifest-path "$mobile/Cargo.toml" -p skyelab-mobile --bin skyelab_mobile --target "$triple" \
     ${flags[@]+"${flags[@]}"} ${SKYELAB_MOBILE_FEATURES:+--features "$SKYELAB_MOBILE_FEATURES"}

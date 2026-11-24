@@ -18,9 +18,19 @@ config_dir = "/home/me/.codex-oai"
 gh_config_dir = "/home/me/.config/gh-oai"
 "#;
 
+/// A Unix-style absolute path, on drive C: on Windows so it is absolute there too.
+fn abs(p: &str) -> PathBuf {
+    if cfg!(windows) && p.starts_with('/') {
+        format!("C:{p}").into()
+    } else {
+        p.into()
+    }
+}
+
 fn load(text: &str) -> anyhow::Result<AccountsConfig> {
     let tmp = tempfile::tempdir().expect("tempdir");
     let path = tmp.path().join("accounts.toml");
+    let text = text.replace("\"/", if cfg!(windows) { "\"C:/" } else { "\"/" });
     std::fs::write(&path, text).expect("write config");
     AccountsConfig::load(&path)
 }
@@ -70,8 +80,8 @@ fn account(provider: Provider, gh: Option<&str>) -> Account {
         id: "acct".into(),
         label: "Acct".into(),
         provider,
-        config_dir: "/home/me/.acct".into(),
-        gh_config_dir: gh.map(PathBuf::from),
+        config_dir: abs("/home/me/.acct"),
+        gh_config_dir: gh.map(abs),
         ssh_agent: false,
     }
 }
@@ -83,14 +93,14 @@ fn codex_account_sets_codex_home_and_never_claude_config_dir() {
     assert_eq!(
         env,
         vec![
-            ("CODEX_HOME", PathBuf::from("/home/me/.acct")),
-            ("GH_CONFIG_DIR", PathBuf::from("/home/me/.gh")),
+            ("CODEX_HOME", abs("/home/me/.acct")),
+            ("GH_CONFIG_DIR", abs("/home/me/.gh")),
         ]
     );
     let (_tmp, work, c) = bound(account(Provider::Claude, None));
     assert_eq!(
         c.launch_env(&work).expect("env"),
-        vec![("CLAUDE_CONFIG_DIR", PathBuf::from("/home/me/.acct"))]
+        vec![("CLAUDE_CONFIG_DIR", abs("/home/me/.acct"))]
     );
 }
 

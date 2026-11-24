@@ -35,6 +35,8 @@ fn repo() -> (tempfile::TempDir, PathBuf) {
         ("user.name", "t"),
         ("user.email", "t@example.com"),
         ("commit.gpgsign", "false"),
+        // Git for Windows defaults to autocrlf; these tests read back files git writes.
+        ("core.autocrlf", "false"),
     ] {
         git(&repo, &["config", k, v]);
     }

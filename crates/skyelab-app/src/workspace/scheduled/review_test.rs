@@ -79,6 +79,7 @@ fn a_task_the_cap_held_is_not_skipped_as_missed(cx: &mut TestAppContext) {
     });
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn a_new_run_closes_the_tasks_finished_one(cx: &mut TestAppContext) {
     let rig = rig(true);
@@ -100,6 +101,7 @@ fn a_new_run_closes_the_tasks_finished_one(cx: &mut TestAppContext) {
     );
 }
 
+#[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn a_run_waiting_on_a_permission_answer_says_so(cx: &mut TestAppContext) {
     let rig = rig(true);

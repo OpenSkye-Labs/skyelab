@@ -143,6 +143,7 @@ fn one_result_for_a_folded_follow_up_leaves_the_row_idle(cx: &mut TestAppContext
         row(&one, cx).is_some_and(|(_, n)| n == 2)
     });
     assert_eq!(row(&one, cx).expect("row").0, "running");
+    std::fs::write(one.dir.join(".fake-go"), "").expect("let the third prompt's turn answer");
     wait_until(cx, "the third prompt's result", |cx| {
         row(&one, cx).is_some_and(|(status, n)| n == 3 && status == "idle")
     });

@@ -153,7 +153,7 @@ mod publish_test;
 mod remote_resume_reply_test;
 #[cfg(test)]
 mod remote_resume_test;
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod remote_start_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod review_cta_folder_test;
@@ -189,7 +189,7 @@ mod stale_idle_test;
 mod stale_status_test;
 #[cfg(all(test, unix))]
 mod terminal_close_test;
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake agent is a shell script
 mod terminal_context_test;
 #[cfg(test)]
 mod terminal_env_test;

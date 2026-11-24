@@ -36,7 +36,7 @@ pub(super) struct FileTabs {
 }
 
 impl Workspace {
-    #[cfg(test)]
+    #[cfg(all(test, unix))] // only the side-chat tests that drive fake-claude.sh read it
     pub(super) fn preview_tab(&self) -> Option<gpui::Entity<PreviewPanel>> {
         self.files.preview.as_ref()?.upgrade()
     }

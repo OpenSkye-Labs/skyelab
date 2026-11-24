@@ -72,7 +72,7 @@ impl PrLanded {
     }
 
     /// Records that a read of `thread`'s PR at `url` that started `at` was taken (tests stage a newer read with it).
-    #[cfg(test)]
+    #[cfg(all(test, unix))] // only the fake-gh tests (a shell script) stage reads
     pub fn mark(&self, thread: i64, url: &str, at: i64) {
         self.lock().insert(thread, (url.to_owned(), at));
     }
