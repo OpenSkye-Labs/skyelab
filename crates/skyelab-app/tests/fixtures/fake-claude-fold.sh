@@ -11,6 +11,8 @@ IFS= read -r second
 result both "\"$(uuid "$first")\",\"$(uuid "$second")\""
 while IFS= read -r line; do
   printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":1,"num_turns":1,"result":"wake","session_id":"fake-fold","total_cost_usd":0,"origin":{"kind":"task-notification"}}\n'
-  sleep 1
+  # The turn's own result waits for the test's go-ahead (a `.fake-go` file in the folder), so it sees the wake alone.
+  while [ ! -e .fake-go ]; do sleep 0.1; done
+  rm -f .fake-go
   result done "\"$(uuid "$line")\""
 done

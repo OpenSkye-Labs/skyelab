@@ -91,6 +91,7 @@ fn a_queued_follow_up_keeps_the_child_busy_until_its_own_result(cx: &mut TestApp
         "running",
         "the second turn is still working"
     );
+    std::fs::write(dir.join(".fake-go"), "").expect("let the second turn answer");
     wait_until(cx, "the second result", |cx| {
         row(cx).is_some_and(|(status, n)| n == 2 && status == "idle")
     });

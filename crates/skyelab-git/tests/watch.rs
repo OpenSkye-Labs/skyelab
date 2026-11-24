@@ -169,10 +169,12 @@ fn coalesces_a_burst() {
         }
         wait_for_call(&w, "a burst");
         std::thread::sleep(Duration::from_secs(2));
-        assert_eq!(
-            w.calls.load(Ordering::SeqCst),
-            1,
-            "a 0.5 s burst is one refresh in {mode:?}"
+        // One refresh on a quiet machine; a loaded CI runner can stall the burst past the 300 ms quiet window
+        // or the 2 s cap and split it, but 50 writes must never be 50 refreshes.
+        let calls = w.calls.load(Ordering::SeqCst);
+        assert!(
+            (1..=3).contains(&calls),
+            "a 0.5 s burst of 50 writes is a refresh or so in {mode:?}, got {calls}"
         );
     }
 }

@@ -11,25 +11,27 @@ use std::path::Path;
 fn deltas_show_but_only_complete_blocks_are_stored(cx: &mut TestAppContext) {
     let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
     let (one, cx) = one_view(cx, Provider::Claude, bin, None);
+    // The streaming rows are transient: a poll can miss them on a loaded machine, so every change is watched.
+    let streamed = std::rc::Rc::new(std::cell::Cell::new((false, false)));
+    let seen = streamed.clone();
+    let _watch = cx.update(|_, cx| {
+        cx.observe(&one.view, move |view, cx| {
+            for i in &view.read(cx).items {
+                if let Item::Live { kind, .. } = i {
+                    let (thinking, text) = seen.get();
+                    seen.set((
+                        thinking || *kind == DeltaKind::Thinking,
+                        text || *kind == DeltaKind::Text,
+                    ));
+                }
+            }
+        })
+    });
     one.view
         .update_in(cx, |v, window, cx| v.submit_remote("timeline", window, cx))
         .expect("started");
-    let mut streamed = (false, false);
     wait_until(cx, "the timeline turn's result", |cx| {
         one.view.read_with(cx, |v, _| {
-            for i in &v.items {
-                match i {
-                    Item::Live {
-                        kind: DeltaKind::Thinking,
-                        ..
-                    } => streamed.0 = true,
-                    Item::Live {
-                        kind: DeltaKind::Text,
-                        ..
-                    } => streamed.1 = true,
-                    _ => {}
-                }
-            }
             v.items
                 .iter()
                 .filter(|i| matches!(i, Item::Done { .. }))
@@ -38,7 +40,7 @@ fn deltas_show_but_only_complete_blocks_are_stored(cx: &mut TestAppContext) {
         })
     });
     assert_eq!(
-        streamed,
+        streamed.get(),
         (true, true),
         "thinking and text showed while streaming"
     );
