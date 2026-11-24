@@ -73,6 +73,7 @@ pub fn summary(input: &Value) -> String {
         "url",
         "pattern",
         "query",
+        "changes",
         "grantRoot",
         "reason",
     ]
@@ -82,7 +83,8 @@ pub fn summary(input: &Value) -> String {
         Value::Array(parts) => Some(
             parts
                 .iter()
-                .filter_map(Value::as_str)
+                // A list of strings (argv), or of Codex's file changes, each with a path.
+                .filter_map(|p| p.as_str().or_else(|| p["path"].as_str()))
                 .collect::<Vec<_>>()
                 .join(" "),
         ),
