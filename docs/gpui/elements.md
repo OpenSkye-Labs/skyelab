@@ -5,8 +5,21 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Anything interactive (click, hover, scroll, drag) needs `.id(..)` for a stable `ElementId`. Ids must be unique among
   siblings. Use the domain id (thread id, path), not the loop index.
 - Long lists: `uniform_list` for fixed-height rows, `list` + `ListState` for variable height. Never `.children(10_000 items)`.
-- Use `gpui-component` before building a widget: `Input`, `Button`, `List`, `Table`, `Dock`, `Tabs`, `Dialog`, `Notification`,
-  `Markdown`, the code editor. Only drop to raw `div()` for layout.
+- Controls come from `crate::ui` ([docs/design/components.md](../design/components.md)): `Button`, `icon_button`,
+  `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`, `Kbd`, `Tooltip`, `Card`, `Divider`. Use gpui-component
+  for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Notification`, `Markdown`, the code
+  editor). Only drop to raw `div()` for layout.
+- A `ui` component is a `#[derive(IntoElement)]` + `RenderOnce` builder: no entity, no `cx.notify()`, no state across
+  frames. Hover and press are GPUI styles (`.hover(..)`, `.active(..)`, `.focus_visible(..)`), never a hovered flag in
+  view state. Build ids from the domain (`SharedString`, `(name, ix)` tuples), never `format!` in a row that redraws often.
+  Only a tooltip is a view, built when the pointer rests. Colors come from one function per component over theme
+  fields, and geometry from `ui::Size`.
+- `ui::Button` is gpui-base's headless `Button` (role, focus, Enter/Space, the disabled click guard) styled by us. It
+  takes the caller's own style (`.w_full()`, `.rounded(..)`) after its own, so the caller wins, and on mouse down it
+  calls `window.prevent_default()` so a press never moves focus off the field being typed in
+  (`ui/button_test.rs`). Without that, clicking any composer button blurs the prompt.
+- gpui-component's `DropdownMenu` works for any `Styled + Selectable + InteractiveElement` trigger, so
+  `impl DropdownMenu for ui::Button {}` keeps `.dropdown_menu(..)` on our own button.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
 - gpui-component's `DialogClose` (0.10 and 0.11) wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
@@ -30,7 +43,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Hover-only buttons over a row (settle, snooze): `.group(name)` on the row, the buttons `absolute()` with
   `.invisible().group_hover(name, |s| s.visible())` and the text under them `group_hover(.., |s| s.invisible())`. A
   hidden div returns before painting, so it registers no mouse listeners and never takes the row's clicks. A
-  gpui-component `Button`'s click bubbles on (it stops propagation only while loading), so wrap the buttons in a div
+  button's click bubbles on (`ui::Button` stops propagation only while loading), so wrap the buttons in a div
   whose `on_click` calls `cx.stop_propagation()`, or a click also opens the row.
 - A card that floats over other views (the thread details card) is a `deferred(..)` child of the window's root, an
   `absolute()` box placed from what the root knows (the header height, the right dock's width), so it paints after

@@ -111,7 +111,7 @@ pub const PAGE: Rems = rems(20. / 14.);
 /// icon button (square), with its icon size, text size, side padding and gap. One place to resize every control.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Size {
-    /// 24 px, 12 px text, 14 px icons: dense rows, cards, inline actions.
+    /// 24 px, 12 px text, 14 px icons: dense rows, cards, inline actions. `Sm` and `Md` use 13 px text; `Sm` keeps 14 px icons, `Md` 16.
     Xs,
     /// 28 px: toolbars, headers, the composer, settings rows.
     #[default]
@@ -131,15 +131,16 @@ impl Size {
 
     pub fn icon(self) -> Pixels {
         match self {
-            Self::Xs => px(14.),
-            Self::Sm | Self::Md => px(16.),
+            Self::Xs | Self::Sm => px(14.),
+            Self::Md => px(16.),
         }
     }
 
+    /// 12 px for `Xs`, 13 px otherwise: controls read a step under body text, as gpui-component's `text_sm` did.
     pub fn text(self) -> Rems {
         match self {
             Self::Xs => META,
-            Self::Sm | Self::Md => BODY,
+            Self::Sm | Self::Md => CODE,
         }
     }
 

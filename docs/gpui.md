@@ -87,8 +87,10 @@ See [gpui/webview.md](gpui/webview.md).
   then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
   `debug_selector` records only with debug assertions on: `mobile/` turns them off in dev (Android emulator), so its
   `[profile.test]` turns them back on, or every `debug_bounds` is `None`.
-  A gpui-component `Button`'s id is not a debug selector and `Button` has no `.debug_selector`: wrap it in
+  A button's id is not a debug selector: give `ui::Button` its own `.debug_selector(..)`, or wrap it in
   `div().debug_selector(..).child(button)` (`thread_failure.rs`, the account card), or `debug_bounds` finds nothing.
+  In a `flex_col` the wrapper stretches across the row: give the column `items_start()` when a test clicks the
+  wrapper's center (`ui/button_test.rs`).
 - `TestAppContext` runs `background_spawn` work one task at a time on the test dispatcher, so two blocking
   background jobs (two `gh` reads) never overlap there: a held one blocks the other. Stage a race by recording the
   newer side's result (`PrLanded::mark` in `pr_newest_test.rs`), not by holding a fake process.
