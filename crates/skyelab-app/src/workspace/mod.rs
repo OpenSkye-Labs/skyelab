@@ -70,6 +70,7 @@ mod thread;
 use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
 mod ask_cards;
+mod pr_actions;
 mod pr_watch;
 mod shell_card;
 mod surfaces;

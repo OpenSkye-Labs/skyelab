@@ -160,9 +160,24 @@ another's; the repo is the project's `origin` (a github.com https or ssh URL). A
 **Review requested**, **All** for PRs; **Assigned to me**, **All** for issues) until you press refresh.
 
 - Click a PR to start a thread in its project with a review prompt; the PR is linked to the thread when you send it.
-  The arrow icon opens the PR in your browser.
+  The arrow icon opens the PR in your browser, and the merge icon opens **Pull request actions** (below).
 - Click an issue to start a thread with the issue (title, link, labels, the start of its text) as a context chip.
   Click a label to show only that label's issues; click it again (or the **Label** button) to show all.
+
+### Pull request actions
+
+The merge icon on a PR row (here, or on the thread details card's pull request row while the PR is open) opens a small
+dialog that acts on GitHub with the account the project's folder is bound to, never your own `gh` login:
+
+- **Merge**: pick **Squash**, **Merge commit** or **Rebase** (only the ones the repository allows), tick **Delete the
+  branch on GitHub** if you want it gone (your local checkout is never touched), then click the merge button and click
+  it again to confirm. While the PR's checks are failing (or weren't read yet) it asks a third time, **Merge anyway**. The merge is pinned to
+  the commit whose checks you saw: if someone pushed since, GitHub refuses it, and if that commit wasn't read the
+  dialog asks you to refresh first. GitHub's own branch rules still apply: SkyeLab never merges as an admin.
+- **Review**: **Approve**, or write a comment and **Comment** or **Request changes** (both need text).
+
+If GitHub refuses, its message shows in red and the dialog stays open. After an action the dialog closes and the PR is
+read again: the details card shows its new state, and the Pull requests page lists again.
 
 ## Worktrees
 

@@ -78,3 +78,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `terminal.ansi`) lives in the same file and SkyeLab reads it itself (`ui::themes::ansi`) into a global.
 - `on_focus_out` fires only in an active window (tests: `activate_window()`), and going inactive counts as one:
   check `window.is_window_active()` first.
+- A `v_flex` stretches its children across its width (align-items: stretch), so a segmented control or pill row
+  dropped straight into one paints its background edge to edge. Wrap it in an `h_flex()` to keep it content width
+  (`pr_actions.rs` merge methods).

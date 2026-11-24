@@ -49,6 +49,8 @@ bound account.
   `https://github.com/<owner>/<repo>/pull/<number>` link (anything else is refused) and keeps it on the thread; it
   then shows here and as the `#<number>` badge on the thread's sidebar row. The unlink button at the end of the row
   forgets the link (the pull request itself is untouched) without asking; the notice that follows has **Undo**.
+  While the PR is open, the merge icon before it opens **Pull request actions** (merge, approve, request changes,
+  comment; see the user guide's Pull requests section), and the row is read again after an action.
   Once read, the row shows the PR's state (**Open**, **Draft**, **Merged**, **Closed**, colored like its sidebar badge),
   then its checks (passing, running, or **N checks failing** with each failing check listed; click one to open its
   page) and its review (**Approved**, **Changes requested**, **Awaiting review**). SkyeLab reads it with the thread's
