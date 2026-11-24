@@ -84,12 +84,7 @@ fn width(distance: Option<usize>) -> f32 {
 
 /// A reply (markdown) as plain text on one line, cut for the card.
 fn reply_preview(text: &str) -> SharedString {
-    let mut plain = String::new();
-    match markdown::to_mdast(text, &markdown::ParseOptions::gfm()) {
-        Ok(tree) => plain_text(&tree, &mut plain),
-        Err(_) => plain.push_str(text), // GFM never fails to parse (only MDX can); the raw text then
-    }
-    preview(&plain)
+    preview(&markdown_plain(text))
 }
 
 /// `text` on one line, cut for the card. A prompt is plain text already, shown as typed.
@@ -101,26 +96,77 @@ fn preview(text: &str) -> SharedString {
     }
 }
 
-/// The words of a markdown tree, a space after each block (`## Summary` + a paragraph read "Summary The…").
+/// The words of a markdown tree as the timeline draws them (gpui-base's rendered text, which find marks): markup, link
+/// targets and HTML tags left out, a soft line break and runs of spaces as one space, a newline after each block and
+/// table row, a space between table cells.
 fn plain_text(node: &markdown::mdast::Node, out: &mut String) {
     use markdown::mdast::Node;
     match node {
-        Node::Text(t) => out.push_str(&t.value),
+        Node::Text(t) => collapse_white_space(&t.value, out),
         Node::InlineCode(c) => out.push_str(&c.value),
         Node::Code(c) => out.push_str(&c.value),
-        Node::Html(h) => out.push_str(&h.value), // `<Button>` in a sentence is a word, not markup to drop
-        Node::Break(_) => out.push(' '),
+        Node::Html(h) => strip_tags(&h.value, out),
+        Node::Break(_) => out.push('\n'),
         _ => {}
     }
     for child in node.children().into_iter().flatten() {
         plain_text(child, out);
     }
-    if matches!(
-        node,
-        Node::Paragraph(_) | Node::Heading(_) | Node::Code(_) | Node::TableCell(_)
-    ) {
-        out.push(' ');
+    match node {
+        Node::Paragraph(_) | Node::Heading(_) | Node::Code(_) => out.push('\n'),
+        Node::TableCell(_) => out.push(' '),
+        Node::TableRow(_) => {
+            if out.ends_with(' ') {
+                out.pop(); // cells are joined by a space, not ended by one
+            }
+            out.push('\n');
+        }
+        _ => {}
     }
+}
+
+/// `text` with each line break and run of spaces or tabs as one space, as gpui-base lays out a paragraph (a space
+/// already ending `out` counts, so "a " + a dropped tag + " b" reads "a b").
+fn collapse_white_space(text: &str, out: &mut String) {
+    let mut space = out.ends_with(' ');
+    for c in text.chars() {
+        if matches!(c, ' ' | '\t' | '\n' | '\r') {
+            if !space {
+                out.push(' ');
+            }
+            space = true;
+        } else {
+            out.push(c);
+            space = false;
+        }
+    }
+}
+
+/// HTML's text without its tags: gpui-base draws `<b>x</b>` as "x" and a lone `<Button>` as nothing.
+fn strip_tags(html: &str, out: &mut String) {
+    let mut in_tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+}
+
+/// A reply's markdown as [`plain_text`]. markdown-rs panics on some inputs (gpui-base guards the same call), so a
+/// panic falls back to the raw text rather than taking the app down.
+pub(in crate::workspace) fn markdown_plain(text: &str) -> String {
+    let parsed =
+        std::panic::catch_unwind(|| markdown::to_mdast(text, &markdown::ParseOptions::gfm()));
+    let mut plain = String::new();
+    match parsed {
+        Ok(Ok(tree)) => plain_text(&tree, &mut plain),
+        // GFM never fails to parse (only MDX can); the raw text then, as after a panic.
+        _ => plain.push_str(text),
+    }
+    plain
 }
 
 /// The turn's last reply text: the last text row before the next prompt.

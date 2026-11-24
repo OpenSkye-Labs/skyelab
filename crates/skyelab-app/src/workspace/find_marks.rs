@@ -94,34 +94,39 @@ pub(super) fn mark_words<V: 'static>(
                 .enumerate()
                 .map(|(n, r)| RangeHighlight::new(r, tint(n)));
             // The ranges come from this same rendered text, so they are valid.
-            // shortcut: find counts a reply's markdown source but marks its rendered text, so a match only in a link
-            // target (`[a](a.rs)`) is counted yet unmarked and shifts which word reads as current; count rendered text
-            // if that confuses.
             let _ = s.set_range_highlights(marks, cx);
         }
     });
     last.update(cx, |l, _| *l = Some((rendered, want, warning)));
 }
 
-/// Where `query` occurs in `text`, case-insensitive, as byte ranges of `text` (non-overlapping, as find counts).
+/// Where `query` occurs in `text`, case-insensitive, as byte ranges of `text` (non-overlapping). Find counts with it
+/// too, so the count and the marks agree.
 pub(super) fn word_ranges(text: &str, query: &str) -> Vec<Range<usize>> {
-    let q = query.trim().to_lowercase();
+    let q = fold(query.trim()).0;
     if q.is_empty() {
         return Vec::new();
     }
-    // Lowercasing can change a char's length, so each lowercase byte remembers its char's offset in `text`.
-    let mut lower = String::with_capacity(text.len());
-    let mut at = Vec::with_capacity(text.len() + 1);
-    for (i, c) in text.char_indices() {
-        for l in c.to_lowercase() {
-            at.extend(std::iter::repeat_n(i, l.len_utf8()));
-            lower.push(l);
-        }
-    }
-    at.push(text.len());
+    let (lower, at) = fold(text);
     lower
         .match_indices(&q)
         .map(|(s, m)| at[s]..at[s + m.len()])
         .filter(|r| !r.is_empty())
         .collect()
+}
+
+/// `text` lowercased a char at a time, the Greek final sigma as a plain one (so "ΟΔΟΣ" finds "οδος"), and for each
+/// byte of it the offset in `text` of the char it came from (lowercasing can change a char's length), plus the end.
+fn fold(text: &str) -> (String, Vec<usize>) {
+    let mut lower = String::with_capacity(text.len());
+    let mut at = Vec::with_capacity(text.len() + 1);
+    for (i, c) in text.char_indices() {
+        for l in c.to_lowercase() {
+            let l = if l == 'ς' { 'σ' } else { l };
+            at.extend(std::iter::repeat_n(i, l.len_utf8()));
+            lower.push(l);
+        }
+    }
+    at.push(text.len());
+    (lower, at)
 }

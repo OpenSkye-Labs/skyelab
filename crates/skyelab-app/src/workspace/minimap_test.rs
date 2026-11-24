@@ -42,7 +42,8 @@ fn a_preview_drops_markdown_marks() {
     );
     assert_eq!(
         reply_preview("fix the <Button> now"),
-        "fix the <Button> now"
+        "fix the now",
+        "as the timeline draws it: an HTML tag shows nothing"
     );
     assert_eq!(
         preview("# not a heading *ok*"),
