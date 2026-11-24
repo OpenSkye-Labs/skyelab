@@ -49,6 +49,8 @@ pub struct Changes {
     /// [`skyelab_git::snapshot_tree`] of the working tree, the same before and after the diff was read (else
     /// `None`): Commit refuses unless the tree still matches, so it never commits anything but what is shown.
     pub tree: Option<String>,
+    /// How many of `files` have a change to commit. Against a worktree's base the diff also lists committed files.
+    pub uncommitted: usize,
     /// The thread's checkpoints when the tab loaded, by turn.
     pub checkpoints: Vec<skyelab_git::Checkpoint>,
 }
@@ -167,7 +169,14 @@ fn load_with(dir: &Path, base: Option<&str>, ignore_ws: bool) -> Result<Changes>
     };
     let mut entries = diff_entries(diffs, &mut lines_left);
     let mut budget = MAX_UNTRACKED_TOTAL;
-    for rel in skyelab_git::status(dir)?.untracked {
+    let status = skyelab_git::status(dir)?;
+    let dirty = status.changed_paths();
+    let uncommitted = entries
+        .iter()
+        .filter(|(f, _)| dirty.contains(f.path.as_path()))
+        .count()
+        + status.untracked.len();
+    for rel in status.untracked.clone() {
         let max_lines = skyelab_git::MAX_FILE_LINES.min(lines_left);
         let (binary, rows) = untracked_rows(&root.join(&rel), &mut budget, max_lines);
         let shown = rows
@@ -180,10 +189,9 @@ fn load_with(dir: &Path, base: Option<&str>, ignore_ws: bool) -> Result<Changes>
     entries.sort_by(|a, b| a.0.path.cmp(&b.0.path));
 
     let after = skyelab_git::snapshot_tree(&root).ok();
-    Ok(assemble(
-        entries,
-        tree.filter(|t| after.as_ref() == Some(t)),
-    ))
+    let mut changes = assemble(entries, tree.filter(|t| after.as_ref() == Some(t)));
+    changes.uncommitted = uncommitted;
+    Ok(changes)
 }
 
 fn assemble(entries: Vec<(ChangedFile, Vec<Row>)>, tree: Option<String>) -> Changes {

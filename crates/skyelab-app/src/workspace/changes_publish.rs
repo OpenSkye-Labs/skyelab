@@ -164,7 +164,12 @@ impl ChangesView {
         let (nothing, tree) = self
             .changes
             .as_ref()
-            .map(|c| (c.files.is_empty(), c.tree.clone()))
+            .map(|c| {
+                (
+                    c.uncommitted == 0 && self.selected.is_empty(),
+                    c.tree.clone(),
+                )
+            })
             .unwrap_or((true, None));
         let paths = self.picked_paths();
         self.run(
@@ -282,8 +287,9 @@ impl ChangesView {
     }
 
     pub(super) fn render_publish(&self, cx: &mut Context<Self>) -> AnyElement {
-        let total = self.changes.as_ref().map_or(0, |c| c.files.len());
+        let total = self.changes.as_ref().map_or(0, |c| c.uncommitted);
         let commit_label = commit_label(self.selected.len(), total);
+        let nothing = total == 0 && self.selected.is_empty();
         let button = |id: &'static str, label: String| {
             Button::new(id)
                 .small()
@@ -330,6 +336,7 @@ impl ChangesView {
                     .child(
                         button("commit", commit_label)
                             .primary()
+                            .disabled(self.busy || nothing)
                             .on_click(cx.listener(|this, _, window, cx| this.commit(window, cx))),
                     )
                     .child(
@@ -378,6 +385,7 @@ pub(super) fn commit_label(selected: usize, total: usize) -> String {
         }
     };
     match selected {
+        0 if total == 0 => "Nothing to commit".to_string(),
         0 => format!("Commit all {}", files(total)),
         n => format!("Commit {}", files(n)),
     }

@@ -143,3 +143,21 @@ fn untracked_binary_and_links_show_placeholders() {
         );
     }
 }
+
+/// A worktree's diff is against its base, so it lists files already committed; Commit counts only what isn't.
+#[test]
+fn counts_only_uncommitted_files_against_a_base() {
+    let (_tmp, root) = repo(&[("a.txt", b"one\n")]);
+    std::fs::write(root.join("done.txt"), "committed\n").expect("write");
+    git(&root, &["add", "done.txt"]);
+    git(&root, &["commit", "-q", "-m", "work"]);
+    let c = load(&root, Some("main~1")).expect("load");
+    assert_eq!(c.files.len(), 1, "the committed file is still in the diff");
+    assert_eq!(c.uncommitted, 0, "nothing is left to commit");
+
+    std::fs::write(root.join("a.txt"), "two\n").expect("modify");
+    std::fs::write(root.join("new.txt"), "fresh\n").expect("untracked");
+    let c = load(&root, Some("main~1")).expect("load");
+    assert_eq!((c.files.len(), c.uncommitted), (3, 2));
+    assert_eq!(load(&root, None).expect("load").uncommitted, 2);
+}

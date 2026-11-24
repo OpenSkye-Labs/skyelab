@@ -10,7 +10,6 @@ use gpui::{App, AppContext as _, Context, KeyBinding, SharedString, Window, acti
 use skyelab_agent::{Attachment, AttachmentKind, CLAUDE_MODELS, ModelInfo};
 use skyelab_core::{Account, Provider};
 use skyelab_store::ModelChoice;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 actions!(
@@ -252,18 +251,9 @@ impl ThreadView {
     pub(in crate::workspace) fn refresh_footer(&mut self, cx: &mut Context<Self>) {
         let cwd = self.cwd.clone();
         let task = cx.background_spawn(async move {
-            let changes = skyelab_git::status(&cwd).ok().map(|s| {
-                let mut paths: Vec<&std::path::Path> = s
-                    .staged
-                    .iter()
-                    .chain(&s.unstaged)
-                    .map(|f| f.path.as_path())
-                    .chain(s.untracked.iter().map(PathBuf::as_path))
-                    .collect();
-                paths.sort();
-                paths.dedup();
-                paths.len()
-            });
+            let changes = skyelab_git::status(&cwd)
+                .ok()
+                .map(|s| s.changed_paths().len());
             let branch = skyelab_git::current_branch(&cwd).ok().flatten();
             (super::composer_machine::machine_name(), branch, changes)
         });
