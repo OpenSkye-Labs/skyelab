@@ -349,7 +349,10 @@ gpui_kit_assets::icon_assets!(
         // Snooze, and the sidebar footer's Usage.
         AlarmClock,
         AlarmClockOff,
-        ChartNoAxesColumn
+        ChartNoAxesColumn,
+        // The composer's Quote chip and button, and its prompt stash.
+        Quote,
+        Bookmark
     ]
 );
 

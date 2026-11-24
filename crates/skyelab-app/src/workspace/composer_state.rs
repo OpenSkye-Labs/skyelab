@@ -3,6 +3,7 @@
 
 use super::composer_menu::{self, MenuItem, MenuKind};
 use super::composer_queue::Queue;
+use super::composer_stash::StashKey;
 use super::lock;
 use super::thread::ThreadView;
 use gpui::{App, AppContext as _, Context, KeyBinding, SharedString, Window, actions};
@@ -60,6 +61,11 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
             Some(super::thread::CONTEXT),
         ),
         KeyBinding::new(STOP_KEY, super::thread::Stop, Some(super::thread::CONTEXT)),
+        KeyBinding::new(
+            super::composer_stash::STASH_KEY,
+            super::composer_stash::StashPrompt,
+            Some(super::thread::CONTEXT),
+        ),
     ]);
     super::composer_draft::bind_keys(cx);
 }
@@ -110,16 +116,19 @@ pub(crate) struct Composer {
     /// Comments on the Changes tab's diff, until they are sent here as a chip.
     pub review: crate::workspace::diff_comments::DiffComments,
     pub queue: Queue,
+    /// The prompt stash's list is open, with this row highlighted (`composer_stash.rs`).
+    pub stash_open: Option<usize>,
+    /// Text selected in the timeline and where the mouse came up: the floating Quote button (`composer_quote.rs`).
+    pub quote: Option<(gpui::Point<gpui::Pixels>, String)>,
     pub menu: Option<Menu>,
     pub picker_open: bool,
     pub pick: ModelChoice,
     /// "Send to several models": the ticked models (`compare.rs`).
     pub compare: Option<crate::workspace::compare::Compare>,
+    /// Counts model picks, so a pick's save that lands after a newer one's is dropped.
+    pub pick_gen: Arc<std::sync::atomic::AtomicU64>,
     /// The user picked in this tab, so a late store read doesn't overwrite it.
     pub picked: bool,
-    /// Counts picks; each pick's save runs in the background and skips itself once a newer pick exists, so two
-    /// quick picks can't land in the store in the wrong order.
-    pub pick_saves: std::sync::Arc<std::sync::atomic::AtomicU64>,
     /// Codex's models, once listed (or why they couldn't be).
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// The model this thread's agent last reported running (its init line).
@@ -279,40 +288,6 @@ impl ThreadView {
         cx.notify();
     }
 
-    /// Picks a model and effort: kept on the thread, remembered as the project's default for new threads, and
-    /// handed to a running agent.
-    pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
-        self.composer.pick = pick.clone();
-        self.composer.picked = true;
-        self.composer.picker_open = false;
-        let (store, thread, project) = (
-            self.backend.store.clone(),
-            self.thread.as_ref().map(|t| t.id),
-            self.project_id,
-        );
-        let session = self.session.clone();
-        let saves = self.composer.pick_saves.clone();
-        let this_save = saves.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-        self.in_background(cx, move || {
-            {
-                let s = lock(&store)?;
-                // Checked under the store lock: a newer pick that ran first already saved and applied its own.
-                if saves.load(std::sync::atomic::Ordering::SeqCst) != this_save {
-                    return Ok(());
-                }
-                if let Some(id) = thread {
-                    s.set_thread_model(id, &pick)?;
-                }
-                s.set_project_model(project, &pick)?;
-            }
-            if let Some(session) = session {
-                lock(&session)?.set_model(pick.model.as_deref(), pick.effort.as_deref())?;
-            }
-            Ok(())
-        });
-        cx.notify();
-    }
-
     // The `@` `/` `$` `#` menus.
 
     /// The prompt changed: open, narrow or close the menu its cursor's word asks for.
@@ -426,19 +401,23 @@ impl ThreadView {
     pub(in crate::workspace) fn menu_up(
         &mut self,
         _: &MenuUp,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.move_menu(-1, cx);
+        if !self.stash_key(StashKey::Move(-1), window, cx) {
+            self.move_menu(-1, cx);
+        }
     }
 
     pub(in crate::workspace) fn menu_down(
         &mut self,
         _: &MenuDown,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.move_menu(1, cx);
+        if !self.stash_key(StashKey::Move(1), window, cx) {
+            self.move_menu(1, cx);
+        }
     }
 
     fn move_menu(&mut self, by: isize, cx: &mut Context<Self>) {
@@ -452,9 +431,12 @@ impl ThreadView {
     pub(in crate::workspace) fn menu_close(
         &mut self,
         _: &MenuClose,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.stash_key(StashKey::Close, window, cx) {
+            return;
+        }
         self.composer.menu = None;
         cx.notify();
     }
@@ -465,6 +447,9 @@ impl ThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.stash_key(StashKey::Accept, window, cx) {
+            return;
+        }
         let selected = self.composer.menu.as_ref().map(|m| m.selected);
         if let Some(ix) = selected {
             self.accept_row(ix, window, cx);

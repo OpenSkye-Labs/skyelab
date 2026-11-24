@@ -64,6 +64,17 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Read `ClickEvent::click_count()` for a double-click; the × inside a dock tab calls `cx.stop_propagation()` so the
   tab's own click doesn't also run.
 
+### Text selection
+
+- A selectable `TextView` joins the window's one text selection (`gpui_base::TextSelection`, not re-exported by
+  gpui-component: `gpui-base` is a direct dependency at the version gpui-component pins). It has no event for a
+  pointer selection changing (`observe_touch_selection` is for long-press). To act on a selection (Quote), listen for
+  the mouse-up on the container with `capture_any_mouse_up` and read `TextSelection::selected_text` in
+  `cx.defer_in`: by then the text view has ended its drag, and a click on your button has already run.
+- A button that acts on the selection gets `ElementExt::keep_text_selection(id)`, or pressing it clears the
+  selection first. Float it with `deferred(anchored().position(window_point))`: the mouse event's position is
+  already in window coordinates. `simulate_mouse_down/move/up` over a `TextView` makes a real selection in tests.
+
 ### Settings modal, themes and text size
 
 - Text sizes are rems (`ui::BODY`…): `Root` sets the rem to `theme.font_size`, so Appearance's text size scales

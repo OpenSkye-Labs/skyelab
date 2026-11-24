@@ -102,6 +102,7 @@ impl ThreadView {
         // change saves them.
         self._subs
             .push(cx.observe_self(|this, cx| this.save_draft(cx)));
+        self.init_stash(cx);
         let (store, owner) = (self.backend.store.clone(), self.draft_owner());
         let source = self
             .thread
@@ -238,9 +239,11 @@ impl ThreadView {
         cx.notify();
     }
 
-    /// Whether the key is ours: the prompt has focus and no menu is open.
+    /// Whether the key is ours: the prompt has focus and no menu (nor the stash list) is open.
     fn history_key(&self, window: &Window, cx: &App) -> bool {
-        self.composer.menu.is_none() && self.prompt.read(cx).focus_handle(cx).is_focused(window)
+        self.composer.menu.is_none()
+            && self.composer.stash_open.is_none()
+            && self.prompt.read(cx).focus_handle(cx).is_focused(window)
     }
 
     /// ArrowUp: in an empty prompt, the newest earlier prompt; on a shown one's first line, the one before it.

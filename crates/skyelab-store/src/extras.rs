@@ -19,6 +19,15 @@ impl Draft {
     }
 }
 
+/// A listed draft: its text and how many files it holds (their bytes stay in the store).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DraftRow {
+    pub owner: String,
+    pub text: String,
+    pub updated_at: i64,
+    pub files: usize,
+}
+
 impl Store {
     /// Who set the thread's title: `prompt` (its first line), `generated`, `user` or `fork`.
     pub fn title_source(&self, id: i64) -> Result<Option<String>> {
@@ -73,6 +82,51 @@ impl Store {
             )?;
         }
         Ok(())
+    }
+
+    /// The drafts whose owner starts with `prefix` (the prompt stash's `stash:`), newest first.
+    pub fn drafts_with_prefix(&self, prefix: &str) -> Result<Vec<DraftRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT d.owner, d.text, d.updated_at,
+                    (SELECT COUNT(*) FROM draft_files f WHERE f.owner = d.owner)
+             FROM drafts d WHERE substr(d.owner, 1, length(?1)) = ?1
+             ORDER BY d.updated_at DESC, d.owner DESC",
+        )?;
+        let rows = stmt.query_map([prefix], |r| {
+            Ok(DraftRow {
+                owner: r.get(0)?,
+                text: r.get(1)?,
+                updated_at: r.get(2)?,
+                files: r.get::<_, i64>(3)? as usize,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Reads `owner`'s draft and removes it, text and files, in one transaction.
+    pub fn take_draft(&mut self, owner: &str) -> Result<Draft> {
+        let tx = self.conn.transaction()?;
+        let text = tx
+            .query_row("SELECT text FROM drafts WHERE owner = ?1", [owner], |r| {
+                r.get(0)
+            })
+            .optional()?
+            .unwrap_or_default();
+        let files = {
+            let mut stmt =
+                tx.prepare("SELECT name, data FROM draft_files WHERE owner = ?1 ORDER BY idx")?;
+            stmt.query_map([owner], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?
+        };
+        tx.execute("DELETE FROM drafts WHERE owner = ?1", [owner])?;
+        tx.execute("DELETE FROM draft_files WHERE owner = ?1", [owner])?;
+        tx.commit()?;
+        Ok(Draft { text, files })
+    }
+
+    /// Removes `owner`'s draft, text and files.
+    pub fn delete_draft(&mut self, owner: &str) -> Result<()> {
+        self.take_draft(owner).map(drop)
     }
 
     /// Replaces `owner`'s unsent files.

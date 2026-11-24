@@ -1,12 +1,52 @@
 //! What the composer's model chip names: the model that will run, never a bare "default" (T3's "Opus 5.5 High").
 
 use super::composer_picker::title_case;
+use super::lock;
 use crate::workspace::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString};
 use skyelab_agent::{CLAUDE_MODELS, ModelInfo, model_label};
 use skyelab_core::Provider;
+use skyelab_store::ModelChoice;
 
 impl ThreadView {
+    /// Picks a model and effort: kept on the thread, remembered as the project's default for new threads, and
+    /// handed to a running agent.
+    pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
+        self.composer.pick = pick.clone();
+        self.composer.picked = true;
+        self.composer.picker_open = false;
+        let (store, thread, project) = (
+            self.backend.store.clone(),
+            self.thread.as_ref().map(|t| t.id),
+            self.project_id,
+        );
+        let session = self.session.clone();
+        // Two quick picks save in two tasks that may run out of order: only the newest writes.
+        let latest = self.composer.pick_gen.clone();
+        let this_pick = latest.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        self.in_background(cx, move || {
+            {
+                let s = lock(&store)?;
+                if latest.load(std::sync::atomic::Ordering::SeqCst) != this_pick {
+                    return Ok(());
+                }
+                if let Some(id) = thread {
+                    s.set_thread_model(id, &pick)?;
+                }
+                s.set_project_model(project, &pick)?;
+            }
+            if let Some(session) = session {
+                let mut session = lock(&session)?;
+                // Checked again under this lock: a newer pick may have reached the agent since the store write.
+                if latest.load(std::sync::atomic::Ordering::SeqCst) == this_pick {
+                    session.set_model(pick.model.as_deref(), pick.effort.as_deref())?;
+                }
+            }
+            Ok(())
+        });
+        cx.notify();
+    }
+
     /// The chip's label ("Opus 5.5 High") and whether it names the account's default rather than a pick. `compact`
     /// leaves the effort out.
     pub(in crate::workspace) fn chip_label(&self, compact: bool) -> (String, bool) {
