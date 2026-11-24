@@ -255,18 +255,24 @@ impl BasePanel for BrowserPanel {
 }
 impl Panel for BrowserPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        browser_tab_title(
-            self.browser.read(cx).title().map(|t| t.as_ref()),
-            self.agent.is_some(),
-        )
+        self.tab_title(cx)
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None
     }
 }
 
-/// A browser tab's label: the page's title (cut to fit a tab), else what kind of tab it is. An agent's tab keeps
-/// saying so, whatever page it shows.
+impl BrowserPanel {
+    /// What its tab and its palette entry say.
+    pub(super) fn tab_title(&self, cx: &App) -> SharedString {
+        browser_tab_title(
+            self.browser.read(cx).title().map(|t| t.as_ref()),
+            self.agent.is_some(),
+        )
+    }
+}
+
+/// The page's title, at most 28 characters, else what kind of tab it is. An agent's tab keeps saying so.
 pub(super) fn browser_tab_title(page: Option<&str>, agent: bool) -> SharedString {
     const MAX: usize = 28;
     let kind = if agent { "Agent browser" } else { "Browser" };

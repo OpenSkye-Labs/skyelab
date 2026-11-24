@@ -40,7 +40,7 @@ pub struct BrowserView {
     /// The URL of the page that committed last (wry's `Started`), which the user sees. The engine's own URL can
     /// name a pending load.
     committed_url: Option<String>,
-    /// The page's `document.title` as the webview last reported it (untrusted page text, display only).
+    /// The page's `document.title` after its last load; untrusted page text.
     title: Option<SharedString>,
     focus: FocusHandle,
     zoom: f64,
@@ -82,7 +82,7 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) -> Self {
         let (loaded_tx, loaded_rx) = flume::unbounded::<String>();
-        let (title_tx, title_rx) = flume::unbounded::<String>();
+        let (finished_tx, finished_rx) = flume::unbounded::<()>();
         let mut no_folder = None;
         let override_env = std::env::var_os("WEBVIEW2_USER_DATA_FOLDER");
         let data_dir = crate::webview_data_dir(cfg!(windows), private, override_env.as_deref())
@@ -97,16 +97,12 @@ impl BrowserView {
             Some(context) => wry::WebViewBuilder::new_with_web_context(context),
             None => wry::WebViewBuilder::new(),
         };
-        let mut builder = builder
-            .with_incognito(private)
-            .with_on_page_load_handler(move |event, url| {
-                if matches!(event, wry::PageLoadEvent::Started) {
-                    let _ = loaded_tx.send(url);
-                }
-            })
-            .with_document_title_changed_handler(move |title| {
-                let _ = title_tx.send(title);
-            });
+        let mut builder = builder.with_incognito(private).with_on_page_load_handler(
+            move |event, url| match event {
+                wry::PageLoadEvent::Started => _ = loaded_tx.send(url),
+                wry::PageLoadEvent::Finished => _ = finished_tx.send(()),
+            },
+        );
         let mut error = None;
         match url.map(parse_url) {
             Some(Ok(url)) => builder = builder.with_url(url.as_str()),
@@ -130,17 +126,32 @@ impl BrowserView {
         let engine = webview.clone().map(|w| Rc::new(Wry(w)) as Rc<dyn Engine>);
         let mut view = Self::build(webview, engine, loaded_rx, url, error, window, cx);
         view._data_dir = data_dir;
+        // Asked after each load, not through wry's title-changed observer: lb-wry 0.53 dereferences WebKit's
+        // nullable title there. A title a page sets later shows from its next load on.
+        let page = view.webview.clone();
         view._sync_title = cx.spawn(async move |this, cx| {
-            while let Ok(title) = title_rx.recv_async().await {
-                let title = title.trim();
-                let title = (!title.is_empty()).then(|| SharedString::from(title.to_owned()));
-                if this
-                    .update(cx, |this, cx| {
-                        this.title = title;
-                        cx.notify();
-                    })
-                    .is_err()
-                {
+            let Some(page) = page else { return };
+            while finished_rx.recv_async().await.is_ok() {
+                let (tx, rx) = flume::bounded::<String>(1);
+                let asked = cx.update(|cx| {
+                    page.read(cx)
+                        .evaluate_script_with_callback("document.title", move |raw| {
+                            let _ = tx.try_send(raw);
+                        })
+                        .is_ok()
+                });
+                if !asked {
+                    continue;
+                }
+                let Ok(raw) = rx.recv_async().await else {
+                    continue;
+                };
+                let title = page_title(&raw);
+                let shown = this.update(cx, |this, cx| {
+                    this.title = title;
+                    cx.notify();
+                });
+                if shown.is_err() {
                     break;
                 }
             }
@@ -295,7 +306,7 @@ impl BrowserView {
         Ok((self.engine()?, url))
     }
 
-    /// The page's title, once it reported a non-empty one.
+    /// The page's title after its last load; `None` while it has none.
     pub fn title(&self) -> Option<&SharedString> {
         self.title.as_ref()
     }
@@ -456,3 +467,26 @@ impl Render for BrowserView {
 #[path = "view_controls.rs"]
 mod controls_ui;
 pub use controls_ui::DuplicateTab;
+
+/// `document.title` as wry hands it back (a JSON string), trimmed, with control characters (newlines, bidi
+/// overrides) dropped so a page can't break or disguise its tab's label. `None` when empty or not a string.
+fn page_title(raw: &str) -> Option<SharedString> {
+    let title: String = serde_json::from_str::<String>(raw)
+        .ok()?
+        .chars()
+        .filter(|c| {
+            !c.is_control() && !matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+        })
+        .collect();
+    let title = title.trim();
+    (!title.is_empty()).then(|| SharedString::from(title.to_owned()))
+}
+
+#[cfg(test)]
+#[test]
+fn page_titles_are_cleaned() {
+    assert_eq!(page_title("\"QA page\"").as_deref(), Some("QA page"));
+    assert_eq!(page_title("\"  \""), None);
+    assert_eq!(page_title("null"), None, "no title");
+    assert_eq!(page_title("\"a\\nb\\u202ec\"").as_deref(), Some("abc"));
+}
