@@ -30,6 +30,8 @@ const TOP_VIEWS: usize = 6;
 pub(crate) struct DebugHud {
     /// Showing the debug log instead of the counters.
     log: bool,
+    /// This process's child processes at the last tick (read off the UI thread).
+    children: Option<usize>,
     _tick: Task<()>,
 }
 
@@ -38,12 +40,23 @@ impl DebugHud {
         let tick = cx.spawn(async move |this, cx| {
             loop {
                 cx.background_executor().timer(Duration::from_secs(1)).await;
-                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                let children = cx
+                    .background_spawn(async { debug_mode::child_processes().len() })
+                    .await;
+                let shown = this.update(cx, |hud, cx| {
+                    hud.children = Some(children);
+                    cx.notify()
+                });
+                if shown.is_err() {
                     break;
                 }
             }
         });
-        Self { log, _tick: tick }
+        Self {
+            log,
+            children: None,
+            _tick: tick,
+        }
     }
 }
 
@@ -164,7 +177,7 @@ impl Render for DebugHud {
             );
         let body = match self.log {
             true => log_rows(muted, danger).into_any_element(),
-            false => stats(muted).into_any_element(),
+            false => stats(self.children, muted).into_any_element(),
         };
         v_flex()
             .id("debug-hud")
@@ -215,16 +228,23 @@ fn ms(d: Duration) -> String {
     format!("{:.1} ms", d.as_secs_f64() * 1000.)
 }
 
-fn stats(muted: gpui::Hsla) -> impl IntoElement {
+fn stats(children: Option<usize>, muted: gpui::Hsla) -> impl IntoElement {
     let frames = debug_mode::frame_stats();
     let renders = crate::debug_renders::last_second();
     let live = debug::live_counts();
     v_flex()
         .gap_0p5()
+        // Developer mode was turned off with the overlay open: what it shows has stopped.
+        .when(!debug::enabled(), |el| {
+            el.child(row(
+                "Debug mode is off",
+                "hide and show the overlay to turn it on",
+            ))
+        })
         .child(caption("Frames (root render to paint)", muted))
-        .child(row("Frames last second", frames.fps.to_string()))
+        .child(row("Frames/s (5 s average)", format!("{:.1}", frames.fps)))
         .child(row("Last frame", ms(frames.last)))
-        .child(row("Worst frame", ms(frames.worst)))
+        .child(row("Worst frame (5 s)", ms(frames.worst)))
         .child(caption("Renders/s, busiest views", muted))
         .when(renders.is_empty(), |el| {
             el.child(row("Nothing rendered", ""))
@@ -237,6 +257,7 @@ fn stats(muted: gpui::Hsla) -> impl IntoElement {
         )
         .child(caption("Live objects", muted))
         .children(live.into_iter().map(|(kind, n)| row(kind, n.to_string())))
+        .children(children.map(|n| row("child processes", n.to_string())))
 }
 
 fn log_rows(muted: gpui::Hsla, danger: gpui::Hsla) -> impl IntoElement {

@@ -56,12 +56,16 @@ and a killed process writes nothing.
 
 The overlay sits at the bottom right of the window. **Stats** shows:
 
-- **Frames**: frames drawn in the last second, the last frame's time and the worst. A frame is timed from the window
+- **Frames**: frames per second averaged over the last 5 seconds, the last frame's time and the worst of those 5 s. A frame is timed from the window
   root's `render` to its paint (render, layout, prepaint and most of paint), for every window. A frame over 50 ms is
   also printed to stderr (`skyelab: slow frame 63.0 ms`) and logged.
 - **Renders/s, busiest views**: the same counts `SKYELAB_DEBUG_RENDERS` prints. `Workspace` renders once per frame per
   window, so it is the frame count; `timeline row` is rows built.
-- **Live objects**: windows, thread views, terminals, browser tabs, agent sessions and remote connections alive now.
+- **Live objects**: windows, thread views, terminals, browser tabs, agent sessions and remote connections alive now,
+  and this process's child processes (agents, shells, git), read once a second off the UI thread.
+
+GPUI keeps no public count of its entities, so the overlay counts SkyeLab's own long-lived objects instead; for
+entity handles, run tests with GPUI's leak detector (see [Hunting a leak](#hunting-a-leak)).
 
 The overlay ticks once a second, and a tick re-renders the whole window (a notify dirties every ancestor, see
 [gpui/redraw.md](gpui/redraw.md)). So with it open an idle window shows about 1 frame a second: that one is the
@@ -87,15 +91,17 @@ Spans in the trace:
 | `process` (field `program`) | every short-lived child: git, gh, tailscale, the agents' one-shot calls |
 | `daemon.dispatch` | one RPC served to another machine |
 | `mcp.tool` (field `tool`) | one tool call from an agent to SkyeLab's MCP server |
+| `rpc` event (fields `what`, `ms`, `ok`) | each RPC answered, client and daemon side, while debug mode is on |
 
-Fields hold view and tool names and program paths, never prompts or arguments. A trace can still contain file paths,
-so look before you attach it to a public issue.
+Fields hold view and tool names and program paths, never prompts or arguments. The trace keeps only SkyeLab's own
+spans (targets starting `skyelab`), not those of other crates, and the file is created 0600. It can still contain
+file paths, so look before you attach it to a public issue.
 
 Without `SKYELAB_TRACE` no subscriber is installed and each span costs one callsite check.
 
 **Tracy** shows the same spans live, with zones and plots, while the app runs: build with `--features tracy`, start
 the [Tracy profiler](https://github.com/wolfpld/tracy) app (the Tracy version the tracing-tracy 0.12 README names: the
-wire protocol must match), and connect it to the running SkyeLab.
+wire protocol must match), and connect it to the running SkyeLab. The build turns off tracy's network broadcast and listens on localhost only.
 
 ```sh
 cargo run -p skyelab-app --release --features tracy
@@ -126,7 +132,8 @@ are usually fast but sometimes stall (a lock, a disk wait). In alloc mode the nu
 function itself, not its callees, unless `HOTPATH_ALLOC_CUMULATIVE=true`.
 
 The instrumented functions are the same hot paths as the trace spans: the store queries, `claude::parse`, Codex's
-`on_line`, `process::output`/`output_within`, `daemon::dispatch` and the timeline's `render_item`. Add one with
+`on_line`, `process::output`/`output_within`, `daemon::dispatch`, the MCP server's `respond` and the timeline's
+`render_item`. Client requests are async and are timed in the debug log and as `rpc` trace events instead. Add one with
 `#[cfg_attr(feature = "hotpath", hotpath::measure)]` (the crate needs the optional `hotpath` dependency and feature,
 as `skyelab-store` has). Labels must be unique per crate. `hotpath-alloc` replaces the global allocator, so it can't
 be combined with `dhat-heap` (the build says so).
@@ -188,7 +195,7 @@ The dump is a JSON file in `<local data>/skyelab/debug/state-<unix ms>.json`:
 ```json
 {
   "skyelab": "0.1.0", "build": "release", "os": "macos", "debug_mode": true,
-  "frames": {"fps": 2, "last_ms": 3.1, "worst_ms": 9.4},
+  "frames": {"fps": 1.2, "last_ms": 3.1, "worst_ms": 9.4},
   "renders_per_second": {"Workspace": 2, "ThreadView": 1},
   "live": {"windows": 1, "thread views": 3, "terminals": 1, "browser tabs": 0, "agent sessions": 1, "remote connections": 0},
   "child_processes": [{"pid": 4242, "name": "claude", "run_secs": 120}],
@@ -206,17 +213,19 @@ While debug mode is on, SkyeLab logs:
 
 | Kind | What | Fields |
 |---|---|---|
-| `rpc` | each call this app made to another machine (`client …`) and each call it served (`daemon …`) | method, request size, round trip, error |
-| `process` | each child started (git, gh, agents, shells) and each short-lived one's end | program, args with secrets removed, pid, time, exit code |
-| `tailnet` | Tailscale CLI calls | as `process` |
+| `rpc` | each call this app made to another machine (`client …`, including ones cut off by a lost connection) and each call it served (`daemon …`) | method, request size, round trip, error |
+| `process` | each child started through `skyelab_core::process` (git, gh, agents, adb, simctl) and each short-lived one's end, including one killed past its time limit | program, args with secrets removed, pid, time, exit code |
+| `tailnet` | Tailscale CLI calls (`tailscale`, the macOS app's `Tailscale`, the fake) | as `process` |
 | `mcp` | each tool call an agent made to SkyeLab | tool name, time, ok or error |
 | `frame` | a frame over 50 ms | time |
 
 It never logs environment values, prompts, message text, tool inputs or results, tokens or keys. Arguments are
 redacted before they are stored: values of flags whose names hold `token`, `secret`, `password`, `key`, `auth`,
-`cookie`, `credential`, `header`, `prompt`, `message` or `body` (and `-m`, `-H`, `-p`, `-F`), token-shaped words
-(`ghp_…`, `github_pat_…`, `sk-…`, `xoxb-…`, `AKIA…`, JWTs), URL credentials and query strings, `-c key=value` values,
-and any argument over 200 characters. Errors are redacted the same way. `crates/skyelab-core/tests/debug.rs` tests it.
+`cookie`, `credential`, `header`, `prompt`, `message`, `body` or `title` (and `-m`, `-H`, `-p`, `-F`), token-shaped
+words (`ghp_…`, `github_pat_…`, `sk-…`, `xoxb-…`, `AKIA…`, JWTs), URL credentials, query strings and fragments,
+`-c`/`--config key=value` values (the key is redacted like any word), the text after `input text` (what an agent types
+into an emulator), and any argument over 200 characters. Terminal shells start through their PTY, not
+`skyelab_core::process`, so they are not logged; the overlay's child process count and the dump list them. Errors are redacted the same way. `crates/skyelab-core/tests/debug.rs` tests it.
 
 See it in the overlay's **Log** tab (**Open Debug Log** in the palette), or in the file
 `<local data>/skyelab/debug/debug.log` (JSON lines, 0600, starts over past 8 MB):

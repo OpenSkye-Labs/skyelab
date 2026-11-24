@@ -10,7 +10,7 @@ fn the_snapshot_has_every_section_and_no_extra_text() {
     entry.at_ms = 1;
     let value = snapshot(
         FrameStats {
-            fps: 60,
+            fps: 59.8,
             last: Duration::from_micros(4_150),
             worst: Duration::from_millis(18),
         },
@@ -44,7 +44,7 @@ fn the_snapshot_has_every_section_and_no_extra_text() {
             "skyelab"
         ]
     );
-    assert_eq!(value["frames"]["fps"], 60);
+    assert_eq!(value["frames"]["fps"], 59.8);
     assert_eq!(value["frames"]["last_ms"], 4.2);
     assert_eq!(value["renders_per_second"]["ThreadView"], 58);
     assert_eq!(value["live"]["windows"], 1);

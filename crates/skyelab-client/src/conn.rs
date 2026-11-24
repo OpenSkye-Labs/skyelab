@@ -252,6 +252,9 @@ async fn session(cx: &mut Ctx) -> End {
     };
     let end = live.serve(cx).await;
     // Whatever was in flight on this connection can't be answered now.
+    for (_, call) in live.timing.drain() {
+        call.done(Some("connection lost"));
+    }
     for (_, (_, waiter)) in live.pending.drain() {
         match waiter {
             Waiter::User(reply) => reply(Err(Error::ConnectionLost)),

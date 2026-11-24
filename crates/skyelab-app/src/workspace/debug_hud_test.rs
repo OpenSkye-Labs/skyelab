@@ -36,9 +36,15 @@ fn debug_off_adds_no_redraws_and_the_overlay_ticks_while_shown(cx: &mut TestAppC
         "the overlay is drawn"
     );
     crate::debug_renders::take_test_count("DebugHud");
+    crate::debug_renders::take_test_count("Workspace");
     cx.executor().advance_clock(Duration::from_secs(5));
     cx.run_until_parked();
     let ticks = crate::debug_renders::take_test_count("DebugHud");
+    let frames = crate::debug_renders::take_test_count("Workspace");
+    assert!(
+        frames >= 4,
+        "the counter sees the window redraw under the overlay, got {frames}"
+    );
     assert!(
         (4..=6).contains(&ticks),
         "about one redraw a second, got {ticks}"
@@ -58,6 +64,13 @@ fn debug_off_adds_no_redraws_and_the_overlay_ticks_while_shown(cx: &mut TestAppC
         0,
         "its tick ends with it"
     );
+    assert_eq!(
+        crate::debug_renders::take_test_count("Workspace"),
+        0,
+        "and the window is idle again"
+    );
+    // The switch is process-wide: leave it as other tests expect it.
+    skyelab_core::debug::set_enabled(false);
 }
 
 #[gpui::test]

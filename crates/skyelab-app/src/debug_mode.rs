@@ -87,7 +87,15 @@ pub(crate) fn set_developer_mode(on: bool, cx: &mut App) -> gpui::Task<anyhow::R
     } else if !by_env {
         debug::set_enabled(false);
     }
+    // Two quick clicks save in click order: a save that is no longer the newest skips itself under the lock.
+    static NEWEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    static SAVING: Mutex<()> = Mutex::new(());
+    let mine = NEWEST.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     cx.background_spawn(async move {
+        let _held = SAVING.lock().unwrap_or_else(PoisonError::into_inner);
+        if NEWEST.load(std::sync::atomic::Ordering::SeqCst) != mine {
+            return Ok(());
+        }
         match path {
             Some(p) => skyelab_core::AppSettings::update(&p, |s| s.developer_mode = on).map(drop),
             None => Ok(()),
@@ -154,18 +162,27 @@ pub(crate) fn finish_on_quit(cx: &mut App) {
 /// The trace subscriber: a Chrome trace file for `SKYELAB_TRACE`, plus Tracy or tokio-console in builds with those
 /// features. With none of them no subscriber is installed, and a span costs one callsite check.
 fn start_trace(path: Option<&Path>) {
+    use tracing_subscriber::Layer as _;
     use tracing_subscriber::layer::SubscriberExt as _;
-    let chrome = path.map(|p| {
-        let (layer, guard) = tracing_chrome::ChromeLayerBuilder::new()
-            .file(p)
-            .include_args(true)
-            .build();
-        keep(Box::new(guard));
-        eprintln!(
-            "skyelab: tracing to {} (quit with cmd-q / the menu to flush it)",
-            p.display()
-        );
-        layer
+    let chrome = path.and_then(|p| match private_file(p) {
+        Ok(file) => {
+            let (layer, guard) = tracing_chrome::ChromeLayerBuilder::new()
+                .writer(file)
+                .include_args(true)
+                .build();
+            keep(Box::new(guard));
+            eprintln!(
+                "skyelab: tracing to {} (quit with cmd-q / the menu to flush it)",
+                p.display()
+            );
+            // Only SkyeLab's own spans: other crates' fields were never checked for secrets.
+            let ours = tracing_subscriber::filter::filter_fn(|m| m.target().starts_with("skyelab"));
+            Some(layer.with_filter(ours))
+        }
+        Err(e) => {
+            eprintln!("skyelab: no trace, {} can't be written: {e}", p.display());
+            None
+        }
     });
     #[cfg(feature = "tracy")]
     let tracy = Some(tracing_tracy::TracyLayer::default());
@@ -187,7 +204,20 @@ fn start_trace(path: Option<&Path>) {
     }
 }
 
-/// Frame times of the last second: each window's root render to its paint.
+/// A new or emptied file only this user can read (0600 on unix).
+fn private_file(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut open = std::fs::OpenOptions::new();
+    open.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
+    open.open(path)
+}
+
+/// Frames are averaged over this long: an idle window draws about once a second (the overlay's tick), so a
+/// one-second window would often read 0.
+const FRAME_WINDOW: Duration = Duration::from_secs(5);
+
+/// Frame times of the last [`FRAME_WINDOW`]: each window's root render to its paint.
 static FRAMES: Mutex<VecDeque<(Instant, Duration)>> = Mutex::new(VecDeque::new());
 
 /// One frame drawn in `took`; a slow one goes to stderr and the debug log.
@@ -196,7 +226,7 @@ pub(crate) fn frame_drawn(took: Duration) {
     let mut frames = FRAMES.lock().unwrap_or_else(PoisonError::into_inner);
     while frames
         .front()
-        .is_some_and(|(at, _)| now.duration_since(*at) > Duration::from_secs(1))
+        .is_some_and(|(at, _)| now.duration_since(*at) > FRAME_WINDOW)
     {
         frames.pop_front();
     }
@@ -209,10 +239,10 @@ pub(crate) fn frame_drawn(took: Duration) {
     }
 }
 
-/// Frames in the last second, the last frame's time and the worst.
+/// Frames per second over the last 5 s, the last frame's time and the worst of those 5 s.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct FrameStats {
-    pub fps: usize,
+    pub fps: f64,
     pub last: Duration,
     pub worst: Duration,
 }
@@ -222,9 +252,9 @@ pub(crate) fn frame_stats() -> FrameStats {
     let frames = FRAMES.lock().unwrap_or_else(PoisonError::into_inner);
     let recent = frames
         .iter()
-        .filter(|(at, _)| now.duration_since(*at) <= Duration::from_secs(1));
+        .filter(|(at, _)| now.duration_since(*at) <= FRAME_WINDOW);
     FrameStats {
-        fps: recent.clone().count(),
+        fps: recent.clone().count() as f64 / FRAME_WINDOW.as_secs_f64(),
         last: frames.back().map(|(_, d)| *d).unwrap_or_default(),
         worst: recent.map(|(_, d)| *d).max().unwrap_or_default(),
     }

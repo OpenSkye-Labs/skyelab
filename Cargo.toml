@@ -40,7 +40,8 @@ tracing-chrome = "0.7.2"
 # Function timing and allocations, only in `--features hotpath` / `hotpath-alloc` builds.
 hotpath = { version = "0.33.0", default-features = false }
 # Live Tracy profiling (`--features tracy`) and tokio-console (`--features tokio-console`), opt-in only.
-tracing-tracy = "0.12.0"
+# Without its default `broadcast` and with `only-localhost`, so the profiler port is not on the LAN or tailnet.
+tracing-tracy = { version = "0.12.0", default-features = false, features = ["enable", "system-tracing", "context-switch-tracing", "sampling", "code-transfer", "callstack-inlines", "only-localhost"] }
 console-subscriber = "0.5.0"
 # Heap profiling, only in builds with skyelab-app's `dhat-heap` feature.
 dhat = "0.3.3"

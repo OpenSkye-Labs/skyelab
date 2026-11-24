@@ -231,8 +231,9 @@ impl RpcCall {
         })
     }
 
-    /// Logs the answer: the round trip time, or the error (redacted).
+    /// Logs the answer: the round trip time, or the error (redacted). It is also an `rpc` event in a trace.
     pub fn done(self, error: Option<&str>) {
+        tracing::info!(name: "rpc", what = %self.what, ms = self.at.elapsed().as_millis() as u64, ok = error.is_none());
         record(|| {
             let entry = Entry::new(Kind::Rpc, self.what).ms(self.at.elapsed());
             match error {
@@ -254,11 +255,13 @@ pub fn record_spawn(cmd: &std::process::Command, started: &std::io::Result<std::
     });
 }
 
-/// A short-lived child being timed for the log; `None` from [`Started::now`] while debug mode is off.
+/// A short-lived child being timed for the log; `None` from [`Started::now`] while debug mode is off. Dropped
+/// without [`Started::exited`] (the child was killed past a time limit, or abandoned), it logs that end too.
 pub struct Started {
     at: std::time::Instant,
     kind: Kind,
     line: String,
+    logged: bool,
 }
 
 impl Started {
@@ -267,19 +270,35 @@ impl Started {
             at: std::time::Instant::now(),
             kind: program_kind(cmd),
             line: command_line(cmd),
+            logged: false,
         })
     }
 
     /// Logs the child's end: how long it ran and its exit code.
-    pub fn exited(self, status: std::process::ExitStatus) {
+    pub fn exited(mut self, status: std::process::ExitStatus) {
+        self.logged = true;
+        let (kind, line, took) = (self.kind, std::mem::take(&mut self.line), self.at.elapsed());
         record(|| {
-            let entry = Entry::new(self.kind, self.line).ms(self.at.elapsed());
+            let entry = Entry::new(kind, line).ms(took);
             match status.code() {
                 Some(0) => entry.detail("exit 0"),
                 Some(code) => entry.failed(&format!("exit {code}")),
                 None => entry.failed("killed by a signal"),
             }
         });
+    }
+}
+
+impl Drop for Started {
+    fn drop(&mut self) {
+        if !self.logged {
+            let (kind, line, took) = (self.kind, std::mem::take(&mut self.line), self.at.elapsed());
+            record(|| {
+                Entry::new(kind, line)
+                    .ms(took)
+                    .failed("no exit status: killed past its time limit or abandoned")
+            });
+        }
     }
 }
 
@@ -291,10 +310,11 @@ fn program_name(cmd: &std::process::Command) -> String {
         .into_owned()
 }
 
-fn program_kind(cmd: &std::process::Command) -> Kind {
-    match program_name(cmd).trim_end_matches(".exe") {
-        "tailscale" => Kind::Tailnet,
-        _ => Kind::Process,
+/// Tailnet for the Tailscale CLI (`tailscale`, the macOS app's `Tailscale`, a fake), else process.
+pub fn program_kind(cmd: &std::process::Command) -> Kind {
+    match program_name(cmd).to_ascii_lowercase().contains("tailscale") {
+        true => Kind::Tailnet,
+        false => Kind::Process,
     }
 }
 
@@ -323,7 +343,7 @@ fn clip(mut s: String, max: usize) -> String {
 
 const REDACTED: &str = "<redacted>";
 /// A flag whose name holds one of these takes a secret or free text (a prompt, a commit message): its value goes.
-const SECRET_FLAG_WORDS: [&str; 12] = [
+const SECRET_FLAG_WORDS: [&str; 13] = [
     "token",
     "secret",
     "password",
@@ -336,6 +356,7 @@ const SECRET_FLAG_WORDS: [&str; 12] = [
     "prompt",
     "message",
     "body",
+    "title",
 ];
 /// Short flags that take a message, a header or a prompt (`git commit -m`, `curl -H`, `claude -p`).
 const SECRET_SHORT_FLAGS: [&str; 4] = ["-m", "-H", "-p", "-F"];
@@ -359,9 +380,10 @@ const TOKEN_PREFIXES: [&str; 13] = [
 const MAX_ARG: usize = 200;
 
 /// `args` as they are safe to log: values of secret-looking flags, token-shaped words, URL credentials and query
-/// strings, and over-long args are replaced. `-c key=value` keeps the key.
+/// strings, and over-long args are replaced. `-c` / `--config key=value` keep the (redacted) key; text typed with
+/// `input text` (adb) goes.
 pub fn redact_args(args: &[OsString]) -> Vec<String> {
-    let mut out = Vec::with_capacity(args.len());
+    let mut out: Vec<String> = Vec::with_capacity(args.len());
     let mut hide_next = false;
     let mut config_next = false;
     for arg in args {
@@ -371,14 +393,21 @@ pub fn redact_args(args: &[OsString]) -> Vec<String> {
             continue;
         }
         if std::mem::take(&mut config_next) {
-            out.push(match arg.split_once('=') {
-                Some((key, _)) => format!("{key}={REDACTED}"),
-                None => redact_word(&arg),
-            });
+            out.push(config_pair(&arg));
             continue;
         }
-        if arg == "-c" {
+        if arg == "-c" || arg == "--config" {
             config_next = true;
+            out.push(arg.into_owned());
+            continue;
+        }
+        if let Some(pair) = arg.strip_prefix("--config=") {
+            out.push(format!("--config={}", config_pair(pair)));
+            continue;
+        }
+        // `adb shell input text <typed>`: what an agent types can be a password.
+        if arg == "text" && out.last().is_some_and(|prev| prev == "input") {
+            hide_next = true;
             out.push(arg.into_owned());
             continue;
         }
@@ -411,6 +440,14 @@ pub fn redact_args(args: &[OsString]) -> Vec<String> {
         out.push(redact_word(&arg));
     }
     out
+}
+
+/// `key=value` with the value hidden and the key redacted like any word (it can hold a URL).
+fn config_pair(pair: &str) -> String {
+    match pair.split_once('=') {
+        Some((key, _)) => format!("{}={REDACTED}", redact_word(key)),
+        None => redact_word(pair),
+    }
 }
 
 /// One arg or word: a token shape goes whole, a URL loses its credentials and query, a long one keeps its length.
@@ -447,11 +484,15 @@ fn redact_url(word: &str) -> String {
         Some((_, host)) => format!("{REDACTED}@{host}"),
         None => authority.to_owned(),
     };
+    let (tail, fragment) = match tail.split_once('#') {
+        Some((before, _)) => (before, format!("#{REDACTED}")),
+        None => (tail, String::new()),
+    };
     let tail = match tail.split_once('?') {
         Some((path, _)) => format!("{path}?{REDACTED}"),
         None => tail.to_owned(),
     };
-    format!("{head}{authority}{tail}")
+    format!("{head}{authority}{tail}{fragment}")
 }
 
 /// Free text (an error message) as it is safe to log: token-shaped words and URL credentials go, `Bearer`/`Basic`

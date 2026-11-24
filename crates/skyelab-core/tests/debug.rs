@@ -142,6 +142,8 @@ fn the_log_records_only_while_enabled_and_keeps_order() {
     // A spawned child: program and redacted args, never its env.
     #[cfg(unix)]
     child_is_logged_redacted(&file);
+    #[cfg(unix)]
+    a_timed_out_child_gets_an_end_entry();
     debug::set_enabled(false);
 }
 
@@ -186,4 +188,66 @@ fn rpc_method_reads_the_method_name_only() {
         "send_message"
     );
     assert_eq!(debug::rpc_method("not json"), "?");
+}
+
+#[test]
+fn review_fixes_redact_typed_text_config_keys_fragments_and_titles() {
+    let out = debug::redact_args(&args(&[
+        "-s",
+        "emulator-5554",
+        "shell",
+        "input",
+        "text",
+        "'Hunter2%sPa55w0rd!'",
+        "--config",
+        "model_providers.x.base_url=https://u:p@h/v1",
+        "--config=k=secretvalue",
+        "-c",
+        "http.https://u:ghp_abcdefghij@h/.extraHeader=Authorization: x",
+        "--title=My private PR title",
+        "https://h/cb#access_token=t0k3n",
+    ]))
+    .join(" ");
+    for secret in [
+        "Hunter2",
+        "u:p@",
+        "secretvalue",
+        "ghp_abc",
+        "private PR",
+        "t0k3n",
+    ] {
+        assert!(!out.contains(secret), "{secret} leaked: {out}");
+    }
+    assert!(out.contains("input text <redacted>"), "{out}");
+    assert!(out.contains("https://h/cb#<redacted>"), "{out}");
+}
+
+#[test]
+fn tailscale_app_cli_and_fake_are_tagged_tailnet() {
+    for program in [
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "/x/fake-tailscale.sh",
+        "tailscale",
+    ] {
+        let cmd = std::process::Command::new(program);
+        assert_eq!(debug::program_kind(&cmd), Kind::Tailnet, "{program}");
+    }
+    assert_eq!(
+        debug::program_kind(&std::process::Command::new("git")),
+        Kind::Process
+    );
+}
+
+/// Called from the test that owns the global switch, while it is on.
+#[cfg(unix)]
+fn a_timed_out_child_gets_an_end_entry() {
+    let _ = skyelab_core::process::output_within(
+        std::process::Command::new("/bin/sleep").arg("31"),
+        None,
+        std::time::Duration::from_millis(200),
+    );
+    let ended = debug::recent(1000)
+        .into_iter()
+        .any(|e| e.what == "sleep 31" && e.ms.is_some() && !e.ok);
+    assert!(ended, "timed-out child has no end entry");
 }
