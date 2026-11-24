@@ -150,3 +150,52 @@ fn a_codex_thread_rebound_to_claude_offers_continue_in_claude(cx: &mut TestAppCo
     );
     assert!(cta_shown(&view, cx), "Continue in Claude shows");
 }
+
+#[gpui::test]
+fn an_unreadable_accounts_file_does_not_kill_the_agent(cx: &mut TestAppContext) {
+    let scratch = tempfile::tempdir().expect("tempdir");
+    let bin = slow_claude(scratch.path());
+    let (home, dir, config, view, cx) = view_with(cx, Some(bin));
+    let file = home.path().join("accounts.toml");
+    config.save(&file).expect("save");
+    cx.update(|_, cx| cx.set_global(AccountsFile(file.clone())));
+    send(&view, "one", cx);
+    settle(cx, |cx| running(&view, cx) && sent(&dir).len() == 1);
+    std::fs::write(&file, "this is = = not toml").expect("write");
+    send(&view, "two", cx);
+    settle(cx, |cx| view.read_with(cx, |t, _| t.error.is_some()));
+    view.read_with(cx, |t, _| {
+        assert!(t.session.is_some(), "the agent keeps running");
+        assert!(t.resume_refused.is_none());
+        let e = t.error.as_deref().unwrap_or_default().to_owned();
+        assert!(e.contains("accounts.toml can't be read"), "{e}");
+    });
+    assert!(!sent(&dir).iter().any(|s| s == "two"), "{:?}", sent(&dir));
+}
+
+#[gpui::test]
+fn a_refused_send_records_the_thread_stopped(cx: &mut TestAppContext) {
+    let scratch = tempfile::tempdir().expect("tempdir");
+    let bin = slow_claude(scratch.path());
+    let (_home, dir, mut config, view, cx) = view_with(cx, Some(bin));
+    send(&view, "one", cx);
+    settle(cx, |cx| running(&view, cx) && sent(&dir).len() == 1);
+    rebind(&mut config, &dir, "beta");
+    view.update(cx, |t, cx| t.set_config(config, cx));
+    send(&view, "two", cx);
+    refused(&view, cx);
+    for _ in 0..20 {
+        cx.run_until_parked();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    let status = view.read_with(cx, |t, _| {
+        let id = t.thread.as_ref().expect("row").id;
+        crate::workspace::lock(&t.backend.store)
+            .expect("store")
+            .thread(id)
+            .expect("read")
+            .expect("row")
+            .status
+    });
+    assert_eq!(status, "stopped", "ended on purpose, not exited");
+}

@@ -2,6 +2,7 @@
 
 use super::{Record, ThreadView};
 use crate::workspace::lock;
+use anyhow::Context as _;
 use gpui::Context;
 use skyelab_core::Account;
 
@@ -66,9 +67,14 @@ impl ThreadView {
             }
             let sent = write
                 .spawn(async move {
-                    let now = crate::workspace::accounts_now(accounts_file.as_deref(), &config)
-                        .resolve(&cwd)
-                        .cloned();
+                    // An unreadable file refuses this send but leaves the agent alone: it says nothing about a rebind.
+                    let current = match &accounts_file {
+                        Some(path) => skyelab_core::AccountsConfig::load(path).context(
+                            "accounts.toml can't be read, so the folder's binding can't be checked; fix it, then send again",
+                        )?,
+                        None => config,
+                    };
+                    let now = current.resolve(&cwd).cloned();
                     if let Some(why) = super::resume::refusal(&account_id, now.as_ref()) {
                         return Err(anyhow::Error::new(Refused { why, now }));
                     }

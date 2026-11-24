@@ -109,7 +109,8 @@ pub struct ThreadView {
     pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
-    /// Its window shows another machine: actions that open a new local thread (Continue in …) can't run there.
+    /// Its owner window (`window`) shows another machine: actions that open a new local thread (Continue in …) can't
+    /// run there.
     pub(in crate::workspace) remote_window: bool,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
     unsaved: saves::Unsaved,

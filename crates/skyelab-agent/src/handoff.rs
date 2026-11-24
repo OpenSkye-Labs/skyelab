@@ -140,7 +140,7 @@ pub enum Cut {
 /// What a transcript carries and how much of it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Options {
-    /// The most bytes of item lines (gap marks come on top for [`Cut::Priority`], count for [`Cut::Newest`]).
+    /// The most bytes of item lines (gap marks come on top for [`Cut::Priority`]; [`Cut::Newest`] counts its mark).
     pub budget: usize,
     /// Commands, file changes, plans and errors too; else messages only, and lines carry no `kind`.
     pub tools: bool,
@@ -252,8 +252,10 @@ fn newest(items: &[&Item], lines: &[String], budget: usize) -> (String, usize) {
     let mut kept: Vec<String> = Vec::new();
     let mut used = 0;
     let mut selected = 0;
-    for (i, l) in items.iter().zip(lines).rev() {
-        if used + l.len() + 1 > budget {
+    for (at, (i, l)) in items.iter().zip(lines).enumerate().rev() {
+        // Room for the left-out mark too, while there are earlier items it might stand for.
+        let mark = if at > 0 { LEFT_OUT.len() + 1 } else { 0 };
+        if used + l.len() + 1 + mark > budget {
             if kept.is_empty() {
                 kept.push(tail_line(i, budget.saturating_sub(LEFT_OUT.len() + 1)));
                 selected = 1;

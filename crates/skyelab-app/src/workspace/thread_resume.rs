@@ -48,6 +48,7 @@ impl ThreadView {
     /// why it can't continue here, as a resume would.
     pub(in crate::workspace) fn end_refused(&mut self, why: SharedString, cx: &mut Context<Self>) {
         self.resume_refused = Some(why);
+        self.stop_requested = true; // ended on purpose, not a crash; the next launch clears it
         self.kill(cx);
         cx.notify();
     }

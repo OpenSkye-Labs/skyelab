@@ -71,7 +71,8 @@ builder as the handoff below), fenced as quoted data so
 no text in it can pose as a new message. Your message is shown and stored as you typed it. The copied turns don't
 count again in the Usage page, and the fork's first turn counts its whole cost, since its session is new. The fork
 starts where the original runs: in its worktree, sharing that worktree and its branch (discarding the worktree from
-either thread removes it for both), or in the project's folder once that worktree is gone. It copies no checkpoints.
+either thread removes it for both, and is refused while the other thread's agent runs there), or in the project's
+folder once that worktree is gone. It copies no checkpoints.
 If that folder is no longer bound to the thread's account, nothing is forked. A second click while a fork (or a
 handoff) of the same thread is being made does nothing, so a double click makes one thread.
 

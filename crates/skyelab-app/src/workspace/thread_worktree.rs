@@ -118,6 +118,12 @@ impl ThreadView {
         self.wt.task = Some(cx.spawn(async move |this, cx| {
             let done = cx
                 .background_spawn(async move {
+                    // A fork or handoff runs in its source's worktree: never pull it out from under a running agent.
+                    if lock(&store)?.worktree_busy_elsewhere(id, &path)? {
+                        anyhow::bail!(
+                            "another thread's agent is running in this worktree (a fork or handoff shares it); stop it first"
+                        );
+                    }
                     let result = worktree::discard(&path, confirmed.as_ref())?;
                     if matches!(result, Discard::Removed) {
                         lock(&store)?.set_thread_worktree(id, None, branch.as_deref())?;

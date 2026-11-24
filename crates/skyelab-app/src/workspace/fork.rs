@@ -109,7 +109,7 @@ impl Workspace {
         if self.is_remote() {
             return; // another machine's threads fork there
         }
-        if !self.copying.insert(a.id) {
+        if !self.copying.insert((a.id, "fork")) {
             return; // one already being made from this thread
         }
         let (store, config, id, turns) = (
@@ -151,7 +151,7 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;
             let _ = this.update_in(cx, |ws, window, cx| {
-                ws.copying.remove(&id);
+                ws.copying.remove(&(id, "fork"));
                 match done {
                     Ok(fork) => {
                         let id = fork.id;

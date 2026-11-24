@@ -74,9 +74,11 @@ The status bar shows the account for the current folder, or **No account** in th
 folder, the thread asks you to bind it first and offers a **Bind this folder to an account** button.
 
 An agent keeps the account it started with. If you rebind (or unbind) the folder while a thread's agent is still
-running, your next message to it is not sent: the agent is stopped, your text stays in the composer, and the thread
-shows **This thread can't continue here** with the reason, as reopening it would. Each send checks `accounts.toml` as
-saved at that moment, so an edit made outside SkyeLab counts too. When the folder is now bound to the other
+running, your next message to it is not sent, and neither is approving its plan or a permission or answering its
+question (declining still goes through): the agent is stopped, your text stays in the composer, and the thread shows
+**This thread can't continue here** with the reason, as reopening it would. Each send checks `accounts.toml` as saved
+at that moment, so an edit made outside SkyeLab counts too; if the file can't be read, the send waits with an error
+and the agent keeps running. When the folder is now bound to the other
 provider, the notice offers **Continue in Codex** (or **Continue in Claude**); otherwise **Start a new thread**.
 
 ### Stale bindings and Re-confirm

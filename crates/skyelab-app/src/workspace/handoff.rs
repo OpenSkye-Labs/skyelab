@@ -62,7 +62,7 @@ impl Workspace {
         if self.is_remote() {
             return; // a remote window's threads live on another machine; their history isn't here
         }
-        if !self.copying.insert(a.id) {
+        if !self.copying.insert((a.id, "handoff")) {
             return; // one already being made from this thread
         }
         let (store, config, id, to) = (
@@ -139,7 +139,7 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;
             let _ = this.update_in(cx, |ws, window, cx| {
-                ws.copying.remove(&id);
+                ws.copying.remove(&(id, "handoff"));
                 match done {
                     Ok(Outcome::Started(thread)) => {
                         let id = thread.id;

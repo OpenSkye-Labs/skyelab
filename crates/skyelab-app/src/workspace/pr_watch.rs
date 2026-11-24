@@ -78,18 +78,19 @@ impl PrLanded {
     }
 
     /// Takes a read of `thread`'s PR at `url` asked at `asked`, unless another landed after that: `store` runs first,
-    /// under the lock, so taken reads are stored in the order they land. `false` means it was dropped.
-    fn land(&self, thread: i64, url: &str, asked: i64, store: impl FnOnce()) -> bool {
+    /// under the lock, so taken reads are stored in the order they land. The landing time, or `None` when dropped.
+    fn land(&self, thread: i64, url: &str, asked: i64, store: impl FnOnce()) -> Option<i64> {
         let mut landed = self.lock();
         if landed
             .get(&thread)
             .is_some_and(|(u, at)| u == url && *at > asked)
         {
-            return false;
+            return None;
         }
         store();
-        landed.insert(thread, (url.to_owned(), crate::ui::now_ms()));
-        true
+        let at = crate::ui::now_ms();
+        landed.insert(thread, (url.to_owned(), at));
+        Some(at)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<i64, (String, i64)>> {
@@ -254,7 +255,6 @@ impl Workspace {
     /// Reads `jobs` one after another off the UI thread; `started` is the batch mark it clears when done.
     fn read_prs(&mut self, jobs: Vec<Job>, started: Option<i64>, cx: &mut Context<Self>) {
         // A read asked before another one landed is older news: dropped, from the store and the UI alike.
-        let asked = crate::ui::now_ms();
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         let (config, store, landed) = (
@@ -266,6 +266,7 @@ impl Workspace {
             let config = super::accounts_now(accounts_file.as_deref(), &config);
             jobs.into_iter()
                 .map(|j| {
+                    let asked = crate::ui::now_ms(); // per read: a batch's later reads start later
                     let view = read_pr(&config, &j.dir, &j.account, &j.url, &gh);
                     let taken = landed.land(j.thread, &j.url, asked, || {
                         // Stored, so an ended PR isn't read again after a restart.
@@ -288,14 +289,19 @@ impl Workspace {
                 if started.is_some() && this.pr_watch.polling_since == started {
                     this.pr_watch.polling_since = None;
                 }
-                let now = crate::ui::now_ms();
                 let statuses = cx.default_global::<PrStatuses>();
                 let mut changed = false;
                 let mut states = Vec::new();
-                for (thread, url, view, taken) in read {
-                    if !taken {
+                for (thread, url, view, landed) in read {
+                    // Dropped, or a batch that ends late bringing a read older than one shown since.
+                    let Some(landed) = landed.filter(|at| {
+                        statuses
+                            .0
+                            .get(&thread)
+                            .is_none_or(|o| o.url != url || o.checked_ms <= *at)
+                    }) else {
                         continue;
-                    }
+                    };
                     if let PrView::Status(s) = &view {
                         states.push((thread, url.clone(), s.state));
                     }
@@ -304,7 +310,7 @@ impl Workspace {
                         PrEntry {
                             url: url.clone(),
                             view: view.clone(),
-                            checked_ms: now,
+                            checked_ms: landed,
                         },
                     );
                     changed |= old.is_none_or(|o| o.url != url || o.view != view);

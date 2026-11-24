@@ -50,6 +50,13 @@ fn the_newest_cut_keeps_a_run_of_newest_whole_items() {
     let items: Vec<Item> = (0..50)
         .map(|i| item("user", "message", &format!("m{i} {}", "x".repeat(50))))
         .collect();
+    // Each budget, including the one where the next item would fit but its mark wouldn't.
+    for budget in 1_000..1_100 {
+        assert!(
+            transcript(&items, &newest(budget)).body.len() <= budget,
+            "{budget}"
+        );
+    }
     let t = transcript(&items, &newest(1_000));
     let lines: Vec<&str> = t.body.lines().collect();
     assert_eq!(lines[0], "[earlier messages left out]");
