@@ -21,6 +21,11 @@ pub fn default_config_dir(home: &Path, provider: Provider, id: &str) -> PathBuf 
     home.join(format!(".{}-{id}", provider.label().to_lowercase()))
 }
 
+/// Where an account keeps its own `gh` login when the user names no folder: `~/.config/gh-<id>`.
+pub fn default_gh_dir(home: &Path, id: &str) -> PathBuf {
+    home.join(".config").join(format!("gh-{id}"))
+}
+
 /// Names whose presence marks a provider's config dir. Never credential files: only their absence matters here.
 fn markers(provider: Provider) -> &'static [&'static str] {
     match provider {

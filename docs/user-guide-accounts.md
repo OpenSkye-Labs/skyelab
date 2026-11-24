@@ -97,8 +97,10 @@ The row says which, in one sentence, and shows where the path leads now. If the 
 
 ## GitHub per account
 
-Give an account its own GitHub login: in Settings → **Accounts**, edit the account and set its **GitHub folder** (an
-absolute path such as `/Users/me/.config/gh-work`), then in Settings → **Source control** press **Log in**. That
+Give an account its own GitHub login: in Settings → **Source control** press **Set up** on its row. That gives the
+account the GitHub folder `~/.config/gh-<id>` and opens the login below. To use another folder, edit the account in
+Settings → **Accounts** and set its **GitHub folder** (an absolute path such as `/Users/me/.config/gh-work`), then
+press **Log in** in Source control. That
 opens a terminal running `gh auth login` with `GH_CONFIG_DIR` set to that dir. SkyeLab never sees the token. The
 **Source control** section then shows which GitHub user is logged in.
 

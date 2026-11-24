@@ -47,13 +47,38 @@ impl Settings {
         }));
     }
 
-    pub(super) fn gh_log_in(&mut self, a: &GhLogIn, _: &mut Window, cx: &mut Context<Self>) {
-        let dir = self
+    pub(super) fn gh_log_in(&mut self, a: &GhLogIn, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(account) = self
             .config
             .accounts
             .iter()
             .find(|acct| acct.id == a.id)
-            .and_then(|acct| acct.gh_config_dir.clone());
+            .cloned()
+        else {
+            self.error = Some(format!("no account '{}'", a.id));
+            return cx.notify();
+        };
+        let mut dir = account.gh_config_dir.clone();
+        // No GitHub folder yet: give it `~/.config/gh-<id>` (saved first, so the login lands where it's read).
+        if dir.is_none()
+            && let Some(home) = dirs::home_dir()
+        {
+            let gh = skyelab_core::onboarding::default_gh_dir(&home, &account.id);
+            let set = gh.clone();
+            let saved = self.apply(
+                move |c| {
+                    c.update_account(skyelab_core::Account {
+                        gh_config_dir: Some(set),
+                        ..account
+                    })
+                },
+                window,
+                cx,
+            );
+            if saved {
+                dir = Some(gh);
+            }
+        }
         match dir {
             Some(dir) => cx.emit(SettingsEvent::GhLogin { dir }),
             None => {
@@ -88,7 +113,7 @@ impl Settings {
                 ) {
                     (None, _, _) => (
                         theme.muted_foreground,
-                        "No GitHub folder: edit the account to add one".to_owned(),
+                        "No GitHub login yet".to_owned(),
                     ),
                     (Some(_), Some(Some(login)), _) => {
                         (theme.success, format!("Signed in as {login}"))
@@ -101,16 +126,23 @@ impl Settings {
                 };
                 let error = self.gh_errors.get(&a.id).cloned();
                 let log_in = GhLogIn { id: a.id.clone() };
-                let control = a.gh_config_dir.as_ref().map(|_| {
+                let control = {
+                    let tip = match &a.gh_config_dir {
+                        Some(_) => "Opens a terminal running gh auth login for this account".to_owned(),
+                        None => format!(
+                            "Gives this account its own GitHub folder (~/.config/gh-{}), then runs gh auth login there",
+                            a.id
+                        ),
+                    };
                     Button::new(SharedString::from(format!("gh-login-{}", a.id)))
-                        .label("Log in")
-                        .tooltip("Opens a terminal running gh auth login for this account")
+                        .label(if a.gh_config_dir.is_some() { "Log in" } else { "Set up" })
+                        .tooltip(tip)
                         .small()
                         .outline()
                         .on_click(cx.listener(move |this, _, window, cx| {
                             this.gh_log_in(&log_in, window, cx)
                         }))
-                });
+                };
                 let theme = cx.theme();
                 super::widgets::row(i == 0, cx)
                     .gap_4()
@@ -153,7 +185,7 @@ impl Settings {
                                     .map(|dir| path_line(format!("gh-{}", a.id), dir, cx)),
                             ),
                     )
-                    .children(control)
+                    .child(control)
                     .into_any_element()
             })
             .collect();
