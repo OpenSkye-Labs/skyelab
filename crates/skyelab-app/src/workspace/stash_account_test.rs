@@ -1,4 +1,5 @@
-//! A stash entry's unbound chips (a quote, terminal output, diff comments) never ride into a thread on another account.
+//! A restored stash brings everything back, as T3's does, whatever account it was stashed under: its text and its
+//! unbound chips (a quote, terminal output, diff comments).
 
 use super::composer_context::ChipKind;
 use super::composer_review_test::view_with;
@@ -9,7 +10,7 @@ use gpui::AppContext as _;
 use skyelab_core::Binding;
 
 #[gpui::test]
-fn stashed_quote_never_reaches_another_accounts_thread(cx: &mut gpui::TestAppContext) {
+fn stashed_quote_comes_back_in_another_accounts_thread(cx: &mut gpui::TestAppContext) {
     let (home, _dir, mut config, acme, cx) = view_with(cx, None);
     let root = std::fs::canonicalize(home.path()).expect("canonicalize");
     let other = root.join("other");
@@ -55,9 +56,14 @@ fn stashed_quote_never_reaches_another_accounts_thread(cx: &mut gpui::TestAppCon
             t.with_contexts("go", false),
         )
     });
-    assert_eq!(text, "ask", "the typed text still comes back");
+    assert_eq!(text, "ask", "the typed text comes back");
     assert!(
-        !sent.contains("ACME_ONLY_TEXT"),
-        "QUOTE_CROSSED_ACCOUNTS: {sent:?}"
+        sent.contains("ACME_ONLY_TEXT"),
+        "the quote comes back: {sent:?}"
+    );
+    assert_eq!(
+        beta.read_with(cx, |t, _| t.composer.notice.clone()),
+        None,
+        "nothing was left out"
     );
 }

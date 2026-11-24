@@ -23,6 +23,10 @@
 - **Agent pages stay private.** An agent's browser tab has its own in-memory cookies and storage. Duplicate tab on it
   (also after Take over, and on any copy of it) opens another private, throwaway tab, never one on your own browser
   profile. Reopen Closed never brings these tabs back, and Open in system browser is refused for them.
+- **The prompt stash is shared across accounts.** There is one stash for all threads, and a restore brings back its
+  text, files and quote, terminal and diff-comment chips on whatever account the restoring thread runs, so one
+  account's agent output can reach another account's agent when you restore it there. A chip naming a thread or pull
+  request comes back only on that thread's account.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Updates.** Only the shown release's own assets download (redirects only to GitHub's download hosts, size
