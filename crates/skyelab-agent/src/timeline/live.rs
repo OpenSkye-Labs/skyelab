@@ -77,7 +77,8 @@ fn block_cut(text: &str) -> Option<usize> {
             }
             (Some(_), _) => continue,
             (None, Some(c)) if run >= 3 && line.len() - body.len() < 4 => {
-                if blank_end == Some(start) {
+                // An indented fence may sit inside a list item, like an indented line.
+                if blank_end == Some(start) && line.len() == body.len() {
                     cut = Some(start);
                 }
                 fence = Some((c, run));
@@ -123,4 +124,24 @@ pub(super) fn live_text(items: &[Item], range: std::ops::Range<usize>) -> String
             _ => None,
         })
         .collect()
+}
+
+/// How many rows the streaming text block was split into beyond one, so a row id counted from the row count (a
+/// stderr row's) is the one it gets when the thread is read back, unsplit.
+pub(super) fn split_extra(items: &[Item]) -> usize {
+    items
+        .iter()
+        .rev()
+        .take_while(|i| matches!(i, Item::Live { .. } | Item::Prompt(_) | Item::Steer(_)))
+        .filter(|i| {
+            matches!(
+                i,
+                Item::Live {
+                    kind: DeltaKind::Text,
+                    ..
+                }
+            )
+        })
+        .count()
+        .saturating_sub(1)
 }

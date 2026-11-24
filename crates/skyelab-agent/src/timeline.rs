@@ -13,7 +13,7 @@ pub mod subagent;
 
 pub use keys::Items;
 pub use live::settle_live;
-use live::{live_run_start, live_text, split_live};
+use live::{live_run_start, live_text, split_extra, split_live};
 pub use record::Record;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -129,10 +129,13 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
                 first_changed = Some(ix);
                 split_live(items, ix);
             }
-            None => items.push(Item::Live {
-                kind: *kind,
-                text: text.clone(),
-            }),
+            None => {
+                items.push(Item::Live {
+                    kind: *kind,
+                    text: text.clone(),
+                });
+                split_live(items, items.len() - 1);
+            }
         },
         Record::Agent(Event::Assistant { content }) => {
             for block in content {
@@ -334,7 +337,7 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
             explains_failure: false,
         }),
         Record::Agent(Event::Stderr { text }) => items.push(Item::Output {
-            id: format!("output-{before}"),
+            id: format!("output-{}", before - split_extra(items)),
             text: text.clone(),
         }),
         Record::Agent(

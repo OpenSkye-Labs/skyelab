@@ -11,7 +11,13 @@ impl ThreadView {
             .thread
             .as_ref()
             .filter(|_| !self.items.is_empty())
-            .map(|t| (t.id, self.lists.mark(), self.backend.store.clone()));
+            .map(|t| {
+                (
+                    t.id,
+                    self.lists.mark(self.window),
+                    self.backend.store.clone(),
+                )
+            });
         move || {
             if let Some((id, mark, store)) = job
                 && let Ok(store) = lock(&store)

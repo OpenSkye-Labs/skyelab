@@ -120,8 +120,8 @@ impl Lists {
 
     /// Where the owner window's reader is, kept so a reopened thread opens there (T3 keeps each thread's scroll):
     /// `None` while it follows the end.
-    pub(in crate::workspace) fn mark(&self) -> Option<(usize, f32)> {
-        let list = &self.0[0].1;
+    pub(in crate::workspace) fn mark(&self, owner: AnyWindowHandle) -> Option<(usize, f32)> {
+        let list = self.of(owner);
         (!list.is_following_tail()).then(|| {
             let top = list.logical_scroll_top();
             (top.item_ix, f32::from(top.offset_in_item))

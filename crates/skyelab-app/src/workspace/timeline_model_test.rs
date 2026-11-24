@@ -351,3 +351,42 @@ fn a_split_reply_cut_off_keeps_all_it_streamed() {
     assert!(matches!(items[2], Item::Done { .. }));
     assert_eq!(items.len(), 3);
 }
+
+#[test]
+fn a_streaming_reply_is_not_cut_inside_a_list_item_or_before_its_stderr_id() {
+    // A fenced block indented under a list item continues the item: no row may start at it.
+    let body = format!(
+        "{}\n\n1. step\n\n   ```sh\n   make\n   ```\n{}",
+        "A".repeat(1100),
+        "B".repeat(1000)
+    );
+    // As one delta into a row already streaming, and as the first delta of a row.
+    for records in [
+        vec![delta(DeltaKind::Text, "x"), delta(DeltaKind::Text, &body)],
+        vec![delta(DeltaKind::Text, &body)],
+    ] {
+        let items = run(&records);
+        assert!(live_parts(&items).len() > 1, "{:?}", live_parts(&items));
+        assert!(
+            !live_parts(&items).iter().any(|p| p.starts_with("   ```")),
+            "{:?}",
+            live_parts(&items)
+        );
+    }
+
+    // Stderr while a reply streams split: its id counts the reply as one row, as a reload from the store does.
+    let mut items = run(&[Record::Prompt("hi".into())]);
+    for chunk in long_reply().as_bytes().chunks(64) {
+        apply(
+            &mut items,
+            &delta(DeltaKind::Text, std::str::from_utf8(chunk).expect("ascii")),
+        );
+    }
+    assert!(live_parts(&items).len() > 1);
+    apply(&mut items, &agent(Event::Stderr { text: "warn".into() }));
+    assert!(
+        matches!(items.last(), Some(Item::Output { id, .. }) if id == "output-2"),
+        "{:?}",
+        items.last()
+    );
+}
