@@ -6,7 +6,7 @@ use gpui::{
     AnyElement, App, Div, ElementId, FontWeight, Hsla, IntoElement, SharedString, Stateful, Window,
     div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Theme, h_flex, kbd::Kbd, v_flex};
+use gpui_component::{ActiveTheme as _, Theme, h_flex, v_flex};
 use skyelab_core::Provider;
 
 /// The account identity, SkyeLab's one addition to T3's language: a dot in the account's own color, its label, and its
@@ -93,6 +93,7 @@ impl RenderOnce for AccountBadge {
 pub struct Pill {
     label: SharedString,
     color: Option<Hsla>,
+    icon: Option<super::SkyeIcon>,
 }
 
 impl Pill {
@@ -100,11 +101,18 @@ impl Pill {
         Self {
             label: label.into(),
             color: None,
+            icon: None,
         }
     }
 
     pub fn color(mut self, color: Hsla) -> Self {
         self.color = Some(color);
+        self
+    }
+
+    /// A 12 px icon in place of the dot (the chip form: a kind or a state with its glyph).
+    pub fn icon(mut self, icon: super::SkyeIcon) -> Self {
+        self.icon = Some(icon);
         self
     }
 }
@@ -126,7 +134,15 @@ impl RenderOnce for Pill {
             .text_size(META)
             .font_weight(FontWeight::MEDIUM)
             .text_color(fg)
-            .children(self.color.map(StatusDot::new))
+            .map(|d| match (self.icon, self.color) {
+                (Some(i), c) => d.child(
+                    gpui_component::Icon::new(i)
+                        .size(px(12.))
+                        .text_color(c.unwrap_or(theme.muted_foreground)),
+                ),
+                (None, Some(c)) => d.child(StatusDot::new(c)),
+                (None, None) => d,
+            })
             .child(self.label)
     }
 }
@@ -271,7 +287,7 @@ impl RenderOnce for KeyHint {
             .text_size(BODY)
             .text_color(cx.theme().foreground)
             .child(self.label)
-            .children(Kbd::binding_for_action(
+            .children(super::Kbd::for_action(
                 self.action.as_ref(),
                 Some("Workspace"),
                 window,

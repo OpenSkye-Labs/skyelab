@@ -4,21 +4,44 @@
 //! Spacing stays on gpui's 4 px helpers (`1` = 4 px, `2p5` = 10 px, `6` = 24 px, …). Colors only ever come from the
 //! theme.
 
+mod button;
+#[cfg(test)]
+mod button_test;
+mod choice;
 mod components;
 #[cfg(test)]
 mod contrast_test;
+mod dialog;
+pub mod gallery;
+#[cfg(test)]
+mod gallery_test;
+mod kbd;
+mod surface;
 #[cfg(test)]
 mod terminal_colors_test;
 #[cfg(test)]
 mod tests;
+mod text_field;
 pub mod themes;
 #[cfg(test)]
 mod themes_test;
+mod toggle;
+#[cfg(test)]
+mod toggle_test;
+mod tooltip;
 
+pub use button::{Button, Variant, icon_button};
+pub use choice::{SegmentedControl, Tabs};
 pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title,
 };
+pub use dialog::{dialog_cancel, dialog_footer, notice_action};
+pub use kbd::Kbd;
+pub use surface::{Card, Divider};
+pub use text_field::TextField;
+pub use toggle::{Checkbox, Switch};
+pub use tooltip::Tooltip;
 
 use gpui::{Hsla, Pixels, Rems, px, rems};
 use gpui_component::Theme;
@@ -83,6 +106,69 @@ pub const BODY: Rems = rems(1.);
 pub const CODE: Rems = rems(13. / 14.);
 pub const SECTION: Rems = rems(16. / 14.);
 pub const PAGE: Rems = rems(20. / 14.);
+
+/// Control sizes (§6, T3's button `xs` / `sm` / default): the height of a button, text field, segmented control or
+/// icon button (square), with its icon size, text size, side padding and gap. One place to resize every control.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Size {
+    /// 24 px, 12 px text, 14 px icons: dense rows, cards, inline actions.
+    Xs,
+    /// 28 px: toolbars, headers, the composer, settings rows.
+    #[default]
+    Sm,
+    /// 32 px: page actions, dialog footers, forms.
+    Md,
+}
+
+impl Size {
+    pub fn height(self) -> Pixels {
+        match self {
+            Self::Xs => px(24.),
+            Self::Sm => px(28.),
+            Self::Md => px(32.),
+        }
+    }
+
+    pub fn icon(self) -> Pixels {
+        match self {
+            Self::Xs => px(14.),
+            Self::Sm | Self::Md => px(16.),
+        }
+    }
+
+    pub fn text(self) -> Rems {
+        match self {
+            Self::Xs => META,
+            Self::Sm | Self::Md => BODY,
+        }
+    }
+
+    pub fn pad_x(self) -> Pixels {
+        match self {
+            Self::Xs => px(8.),
+            Self::Sm => px(10.),
+            Self::Md => px(12.),
+        }
+    }
+
+    pub fn gap(self) -> Pixels {
+        match self {
+            Self::Xs => px(4.),
+            Self::Sm => px(6.),
+            Self::Md => px(8.),
+        }
+    }
+
+    pub fn radius(self) -> Pixels {
+        match self {
+            Self::Xs => RADIUS_MD,
+            Self::Sm | Self::Md => RADIUS,
+        }
+    }
+}
+
+/// A disabled control's opacity (T3: 64%). Disabled controls keep their colors and fade, so every variant dims alike.
+pub const DISABLED_OPACITY: f32 = 0.64;
 
 /// Geometry (§3, §4): sidebar and list rows, a view header, the chat column's width, the settings page's width.
 pub const ROW_H: Pixels = px(32.);
@@ -356,15 +442,4 @@ impl gpui::AssetSource for AppAssets {
         paths.dedup();
         Ok(paths)
     }
-}
-
-/// A dialog footer's Cancel. Not gpui-component's `DialogClose`: it wraps its button in a `size_full` div, which
-/// stretches Cancel across the footer (docs/gpui.md).
-pub fn dialog_cancel(id: &'static str) -> gpui_component::button::Button {
-    use gpui_component::{Sizable as _, WindowExt as _};
-    gpui_component::button::Button::new(id)
-        .outline()
-        .small()
-        .label("Cancel")
-        .on_click(|_, window, cx| window.close_dialog(cx))
 }

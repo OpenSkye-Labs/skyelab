@@ -1,0 +1,189 @@
+//! On/off controls after T3's (`ui/switch.tsx`, `ui/checkbox.tsx`): a 30 × 18 switch with a 16 px thumb, primary
+//! when on; a 16 px checkbox, radius 4, primary fill with a check when on. Stateless: the caller owns the value and
+//! gets the flipped one in `on_click`.
+//!
+//! Like gpui-component's, a click is not stopped here: a row that is itself clickable takes the handler, and the
+//! control inside it is only its picture (docs/gpui/elements.md).
+
+use super::{DISABLED_OPACITY, META, RADIUS_SM, SkyeIcon};
+use gpui::{
+    App, ClickEvent, ElementId, FontWeight, IntoElement, ParentElement as _, RenderOnce,
+    SharedString, Styled as _, Window, accesskit, div, prelude::*, px,
+};
+use gpui_component::{ActiveTheme as _, Icon, h_flex};
+use std::rc::Rc;
+
+type OnToggle = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
+
+/// What a switch and a checkbox share: id, value, label, disabled, size, handler.
+struct Toggle {
+    id: ElementId,
+    checked: bool,
+    label: Option<SharedString>,
+    aria: Option<SharedString>,
+    disabled: bool,
+    small: bool,
+    on_click: Option<OnToggle>,
+}
+
+impl Toggle {
+    fn new(id: ElementId) -> Self {
+        Self {
+            id,
+            checked: false,
+            label: None,
+            aria: None,
+            disabled: false,
+            small: false,
+            on_click: None,
+        }
+    }
+
+    /// The row: the control, then its label, one hit target.
+    fn render(
+        self,
+        role: accesskit::Role,
+        control: impl IntoElement,
+        cx: &App,
+    ) -> impl IntoElement {
+        let checked = self.checked;
+        let interactive = !self.disabled;
+        let theme = cx.theme();
+        h_flex()
+            .id(self.id)
+            .flex_shrink_0()
+            .gap_2()
+            .role(role)
+            .aria_toggled(if checked {
+                accesskit::Toggled::True
+            } else {
+                accesskit::Toggled::False
+            })
+            .when_some(self.aria.or_else(|| self.label.clone()), |d, l| {
+                d.aria_label(l)
+            })
+            .when(interactive, |d| d.cursor_pointer())
+            .when(self.disabled, |d| d.opacity(DISABLED_OPACITY))
+            .child(control)
+            .when_some(self.label, |d, l| {
+                d.child(
+                    div()
+                        .text_size(if self.small { META } else { super::BODY })
+                        .text_color(theme.foreground)
+                        .child(l),
+                )
+            })
+            .when_some(self.on_click.filter(|_| interactive), |d, f| {
+                d.on_click(move |_: &ClickEvent, window, cx| f(&!checked, window, cx))
+            })
+    }
+}
+
+macro_rules! toggle_builders {
+    ($ty:ident) => {
+        impl $ty {
+            pub fn new(id: impl Into<ElementId>) -> Self {
+                Self(Toggle::new(id.into()))
+            }
+            pub fn checked(mut self, checked: bool) -> Self {
+                self.0.checked = checked;
+                self
+            }
+            pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+                self.0.label = Some(label.into());
+                self
+            }
+            /// The name a screen reader announces when there is no visible label.
+            pub fn accessibility_label(mut self, label: impl Into<SharedString>) -> Self {
+                self.0.aria = Some(label.into());
+                self
+            }
+            pub fn disabled(mut self, disabled: bool) -> Self {
+                self.0.disabled = disabled;
+                self
+            }
+            /// The compact size: smaller control, 12 px label.
+            pub fn xsmall(mut self) -> Self {
+                self.0.small = true;
+                self
+            }
+            pub fn small(self) -> Self {
+                self.xsmall()
+            }
+            /// Gets the value the control flips to.
+            pub fn on_click(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
+                self.0.on_click = Some(Rc::new(f));
+                self
+            }
+        }
+    };
+}
+
+#[derive(IntoElement)]
+pub struct Switch(Toggle);
+toggle_builders!(Switch);
+
+impl RenderOnce for Switch {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+        let (thumb, pad) = if self.0.small {
+            (px(12.), px(1.))
+        } else {
+            (px(16.), px(1.))
+        };
+        let on = self.0.checked;
+        let track = div()
+            .flex()
+            .items_center()
+            .flex_shrink_0()
+            .w(thumb * 2. - px(2.))
+            .h(thumb + pad * 2.)
+            .p(pad)
+            .rounded_full()
+            .bg(if on { theme.primary } else { theme.input })
+            .when(on, |d| d.justify_end())
+            .child(
+                div()
+                    .size(thumb)
+                    .rounded_full()
+                    .bg(if on {
+                        theme.primary_foreground
+                    } else {
+                        theme.background
+                    })
+                    .shadow_xs(),
+            );
+        self.0.render(accesskit::Role::Switch, track, cx)
+    }
+}
+
+#[derive(IntoElement)]
+pub struct Checkbox(Toggle);
+toggle_builders!(Checkbox);
+
+impl RenderOnce for Checkbox {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+        let size = if self.0.small { px(14.) } else { px(16.) };
+        let on = self.0.checked;
+        let bx = div()
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_shrink_0()
+            .size(size)
+            .rounded(RADIUS_SM)
+            .border_1()
+            .border_color(if on { theme.primary } else { theme.input })
+            .bg(if on { theme.primary } else { theme.background })
+            .font_weight(FontWeight::BOLD)
+            .when(on, |d| {
+                d.child(
+                    Icon::new(SkyeIcon::Check)
+                        .size(size - px(4.))
+                        .text_color(theme.primary_foreground),
+                )
+            });
+        self.0.render(accesskit::Role::CheckBox, bx, cx)
+    }
+}

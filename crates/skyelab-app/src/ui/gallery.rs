@@ -1,0 +1,432 @@
+//! The UI Gallery: every SkyeLab component, variant and state on one page in the current theme, the place to redesign
+//! from (docs/design/components.md). Debug builds only: palette → "Open Ui Gallery" opens it in its own window.
+
+use super::{
+    AccountBadge, Button, Card, Checkbox, Divider, EmptyState, Kbd, Pill, SECTION, SectionHeader,
+    SegmentedControl, Size, SkyeIcon, StatusDot, Switch, Tabs, TextField, Variant, dialog_cancel,
+    dialog_footer, icon_button,
+};
+use gpui::{
+    App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
+    SharedString, Styled as _, Window, actions, div, prelude::*, px,
+};
+use gpui_component::{
+    ActiveTheme as _, WindowExt as _, h_flex,
+    input::InputState,
+    menu::{DropdownMenu as _, PopupMenuItem},
+    v_flex,
+};
+
+actions!(skyelab, [OpenUiGallery]);
+
+/// Registers the gallery's action (debug builds only), so the palette lists it.
+pub fn init(cx: &mut App) {
+    if cfg!(debug_assertions) {
+        cx.on_action(|_: &OpenUiGallery, cx| {
+            if let Err(e) = open(cx) {
+                eprintln!("couldn't open the UI gallery: {e:#}");
+            }
+        });
+    }
+}
+
+/// Opens the gallery in a window of its own, with the same window options as a workspace window.
+pub fn open(cx: &mut App) -> anyhow::Result<gpui::WindowHandle<gpui_component::Root>> {
+    let bounds = gpui::Bounds::centered(None, gpui::size(px(1040.), px(860.)), cx);
+    let options = match cx.try_global::<crate::workspace::WindowKit>() {
+        Some(kit) => (kit.options)(bounds),
+        None => gpui::WindowOptions {
+            window_bounds: Some(gpui::WindowBounds::Windowed(bounds)),
+            titlebar: Some(super::titlebar_options()),
+            ..Default::default()
+        },
+    };
+    cx.open_window(options, |window, cx| {
+        let view = cx.new(|cx| UiGallery::new(window, cx));
+        cx.new(|cx| gpui_component::Root::new(view, window, cx))
+    })
+}
+
+pub struct UiGallery {
+    switch_on: bool,
+    check_on: bool,
+    segment: usize,
+    tab: usize,
+    field: Entity<InputState>,
+    search: Entity<InputState>,
+    port: Entity<InputState>,
+    locked: Entity<InputState>,
+}
+
+impl UiGallery {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        Self {
+            switch_on: true,
+            check_on: false,
+            segment: 0,
+            tab: 0,
+            field: cx.new(|cx| InputState::new(window, cx).placeholder("Branch name")),
+            search: cx.new(|cx| InputState::new(window, cx).placeholder("Search")),
+            port: cx.new(|cx| InputState::new(window, cx).default_value("5173")),
+            locked: cx.new(|cx| InputState::new(window, cx).placeholder("Disabled")),
+        }
+    }
+
+    fn open_dialog(window: &mut Window, cx: &mut App) {
+        window.open_dialog(cx, |dialog, _, _| {
+            dialog
+                .w(px(420.))
+                .title("Discard changes?")
+                .child("The 3 changed files go back to the last commit. This can't be undone.")
+                .footer(
+                    dialog_footer()
+                        .child(dialog_cancel("gallery-dialog-cancel"))
+                        .child(
+                            Button::new("gallery-dialog-ok")
+                                .danger()
+                                .small()
+                                .label("Discard")
+                                .on_click(|_, window, cx| window.close_dialog(cx)),
+                        ),
+                )
+        });
+    }
+}
+
+const VARIANTS: [(Variant, &str); 5] = [
+    (Variant::Primary, "Primary"),
+    (Variant::Secondary, "Secondary"),
+    (Variant::Ghost, "Ghost"),
+    (Variant::Outline, "Outline"),
+    (Variant::Danger, "Danger"),
+];
+
+const SIZES: [(Size, &str); 3] = [(Size::Xs, "xs"), (Size::Sm, "sm"), (Size::Md, "md")];
+
+/// A titled block of the page.
+fn section(title: &'static str, body: impl IntoElement) -> impl IntoElement {
+    v_flex()
+        .gap_2()
+        .child(SectionHeader::new(title))
+        .child(body)
+}
+
+fn caption(text: impl Into<SharedString>, cx: &App) -> impl IntoElement {
+    div()
+        .w(px(84.))
+        .flex_shrink_0()
+        .text_size(super::META)
+        .text_color(cx.theme().muted_foreground)
+        .child(text.into())
+}
+
+fn buttons(cx: &App) -> impl IntoElement {
+    let grid = VARIANTS.iter().map(|&(v, name)| {
+        h_flex()
+            .gap_3()
+            .child(caption(name, cx))
+            .children(SIZES.iter().map(move |&(s, sn)| {
+                Button::new(SharedString::from(format!("g-{name}-{sn}")))
+                    .variant(v)
+                    .with_size(s)
+                    .label(name)
+            }))
+            .child(
+                Button::new(SharedString::from(format!("g-{name}-icon")))
+                    .variant(v)
+                    .icon(SkyeIcon::Plus)
+                    .label("New thread"),
+            )
+            .child(
+                Button::new(SharedString::from(format!("g-{name}-end")))
+                    .variant(v)
+                    .label("Open")
+                    .icon_end(SkyeIcon::ExternalLink),
+            )
+            .child(
+                Button::new(SharedString::from(format!("g-{name}-sq")))
+                    .variant(v)
+                    .icon(SkyeIcon::Settings)
+                    .tooltip("Icon only"),
+            )
+            .child(
+                Button::new(SharedString::from(format!("g-{name}-dis")))
+                    .variant(v)
+                    .label("Disabled")
+                    .disabled(true),
+            )
+    });
+    let states = h_flex()
+        .gap_3()
+        .flex_wrap()
+        .child(caption("States", cx))
+        .child(Button::new("g-save").primary().label("Save"))
+        .child(Button::new("g-later").secondary().label("Later"))
+        .child(
+            Button::new("g-loading")
+                .outline()
+                .label("Pushing")
+                .loading(true),
+        )
+        .child(
+            Button::new("g-selected")
+                .ghost()
+                .icon(SkyeIcon::PanelLeft)
+                .label("Selected")
+                .selected(true),
+        )
+        .child(
+            Button::new("g-key")
+                .outline()
+                .label("Command palette")
+                .key_hint(&crate::palette::OpenCommandPalette, Some("Workspace")),
+        )
+        .child(
+            Button::new("g-caret")
+                .ghost()
+                .icon(SkyeIcon::Model)
+                .label("Opus")
+                .dropdown_caret(true)
+                .dropdown_menu(|menu, _, _| {
+                    menu.item(PopupMenuItem::new("Opus").checked(true))
+                        .item(PopupMenuItem::new("Sonnet"))
+                        .separator()
+                        .item(PopupMenuItem::new("Account default"))
+                }),
+        )
+        .child(
+            icon_button("g-iconbtn-xs", SkyeIcon::Copy)
+                .xsmall()
+                .tooltip("Copy (xs)"),
+        )
+        .child(icon_button("g-iconbtn-sm", SkyeIcon::Copy).tooltip("Copy (sm)"))
+        .child(
+            icon_button("g-iconbtn-md", SkyeIcon::Copy)
+                .medium()
+                .tooltip("Copy (md)"),
+        )
+        .child(
+            Button::new("g-tip-action")
+                .ghost()
+                .icon(SkyeIcon::Search)
+                .tooltip_with_action(
+                    "Command palette",
+                    &crate::palette::OpenCommandPalette,
+                    Some("Workspace"),
+                ),
+        )
+        .child(
+            Button::new("g-dialog")
+                .outline()
+                .label("Open dialog")
+                .on_click(|_, window, cx| UiGallery::open_dialog(window, cx)),
+        );
+    v_flex().gap_2().children(grid).child(states)
+}
+
+fn badges(cx: &App) -> impl IntoElement {
+    let theme = cx.theme();
+    h_flex()
+        .gap_3()
+        .flex_wrap()
+        .child(Pill::new("Neutral"))
+        .child(Pill::new("Running").color(theme.info))
+        .child(Pill::new("Merged").color(theme.success))
+        .child(Pill::new("Limited").color(theme.warning))
+        .child(Pill::new("Failed").color(theme.danger))
+        .child(Pill::new("Worktree").icon(SkyeIcon::GitBranch))
+        .child(
+            Pill::new("PR #12")
+                .icon(SkyeIcon::GitPullRequest)
+                .color(theme.success),
+        )
+        .child(StatusDot::new(theme.info))
+        .child(
+            AccountBadge::new("work", "Work")
+                .provider(skyelab_core::Provider::Claude)
+                .chip(),
+        )
+        .child(AccountBadge::new("home", "Home"))
+        .child(AccountBadge::unbound().chip())
+        .child(Kbd::new(
+            gpui::Keystroke::parse("cmd-k").expect("a plain key parses"),
+        ))
+        .child(Kbd::new(
+            gpui::Keystroke::parse("cmd-shift-p").expect("a plain key parses"),
+        ))
+}
+
+impl Render for UiGallery {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        crate::debug_renders::count("UiGallery");
+        let theme = cx.theme();
+        let toggles = h_flex()
+            .gap_6()
+            .child(
+                Switch::new("g-switch")
+                    .label("Share on tailnet")
+                    .checked(self.switch_on)
+                    .on_click(cx.listener(|this, on: &bool, _, cx| {
+                        this.switch_on = *on;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Switch::new("g-switch-sm")
+                    .xsmall()
+                    .accessibility_label("Compact switch")
+                    .checked(!self.switch_on),
+            )
+            .child(
+                Switch::new("g-switch-dis")
+                    .label("Disabled")
+                    .checked(true)
+                    .disabled(true),
+            )
+            .child(
+                Checkbox::new("g-check")
+                    .label("Delete branch after merge")
+                    .checked(self.check_on)
+                    .on_click(cx.listener(|this, on: &bool, _, cx| {
+                        this.check_on = *on;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Checkbox::new("g-check-sm")
+                    .small()
+                    .label("Small")
+                    .checked(true),
+            )
+            .child(
+                Checkbox::new("g-check-bare")
+                    .accessibility_label("Unlabeled checkbox")
+                    .checked(true),
+            )
+            .child(Switch::new("g-switch-small").small().checked(true))
+            .child(
+                Checkbox::new("g-check-dis")
+                    .label("Disabled")
+                    .disabled(true),
+            );
+        let choices = v_flex()
+            .gap_3()
+            .child(
+                h_flex().child(
+                    SegmentedControl::new("g-seg")
+                        .items(["Squash", "Merge", "Rebase"])
+                        .selected(Some(self.segment))
+                        .on_click(cx.listener(|this, ix: &usize, _, cx| {
+                            this.segment = *ix;
+                            cx.notify();
+                        })),
+                ),
+            )
+            .child(
+                h_flex().child(
+                    SegmentedControl::new("g-seg-icons")
+                        .with_size(Size::Sm)
+                        .icon_item(SkyeIcon::Sun, "Light")
+                        .icon_item(SkyeIcon::Moon, "Dark")
+                        .icon_item(SkyeIcon::Monitor, "System")
+                        .selected(Some(2)),
+                ),
+            )
+            .child(
+                Tabs::new("g-tabs")
+                    .items(["Changes", "Files", "Checks"])
+                    .with_size(Size::Sm)
+                    .selected(Some(self.tab))
+                    .on_click(cx.listener(|this, ix: &usize, _, cx| {
+                        this.tab = *ix;
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Tabs::new("g-tabs-icons")
+                    .icon_item(SkyeIcon::GitBranch, "Branches")
+                    .icon_item(SkyeIcon::GitPullRequest, "Pull requests")
+                    .selected(Some(1)),
+            );
+        let fields = v_flex()
+            .gap_3()
+            .w(px(420.))
+            .child(TextField::new(&self.field))
+            .child(
+                TextField::new(&self.search).small().cleanable(true).prefix(
+                    gpui_component::Icon::new(SkyeIcon::Search)
+                        .size_3p5()
+                        .text_color(theme.muted_foreground),
+                ),
+            )
+            .child(
+                TextField::new(&self.port)
+                    .xsmall()
+                    .suffix(div().text_color(theme.muted_foreground).child("port")),
+            )
+            .child(TextField::new(&self.locked).small().disabled(true));
+        let surfaces = h_flex()
+            .gap_4()
+            .items_start()
+            .child(
+                Card::new()
+                    .w(px(300.))
+                    .child(div().font_weight(FontWeight::MEDIUM).child("Card"))
+                    .child(Divider::horizontal())
+                    .child(EmptyState::new("No threads yet").hint("Start one with ⌘N")),
+            )
+            .child(
+                Card::new()
+                    .flush()
+                    .w(px(300.))
+                    .child(super::group_row(true, theme).child("Flush card, first row"))
+                    .child(super::group_row(false, theme).child("Second row"))
+                    .child(
+                        super::group_row(false, theme).child(
+                            div()
+                                .id("g-tip")
+                                .text_color(theme.muted_foreground)
+                                .child("Hover for a tooltip")
+                                .tooltip(super::Tooltip::text("A plain tooltip")),
+                        ),
+                    ),
+            )
+            .child(
+                Card::new()
+                    .raised()
+                    .w(px(300.))
+                    .child(div().font_weight(FontWeight::MEDIUM).child("Raised card"))
+                    .child(
+                        h_flex()
+                            .h(px(24.))
+                            .gap_2()
+                            .child("Left")
+                            .child(Divider::vertical())
+                            .child("Right"),
+                    ),
+            );
+        let title = div()
+            .text_size(SECTION)
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(theme.foreground)
+            .child("UI Gallery");
+        div().size_full().bg(theme.background).child(
+            v_flex()
+                .id("ui-gallery")
+                .size_full()
+                .overflow_y_scroll()
+                .pt(super::HEADER_H)
+                .px_6()
+                .pb_10()
+                .gap_6()
+                .text_color(theme.foreground)
+                .child(title)
+                .child(section("Buttons", buttons(cx)))
+                .child(section("Badges, chips, keys", badges(cx)))
+                .child(section("Switch and checkbox", toggles))
+                .child(section("Segmented control and tabs", choices))
+                .child(section("Text field", fields))
+                .child(section("Card, divider, empty state", surfaces)),
+        )
+    }
+}

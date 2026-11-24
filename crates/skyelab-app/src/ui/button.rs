@@ -1,0 +1,448 @@
+//! SkyeLab's button, after T3's (`ui/button.tsx`): radius 8, medium weight, 24 / 28 / 32 px ([`Size`]), five variants.
+//! Built on gpui-base's headless button (role, focus, Enter/Space, the disabled click guard), styled here from theme
+//! tokens only. Stateless: a `RenderOnce` builder, no entity, hover and press drawn by GPUI's own styles.
+//!
+//! The builder keeps gpui-component's method names (`ghost`, `small`, `tooltip_with_action`, …) so a call site reads
+//! the same, and implements its `DropdownMenu`, so `.dropdown_menu(..)` opens the shared popup menu.
+
+use super::{DISABLED_OPACITY, Kbd, Size, SkyeIcon, Tooltip};
+use gpui::{
+    Action, AnyElement, App, ClickEvent, ElementId, FontWeight, Hsla, Interactivity, IntoElement,
+    ParentElement, Pixels, RenderOnce, SharedString, StyleRefinement, Styled, Window, div,
+    prelude::*, px,
+};
+use gpui_component::{
+    ActiveTheme as _, Icon, Selectable, Sizable as _, Theme, menu::DropdownMenu, spinner::Spinner,
+};
+use std::rc::Rc;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Variant {
+    /// The one main action of a surface: Send, Save, Create.
+    Primary,
+    /// A quieter filled action beside a primary one.
+    Secondary,
+    /// Toolbar and row actions: no box until hovered.
+    Ghost,
+    /// A standalone neutral action: Cancel, Choose…, Log in.
+    #[default]
+    Outline,
+    /// Destroys or ends something: Delete, Force stop, Discard.
+    Danger,
+    /// Asks you to look again before going on (T3's `warning-outline`): Re-confirm.
+    Warning,
+}
+
+/// One variant's colors, the only place a button's look comes from: a redesign edits this function or the theme.
+pub(crate) struct Colors {
+    pub bg: Hsla,
+    pub hover: Hsla,
+    pub active: Hsla,
+    pub fg: Hsla,
+    pub icon: Hsla,
+    pub border: Hsla,
+}
+
+pub(crate) fn colors(variant: Variant, selected: bool, theme: &Theme) -> Colors {
+    let clear = gpui::transparent_black();
+    let c = match variant {
+        Variant::Primary => Colors {
+            bg: theme.primary,
+            hover: theme.primary_hover,
+            active: theme.primary_active,
+            fg: theme.primary_foreground,
+            icon: theme.primary_foreground,
+            border: theme.primary,
+        },
+        Variant::Secondary => Colors {
+            bg: theme.secondary,
+            hover: theme.secondary_hover,
+            active: theme.secondary_active,
+            fg: theme.secondary_foreground,
+            icon: theme.secondary_foreground,
+            border: clear,
+        },
+        Variant::Ghost => Colors {
+            bg: clear,
+            hover: theme.accent,
+            active: theme.accent,
+            fg: theme.foreground,
+            icon: theme.muted_foreground,
+            border: clear,
+        },
+        Variant::Outline => Colors {
+            bg: if theme.is_dark() {
+                theme.input.opacity(0.32)
+            } else {
+                theme.popover
+            },
+            hover: if theme.is_dark() {
+                theme.input.opacity(0.64)
+            } else {
+                theme.accent.opacity(0.5)
+            },
+            active: theme.accent,
+            fg: theme.foreground,
+            icon: theme.muted_foreground,
+            border: theme.input,
+        },
+        Variant::Danger => Colors {
+            bg: theme.danger,
+            hover: theme.danger_hover,
+            active: theme.danger_active,
+            fg: theme.danger_foreground,
+            icon: theme.danger_foreground,
+            border: theme.danger,
+        },
+        Variant::Warning => Colors {
+            bg: theme
+                .warning
+                .opacity(if theme.is_dark() { 0.16 } else { 0.08 }),
+            hover: theme
+                .warning
+                .opacity(if theme.is_dark() { 0.24 } else { 0.16 }),
+            active: theme.warning.opacity(0.24),
+            fg: super::ink(theme, theme.warning),
+            icon: super::ink(theme, theme.warning),
+            border: theme.warning.opacity(0.32),
+        },
+    };
+    // Selected (a toggle that is on, a trigger whose menu is open): the hover fill held, like T3's `data-pressed`.
+    if selected {
+        Colors {
+            bg: c.hover,
+            icon: c.fg,
+            ..c
+        }
+    } else {
+        c
+    }
+}
+
+type OnClick = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+type ActionRef = (Rc<dyn Action>, Option<SharedString>);
+
+#[derive(IntoElement)]
+pub struct Button {
+    base: gpui_base::Button,
+    variant: Variant,
+    size: Size,
+    label: Option<SharedString>,
+    icon: Option<Icon>,
+    icon_end: Option<Icon>,
+    children: Vec<AnyElement>,
+    disabled: bool,
+    selected: bool,
+    loading: bool,
+    caret: bool,
+    square: bool,
+    toggled: Option<bool>,
+    tooltip: Option<(SharedString, Option<ActionRef>)>,
+    key_hint: Option<ActionRef>,
+    on_click: Option<OnClick>,
+}
+
+impl Button {
+    pub fn new(id: impl Into<ElementId>) -> Self {
+        Self {
+            base: gpui_base::Button::new(id),
+            variant: Variant::default(),
+            size: Size::default(),
+            label: None,
+            icon: None,
+            icon_end: None,
+            children: Vec::new(),
+            disabled: false,
+            selected: false,
+            loading: false,
+            caret: false,
+            square: false,
+            toggled: None,
+            tooltip: None,
+            key_hint: None,
+            on_click: None,
+        }
+    }
+
+    pub fn variant(mut self, variant: Variant) -> Self {
+        self.variant = variant;
+        self
+    }
+    pub fn primary(self) -> Self {
+        self.variant(Variant::Primary)
+    }
+    pub fn secondary(self) -> Self {
+        self.variant(Variant::Secondary)
+    }
+    pub fn ghost(self) -> Self {
+        self.variant(Variant::Ghost)
+    }
+    pub fn outline(self) -> Self {
+        self.variant(Variant::Outline)
+    }
+    pub fn danger(self) -> Self {
+        self.variant(Variant::Danger)
+    }
+    pub fn warning(self) -> Self {
+        self.variant(Variant::Warning)
+    }
+
+    pub fn with_size(mut self, size: Size) -> Self {
+        self.size = size;
+        self
+    }
+    pub fn xsmall(self) -> Self {
+        self.with_size(Size::Xs)
+    }
+    pub fn small(self) -> Self {
+        self.with_size(Size::Sm)
+    }
+    pub fn medium(self) -> Self {
+        self.with_size(Size::Md)
+    }
+
+    pub fn label(mut self, label: impl Into<SharedString>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// The leading icon.
+    pub fn icon(mut self, icon: impl Into<Icon>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// An icon after the label (an external-link arrow, a chevron).
+    pub fn icon_end(mut self, icon: impl Into<Icon>) -> Self {
+        self.icon_end = Some(icon.into());
+        self
+    }
+
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// Held down: a toggle that is on, or a trigger whose menu is open.
+    pub fn selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    /// Announces the button as a toggle that is on or off (screen readers only; [`Self::selected`] paints it).
+    pub fn toggled(mut self, on: bool) -> Self {
+        self.toggled = Some(on);
+        self
+    }
+
+    /// Shows a spinner in place of the icon and swallows clicks until the work is done.
+    pub fn loading(mut self, loading: bool) -> Self {
+        self.loading = loading;
+        self
+    }
+
+    /// A trailing chevron: this button opens a menu.
+    pub fn dropdown_caret(mut self, caret: bool) -> Self {
+        self.caret = caret;
+        self
+    }
+
+    /// Square (icon only), whatever its content; [`icon_button`] sets it.
+    pub fn square(mut self) -> Self {
+        self.square = true;
+        self
+    }
+
+    pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
+        self.tooltip = Some((text.into(), None));
+        self
+    }
+
+    /// A tooltip that also shows the key bound to `action` in `context`.
+    pub fn tooltip_with_action(
+        mut self,
+        text: impl Into<SharedString>,
+        action: &dyn Action,
+        context: Option<&str>,
+    ) -> Self {
+        self.tooltip = Some((
+            text.into(),
+            Some((
+                Rc::from(action.boxed_clone()),
+                context.map(SharedString::new),
+            )),
+        ));
+        self
+    }
+
+    /// The key bound to `action`, drawn inside the button after the label.
+    pub fn key_hint(mut self, action: &dyn Action, context: Option<&str>) -> Self {
+        self.key_hint = Some((
+            Rc::from(action.boxed_clone()),
+            context.map(SharedString::new),
+        ));
+        self
+    }
+
+    pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+        self.on_click = Some(Rc::new(f));
+        self
+    }
+
+    fn icon_el(icon: Icon, size: Pixels, color: Hsla) -> Icon {
+        icon.size(size).text_color(color)
+    }
+}
+
+/// The icon button: ghost, square at its size's height, the icon centered. Give it a tooltip: the icon is its only
+/// label.
+pub fn icon_button(id: impl Into<ElementId>, icon: impl Into<Icon>) -> Button {
+    Button::new(id).ghost().icon(icon).square()
+}
+
+impl Selectable for Button {
+    fn selected(self, selected: bool) -> Self {
+        Button::selected(self, selected)
+    }
+
+    fn is_selected(&self) -> bool {
+        self.selected
+    }
+}
+
+impl DropdownMenu for Button {}
+
+impl Styled for Button {
+    fn style(&mut self) -> &mut StyleRefinement {
+        self.base.style()
+    }
+}
+
+impl InteractiveElement for Button {
+    fn interactivity(&mut self) -> &mut Interactivity {
+        self.base.interactivity()
+    }
+}
+
+impl ParentElement for Button {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl RenderOnce for Button {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = cx.theme();
+        let c = colors(self.variant, self.selected, theme);
+        let size = self.size;
+        let interactive = !self.disabled && !self.loading;
+        let square =
+            self.square || (self.label.is_none() && self.children.is_empty() && !self.caret);
+        let key = self
+            .key_hint
+            .as_ref()
+            .and_then(|(a, ctx)| Kbd::for_action(a.as_ref(), ctx.as_deref(), window));
+        let (hover, active, ring) = (c.hover, c.active, theme.ring);
+
+        let mut base = self.base;
+        // The caller's own style (`.w_full()`, `.rounded(..)`) goes on last, so it wins over ours.
+        let caller = std::mem::take(base.style());
+        let mut base = base
+            .flex_shrink_0()
+            .h(size.height())
+            .gap(size.gap())
+            .rounded(size.radius())
+            .border_1()
+            .border_color(c.border)
+            .bg(c.bg)
+            .text_color(c.fg)
+            .text_size(size.text())
+            .font_weight(FontWeight::MEDIUM)
+            .whitespace_nowrap()
+            .overflow_hidden()
+            .map(|b| {
+                if square {
+                    b.w(size.height())
+                } else {
+                    b.px(size.pad_x() - px(1.))
+                }
+            })
+            .when(interactive, |b| b.cursor_pointer())
+            .when(interactive && !self.selected, |b| {
+                b.hover(move |s| s.bg(hover)).active(move |s| s.bg(active))
+            })
+            .focus_visible(move |s| s.border_color(ring))
+            .when(self.disabled, |b| b.opacity(DISABLED_OPACITY))
+            .when(self.loading && !self.disabled, |b| b.opacity(0.8))
+            .selected(self.selected)
+            .disabled(self.disabled)
+            .when_some(self.label.clone(), |b, l| b.accessibility_label(l))
+            .when_some(self.toggled, |b, on| {
+                b.aria_toggled(if on {
+                    gpui::accesskit::Toggled::True
+                } else {
+                    gpui::accesskit::Toggled::False
+                })
+            });
+        base.style().refine(&caller);
+
+        let lead = if self.loading {
+            Some(
+                Spinner::new()
+                    .with_size(size.icon())
+                    .color(c.icon)
+                    .into_any_element(),
+            )
+        } else {
+            self.icon
+                .map(|i| Self::icon_el(i, size.icon(), c.icon).into_any_element())
+        };
+        let fg = c.fg;
+        base.when_some(lead, |b, i| b.child(i))
+            .when_some(self.label, |b, label| {
+                b.child(
+                    div()
+                        .min_w_0()
+                        .text_ellipsis()
+                        .overflow_hidden()
+                        .child(label),
+                )
+            })
+            .children(self.children)
+            .when_some(key, |b, k| b.child(k.bare()))
+            .when_some(self.icon_end, |b, i| {
+                b.child(Self::icon_el(i, size.icon(), c.icon))
+            })
+            .when(self.caret, |b| {
+                b.child(Self::icon_el(
+                    Icon::new(SkyeIcon::ChevronDown),
+                    size.icon() - px(2.),
+                    fg.opacity(0.75),
+                ))
+            })
+            // A press never takes focus from the field you were typing in, nor starts a text selection.
+            .when(!self.disabled, |b| {
+                b.on_any_mouse_down(|_, window, cx| {
+                    window.prevent_default();
+                    if cx.has_global::<gpui_base::GlobalState>() {
+                        gpui_base::GlobalState::suppress_text_selection(cx);
+                    }
+                })
+            })
+            .map(|b| match (self.loading, self.on_click) {
+                (true, _) => b.on_click(|_, _, cx| cx.stop_propagation()),
+                (false, Some(f)) => b.on_click(move |e, w, cx| f(e, w, cx)),
+                (false, None) => b,
+            })
+            .when_some(self.tooltip, |b, (text, action)| {
+                b.tooltip(move |window, cx| {
+                    let t = Tooltip::new(text.clone());
+                    match &action {
+                        Some((a, ctx)) => t.action(a.as_ref(), ctx.as_deref()),
+                        None => t,
+                    }
+                    .build(window, cx)
+                })
+            })
+    }
+}

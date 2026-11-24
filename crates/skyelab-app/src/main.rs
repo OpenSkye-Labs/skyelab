@@ -217,6 +217,7 @@ fn main() {
         settings::init(cx);
         skyelab_terminal::init(cx);
         workspace::init(cx);
+        ui::gallery::init(cx);
         init_keys(skyelab_core::keymap::default_path(), cx);
         cx.set_global(workspace::GhBin(match std::env::var_os("SKYELAB_GH_BIN") {
             Some(bin) if cfg!(debug_assertions) => bin.into(),
