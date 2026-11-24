@@ -339,3 +339,19 @@ fn only_the_selected_thread_takes_the_keys_for_its_question(cx: &mut TestAppCont
     cx.run_until_parked();
     assert!(!panel_focused(&one, cx), "not the selected thread");
 }
+
+/// A page with no selected thread (Compare, Welcome): with nothing focused, the pane showing the question (a side
+/// chat in the dock) takes the keys. Only the first one does: once it has the focus, something is focused.
+#[gpui::test]
+fn without_a_selected_thread_the_shown_pane_takes_the_keys(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    one.view.update_in(cx, |_, window, cx| {
+        cx.default_global::<super::center::ShownThread>()
+            .0
+            .insert(window.window_handle().window_id(), None); // a Compare page
+        window.blur(cx);
+    });
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    cx.run_until_parked();
+    assert!(panel_focused(&one, cx), "the only shown pane took the keys");
+}
