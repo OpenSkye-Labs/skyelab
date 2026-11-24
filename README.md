@@ -68,7 +68,8 @@ What's built today:
   `/` and skills with `$`, add another thread's gist or its pull request with `#` (same account only), and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
   files and branch. A long paste (8 KB or 200 lines) attaches as a text file instead, and images you sent or preview
-  open large in a zoomable viewer.
+  open large in a zoomable viewer. <kbd>⌘S</kbd> stashes a prompt for later (a **Stash** list to restore it), and
+  **Quote** on text you select in a reply adds it to the message as a Markdown quote.
 - **Scratch threads.** **New Scratch Thread** asks for an account and runs a quick question in that account's own
   scratch folder, bound to it on first use and listed as **Scratch · <account>**. No default account, even here.
 - **Titles, drafts, history and forks.** After the first reply, the thread's own account names it (off in Settings →

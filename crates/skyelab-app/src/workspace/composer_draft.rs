@@ -100,6 +100,7 @@ impl ThreadView {
         // change saves them.
         self._subs
             .push(cx.observe_self(|this, cx| this.save_draft(cx)));
+        self.init_stash(cx);
         let (store, owner) = (self.backend.store.clone(), self.draft_owner());
         let source = self.thread.as_ref().and_then(|t| t.forked_from);
         let task = cx.background_spawn(async move {

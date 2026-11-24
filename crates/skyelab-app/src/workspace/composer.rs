@@ -42,11 +42,16 @@ mod composer_restore_test;
 mod composer_review_test;
 #[path = "composer_send.rs"]
 mod composer_send;
+#[path = "composer_stash.rs"]
+pub(in crate::workspace) mod composer_stash;
 #[path = "composer_state.rs"]
 mod composer_state;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "context_chips_test.rs"]
 mod context_chips_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "prompt_stash_test.rs"]
+mod prompt_stash_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "quote_selection_test.rs"]
 mod quote_selection_test;
@@ -95,6 +100,8 @@ impl ThreadView {
     ) -> AnyElement {
         let menu = self.composer.menu.as_ref();
         let menu_el = menu.map(|m| self.render_menu(m, cx));
+        let stash_menu = self.render_stash_menu(cx);
+        let stash_badge = self.render_stash_badge(cx);
         let picker = self.composer.picker_open.then(|| self.render_picker(cx));
         let attachments = self.render_attachments(cx);
         let contexts = self.render_contexts(cx);
@@ -152,6 +159,7 @@ impl ThreadView {
             }))
             .child(measure)
             .children(menu_el)
+            .children(stash_menu)
             .children(picker)
             .children(attachments)
             .children(contexts)
@@ -160,7 +168,10 @@ impl ThreadView {
                     .px_4()
                     .pt_3()
                     .text_size(ui::BODY)
-                    .when(menu.is_some(), |this| this.key_context(MENU_CONTEXT))
+                    .when(
+                        menu.is_some() || self.composer.stash_open.is_some(),
+                        |this| this.key_context(MENU_CONTEXT),
+                    )
                     .child(input),
             )
             .child(controls);
@@ -168,6 +179,7 @@ impl ThreadView {
             .w_full()
             .max_w(ui::CHAT_MAX_W)
             .children(queue)
+            .children(stash_badge)
             .child(card)
             .children(self.composer.notice.clone().map(|n| {
                 div()

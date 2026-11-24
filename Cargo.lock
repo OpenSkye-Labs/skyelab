@@ -7795,6 +7795,7 @@ dependencies = [
  "resvg 0.50.0",
  "rusqlite",
  "rustls",
+ "serde",
  "serde_json",
  "skyelab-agent",
  "skyelab-browser",

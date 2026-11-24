@@ -18,8 +18,8 @@ use skyelab_core::terminal_context;
 /// The most excerpts one message carries; a new one past it replaces the oldest.
 const MAX_CONTEXTS: usize = 8;
 
-/// Where a chip's text came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Where a chip's text came from. Serialized into the prompt stash: rename a variant only with an alias.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) enum ChipKind {
     Terminal,
     Thread,
