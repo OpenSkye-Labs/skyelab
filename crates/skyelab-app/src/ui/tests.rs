@@ -160,3 +160,17 @@ fn configured_accounts_get_distinct_colors_in_any_order() {
         );
     }
 }
+
+#[test]
+fn escape_reads_as_esc_not_the_refresh_like_glyph() {
+    let kbd = |s: &'static str| {
+        super::Kbd::new(gpui::Keystroke::parse(s).expect("valid keystroke")).label()
+    };
+    assert_eq!(kbd("escape"), "Esc");
+    assert!(
+        kbd("shift-escape").ends_with("Esc"),
+        "{}",
+        kbd("shift-escape")
+    );
+    assert!(!kbd("cmd-k").contains("Esc"));
+}

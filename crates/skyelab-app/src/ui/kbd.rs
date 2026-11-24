@@ -58,9 +58,12 @@ impl Kbd {
         self
     }
 
-    /// The keystroke as the platform writes it.
+    /// The keystroke as the platform writes it, except Escape: macOS's ⎋ reads as a refresh arrow at 12 px, so it
+    /// is "Esc" as in T3.
     pub fn label(&self) -> SharedString {
-        gpui_component::kbd::Kbd::format(&self.stroke).into()
+        gpui_component::kbd::Kbd::format(&self.stroke)
+            .replace('⎋', "Esc")
+            .into()
     }
 }
 
