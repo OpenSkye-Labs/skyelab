@@ -118,6 +118,20 @@ pub(super) fn failed(message: String) -> Event {
     }
 }
 
+/// A file-change item's id and edits (path, kind, diff), for its approval request, which names only the item.
+pub(super) fn file_changes(item: &Value) -> Option<(String, Value)> {
+    if item["type"] != "fileChange" {
+        return None;
+    }
+    let changes: Vec<Value> = item["changes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|c| json!({ "path": c["path"], "kind": c["kind"]["type"], "diff": c["diff"] }))
+        .collect();
+    Some((item["id"].as_str()?.to_owned(), Value::Array(changes)))
+}
+
 pub(super) fn started(item: &Value) -> Option<Event> {
     let (name, input) = match item["type"].as_str()? {
         "commandExecution" => ("shell".to_owned(), json!({ "command": item["command"] })),

@@ -426,3 +426,34 @@ fn a_steer_with_no_running_turn_queues_like_a_prompt() {
     let writes = c.prompt("one", &[], true).expect("steer");
     assert_eq!(method(&writes[0]), "turn/start");
 }
+
+#[test]
+fn a_file_change_approval_shows_the_patch_its_item_started_with() {
+    // Codex 0.172's real lines: the request carries only reason/grantRoot (null); the diff is on the item.
+    let mut c = open();
+    c.on_line(json!({ "method": "item/started", "params": { "item": {
+        "type": "fileChange", "id": "exec-1",
+        "changes": [{ "path": "/work/greet.py", "kind": { "type": "update", "move_path": null },
+                      "diff": "@@ -8,2 +8,4 @@\n \n+def farewell(name):\n+    return name\n" }],
+        "status": "inProgress" }, "threadId": "thr", "turnId": "t1" } }));
+    let (events, _) = c.on_line(json!({ "method": "item/fileChange/requestApproval", "id": 7, "params": {
+        "threadId": "thr", "turnId": "t1", "itemId": "exec-1", "reason": null, "grantRoot": null } }));
+    let Some(Event::Permission { tool, input, .. }) = events.first() else {
+        panic!("no permission: {events:?}");
+    };
+    assert_eq!(tool, "apply_patch");
+    assert_eq!(input["changes"][0]["path"], "/work/greet.py");
+    assert_eq!(input["changes"][0]["kind"], "update");
+    assert!(
+        input["changes"][0]["diff"]
+            .as_str()
+            .expect("diff")
+            .contains("+def farewell")
+    );
+    assert!(input.get("grantRoot").is_none(), "{input}");
+    assert_eq!(
+        crate::summary(input),
+        "/work/greet.py",
+        "the card's one line names the file"
+    );
+}

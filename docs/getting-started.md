@@ -65,7 +65,7 @@ CLAUDE_CONFIG_DIR=~/.claude-work claude mcp add --scope user <name> -- <command>
 For Codex, add them to the `mcp_servers` of that account's `config.toml`. A thread loads only its own account's
 servers. It never loads a repo's `.mcp.json`. After you add a server, run **Restart Agent Session** in the thread.
 
-Plugin MCP servers (from Claude Code plugins) don't load yet. Plugin skills and commands do.
+The MCP servers of the account's enabled Claude Code plugins load too, as `plugin:<plugin>:<server>`.
 
 ## 5. Bring over your old sessions
 
@@ -122,4 +122,3 @@ The log leaves out prompts, environment values and tokens. More: [debugging](deb
   an ssh key isn't tied to an account.
 - **Quitting stops agents.** There is no background service yet. When you quit SkyeLab, running agents stop.
 - **The Preview tab is read-only.** Edit files in your own editor; the diff follows within a second.
-- **Plugin MCP servers don't load yet** (see step 4).

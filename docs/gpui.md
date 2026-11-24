@@ -47,6 +47,9 @@ gpui-component moves to the official `gpui` crate; then we move with it.
 - UI-thread async: `cx.spawn(async move |this, cx| { ... this.update(cx, |this, cx| ..)?; })`. `this` is a
   `WeakEntity`, and `update` fails if the view is gone. Propagate that, don't `unwrap`.
 - CPU/blocking work: `cx.background_spawn(async move { .. })`, then hop back with `this.update`.
+  That includes a "tiny" file read inside a `cx.spawn` loop: an `await` in `cx.spawn` runs the code between awaits on
+  the main thread, and one `std::fs::read_to_string` that stalled on a busy external disk froze the app and Quit
+  (the verify actions file poll). Do the read in `background_executor().spawn` and await it.
 - **Never hold a `read`/`update` borrow across an `.await`.** Copy out what you need, await, then update.
 - A `Task` is cancelled when dropped. Store it in a field (`_task: Task<()>`) to tie its life to the view, or `.detach()`
   only for true fire-and-forget. Agent processes, PTYs and network streams belong to a stored task, never a detached one.

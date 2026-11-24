@@ -1,0 +1,1 @@
+{"name":"rooty","mcpServers":{"tools":{"command":"${CLAUDE_PLUGIN_ROOT}/bin/tools","args":["--data","${CLAUDE_PLUGIN_DATA}/db"],"env":{"HOME_HINT":"${CLAUDE_PLUGIN_ROOT}"}}}}

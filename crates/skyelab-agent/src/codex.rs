@@ -10,7 +10,7 @@ mod config;
 mod items;
 use anyhow::{Context as _, Result};
 pub(crate) use config::{mcp_servers, policy};
-use items::{NOISE, answer, completed, delta, failed, plan, rate_limit, started};
+use items::{NOISE, answer, completed, delta, failed, file_changes, plan, rate_limit, started};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::ffi::OsString;
@@ -76,6 +76,8 @@ pub(crate) struct Codex {
     asks: BTreeMap<String, Value>,
     /// The asks that are user-input requests: our id → the ids of their questions, in order.
     questions: BTreeMap<String, Vec<String>>,
+    /// Each running file change's edits (path, kind, diff), by item id: its approval request names only the item.
+    patches: BTreeMap<String, Value>,
     /// The thread's token totals so far, and what they were when the running turn started.
     tokens: Option<Usage>,
     /// The thread's totals when the running turn began; unknown until a reading arrives.
@@ -114,6 +116,7 @@ impl Codex {
             closed: None,
             asks: BTreeMap::new(),
             questions: BTreeMap::new(),
+            patches: BTreeMap::new(),
             tokens: None,
             turn_base: None,
             mode_change: None,
@@ -205,6 +208,7 @@ impl Codex {
     /// Every open request, withdrawn: its turn or its process is over.
     pub(crate) fn withdraw_all(&mut self) -> Vec<Event> {
         self.questions.clear();
+        self.patches.clear();
         std::mem::take(&mut self.asks)
             .into_keys()
             .map(|id| Event::PermissionResolved {
@@ -239,7 +243,11 @@ impl Codex {
             .filter(|k| !params[**k].is_null())
             .map(|k| ((*k).to_owned(), params[*k].clone()))
             .collect();
-        let input = Value::Object(input);
+        let mut input = Value::Object(input);
+        // What the patch does, so the card never asks to approve an edit it can't show.
+        if let Some(changes) = params["itemId"].as_str().and_then(|i| self.patches.get(i)) {
+            input["changes"] = changes.clone();
+        }
         let id = format!("{}codex-{}", self.nonce, rpc);
         self.asks.insert(id.clone(), rpc);
         let event = Event::Permission {
@@ -396,9 +404,18 @@ impl Codex {
                 });
                 (events.into_iter().collect(), Vec::new())
             }
-            "item/started" => (started(&p["item"]).into_iter().collect(), Vec::new()),
+            "item/started" => {
+                let item = &p["item"];
+                if let Some((id, changes)) = file_changes(item) {
+                    self.patches.insert(id, changes);
+                }
+                (started(item).into_iter().collect(), Vec::new())
+            }
             "item/completed" => {
                 let item = &p["item"];
+                if let Some(id) = item["id"].as_str() {
+                    self.patches.remove(id);
+                }
                 if item["type"] == "agentMessage" {
                     self.last_text = item["text"].as_str().map(str::to_owned);
                 }

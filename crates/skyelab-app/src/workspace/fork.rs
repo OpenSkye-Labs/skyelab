@@ -138,7 +138,8 @@ impl Workspace {
             let events = s.events_since(id, 0)?;
             let kept = cut(&events, turns);
             let context = context_prompt(&src.title, kept);
-            s.create_fork(
+            let pick = s.thread_model(id)?;
+            let fork = s.create_fork(
                 &NewThread {
                     project_id: project.id,
                     title: &src.title,
@@ -149,7 +150,10 @@ impl Workspace {
                 id,
                 &context,
                 kept,
-            )
+            )?;
+            // Same account and provider, so the source's model and effort carry over (a handoff's don't).
+            s.set_thread_model(fork.id, &pick)?;
+            Ok(fork)
         });
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;

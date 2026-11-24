@@ -1,0 +1,14 @@
+{
+  "theme": "dark",
+  "enabledPlugins": {
+    "aikido@claude-plugins-official": true,
+    "posthog@posthog": true,
+    "alleo-loop@alleo-skills": true,
+    "rooty@local": true,
+    "off@local": false,
+    "projonly@local": true,
+    "broken@local": true,
+    "gone@local": true
+  },
+  "extraKnownMarketplaces": {}
+}
