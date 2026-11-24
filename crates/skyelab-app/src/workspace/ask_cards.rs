@@ -2,6 +2,7 @@
 //! proposed plan. Their drafts live in the thread view (`thread_answers.rs`).
 
 use super::ask_detail::{Detail, detail};
+use super::ask_dock::option_mark;
 use super::thread_items::{ItemsView, clip};
 use super::thread_model::ApprovalItem;
 use super::tool_cards::slot;
@@ -73,36 +74,6 @@ fn settled_row(
                 .child(settled_label(&a.tool, d)),
         )
         .into_any_element()
-}
-
-/// An option's radio (one pick) or checkbox (any).
-pub(super) fn option_mark(on: bool, multi: bool, theme: &gpui_component::Theme) -> gpui::Div {
-    let base = div()
-        .size(px(14.))
-        .flex_shrink_0()
-        .border_1()
-        .border_color(theme.foreground.opacity(0.55))
-        .flex()
-        .items_center()
-        .justify_center();
-    if multi {
-        base.rounded(ui::RADIUS_SM).when(on, |d| {
-            d.bg(theme.primary).border_color(theme.primary).child(
-                Icon::new(SkyeIcon::Check)
-                    .size_3()
-                    .text_color(theme.primary_foreground),
-            )
-        })
-    } else {
-        base.rounded_full().when(on, |d| {
-            d.bg(theme.primary).border_color(theme.primary).child(
-                div()
-                    .size(px(6.))
-                    .rounded_full()
-                    .bg(theme.primary_foreground),
-            )
-        })
-    }
 }
 
 /// A pending ask's line in the timeline while the panel on the composer holds it.
@@ -525,8 +496,17 @@ pub(super) fn render_approval<V: ItemsView>(
                 .child(
                     div()
                         .text_size(ui::META)
-                        .text_color(ui::ink(theme, theme.warning))
-                        .child("Waiting for approval"),
+                        .text_color(if answerable {
+                            ui::ink(theme, theme.warning)
+                        } else {
+                            theme.muted_foreground
+                        })
+                        // With its agent gone it waits on nothing; the line under it says how to go on.
+                        .child(if answerable {
+                            "Waiting for approval"
+                        } else {
+                            "Not answered"
+                        }),
                 ),
         )
         .child(

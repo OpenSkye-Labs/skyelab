@@ -2,7 +2,7 @@
 //! never scrolls away with the timeline. A question shows one at a time with numbered options; the composer's text is
 //! that question's own answer, and Send reads Next, then Submit. A plan stays a card in the timeline, as in T3.
 
-use super::ask_cards::{self, OTHER, option_mark, questions};
+use super::ask_cards::{self, OTHER, questions};
 use super::question_drafts;
 use super::thread::ThreadView;
 use super::thread_model::ApprovalItem;
@@ -362,5 +362,35 @@ impl ThreadView {
                 .on_click(cx.listener(|this, _, window, cx| this.advance_question(window, cx)))
                 .into_any_element(),
         )
+    }
+}
+
+/// An option's radio (one pick) or checkbox (any).
+pub(super) fn option_mark(on: bool, multi: bool, theme: &gpui_component::Theme) -> gpui::Div {
+    let base = div()
+        .size(px(14.))
+        .flex_shrink_0()
+        .border_1()
+        .border_color(theme.foreground.opacity(0.55))
+        .flex()
+        .items_center()
+        .justify_center();
+    if multi {
+        base.rounded(ui::RADIUS_SM).when(on, |d| {
+            d.bg(theme.primary).border_color(theme.primary).child(
+                gpui_component::Icon::new(SkyeIcon::Check)
+                    .size_3()
+                    .text_color(theme.primary_foreground),
+            )
+        })
+    } else {
+        base.rounded_full().when(on, |d| {
+            d.bg(theme.primary).border_color(theme.primary).child(
+                div()
+                    .size(px(6.))
+                    .rounded_full()
+                    .bg(theme.primary_foreground),
+            )
+        })
     }
 }

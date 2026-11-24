@@ -73,9 +73,13 @@ fn the_rail_draws_a_tick_per_prompt_and_a_click_jumps_to_it(cx: &mut gpui::TestA
     let top = one
         .view
         .read_with(cx, |v, _| v.own_list().logical_scroll_top().item_ix);
-    assert_ne!(top, 31, "a click doesn't jump in one frame (started at {before})");
+    assert_ne!(
+        top, 31,
+        "a click doesn't jump in one frame (started at {before})"
+    );
     // ...and lands on the prompt's row once it has run.
-    cx.executor().advance_clock(std::time::Duration::from_millis(400));
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(400));
     cx.run_until_parked();
     let top = one
         .view

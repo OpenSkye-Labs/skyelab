@@ -138,3 +138,46 @@ fn a_new_ask_brings_a_scrolled_up_reader_to_it(cx: &mut TestAppContext) {
     });
     assert!(following && top > 150, "the timeline went to its end, where the ask is: top {top}");
 }
+
+#[gpui::test]
+fn a_tool_whose_agent_died_shows_interrupted_not_running(cx: &mut TestAppContext) {
+    use super::thread_items::ItemsView as _;
+    setup(cx);
+    let f = fixture(true);
+    let id = seed(&f.store, &f.project_dir);
+    {
+        // The agent asked to run a command, then died: no result, no turn end.
+        let mut s = f.store.lock().expect("store");
+        let rows = [
+            Record::Prompt("deploy".into()),
+            Record::Agent(skyelab_agent::Event::Assistant {
+                content: vec![skyelab_agent::Block::ToolUse {
+                    id: "toolu_dead".into(),
+                    name: "Bash".into(),
+                    input: serde_json::json!({"command": "make deploy"}),
+                }],
+            }),
+        ];
+        for r in rows {
+            let (kind, payload) = r.to_row();
+            s.append_event(id, kind, &payload).expect("event");
+        }
+    }
+    let (ws, cx) = open_workspace(&f, cx);
+    ws.update_in(cx, |ws, window, cx| {
+        ws.open_thread(&OpenThread { id }, window, cx)
+    });
+    cx.run_until_parked();
+    let view = cx
+        .update(|_, cx| ws.read(cx).open_view(id, cx))
+        .expect("open");
+    assert!(
+        !view.read_with(cx, |v, _| v.tool_live("toolu_dead")),
+        "no agent runs that turn: the row must not spin"
+    );
+    cx.run_until_parked();
+    assert!(
+        view.read_with(cx, |v, _| v.items.iter().any(|i| matches!(i, super::thread_model::Item::Tool(t) if t.id == "toolu_dead"))),
+        "the call is in the timeline"
+    );
+}

@@ -23,6 +23,17 @@ pub fn status_text(s: &SubagentItem) -> String {
 }
 
 pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> AnyElement {
+    // A running one whose agent is gone (it died, or was stopped) shows as stopped, not spinning.
+    let cut;
+    let s = if s.status == SubagentStatus::Running && !this.agent_alive() {
+        cut = SubagentItem {
+            status: SubagentStatus::Stopped,
+            ..s.clone()
+        };
+        &cut
+    } else {
+        s
+    };
     let theme = cx.theme();
     let open = this.is_expanded(&s.id);
     let (icon, color) = match s.status {
