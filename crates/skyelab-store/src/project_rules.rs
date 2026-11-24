@@ -1,5 +1,5 @@
 //! "Allow for this project" rules (`skyelab_core::project_rules`), kept per project and per account: a rule saved
-//! under one account is never listed for another, so rebinding a folder starts it with no rules.
+//! under one account is never listed or used for another.
 
 use crate::{Store, expect_one, now_ms};
 use anyhow::{Context as _, Result};
@@ -81,10 +81,12 @@ impl Store {
         expect_one(n, "permission rule", id)
     }
 
-    pub fn delete_project_rule(&self, id: i64) -> Result<()> {
-        let n = self
-            .conn
-            .execute("DELETE FROM project_rules WHERE id = ?1", [id])?;
+    /// Removes rule `id`, only while it belongs to `account`.
+    pub fn delete_project_rule(&self, id: i64, account: &str) -> Result<()> {
+        let n = self.conn.execute(
+            "DELETE FROM project_rules WHERE id = ?1 AND account_id = ?2",
+            params![id, account],
+        )?;
         expect_one(n, "permission rule", id)
     }
 }

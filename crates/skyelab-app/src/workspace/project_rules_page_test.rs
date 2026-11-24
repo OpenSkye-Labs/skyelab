@@ -46,9 +46,9 @@ fn lists_edits_and_removes_the_accounts_rules(cx: &mut TestAppContext) {
     }
     page.update_in(cx, |pg, window, cx| pg.edit(id, window, cx));
     let field = page.read_with(cx, |pg, _| pg.editing.clone().expect("editing").1);
-    field.update_in(cx, |f, window, cx| f.set_value("npm test --watch", window, cx));
+    field.update_in(cx, |f, window, cx| f.set_value("npm test unit", window, cx));
     page.update(cx, |pg, cx| pg.save_edit(cx));
-    assert_eq!(listed(cx), ["npm test --watch", "src/**"]);
+    assert_eq!(listed(cx), ["npm test unit", "src/**"]);
     assert!(page.read_with(cx, |pg, _| pg.editing.is_none() && pg.error.is_none()));
 
     page.update(cx, |pg, cx| pg.remove(id, cx));

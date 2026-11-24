@@ -75,6 +75,114 @@ fn simple(command: &str) -> bool {
             .any(|c| c.is_control() || ";&|`$<>()\\".contains(c))
 }
 
+/// Words as the shell splits them (ASCII space and tab only: a no-break space is part of a word to bash).
+fn words(command: &str) -> impl Iterator<Item = &str> {
+    command.split([' ', '\t']).filter(|w| !w.is_empty())
+}
+
+/// Programs that run whatever their arguments say (shells, interpreters, wrappers): a prefix starting with one
+/// would allow any code.
+const RUNS_ANYTHING: &[&str] = &[
+    "sh",
+    "bash",
+    "zsh",
+    "fish",
+    "dash",
+    "ksh",
+    "csh",
+    "tcsh",
+    "pwsh",
+    "powershell",
+    "cmd",
+    "env",
+    "xargs",
+    "sudo",
+    "doas",
+    "su",
+    "eval",
+    "exec",
+    "command",
+    "builtin",
+    "nohup",
+    "time",
+    "timeout",
+    "nice",
+    "ionice",
+    "watch",
+    "stdbuf",
+    "setsid",
+    "chroot",
+    "python",
+    "python2",
+    "python3",
+    "node",
+    "deno",
+    "bun",
+    "ruby",
+    "perl",
+    "php",
+    "lua",
+    "osascript",
+    "awk",
+    "gawk",
+    "sed",
+    "find",
+];
+
+/// Why a prefix of plain words still allows too much, if it does.
+fn wide_prefix(prefix: &str) -> Option<String> {
+    let first = words(prefix).next()?;
+    let name = first
+        .rsplit('/')
+        .next()
+        .unwrap_or(first)
+        .trim_end_matches(".exe");
+    if RUNS_ANYTHING.contains(&name.to_ascii_lowercase().as_str()) {
+        return Some(format!(
+            "{first} runs whatever its arguments say, so it can only be allowed exactly."
+        ));
+    }
+    words(prefix)
+        .last()
+        .filter(|w| w.starts_with('-'))
+        .map(|w| format!("A prefix can't end in a flag ({w}): the next word could be code. Leave the flag out."))
+}
+
+/// Folders and files an agent may never change by a rule: git internals (a hook runs on SkyeLab's own git calls)
+/// and agent and editor configuration. Compared case-insensitively (macOS and Windows folders are).
+const PROTECTED: &[&str] = &[
+    ".git",
+    ".claude",
+    ".codex",
+    ".mcp.json",
+    ".envrc",
+    ".vscode",
+    ".idea",
+    ".husky",
+];
+
+fn protected(rel: &str) -> bool {
+    rel.split('/')
+        .any(|part| PROTECTED.iter().any(|p| p.eq_ignore_ascii_case(part)))
+}
+
+/// The input fields a shell ask may carry and still be matched: anything else (Claude's
+/// `dangerouslyDisableSandbox`, a field from a newer agent) may change what running it means.
+const COMMAND_FIELDS: &[&str] = &[
+    "command",
+    "description",
+    "timeout",
+    "run_in_background",
+    "cwd",
+    "reason",
+];
+
+fn plain_command_ask(input: &Value) -> bool {
+    input
+        .as_object()
+        .is_some_and(|o| o.keys().all(|k| COMMAND_FIELDS.contains(&k.as_str())))
+}
+
 /// `path` relative to `root`, `/`-separated, when it is inside `root` by its text and after resolving symlinks on
 /// the part that exists (a file being written may not exist yet). `None` when it escapes or isn't UTF-8.
 pub fn relative_inside(root: &Path, path: &Path) -> Option<String> {
@@ -101,6 +209,10 @@ pub fn relative_inside(root: &Path, path: &Path) -> Option<String> {
         if let Ok(real) = existing.canonicalize() {
             break real;
         }
+        // A dangling symlink doesn't canonicalize either, but writing through it lands wherever it points.
+        if existing.symlink_metadata().is_ok() {
+            return None;
+        }
         tail.push(existing.file_name()?.to_owned());
         existing = existing.parent()?.to_path_buf();
     };
@@ -108,7 +220,8 @@ pub fn relative_inside(root: &Path, path: &Path) -> Option<String> {
     let rel = real.strip_prefix(&root_real).ok()?;
     let parts: Option<Vec<&str>> = rel.iter().map(|p| p.to_str()).collect();
     let parts = parts?;
-    (!parts.is_empty()).then(|| parts.join("/"))
+    // `..` can only be here from a verbatim Windows path, which keeps it as a name.
+    (!parts.is_empty() && !parts.contains(&"..")).then(|| parts.join("/"))
 }
 
 /// Whether the agent's working folder in this ask (Codex's `cwd`) is the folder or under it; no `cwd` is the folder.
@@ -133,25 +246,29 @@ pub fn propose(tool: &str, input: &Value, root: &Path) -> Option<Rule> {
     };
     if command_tool(tool) {
         let command = input["command"].as_str()?.trim();
-        return (!command.is_empty() && cwd_inside(input, root))
+        return (!command.is_empty() && cwd_inside(input, root) && plain_command_ask(input))
             .then(|| rule(Kind::Exact, command.to_owned()));
     }
     if let Some(key) = file_key(tool) {
         let rel = relative_inside(root, Path::new(input[key].as_str()?))?;
-        return Some(rule(Kind::Path, rel));
+        // A `*` in the name would be read as a glob, covering other files.
+        return (!protected(&rel) && !rel.contains('*')).then(|| rule(Kind::Path, rel));
     }
     mcp_tool(tool).then(|| rule(Kind::Tool, String::new()))
 }
 
-/// The prefix the dialog suggests for a command: its first two words, when it is simple enough to take one.
+/// The prefix the dialog suggests for a command: its first two words, or one when the second is a flag, when the
+/// command may take a prefix rule at all.
 pub fn suggested_prefix(command: &str) -> Option<String> {
-    simple(command).then(|| {
-        command
-            .split_whitespace()
-            .take(2)
-            .collect::<Vec<_>>()
-            .join(" ")
-    })
+    if !simple(command) {
+        return None;
+    }
+    let mut picked: Vec<&str> = words(command).take(2).collect();
+    while picked.last().is_some_and(|w| w.starts_with('-')) {
+        picked.pop();
+    }
+    let prefix = picked.join(" ");
+    (!prefix.is_empty() && wide_prefix(&prefix).is_none()).then_some(prefix)
 }
 
 /// Why `rule` can't be saved, in words for the user.
@@ -174,6 +291,9 @@ pub fn validate(rule: &Rule) -> Result<(), String> {
                         .into(),
                 );
             }
+            if let Some(why) = wide_prefix(p) {
+                return Err(why);
+            }
         }
         Kind::Path if file_key(&rule.tool).is_some() => {
             if p.is_empty() {
@@ -192,6 +312,12 @@ pub fn validate(rule: &Rule) -> Result<(), String> {
             if p.chars().any(char::is_control) {
                 return Err("The path has control characters.".into());
             }
+            if protected(p) {
+                return Err(
+                    "Rules never cover .git or agent and editor settings (.claude, .mcp.json, …)."
+                        .into(),
+                );
+            }
         }
         Kind::Tool if mcp_tool(&rule.tool) => {
             if !p.is_empty() {
@@ -205,25 +331,32 @@ pub fn validate(rule: &Rule) -> Result<(), String> {
 
 /// `*` matches within one segment, `**` any number of whole segments; anything else matches itself.
 fn glob(pattern: &str, path: &str) -> bool {
-    fn segs(p: &[&str], s: &[&str]) -> bool {
-        match (p.first(), s.first()) {
-            (None, None) => true,
-            (Some(&"**"), _) => segs(&p[1..], s) || (!s.is_empty() && segs(p, &s[1..])),
-            (Some(a), Some(b)) => seg(a.as_bytes(), b.as_bytes()) && segs(&p[1..], &s[1..]),
-            _ => false,
-        }
-    }
-    fn seg(p: &[u8], s: &[u8]) -> bool {
-        match (p.first(), s.first()) {
-            (None, None) => true,
-            (Some(b'*'), _) => seg(&p[1..], s) || (!s.is_empty() && seg(p, &s[1..])),
-            (Some(a), Some(b)) => a == b && seg(&p[1..], &s[1..]),
-            _ => false,
-        }
-    }
     let p: Vec<&str> = pattern.split('/').collect();
     let s: Vec<&str> = path.split('/').collect();
-    segs(&p, &s)
+    let one = |p: &&str, s: &&str| wild(p.as_bytes(), s.as_bytes(), |c| *c == b'*', |a, b| a == b);
+    wild(&p, &s, |seg| *seg == "**", one)
+}
+
+/// Wildcard match in O(len p × len s): `star` items match any run (also empty), the rest one item each by `same`.
+/// Greedy with one backtrack point, so many stars never go exponential.
+fn wild<T>(p: &[T], s: &[T], star: impl Fn(&T) -> bool, same: impl Fn(&T, &T) -> bool) -> bool {
+    let (mut i, mut j) = (0, 0);
+    let mut back: Option<(usize, usize)> = None;
+    while j < s.len() {
+        if i < p.len() && star(&p[i]) {
+            back = Some((i, j));
+            i += 1;
+        } else if i < p.len() && same(&p[i], &s[j]) {
+            i += 1;
+            j += 1;
+        } else if let Some((bi, bj)) = back {
+            (i, j) = (bi + 1, bj + 1);
+            back = Some((bi, bj + 1));
+        } else {
+            return false;
+        }
+    }
+    p[i..].iter().all(star)
 }
 
 /// Whether `rule` allows this ask from an agent working in `root`.
@@ -234,21 +367,18 @@ pub fn matches(rule: &Rule, tool: &str, input: &Value, root: &Path) -> bool {
     let pattern = rule.pattern.trim();
     match rule.kind {
         Kind::Exact | Kind::Prefix => {
-            let Some(command) = input["command"].as_str().map(str::trim) else {
+            let Some(raw) = input["command"].as_str() else {
                 return false;
             };
-            if !cwd_inside(input, root) {
+            if !cwd_inside(input, root) || !plain_command_ask(input) {
                 return false;
             }
             if rule.kind == Kind::Exact {
-                return command == pattern;
+                return raw.trim() == pattern;
             }
-            let want: Vec<&str> = pattern.split_whitespace().collect();
-            simple(command)
-                && command
-                    .split_whitespace()
-                    .take(want.len())
-                    .eq(want.iter().copied())
+            let want: Vec<&str> = words(pattern).collect();
+            // The untrimmed command: a trailing newline is a second line to the shell.
+            simple(raw) && words(raw).take(want.len()).eq(want.iter().copied())
         }
         Kind::Path => {
             let Some(key) = file_key(tool) else {
@@ -257,7 +387,7 @@ pub fn matches(rule: &Rule, tool: &str, input: &Value, root: &Path) -> bool {
             input[key]
                 .as_str()
                 .and_then(|f| relative_inside(root, Path::new(f)))
-                .is_some_and(|rel| glob(pattern, &rel))
+                .is_some_and(|rel| !protected(&rel) && glob(pattern, &rel))
         }
         Kind::Tool => true,
     }

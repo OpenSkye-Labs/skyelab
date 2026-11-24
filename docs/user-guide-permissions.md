@@ -39,15 +39,16 @@ the same card and can answer it.
 - A command: **This exact command**, or **Commands starting with** and the words to match (the first two words to
   start; edit them). A prefix rule matches one plain command with any arguments after those words, never one that
   chains (`;`, `&&`, `||`), pipes, substitutes (`$( )`, backticks), redirects or spans lines; such a command can only
-  be allowed exactly.
+  be allowed exactly. A prefix can't start with a shell or another program that runs whatever it is given (`bash`,
+  `env`, `sudo`, `python`, `node`, `find`, …) or end in a flag; allow those exactly.
 - A file: a path relative to the thread's folder, the file itself to start. Widen it with `*` (within one folder) or
   `**` (across folders), like `src/**`. It can't reach outside the project (no `..`, no absolute paths, no symlinks
-  out).
+  out), and never covers `.git` or agent and editor settings (`.claude`, `.mcp.json`, `.vscode`, …).
 - An MCP tool: every call to that one tool.
 
 **Save rule and allow** saves it and allows the waiting call (the rule must cover it). From then on, a matching ask
 in this project, under the account the folder is bound to, is allowed without asking, and its row says **Allowed by
-project rule** and which one. Rules live in SkyeLab, per project and per account: never in the repo, never in the
+project rule** and which one. A call that asks to leave the sandbox is never allowed by a rule. Rules live in SkyeLab, per project and per account: never in the repo, never in the
 account's Claude or Codex settings, and SkyeLab still ignores a repo's own `.claude/settings*.json`. They don't apply
 in Plan mode or in a side chat, and Full access is still picked (and confirmed) separately.
 

@@ -101,7 +101,10 @@ pub fn row_lines(item: &Item, open: bool) -> Vec<String> {
         }
         Item::Limit { resets_at } => vec![limited_text(*resets_at, now_secs())],
         Item::Notice { text, .. } => head(text, TEXT_LINES),
-        Item::Approval(a) => vec![clip(&format!("{}: {}", a.tool, a.summary))],
+        Item::Approval(a) => match &a.rule {
+            Some(rule) => vec![clip(&format!("{}: {} · allowed by project rule {rule}", a.tool, a.summary))],
+            None => vec![clip(&format!("{}: {}", a.tool, a.summary))],
+        },
         Item::Interrupted => vec!["Interrupted".into()],
         Item::Output { text, .. } => {
             let mut out = vec![

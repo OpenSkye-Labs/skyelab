@@ -300,6 +300,7 @@ impl Settings {
         cx: &mut Context<Self>,
     ) {
         self.config = config;
+        self.refresh_rules(cx);
         let ids = account_ids(&self.config);
         self.account_select.update(cx, |s, cx| {
             let keep = s.selected_value().cloned();

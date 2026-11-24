@@ -4,6 +4,7 @@
 
 use super::{ThreadView, lock};
 use crate::ui::{self, Button, SegmentedControl, TextField};
+use anyhow::Context as _;
 use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, WeakEntity, Window, div,
     prelude::*, px,
@@ -45,7 +46,8 @@ impl ThreadView {
             let saved = lock(&store)?.project_rules(project, &account.id)?;
             let saved: Vec<Rule> = saved.into_iter().map(|r| r.rule).collect();
             if let Some(rule) = rules::first_match(&saved, &tool, &input, &root) {
-                lock(&session)?.answer_by_rule(&id, rules::label(rule))?;
+                // Fails only when the user (or the agent) settled the ask first; then there is nothing to say.
+                let _ = lock(&session)?.answer_by_rule(&id, rules::label(rule));
             }
             Ok(())
         });
@@ -89,9 +91,14 @@ impl ThreadView {
             .ok_or("no thread")?;
         let (store, id) = (self.backend.store.clone(), id.to_owned());
         self.in_background(cx, move || {
-            let r = lock(&store)
-                .and_then(|s| s.add_project_rule(project, &account.id, &rule))
-                .and_then(|()| lock(&session)?.answer_by_rule(&id, rules::label(&rule)));
+            // Allowed first: an ask that is gone by now saves no rule the user was told failed.
+            let r = lock(&session)
+                .and_then(|mut s| s.answer_by_rule(&id, rules::label(&rule)))
+                .and_then(|()| {
+                    lock(&store)?
+                        .add_project_rule(project, &account.id, &rule)
+                        .context("Allowed once, but the rule couldn't be saved")
+                });
             done(r.as_ref().map(|_| ()).map_err(|e| format!("{e:#}")));
             r
         });
@@ -111,7 +118,8 @@ impl ThreadView {
         let Some(proposed) = rules::propose(&tool, &input, &self.cwd) else {
             self.show_error(
                 anyhow::anyhow!(
-                    "No project rule can cover this call (its file is outside the project)."
+                    "No project rule can cover this call: its file is outside the project or in .git or agent \
+                     settings, or the command asks to leave the sandbox. Allow it once instead."
                 ),
                 cx,
             );

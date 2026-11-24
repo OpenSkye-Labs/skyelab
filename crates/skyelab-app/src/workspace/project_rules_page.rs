@@ -14,10 +14,9 @@ use std::path::{Path, PathBuf};
 
 pub struct ProjectRulesPage {
     store: SharedStore,
-    /// The project folder shown and the account it is bound to (`None`: unbound, so no rules apply).
     dir: Option<PathBuf>,
+    /// The account the folder is bound to now; `None`: unbound, so no rules apply.
     pub(super) account: Option<String>,
-    project: Option<i64>,
     pub(super) rules: Vec<ProjectRule>,
     /// The rule being edited and its field.
     pub(super) editing: Option<(i64, Entity<InputState>)>,
@@ -30,7 +29,6 @@ impl ProjectRulesPage {
             store,
             dir: None,
             account: None,
-            project: None,
             rules: Vec::new(),
             editing: None,
             error: None,
@@ -49,19 +47,18 @@ impl ProjectRulesPage {
     // shortcut: reads and writes the store on the UI thread (a few rows by key); move to background_spawn if a
     // long store job ever makes this page stall.
     fn reload(&mut self, cx: &mut Context<Self>) {
-        let read = || -> anyhow::Result<(Option<i64>, Vec<ProjectRule>)> {
+        let read = || -> anyhow::Result<Vec<ProjectRule>> {
             let (Some(dir), Some(account)) = (&self.dir, &self.account) else {
-                return Ok((None, Vec::new()));
+                return Ok(Vec::new());
             };
             let store = lock(&self.store)?;
-            let project = store.list_projects()?.into_iter().find(|p| &p.path == dir);
-            match project {
-                Some(p) => Ok((Some(p.id), store.project_rules(p.id, account)?)),
-                None => Ok((None, Vec::new())),
+            match store.list_projects()?.into_iter().find(|p| &p.path == dir) {
+                Some(p) => store.project_rules(p.id, account),
+                None => Ok(Vec::new()),
             }
         };
         match read() {
-            Ok((project, list)) => (self.project, self.rules) = (project, list),
+            Ok(list) => self.rules = list,
             Err(e) => self.error = Some(format!("{e:#}").into()),
         }
         cx.notify();
@@ -109,7 +106,10 @@ impl ProjectRulesPage {
     }
 
     pub(super) fn remove(&mut self, id: i64, cx: &mut Context<Self>) {
-        let removed = lock(&self.store).and_then(|s| s.delete_project_rule(id));
+        let Some(account) = self.account.clone() else {
+            return;
+        };
+        let removed = lock(&self.store).and_then(|s| s.delete_project_rule(id, &account));
         if let Err(e) = removed {
             self.error = Some(format!("{e:#}").into());
         }
@@ -129,11 +129,11 @@ impl Render for ProjectRulesPage {
                 .into_any_element()
         };
         let mut rows: Vec<gpui::AnyElement> = Vec::new();
-        match (&self.account, self.project) {
-            (None, _) => rows.push(note(
+        match &self.account {
+            None => rows.push(note(
                 "This folder isn't bound to an account, so no rules apply.".into(),
             )),
-            (Some(a), _) if self.rules.is_empty() => rows.push(note(format!(
+            Some(a) if self.rules.is_empty() => rows.push(note(format!(
                 "No rules for {a} yet. Choose Allow for this project on an approval to add one."
             ))),
             _ => {}

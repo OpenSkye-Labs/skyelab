@@ -71,13 +71,19 @@ fn rules_are_edited_removed_and_go_with_the_project() {
             .pattern,
         "npm run test"
     );
-    store.delete_project_rule(id).expect("delete");
+    assert!(
+        store.delete_project_rule(id, "personal").is_err(),
+        "only by its own account"
+    );
+    store.delete_project_rule(id, "work").expect("delete");
     assert!(store.project_rules(a.id, "work").expect("list").is_empty());
-    assert!(store.delete_project_rule(id).is_err());
+    assert!(store.delete_project_rule(id, "work").is_err());
     store
         .add_project_rule(a.id, "work", &rule("Bash", Kind::Exact, "ls"))
         .expect("add");
     store.delete_project(a.id).expect("delete project");
-    let p = store.create_project("a", Path::new("/a")).expect("again");
-    assert!(store.project_rules(p.id, "work").expect("list").is_empty());
+    assert!(
+        store.project_rules(a.id, "work").expect("list").is_empty(),
+        "gone with the project"
+    );
 }

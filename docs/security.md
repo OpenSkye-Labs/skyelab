@@ -70,15 +70,23 @@
   the project's or your Claude settings. Full access asks before it turns on.
 - **Project rules are SkyeLab's, not the repo's.** A repo can't allow itself anything: its `.claude/settings*.json`
   stays ignored. "Allow for this project" saves a rule in SkyeLab's own database, keyed by the project and the account
-  the agent runs under, so it never applies under another account or in another project, and rebinding the folder
-  starts with none. The rule is shown (and can be narrowed) before it is saved, and must cover the call waiting then.
-  SkyeLab matches each later ask itself and answers it "allow once", so the agent's own rule grammar never sees the
-  rule: a command rule is the exact command, or a word prefix of one plain command (a command or prefix with `;`, `&`,
-  `|`, `$`, a backtick, `<`, `>`, parentheses, a backslash or a control character never matches a prefix rule); a file
-  rule is a glob relative to the thread's folder, with no `..` or absolute paths, and the file must be inside the
-  folder by its text and after symlinks are resolved; an MCP rule names one tool. Codex's folder-wide write grants
-  (`apply_patch`) and every other tool can't take one. Rules never answer in Plan mode or a side chat, and the thread
-  row of an ask a rule answered names that rule.
+  id the agent runs under, so it never applies under another account or in another project (rebinding the folder to
+  another account shows and uses that account's rules; an account later created with a removed account's id gets its
+  old rules back). The rule is shown (and can be narrowed) before it is saved, and must cover the call waiting then.
+  SkyeLab matches each later ask itself and answers it "allow once", so the agent's own rule grammar never sees it:
+  - A command rule is the exact command, or a word prefix of one plain command. A command or prefix with `;`, `&`,
+    `|`, `$`, a backtick, `<`, `>`, parentheses, a backslash or a control character (a trailing newline too) never
+    matches a prefix; words split only on ASCII spaces and tabs, as the shell does. A prefix can't start with a
+    program that runs whatever its arguments say (a shell, `env`, `xargs`, `sudo`, `python`, `node`, `find`, …) or
+    end in a flag (`git -c`). An ask that carries anything beyond the command, its description, timeout and folder
+    (Claude's `dangerouslyDisableSandbox`, a newer agent's field) is never matched. The arguments after a prefix are
+    still the agent's: a test runner's flags or a config option can run code, so pick prefixes knowingly.
+  - A file rule is a glob relative to the thread's folder, with no `..` or absolute paths. The file must be inside
+    the folder by its text and after symlinks are resolved (a dangling symlink never matches), and never under
+    `.git`, `.claude`, `.codex`, `.vscode`, `.idea`, `.husky`, `.mcp.json` or `.envrc` (any case). The check runs when
+    the ask arrives: a process the agent already runs could still swap a folder for a symlink before the write.
+  - An MCP rule names one tool. Codex's folder-wide write grants (`apply_patch`) and every other tool can't take one.
+  Rules never answer in Plan mode or a side chat, and the thread row of an ask a rule answered names that rule.
 - **Private tabs stay private.** An agent's browser tab and a forwarded port's page have their own in-memory cookies
   and storage, and the tab itself records that (not whether a forward still exists). Duplicate tab on one (also
   after Take over or after the forward ends, and on any copy) opens another private, throwaway tab, never one on your

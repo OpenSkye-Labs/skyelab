@@ -21,20 +21,27 @@ pub(super) type Pick = Rc<dyn Fn(&mut Settings, Option<String>, &mut Context<Set
 impl Settings {
     /// Edits `dir`'s own defaults from now on (`None`: the app-wide ones), and shows its Codex model in the field.
     pub fn set_scope(&mut self, dir: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(rules) = self.rules.clone() {
-            let account = dir
-                .as_deref()
-                .and_then(|d| self.config.resolve(d))
-                .map(|a| a.id.clone());
-            rules.update(cx, |r, cx| r.show(dir.as_deref(), account, cx));
-        }
         self.scope = dir;
+        self.refresh_rules(cx);
         let codex = self.shown_field(ThreadField::CodexModel, cx);
         self.codex_model_input.update(cx, |i, cx| {
             i.set_value(codex.unwrap_or_default(), window, cx)
         });
         self.threads_error = None;
         cx.notify();
+    }
+
+    /// Shows the picked project's rules under the account its folder is bound to now (also after a rebind).
+    pub(super) fn refresh_rules(&mut self, cx: &mut Context<Self>) {
+        let Some(rules) = self.rules.clone() else {
+            return;
+        };
+        let dir = self.scope.clone();
+        let account = dir
+            .as_deref()
+            .and_then(|d| self.config.resolve(d))
+            .map(|a| a.id.clone());
+        rules.update(cx, |r, cx| r.show(dir.as_deref(), account, cx));
     }
 
     /// The value the scoped layer holds (a project's `None` inherits).
