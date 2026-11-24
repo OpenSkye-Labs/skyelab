@@ -62,12 +62,14 @@ emulators with `device_list`, `device_open`, `device_screenshot`, `device_tap`, 
   live (stopped, exited, or the thread closed). Browser calls from a thread that isn't running here any more are refused like start and
   send.
 - **Device tools.** `skyelab_devices::Claims` (an app global, `DeviceClaims`) maps a device id to the thread that
-  opened it, or to the user. `device_open` lists afresh and claims only a booted device; a device another thread holds,
+  opened it, or to the user. `device_open` claims first (so a thread closed during the listing leaves nothing behind), lists afresh, and
+  keeps the claim only for a booted simulator or emulator (physical devices are refused); a device another thread holds,
   or one the user took back, is refused, and so is every other call on a device the thread doesn't hold. **Take back**
   in the Devices panel makes the user the holder until **Let agents use**; closing or archiving a thread releases its
-  claims. Calls run on the background executor through the panel's `DeviceSource` (`xcrun simctl` / `adb`, each from
+  claims. Every screenshot or input lists afresh first and refuses (dropping the claim) when the
+  device is no longer booted under the name it was opened with: an emulator serial passes to the next AVD. Calls run on the background executor through the panel's `DeviceSource` (`xcrun simctl` / `adb`, each from
   `env_clear()` plus the agent allowlist and the Android/Xcode SDK vars). Input is Android only (`adb shell input
-  tap|text|keyevent`; text is printable ASCII, at most 500 chars; taps 0..=10000 px). `device_id` is 1-128 chars of
+  tap|text|keyevent`; text is printable ASCII, at most 500 chars, not starting with `-` and without `%s`, which `input` reads as a space; taps 0..=10000 px). `device_id` is 1-128 chars of
   `[A-Za-z0-9._:-]` not starting with `-`. A screenshot is the device's full-size PNG (so tap coordinates match) as
   an MCP image block plus `{width, height, bytes}`. After each agent action the panel gets one new screenshot: no
   polling. Claims live in memory, so a restart frees every device.

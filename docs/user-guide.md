@@ -213,7 +213,7 @@ lists your iOS Simulators (macOS with Xcode) and Android emulators and devices (
 `ANDROID_HOME`, `ANDROID_SDK_ROOT`, Android Studio's default folder, then `PATH`). **Boot** starts a device. A booted one has **Shutdown**,
 **Screenshot**, **Open URL…** and **Install app…**. **Refresh** reloads the list.
 
-Agents can use a booted device too (the `device_` tools). An agent opens one for its thread, then takes screenshots
+Agents can use a booted simulator or emulator too (the `device_` tools; never a physical phone). An agent opens one for its thread, then takes screenshots
 and, on Android, taps, types and presses Home or Back. One thread holds a device at a time; another thread is refused.
 The device's row reads **Used by <thread>** and shows the screen after each thing the agent does. **Take back** stops
 the agent at once: no agent can use that device again until you click **Let agents use**. Closing or archiving the

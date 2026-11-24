@@ -65,7 +65,7 @@ pub(super) fn list() -> [Value; 7] {
         }),
         one(
             "device_open",
-            "Claim a booted device for this thread so you can screenshot it and send input. A device has one \
+            "Claim a booted simulator or emulator (never a physical phone) for this thread so you can screenshot it and send input. A device has one \
                 thread at a time; the user sees that you use it and can take it back. Ask the user to boot one \
                 in the Devices panel if none is booted.",
         ),
@@ -84,7 +84,8 @@ pub(super) fn list() -> [Value; 7] {
         }),
         json!({
             "name": "device_type",
-            "description": "Type printable ASCII text into the focused field of your device. Android only.",
+            "description": "Type printable ASCII text into the focused field of your device (not starting with '-', \
+                no \"%s\"). Android only.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"device_id": id, "text": {"type": "string", "minLength": 1, "maxLength": MAX_TYPE}},
@@ -127,6 +128,10 @@ pub(super) fn parse(name: &str, args: &Map<String, Value>) -> Option<Result<Devi
                 return Err(
                     "text must be printable ASCII (no newlines or other control characters)".into(),
                 );
+            }
+            // Android's `input text` reads `%s` as a space, and a leading `-` reads as an option.
+            if text.starts_with('-') || text.contains("%s") {
+                return Err("text must not start with '-' or contain \"%s\"".into());
             }
             Ok(DeviceTool::Type {
                 device_id: id()?,

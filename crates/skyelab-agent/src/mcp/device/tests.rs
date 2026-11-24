@@ -95,6 +95,8 @@ fn bad_input_is_refused_with_its_field() {
         json!("a\nb"),
         json!("caf\u{e9}"),
         json!("\u{1b}[2J"),
+        json!("-5"),
+        json!("100%sure"),
         json!("x".repeat(MAX_TYPE + 1)),
     ] {
         let e = err("device_type", json!({"device_id": id, "text": text}));

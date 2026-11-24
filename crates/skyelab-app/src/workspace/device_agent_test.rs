@@ -9,7 +9,7 @@ use serde_json::Value;
 use skyelab_agent::mcp::{DeviceKey, DeviceTool};
 use skyelab_devices::{Device, DeviceKind, DeviceState, Error, Holder, Input, Listing, Platform};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 const EMU: &str = "emulator-5554";
 
@@ -18,6 +18,8 @@ const EMU: &str = "emulator-5554";
 struct Fake {
     calls: Mutex<Vec<String>>,
     shots: AtomicU32,
+    /// Another AVD booted under the emulator's serial.
+    swapped: AtomicBool,
 }
 
 impl Fake {
@@ -53,8 +55,19 @@ impl DeviceSource for Fake {
         Listing {
             ios: Err(Error::NotAvailable(Platform::Ios)),
             android: Ok(vec![
-                device(EMU, DeviceState::Booted),
+                Device {
+                    name: if self.swapped.load(Ordering::Relaxed) {
+                        "Other AVD".into()
+                    } else {
+                        format!("Device {EMU}")
+                    },
+                    ..device(EMU, DeviceState::Booted)
+                },
                 device("Stopped_AVD", DeviceState::Shutdown),
+                Device {
+                    kind: DeviceKind::Physical,
+                    ..device("R5CT10PHONE", DeviceState::Booted)
+                },
             ]),
         }
     }
@@ -280,4 +293,50 @@ fn a_closed_thread_frees_its_devices(cx: &mut TestAppContext) {
     assert_eq!(held, Some(Holder::Thread(7)));
     cx.update(|_, cx| DeviceClaims::release_thread(7, cx));
     call(&ws, 8, open(EMU), cx).expect("free after the thread closed");
+}
+
+#[gpui::test]
+fn a_physical_phone_is_refused(cx: &mut TestAppContext) {
+    let (ws, _, cx) = workspace(cx);
+    let err = call(&ws, 1, open("R5CT10PHONE"), cx).expect_err("a real phone");
+    assert!(err.contains("physical"), "{err}");
+    let held = cx.update(|_, cx| cx.global::<DeviceClaims>().claims.holder("R5CT10PHONE"));
+    assert_eq!(held, None, "the claim taken before the listing is undone");
+}
+
+/// Review: a new AVD booted under the same serial must not inherit the claim.
+#[gpui::test]
+fn a_reused_serial_is_not_the_opened_device(cx: &mut TestAppContext) {
+    let (ws, fake, cx) = workspace(cx);
+    call(&ws, 1, open(EMU), cx).expect("open");
+    fake.swapped.store(true, Ordering::Relaxed);
+    let err = call(&ws, 1, tap(EMU), cx).expect_err("another AVD now");
+    assert!(err.contains("no longer booted"), "{err}");
+    assert!(
+        !fake.calls().iter().any(|c| c.starts_with("input")),
+        "{:?}",
+        fake.calls()
+    );
+    let held = cx.update(|_, cx| cx.global::<DeviceClaims>().claims.holder(EMU));
+    assert_eq!(held, None, "the stale claim is gone");
+    call(&ws, 2, open(EMU), cx).expect("the new AVD is free");
+}
+
+/// Review: a thread closed while device_open lists leaves no claim behind.
+#[gpui::test]
+fn a_thread_closed_while_opening_leaves_no_claim(cx: &mut TestAppContext) {
+    let (ws, _, cx) = workspace(cx);
+    let (reply, answer) = flume::bounded(1);
+    ws.update_in(cx, |ws, window, cx| {
+        ws.device_call(3, open(EMU), reply, window, cx)
+    });
+    cx.update(|_, cx| DeviceClaims::release_thread(3, cx));
+    cx.run_until_parked();
+    let err = answer
+        .try_recv()
+        .expect("answered")
+        .expect_err("closed meanwhile");
+    assert!(err.contains("device_open"), "{err}");
+    let held = cx.update(|_, cx| cx.global::<DeviceClaims>().claims.holder(EMU));
+    assert_eq!(held, None);
 }

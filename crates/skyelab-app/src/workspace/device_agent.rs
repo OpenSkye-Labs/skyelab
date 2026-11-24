@@ -8,7 +8,7 @@ use super::orchestrate::Reply;
 use gpui::{App, AppContext as _, BorrowAppContext as _, Context, Global, SharedString, Window};
 use serde_json::{Value, json};
 use skyelab_agent::mcp::{DeviceKey, DeviceTool};
-use skyelab_devices::{Claims, Device, DeviceState, Holder, Input, Key, Listing};
+use skyelab_devices::{Claims, Device, DeviceKind, DeviceState, Holder, Input, Key, Listing};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -44,7 +44,10 @@ impl DeviceClaims {
             .threads()
             .any(|(_, t)| t == thread)
         {
-            cx.update_global::<Self, _>(|c, _| c.claims.release_thread(thread));
+            cx.update_global::<Self, _>(|c, _| {
+                c.claims.release_thread(thread);
+                c.titles.remove(&thread);
+            });
         }
     }
 
@@ -114,24 +117,46 @@ impl Workspace {
                 return;
             }
         };
-        match input {
-            None => self.device_shot(thread_id, device, Some(reply), cx),
-            Some(input) => {
-                let (s, d) = (source, device.clone());
-                let job = cx.background_spawn(async move { s.input(&d, &input) });
-                cx.spawn(async move |this, cx| {
-                    let done = job.await.map_err(|e| format!("{e:#}"));
-                    let ok = done.is_ok();
-                    let _ = reply.send(done.map(|()| json!({"ok": true})));
-                    if ok {
-                        // The panel follows the agent: one screenshot per action, no polling.
-                        let _ =
-                            this.update(cx, |ws, cx| ws.device_shot(thread_id, device, None, cx));
-                    }
-                })
-                .detach();
+        // An emulator's serial passes to the next AVD that boots: act only on the device the thread opened.
+        let job = cx.background_spawn(async move { source.list() });
+        cx.spawn(async move |this, cx| {
+            let listing = job.await;
+            let _ = this.update(cx, |ws, cx| {
+                if let Err(e) = DeviceClaims::owned(thread_id, &id, cx)
+                    .and_then(|_| still_opened(&listing, &device, thread_id, cx))
+                {
+                    let _ = reply.send(Err(e));
+                    return;
+                }
+                match input {
+                    None => ws.device_shot(thread_id, device, Some(reply), cx),
+                    Some(input) => ws.device_input(thread_id, device, input, reply, cx),
+                }
+            });
+        })
+        .detach();
+    }
+
+    fn device_input(
+        &mut self,
+        thread_id: i64,
+        device: Device,
+        input: Input,
+        reply: Reply<Value>,
+        cx: &mut Context<Self>,
+    ) {
+        let (s, d) = (self.device_source(), device.clone());
+        let job = cx.background_spawn(async move { s.input(&d, &input) });
+        cx.spawn(async move |this, cx| {
+            let done = job.await.map_err(|e| format!("{e:#}"));
+            let ok = done.is_ok();
+            let _ = reply.send(done.map(|()| json!({"ok": true})));
+            if ok {
+                // The panel follows the agent: one screenshot per action, no polling.
+                let _ = this.update(cx, |ws, cx| ws.device_shot(thread_id, device, None, cx));
             }
-        }
+        })
+        .detach();
     }
 
     /// Lists afresh, claims a booted device for the thread, shows it in the Devices panel and screenshots it there.
@@ -144,30 +169,56 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Claimed now, while the caller is known live: a thread closed during the listing releases it.
+        let title = self.open_view(thread_id, cx).map_or_else(
+            || format!("thread {thread_id}").into(),
+            |v| v.read(cx).title(),
+        );
+        let held =
+            cx.global::<DeviceClaims>().claims.holder(&id) == Some(Holder::Thread(thread_id));
+        let claimed = cx.update_global::<DeviceClaims, _>(|c, _| {
+            c.claims.claim(&id, thread_id)?;
+            c.titles.insert(thread_id, title);
+            Ok::<_, String>(())
+        });
+        if let Err(e) = claimed {
+            let _ = reply.send(Err(e));
+            return;
+        }
         let job = cx.background_spawn(async move { source.list() });
         cx.spawn_in(window, async move |this, cx| {
             let listing = job.await;
             let done = this.update_in(cx, |ws, window, cx| {
                 let device = listing.devices().into_iter().find(|d| d.id == id).cloned();
-                let device = device.ok_or_else(|| format!("no device {id}; call device_list"))?;
-                if device.state != DeviceState::Booted {
-                    return Err(format!(
+                let usable = match &device {
+                    _ if reply.is_disconnected() => Err("the call timed out".to_owned()),
+                    None => Err(format!("no device {id}; call device_list")),
+                    Some(d) if d.kind == DeviceKind::Physical => Err(format!(
+                        "{} is a physical device; agents may only use simulators and emulators",
+                        d.name
+                    )),
+                    Some(d) if d.state != DeviceState::Booted => Err(format!(
                         "{} is {}; ask the user to boot it in the Devices panel",
-                        device.name,
-                        badge(device.state).to_lowercase()
-                    ));
-                }
-                let title = ws.open_view(thread_id, cx).map_or_else(
-                    || format!("thread {thread_id}").into(),
-                    |v| v.read(cx).title(),
-                );
+                        d.name,
+                        badge(d.state).to_lowercase()
+                    )),
+                    Some(d) => Ok(d.clone()),
+                };
+                // The thread may have closed, or the user taken the device back, while it listed.
+                cx.global::<DeviceClaims>().claims.check(&id, thread_id)?;
+                let device = match usable {
+                    Ok(d) => d,
+                    Err(e) => {
+                        if !held {
+                            cx.update_global::<DeviceClaims, _>(|c, _| {
+                                c.claims.release(&id, thread_id)
+                            });
+                        }
+                        return Err(e);
+                    }
+                };
                 let d = device.clone();
-                cx.update_global::<DeviceClaims, _>(|c, _| {
-                    c.claims.claim(&d.id, thread_id)?;
-                    c.titles.insert(thread_id, title);
-                    c.devices.insert(d.id.clone(), d);
-                    Ok::<_, String>(())
-                })?;
+                cx.update_global::<DeviceClaims, _>(|c, _| c.devices.insert(d.id.clone(), d));
                 ws.devices_panel(window, cx);
                 ws.device_shot(thread_id, device.clone(), None, cx);
                 Ok(json!({
@@ -213,6 +264,27 @@ impl Workspace {
         })
         .detach();
     }
+}
+
+/// Ok when `listing` still shows `device` booted under the same name; else the thread's claim goes.
+fn still_opened(
+    listing: &Listing,
+    device: &Device,
+    thread: i64,
+    cx: &mut App,
+) -> Result<(), String> {
+    let same = listing
+        .devices()
+        .iter()
+        .any(|d| d.id == device.id && d.name == device.name && d.state == DeviceState::Booted);
+    if same {
+        return Ok(());
+    }
+    cx.update_global::<DeviceClaims, _>(|c, _| c.claims.release(&device.id, thread));
+    Err(format!(
+        "{} ({}) is no longer booted; call device_list and device_open again",
+        device.name, device.id
+    ))
 }
 
 /// `{image: {data, mimeType}, width, height}`: the MCP server makes `image` an image block.
