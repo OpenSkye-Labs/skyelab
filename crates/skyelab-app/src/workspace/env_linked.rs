@@ -333,7 +333,7 @@ impl Workspace {
                 let id: SharedString = format!("linked-state-{}", e.host).into();
                 let card = RowCard {
                     title: e.host.clone().into(),
-                    binding: Some(e.state.label()),
+                    note: Some(e.state.label()),
                     ..RowCard::default()
                 };
                 marks.insert(

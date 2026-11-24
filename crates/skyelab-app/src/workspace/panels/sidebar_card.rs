@@ -105,15 +105,26 @@ fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
             v_flex()
                 .gap_1p5()
                 .text_color(theme.foreground.opacity(0.75))
-                .child(line(
-                    SkyeIcon::Folder,
-                    format!("{} · {}", card.project, card.path).into(),
-                ))
+                // A state card (a linked machine not connected) has no folder or times, only its note.
+                .when(!card.project.is_empty() || !card.path.is_empty(), |d| {
+                    d.child(line(
+                        SkyeIcon::Folder,
+                        format!("{} · {}", card.project, card.path).into(),
+                    ))
+                })
                 .children(card.worktree.clone().map(|w| line(SkyeIcon::FolderGit2, w)))
                 .children(card.branch.clone().map(|b| line(SkyeIcon::GitBranch, b)))
                 .children(pr)
                 .children(account)
                 .children(card.binding.clone().map(|b| line(SkyeIcon::Lock, b)))
-                .child(line(SkyeIcon::Clock, times.into())),
+                .when(card.created_ms > 0, |d| {
+                    d.child(line(SkyeIcon::Clock, times.into()))
+                }),
+        )
+        // Wrapped, never cut: it may hold an error or a code to compare.
+        .children(
+            card.note
+                .clone()
+                .map(|n| div().text_color(theme.foreground.opacity(0.75)).child(n)),
         )
 }

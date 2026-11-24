@@ -148,7 +148,7 @@ fn linked_machine_waiting_shows_state_row(cx: &mut TestAppContext) {
             .get(&id)
             .and_then(|m| m.card.clone())
             .expect("card");
-        card.binding.clone().expect("state").to_string()
+        card.note.clone().expect("state").to_string()
     });
     assert!(detail.starts_with("Waiting for approval: "), "{detail}");
     click_row(&ws, &label, cx);

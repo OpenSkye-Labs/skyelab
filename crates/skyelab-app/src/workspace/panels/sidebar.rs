@@ -92,6 +92,8 @@ pub struct RowCard {
     pub account: Option<RowAccount>,
     /// "Bound at ~/work" (the binding that picks it), or that the folder is bound elsewhere now.
     pub binding: Option<SharedString>,
+    /// Text drawn wrapped under the lines (a linked machine's full state).
+    pub note: Option<SharedString>,
     pub created_ms: i64,
     pub updated_ms: i64,
 }

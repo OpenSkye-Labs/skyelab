@@ -107,6 +107,7 @@ impl Workspace {
                 },
                 created_ms: t.created_at,
                 updated_ms: t.updated_at,
+                note: None,
             };
             marks.insert(
                 id.clone(),
