@@ -242,11 +242,17 @@ fn user_command(dir: &Path, hooks: bool) -> Result<Command> {
     }
 }
 
+/// A `core.hooksPath` no hook can be written under. On Windows `/dev/null/pre-commit` may name a real file
+/// (`\dev\null` on the current drive, a folder any user may create), while NTFS and SMB refuse `*` in a name, so
+/// `*/pre-commit` (relative to the work tree) can never exist there (NTFS, ReFS, FAT, SMB; a third-party file system
+/// driver mount is not covered).
+pub(crate) const NO_HOOKS: &str = if cfg!(windows) { "*" } else { "/dev/null" };
+
 /// Always set: hooks, fsmonitor and a submodule's own config (`submodule.recurse` would check submodules out with
 /// their filters, a dirty check runs git inside each) off, no credential helper (push and fetch add only the bound
 /// gh after this), no askpass, and no automatic gc or maintenance afterwards (gc runs `gc.recentObjectsHook`).
 const FIXED_OFF: [(&str, &str); 8] = [
-    ("core.hooksPath", "/dev/null"),
+    ("core.hooksPath", NO_HOOKS),
     ("gc.auto", "0"),
     ("maintenance.auto", "false"),
     ("core.fsmonitor", "false"),

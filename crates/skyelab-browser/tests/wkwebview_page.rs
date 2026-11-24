@@ -1,17 +1,18 @@
 //! A visual reply's page in a real WKWebView: `shoot` measures and snapshots a hidden page, and the locked page
 //! runs its scripts but reaches nothing: fetch, XHR, WebSocket, an http image, a frame, a popup and a navigation
-//! to a local server all fail (the server sees no request). macOS only (it needs a window server).
+//! to a local server all fail (the server sees no request). macOS and Windows (WebView2), which need a window
+//! server; Linux's WebKitGTK path is cross-checked only.
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn main() {}
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn main() {
-    mac::run();
+    real::run();
 }
 
-#[cfg(target_os = "macos")]
-mod mac {
+#[cfg(any(target_os = "macos", windows))]
+mod real {
     use std::io::Read as _;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -48,7 +49,8 @@ mod mac {
         gpui_platform::application().run(move |cx| {
             gpui_component::init(cx);
             let options = WindowOptions {
-                show: false,
+                // WebView2 paints nothing in a hidden window, and a visual reply's window is always shown.
+                show: cfg!(windows),
                 focus: false,
                 ..WindowOptions::default()
             };

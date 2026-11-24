@@ -23,6 +23,9 @@ tokio-rustls.workspace = true
 webpki.workspace = true
 webpki-roots.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+skyelab-net-sys.workspace = true
+
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework.workspace = true
 

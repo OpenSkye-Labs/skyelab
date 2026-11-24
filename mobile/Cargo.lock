@@ -6605,6 +6605,7 @@ dependencies = [
  "security-framework",
  "serde_json",
  "skyelab-core",
+ "skyelab-net-sys",
  "skyelab-protocol",
  "thiserror 2.0.21",
  "tokio",
@@ -6685,6 +6686,14 @@ dependencies = [
  "gpui-pre-wgpu",
  "log",
  "skyelab-mobile",
+]
+
+[[package]]
+name = "skyelab-net-sys"
+version = "0.1.0"
+dependencies = [
+ "socket2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

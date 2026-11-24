@@ -57,9 +57,9 @@ so it stays private after the forward ends: its Duplicate is private too, Reopen
 user's profile, and Open in system browser is refused for it.
 
 Accepted limits, as with `ssh -L`: any local process and any page in a browser here can connect to the local
-port (the forwarded server's own Host checks guard against DNS rebinding). On Windows, the listener isn't bound with
-`SO_EXCLUSIVEADDRUSE` (std can't set it, and `unsafe` belongs in a `-sys` crate), so a same-user process could bind
-the port over it; a same-user process there can already read the device key (remote.md). The client dials at most 3 tunnels at a time
+port (the forwarded server's own Host checks guard against DNS rebinding). On Windows the listener is bound with
+`SO_EXCLUSIVEADDRUSE` (`skyelab-net-sys`; std and socket2 can't set it), so no other socket, even one with
+`SO_REUSEADDR`, can bind the port over it while it is open. The client dials at most 3 tunnels at a time
 across all its forwards, because the gate admits 4 pending per address and drops the rest. It keeps at most 64
 open per forward. A tunnel's hello must name the node the approved main connection named, and the client skips
 any pushed event while it waits for the `open_tunnel` reply. A port is forwarded once per client.

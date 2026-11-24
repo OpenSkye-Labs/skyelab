@@ -8515,6 +8515,7 @@ dependencies = [
  "serde_json",
  "skyelab-core",
  "skyelab-webkit-sys",
+ "skyelab-webview2-sys",
  "tempfile",
  "url",
  "webkit2gtk",
@@ -8533,6 +8534,7 @@ dependencies = [
  "serde_json",
  "skyelab-core",
  "skyelab-daemon",
+ "skyelab-net-sys",
  "skyelab-protocol",
  "skyelab-store",
  "skyelab-tailnet",
@@ -8620,6 +8622,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "skyelab-net-sys"
+version = "0.1.0"
+dependencies = [
+ "socket2",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "skyelab-pipe-sys"
 version = "0.1.0"
 dependencies = [
@@ -8700,6 +8710,14 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "objc2-web-kit",
+]
+
+[[package]]
+name = "skyelab-webview2-sys"
+version = "0.1.0"
+dependencies = [
+ "webview2-com",
+ "windows 0.61.3",
 ]
 
 [[package]]

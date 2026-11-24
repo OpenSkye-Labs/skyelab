@@ -16,7 +16,7 @@ dated; newest at the bottom.
   Limits: a shell rc that exports `GH_TOKEN` sets it again inside a terminal; an agent whose account has no GitHub
   dir uses gh's default config; a GitHub dir inside a project holds a plaintext token that Commit all would stage.
   (2026-11-23)
-- **SkyeLab's own git calls:** run with `env_clear` plus the allowlist, and `-c core.hooksPath=/dev/null` for
+- **SkyeLab's own git calls:** run with `env_clear` plus the allowlist, and `-c core.hooksPath=/dev/null` (`*` on Windows, where `\dev\null` is a folder anyone can create) for
   everything except Commit, Push and Pull (status, diff, add, worktree add, the snapshot index, the background fetch).
   Commit, Push and Pull run the repo's hooks, since users rely on pre-commit, pre-push and post-merge, with the scrubbed env plus the bound account's
   `launch_env` (Push: its `GH_CONFIG_DIR`), so a hook an agent planted sees nothing the agent couldn't already.

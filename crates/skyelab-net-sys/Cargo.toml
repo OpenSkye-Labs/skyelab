@@ -1,0 +1,14 @@
+[package]
+name = "skyelab-net-sys"
+description = "The one Windows socket option std and socket2 can't set: SO_EXCLUSIVEADDRUSE on a forwarded port's listener."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+socket2.workspace = true
+windows-sys = { workspace = true, features = ["Win32_Networking_WinSock"] }
+
+[lints]
+workspace = true

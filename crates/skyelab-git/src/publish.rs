@@ -86,10 +86,13 @@ pub fn push_with(
 /// account's env. Its alternates' refs aren't listed (`alternateRefsCommand` runs through sh), its work tree is never
 /// updated (filters, fsmonitor), and no gc follows. Ignored over https.
 fn receive_pack() -> String {
-    let mut cmd = "--receive-pack=git -c core.hooksPath=/dev/null -c core.alternateRefsCommand=true \
-                   -c core.alternateRefsPrefixes= -c core.fsmonitor=false -c receive.denyCurrentBranch=refuse \
-                   -c receive.autogc=false -c gc.auto=0 -c maintenance.auto=false"
-        .to_owned();
+    // Quoted: sh runs it, and Windows' `*` would glob.
+    let mut cmd = format!(
+        "--receive-pack=git -c core.hooksPath='{}' -c core.alternateRefsCommand=true \
+         -c core.alternateRefsPrefixes= -c core.fsmonitor=false -c receive.denyCurrentBranch=refuse \
+         -c receive.autogc=false -c gc.auto=0 -c maintenance.auto=false",
+        crate::NO_HOOKS
+    );
     for event in crate::HOOK_EVENTS {
         cmd.push_str(&format!(" -c hook.{event}.enabled=false"));
     }

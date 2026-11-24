@@ -22,6 +22,9 @@ tempfile.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 skyelab-webkit-sys.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+skyelab-webview2-sys.workspace = true
+
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk.workspace = true
 cairo-rs.workspace = true

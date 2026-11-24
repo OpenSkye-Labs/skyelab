@@ -96,6 +96,8 @@ impl Page {
         let builder = builder
             .with_incognito(true)
             .with_devtools(false)
+            // Never the keyboard: on Windows a page being shot is shown (off the window) while it loads.
+            .with_focused(false)
             .with_visible(false)
             .with_html(prepared)
             // The string load is the one navigation; a link, a script or a meta refresh goes nowhere.
@@ -122,7 +124,7 @@ impl Page {
     }
 }
 
-/// A page's snapshot: the engine's image (TIFF on macOS, PNG on Linux) and the page's full height in CSS pixels.
+/// A page's snapshot: the engine's image (TIFF on macOS, PNG on Linux and Windows) and the page's full height in CSS pixels.
 pub struct PageShot {
     pub image: Vec<u8>,
     pub content_height: u32,
@@ -141,7 +143,7 @@ impl PageShot {
 }
 
 /// Lays `html` out hidden at `width` CSS pixels and snapshots it, at most [`MAX_SHOT_HEIGHT`] tall. The webview is
-/// dropped when the task ends. Windows has no snapshot yet: an error.
+/// dropped when the task ends. On Windows the page is shown but parked outside the window (see [`SHOT_X`]).
 pub fn shoot(
     html: &str,
     theme: &PageTheme,
@@ -153,6 +155,11 @@ pub fn shoot(
         Ok(page) => page,
         Err(e) => return Task::ready(Err(e)),
     };
+    if cfg!(windows)
+        && let Err(e) = page.webview.read(cx).set_visible(true)
+    {
+        return Task::ready(Err(e).context("show the page off the window"));
+    }
     let executor = cx.background_executor().clone();
     let timeout = executor.timer(SHOT_TIMEOUT);
     cx.spawn(async move |cx| {
@@ -191,9 +198,13 @@ pub fn shoot(
     })
 }
 
+/// Where a page being shot sits. WebView2 paints nothing while hidden, so on Windows the page is shown, far left of
+/// the window (a child view outside its parent is clipped away). A hidden WKWebView still renders; WebKitGTK is untried.
+const SHOT_X: f64 = if cfg!(windows) { -30_000.0 } else { 0.0 };
+
 fn set_size(page: &Page, width: u32, height: u32, cx: &mut gpui::AsyncApp) -> anyhow::Result<()> {
     let rect = wry::Rect {
-        position: wry::dpi::LogicalPosition::new(0.0, 0.0).into(),
+        position: wry::dpi::LogicalPosition::new(SHOT_X, 0.0).into(),
         size: wry::dpi::LogicalSize::new(f64::from(width), f64::from(height)).into(),
     };
     cx.read_entity(&page.webview, |w, _| w.set_bounds(rect))

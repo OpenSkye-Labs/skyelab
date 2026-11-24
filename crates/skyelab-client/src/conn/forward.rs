@@ -118,7 +118,13 @@ fn answers_here(port: u16) -> bool {
 pub(crate) fn bind_local(port: u16) -> std::io::Result<StdListener> {
     // A child forked mid-bind would keep the listener (and the port) after the forward stops.
     let bind = |port: u16| {
-        skyelab_core::process::exclusive(|| StdListener::bind((Ipv4Addr::LOCALHOST, port)))
+        skyelab_core::process::exclusive(|| {
+            // Windows lets a same-user socket with SO_REUSEADDR bind the port over a plain listener.
+            #[cfg(windows)]
+            return skyelab_net_sys::bind_exclusive((Ipv4Addr::LOCALHOST, port).into());
+            #[cfg(not(windows))]
+            StdListener::bind((Ipv4Addr::LOCALHOST, port))
+        })
     };
     let listener = match answers_here(port) {
         true => bind(0),

@@ -22,7 +22,8 @@
 //!   and `blob:` frames that real web apps use; links and scripts in the page go unfiltered.
 //! - Screenshots (`screenshot`, the agent path's rules): macOS through WKWebView's snapshot in `skyelab-webkit-sys`
 //!   (wry has no API and the call is `unsafe`), Linux through WebKitGTK's safe `WebView::snapshot` (visible region,
-//!   encoded by cairo; cross-checked only, never run). WebView2 says "not supported yet".
+//!   encoded by cairo; cross-checked only, never run), Windows through WebView2's `CapturePreview` (PNG) in
+//!   `skyelab-webview2-sys` (cross-compiled here; Windows CI runs it in `wkwebview_page`).
 //! - A failed load shows GPUI's "This site can't be reached" ([`load_error`]) in place of the hidden page. Only
 //!   WKWebView needs it (WebKitGTK and WebView2 draw their own error page); its failures come from the delegate proxy
 //!   in `skyelab-webkit-sys`, since wry reports none.
