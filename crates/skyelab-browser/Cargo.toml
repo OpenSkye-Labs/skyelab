@@ -49,5 +49,10 @@ harness = false
 name = "wkwebview_private"
 harness = false
 
+# A refused load in a real WKWebView, main thread too.
+[[test]]
+name = "wkwebview_load_error"
+harness = false
+
 [lints]
 workspace = true

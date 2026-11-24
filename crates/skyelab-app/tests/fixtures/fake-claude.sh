@@ -1,7 +1,17 @@
 #!/bin/sh
 # `--version` prints a fixed version (the Welcome page's agent list).
 [ "$1" = --version ] && { echo '2.1.0 (Claude Code)'; exit 0; }
-[ "$1 $2" = "auth login" ] && { echo "fake claude auth login for $CLAUDE_CONFIG_DIR"; exit 0; }
+# `auth login` signs the account in: it writes fake-login (fake@example.com) in its config dir. `auth status` answers
+# like Claude Code's JSON: signed in, as fake-login's content, while that file is there.
+[ "$1 $2" = "auth login" ] && { echo "fake claude auth login for $CLAUDE_CONFIG_DIR"; mkdir -p "$CLAUDE_CONFIG_DIR" && echo fake@example.com > "$CLAUDE_CONFIG_DIR/fake-login"; exit 0; }
+if [ "$1 $2" = "auth status" ]; then
+  if [ -f "$CLAUDE_CONFIG_DIR/fake-login" ]; then
+    printf '{"loggedIn":true,"authMethod":"claude.ai","email":"%s"}\n' "$(cat "$CLAUDE_CONFIG_DIR/fake-login")"
+    exit 0
+  fi
+  echo '{"loggedIn":false,"authMethod":"none"}'
+  exit 1
+fi
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,

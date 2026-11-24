@@ -1,9 +1,15 @@
 //! `WKWebView takeSnapshotWithConfiguration:completionHandler:`, which objc2 binds only as an `unsafe fn`, and the
-//! private `_inspector detach` that puts DevTools in a window of its own. Everything else (decoding, scaling, size caps) stays in safe code in skyelab-browser. macOS only.
+//! private `_inspector detach` that puts DevTools in a window of its own, and a navigation delegate proxy that reports
+//! failed page loads (wry doesn't). Everything else (decoding, scaling, size caps) stays in safe code in skyelab-browser. macOS only.
 #![allow(unsafe_code)]
 
 #[cfg(target_os = "macos")]
 pub use mac::{detach_inspector, snapshot};
+#[cfg(target_os = "macos")]
+pub use nav::{FailureWatch, LoadFailure, watch_load_failures};
+
+#[cfg(target_os = "macos")]
+mod nav;
 
 #[cfg(target_os = "macos")]
 mod mac {

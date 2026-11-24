@@ -42,6 +42,7 @@ impl Workspace {
                 let config = self.config.clone();
                 settings.update(cx, |s, cx| s.set_config(config, window, cx));
             }
+            self.refresh_logins(cx);
             let back = window.focused(cx);
             // Local projects only: a remote's folders are another machine's, and its menu can't open this page.
             let projects = if self.is_remote() {
@@ -193,6 +194,7 @@ impl Workspace {
         self._settings_saved = Some(cx.observe(&settings, |this, _, cx| {
             this.reload_accounts();
             this.push_config(cx);
+            this.refresh_logins(cx); // an account added or its folder changed; cached answers aren't asked again
             cx.notify();
             // Every window binds folders from the same file.
             this.each_other_window(cx, |ws, cx| {

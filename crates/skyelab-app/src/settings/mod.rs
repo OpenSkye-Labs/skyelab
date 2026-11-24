@@ -160,6 +160,8 @@ pub struct Settings {
     pub scheduled: Option<Entity<crate::workspace::scheduled::ScheduledPage>>,
     pub(super) focus: FocusHandle,
     pub(super) _pick: Option<Task<()>>,
+    /// Whether each account is signed in to its agent CLI (shared with the setup page).
+    pub(super) login: Entity<crate::workspace::login_status::LoginStatus>,
     _subs: Vec<Subscription>,
 }
 
@@ -194,7 +196,10 @@ impl Settings {
         let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
         let account_select = cx.new(|cx| SelectState::new(ids, selected, window, cx));
         let focus = cx.focus_handle();
+        let login = crate::workspace::login_status::LoginStatus::shared(cx);
         let subs = vec![
+            // A redraw, not a notify: the workspace takes a Settings notify as "accounts saved" and re-reads them.
+            cx.observe(&login, |_, _, cx| cx.refresh_windows()),
             cx.subscribe(&test_input, |this, _, e: &InputEvent, cx| {
                 if matches!(e, InputEvent::Change) {
                     this.refresh_fs(cx);
@@ -276,6 +281,7 @@ impl Settings {
             scheduled: None,
             focus,
             _pick: None,
+            login,
             _subs: subs,
         };
         this.check_gh_logins(cx);
@@ -442,6 +448,7 @@ impl Focusable for Settings {
 
 mod about;
 mod accounts;
+mod accounts_card;
 pub(crate) use accounts::provider_mark;
 mod appearance;
 mod bindings;

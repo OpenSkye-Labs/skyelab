@@ -313,3 +313,26 @@ fn welcome_asks_nothing_with_the_update_check_off(cx: &mut TestAppContext) {
     });
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
 }
+
+#[gpui::test]
+fn added_accounts_say_whether_they_are_signed_in(cx: &mut TestAppContext) {
+    let (rig, cx) = rig(cx);
+    std::fs::write(rig.home.join(".codex/fake-login"), "").expect("sign codex in");
+    rig.add("claude-work", cx);
+    rig.add("codex", cx);
+    let login = cx.update(|_, cx| super::login_status::LoginStatus::shared(cx));
+    let saved = rig.saved();
+    let status = |id: &str, cx: &mut VisualTestContext| {
+        let account = saved.accounts.iter().find(|a| a.id == id).expect("added");
+        login.read_with(cx, |l, _| l.get(account).cloned())
+    };
+    use super::login_status::Status;
+    wait_until(cx, "both answers", |cx| {
+        status("claude-work", cx) == Some(Status::SignedOut)
+            && status("codex", cx) == Some(Status::SignedIn(Some("ChatGPT".into())))
+    });
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("setup-login-codex").is_some());
+    assert!(cx.debug_bounds("setup-log-in-claude-work").is_some(), "signed out: Log in");
+    assert!(cx.debug_bounds("setup-log-in-codex").is_none(), "signed in: no Log in");
+}

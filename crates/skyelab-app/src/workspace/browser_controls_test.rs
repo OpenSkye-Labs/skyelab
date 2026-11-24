@@ -289,3 +289,74 @@ fn a_private_tab_stays_private_after_its_forward_is_gone(cx: &mut TestAppContext
         && p.browser.read(cx).is_private()
         && !p.browser.read(cx).is_agent_page()));
 }
+
+#[gpui::test]
+fn a_failed_load_shows_why_and_retry_loads_it_again(cx: &mut TestAppContext) {
+    let (_ws, browser, page, cx) = agent_tab("http://localhost:3000/", cx);
+    let failed = skyelab_browser::load_error::describe(
+        "NSURLErrorDomain",
+        -1004,
+        "Could not connect to the server.",
+        "http://localhost:3000/",
+    );
+    browser.update(cx, |b, cx| b.load_failed(failed, cx));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("browser-load-error").is_some(), "the error page is drawn");
+    let shown = browser.read_with(cx, |b, _| b.load_error().cloned()).expect("an error");
+    assert_eq!(shown.host, "localhost:3000");
+    assert!(shown.hint.is_some_and(|h| h.contains("dev server")));
+
+    // A cancelled load (the next navigation took over) is not an error and leaves this one up.
+    let cancelled = skyelab_browser::load_error::describe("NSURLErrorDomain", -999, "", "http://localhost:3000/");
+    browser.update(cx, |b, cx| b.load_failed(cancelled, cx));
+    assert!(browser.read_with(cx, |b, _| b.load_error().is_some()));
+
+    *page.url.borrow_mut() = "about:blank".into();
+    let at = cx.debug_bounds("browser-load-retry").expect("Retry is drawn");
+    cx.simulate_click(at.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(*page.url.borrow(), "http://localhost:3000/", "Retry loads the failed address");
+    // The fake commits each load at once: the page is back.
+    assert!(browser.read_with(cx, |b, _| b.load_error().is_none()), "a committed page clears it");
+    assert!(cx.debug_bounds("browser-load-error").is_none());
+}
+
+#[gpui::test]
+fn back_from_the_error_page_shows_the_page_underneath(cx: &mut TestAppContext) {
+    let (_ws, browser, _page, cx) = agent_tab("http://localhost:3000/", cx);
+    let failed = skyelab_browser::load_error::describe("NSURLErrorDomain", -1003, "", "https://nope.invalid/");
+    browser.update(cx, |b, cx| b.load_failed(failed, cx));
+    cx.run_until_parked();
+    let at = cx.debug_bounds("browser-back").expect("← is drawn");
+    cx.simulate_click(at.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert!(browser.read_with(cx, |b, _| b.load_error().is_none()), "← dismisses the error");
+}
+
+#[gpui::test]
+fn an_agent_navigate_that_fails_answers_with_why(cx: &mut TestAppContext) {
+    let (ws, browser, page, cx) = agent_tab("http://localhost:3000/", cx);
+    *page.loads.borrow_mut() = None; // nothing commits from here on
+    let (reply, answer) = flume::bounded(1);
+    ws.update_in(cx, |ws, window, cx| {
+        let tool = skyelab_agent::mcp::BrowserTool::Navigate {
+            url: "http://localhost:4000/".into(),
+        };
+        ws.browser_call(1, tool, reply, window, cx)
+    });
+    cx.run_until_parked();
+    assert!(answer.try_recv().is_err(), "still waiting for the page");
+    let failed = skyelab_browser::load_error::describe(
+        "NSURLErrorDomain",
+        -1004,
+        "Could not connect to the server.",
+        "http://localhost:4000/",
+    );
+    browser.update(cx, |b, cx| b.load_failed(failed, cx));
+    cx.executor().advance_clock(std::time::Duration::from_millis(200));
+    cx.run_until_parked();
+    let result = answer.try_recv().expect("answered at the failure, not the timeout").expect("ok");
+    assert_eq!(result["loaded"], false);
+    let error = result["error"].as_str().expect("a reason");
+    assert!(error.contains("localhost:4000") && error.contains("refused"), "{error}");
+}

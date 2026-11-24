@@ -1,7 +1,7 @@
 //! Settings → Accounts: one card per account (provider mark in the account's color, its name, editable in place,
 //! and its config folder in small type), and "Add account" as a card that opens into a short form.
 
-use super::widgets::{heading, path_line};
+use super::widgets::heading;
 use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
@@ -223,107 +223,6 @@ impl Settings {
                 cx,
             ))
             .child(v_flex().gap_2p5().children(cards).child(add))
-            .into_any_element()
-    }
-
-    fn render_card(&self, a: &Account, cx: &mut Context<Self>) -> gpui::AnyElement {
-        let theme = cx.theme();
-        let color = ui::account_color_in(cx, &a.id);
-        let (edit, remove) = (
-            EditAccount { id: a.id.clone() },
-            RemoveAccount { id: a.id.clone() },
-        );
-        let (login_id, login_cmd) = (
-            a.id.clone(),
-            match a.provider {
-                Provider::Claude => "claude auth login with this account's CLAUDE_CONFIG_DIR",
-                Provider::Codex => "codex login with this account's CODEX_HOME",
-            },
-        );
-        let login_key = format!("{}-login-{}", a.provider.label().to_lowercase(), a.id);
-        let selector = format!("provider-{}", a.id);
-        v_flex()
-            .id(SharedString::from(format!("account-{}", a.id)))
-            .gap_2()
-            .p_4()
-            .rounded(ui::RADIUS_LG)
-            .border_1()
-            .border_color(theme.border)
-            .bg(theme.muted)
-            .child(
-                h_flex()
-                    .gap_3()
-                    .child(provider_mark(a.provider, color))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .child(
-                                div()
-                                    .id(SharedString::from(format!("name-{}", a.id)))
-                                    .truncate()
-                                    .text_size(ui::BODY)
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .cursor_pointer()
-                                    .child(a.label.clone())
-                                    .on_click(cx.listener({
-                                        let edit = edit.clone();
-                                        move |this, _, window, cx| {
-                                            this.edit_account(&edit, window, cx)
-                                        }
-                                    })),
-                            )
-                            .child(
-                                h_flex()
-                                    .debug_selector(move || selector)
-                                    .gap_1p5()
-                                    .text_size(ui::META)
-                                    .text_color(theme.muted_foreground)
-                                    .child(ui::StatusDot::new(color))
-                                    .child(a.provider.label())
-                                    .child("·")
-                                    .child(ui::mono(a.id.clone(), theme).text_size(ui::META)),
-                            ),
-                    )
-                    .child({
-                        let selector = login_key.clone();
-                        div().debug_selector(move || selector).child(
-                            Button::new(SharedString::from(login_key))
-                                .label("Log in")
-                                .tooltip(format!("Opens a terminal running {login_cmd}"))
-                                .small()
-                                .outline()
-                                .on_click(
-                                    cx.listener(move |this, _, _, cx| this.log_in(&login_id, cx)),
-                                ),
-                        )
-                    })
-                    .child(
-                        Button::new(SharedString::from(format!("edit-{}", a.id)))
-                            .icon(SkyeIcon::PenLine)
-                            .tooltip("Edit")
-                            .small()
-                            .ghost()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.edit_account(&edit, window, cx)
-                            })),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("remove-account-{}", a.id)))
-                            .icon(SkyeIcon::Trash)
-                            .tooltip("Remove account")
-                            .small()
-                            .ghost()
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.remove_account(&remove, window, cx)
-                            })),
-                    ),
-            )
-            .child(div().pl(gpui::px(44.)).child(path_line(
-                format!("dir-{}", a.id),
-                &a.config_dir,
-                cx,
-            )))
             .into_any_element()
     }
 

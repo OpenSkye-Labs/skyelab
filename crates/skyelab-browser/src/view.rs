@@ -42,6 +42,15 @@ pub struct BrowserView {
     committed_url: Option<String>,
     /// The page's `document.title` after its last load; untrusted page text.
     title: Option<SharedString>,
+    /// The last load failed: this shows instead of the (hidden) page until the next page commits.
+    load_error: Option<crate::load_error::LoadError>,
+    /// Retry was pressed and nothing has answered yet.
+    retrying: bool,
+    load_failures: u64,
+    /// Keeps WebKit's failure reports coming (wry has none).
+    #[cfg(target_os = "macos")]
+    _failures: Option<skyelab_webkit_sys::FailureWatch>,
+    _failed: Task<()>,
     focus: FocusHandle,
     zoom: f64,
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
@@ -170,6 +179,8 @@ impl BrowserView {
                 }
             }
         });
+        #[cfg(target_os = "macos")]
+        view.watch_failures(cx);
         // Asked after each load, not through wry's title-changed observer: lb-wry 0.53 dereferences WebKit's
         // nullable title there. A title a page sets later shows from its next load on.
         let page = view.webview.clone();
@@ -245,6 +256,11 @@ impl BrowserView {
                     this.loads += 1;
                     this.committed_url = Some(url.clone());
                     this.page_changed();
+                    if this.load_error.take().is_some() {
+                        this.retrying = false;
+                        this.apply_visibility(cx);
+                        cx.notify();
+                    }
                     this.url_bar
                         .update(cx, |bar, cx| bar.set_value(url, window, cx));
                 });
@@ -264,6 +280,12 @@ impl BrowserView {
             loads: 0,
             committed_url: None,
             title: None,
+            load_error: None,
+            retrying: false,
+            load_failures: 0,
+            #[cfg(target_os = "macos")]
+            _failures: None,
+            _failed: Task::ready(()),
             focus: cx.focus_handle(),
             zoom: 1.0,
             shown: true,
@@ -321,10 +343,13 @@ impl BrowserView {
         self.apply_visibility(cx);
     }
 
-    /// The native view draws over GPUI overlays, so it is hidden while the ⋯ menu is open over it.
+    /// The native view draws over GPUI overlays, so it is hidden while the ⋯ menu is open over it, and while a
+    /// failed load's error shows in its place.
     fn apply_visibility(&self, cx: &gpui::App) {
         if let Some(page) = &self.webview {
-            let _ = page.read(cx).set_visible(self.shown && !self.menu_open);
+            let _ = page
+                .read(cx)
+                .set_visible(self.shown && !self.menu_open && self.load_error.is_none());
         }
     }
 
@@ -343,6 +368,9 @@ impl BrowserView {
     }
 
     fn back(&mut self, cx: &mut Context<Self>) {
+        if self.dismiss_load_error(cx) {
+            return;
+        }
         let result = self
             .page(cx)
             .and_then(|p| Ok(p.evaluate_script("history.back()")?));
@@ -350,6 +378,9 @@ impl BrowserView {
     }
 
     fn forward(&mut self, cx: &mut Context<Self>) {
+        if self.load_error.is_some() {
+            return; // the history is the page underneath's: forward from it isn't forward from here
+        }
         let result = self
             .page(cx)
             .and_then(|p| Ok(p.evaluate_script("history.forward()")?));
@@ -357,7 +388,11 @@ impl BrowserView {
     }
 
     /// Reloads the page, which also ends every script running in it.
+    /// On the error page: loads the failed address again ([`Self::retry`]).
     pub fn reload(&mut self, cx: &mut Context<Self>) {
+        if self.load_error.is_some() {
+            return self.retry(cx);
+        }
         let result = self.engine().and_then(|e| e.reload(cx));
         self.report(result, cx);
     }
@@ -386,7 +421,11 @@ impl Render for BrowserView {
             .p_1()
             .border_b_1()
             .border_color(theme.border)
-            .child(nav("back", "←").on_click(cx.listener(|this, _, _, cx| this.back(cx))))
+            .child(
+                div()
+                    .debug_selector(|| "browser-back".into())
+                    .child(nav("back", "←").on_click(cx.listener(|this, _, _, cx| this.back(cx)))),
+            )
             .child(nav("forward", "→").on_click(cx.listener(|this, _, _, cx| this.forward(cx))))
             .child(nav("reload", "↻").on_click(cx.listener(|this, _, _, cx| this.reload(cx))))
             .child(div().flex_1().child(Input::new(&self.url_bar).small()))
@@ -424,7 +463,11 @@ impl Render for BrowserView {
                     .text_color(theme.danger)
                     .child(e)
             }))
-            .children(self.webview.clone().map(|w| div().flex_1().child(w)))
+            // Not drawn while the error shows: drawing the page's element would put the native view back on top.
+            .map(|d| match &self.load_error {
+                Some(e) => d.child(self.render_load_error(e, cx)),
+                None => d.children(self.webview.clone().map(|w| div().flex_1().child(w))),
+            })
     }
 }
 
@@ -432,6 +475,8 @@ impl Render for BrowserView {
 mod agent_ui;
 #[path = "view_controls.rs"]
 mod controls_ui;
+#[path = "view_error.rs"]
+mod error_ui;
 pub use controls_ui::DuplicateTab;
 
 /// `document.title` as wry hands it back (a JSON string), trimmed, with control characters (newlines, bidi

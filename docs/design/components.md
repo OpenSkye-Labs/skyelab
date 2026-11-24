@@ -53,7 +53,7 @@ the `Kbd` constructors, so new code reaches for these.
 - **`Pill`**: T3's badge and SkyeLab's chip, neutral or tinted with `color`, with an optional `icon`.
   **`AccountBadge`**, **`StatusDot`**, **`SectionHeader`**, **`EmptyState`**, **`KeyHint`** are in `ui/components.rs`.
 - **`Kbd`** (`ui/kbd.rs`): a key cap, `Kbd::for_action(action, context, window)` / `for_action_in(action, focus,
-  window)`; `.bare()` drops the cap inside a row or button.
+  window)`; `.bare()` drops the cap inside a row or button. Escape reads "Esc", as in T3: macOS's ⎋ looks like refresh at 12 px.
 - **`Tooltip`** (`ui/tooltip.rs`): `Tooltip::new(text).action(..).build(window, cx)`, or
   `.tooltip(Tooltip::text("Copy"))` on any stateful element. Buttons take `.tooltip(..)` directly.
 - **`Card` / `Divider`** (`ui/surface.rs`): a card is radius 12 with a hairline border on the muted fill. Use `raised()`
