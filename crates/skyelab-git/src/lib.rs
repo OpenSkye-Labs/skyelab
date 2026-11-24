@@ -209,32 +209,175 @@ fn git_succeeds(dir: &Path, args: &[&str]) -> Result<bool> {
 }
 
 fn output<S: AsRef<OsStr>>(bin: &Path, dir: &Path, args: &[S]) -> Result<Output> {
-    skyelab_core::process::output(command(bin, dir).args(args), None).map_err(|e| {
-        if e.kind() == io::ErrorKind::NotFound {
-            Error::GitNotInstalled
-        } else {
-            Error::Io(e)
-        }
-    })
+    skyelab_core::process::output(command(bin, dir)?.args(args), None).map_err(spawn_error)
 }
 
-/// Git never through a shell, always on `dir`, with repo hooks off: what SkyeLab only reads (status, diff) or sets
-/// up (worktrees) must never run code an agent wrote into `.git/hooks` or `core.hooksPath`.
-fn command(bin: &Path, dir: &Path) -> Command {
+fn spawn_error(e: io::Error) -> Error {
+    if e.kind() == io::ErrorKind::NotFound {
+        Error::GitNotInstalled
+    } else {
+        Error::Io(e)
+    }
+}
+
+/// Git never through a shell, always on `dir`, with repo hooks and every other program the repo's own config names
+/// off ([`program_overrides`]): what SkyeLab only reads (status, diff) or sets up (worktrees) must never run code an
+/// agent wrote into `.git/hooks` or `.git/config`.
+fn command(bin: &Path, dir: &Path) -> Result<Command> {
     let mut cmd = hooked_command(bin, dir);
-    cmd.args(["-c", "core.hooksPath=/dev/null"]);
-    cmd
+    for (key, value) in program_overrides(bin, dir)? {
+        cmd.arg("-c").arg(format!("{key}={value}"));
+    }
+    Ok(cmd)
 }
 
-/// [`hooked_command`] when `hooks`, else [`command`]: Commit, Push and Pull run hooks only while the caller found
-/// no other account sharing the repo (`AccountsConfig::repo_hooks_allowed`).
-fn user_command(dir: &Path, hooks: bool) -> Command {
+/// [`hooked_command`] when `hooks`, else [`command`]: Commit, Push and Pull run hooks (and the repo's other
+/// programs) only while the caller found no other account sharing the repo (`AccountsConfig::repo_hooks_allowed`).
+fn user_command(dir: &Path, hooks: bool) -> Result<Command> {
     let git = Path::new("git");
     if hooks {
-        hooked_command(git, dir)
+        Ok(hooked_command(git, dir))
     } else {
         command(git, dir)
     }
+}
+
+/// Always set: hooks, fsmonitor and a submodule's own config (`submodule.recurse` would check submodules out with
+/// their filters, a dirty check runs git inside each) off, no credential helper (push and fetch add only the bound
+/// gh after this), no askpass, and no automatic gc or maintenance afterwards (gc runs `gc.recentObjectsHook`).
+const FIXED_OFF: [(&str, &str); 8] = [
+    ("core.hooksPath", "/dev/null"),
+    ("gc.auto", "0"),
+    ("maintenance.auto", "false"),
+    ("core.fsmonitor", "false"),
+    ("submodule.recurse", "false"),
+    ("diff.ignoreSubmodules", "dirty"),
+    ("credential.helper", ""),
+    ("core.askPass", ""),
+];
+
+/// Every hook event (githooks(5)). `core.hooksPath` only covers hook scripts; hooks set in config
+/// (`hook.<name>.command` + `.event`, git 2.5x) need `hook.<event>.enabled=false`, which needs no listing.
+pub(crate) const HOOK_EVENTS: [&str; 28] = [
+    "applypatch-msg",
+    "pre-applypatch",
+    "post-applypatch",
+    "pre-commit",
+    "pre-merge-commit",
+    "prepare-commit-msg",
+    "commit-msg",
+    "post-commit",
+    "pre-rebase",
+    "post-checkout",
+    "post-merge",
+    "pre-push",
+    "pre-receive",
+    "update",
+    "proc-receive",
+    "post-receive",
+    "post-update",
+    "reference-transaction",
+    "push-to-checkout",
+    "pre-auto-gc",
+    "post-rewrite",
+    "sendemail-validate",
+    "fsmonitor-watchman",
+    "p4-changelist",
+    "p4-prepare-changelist",
+    "p4-post-changelist",
+    "p4-pre-submit",
+    "post-index-change",
+];
+
+/// Program keys git reads by a fixed name, with what git uses when neither system nor global config sets one (an
+/// empty defaultKeyCommand is none). Always set, so a config write racing the listing can't slip one in.
+const FIXED_PROGRAMS: [(&str, &str); 5] = [
+    ("core.sshcommand", "ssh"),
+    ("gpg.program", "gpg"),
+    ("gpg.x509.program", "gpgsm"),
+    ("gpg.ssh.program", "ssh-keygen"),
+    ("gpg.ssh.defaultkeycommand", ""),
+];
+
+/// Every config key that names a program for the git SkyeLab runs. Diff drivers (`diff.external`,
+/// `diff.<n>.command`/`textconv`) aren't here: every porcelain diff passes `--no-ext-diff --no-textconv`, and
+/// plumbing never runs them.
+const PROGRAM_KEYS: &str = r"^(hook\..+\.command|core\.sshcommand|gpg\.(.+\.)?program|gpg\.ssh\.defaultkeycommand|filter\..+\.(clean|smudge|process)|merge\..+\.driver)$";
+
+/// The `-c` pairs that keep git in `dir` from running any program the repo's own config names (local and worktree
+/// scope, and whatever they include; an agent can write them). A fixed-name key gets the system or global value, or
+/// git's default. A filter or merge driver the repo defines gets the system or global value, or empty: an empty
+/// filter passes content through (a `required` one fails, so an encrypting filter never commits plaintext) and an
+/// empty merge driver is a conflict. Limit: a driver written between this listing and git's own read isn't seen.
+pub(crate) fn program_overrides(bin: &Path, dir: &Path) -> Result<Vec<(String, String)>> {
+    let args = ["config", "--show-scope", "-z", "--get-regexp", PROGRAM_KEYS];
+    let mut cmd = hooked_command(bin, dir);
+    let out = skyelab_core::process::output(cmd.args(args), None).map_err(spawn_error)?;
+    // Exit 1 is "no key matched".
+    let listing = if out.status.code() == Some(1) {
+        Vec::new()
+    } else {
+        finish(dir, &args, out)?
+    };
+    overrides_from(&listing)
+}
+
+/// [`program_overrides`] from `git config --show-scope -z --get-regexp`'s output (`scope\0key\nvalue\0`...).
+fn overrides_from(listing: &[u8]) -> Result<Vec<(String, String)>> {
+    let text = std::str::from_utf8(listing)
+        .map_err(|_| publish::invalid("the repo's config names a program key that isn't UTF-8"))?;
+    let mut trusted = std::collections::HashMap::new();
+    let mut repo: Vec<&str> = Vec::new();
+    let mut fields = text.split('\0');
+    while let (Some(scope), Some(entry)) = (fields.next(), fields.next()) {
+        let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
+        // Two names for one setting: the last one set wins either way.
+        let key = if key == "gpg.openpgp.program" {
+            "gpg.program"
+        } else {
+            key
+        };
+        if matches!(scope, "system" | "global") && !key.starts_with("hook.") {
+            trusted.insert(key, value);
+        } else if !repo.contains(&key) {
+            repo.push(key);
+        }
+    }
+    let mut out: Vec<(String, String)> = FIXED_OFF
+        .iter()
+        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+        .chain(
+            HOOK_EVENTS
+                .iter()
+                .map(|e| (format!("hook.{e}.enabled"), "false".to_owned())),
+        )
+        .collect();
+    for (key, default) in FIXED_PROGRAMS {
+        let value = trusted.get(key).copied().unwrap_or(default);
+        out.push((key.to_owned(), value.to_owned()));
+    }
+    for key in repo
+        .into_iter()
+        .filter(|k| !FIXED_PROGRAMS.iter().any(|(f, _)| f == k))
+    {
+        // `-c` splits at the first `=`, so such a name can't be switched off.
+        if key.contains('=') {
+            return Err(publish::invalid(format!(
+                "the repo's config sets {key}, a name SkyeLab can't switch off; rename or remove it"
+            )));
+        }
+        out.push(match key.strip_suffix(".command") {
+            // A hook set in config, for an event a newer git may add: off, from any scope, as hook scripts are.
+            Some(hook) if hook.starts_with("hook.") => {
+                (format!("{hook}.enabled"), "false".to_owned())
+            }
+            _ => (
+                key.to_owned(),
+                trusted.get(key).copied().unwrap_or_default().to_owned(),
+            ),
+        });
+    }
+    Ok(out)
 }
 
 /// [`command`] with the repo's hooks on, for Commit and Push (users rely on pre-commit and pre-push). Either way

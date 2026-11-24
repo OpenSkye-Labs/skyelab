@@ -1,5 +1,6 @@
 //! Branches of a local checkout: list, create, and switch without losing uncommitted work.
 
+use std::ffi::OsString;
 use std::path::Path;
 
 use crate::{Error, Result, git, git_succeeds, lossy, status};
@@ -95,7 +96,21 @@ pub fn switch_branch(dir: &Path, name: &str, on_dirty: OnDirty) -> Result<()> {
         (true, OnDirty::Stash) => {
             let before = stash_top(dir)?;
             let msg = format!("skyelab: changes left on the way to {name}");
-            git(dir, &["stash", "push", "--include-untracked", "-m", &msg])?;
+            let root = crate::repo_root(dir)?;
+            let listing = git(&root, &["ls-files", "-z", "-s"])?;
+            let (_, specs) = crate::commit::without_submodules(&root, &listing);
+            let mut args: Vec<OsString> = [
+                "stash",
+                "push",
+                "--include-untracked",
+                "-m",
+                msg.as_str(),
+                "--",
+            ]
+            .map(OsString::from)
+            .to_vec();
+            args.extend(specs);
+            git(&root, &args)?;
             // The entry this push made, by id: the stash stack is shared with other worktrees. `None` when git had
             // nothing it could stash.
             stash_top(dir)?.filter(|top| Some(top) != before.as_ref())
@@ -103,12 +118,13 @@ pub fn switch_branch(dir: &Path, name: &str, on_dirty: OnDirty) -> Result<()> {
     };
     match git(
         dir,
-        &["switch", "--no-guess", "--no-overwrite-ignore", name],
+        // Quiet: the local-changes summary checks each submodule for dirt, which `.gitmodules` can turn on.
+        &["switch", "-q", "--no-guess", "--no-overwrite-ignore", name],
     ) {
         Ok(_) => Ok(()),
         Err(e) => match stashed {
             None => Err(e),
-            Some(id) => match git(dir, &["stash", "apply", "--index", &id]) {
+            Some(id) => match git(dir, &["stash", "apply", "-q", "--index", &id]) {
                 Ok(_) => Err(Error::Invalid(format!(
                     "{e}; your changes are back, and still saved in the stash"
                 ))),

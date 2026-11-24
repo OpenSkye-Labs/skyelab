@@ -41,7 +41,10 @@ every bound folder inside or above them belong to the same account as the folder
 another account, a project in a subfolder of an unbound repo, a folder inside the repo bound to another account, a
 repo inside another account's folder, or a hooks folder elsewhere all let another account reach that `.git`, so another account's agent could have written
 those hooks: SkyeLab then runs the command with hooks off and the note says **Hooks skipped: this repo is shared
-with another account**. Bind the repo's top folder (and its worktrees) to one account, with no other account's binding around it, to get
+with another account** (or **couldn't confirm this repo is single-account** when it couldn't list the repo's
+folders). With hooks off, programs the repo's own `.git/config` names (clean/smudge filters, merge drivers,
+`gpg.program`, `core.sshCommand`, credential helpers) don't run either; SkyeLab's background git calls never run
+them. Set them in your global git config to keep them. Bind the repo's top folder (and its worktrees) to one account, with no other account's binding around it, to get
 them back. See
 [accounts](user-guide-accounts.md) and [security](security.md).
 

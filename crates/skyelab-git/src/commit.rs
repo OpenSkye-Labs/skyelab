@@ -115,7 +115,7 @@ pub fn commit(
         }
         names.clone()
     };
-    let mut cmd = crate::user_command(&root, hooks);
+    let mut cmd = crate::user_command(&root, hooks)?;
     cmd.args(["commit", "-F", "-"])
         .env("GIT_INDEX_FILE", &index)
         .envs(env.iter().map(|(k, v)| (k, v)));
@@ -219,7 +219,7 @@ pub(crate) fn indexed<S: AsRef<OsStr>>(
     args: &[S],
     input: Option<&[u8]>,
 ) -> Result<Vec<u8>> {
-    let mut cmd = command(Path::new("git"), root);
+    let mut cmd = command(Path::new("git"), root)?;
     cmd.args(args).env("GIT_INDEX_FILE", index);
     crate::finish(root, args, skyelab_core::process::output(&mut cmd, input)?)
 }
@@ -320,7 +320,55 @@ pub fn snapshot_tree(dir: &Path) -> Result<String> {
     let scratch = Scratch::new()?;
     let index = scratch.index();
     copy_index(&root, &index)?;
-    indexed(&root, &index, &["add", "-A"], None)?;
+    let staged = indexed(&root, &index, &["ls-files", "-z", "-s"], None)?;
+    let (gitlinks, mut add) = without_submodules(&root, &staged);
+    add.splice(0..0, ["add", "-A", "--"].map(OsString::from));
+    indexed(&root, &index, &add, None)?;
+    // A checked-out submodule's HEAD, read without running git inside it.
+    if !gitlinks.is_empty() {
+        let update = ["update-index", "-z", "--remove", "--stdin"];
+        indexed(&root, &index, &update, Some(&gitlinks.join(&0u8)))?;
+    }
     let tree = indexed(&root, &index, &["write-tree"], None)?;
     Ok(lossy(&tree).trim().to_owned())
+}
+
+/// The checked-out submodules among `listing`'s gitlinks (`ls-files -z -s` in `root`), and pathspecs for the whole
+/// tree without them. Git checks a submodule for dirt by running git inside it, under the submodule's own config,
+/// which no override reaches (`.gitmodules` can turn the check back on); a pathspec that leaves it out never does. A
+/// gitlink with no repo in its folder (removed, or now a plain folder) stays in, so its files aren't missed.
+pub(crate) fn without_submodules<'a>(
+    root: &Path,
+    listing: &'a [u8],
+) -> (Vec<&'a [u8]>, Vec<OsString>) {
+    let gitlinks: Vec<&[u8]> = listing
+        .split(|b| *b == 0)
+        .filter(|entry| entry.starts_with(b"160000 "))
+        .filter_map(|entry| Some(&entry[entry.iter().position(|b| *b == b'\t')? + 1..]))
+        .filter(|path| {
+            root.join(os_str(path))
+                .join(".git")
+                .symlink_metadata()
+                .is_ok()
+        })
+        .collect();
+    let mut specs = vec![OsString::from(":(top)")];
+    for path in &gitlinks {
+        let mut exclude = OsString::from(":(exclude,top,literal)");
+        exclude.push(os_str(path));
+        specs.push(exclude);
+    }
+    (gitlinks, specs)
+}
+
+/// A path git printed, as the OS names it: raw bytes on unix, so a non-UTF-8 name still matches.
+#[cfg(unix)]
+fn os_str(path: &[u8]) -> &OsStr {
+    std::os::unix::ffi::OsStrExt::from_bytes(path)
+}
+
+/// A path git printed, as the OS names it: git for Windows prints UTF-8.
+#[cfg(not(unix))]
+fn os_str(path: &[u8]) -> OsString {
+    lossy(path).into()
 }

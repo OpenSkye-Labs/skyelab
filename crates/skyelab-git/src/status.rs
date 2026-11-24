@@ -65,6 +65,8 @@ fn run(path: &Path, ignored: &str) -> Result<Status> {
             ignored,
             // Explicit, so a user's status.renames=false can't split a rename into add + delete.
             "--renames",
+            // A submodule's dirty check runs git inside it, under its own config, which no override reaches.
+            "--ignore-submodules=dirty",
         ],
     )?;
     Ok(parse(&out))

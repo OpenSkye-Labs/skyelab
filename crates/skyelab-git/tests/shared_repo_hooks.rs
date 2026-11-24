@@ -238,3 +238,74 @@ fn a_repo_inside_another_accounts_folder_or_hooks_path_never_runs_the_hooks() {
     let both = f.config(&[(&f.repo, "a"), (&moved, "a")]);
     assert!(f.hooks(&both, &f.repo));
 }
+
+#[test]
+fn a_worktree_hidden_from_gits_records_still_counts_as_sharing() {
+    let f = Fixture::new();
+    let wt = f.base.join("hidden");
+    git(
+        &f.repo,
+        &[
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "hidden",
+            wt.to_str().expect("utf-8"),
+        ],
+    );
+    // The other account's agent moves its record out of .git/worktrees, so `git worktree list` no longer shows it,
+    // and points its checkout at the new place; git there still works on this repo.
+    let record = f.repo.join(".git/hidden-record");
+    fs::rename(f.repo.join(".git/worktrees/hidden"), &record).expect("move record");
+    fs::write(record.join("commondir"), "..\n").expect("commondir");
+    fs::write(wt.join(".git"), format!("gitdir: {}\n", record.display())).expect(".git file");
+    git(&wt, &["status", "--short"]);
+    let listed = git(&f.repo, &["worktree", "list", "--porcelain"]);
+    assert!(!listed.contains("hidden"), "{listed}");
+    let sub = wt.join("app");
+    fs::create_dir_all(&sub).expect("mkdir");
+    for theirs in [&wt, &sub] {
+        let config = f.config(&[(&f.repo, "a"), (theirs, "b")]);
+        assert!(!f.hooks(&config, &f.repo), "{} not seen", theirs.display());
+    }
+    // A checkout bound to the same account keeps them; an unrelated repo bound elsewhere doesn't matter.
+    assert!(f.hooks(&f.config(&[(&f.repo, "a"), (&wt, "a")]), &f.repo));
+    let unrelated = f.base.join("unrelated");
+    git(&f.base, &["init", "-q", "unrelated"]);
+    assert!(f.hooks(&f.config(&[(&f.repo, "a"), (&unrelated, "b")]), &f.repo));
+}
+
+#[test]
+fn a_fifo_dot_git_or_a_bare_style_git_dir_cant_slip_past_the_check() {
+    let f = Fixture::new();
+    // Another account's folder whose `.git` is a FIFO: reading it must not hang every Commit, and it can't be placed.
+    let fifo = f.base.join("fifo");
+    fs::create_dir_all(&fifo).expect("mkdir");
+    let made = Command::new("mkfifo")
+        .arg(fifo.join(".git"))
+        .status()
+        .expect("mkfifo");
+    assert!(made.success());
+    let config = f.config(&[(&f.repo, "a"), (&fifo, "b")]);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let repo = f.repo.clone();
+    let folders = skyelab_git::hook_folders(&repo).expect("hook folders");
+    std::thread::spawn(move || {
+        let _ = tx.send(config.repo_hooks_allowed(&repo, &folders));
+    });
+    let allowed = rx
+        .recv_timeout(std::time::Duration::from_secs(10))
+        .expect("the check hung on a FIFO .git");
+    assert!(!allowed);
+    // A folder git takes as a git dir itself (HEAD plus a commondir into this repo).
+    let bare = f.base.join("bare-style");
+    fs::create_dir_all(&bare).expect("mkdir");
+    fs::write(bare.join("HEAD"), "ref: refs/heads/main\n").expect("HEAD");
+    fs::write(
+        bare.join("commondir"),
+        format!("{}\n", f.repo.join(".git").display()),
+    )
+    .expect("commondir");
+    assert!(!f.hooks(&f.config(&[(&f.repo, "a"), (&bare, "b")]), &f.repo));
+}

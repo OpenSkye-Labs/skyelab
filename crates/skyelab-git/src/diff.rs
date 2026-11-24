@@ -62,6 +62,7 @@ pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
         "--no-relative",
         "--no-ext-diff",
         "--no-textconv",
+        "--ignore-submodules=dirty",
         "-M",
     ];
     if base.is_some() {
@@ -153,6 +154,7 @@ fn run_revs(path: &Path, flags: &[&str], revs: &[&str]) -> Result<Vec<FileDiff>>
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
+        "--ignore-submodules=dirty",
         "--no-relative",
         "-M",
         // diff.submodule=log prints submodule commits as indented lines that read as context.
