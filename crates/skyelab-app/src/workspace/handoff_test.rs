@@ -63,8 +63,8 @@ fn thread_count(f: &Fixture, project_id: i64) -> usize {
         .len()
 }
 
-/// Hands thread `src` to `to`, waits for the new row, checks it, sends a message and waits until `marker` (a request
-/// line only the context puts there) shows the agent got the transcript.
+/// Hands thread `src` to `to`, waits for the new row, checks it, sends a message and waits until the agent's request
+/// line shows the transcript.
 fn hand_off_and_send(
     f: &Fixture,
     ws: &Entity<Workspace>,

@@ -58,7 +58,7 @@ pub(crate) struct ComposerExtras {
     saved_files: Vec<(String, usize)>,
     /// The history entry shown: its index among this thread's prompts, and its text.
     history: Option<(usize, String)>,
-    /// The thread this one was forked or handed off from: (id, its link's label, "Forked from …" or
+    /// The thread this one was forked or handed off from: its id, and the link's label ("Forked from …" or
     /// "Continued from …").
     pub forked_from: Option<(i64, SharedString)>,
     /// A draft started from the Pull requests page: the PR its row links once the first message saves it.

@@ -60,7 +60,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if self.is_remote() {
-            return; // another machine's threads hand off there
+            return; // a remote window's threads live on another machine; their history isn't here
         }
         let (store, config, id, to) = (
             self.backend.store.clone(),
@@ -90,8 +90,23 @@ impl Workspace {
                     });
                 }
             };
-            let records: Vec<Record> = s
-                .events_since(id, 0)?
+            let mut events = s.events_since(id, 0)?;
+            // A handoff copies no events, so an earlier handoff's history is its source's: walk up the links (a fork
+            // already holds its source's events up to the cut; the bound only guards a broken chain).
+            let mut at = src.clone();
+            for _ in 0..32 {
+                let Some(parent) = at.forked_from.map(|p| s.thread(p)).transpose()?.flatten()
+                else {
+                    break;
+                };
+                if parent.account_id != at.account_id {
+                    let mut earlier = s.events_since(parent.id, 0)?;
+                    earlier.append(&mut events);
+                    events = earlier;
+                }
+                at = parent;
+            }
+            let records: Vec<Record> = events
                 .iter()
                 .filter_map(|e| Record::from_row(&e.kind, &e.payload_json).ok())
                 .collect();

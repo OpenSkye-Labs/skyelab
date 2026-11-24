@@ -31,6 +31,9 @@ mod fork_cut_gone_test;
 #[cfg(all(test, unix))]
 #[path = "fork_test.rs"]
 mod fork_test;
+#[cfg(all(test, unix))]
+#[path = "handoff_chain_test.rs"]
+mod handoff_chain_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
 #[path = "handoff_test.rs"]
 mod handoff_test;

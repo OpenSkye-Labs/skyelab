@@ -132,7 +132,7 @@ fn line(i: &Item) -> String {
 }
 
 /// The prompt the continuing thread's first session starts with, ahead of the user's message: the source thread's
-/// `items`, each whole or left out, at most `budget` bytes of lines. Kept first: the latest user message, the latest
+/// `items`, each whole or left out, at most `budget` bytes of item lines (the fixed header and gap marks come on top). Kept first: the latest user message, the latest
 /// assistant item, the first user message; then the newest others. Source order stays, and each gap is marked.
 pub fn prompt(title: &str, from: &str, to: &str, items: &[Item], budget: usize) -> String {
     let lines: Vec<String> = items.iter().map(line).collect();
