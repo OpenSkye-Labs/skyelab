@@ -2,7 +2,8 @@
 
 SkyeLab draws its controls with its own components in `crates/skyelab-app/src/ui/`, not gpui-component's defaults.
 Each looks like its T3 counterpart ([t3-reference.md §6](t3-reference.md#6-primitives)). Each is built the way Zed's
-`crates/ui` builds components: a stateless `RenderOnce` builder with size and variant enums. Colors come from the theme
+`crates/ui` builds components: a stateless `RenderOnce` builder with size and variant enums (only a tooltip is a
+view, built when the pointer rests). Colors come from the theme
 and geometry from `ui::Size` and the `ui` constants, so a redesign changes tokens, not call sites.
 
 **The gallery.** In a debug build, open the palette and run **Open Ui Gallery** (`skyelab::OpenUiGallery`). It opens a
@@ -39,7 +40,8 @@ the `Kbd` constructors, so new code reaches for these.
   popup menu. A press never takes focus from the field you were typing in.
 - **`icon_button(id, icon)`**: a ghost, square, icon-only `Button`. Always give it a tooltip.
 - **`Switch` / `Checkbox`** (`ui/toggle.rs`): `checked`, `label`, `accessibility_label` (when there is no visible
-  label), `disabled`, `xsmall`. `on_click` gets the value the control flips to. A row that is clickable itself takes
+  label), `disabled`, `xsmall`. `on_click` gets the value the control flips to. Each is a tab stop that Space and
+  Enter flip, and a press keeps the focused field focused. A row that is clickable itself takes
   the handler, and the control inside it is only its picture (docs/gpui/elements.md).
 - **`SegmentedControl` / `Tabs`** (`ui/choice.rs`): `item`, `icon_item`, `items`, `selected(Some(ix))`, `with_size`.
   `on_click` gets the clicked index. Use a segmented control to pick one setting from a few (merge method,

@@ -24,7 +24,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - gpui-component's `DialogClose` (0.10 and 0.11) wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.
-- A click on a gpui-component `Checkbox` also reaches a clickable row around it, so handlers on both toggle twice
+- A click on a `ui::Checkbox` or `ui::Switch` also reaches a clickable row around it, so handlers on both toggle twice
   (no change). Put the handler on the row only and leave the checkbox as its picture.
 - `items_baseline()` puts a box with no text (a status dot) on the line's baseline, so it sits below the text's
   middle. A row that mixes a dot or icon with text uses `items_center()`; keep baseline for text-only rows.

@@ -23,7 +23,8 @@ impl Kbd {
         }
     }
 
-    /// The first key bound to `action` in `context` (`None`: anywhere), or `None` when nothing is bound.
+    /// The key of the highest-precedence binding for `action` in `context` (`None`: anywhere); a chord shows its
+    /// first stroke.
     pub fn for_action(action: &dyn Action, context: Option<&str>, window: &Window) -> Option<Self> {
         let binding = match context.and_then(|c| KeyContext::parse(c).ok()) {
             Some(context) => {
@@ -31,21 +32,19 @@ impl Kbd {
             }
             None => window.highest_precedence_binding_for_action(action),
         }?;
-        let key = binding.keystrokes().first()?;
-        Some(Self::new(Keystroke {
-            modifiers: *key.modifiers(),
-            key: key.key().into(),
-            key_char: None,
-        }))
+        Self::from_binding(&binding)
     }
 
-    /// The first key bound to `action` where `focus` is (the palette asks for the element that had focus before it).
+    /// Like [`Self::for_action`], resolved where `focus` is.
     pub fn for_action_in(
         action: &dyn Action,
         focus: &gpui::FocusHandle,
         window: &Window,
     ) -> Option<Self> {
-        let binding = window.highest_precedence_binding_for_action_in(action, focus)?;
+        Self::from_binding(&window.highest_precedence_binding_for_action_in(action, focus)?)
+    }
+
+    fn from_binding(binding: &gpui::KeyBinding) -> Option<Self> {
         let key = binding.keystrokes().first()?;
         Some(Self::new(Keystroke {
             modifiers: *key.modifiers(),
@@ -70,7 +69,7 @@ impl RenderOnce for Kbd {
         let theme = cx.theme();
         let label = self.label();
         let el = div()
-            // The same selector gpui-component's key cap records, so tests can ask whether a hint was drawn.
+            // The selector gpui-component's key cap recorded, kept for tests that look a drawn hint up.
             .debug_selector(|| format!("kbd:{}", self.stroke.unparse(cx.platform_info().os)))
             .flex_shrink_0()
             .text_size(META)

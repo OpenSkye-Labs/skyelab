@@ -93,12 +93,13 @@ impl UiGallery {
     }
 }
 
-const VARIANTS: [(Variant, &str); 5] = [
+const VARIANTS: [(Variant, &str); 6] = [
     (Variant::Primary, "Primary"),
     (Variant::Secondary, "Secondary"),
     (Variant::Ghost, "Ghost"),
     (Variant::Outline, "Outline"),
     (Variant::Danger, "Danger"),
+    (Variant::Warning, "Warning"),
 ];
 
 const SIZES: [(Size, &str); 3] = [(Size::Xs, "xs"), (Size::Sm, "sm"), (Size::Md, "md")];
@@ -294,7 +295,7 @@ impl Render for UiGallery {
             )
             .child(
                 Checkbox::new("g-check-sm")
-                    .small()
+                    .xsmall()
                     .label("Small")
                     .checked(true),
             )
@@ -303,7 +304,6 @@ impl Render for UiGallery {
                     .accessibility_label("Unlabeled checkbox")
                     .checked(true),
             )
-            .child(Switch::new("g-switch-small").small().checked(true))
             .child(
                 Checkbox::new("g-check-dis")
                     .label("Disabled")

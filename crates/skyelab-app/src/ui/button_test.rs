@@ -1,6 +1,3 @@
-//! ui::Button: clicks reach `on_click`, disabled and loading buttons swallow them, a press keeps the focused field
-//! focused, and every variant and size draws at its size's height.
-
 use super::{Button, Size, Variant, icon_button};
 use gpui::{
     AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _, IntoElement,
@@ -17,9 +14,9 @@ pub(super) fn setup(cx: &mut TestAppContext) {
     });
 }
 
-const SELECTORS: [&str; 15] = [
+const SELECTORS: [&str; 18] = [
     "v0s0", "v0s1", "v0s2", "v1s0", "v1s1", "v1s2", "v2s0", "v2s1", "v2s2", "v3s0", "v3s1", "v3s2",
-    "v4s0", "v4s1", "v4s2",
+    "v4s0", "v4s1", "v4s2", "v5s0", "v5s1", "v5s2",
 ];
 
 struct Harness {
@@ -48,6 +45,7 @@ impl Render for Harness {
             Variant::Ghost,
             Variant::Outline,
             Variant::Danger,
+            Variant::Warning,
         ]
         .into_iter()
         .enumerate()
@@ -135,7 +133,7 @@ fn a_press_keeps_the_focused_field_focused(cx: &mut TestAppContext) {
 #[gpui::test]
 fn every_variant_and_size_draws_at_its_height(cx: &mut TestAppContext) {
     let (_, _, cx) = rig(cx, false, false);
-    for vi in 0..5 {
+    for vi in 0..6 {
         for (si, s) in [Size::Xs, Size::Sm, Size::Md].into_iter().enumerate() {
             let b = cx.debug_bounds(SELECTORS[vi * 3 + si]).expect("drawn");
             assert_eq!(b.size.height, s.height(), "variant {vi} size {si}");

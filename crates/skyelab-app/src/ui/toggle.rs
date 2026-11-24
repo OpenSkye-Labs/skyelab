@@ -116,9 +116,6 @@ macro_rules! toggle_builders {
                 self.0.small = true;
                 self
             }
-            pub fn small(self) -> Self {
-                self.xsmall()
-            }
             /// Gets the value the control flips to.
             pub fn on_click(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
                 self.0.on_click = Some(Rc::new(f));

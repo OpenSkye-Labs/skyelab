@@ -1,5 +1,5 @@
-//! Pick-one controls. `SegmentedControl` is T3's toggle group (`ui/toggle-group.tsx`): a well in the input color at
-//! 40%, 2 px inset, the chosen segment lifted onto the canvas. `Tabs` is the underlined row used over a page's
+//! Pick-one controls. `SegmentedControl` is T3's toggle group (`ui/toggle-group.tsx`): a well in the input color,
+//! the chosen segment lifted out of it. `Tabs` is the underlined row used over a page's
 //! sections. Both are stateless: the caller owns the selected index and gets the clicked one in `on_click`.
 
 use super::{META, Size, SkyeIcon};

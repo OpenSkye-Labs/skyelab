@@ -1,9 +1,7 @@
-//! SkyeLab's button, after T3's (`ui/button.tsx`): radius 8, medium weight, 24 / 28 / 32 px ([`Size`]), five variants.
-//! Built on gpui-base's headless button (role, focus, Enter/Space, the disabled click guard), styled here from theme
-//! tokens only. Stateless: a `RenderOnce` builder, no entity, hover and press drawn by GPUI's own styles.
-//!
-//! The builder keeps gpui-component's method names (`ghost`, `small`, `tooltip_with_action`, …) so a call site reads
-//! the same, and implements its `DropdownMenu`, so `.dropdown_menu(..)` opens the shared popup menu.
+//! SkyeLab's button, after T3's (`ui/button.tsx`): sized by [`Size`], colored by [`Variant`] through [`colors`].
+//! Built on gpui-base's headless button (role, focus, Enter/Space, the disabled click guard). Stateless: a `RenderOnce`
+//! builder, no entity, hover and press drawn by GPUI's own styles. It implements gpui-component's `DropdownMenu`, so
+//! `.dropdown_menu(..)` opens the shared popup menu.
 
 use super::{DISABLED_OPACITY, Kbd, Size, SkyeIcon, Tooltip};
 use gpui::{
@@ -33,7 +31,7 @@ pub enum Variant {
     Warning,
 }
 
-/// One variant's colors, the only place a button's look comes from: a redesign edits this function or the theme.
+/// One variant's colors over theme fields. Geometry comes from [`Size`]; this is where a variant's colors change.
 pub(crate) struct Colors {
     pub bg: Hsla,
     pub hover: Hsla,
@@ -336,8 +334,12 @@ impl RenderOnce for Button {
         let c = colors(self.variant, self.selected, theme);
         let size = self.size;
         let interactive = !self.disabled && !self.loading;
-        let square =
-            self.square || (self.label.is_none() && self.children.is_empty() && !self.caret);
+        let square = self.square
+            || (self.label.is_none()
+                && self.children.is_empty()
+                && !self.caret
+                && self.icon_end.is_none()
+                && self.key_hint.is_none());
         let key = self
             .key_hint
             .as_ref()
@@ -376,7 +378,13 @@ impl RenderOnce for Button {
             .when(self.loading && !self.disabled, |b| b.opacity(0.8))
             .selected(self.selected)
             .disabled(self.disabled)
-            .when_some(self.label.clone(), |b, l| b.accessibility_label(l))
+            // An icon-only button is named by its tooltip.
+            .when_some(
+                self.label
+                    .clone()
+                    .or_else(|| self.tooltip.as_ref().map(|(t, _)| t.clone())),
+                |b, l| b.accessibility_label(l),
+            )
             .when_some(self.toggled, |b, on| {
                 b.aria_toggled(if on {
                     gpui::accesskit::Toggled::True
@@ -422,8 +430,14 @@ impl RenderOnce for Button {
             })
             // A press never takes focus from the field you were typing in, nor starts a text selection.
             .when(!self.disabled, |b| {
-                b.on_any_mouse_down(|_, window, cx| {
+                let loading = self.loading;
+                b.on_any_mouse_down(move |_, window, cx| {
                     window.prevent_default();
+                    if loading {
+                        // A loading button is inert: its press reaches no menu trigger or row around it.
+                        cx.stop_propagation();
+                        return;
+                    }
                     if cx.has_global::<gpui_base::GlobalState>() {
                         gpui_base::GlobalState::suppress_text_selection(cx);
                     }

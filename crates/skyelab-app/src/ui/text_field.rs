@@ -1,4 +1,4 @@
-//! T3's input (`ui/input.tsx`): a single-line field at the control sizes ([`Size`]), radius 8, the input-colored
+//! T3's input (`ui/input.tsx`): a single-line field at the control sizes ([`Size`]), the input-colored
 //! hairline turning `ring` while focused, canvas fill (input at 32% in dark themes). The editing itself is
 //! gpui-component's `Input` (text input is not built into GPUI, docs/gpui/elements.md), drawn here without its own
 //! chrome. Inputs that sit inside a chrome of their own (the composer, a search strip) keep the bare `Input` with
@@ -10,7 +10,7 @@ use gpui::{
     Styled as _, Window, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, h_flex,
+    ActiveTheme as _, h_flex,
     input::{Input, InputState},
 };
 
@@ -80,16 +80,13 @@ impl RenderOnce for TextField {
             .appearance(false)
             .cleanable(self.cleanable)
             .disabled(self.disabled)
-            .map(|i| match size {
-                Size::Xs => i.xsmall(),
-                Size::Sm => i.small(),
-                Size::Md => i,
-            })
             .when_some(self.prefix, |i, p| i.prefix(p))
             .when_some(self.suffix, |i, s| i.suffix(s))
             .px_0()
             .py_0()
-            .h_full();
+            .h_full()
+            // The Input sets its own text size; ours goes on top, so `Size::text` sizes the field too.
+            .text_size(size.text());
         h_flex()
             .w_full()
             .min_w_0()

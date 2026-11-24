@@ -26,7 +26,8 @@ pub fn notice_action(
 ) -> gpui_component::button::Button {
     use gpui_component::Sizable as _;
     gpui_component::button::Button::new(id)
-        .xsmall()
+        // gpui-component's `small` is 24 px, our `Xs`.
+        .small()
         .label(label)
         .on_click(on_click)
 }

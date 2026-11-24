@@ -103,7 +103,7 @@ fn toggles_report_the_value_they_flip_to(cx: &mut TestAppContext) {
 #[gpui::test]
 fn pickers_report_the_clicked_index(cx: &mut TestAppContext) {
     let (seen, cx) = rig(cx);
-    // The segments and tabs sit side by side; the last third and the right end hit the last item.
+    // 85% across the segments lands on the third; 2% across the tabs on the first.
     click_at("seg", 0.85, cx);
     click_at("tabs", 0.02, cx);
     assert_eq!(seen.0.borrow()[0], "seg=2");

@@ -1,5 +1,5 @@
-//! Surfaces: `Card` (T3's card and settings group: radius 12, hairline border, a fill a step off the canvas) and
-//! `Divider` (the 1 px hairline areas are split by; T3 uses borders, not shadows).
+//! Surfaces: `Card` (T3's card and settings group; `raised` floats over the page with a shadow) and `Divider` (the
+//! hairline that splits areas).
 
 use super::RADIUS_LG;
 use gpui::{

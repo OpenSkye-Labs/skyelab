@@ -336,7 +336,7 @@ impl PrActions {
             .child(methods)
             .child(
                 Checkbox::new("pr-delete-branch")
-                    .small()
+                    .xsmall()
                     .label("Delete the branch on GitHub")
                     .checked(delete)
                     .on_click(cx.listener(|this, on: &bool, _, cx| {

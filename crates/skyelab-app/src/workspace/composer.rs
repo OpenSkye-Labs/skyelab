@@ -334,6 +334,8 @@ impl ThreadView {
         } else {
             Button::new("send")
                 .primary()
+                // 32 px, the same as the Stop circle that takes its place.
+                .medium()
                 .icon(SkyeIcon::Send)
                 .rounded(round)
                 .tooltip(if running {
