@@ -93,18 +93,30 @@ fn a_forward_carries_bytes_through_a_loopback_port() {
     let client = up(&env);
     let forward = client.forward_port(remote).recv().expect("forwarded");
     assert_eq!(forward.remote_port, remote);
-    // The echo server holds that port on 127.0.0.1 here too, so another one was picked.
-    assert_ne!(forward.local_port, remote);
+    assert_ne!(
+        forward.local_port, remote,
+        "the echo server holds that port here too"
+    );
     let mut tcp = local(&forward);
     assert_eq!(
         echo(&mut tcp, b"GET / HTTP/1.1\r\n\r\n"),
         b"GET / HTTP/1.1\r\n\r\n"
     );
-    // A browser opens several at once: none is dropped by the daemon's per-address gate limit.
-    let mut many: Vec<TcpStream> = (0..8).map(|_| local(&forward)).collect();
+    // A browser opens several at once, on two forwards: none is dropped by the daemon's per-address gate limit.
+    let other = client
+        .forward_port(echo_server())
+        .recv()
+        .expect("second forward");
+    let mut many: Vec<TcpStream> = (0..12)
+        .map(|i| local(if i % 2 == 0 { &forward } else { &other }))
+        .collect();
     for (i, tcp) in many.iter_mut().enumerate() {
         let msg = format!("conn {i}");
-        assert_eq!(echo(tcp, msg.as_bytes()), msg.as_bytes());
+        assert_eq!(
+            echo(tcp, msg.as_bytes()),
+            msg.as_bytes(),
+            "connection {i} dropped"
+        );
     }
     // The same port can't be forwarded twice.
     match client.forward_port(remote).recv() {
@@ -166,6 +178,67 @@ fn a_dropped_connection_stops_the_forward() {
         listener_gone(forward.local_port),
         "the listener outlived the connection"
     );
+    // After a reconnect the port can be forwarded again, though the dead handle is still around.
+    env.serve();
+    loop {
+        if let Update::Connected(_) = next(&client) {
+            break;
+        }
+    }
+    let again = client
+        .forward_port(remote)
+        .recv()
+        .expect("forwarded after reconnect");
+    assert_eq!(echo(&mut local(&again), b"back"), b"back");
+    drop(forward);
+    assert_eq!(
+        echo(&mut local(&again), b"still"),
+        b"still",
+        "the dead handle stopped the new forward"
+    );
+}
+
+#[test]
+fn a_port_a_local_server_holds_on_the_wildcard_is_not_reused() {
+    // Node's default listen(port): [::], dual-stack, so it serves 127.0.0.1 and ::1 here.
+    let server = TcpListener::bind((std::net::Ipv6Addr::UNSPECIFIED, 0)).expect("bind [::]");
+    let port = server.local_addr().expect("addr").port();
+    std::thread::spawn(move || {
+        for conn in server.incoming() {
+            drop(conn);
+        }
+    });
+    let env = Env::start();
+    let client = up(&env);
+    let forward = client.forward_port(port).recv().expect("forwarded");
+    assert_ne!(
+        forward.local_port, port,
+        "the forward took a port a local server serves"
+    );
+}
+
+#[test]
+fn tunnels_open_while_an_agent_streams_events() {
+    let env = Env::start();
+    let remote = echo_server();
+    let client = up(&env);
+    let forward = client.forward_port(remote).recv().expect("forwarded");
+    let event = env.append(env.thread_id, "assistant", "{}");
+    let daemon = env.daemon.as_ref().expect("served");
+    let stop = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                daemon.push_event(event.clone());
+                std::thread::sleep(Duration::from_micros(500));
+            }
+        });
+        for i in 0..20 {
+            let msg = format!("conn {i}");
+            assert_eq!(echo(&mut local(&forward), msg.as_bytes()), msg.as_bytes());
+        }
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    });
 }
 
 #[test]

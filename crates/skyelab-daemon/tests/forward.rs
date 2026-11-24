@@ -69,15 +69,46 @@ fn is_ok(msg: Option<ServerMessage>) -> bool {
     )
 }
 
-fn forward(ws: &mut Client, port: u16) -> Option<ServerMessage> {
+/// `forward_port`: the forward's token, or the error code.
+fn forward(ws: &mut Client, port: u16) -> Result<String, ErrorCode> {
     send(ws, 2, Call::ForwardPort { port });
+    match recv(ws) {
+        Some(ServerMessage::Response {
+            result: Reply::Forwarded { token },
+            ..
+        }) => Ok(token),
+        msg => Err(error_code(msg)),
+    }
+}
+
+/// A connection that said hello as a tunnel.
+fn tunnel_hello(d: &skyelab_daemon::Daemon) -> Client {
+    let mut ws = connect(addr(d));
+    send(
+        &mut ws,
+        1,
+        Call::Hello {
+            protocol: skyelab_protocol::VERSION,
+            capabilities: vec![skyelab_protocol::TUNNEL_CAPABILITY.into()],
+            device_key: Some(KEY.into()),
+        },
+    );
+    assert!(matches!(
+        recv(&mut ws),
+        Some(ServerMessage::Response { id: 1, .. })
+    ));
+    ws
+}
+
+fn open(ws: &mut Client, port: u16, token: &str) -> Option<ServerMessage> {
+    let token = token.to_owned();
+    send(ws, 2, Call::OpenTunnel { port, token });
     recv(ws)
 }
 
-fn tunnel(d: &skyelab_daemon::Daemon, port: u16) -> Result<Client, ErrorCode> {
-    let mut ws = connect_hello(addr(d));
-    send(&mut ws, 2, Call::OpenTunnel { port });
-    match recv(&mut ws) {
+fn tunnel(d: &skyelab_daemon::Daemon, port: u16, token: &str) -> Result<Client, ErrorCode> {
+    let mut ws = tunnel_hello(d);
+    match open(&mut ws, port, token) {
         msg if is_ok(msg.clone()) => Ok(ws),
         msg => Err(error_code(msg)),
     }
@@ -119,8 +150,8 @@ fn a_forwarded_port_carries_bytes_both_ways() {
     let d = daemon();
     let port = echo_server();
     let mut owner = connect_hello(addr(&d));
-    assert!(is_ok(forward(&mut owner, port)));
-    let mut ws = tunnel(&d, port).expect("tunnel admitted");
+    let token = forward(&mut owner, port).expect("forwarded");
+    let mut ws = tunnel(&d, port, &token).expect("tunnel admitted");
     assert_eq!(
         round_trip(&mut ws, b"GET / HTTP/1.1\r\n\r\n"),
         b"GET / HTTP/1.1\r\n\r\n"
@@ -134,19 +165,14 @@ fn a_forwarded_port_carries_bytes_both_ways() {
 fn refuses_system_own_denied_and_silent_ports() {
     let d = daemon();
     let mut owner = connect_hello(addr(&d));
-    for port in [22, 80, addr(&d).port(), 9229, 2375, 5900] {
+    for port in [22, 80, addr(&d).port(), 9229, 2375, 5900, 5037, 27017] {
         assert_eq!(
-            error_code(forward(&mut owner, port)),
-            ErrorCode::BadRequest,
+            forward(&mut owner, port),
+            Err(ErrorCode::BadRequest),
             "port {port}"
         );
     }
-    assert_eq!(
-        error_code(forward(&mut owner, closed_port())),
-        ErrorCode::NotFound
-    );
-    // Nothing was recorded: a tunnel to a refused port is refused too.
-    assert_eq!(tunnel(&d, 9229).err(), Some(ErrorCode::BadRequest));
+    assert_eq!(forward(&mut owner, closed_port()), Err(ErrorCode::NotFound));
 }
 
 #[test]
@@ -154,19 +180,59 @@ fn a_tunnel_needs_a_forward_by_the_same_device() {
     let d = daemon();
     let port = echo_server();
     // Nobody asked for it.
-    assert_eq!(tunnel(&d, port).err(), Some(ErrorCode::BadRequest));
-    // Another approved key on the same node asked; this key didn't.
+    assert_eq!(
+        tunnel(&d, port, "made-up").err(),
+        Some(ErrorCode::BadRequest)
+    );
+    // Another approved key on the same node asked; this key didn't, even with that forward's token.
     let mut other = connect(addr(&d));
     assert!(matches!(
         hello_key(&mut other, Some(OTHER_KEY)),
         Some(ServerMessage::Response { .. })
     ));
-    assert!(is_ok(forward(&mut other, port)));
-    assert_eq!(tunnel(&d, port).err(), Some(ErrorCode::BadRequest));
+    let theirs = forward(&mut other, port).expect("forwarded");
+    assert_eq!(tunnel(&d, port, &theirs).err(), Some(ErrorCode::BadRequest));
+    // This key forwards it too: only its own token opens a tunnel.
+    let mut owner = connect_hello(addr(&d));
+    let mine = forward(&mut owner, port).expect("forwarded");
+    assert_ne!(mine, theirs);
+    assert_eq!(
+        tunnel(&d, port, "made-up").err(),
+        Some(ErrorCode::BadRequest)
+    );
+    assert!(tunnel(&d, port, &mine).is_ok());
     // Before hello it is refused like any call.
     let mut fresh = connect(addr(&d));
-    send(&mut fresh, 1, Call::OpenTunnel { port });
+    send(
+        &mut fresh,
+        1,
+        Call::OpenTunnel {
+            port,
+            token: mine.clone(),
+        },
+    );
     assert_eq!(error_code(recv(&mut fresh)), ErrorCode::HelloRequired);
+    // A connection that didn't say hello as a tunnel can't become one.
+    let mut plain = connect_hello(addr(&d));
+    assert_eq!(
+        error_code(open(&mut plain, port, &mine)),
+        ErrorCode::BadRequest
+    );
+}
+
+#[test]
+fn a_tunnel_connection_does_nothing_else() {
+    let d = daemon();
+    let port = echo_server();
+    let mut ws = tunnel_hello(&d);
+    // Not listed, so it can't be allowed to forward or drive anything out of Disconnect's reach.
+    assert!(d.peers().is_empty(), "{:?}", d.peers());
+    send(&mut ws, 2, Call::ForwardPort { port });
+    assert_eq!(error_code(recv(&mut ws)), ErrorCode::BadRequest);
+    assert!(ended(&mut ws), "closed after the refusal");
+    let mut ws = tunnel_hello(&d);
+    send(&mut ws, 2, Call::ListProjects);
+    assert_eq!(error_code(recv(&mut ws)), ErrorCode::BadRequest);
 }
 
 #[test]
@@ -174,12 +240,12 @@ fn a_tunnel_ends_when_its_owner_closes() {
     let d = daemon();
     let port = echo_server();
     let mut owner = connect_hello(addr(&d));
-    assert!(is_ok(forward(&mut owner, port)));
-    let mut ws = tunnel(&d, port).expect("tunnel");
+    let token = forward(&mut owner, port).expect("forwarded");
+    let mut ws = tunnel(&d, port, &token).expect("tunnel");
     assert_eq!(round_trip(&mut ws, b"hi"), b"hi");
     drop(owner);
     assert!(ended(&mut ws), "the tunnel outlived its forward");
-    assert_eq!(tunnel(&d, port).err(), Some(ErrorCode::BadRequest));
+    assert_eq!(tunnel(&d, port, &token).err(), Some(ErrorCode::BadRequest));
 }
 
 #[test]
@@ -187,12 +253,24 @@ fn stop_forward_ends_its_tunnels() {
     let d = daemon();
     let port = echo_server();
     let mut owner = connect_hello(addr(&d));
-    assert!(is_ok(forward(&mut owner, port)));
-    let mut ws = tunnel(&d, port).expect("tunnel");
-    send(&mut owner, 3, Call::StopForward { port });
+    let token = forward(&mut owner, port).expect("forwarded");
+    let mut ws = tunnel(&d, port, &token).expect("tunnel");
+    // A stale token stops nothing.
+    let stale = "stale".to_owned();
+    send(&mut owner, 3, Call::StopForward { port, token: stale });
+    assert!(is_ok(recv(&mut owner)));
+    assert_eq!(round_trip(&mut ws, b"still"), b"still");
+    send(
+        &mut owner,
+        4,
+        Call::StopForward {
+            port,
+            token: token.clone(),
+        },
+    );
     assert!(is_ok(recv(&mut owner)));
     assert!(ended(&mut ws));
-    assert_eq!(tunnel(&d, port).err(), Some(ErrorCode::BadRequest));
+    assert_eq!(tunnel(&d, port, &token).err(), Some(ErrorCode::BadRequest));
 }
 
 #[test]
@@ -200,8 +278,8 @@ fn a_revoke_ends_the_tunnel() {
     let d = daemon();
     let port = echo_server();
     let mut owner = connect_hello(addr(&d));
-    assert!(is_ok(forward(&mut owner, port)));
-    let mut ws = tunnel(&d, port).expect("tunnel");
+    let token = forward(&mut owner, port).expect("forwarded");
+    let mut ws = tunnel(&d, port, &token).expect("tunnel");
     d.set_approved(vec![]);
     assert!(ended(&mut ws));
 }

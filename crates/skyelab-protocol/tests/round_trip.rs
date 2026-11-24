@@ -250,11 +250,21 @@ fn round_trip_port_forwarding() {
         json!({"id": 7, "method": "forward_port", "params": {"port": 5173}}),
     );
     round_trip_request(
-        Call::StopForward { port: 5173 },
-        json!({"id": 7, "method": "stop_forward", "params": {"port": 5173}}),
+        Call::StopForward {
+            port: 5173,
+            token: "t".into(),
+        },
+        json!({"id": 7, "method": "stop_forward", "params": {"port": 5173, "token": "t"}}),
     );
     round_trip_request(
-        Call::OpenTunnel { port: 5173 },
-        json!({"id": 7, "method": "open_tunnel", "params": {"port": 5173}}),
+        Call::OpenTunnel {
+            port: 5173,
+            token: "t".into(),
+        },
+        json!({"id": 7, "method": "open_tunnel", "params": {"port": 5173, "token": "t"}}),
     );
+    round_trip_server(ServerMessage::Response {
+        id: 7,
+        result: Reply::Forwarded { token: "t".into() },
+    });
 }

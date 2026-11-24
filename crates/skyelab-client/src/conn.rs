@@ -74,12 +74,13 @@ struct Ctx {
     options: Options,
     tls: Arc<ClientConfig>,
     commands: flume::Receiver<Command>,
-    /// For forwards to send `stop_forward` when dropped, without keeping the client alive.
     commands_tx: flume::WeakSender<Command>,
     updates: flume::Sender<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
     watched: HashMap<i64, Watched>,
     forwarding: Forwarding,
+    /// Tunnels being dialled, across every forward (the daemon's gate drops a 5th pending one per address).
+    dials: Arc<tokio::sync::Semaphore>,
 }
 
 impl Ctx {
@@ -151,6 +152,7 @@ impl Ctx {
             plaintext: self.plaintext(),
             resolve_to: self.resolve_to(),
             protocol: self.protocol(),
+            tunnel: false,
         }
     }
 
@@ -181,6 +183,7 @@ pub(crate) async fn run(
         hello,
         watched: HashMap::new(),
         forwarding: Forwarding::default(),
+        dials: Arc::new(tokio::sync::Semaphore::new(forward::MAX_DIALS)),
     };
     let mut backoff = cx.options.backoff_min;
     loop {
@@ -241,23 +244,21 @@ async fn session(cx: &mut Ctx) -> End {
         pending: HashMap::new(),
         retry_at: None,
         retry_delay: cx.options.backoff_min,
-        session: tokio::sync::watch::channel(()).0,
+        session_ended: tokio::sync::watch::channel(()).0,
     };
     let end = live.serve(cx).await;
     // Whatever was in flight on this connection can't be answered now.
     for (_, (_, waiter)) in live.pending.drain() {
         match waiter {
             Waiter::User(reply) => reply(Err(Error::ConnectionLost)),
-            Waiter::Forward(port, reply) => {
-                cx.forwarding
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .remove(&port);
+            Waiter::Forward(_, _, reply) => {
                 let _ = reply.send(Err(Error::ConnectionLost));
             }
             Waiter::Fill(_) => {}
         }
     }
+    // Every forward of this connection has stopped with it (`session_ended`).
+    cx.forwarding.clear();
     let _ = timeout(Duration::from_secs(1), live.ws.close(None)).await;
     match end {
         End::Lost { why, .. } => End::Lost { why, was_up: true },
@@ -268,8 +269,9 @@ async fn session(cx: &mut Ctx) -> End {
 enum Waiter {
     User(ReplyFn),
     Fill(i64),
-    /// `forward_port` for this port; on `Ok` the local listener starts.
-    Forward(u16, flume::Sender<Result<Forward, Error>>),
+    /// `forward_port` for this port, under this reservation. Never expires: a reply after the caller gave up would
+    /// leave the environment forwarding a port no `Forward` stops. The daemon's probe bounds it (10 s).
+    Forward(u16, u64, flume::Sender<Result<Forward, Error>>),
 }
 
 struct Live {
@@ -282,7 +284,7 @@ struct Live {
     retry_at: Option<Instant>,
     retry_delay: Duration,
     /// Dropped with this connection: every forward started on it stops.
-    session: tokio::sync::watch::Sender<()>,
+    session_ended: tokio::sync::watch::Sender<()>,
 }
 
 impl Live {
@@ -413,8 +415,8 @@ impl Live {
                 Ok(())
             }
             Some((_, Waiter::Fill(thread_id))) => self.filled(cx, thread_id, result).await,
-            Some((_, Waiter::Forward(port, reply))) => {
-                self.forwarded(cx, port, reply, result);
+            Some((_, Waiter::Forward(port, reservation, reply))) => {
+                self.forwarded(cx, port, reservation, reply, result);
                 Ok(())
             }
             None => Ok(()), // timed out already, or an id we never sent
@@ -528,7 +530,9 @@ impl Live {
         let expired: Vec<RequestId> = self
             .pending
             .iter()
-            .filter(|(_, (deadline, _))| *deadline <= now)
+            .filter(|(_, (deadline, waiter))| {
+                *deadline <= now && !matches!(waiter, Waiter::Forward(..))
+            })
             .map(|(id, _)| *id)
             .collect();
         for id in expired {
@@ -540,14 +544,7 @@ impl Live {
                     }
                     self.mark_stale(cx, thread_id);
                 }
-                Some((_, Waiter::Forward(port, reply))) => {
-                    cx.forwarding
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .remove(&port);
-                    let _ = reply.send(Err(Error::Timeout));
-                }
-                None => {}
+                Some((_, Waiter::Forward(..))) | None => {}
             }
         }
     }

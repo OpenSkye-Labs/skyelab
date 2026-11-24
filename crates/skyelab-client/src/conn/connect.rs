@@ -31,6 +31,8 @@ pub(super) struct Target {
     pub(super) plaintext: bool,
     pub(super) resolve_to: Option<std::net::IpAddr>,
     pub(super) protocol: Version,
+    /// Say hello as a tunnel connection (1.5).
+    pub(super) tunnel: bool,
 }
 
 pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
@@ -112,7 +114,10 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
         id: 0,
         call: Call::Hello {
             protocol: cx.protocol,
-            capabilities: vec![],
+            capabilities: match cx.tunnel {
+                true => vec![skyelab_protocol::TUNNEL_CAPABILITY.into()],
+                false => vec![],
+            },
             device_key: cx.options.device_key.clone(),
         },
     };

@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use futures::{SinkExt, StreamExt};
 use skyelab_protocol::{
-    Call, ErrorCode, Hello, Reply, Request, RpcError, ServerMessage, ThreadEvent, negotiate,
+    Call, ErrorCode, Hello, Reply, Request, RpcError, ServerMessage, TUNNEL_CAPABILITY,
+    ThreadEvent, negotiate,
 };
 use tokio::sync::{Notify, Semaphore, broadcast, mpsc};
 use tokio::task::JoinSet;
@@ -13,6 +14,7 @@ use tokio::time::{Instant, sleep_until, timeout};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::access::{self, Verdict, Who};
+use crate::peers::lock_peers;
 use crate::{Backend, Shared, Ws, forward};
 
 enum Step {
@@ -160,33 +162,103 @@ fn on_text(
         id: Some(id),
         error: RpcError::new(code, message),
     };
+    // Set at hello; a tunnel connection may only open its tunnel.
+    let tunnel = lock_peers(&shared.peers)
+        .get(&who.peer_id)
+        .is_some_and(|e| e.tunnel);
     match (req.call, events.is_some()) {
         (
             Call::Hello {
                 protocol,
                 device_key,
-                ..
+                capabilities,
             },
             false,
-        ) => match access::check(&shared.access, &shared.peers, who, device_key.as_deref()) {
-            Verdict::Approved => hello(id, protocol, shared, events),
-            Verdict::NotApproved => {
-                eprintln!("skyelab-daemon: {:?} isn't approved yet", who.device);
-                Step::SendAndClose(error(
-                    ErrorCode::NotApproved,
-                    "this device isn't approved on this machine yet: allow it in SkyeLab's Remote tab there",
-                ))
+        ) => {
+            // Marked before the approval lands on the entry, so a tunnel is never listed as a device.
+            let tunnel = capabilities.iter().any(|c| c == TUNNEL_CAPABILITY);
+            if tunnel && let Some(entry) = lock_peers(&shared.peers).get_mut(&who.peer_id) {
+                entry.tunnel = true;
             }
-            Verdict::Denied => Step::SendAndClose(error(
-                ErrorCode::Denied,
-                "this device was turned down on this machine",
-            )),
-        },
+            hello_checked(
+                id,
+                protocol,
+                tunnel,
+                device_key.as_deref(),
+                shared,
+                who,
+                events,
+            )
+        }
         (Call::Hello { .. }, true) => {
             Step::Send(error(ErrorCode::BadRequest, "already said hello"))
         }
         (_, false) => Step::Send(error(ErrorCode::HelloRequired, "send hello first")),
-        (Call::ForwardPort { port }, true) => {
+        (Call::OpenTunnel { port, token }, true) if tunnel => {
+            match forward::join(&shared.peers, who.peer_id, port, &token) {
+                Ok(ended) => Step::Tunnel { id, port, ended },
+                Err(why) => Step::SendAndClose(error(ErrorCode::BadRequest, &why)),
+            }
+        }
+        // Hidden from the device list and Disconnect's reach, so it may do nothing else.
+        (_, true) if tunnel => Step::SendAndClose(error(
+            ErrorCode::BadRequest,
+            "a tunnel connection can only open a tunnel",
+        )),
+        (Call::OpenTunnel { .. }, true) => Step::Send(error(
+            ErrorCode::BadRequest,
+            "open_tunnel needs a connection that said hello as a tunnel",
+        )),
+        (call, true) => on_call(call, id, shared, who, in_flight, replies, running),
+    }
+}
+
+/// Hello's device-key check, then the version.
+fn hello_checked(
+    id: skyelab_protocol::RequestId,
+    protocol: skyelab_protocol::Version,
+    tunnel: bool,
+    device_key: Option<&str>,
+    shared: &Shared,
+    who: &Who,
+    events: &mut Option<broadcast::Receiver<ThreadEvent>>,
+) -> Step {
+    let error = move |code, message: &str| ServerMessage::Error {
+        id: Some(id),
+        error: RpcError::new(code, message),
+    };
+    match access::check(&shared.access, &shared.peers, who, device_key) {
+        Verdict::Approved => hello(id, protocol, tunnel, shared, events),
+        Verdict::NotApproved => {
+            eprintln!("skyelab-daemon: {:?} isn't approved yet", who.device);
+            Step::SendAndClose(error(
+                ErrorCode::NotApproved,
+                "this device isn't approved on this machine yet: allow it in SkyeLab's Remote tab there",
+            ))
+        }
+        Verdict::Denied => Step::SendAndClose(error(
+            ErrorCode::Denied,
+            "this device was turned down on this machine",
+        )),
+    }
+}
+
+/// A call after hello on a connection that isn't a tunnel.
+fn on_call(
+    call: Call,
+    id: skyelab_protocol::RequestId,
+    shared: &Shared,
+    who: &Who,
+    in_flight: &Arc<Semaphore>,
+    replies: &mpsc::Sender<ServerMessage>,
+    running: &mut JoinSet<()>,
+) -> Step {
+    let error = move |code, message: &str| ServerMessage::Error {
+        id: Some(id),
+        error: RpcError::new(code, message),
+    };
+    match call {
+        Call::ForwardPort { port } => {
             if let Some(why) = forward::refusal(port, &shared.own_ports) {
                 return Step::Send(error(ErrorCode::BadRequest, &why));
             }
@@ -202,9 +274,9 @@ fn on_text(
                 let reply = match forward::dial_loopback(port).await {
                     Err(why) => error(ErrorCode::NotFound, &why),
                     Ok(_probe) => match forward::allow(&peers, peer, port) {
-                        Ok(()) => ServerMessage::Response {
+                        Ok(token) => ServerMessage::Response {
                             id,
-                            result: Reply::Ok,
+                            result: Reply::Forwarded { token },
                         },
                         Err(why) => error(ErrorCode::BadRequest, &why),
                     },
@@ -214,20 +286,14 @@ fn on_text(
             });
             Step::Nothing
         }
-        (Call::StopForward { port }, true) => {
-            forward::stop(&shared.peers, who.peer_id, port);
+        Call::StopForward { port, token } => {
+            forward::stop(&shared.peers, who.peer_id, port, &token);
             Step::Send(ServerMessage::Response {
                 id,
                 result: Reply::Ok,
             })
         }
-        (Call::OpenTunnel { port }, true) => {
-            match forward::join(&shared.peers, who.peer_id, port) {
-                Ok(ended) => Step::Tunnel { id, port, ended },
-                Err(why) => Step::SendAndClose(error(ErrorCode::BadRequest, &why)),
-            }
-        }
-        (call, true) => {
+        call => {
             let Ok(permit) = in_flight.clone().try_acquire_owned() else {
                 return Step::Send(error(
                     ErrorCode::TooManyRequests,
@@ -269,12 +335,18 @@ fn on_text(
 fn hello(
     id: skyelab_protocol::RequestId,
     protocol: skyelab_protocol::Version,
+    tunnel: bool,
     shared: &Shared,
     events: &mut Option<broadcast::Receiver<ThreadEvent>>,
 ) -> Step {
     match negotiate(protocol) {
         Ok(protocol) => {
-            *events = Some(shared.events.subscribe());
+            // A tunnel gets no pushed events: its next frame must be the `open_tunnel` reply. A receiver whose
+            // sender is gone never yields one.
+            *events = Some(match tunnel {
+                true => broadcast::channel(1).1,
+                false => shared.events.subscribe(),
+            });
             Step::Send(ServerMessage::Response {
                 id,
                 result: Reply::Hello(Hello {
