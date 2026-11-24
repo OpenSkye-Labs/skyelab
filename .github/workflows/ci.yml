@@ -74,5 +74,8 @@ jobs:
       - if: matrix.job == 'clippy'
         run: cargo clippy --workspace --all-targets -- -D warnings
       # --no-fail-fast: one run lists every failing test binary, not just the first (each OS only shows its own).
+      # Below the job's 60 (the Linux step took 42 min) so a hang still leaves time to save the cache. libtest
+      # names each test that runs over 60 s ("has been running for over 60 seconds"), so the log shows what hung.
       - if: matrix.job == 'test'
+        timeout-minutes: 55
         run: cargo test --workspace --no-fail-fast

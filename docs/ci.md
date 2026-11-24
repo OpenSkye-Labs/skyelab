@@ -43,6 +43,14 @@ Only macOS is tested locally. Check the others like this before merging somethin
   git index must keep the original's mtime: git trusts an entry's stat only when the file is older than the
   index, and ext4's timestamps are coarse, so a same-size edit right after the index was written looked
   unchanged in the copy (`snapshot_tree`'s scratch index; the Commit snapshot failed only on Linux).
+- A spawn returns once the child execs, but the kernel closes the child's close-on-exec fds a moment later. For that
+  moment a child holds every fd this process had open, listeners included. Holding the spawn lock while binding
+  can't close that gap. A port the daemon just closed can still be in use, so `Daemon::start` retries an
+  "Address already in use" bind for up to 0.5 s (`rebind_while_spawning`, `rebind_retry`).
+- A test that forks in a loop must keep a bound on its live children and threads. Reaping each child on a thread
+  of its own let `rebind_while_spawning` reach the kernel's thread limit (63k) in Docker. Thread creation then
+  failed, and tokio's `Builder::build` hung while it dropped its half-made pool, with no error. Wait on each child
+  in the loop that forked it.
 
 **macOS runners**
 
@@ -70,6 +78,17 @@ Only macOS is tested locally. Check the others like this before merging somethin
   tests don't run there). Jobs time out at 60 min (test) and 30 min (clippy).
 - `Swatinem/rust-cache` saves only after a successful job by default. The test job had never passed, so it
   rebuilt from nothing every run; `cache-on-failure: true` keeps the build either way.
+
+**Reading a failed run**
+
+- `gh run view --job <id> --log` can return only part of a long job log. In run 45459381411 it stopped halfway
+  through the Linux tests, so the run looked hung. The full log comes from the API:
+  `curl -sSL -H "Authorization: Bearer $(gh auth token)" https://api.github.com/repos/OpenSkye-Labs/skyelab/actions/jobs/<id>/logs`.
+  Search it for `FAILED`, `panicked` and `error: test failed`. The failure annotation's line number tells you how
+  long the full log is.
+- A real hang: the test step stops at 55 min, before the job's 60, so the cache still saves. Every test that runs
+  past 60 s is named in the log ("has been running for over 60 seconds"). The hung test is a named one that never
+  prints `ok`.
 
 **Any loaded runner**
 

@@ -168,8 +168,19 @@ impl Daemon {
             }
             let addr = SocketAddr::new(*ip, config.port);
             // A child started mid-bind would inherit the listener and hold the port after we close it.
-            let l = skyelab_core::process::exclusive(|| StdListener::bind(addr))
-                .with_context(|| format!("listen on {addr}"))?;
+            // On Linux a spawn returns when the child execs, a moment before the child closes its close-on-exec
+            // fds, so a child started just before our last stop can still hold the old listener: retry briefly.
+            let mut tries = 0;
+            let l = loop {
+                match skyelab_core::process::exclusive(|| StdListener::bind(addr)) {
+                    Err(e) if e.kind() == std::io::ErrorKind::AddrInUse && tries < 50 => {
+                        tries += 1;
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    bound => break bound,
+                }
+            }
+            .with_context(|| format!("listen on {addr}"))?;
             l.set_nonblocking(true)
                 .context("make listener non-blocking")?;
             listeners.push(l);
