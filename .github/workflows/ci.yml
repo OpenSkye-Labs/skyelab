@@ -42,6 +42,9 @@ jobs:
         job: [clippy, test]
     runs-on: ${{ matrix.os }}
     steps:
+      # Git for Windows checks text out with CRLF; tests read fixtures and compare text as committed (LF).
+      - if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
       - run: rustup toolchain install
       - name: Install Linux GPUI deps
@@ -64,5 +67,6 @@ jobs:
           key: ${{ matrix.job }}
       - if: matrix.job == 'clippy'
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # --no-fail-fast: one run lists every failing test binary, not just the first (each OS only shows its own).
       - if: matrix.job == 'test'
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast

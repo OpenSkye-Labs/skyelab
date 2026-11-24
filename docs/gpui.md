@@ -107,6 +107,11 @@ See [gpui/webview.md](gpui/webview.md).
     timeout, a 20 s hang), never just above the fast path. A lower bound measured from the first event is safer
     still: load only stretches it (`backoff.rs`).
   - Waiting for a fake's output file: wait for the file the assert reads, or for something written after it.
+  - Never wait for an in-between state by polling: one `run_until_parked` can take over a second under load, so two
+    events land between polls and a wait for `count == 1` never matches (`delegation_turns_test.rs`). Make the fake
+    hold its next answer until the test writes a go-ahead file (`.fake-go` in `fake-claude-turns.sh`), or, for a
+    transient UI state like streaming rows, record it from `cx.observe` on the view (`delta_store_test.rs`).
+  - Keystrokes for a `secondary-` binding are `secondary-…` in the test too: `cmd-` is ctrl's binding only on macOS.
 - Visual or behavior check of the real app: `/loop-verify-ui`.
 
 ## Platform notes
