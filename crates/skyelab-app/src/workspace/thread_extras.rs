@@ -3,6 +3,8 @@
 
 #[path = "fork.rs"]
 pub(super) mod fork;
+#[path = "handoff.rs"]
+pub(super) mod handoff;
 #[path = "thread_prefs.rs"]
 pub(crate) mod prefs;
 #[path = "thread_title.rs"]
@@ -32,6 +34,12 @@ mod fork_test;
 #[cfg(all(test, unix))]
 #[path = "project_defaults_test.rs"]
 mod project_defaults_test;
+#[cfg(all(test, unix))]
+#[path = "handoff_chain_test.rs"]
+mod handoff_chain_test;
+#[cfg(all(test, unix))] // the fake codex is a shell script
+#[path = "handoff_test.rs"]
+mod handoff_test;
 #[cfg(all(test, unix))]
 #[path = "prompt_history_test.rs"]
 mod prompt_history_test;

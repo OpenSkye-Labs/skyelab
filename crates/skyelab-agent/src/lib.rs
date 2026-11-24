@@ -6,6 +6,7 @@ mod claude;
 mod codex;
 mod event;
 mod git_text;
+pub mod handoff;
 pub mod import;
 mod launch;
 mod mcp_user;
