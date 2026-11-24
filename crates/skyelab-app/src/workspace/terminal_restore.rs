@@ -23,6 +23,7 @@ impl Workspace {
         };
         self.terminals
             .iter()
+            .filter(|p| !p.read(cx).one_shot)
             .map(|p| SavedTerminalTab {
                 thread: thread(p.read(cx).owner),
                 ..p.read(cx).saved()

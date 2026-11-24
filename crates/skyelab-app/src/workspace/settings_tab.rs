@@ -224,7 +224,7 @@ impl Workspace {
                     .iter()
                     .find(|a| a.gh_config_dir.as_deref() == Some(dir.as_path()));
                 let account = account.cloned();
-                let opened = opened.and_then(|o| this.add_terminal_with(o, account, window, cx));
+                let opened = opened.and_then(|o| this.add_login_terminal(o, account, window, cx));
                 if let Err(e) = opened {
                     eprintln!("failed to open the login terminal: {e:#}");
                 }
@@ -253,7 +253,8 @@ impl Workspace {
             github::agent_login_options(&bin, github::login_args(account.provider), &account);
         // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
         self.close_settings(window, cx);
-        if let Err(e) = options.and_then(|o| self.add_terminal_with(o, Some(account), window, cx)) {
+        if let Err(e) = options.and_then(|o| self.add_login_terminal(o, Some(account), window, cx))
+        {
             eprintln!("failed to open the login terminal: {e:#}");
         }
     }

@@ -98,6 +98,31 @@ impl Workspace {
         self.add_terminal_tab(options, account, None, window, cx)
     }
 
+    /// A tab running one login command, titled `Log in: <account>` and never saved for a restart.
+    pub(super) fn add_login_terminal(
+        &mut self,
+        options: SpawnOptions,
+        account: Option<skyelab_core::Account>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<()> {
+        let title = match &account {
+            Some(a) => format!("Log in: {}", a.label),
+            None => "Log in".to_owned(),
+        };
+        self.add_terminal_tab(
+            options,
+            account,
+            Some((title.into(), String::new())),
+            window,
+            cx,
+        )?;
+        if let Some(tab) = self.terminals.last() {
+            tab.update(cx, |t, _| t.one_shot = true);
+        }
+        Ok(())
+    }
+
     /// [`Self::add_terminal_with`], with `tab`'s title and its text typed into the new shell (a project script).
     pub(super) fn add_terminal_tab(
         &mut self,
