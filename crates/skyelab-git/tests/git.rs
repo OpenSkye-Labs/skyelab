@@ -240,4 +240,8 @@ fn diff_stat_counts_lines_since_head_or_base() {
         skyelab_git::diff_stat(&root, Some("HEAD~1")).expect("stat"),
         (3, 1)
     );
+    // A new file the agent hasn't added counts its lines; an untracked binary counts nothing.
+    fs::write(root.join("new.txt"), "a\nb\nc").expect("write");
+    fs::write(root.join("new.bin"), [0u8, 1]).expect("write");
+    assert_eq!(skyelab_git::diff_stat(&root, None).expect("stat"), (4, 0));
 }

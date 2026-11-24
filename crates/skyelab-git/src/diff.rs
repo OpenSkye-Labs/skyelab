@@ -53,7 +53,7 @@ pub fn diff_merge_base(path: &Path, base: &str) -> Result<Vec<FileDiff>> {
 }
 
 /// Lines added and removed in the working tree since `base` (its merge-base with `HEAD`), or since `HEAD`
-/// without one, as `git diff --numstat` counts them. Binary and untracked files count nothing.
+/// without one, as `git diff --numstat` counts them, plus the lines of untracked files. Binary files count nothing.
 pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
     let mut args = vec!["diff", "--numstat", "--no-ext-diff", "--no-textconv", "-M"];
     if base.is_some() {
@@ -72,6 +72,32 @@ pub fn diff_stat(path: &Path, base: Option<&str>) -> Result<(u64, u64)> {
             ))
         })
         .fold((0, 0), |(a, r), (x, y)| (a + x, r + y)))
+    .map(|(added, removed)| (added + untracked_lines(path), removed))
+}
+
+/// Lines in the untracked files of `path`'s repo: regular text files only, each read up to 8 MiB.
+fn untracked_lines(path: &Path) -> u64 {
+    use std::io::Read as _;
+    let (Ok(root), Ok(status)) = (crate::repo_root(path), crate::status(path)) else {
+        return 0;
+    };
+    status
+        .untracked
+        .iter()
+        .map(|rel| {
+            let file = root.join(rel);
+            let mut bytes = Vec::new();
+            let read = std::fs::symlink_metadata(&file).is_ok_and(|m| m.file_type().is_file())
+                && std::fs::File::open(&file)
+                    .and_then(|f| f.take(8 << 20).read_to_end(&mut bytes))
+                    .is_ok();
+            if !read || bytes.contains(&0) {
+                return 0;
+            }
+            bytes.iter().filter(|b| **b == b'\n').count() as u64
+                + u64::from(bytes.last().is_some_and(|b| *b != b'\n'))
+        })
+        .sum()
 }
 
 /// Tree (or commit) `from` against `to`, per file: a checkpoint turn, or a thread since its start.
