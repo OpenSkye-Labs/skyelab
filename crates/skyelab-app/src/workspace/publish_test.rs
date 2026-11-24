@@ -154,6 +154,10 @@ fn commit_then_open_pr_stores_the_link_on_the_thread(cx: &mut TestAppContext) {
         env.lines()
             .any(|l| l == format!("GH_CONFIG_DIR={}", gh_dir.display()))
     );
+    // The tab now offers the PR instead of opening another one.
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("view-pr").is_some(), "View PR shown");
+    assert!(cx.debug_bounds("open-pr").is_none(), "Open PR gone");
 }
 
 #[gpui::test]
