@@ -94,7 +94,7 @@ impl Workspace {
             |v| v.read(cx).title(),
         );
         let tab = self.add_browser(browser, Some(AgentOwner { thread_id, title }), window, cx);
-        wait_for_load(&tab, thread_id, url, false, 0, reply, cx);
+        wait_for_load(&tab, thread_id, url, false, (0, 0), reply, cx);
     }
 }
 
@@ -129,20 +129,21 @@ fn navigate_and_wait(
 ) {
     let browser = tab.read(cx).browser.clone();
     let before = browser.read(cx).load_count();
+    let failures = browser.read(cx).load_failures();
     match browser.update(cx, |b, cx| b.navigate(&url, cx)) {
-        Ok(()) => wait_for_load(&tab, thread_id, url, reused, before, reply, cx),
+        Ok(()) => wait_for_load(&tab, thread_id, url, reused, (before, failures), reply, cx),
         Err(e) => _ = reply.send(Err(format!("{e:#}"))),
     }
 }
 
-/// Answers once the tab has committed more than `before` pages, or with `loaded: false` after
-/// [`BROWSER_TIMEOUT`].
+/// Answers once the tab has committed more than `before.0` pages, with `loaded: false` and the reason once more
+/// than `before.1` loads have failed, or with `loaded: false` after [`BROWSER_TIMEOUT`].
 fn wait_for_load(
     tab: &Entity<BrowserPanel>,
     thread_id: i64,
     url: String,
     reused: bool,
-    before: u64,
+    (before, failures): (u64, u64),
     reply: Reply<Value>,
     cx: &mut App,
 ) {
@@ -157,6 +158,20 @@ fn wait_for_load(
             }
             if cx.read_entity(&browser, |b, _| b.load_count()) > before {
                 let _ = reply.send(Ok(json!({"url": url, "loaded": true, "reused": reused})));
+                return;
+            }
+            let failed = cx.read_entity(&browser, |b, _| {
+                (b.load_failures() > failures)
+                    .then(|| {
+                        b.load_error()
+                            .map(|e| format!("{}: {} ({})", e.host, e.reason, e.detail))
+                    })
+                    .flatten()
+            });
+            if let Some(error) = failed {
+                let reply_json =
+                    json!({"url": url, "loaded": false, "reused": reused, "error": error});
+                let _ = reply.send(Ok(reply_json));
                 return;
             }
             cx.background_executor().timer(TICK).await;

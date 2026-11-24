@@ -1,6 +1,6 @@
 [package]
 name = "skyelab-webkit-sys"
-description = "The WKWebView calls skyelab-browser needs that have no safe binding: a page snapshot, and DevTools in a window of its own."
+description = "The WKWebView calls skyelab-browser needs that have no safe binding: a page snapshot, DevTools in a window of its own, and failed page loads."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
@@ -10,8 +10,8 @@ license.workspace = true
 block2.workspace = true
 objc2.workspace = true
 objc2-app-kit = { workspace = true, features = ["NSImage"] }
-objc2-foundation.workspace = true
-objc2-web-kit.workspace = true
+objc2-foundation = { workspace = true, features = ["NSDictionary", "NSURL"] }
+objc2-web-kit = { workspace = true, features = ["WKNavigationDelegate"] }
 
 [lints]
 workspace = true

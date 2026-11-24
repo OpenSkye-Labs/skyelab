@@ -42,3 +42,13 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
   `(setTimeout(.., 0), 1)`, never `a; 1`, and let the reply come back before the page leaves.
 - Drop a page's in-flight task (find, eval) when a new page commits: the callback still answers about the old page,
   and landing it showed "No matches" on the new one.
+- wry reports only Started and Finished, so a load that fails before it commits (connection refused, DNS, TLS) left a
+  blank, black WKWebView. `skyelab_webkit_sys::watch_load_failures` puts a proxy in front of wry's navigation delegate
+  that answers `didFailProvisionalNavigation`/`didFailNavigation` and hands every other call to wry's
+  (`respondsToSelector:` + `forwardingTargetForSelector:`). WebKit asks `respondsToSelector:` once, when the delegate is
+  set, so the proxy is set after wry's and keeps both answers; WKWebView holds its delegate weakly, so the
+  `FailureWatch` keeps the proxy and gives wry's back on drop. The failing URL is `NSErrorFailingURLKey`, an `NSURL`
+  (there is no `NSErrorFailingURLStringKey` in WebKit's errors). Ignore `NSURLErrorCancelled` (-999, the next load took
+  over) and WebKit's 102 (a download). `wkwebview_load_error` proves both, on a real page.
+- The error page is GPUI, so the page is hidden and its element not drawn while it shows: drawing the webview's element
+  lays it out again and can put the native view back on top. The next commit (`Started`) clears it and shows the page.
