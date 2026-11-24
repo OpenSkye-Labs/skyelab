@@ -11,7 +11,7 @@ use skyelab_core::{Account, Binding, Provider};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-fn account(root: &Path, id: &str, provider: Provider) -> Account {
+pub(super) fn account(root: &Path, id: &str, provider: Provider) -> Account {
     Account {
         id: id.into(),
         label: id.into(),
@@ -69,7 +69,7 @@ pub(super) fn view_with(
     (home, dir, config, view, cx)
 }
 
-fn slow_claude(dir: &Path) -> PathBuf {
+pub(super) fn slow_claude(dir: &Path) -> PathBuf {
     use std::os::unix::fs::PermissionsExt as _;
     let bin = dir.join("slow-claude.sh");
     std::fs::write(
@@ -90,7 +90,7 @@ done
     bin
 }
 
-fn sent(dir: &Path) -> Vec<String> {
+pub(super) fn sent(dir: &Path) -> Vec<String> {
     std::fs::read_to_string(dir.join("stdin.txt"))
         .unwrap_or_default()
         .lines()
@@ -100,7 +100,7 @@ fn sent(dir: &Path) -> Vec<String> {
         .collect()
 }
 
-fn send(view: &Entity<ThreadView>, text: &'static str, cx: &mut VisualTestContext) {
+pub(super) fn send(view: &Entity<ThreadView>, text: &'static str, cx: &mut VisualTestContext) {
     view.update_in(cx, |t, window, cx| {
         t.prompt.update(cx, |p, cx| p.set_value(text, window, cx));
         t.send_prompt(&SendPrompt, window, cx);
@@ -108,7 +108,10 @@ fn send(view: &Entity<ThreadView>, text: &'static str, cx: &mut VisualTestContex
     cx.run_until_parked();
 }
 
-fn settle(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContext) -> bool) {
+pub(super) fn settle(
+    cx: &mut VisualTestContext,
+    mut done: impl FnMut(&mut VisualTestContext) -> bool,
+) {
     for _ in 0..500 {
         cx.run_until_parked();
         if done(cx) {
@@ -118,7 +121,7 @@ fn settle(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestContex
     }
 }
 
-fn rebind(config: &mut AccountsConfig, dir: &Path, to: &str) {
+pub(super) fn rebind(config: &mut AccountsConfig, dir: &Path, to: &str) {
     config.bindings.retain(|b| b.path != dir);
     config
         .add_binding(Binding::new(dir.to_path_buf(), to.into()))
@@ -155,12 +158,13 @@ fn a_queued_message_isnt_sent_after_the_folder_is_rebound(cx: &mut TestAppContex
     );
     view.read_with(cx, |t, _| {
         assert_eq!(t.composer.queue.iter().count(), 1, "still waiting");
+        assert!(t.session.is_none(), "the old agent was ended");
         assert!(
-            t.error
+            t.resume_refused
                 .as_deref()
                 .is_some_and(|e| e.contains("now bound to")),
             "{:?}",
-            t.error
+            t.resume_refused
         );
     });
 }
@@ -185,11 +189,11 @@ fn a_refused_follow_up_keeps_its_text_and_files(cx: &mut TestAppContext) {
     cx.run_until_parked();
     view.read_with(cx, |t, cx| {
         assert!(
-            t.error
+            t.resume_refused
                 .as_deref()
                 .is_some_and(|e| e.contains("now bound to")),
             "{:?}",
-            t.error
+            t.resume_refused
         );
         assert_eq!(t.prompt.read(cx).value().as_ref(), "two");
         assert_eq!(t.composer.attachments.len(), 1);

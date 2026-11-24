@@ -158,7 +158,8 @@ impl Store {
 
     /// Creates a fork of thread `from`: a new `stopped` row with `events` (the part of `from`'s history it keeps) copied
     /// in order, renumbered from 1, their times kept. Usage readings are not copied: they would replace the account's
-    /// newer ones. One transaction, so a failure leaves no half-copied thread.
+    /// newer ones. Made in `from`'s worktree (`new.cwd` is it), it shares that worktree's columns. One transaction, so a
+    /// failure leaves no half-copied thread.
     pub fn create_fork(
         &mut self,
         new: &NewThread,
@@ -187,6 +188,13 @@ impl Store {
         )
         .with_context(|| format!("fork thread {from}"))?;
         let id = tx.last_insert_rowid();
+        // Started in its source's worktree: it shares that worktree, branch and base (T3's fork keeps them too).
+        tx.execute(
+            "UPDATE threads SET (worktree_path, worktree_branch, worktree_base) =
+                 (SELECT worktree_path, worktree_branch, worktree_base FROM threads WHERE id = ?2)
+             WHERE id = ?1 AND cwd = (SELECT worktree_path FROM threads WHERE id = ?2)",
+            params![id, from],
+        )?;
         let mut seq = 0;
         for e in events.iter().filter(|e| !is_usage(e)) {
             seq += 1;

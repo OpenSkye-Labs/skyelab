@@ -62,6 +62,9 @@ impl Workspace {
         if self.is_remote() {
             return; // a remote window's threads live on another machine; their history isn't here
         }
+        if !self.copying.insert(a.id) {
+            return; // one already being made from this thread
+        }
         let (store, config, id, to) = (
             self.backend.store.clone(),
             self.accounts_job(cx),
@@ -81,11 +84,12 @@ impl Workspace {
             if from == Some(to) {
                 bail!("this thread already runs on {}", to.label());
             }
-            let account = match config.resolve(&project.path) {
+            let cwd = crate::workspace::thread_extras::fork::start_folder(&src, &project.path);
+            let account = match config.resolve(&cwd) {
                 Some(a) if a.provider == to => a.clone(),
                 bound => {
                     return Ok(Outcome::NeedsBinding {
-                        folder: project.path.display().to_string(),
+                        folder: cwd.display().to_string(),
                         bound: bound.map(|a| format!("{} ({})", a.label, a.provider.label())),
                     });
                 }
@@ -120,7 +124,7 @@ impl Workspace {
             let new = NewThread {
                 project_id: project.id,
                 title: &src.title,
-                cwd: &project.path,
+                cwd: &cwd,
                 account_id: &account.id,
                 status: "stopped",
             };
@@ -134,16 +138,19 @@ impl Workspace {
         });
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;
-            let _ = this.update_in(cx, |ws, window, cx| match done {
-                Ok(Outcome::Started(thread)) => {
-                    let id = thread.id;
-                    ws.thread_started(&thread, cx);
-                    ws.open_thread(&OpenThread { id }, window, cx);
+            let _ = this.update_in(cx, |ws, window, cx| {
+                ws.copying.remove(&id);
+                match done {
+                    Ok(Outcome::Started(thread)) => {
+                        let id = thread.id;
+                        ws.thread_started(&thread, cx);
+                        ws.open_thread(&OpenThread { id }, window, cx);
+                    }
+                    Ok(Outcome::NeedsBinding { folder, bound }) => {
+                        ask_bind(folder, bound, to, window, cx)
+                    }
+                    Err(e) => ws.say(format!("Couldn't continue the thread: {e:#}"), window, cx),
                 }
-                Ok(Outcome::NeedsBinding { folder, bound }) => {
-                    ask_bind(folder, bound, to, window, cx)
-                }
-                Err(e) => ws.say(format!("Couldn't continue the thread: {e:#}"), window, cx),
             });
         })
         .detach();
@@ -207,6 +214,12 @@ impl ThreadView {
             .map(|a| a.provider)
     }
 
+    /// The provider this thread can continue in from this window: the other one, unless the window shows another
+    /// machine (the new thread couldn't open there).
+    pub(in crate::workspace) fn handoff_to(&self) -> Option<Provider> {
+        self.provider().filter(|_| !self.remote_window).map(other)
+    }
+
     /// Asks the workspace to continue this thread in `to`.
     pub(in crate::workspace) fn hand_off(
         &mut self,
@@ -225,9 +238,9 @@ impl ThreadView {
         el: E,
         cx: &Context<Self>,
     ) -> E {
-        match self.provider() {
-            Some(Provider::Claude) => el.on_action(cx.listener(Self::continue_in_codex)),
-            Some(Provider::Codex) => el.on_action(cx.listener(Self::continue_in_claude)),
+        match self.handoff_to() {
+            Some(Provider::Codex) => el.on_action(cx.listener(Self::continue_in_codex)),
+            Some(Provider::Claude) => el.on_action(cx.listener(Self::continue_in_claude)),
             None => el,
         }
     }
@@ -236,7 +249,7 @@ impl ThreadView {
     /// continue there with its history.
     pub(in crate::workspace) fn handoff_cta(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let to = self.folder_account.as_ref()?.provider;
-        self.provider().filter(|from| *from != to)?;
+        self.handoff_to().filter(|t| *t == to)?;
         Some(
             div()
                 .debug_selector(|| "handoff-cta".into())

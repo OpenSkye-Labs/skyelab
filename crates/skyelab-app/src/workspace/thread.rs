@@ -109,6 +109,8 @@ pub struct ThreadView {
     pub(super) scripts: Entity<super::scripts::ScriptMenu>,
     /// Why continuing this thread was refused (its folder no longer resolves to its account).
     pub(super) resume_refused: Option<SharedString>,
+    /// Its window shows another machine: actions that open a new local thread (Continue in …) can't run there.
+    pub(in crate::workspace) remote_window: bool,
     /// Records the store refused, held for a retry, and how many there are (shown as a warning).
     unsaved: saves::Unsaved,
     pub(super) unsaved_events: usize,
@@ -323,6 +325,7 @@ impl ThreadView {
             read_only: false,
             wt: Default::default(),
             resume_refused: None,
+            remote_window: false,
             unsaved: Default::default(),
             unsaved_events: 0,
             retrying_saves: false,

@@ -11,33 +11,24 @@ use skyelab_core::Account;
 /// How long Interrupt waits for the turn to end before it can be pressed again (and Force stop shows), as T3's.
 const INTERRUPT_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 impl ThreadView {
-    /// Why a send to the running agent must be refused: the folder no longer resolves to the thread's account.
-    pub(in crate::workspace) fn rebound(&self, now: &Account) -> Option<SharedString> {
-        let thread = self.thread.as_ref()?;
-        (thread.account_id != now.id).then(|| {
-            format!(
-                "This folder is now bound to {}. Start a new thread to run under it.",
-                now.label
-            )
-            .into()
-        })
-    }
-
-    /// The account a queued message may go to now: the folder's, which must still be the thread's.
+    /// The account a send to the running agent may go to now: the folder's, which must still be the thread's. `Err`
+    /// is the can't-continue notice's reason.
     pub(in crate::workspace) fn send_account(&self) -> Result<Account, SharedString> {
-        let Some(now) = self.config.resolve(&self.cwd).cloned() else {
-            return Err(
-                "This folder isn't bound to an account any more; the queued messages wait.".into(),
-            );
-        };
-        if let Some(want) = &self.required_account
-            && now.id != *want
+        let now = self.config.resolve(&self.cwd).cloned();
+        if let (Some(want), Some(got)) = (&self.required_account, &now)
+            && got.id != *want
         {
-            return Err(format!("This folder is now bound to {}, not {want}.", now.id).into());
+            return Err(format!("This folder is now bound to {}, not {want}.", got.id).into());
         }
-        match self.rebound(&now) {
-            Some(why) => Err(why),
-            None => Ok(now),
+        let why = match &self.thread {
+            Some(t) => crate::workspace::thread::resume::refusal(&t.account_id, now.as_ref()),
+            None => now
+                .is_none()
+                .then(|| "This folder isn't bound to an account any more.".to_owned()),
+        };
+        match (why, now) {
+            (None, Some(account)) => Ok(account),
+            (why, _) => Err(why.unwrap_or_default().into()),
         }
     }
 
@@ -85,11 +76,7 @@ impl ThreadView {
         }
         let account = match self.send_account() {
             Ok(account) => account,
-            Err(why) => {
-                self.error = Some(why); // the queue stays as it is
-                cx.notify();
-                return;
-            }
+            Err(why) => return self.end_refused(why, cx), // the queue stays as it is
         };
         if let Some(next) = self.composer.queue.pop()
             && !self.follow_up(
@@ -141,11 +128,7 @@ impl ThreadView {
         }
         let account = match self.send_account() {
             Ok(account) => account,
-            Err(why) => {
-                self.error = Some(why);
-                cx.notify();
-                return;
-            }
+            Err(why) => return self.end_refused(why, cx),
         };
         let Some(text) = self
             .composer
@@ -248,6 +231,13 @@ impl ThreadView {
             cx.notify();
             return;
         }
+        // A running agent keeps the account it started with: a send re-checks the folder, and a binding that moved
+        // ends the agent, as a resume would be refused. The text stays in the composer.
+        if self.session.is_some()
+            && let Err(why) = self.send_account()
+        {
+            return self.end_refused(why, cx);
+        }
         // The folder decides the account. Unbound means ask the user, never pick one.
         let resolved = self.config.resolve(&self.cwd).cloned();
         if let (Some(want), Some(got)) = (&self.required_account, &resolved)
@@ -289,12 +279,6 @@ impl ThreadView {
         self.needs_binding = false;
         self.error = None;
         if self.session.is_some() {
-            // Checked before anything is queued or taken: a rebound folder needs a new thread.
-            if let Some(why) = self.rebound(&account) {
-                self.error = Some(why);
-                cx.notify();
-                return;
-            }
             let mode = self.send_mode(how, &text);
             let contexts = self.composer.contexts.clone();
             let text = self.take_contexts(text, external);

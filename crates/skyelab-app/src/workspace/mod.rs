@@ -210,6 +210,8 @@ pub struct Workspace {
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
     /// Side chat panes, kept when closed (their agents keep running).
     side_chats: Vec<Entity<side_chat::SideChatPanel>>,
+    /// Source threads with a Fork or Continue-in being made: a second click waits for the first.
+    copying: std::collections::HashSet<i64>,
     /// Each open thread view's subscriptions and the row state the sidebar last drew; dropped in `close_thread`.
     thread_subs: std::collections::HashMap<gpui::EntityId, thread_rows::ThreadSubs>,
     /// One-shot waits on a thread view, by key; each removes itself once it fires, or goes when its view closes.
@@ -374,6 +376,7 @@ impl Workspace {
             forward: Vec::new(),
             changes_views: Vec::new(),
             side_chats: Vec::new(),
+            copying: Default::default(),
             thread_subs: Default::default(),
             waiters: Default::default(),
             next_waiter: 0,
@@ -522,8 +525,6 @@ mod image_viewer_test;
 mod import_refused_test;
 #[cfg(all(test, unix))]
 mod import_sessions_test;
-#[cfg(all(test, unix))]
-mod launch_rebind_test;
 #[cfg(test)]
 mod layout_test;
 #[cfg(all(test, unix))] // the fake claude is a shell script
@@ -574,8 +575,6 @@ mod remote_start_test;
 mod review_cta_folder_test;
 #[cfg(test)]
 mod review_fixes_tests;
-#[cfg(all(test, unix))] // the fake agent is a shell script
-mod review_second_row_test;
 #[cfg(test)]
 mod review_stale_config_test;
 #[cfg(test)]

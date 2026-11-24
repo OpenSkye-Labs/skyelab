@@ -17,6 +17,9 @@ mod context_fence_test;
 #[path = "context_fence_title_test.rs"]
 mod context_fence_title_test;
 #[cfg(all(test, unix))]
+#[path = "copy_single_flight_test.rs"]
+mod copy_single_flight_test;
+#[cfg(all(test, unix))]
 #[path = "draft_test.rs"]
 mod draft_test;
 #[cfg(test)]
@@ -32,8 +35,14 @@ mod fork_cut_gone_test;
 #[path = "fork_test.rs"]
 mod fork_test;
 #[cfg(all(test, unix))]
+#[path = "fork_worktree_test.rs"]
+mod fork_worktree_test;
+#[cfg(all(test, unix))]
 #[path = "handoff_chain_test.rs"]
 mod handoff_chain_test;
+#[cfg(all(test, unix))]
+#[path = "handoff_remote_test.rs"]
+mod handoff_remote_test;
 #[cfg(all(test, unix))] // the fake codex is a shell script
 #[path = "handoff_test.rs"]
 mod handoff_test;
@@ -55,3 +64,6 @@ mod thread_title_regen_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "thread_title_test.rs"]
 mod thread_title_test;
+#[cfg(test)]
+#[path = "transcript_use_test.rs"]
+mod transcript_use_test;

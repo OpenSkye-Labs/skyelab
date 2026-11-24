@@ -410,6 +410,8 @@ impl Workspace {
             _subs: [observe, events],
         };
         self.thread_subs.insert(view.entity_id(), subs);
+        let remote = self.is_remote();
+        view.update(cx, |v, _| v.remote_window = remote);
         self.open_threads.push(view.clone());
     }
 

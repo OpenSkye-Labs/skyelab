@@ -66,11 +66,14 @@ account, with the conversation up to that reply. Its header says **Forked from**
 original is not changed.
 
 An agent session can't be copied, so the fork's first message starts a new session whose prompt begins with the copied
-conversation (your messages and the agent's answers, no tool calls; about the newest 60 KB), fenced as quoted data so
+conversation (your messages and the agent's answers, no tool calls; about the newest 60 KB, built by the same transcript
+builder as the handoff below), fenced as quoted data so
 no text in it can pose as a new message. Your message is shown and stored as you typed it. The copied turns don't
 count again in the Usage page, and the fork's first turn counts its whole cost, since its session is new. The fork
-starts in the project's folder, not in the original's worktree, and copies no checkpoints. If the folder is no longer
-bound to the thread's account, nothing is forked.
+starts where the original runs: in its worktree, sharing that worktree and its branch (discarding the worktree from
+either thread removes it for both), or in the project's folder once that worktree is gone. It copies no checkpoints.
+If that folder is no longer bound to the thread's account, nothing is forked. A second click while a fork (or a
+handoff) of the same thread is being made does nothing, so a double click makes one thread.
 
 ## Continue in the other provider
 
@@ -90,7 +93,10 @@ output, each file edit as the paths it changed, and plans. Reasoning, other tool
 out. Up to 16 KB is carried, picking your latest message, the agent's latest answer and your first message first, then
 the newest others; each item goes whole or not at all, and the transcript marks where items were left out. It is
 fenced as quoted context, never as instructions. Your message is shown and stored as you typed it. Like a fork, it
-starts in the project's folder, not in the original's worktree.
+starts where the original runs (its worktree, shared, or the project's folder once that worktree is gone), and a
+double click makes one thread. While the window shows another machine, **Continue in …** isn't offered for this
+machine's threads (the details row, the palette entry and the notice's button are hidden): the new thread couldn't
+open there. Switch back to this machine to use it.
 
 ## Send to several models
 

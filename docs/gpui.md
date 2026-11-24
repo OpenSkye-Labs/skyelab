@@ -79,6 +79,9 @@ See [gpui/webview.md](gpui/webview.md).
   `[profile.test]` turns them back on, or every `debug_bounds` is `None`.
   A gpui-component `Button`'s id is not a debug selector and `Button` has no `.debug_selector`: wrap it in
   `div().debug_selector(..).child(button)` (`thread_failure.rs`, the account card), or `debug_bounds` finds nothing.
+- `TestAppContext` runs `background_spawn` work one task at a time on the test dispatcher, so two blocking
+  background jobs (two `gh` reads) never overlap there: a held one blocks the other. Stage a race by recording the
+  newer side's result (`PrLanded::mark` in `pr_newest_test.rs`), not by holding a fake process.
 - Visual or behavior check of the real app: `/loop-verify-ui`.
 
 ## Platform notes

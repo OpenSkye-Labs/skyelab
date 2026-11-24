@@ -227,6 +227,13 @@ impl Workspace {
             });
         }
         self.sync_setup(cx); // setup is for this machine only
+        let remote = self.is_remote();
+        for view in &self.open_threads {
+            view.update(cx, |v, cx| {
+                v.remote_window = remote;
+                cx.notify();
+            });
+        }
         self.refresh_sidebar(cx);
         cx.notify();
     }

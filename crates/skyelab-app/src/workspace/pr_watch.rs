@@ -13,6 +13,7 @@ use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, PrState, PrStatus};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// An open PR is read again after this long.
@@ -53,6 +54,49 @@ impl PrStatuses {
             .and_then(|s| s.0.get(&thread))
             .filter(|e| e.url == url)
             .map(|e| &e.view)
+    }
+}
+
+/// When each thread's PR read last landed, for its link, shared by every window's reads. A read is taken where it
+/// lands, off the UI thread, under this lock: it is dropped when another landed after it was asked, else its state
+/// is stored before the lock is let go. The UI keeps exactly the reads taken here, so the stored state and the shown
+/// one keep the same newest read.
+#[derive(Clone, Default)]
+pub(crate) struct PrLanded(Arc<Mutex<HashMap<i64, (String, i64)>>>);
+
+impl Global for PrLanded {}
+
+impl PrLanded {
+    pub fn get(cx: &mut gpui::App) -> Self {
+        cx.default_global::<Self>().clone()
+    }
+
+    /// Records that a read of `thread`'s PR at `url` landed `at` (tests stage a newer landing with it).
+    #[cfg(test)]
+    pub fn mark(&self, thread: i64, url: &str, at: i64) {
+        self.lock().insert(thread, (url.to_owned(), at));
+    }
+
+    /// Takes a read of `thread`'s PR at `url` asked at `asked`, unless another landed after that: `store` runs first,
+    /// under the lock, so taken reads are stored in the order they land. `false` means it was dropped.
+    fn land(&self, thread: i64, url: &str, asked: i64, store: impl FnOnce()) -> bool {
+        let mut landed = self.lock();
+        if landed
+            .get(&thread)
+            .is_some_and(|(u, at)| u == url && *at > asked)
+        {
+            return false;
+        }
+        store();
+        landed.insert(thread, (url.to_owned(), crate::ui::now_ms()));
+        true
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<i64, (String, i64)>> {
+        // Only plain inserts happen under it, so a panic elsewhere leaves the map whole.
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -132,7 +176,6 @@ struct Job {
     url: String,
     dir: PathBuf,
     account: String,
-    stored: Option<String>,
 }
 
 impl Workspace {
@@ -183,7 +226,6 @@ impl Workspace {
                     url,
                     dir: t.cwd.clone(),
                     account: t.account_id.clone(),
-                    stored: t.pr_state.clone(),
                 })
             })
             .collect();
@@ -202,7 +244,6 @@ impl Workspace {
                 url: t.pr_url.clone()?,
                 dir: t.cwd.clone(),
                 account: t.account_id.clone(),
-                stored: t.pr_state.clone(),
             })
         }) else {
             return;
@@ -212,26 +253,31 @@ impl Workspace {
 
     /// Reads `jobs` one after another off the UI thread; `started` is the batch mark it clears when done.
     fn read_prs(&mut self, jobs: Vec<Job>, started: Option<i64>, cx: &mut Context<Self>) {
-        // A read that started before the stored one landed is older news: it's dropped.
+        // A read asked before another one landed is older news: dropped, from the store and the UI alike.
         let asked = crate::ui::now_ms();
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
-        let (config, store) = (self.config.clone(), self.backend.store.clone());
+        let (config, store, landed) = (
+            self.config.clone(),
+            self.backend.store.clone(),
+            PrLanded::get(cx),
+        );
         let read = cx.background_spawn(async move {
             let config = super::accounts_now(accounts_file.as_deref(), &config);
             jobs.into_iter()
                 .map(|j| {
                     let view = read_pr(&config, &j.dir, &j.account, &j.url, &gh);
-                    // Stored, so an ended PR isn't read again after a restart.
-                    if let PrView::Status(s) = &view
-                        && j.stored.as_deref() != Some(s.state.as_str())
-                        && let Err(e) = super::lock(&store).and_then(|st| {
-                            st.set_thread_pr_state(j.thread, &j.url, s.state.as_str())
-                        })
-                    {
-                        eprintln!("skyelab: saving PR state failed: {e:#}");
-                    }
-                    (j.thread, j.url, view)
+                    let taken = landed.land(j.thread, &j.url, asked, || {
+                        // Stored, so an ended PR isn't read again after a restart.
+                        if let PrView::Status(s) = &view
+                            && let Err(e) = super::lock(&store).and_then(|st| {
+                                st.set_thread_pr_state(j.thread, &j.url, s.state.as_str())
+                            })
+                        {
+                            eprintln!("skyelab: saving PR state failed: {e:#}");
+                        }
+                    });
+                    (j.thread, j.url, view, taken)
                 })
                 .collect::<Vec<_>>()
         });
@@ -246,9 +292,8 @@ impl Workspace {
                 let statuses = cx.default_global::<PrStatuses>();
                 let mut changed = false;
                 let mut states = Vec::new();
-                for (thread, url, view) in read {
-                    let newer = statuses.0.get(&thread);
-                    if newer.is_some_and(|o| o.url == url && o.checked_ms > asked) {
+                for (thread, url, view, taken) in read {
+                    if !taken {
                         continue;
                     }
                     if let PrView::Status(s) = &view {
