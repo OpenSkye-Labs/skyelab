@@ -7,7 +7,11 @@ use super::{DeltaKind, Item, Items, settled};
 /// streamed, its split parts (see [`split_live`]) joined again. Returns the first row that changed.
 pub fn settle_live(items: &mut Items) -> Option<usize> {
     let mut first = None;
-    let mut ix = 0;
+    // Rows before the last turn divider were settled when that turn ended; a replayed thread ends hundreds of turns.
+    let mut ix = items
+        .iter()
+        .rposition(|i| matches!(i, Item::Done { .. }))
+        .map_or(0, |d| d + 1);
     while ix < items.len() {
         if let Item::Live { kind, .. } = items[ix] {
             let end = live_run_end(items, ix, kind);
