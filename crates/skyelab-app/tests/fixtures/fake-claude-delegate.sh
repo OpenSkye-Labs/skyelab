@@ -3,7 +3,7 @@
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
-# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (echoed as text plus a base64 image block, as real claude does), `device <id>` for a device_open and `tap <id>` for a device_tap at 50,100; `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
+# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (echoed as text plus a base64 image block, as real claude does), `chart` for an html_render of a small bar chart, `peek` for an html_preview of it (light), `device <id>` for a device_open and `tap <id>` for a device_tap at 50,100; `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
@@ -61,6 +61,11 @@ while IFS= read -r line; do
   [ -n "$browse" ] && call="browser_open {\\\"url\\\":\\\"$browse\\\"}"
   case $line in *'"content":"title"'*) call='browser_eval {\"expression\":\"document.title\"}' ;; esac
   case $line in *'"content":"shot"'*) call='browser_screenshot {}' ;; esac
+  # A visual reply: a five-bar chart in the theme's chart colors (single quotes only: the page sits in a JSON string).
+  bar() { printf "<div style='flex:1;height:%s%%;background:var(--chart-%s);border-radius:var(--radius)'></div>" "$1" "$2"; }
+  page="<div style='display:flex;gap:12px;align-items:flex-end;height:160px'>$(bar 40 1)$(bar 75 2)$(bar 55 3)$(bar 90 4)$(bar 30 5)</div><p style='color:var(--muted-foreground);margin:8px 0 0'>Weekly sales, by region</p>"
+  case $line in *'"content":"chart"'*) call="html_render {\\\"html\\\":\\\"$page\\\",\\\"title\\\":\\\"Weekly sales\\\",\\\"height\\\":220}" ;; esac
+  case $line in *'"content":"peek"'*) call="html_preview {\\\"html\\\":\\\"$page\\\",\\\"appearance\\\":\\\"light\\\"}" ;; esac
   device=$(printf '%s' "$line" | sed -nE 's/.*"content":"device ([A-Za-z0-9._:-]+)".*/\1/p')
   [ -n "$device" ] && call="device_open {\\\"device_id\\\":\\\"$device\\\"}"
   tap=$(printf '%s' "$line" | sed -nE 's/.*"content":"tap ([A-Za-z0-9._:-]+)".*/\1/p')

@@ -8,7 +8,8 @@ use gpui::{
     App, AppContext as _, Context, Entity, EntityId, Global, SharedString, Subscription,
     WeakEntity, Window,
 };
-use skyelab_agent::mcp::Caller;
+use serde_json::json;
+use skyelab_agent::mcp::{Caller, HTML_RENDERED, HtmlTool};
 use skyelab_core::delegation::check_limits;
 use std::collections::HashMap;
 
@@ -121,6 +122,28 @@ impl Workspace {
                     Ok(()) => self.device_call(caller.thread_id, tool, reply, window, cx),
                     Err(why) => {
                         let _ = reply.send(Err(why));
+                    }
+                }
+            }
+            OrchCall::Html {
+                caller,
+                tool,
+                reply,
+            } => {
+                if reply.is_disconnected() {
+                    return;
+                }
+                if let Err(why) = self.caller_live(&caller, cx) {
+                    let _ = reply.send(Err(why));
+                    return;
+                }
+                match tool {
+                    // The call itself, stored with the thread's events, is what the timeline draws.
+                    HtmlTool::Render { .. } => {
+                        let _ = reply.send(Ok(json!({"message": HTML_RENDERED})));
+                    }
+                    HtmlTool::Preview { html, width, dark } => {
+                        super::html_card::preview(&html, width, dark, reply, window, cx)
                     }
                 }
             }

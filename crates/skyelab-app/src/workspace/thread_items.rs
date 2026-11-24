@@ -287,7 +287,10 @@ fn render_row<V: ItemsView>(
         {
             tight(tool_cards::render_edit(tool, cx))
         }
-        Item::Tool(tool) => tight(render_tool(this, tool, cx)),
+        Item::Tool(tool) => match super::html_card::page_of(tool) {
+            Some(page) => column(super::html_card::render(tool, page, window, cx)),
+            None => tight(render_tool(this, tool, cx)),
+        },
         Item::Subagent(s) => tight(super::subagent::render(this, s, cx)),
         Item::Approval(a) if a.tool == skyelab_agent::PLAN_TOOL => {
             column(ask_cards::render_plan(this, a, window, cx))
