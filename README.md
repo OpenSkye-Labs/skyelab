@@ -1,8 +1,14 @@
 # <img src="crates/skyelab-app/icons/128x128.png" width="44" height="44" alt="Porcelain Bean"> SkyeLab
 
-SkyeLab is a native agentic development environment (ADE) written in Rust with [GPUI](https://www.gpui.rs/).
-You run Claude Code agents in threads over your projects, review their changes, and keep a terminal, a browser
-preview and your simulators next to them. It is inspired by [T3 Code](https://github.com/pingdotgg/t3code) and
+[![CI](https://github.com/OpenSkye-Labs/skyelab/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenSkye-Labs/skyelab/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/OpenSkye-Labs/skyelab?include_prereleases&sort=semver)](https://github.com/OpenSkye-Labs/skyelab/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**A native desktop app for running coding agents, where every folder is locked to one account.**
+
+SkyeLab is an agentic development environment (ADE) written in Rust with [GPUI](https://www.gpui.rs/).
+You run Claude Code and Codex agents in threads over your projects, review their changes, and keep a terminal, a
+browser preview and your simulators next to them. It is inspired by [T3 Code](https://github.com/pingdotgg/t3code) and
 borrows its overall shape.
 
 **Why it exists: every folder is bound to exactly one account (Claude or Codex), and SkyeLab enforces it.** An agent in your
@@ -144,26 +150,39 @@ Not built yet: agents beyond Claude Code and Codex, and delegation to other mach
 |---|---|---|
 | ![Changes tab with a diff](docs/images/changes.png) | ![Settings with a stale binding](docs/images/settings.png) | ![Devices tab](docs/images/devices.png) |
 
-## Quick start
+## Install
 
-### 1. Platform setup
+### From a release
 
-You need the latest stable Rust ([rustup](https://rustup.rs)); `rust-toolchain.toml` picks it. You also need
-[Claude Code](https://docs.claude.com/en/docs/claude-code) installed, with `claude` on your `PATH`, and for Codex
-accounts the [Codex CLI](https://github.com/openai/codex) (`codex` on your `PATH`).
+Download the latest build from the [releases page](https://github.com/OpenSkye-Labs/skyelab/releases):
+
+- **macOS 14+ (Apple silicon):** the `.dmg`. Open it and drag SkyeLab to Applications.
+- **Windows:** the `-setup.exe` installer.
+- **Linux:** the `.AppImage` (make it executable and run it) or the `.deb` (`sudo apt install ./<file>.deb`).
+
+Builds may be unsigned or signed ad hoc, so macOS Gatekeeper and Windows SmartScreen can ask before the first open.
+After that, **Check for Updates** in the app keeps it current.
+
+SkyeLab does not install the agents. Install [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`)
+and, for Codex accounts, the [Codex CLI](https://github.com/openai/codex) (`codex`), plus the
+[GitHub CLI](https://cli.github.com) (`gh`) for push and pull requests.
+
+### From source
+
+You need the latest stable Rust ([rustup](https://rustup.rs)); `rust-toolchain.toml` picks it.
 
 - **macOS 14 or later:** full Xcode plus the Metal toolchain:
   `xcodebuild -downloadComponent MetalToolchain`. Without it the build fails with "metal shader compilation failed".
 - **Linux:** `libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libvulkan1 libfontconfig-dev clang cmake libwebkit2gtk-4.1-dev libgtk-3-dev`
 - **Windows:** the MSVC toolchain, nothing else.
 
-### 2. Run it
-
 ```sh
-cargo run -p skyelab-app
+cargo run -p skyelab-app                              # run a debug build
+cargo install cargo-packager --locked                 # or build the macOS app and disk image:
+cargo packager --release -p skyelab-app -f app,dmg    # writes target/release/SkyeLab.app and a .dmg
 ```
 
-### 3. Set up accounts
+### Set up accounts
 
 Add each account in Settings → Accounts and press **Log in** on its card: a terminal tab signs it in to its own
 config folder (`claude auth login` with its `CLAUDE_CONFIG_DIR`, or `codex login` with its `CODEX_HOME`). From a
@@ -215,20 +234,14 @@ approvals stay with you; sharing is tailnet-only. The full summary is in [docs/s
 
 ## Contributing
 
-Read [CLAUDE.md](CLAUDE.md) first. It holds the rules this repo is built with: the accounts invariant, Rust and
-error-handling rules, and the GPUI rules in [docs/gpui.md](docs/gpui.md). Every change goes through the `/loop`
-workflow (plan, build, verify, review), and done means all three pass:
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, the checks every change must pass, how to
+test UI changes without your real accounts, and the rules the code keeps. Please follow the
+[Code of Conduct](CODE_OF_CONDUCT.md). Questions go to
+[Discussions](https://github.com/OpenSkye-Labs/skyelab/discussions); changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
-```sh
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-```
+To find out why something is slow or leaks, see [docs/debugging.md](docs/debugging.md).
 
-To find out why something is slow or leaks, turn on debug mode (`SKYELAB_DEBUG=1`, or Settings → General → Advanced →
-Developer mode): an overlay with frame times, redraws and live object counts, a redacted log of network calls and
-child processes, Perfetto traces, flame graphs (`scripts/profile.sh`) and opt-in profilers (hotpath, dhat, Tracy).
-[docs/debugging.md](docs/debugging.md) explains each one.
+Found a security problem? Report it privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## License
 

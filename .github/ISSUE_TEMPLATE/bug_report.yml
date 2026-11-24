@@ -1,0 +1,68 @@
+name: Bug report
+description: Something in SkyeLab doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a security problem, don't file an issue: see [SECURITY.md](https://github.com/OpenSkye-Labs/skyelab/blob/main/SECURITY.md).
+        Before you paste logs or screenshots, remove account folder names, machine names, paths and anything private.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Bind a folder to a Claude account
+        2. Start a new thread and send "..."
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SkyeLab version
+      description: Settings → About, or the commit if you built from source.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - Release download (.dmg, setup.exe, AppImage or .deb)
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      placeholder: macOS 15.2 (Apple silicon) / Windows 11 / Ubuntu 24.04 (Wayland)
+    validations:
+      required: true
+  - type: input
+    id: agents
+    attributes:
+      label: Agent versions
+      description: Output of `claude --version` and `codex --version`, if the bug involves an agent.
+  - type: textarea
+    id: log
+    attributes:
+      label: Debug log
+      description: |
+        If it helps, turn on debug mode (run with `SKYELAB_DEBUG=1`, or Settings → General → Advanced → Developer mode),
+        reproduce the bug, then use **Open Debug Log** in the command palette. The log is redacted (no prompts, env
+        values or tokens), but check it before pasting. See [docs/debugging.md](https://github.com/OpenSkye-Labs/skyelab/blob/main/docs/debugging.md).
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or anything else

@@ -34,8 +34,6 @@ android/run-emulator.sh emulator-5554    # cargo ndk → gradle APK → adb inst
 
 ### Evidence
 
-Screenshots are in `.agent/screens/` of the spike worktree (not committed).
-
 | Check | iOS Simulator (iPhone 17, iOS 27.0) | Android Emulator (Pixel 8, API 36, arm64) |
 |---|---|---|
 | Builds | `cargo build --target aarch64-apple-ios-sim`, 4 min 11 s cold. gpui-component 0.10 compiles unchanged. | `cargo ndk -t arm64-v8a build --lib`, about 2 min cold. gpui-component 0.10 compiles unchanged. |
@@ -90,7 +88,7 @@ or text input turns out to be a blocker, the fallback stays cheap: the connectio
 
 ## Plan for the real client
 
-Each step goes through `/loop`.
+Each step follows [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 1. **`skyelab-client` crate (no GPUI).** A WebSocket client for `skyelab-protocol`: `hello`, `list_projects`,
    `list_threads`, `thread_events_since`, `send_message`, `interrupt`, and pushed `Event`s, with gap fill by `seq`. It

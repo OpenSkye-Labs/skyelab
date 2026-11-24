@@ -4,8 +4,8 @@ SkyeLab's desktop UI rebuilds T3 Code's design language natively in GPUI. This f
 match, where they come from, and how each maps to gpui-component. It is reference data: we copy the layout,
 density, type and color system, never T3's name, logo or wordmark.
 
-Source: the clone at `/Volumes/leo-exe/projects/openskye/t3code` (main, `6b38ec931a`). Paths below are relative to
-it; `W` means `apps/web/src`. Run `git -C /Volumes/leo-exe/projects/openskye/t3code pull` before relying on a value.
+Source: a clone of [T3 Code](https://github.com/pingdotgg/t3code) (main, `6b38ec931a`). Paths below are relative to
+it; `W` means `apps/web/src`. Pull it before relying on a value.
 Chat, composer, diff, terminal, palette and settings are in [t3-reference-chat.md](t3-reference-chat.md).
 
 Tailwind units: 1 unit is 4 px; `text-xs` 12 px, `text-sm` 14 px, `text-base` 16 px, `text-2xs` 11 px
