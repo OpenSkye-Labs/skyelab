@@ -91,6 +91,8 @@ pub struct ChangesView {
     /// Comments or a draft show, so rows are measured.
     pub(super) annotated: bool,
     _load: Option<Task<()>>,
+    /// Reloads when the folder changes on disk (`folder_watch`).
+    _watch: Option<Task<()>>,
 }
 
 impl ChangesView {
@@ -148,7 +150,9 @@ impl ChangesView {
             draft: None,
             annotated: false,
             _load: None,
+            _watch: None,
         };
+        this._watch = super::folder_watch::watch(&this.dir, cx, Self::reload_if_changed);
         this.refresh(cx);
         this
     }
@@ -159,6 +163,16 @@ impl ChangesView {
 
     /// Re-reads status and diff off the UI thread. A newer refresh drops the older one.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
+        self.load(false, cx);
+    }
+
+    /// The folder changed on disk (a folder watch): like [`Self::refresh`], but a read that finds the diff shown
+    /// changes nothing and draws nothing.
+    pub(super) fn reload_if_changed(&mut self, cx: &mut Context<Self>) {
+        self.load(true, cx);
+    }
+
+    fn load(&mut self, skip_same: bool, cx: &mut Context<Self>) {
         let (dir, base, scope) = (self.dir.clone(), self.base.clone(), self.scope);
         let (key, ws) = (self.checkpoint_key(cx), self.prefs.ignore_whitespace);
         let task = cx.background_spawn(async move {
@@ -168,6 +182,15 @@ impl ChangesView {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 match loaded {
+                    // A reload that found what is shown (an edit to an ignored file, a watch firing twice) draws nothing.
+                    Ok(c)
+                        if skip_same
+                            && this.error.is_none()
+                            && this.reveal_after_load.is_none()
+                            && this.changes.as_ref() == Some(&c) =>
+                    {
+                        return;
+                    }
                     Ok(c) => {
                         // Ticks are for the working tree's commit: a turn's list must not clear them.
                         if this.scope == Scope::Working {

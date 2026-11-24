@@ -43,6 +43,7 @@ Debug Overlay**, **Open Debug Log** and **Dump Debug State**.
 | `SKYELAB_DEBUG_RENDERS=1` | Prints `renders/s Workspace=17 ThreadView=16 …` to stderr once a second | all |
 | `SKYELAB_TRACE=path.json` | Writes a Chrome/Perfetto trace there, flushed on quit | all |
 | `SKYELAB_VERIFY_*`, `SKYELAB_*_BIN` | Live-check hooks and fake agents, gh and tailscale (see CLAUDE.md) | debug only |
+| `SKYELAB_GIT_CA_FILE` | Push and fetch trust this CA (the fake https remote's, see CLAUDE.md) | debug only |
 | `--features hotpath` / `hotpath-alloc` | Function timing / allocation report on quit | opt-in |
 | `--features dhat-heap` | dhat heap profile on quit | opt-in |
 | `--features tracy` | Live Tracy profiling of the same spans | opt-in |
@@ -61,8 +62,9 @@ The overlay sits at the bottom right of the window. **Stats** shows:
   also printed to stderr (`skyelab: slow frame 63.0 ms`) and logged.
 - **Renders/s, busiest views**: the same counts `SKYELAB_DEBUG_RENDERS` prints. `Workspace` renders once per frame per
   window, so it is the frame count; `timeline row` is rows built.
-- **Live objects**: windows, thread views, terminals, browser tabs, agent sessions and remote connections alive now,
-  and this process's child processes (agents, shells, git), read once a second off the UI thread.
+- **Live objects**: windows, thread views, terminals, browser tabs, agent sessions, remote connections and folder
+  watches (one per folder a thread tab or Changes tab shows) alive now, and this process's child processes (agents,
+  shells, git), read once a second off the UI thread.
 
 GPUI keeps no public count of its entities, so the overlay counts SkyeLab's own long-lived objects instead; for
 entity handles, run tests with GPUI's leak detector (see [Hunting a leak](#hunting-a-leak)).
@@ -212,7 +214,8 @@ quit. Open it in [DH View](https://nnethercote.github.io/dh_view/dh_view.html): 
 1. Turn on debug mode and open the overlay.
 2. Note the **Live objects** counts (or **Dump Debug State** for a file).
 3. Do the thing you suspect ten times: open and close a thread, a terminal, a browser tab, connect to and leave a
-   machine.
+   machine. `folder watches` goes back to the number of folders still shown (a `watch` line in the log says when
+   one starts, stops, or falls back to its top folder over 8,192 folders).
 4. Back where you started, the counts should be back too. A count that grows with each round is a leak: something
    still holds a strong `Entity` (a subscription, a task, a map entry). See the "Several windows" and "State and
    updates" rules in [gpui.md](gpui.md).

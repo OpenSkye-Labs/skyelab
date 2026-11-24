@@ -22,7 +22,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   the work when the receiver is already gone, or a reply full of diagrams starts one CPU-bound thread each
   (`mermaid::Gate`). Never do that work in a markdown block parser: gpui-component parses small texts on the UI thread.
 - A poll that lands every few seconds (PR status) notifies its views only when what it read differs from what they
-  show; most polls find nothing new, and each notify rebuilds the sidebar.
+  show; most polls find nothing new, and each notify rebuilds the sidebar. The same holds for a folder watch firing
+  (`folder_watch.rs`): the footer, the details stat and the Changes tab compare the reload with what they show
+  (`Footer: PartialEq`, `Changes: PartialEq`) before `set_loaded` and `notify`; `folder_watch_test.rs` proves an
+  unchanged reload draws 0 frames.
+- Anything that starts threads or OS resources per view (a folder watcher) is off unless a global turns it on at
+  launch (`folder_watch::init` in `main.rs`): hundreds of gpui tests open threads on temp repos, and a test opts in.
 - Custom markdown blocks (the mermaid card) go through `TextView::markdown_block_parser` / `markdown_block_renderer`;
   equal parser counts keep the parsed document across frames. Match the plain code block by reading the same tokens:
   `theme.muted` background and `theme.semantic_tokens().radius.md`, not `theme.accent`.

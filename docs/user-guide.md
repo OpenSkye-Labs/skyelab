@@ -218,9 +218,10 @@ added to the repo's local `info/exclude`, so it never shows up in `git status`.
 The thread details card then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not; **Commit all** counts
-  only the files not committed yet, and says **Nothing to commit** when there are none. **Refresh** reloads it, and
-  so does coming back to the window (an edit made in your editor shows up). New files count in the card's
-  **Changes vs** line too.
+  only the files not committed yet, and says **Nothing to commit** when there are none. It follows the folder live:
+  an edit made in your editor or a terminal, a commit or a branch switch shows up within a second, as do the
+  composer's change count and branch (see [live updates](user-guide-git.md#live-updates)). **Refresh** reloads it
+  by hand. New files count in the card's **Changes vs** line too.
   A file with more than 5,000 diff lines, or the files after the first 50,000 lines in all, show one
   "Diff too large" row with the line count instead: open those in a terminal or your editor.
 - **Open terminal here** opens a terminal in the worktree, on the thread's account.

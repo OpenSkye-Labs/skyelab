@@ -19,6 +19,20 @@ agent first. With uncommitted changes, SkyeLab asks before switching:
 Ignored files are never overwritten: if the other branch tracks a file you have as an ignored one, the switch is
 refused. If the changes move on while the question is shown, SkyeLab asks again.
 
+## Live updates
+
+While a thread or a Changes tab is open, SkyeLab watches its folder (the whole repo, for a project in a subfolder
+of one, since the counts cover the repo): an edit saved in your editor, a file a script
+or a terminal writes, a commit, a `git switch` or a pull updates the Changes tab, the composer's change count and
+branch, and the details card's **Changes vs** line within about a second, with SkyeLab still in front. It waits until
+the edits pause (or 2 seconds into a steady stream), then reads the folder once. Files git ignores and doesn't track
+(`target/`, `node_modules/`, anything in `.gitignore`) don't count, so a running build costs nothing, and nothing redraws when
+what is shown didn't change. A folder stops being watched when its last thread tab and Changes tab close.
+
+On Linux each folder takes its own watch from the system. A project with more than 8,192 folders git can see is
+watched only at its top level plus git's own state (branch, commits, staging); other edits show when you come back
+to the window, at the end of a turn, or on **Refresh**. macOS and Windows watch the whole tree with one watch.
+
 ## Project scripts
 
 The thread details card's **Add project script** / **Run project script** row holds a project's scripts: a name and a command, such as `npm run dev`. Click one to run

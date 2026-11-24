@@ -88,6 +88,8 @@ webkit2gtk = "=2.0.1"
 cairo-rs = { version = "0.18.5", features = ["png"] }
 # Project file walk and content search (ripgrep's crates, no external binary).
 ignore = "0.4.35"
+# Live folder watching (Changes, change counts, the branch chip): FSEvents / inotify / ReadDirectoryChangesW.
+notify = { version = "9.0.0", default-features = false, features = ["macos_fsevent"] }
 grep-searcher = "0.1.18"
 grep-regex = "0.1.15"
 tokio = { version = "1.54", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }

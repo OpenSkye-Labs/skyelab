@@ -18,6 +18,20 @@
   every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and
   `.rules` never load. Codex keeps its `workspace-write` sandbox (writes stay in the folder, no network) unless a
   thread picks Plan (read-only) or Full access, and its approval requests come to the thread.
+- **Push, Pull and Fetch.** They go only over https (or a local path), with credentials only from the bound
+  account's `gh`, and TLS checks forced on. Push, Pull and the background fetch refuse to run while the repo's own
+  config (`.git/config`, which an agent can write) sets a key that runs a program or reroutes or re-trusts the
+  connection: `remote.<name>.uploadpack`, `receivepack`, `proxy` or `vcs`, `http.proxy`, `http.sslCAInfo` (also per
+  URL), `sslCAPath`, `sslCert`, `sslKey`, `curloptResolve`, `cookieFile`, `pinnedPubkey`, and
+  `core.alternateRefsCommand` / `alternateRefsPrefixes`. The message names the key; set it in your global config
+  instead if you mean it. Nothing reaches the remote and `gh` is never asked for the token.
+- **Commit, Push and Pull run the repo's own hooks.** `pre-commit`, `commit-msg`, `pre-push`, `post-merge` and the
+  like run with the bound account's env and the same git credential binding its agents get, so a hook can ask that
+  account's `gh` for its GitHub token. An agent can write `.git/hooks` or set `core.hooksPath`, so this gives an agent
+  nothing its own account's tools don't already have, but one `.git` can serve folders bound to different accounts (a
+  worktree, a subfolder project): a hook planted by one account's agent then runs with the other account's login when
+  you commit, push or pull there. SkyeLab's own background git calls (status, diff, fetch, checkpoints, worktrees) run
+  with hooks off.
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.

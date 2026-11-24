@@ -13,6 +13,7 @@ mod publish;
 mod remote;
 mod status;
 mod summary;
+pub mod watch;
 mod worktree;
 
 use std::ffi::OsStr;
@@ -241,6 +242,23 @@ fn hooked_command(bin: &Path, dir: &Path) -> Command {
     // Read-only calls like status must not take index.lock while an agent is committing.
     cmd.env("GIT_OPTIONAL_LOCKS", "0");
     cmd
+}
+
+/// A CA file the child git trusts for https (`GIT_SSL_CAINFO`) on push and fetch: the fake https remote's, set by
+/// tests and by `SKYELAB_GIT_CA_FILE` in debug runs. Only [`trust_test_ca`] sets it, and only debug builds have that.
+/// It takes the place of git's CA file (a curl with a system CA folder still trusts that too); the CA's key never
+/// leaves the fake remote's memory, so nothing else can present a cert it signed.
+static TEST_CA: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Debug builds only: push and fetch trust `file`'s CA from now on (the first call wins).
+#[cfg(debug_assertions)]
+pub fn trust_test_ca(file: &Path) {
+    let _ = TEST_CA.set(file.to_owned());
+}
+
+/// The env a push or fetch adds for [`TEST_CA`].
+fn test_ca_env() -> Option<(&'static str, &'static Path)> {
+    TEST_CA.get().map(|ca| ("GIT_SSL_CAINFO", ca.as_path()))
 }
 
 // shortcut: non-UTF-8 path bytes become U+FFFD; switch to OsStr-from-bytes if a user hits it.

@@ -73,6 +73,8 @@ pub enum Kind {
     Mcp,
     /// A slow frame.
     Frame,
+    /// A folder watcher (live Changes): started, fell back, stopped.
+    Watch,
 }
 
 impl Kind {
@@ -83,6 +85,7 @@ impl Kind {
             Kind::Tailnet => "tailnet",
             Kind::Mcp => "mcp",
             Kind::Frame => "frame",
+            Kind::Watch => "watch",
         }
     }
 }

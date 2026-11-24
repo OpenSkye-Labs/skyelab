@@ -47,7 +47,7 @@ pub fn fetch(dir: &Path, gh: &crate::GitHub) -> Result<bool> {
         return Ok(false);
     };
     let urls = check_urls(&root, &remote, false)?;
-    check_repo_config(&root)?;
+    check_repo_config(&root, "fetch")?;
     checked(fetch_command(&root, &remote, &urls, gh)?, "git fetch", None)?;
     Ok(true)
 }
@@ -70,19 +70,21 @@ pub(crate) fn fetch_command(
             "http.lowSpeedTime=60",
         ])
         .args(["fetch", "--quiet", "--recurse-submodules=no", remote])
+        .envs(crate::test_ca_env())
         .env("GH_CONFIG_DIR", gh.config_dir)
         .env("GIT_TERMINAL_PROMPT", "0");
     Ok(cmd)
 }
 
-/// Keys that name a program for a fetch to run (`vcs` hands even an https remote to `git-remote-<vcs>`; with
+/// Keys that name a program for a fetch or push to run (`vcs` hands even an https remote to `git-remote-<vcs>`; with
 /// alternates, `core.alternateRefsCommand` runs through sh), or reroute or re-trust its https (where the bound gh hands
 /// over its token). An agent can write the repo's own config, and one `.git/config` can serve folders bound to other
 /// accounts.
-const UNSAFE_REPO_KEYS: &str = r"^(remote\..*\.(uploadpack|proxy|vcs)|core\.alternaterefs(command|prefixes)|http\..*(proxy|sslcainfo|sslcapath|sslcert|sslkey|curloptresolve|cookiefile|pinnedpubkey))$";
+const UNSAFE_REPO_KEYS: &str = r"^(remote\..*\.(uploadpack|receivepack|proxy|vcs)|core\.alternaterefs(command|prefixes)|http\..*(proxy|sslcainfo|sslcapath|sslcert|sslkey|curloptresolve|cookiefile|pinnedpubkey))$";
 
-/// Refuses a fetch (it runs on a timer, unasked) while the repo's own config sets any [`UNSAFE_REPO_KEYS`].
-fn check_repo_config(root: &Path) -> Result<()> {
+/// Refuses a fetch (it runs on a timer, unasked) or a push (`verb`) while the repo's own config sets any
+/// [`UNSAFE_REPO_KEYS`].
+pub(crate) fn check_repo_config(root: &Path, verb: &str) -> Result<()> {
     let out = output(
         Path::new("git"),
         root,
@@ -106,7 +108,7 @@ fn check_repo_config(root: &Path) -> Result<()> {
     });
     match repo_key {
         Some(key) => Err(invalid(format!(
-            "the repo's own config sets {key}, so SkyeLab won't fetch with the account's GitHub login; remove it \
+            "the repo's own config sets {key}, so SkyeLab won't {verb} with the account's GitHub login; remove it \
              (git config --unset {key}) or set it in your global config"
         ))),
         None => Ok(()),
