@@ -53,12 +53,9 @@ pub fn source_for(data_dir: &Path, name: &str) -> std::io::Result<Box<dyn Thread
     }
     #[cfg(not(feature = "demo"))]
     {
-        let options = skyelab_client::Options {
-            device_key: Some(skyelab_client::load_or_create_device_key(
-                &data_dir.join(DEVICE_KEY_FILE),
-            )?),
-            ..Default::default()
-        };
+        let options = skyelab_client::Options::default().with_device_key(
+            skyelab_client::load_or_create_device_key(&data_dir.join(DEVICE_KEY_FILE))?,
+        );
         Ok(Box::new(crate::remote::RemoteSource::connect(
             name, options, data_dir,
         )?))
