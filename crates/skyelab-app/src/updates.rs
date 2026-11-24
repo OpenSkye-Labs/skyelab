@@ -39,6 +39,8 @@ pub enum UpdateStatus {
     Idle,
     Checking,
     UpToDate,
+    /// GitHub has no release yet (its latest release is a 404).
+    NoRelease,
     Available {
         tag: String,
         url: String,
@@ -296,6 +298,7 @@ fn status(
     manual: bool,
 ) -> UpdateStatus {
     match got {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => UpdateStatus::NoRelease,
         Err(e) => UpdateStatus::Failed(e.to_string()),
         Ok(r) if !update::is_newer(&r.tag, current) => UpdateStatus::UpToDate,
         Ok(r) if !update::release_page_ok(&r.url) => {

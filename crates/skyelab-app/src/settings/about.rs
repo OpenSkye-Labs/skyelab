@@ -15,6 +15,7 @@ impl Settings {
             UpdateStatus::Idle => None,
             UpdateStatus::Checking => Some("Checking…".to_owned()),
             UpdateStatus::UpToDate => Some("SkyeLab is up to date.".to_owned()),
+            UpdateStatus::NoRelease => Some("No release published yet.".to_owned()),
             UpdateStatus::Available { tag, .. } | UpdateStatus::Updating { tag, .. } => {
                 Some(format!(
                     "SkyeLab {} is available.",

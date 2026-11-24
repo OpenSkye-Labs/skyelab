@@ -82,6 +82,7 @@ mod status_bar;
 mod thread;
 use accounts_file::account_label;
 pub use accounts_file::{AccountsFile, accounts_now};
+mod ask_approval;
 mod ask_cards;
 mod ask_detail;
 mod ask_dock;

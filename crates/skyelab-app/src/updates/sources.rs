@@ -8,9 +8,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 /// The real fetch, or in debug builds `SKYELAB_UPDATE_FAKE=<tag>`'s release (no network), listing the files in
-/// `SKYELAB_UPDATE_FAKE_DIR` (`fake_dir`) as its assets.
+/// `SKYELAB_UPDATE_FAKE_DIR` (`fake_dir`) as its assets. `SKYELAB_UPDATE_FAKE=none` answers like a repo with no release.
 pub fn fetcher(fake: Option<String>, fake_dir: Option<PathBuf>, debug: bool) -> Fetch {
     match fake.filter(|_| debug) {
+        Some(none) if none == "none" => Arc::new(|| {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "api.github.com answered 404",
+            ))
+        }),
         Some(tag) => Arc::new(move || {
             let names = fake_dir
                 .as_deref()

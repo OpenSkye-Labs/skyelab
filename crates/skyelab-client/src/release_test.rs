@@ -79,6 +79,10 @@ fn non_200_fails() {
     let (got, _) = fetch(b"HTTP/1.1 403 Forbidden\r\n\r\n{\"message\":\"rate limited\"}".to_vec());
     let err = got.expect_err("403 refused");
     assert!(err.to_string().contains("403"), "{err}");
+    assert_eq!(err.kind(), std::io::ErrorKind::Other);
+    // A repo with no release yet: GitHub's latest release is a 404, which the app says plainly.
+    let (got, _) = fetch(b"HTTP/1.1 404 Not Found\r\n\r\n{\"message\":\"Not Found\"}".to_vec());
+    assert_eq!(got.expect_err("404").kind(), std::io::ErrorKind::NotFound);
 }
 
 #[test]

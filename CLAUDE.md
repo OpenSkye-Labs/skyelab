@@ -47,7 +47,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   delegates: the prompt `delegate <project id>` calls SkyeLab's `start_thread` tool, `browse <http url>` calls `browser_open`,
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `chart` calls `html_render` with a small bar chart (a visual reply card) and `peek` calls `html_preview` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
-  `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
+  `make deploy` and waits for the answer (`permit write` asks a 2,000-line Write, `permit edit` an Edit, `permit multi` a MultiEdit), `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir, writes `fake-login` (`fake@example.com`) there and exits 0 (the Log in terminal),
 `auth status` answers Claude Code's JSON, signed in as `fake-login`'s content while the account dir has that file, else `loggedIn: false` (the account cards' sign-in),
   `table` replies with a markdown table, `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
@@ -163,7 +163,7 @@ Packaging uses [cargo-packager](https://github.com/crabnebula-dev/cargo-packager
 
 - **Cut a release:** bump `version` in the root `Cargo.toml`, commit, then tag `v<version>` and push the tag (the workflow fails if the two differ).
   The release job also attaches `SHA256SUMS` (`sha256sum` over every asset); the in-app updater refuses a download it doesn't list, so keep that step and never edit assets on a published release.
-  Live-check the updater with `SKYELAB_UPDATE_FAKE=<tag>`, `SKYELAB_UPDATE_FAKE_DIR` (a folder of assets plus their `SHA256SUMS`, served slowly as the release's downloads) and `SKYELAB_UPDATE_FAKE_APP` (a stand-in `.app` or AppImage to replace), debug builds only.
+  Live-check the updater with `SKYELAB_UPDATE_FAKE=<tag>` (`none`: a repo with no release yet), `SKYELAB_UPDATE_FAKE_DIR` (a folder of assets plus their `SHA256SUMS`, served slowly as the release's downloads) and `SKYELAB_UPDATE_FAKE_APP` (a stand-in `.app` or AppImage to replace), debug builds only.
   `.github/workflows/release.yml` builds a `.dmg` (macOS, arm64), an NSIS `-setup.exe` (Windows) and a `.deb` +
   `.AppImage` (Linux), and attaches them to a **draft** GitHub release. Check the draft, then publish it.
 - **Locally (macOS):** `cargo packager --release -p skyelab-app -f app,dmg` writes `target/release/SkyeLab.app` and the `.dmg`.

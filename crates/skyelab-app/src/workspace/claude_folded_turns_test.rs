@@ -78,8 +78,15 @@ pub(super) fn one_view<'a>(
         store: store.clone(),
         claude_bin: bin,
     };
-    let (view, cx) =
-        cx.add_window_view(|window, cx| ThreadView::new(&project, config, backend, window, cx));
+    // Under gpui-component's Root, as in the app, so dialogs (an approval's View all) can open.
+    let mut made = None;
+    let window = cx.add_window(|window, cx| {
+        let view = cx.new(|cx| ThreadView::new(&project, config, backend, window, cx));
+        made = Some(view.clone());
+        gpui_component::Root::new(view, window, cx)
+    });
+    let view = made.expect("the thread view was built");
+    let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
     (
         One {
             _home: home,

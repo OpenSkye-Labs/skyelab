@@ -121,6 +121,18 @@ fn not_newer_or_foreign_page_shows_nothing(cx: &mut TestAppContext) {
     assert_eq!(status(cx), UpdateStatus::UpToDate);
 }
 
+#[gpui::test]
+fn no_published_release_is_not_a_failure(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let none = updates::fetcher(Some("none".into()), None, true);
+    cx.update(|cx| updates::init(Some(dir.path().join("s.toml")), none, cx));
+    cx.run_until_parked();
+    assert_eq!(status(cx), UpdateStatus::NoRelease);
+    cx.update(|cx| updates::check(true, cx));
+    cx.run_until_parked();
+    assert_eq!(status(cx), UpdateStatus::NoRelease, "Check for Updates too");
+}
+
 #[test]
 fn debug_fake_release_needs_no_network() {
     let got = updates::fetcher(Some("v9.9.9".into()), None, true)().expect("fake");

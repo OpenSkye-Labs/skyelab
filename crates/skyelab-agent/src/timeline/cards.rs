@@ -145,13 +145,21 @@ pub fn line_diff(old: &str, new: &str) -> Vec<(Option<u32>, Option<u32>, LineKin
 
 /// An Edit / Write / MultiEdit's lines: each edit's diff in turn, or every written line added.
 pub fn edit_lines(tool: &super::ToolItem) -> Vec<(Option<u32>, Option<u32>, LineKind, String)> {
-    let raw = &tool.raw;
+    input_lines(&tool.name, &tool.raw, DIFF_LINES)
+}
+
+/// [`edit_lines`] from a tool's name and input; a Write gives at most `limit + 1` lines.
+pub fn input_lines(
+    name: &str,
+    raw: &serde_json::Value,
+    limit: usize,
+) -> Vec<(Option<u32>, Option<u32>, LineKind, String)> {
     let s = |v: &serde_json::Value| v.as_str().unwrap_or_default().to_owned();
-    match tool.name.as_str() {
+    match name {
         // Only what the card can draw: a huge file is never split up every frame.
         "Write" => {
             let content = s(&raw["content"]);
-            let head: Vec<&str> = content.lines().take(DIFF_LINES + 1).collect();
+            let head: Vec<&str> = content.lines().take(limit.saturating_add(1)).collect();
             line_diff("", &head.join("\n"))
         }
         "MultiEdit" => raw["edits"]

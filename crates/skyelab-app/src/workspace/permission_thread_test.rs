@@ -129,3 +129,57 @@ fn a_crashed_agent_shows_its_stderr(cx: &mut TestAppContext) {
         "stored, so a reopened or remote view shows it too"
     );
 }
+
+/// The pending approval's id, once it shows.
+fn approval_id(one: &One, cx: &mut VisualTestContext) -> Option<String> {
+    one.view.read_with(cx, |v, _| {
+        v.items.iter().find_map(|i| match i {
+            Item::Approval(a) => Some(a.id.clone()),
+            _ => None,
+        })
+    })
+}
+
+/// A file change asks with its diff in the docked panel, capped so the answers stay in view, never its JSON.
+fn docked_diff<'a>(
+    prompt: &str,
+    cx: &'a mut TestAppContext,
+) -> (One, &'a mut VisualTestContext, String) {
+    let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    one.view
+        .update_in(cx, |v, window, cx| v.submit_remote(prompt, window, cx))
+        .expect("started");
+    wait_until(cx, "the request in the thread", |cx| {
+        approval_id(&one, cx).is_some()
+    });
+    cx.run_until_parked();
+    let diff = cx.debug_bounds("approval-diff").expect("the diff is drawn");
+    assert!(diff.size.height <= gpui::px(160.), "{diff:?}");
+    let dock = cx.debug_bounds("ask-dock").expect("docked on the composer");
+    let half = cx.update(|window, _| window.viewport_size().height / 2.);
+    assert!(dock.size.height <= half, "{dock:?} taller than half the window");
+    let id = approval_id(&one, cx).expect("the request's id");
+    (one, cx, id)
+}
+
+#[gpui::test]
+fn a_big_write_asks_with_its_first_lines_and_view_all(cx: &mut TestAppContext) {
+    let (_one, cx, _) = docked_diff("permit write", cx);
+    assert!(cx.debug_bounds("approval-view-all-dialog").is_none());
+    let all = cx.debug_bounds("approval-view-all").expect("View all");
+    cx.simulate_click(all.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    let dialog = cx
+        .debug_bounds("approval-view-all-dialog")
+        .expect("the whole change opens");
+    assert!(dialog.size.height > gpui::px(160.), "{dialog:?}");
+}
+
+#[gpui::test]
+fn an_edit_asks_with_its_diff(cx: &mut TestAppContext) {
+    let (_one, cx, _) = docked_diff("permit edit", cx);
+    assert!(
+        cx.debug_bounds("approval-view-all").is_none(),
+        "a short edit shows whole"
+    );
+}
