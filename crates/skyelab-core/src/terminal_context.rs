@@ -70,6 +70,22 @@ pub fn fenced(heading: &str, text: &str) -> String {
     format!("{heading}:\n{fence}text\n{text}\n{fence}")
 }
 
+/// `text` as a markdown quote: every line behind `> ` (a blank one as `>`), trailing blank lines dropped.
+pub fn quoted(text: &str) -> String {
+    let lines: Vec<String> = text
+        .trim_end()
+        .lines()
+        .map(|l| {
+            if l.trim().is_empty() {
+                ">".into()
+            } else {
+                format!("> {l}")
+            }
+        })
+        .collect();
+    lines.join("\n")
+}
+
 /// The prompt as sent: the typed text, then each `(heading, text)` block, a blank line apart.
 pub fn with_contexts<'a>(
     prompt: &str,

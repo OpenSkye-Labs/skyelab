@@ -32,6 +32,8 @@ mod composer_queue;
 #[cfg(test)]
 #[path = "composer_queue_test.rs"]
 mod composer_queue_test;
+#[path = "composer_quote.rs"]
+mod composer_quote;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "composer_restore_test.rs"]
 mod composer_restore_test;
@@ -45,6 +47,9 @@ mod composer_state;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "context_chips_test.rs"]
 mod context_chips_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "quote_selection_test.rs"]
+mod quote_selection_test;
 #[cfg(test)]
 #[path = "side_commands_test.rs"]
 mod side_commands_test;

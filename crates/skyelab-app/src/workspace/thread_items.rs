@@ -209,6 +209,7 @@ fn render_row<V: ItemsView>(
         ),
         Item::Text(text) => column(
             v_flex()
+                .debug_selector(|| "reply-text".into())
                 .px_1()
                 .gap_1()
                 .text_size(ui::BODY)

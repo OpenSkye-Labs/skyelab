@@ -110,6 +110,8 @@ pub(crate) struct Composer {
     /// Comments on the Changes tab's diff, until they are sent here as a chip.
     pub review: crate::workspace::diff_comments::DiffComments,
     pub queue: Queue,
+    /// Text selected in the timeline and where the mouse came up: the floating Quote button (`composer_quote.rs`).
+    pub quote: Option<(gpui::Point<gpui::Pixels>, String)>,
     pub menu: Option<Menu>,
     pub picker_open: bool,
     pub pick: ModelChoice,

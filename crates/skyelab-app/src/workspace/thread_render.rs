@@ -327,6 +327,8 @@ impl Render for ThreadView {
         let failure = self.render_failure(cx);
         let find = self.render_find(cx);
         let strip = self.render_subagent_strip(cx);
+        let quote = self.render_quote_button(cx);
+        let timeline = self.quote_listeners(div(), cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
         let working = self
@@ -362,12 +364,13 @@ impl Render for ThreadView {
                 )
                 .into_any_element()
         } else {
-            div()
+            timeline
                 .flex_1()
                 .min_h_0()
                 .relative()
                 .flex()
                 .flex_col()
+                .children(quote)
                 .child(
                     list(
                         self.list_in(window.window_handle()).clone(),

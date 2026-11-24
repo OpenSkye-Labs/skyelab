@@ -15,7 +15,7 @@ use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 
 mod events;
 mod extras;
-pub use extras::{Draft, ProjectScript};
+pub use extras::{Draft, DraftRow, ProjectScript};
 mod images;
 mod import;
 mod manage;
