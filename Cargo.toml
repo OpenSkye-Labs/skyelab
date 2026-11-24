@@ -59,6 +59,9 @@ objc2 = { version = "0.6.5", default-features = false, features = ["std"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "objc2-app-kit", "block2", "WKWebView", "WKSnapshotConfiguration"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSError", "NSString"] }
 block2 = "0.6.2"
+# Composer dictation on macOS (skyelab-speech-sys): Apple's Speech framework and the audio engine feeding it.
+objc2-speech = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-avf-audio", "SFErrors", "SFSpeechRecognitionRequest", "SFSpeechRecognitionResult", "SFSpeechRecognitionTask", "SFSpeechRecognizer", "SFTranscription"] }
+objc2-avf-audio = { version = "0.3.2", default-features = false, features = ["std", "block2", "AVAudioApplication", "AVAudioBuffer", "AVAudioEngine", "AVAudioFormat", "AVAudioIONode", "AVAudioNode", "AVAudioTime", "AVAudioTypes"] }
 # Decodes the snapshot, scales it and writes the PNG; already in the tree through gpui.
 image = { version = "0.25.10", default-features = false, features = ["png", "tiff"] }
 url = "2.5.9"
@@ -90,6 +93,7 @@ tungstenite = "0.30"
 skyelab-core = { path = "crates/skyelab-core" }
 skyelab-browser = { path = "crates/skyelab-browser" }
 skyelab-webkit-sys = { path = "crates/skyelab-webkit-sys" }
+skyelab-speech-sys = { path = "crates/skyelab-speech-sys" }
 skyelab-pipe-sys = { path = "crates/skyelab-pipe-sys" }
 skyelab-devices = { path = "crates/skyelab-devices" }
 skyelab-protocol = { path = "crates/skyelab-protocol" }

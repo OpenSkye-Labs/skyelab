@@ -404,6 +404,8 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::steer_prompt))
             .on_action(cx.listener(Self::attach_files))
             .on_action(cx.listener(Self::stash_prompt))
+            .on_action(cx.listener(Self::toggle_dictation))
+            .on_action(cx.listener(Self::cancel_dictation))
             .on_action(cx.listener(Self::history_up))
             .on_action(cx.listener(Self::history_down))
             .on_action(cx.listener(Self::menu_up))

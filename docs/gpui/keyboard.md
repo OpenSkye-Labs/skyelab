@@ -28,3 +28,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Focusable views hold a `FocusHandle` (`cx.focus_handle()`), render `.track_focus(&self.focus)` and implement `Focusable`.
 - A modal that closes on focus-out must not give the focus back on that path: whatever took it (the palette, F6)
   keeps it. Restore the saved focus only when the focus is still inside the modal or nowhere (Esc, ×, backdrop).
+- A read-only gpui-component text field drops ⌘↩ instead of emitting `InputEvent::PressEnter`, so a submit hung on
+  that event stops working while it is read-only: bind the send action in a key context set only then
+  (`ComposerDictation > Input`, `composer_voice.rs`).

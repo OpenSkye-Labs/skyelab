@@ -95,3 +95,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A `v_flex` stretches its children across its width (align-items: stretch), so a segmented control or pill row
   dropped straight into one paints its background edge to edge. Wrap it in an `h_flex()` to keep it content width
   (`pr_actions.rs` merge methods).
+- gpui-component's `Textarea` / `Input` element writes its own `disabled` and `readonly` builder values into the state
+  on every render, so `state.set_readonly(true)` is undone by the next frame. Drive read-only from the element
+  (`.readonly(dictating)` in `composer.rs`). Programmatic `set_value` / `insert` still edit a read-only field.

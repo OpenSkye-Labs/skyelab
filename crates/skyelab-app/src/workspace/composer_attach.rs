@@ -3,7 +3,18 @@
 
 use super::composer_state::AttachFiles;
 use super::thread::ThreadView;
-use gpui::{AppContext as _, ClipboardEntry, ClipboardItem, Context, Window};
+use crate::ui;
+use gpui::{
+    AnyElement, AppContext as _, ClipboardEntry, ClipboardItem, Context, SharedString, Window, div,
+    prelude::*, px,
+};
+use gpui_component::{
+    ActiveTheme as _, Icon, IconName, Sizable as _,
+    button::{Button, ButtonVariants as _},
+    h_flex,
+};
+use gpui_kit_assets::IconName as Lucide;
+use skyelab_agent::AttachmentKind;
 use skyelab_agent::{Attachment, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS};
 use std::path::PathBuf;
 
@@ -185,4 +196,52 @@ fn read_attachment(path: &std::path::Path) -> Result<Attachment, String> {
         })
         .map_err(|e| format!("{name}: {e}"))?;
     Attachment::new(name, data).map_err(|e| format!("{e:#}"))
+}
+
+impl ThreadView {
+    /// Removable chips for the attached files, above the prompt.
+    pub(super) fn render_attachments(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        if self.composer.attachments.is_empty() {
+            return None;
+        }
+        let theme = cx.theme();
+        Some(
+            h_flex()
+                .flex_wrap()
+                .gap_1p5()
+                .px_3()
+                .pt_3()
+                .children(self.composer.attachments.iter().enumerate().map(|(ix, a)| {
+                    let icon = match a.kind {
+                        AttachmentKind::Image(_) => IconName::GalleryVerticalEnd,
+                        AttachmentKind::Pdf | AttachmentKind::Text => IconName::File,
+                    };
+                    h_flex()
+                        .id(SharedString::from(format!("attachment-{ix}")))
+                        .h(px(28.))
+                        .max_w(px(220.))
+                        .pl_2()
+                        .gap_1()
+                        .rounded(ui::RADIUS)
+                        .border_1()
+                        .border_color(theme.border)
+                        .bg(theme.muted)
+                        .text_size(ui::META)
+                        .child(Icon::new(icon).xsmall().text_color(theme.muted_foreground))
+                        .child(div().min_w_0().truncate().child(a.name.clone()))
+                        .child(
+                            Button::new(SharedString::from(format!("remove-attachment-{ix}")))
+                                .ghost()
+                                .xsmall()
+                                .icon(Icon::new(Lucide::X))
+                                .tooltip("Remove")
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.remove_attachment(ix, cx);
+                                    this.restore_draft(window, cx);
+                                })),
+                        )
+                }))
+                .into_any_element(),
+        )
+    }
 }

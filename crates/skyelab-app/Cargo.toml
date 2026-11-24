@@ -20,6 +20,7 @@ anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true
 skyelab-core.workspace = true
+skyelab-speech-sys.workspace = true
 skyelab-terminal.workspace = true
 skyelab-browser.workspace = true
 skyelab-store.workspace = true
@@ -64,6 +65,9 @@ icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/
 
 [package.metadata.packager.macos]
 minimum-system-version = "14.0"
+# The microphone and speech recognition usage strings (dictation), and the microphone under the hardened runtime.
+info-plist-path = "macos/Info.plist"
+entitlements = "macos/entitlements.plist"
 
 [package.metadata.packager.deb]
 # webkit2gtk and gtk for wry's webview, the rest for GPUI.

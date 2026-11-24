@@ -68,6 +68,7 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
         ),
     ]);
     super::composer_draft::bind_keys(cx);
+    super::composer_voice::bind_keys(cx);
 }
 
 /// An open menu: its rows (already ranked) and the highlighted one.
@@ -150,6 +151,9 @@ pub(crate) struct Composer {
     pub restore: Option<(String, Vec<Attachment>)>,
     /// The draft's saving, prompt history and a fork's source (`composer_draft.rs`).
     pub extras: super::composer_draft::ComposerExtras,
+    /// Dictation's state (`composer_voice.rs`) and its running recognizer.
+    pub dictation: skyelab_core::dictation::Dictation,
+    pub voice: super::composer_voice::VoiceRun,
     /// The card's width at the last paint (0 before the first), for the compact control row.
     pub width: std::rc::Rc<std::cell::Cell<gpui::Pixels>>,
 }
