@@ -2,7 +2,7 @@
 //! `user_message_uuids`. A prompt sent mid-turn can be folded into the running turn (one result for two prompts),
 //! and a background wake (`origin.kind` `task-notification`, no uuids) answers none of ours.
 
-use crate::{Decision, Event};
+use crate::{Decision, Event, McpServer};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
@@ -121,7 +121,7 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
     let Some(mut event) = Event::from_claude(v.clone()) else {
         return Vec::new();
     };
-    if let Some(reading) = crate::event::claude_context(&v) {
+    if let Some(reading) = claude_context(&v) {
         return vec![event, reading];
     }
     if matches!(event, Event::RateLimit { .. }) {
@@ -159,11 +159,11 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
             events.push(Event::SessionGone);
         }
         events.push(event);
-        events.extend(crate::event::claude_context_windows(&v));
+        events.extend(claude_context_windows(&v));
         return events;
     }
     let mcp = matches!(event, Event::Init { .. })
-        .then(|| crate::event::claude_mcp(&v))
+        .then(|| claude_mcp(&v))
         .flatten();
     std::iter::once(event).chain(mcp).collect()
 }
@@ -183,6 +183,63 @@ fn usage_windows(v: &Value) -> Vec<Event> {
                 resets_at: w["resetsAt"].as_i64(),
                 window: Some(window.clone()),
                 used: Some(used.clamp(0.0, 1.0) as f32),
+            })
+        })
+        .collect()
+}
+
+/// Claude's init `mcp_servers` list as a report, or `None` when it names none.
+fn claude_mcp(init: &Value) -> Option<Event> {
+    let servers: Vec<McpServer> = init["mcp_servers"]
+        .as_array()?
+        .iter()
+        .filter_map(|s| {
+            Some(McpServer {
+                name: s["name"].as_str()?.to_owned(),
+                status: s["status"].as_str().unwrap_or("unknown").to_owned(),
+                error: s["error"].as_str().map(str::to_owned),
+            })
+        })
+        .collect();
+    // The whole list the process connected: it replaces what SkyeLab said it gave it.
+    (!servers.is_empty()).then_some(Event::Mcp {
+        servers,
+        launch: true,
+        warning: None,
+    })
+}
+
+/// A main-thread assistant line's context reading: input, cache writes, cache reads and output, and its model.
+/// `None` for a subagent's line and for a placeholder usage with no input.
+fn claude_context(v: &Value) -> Option<Event> {
+    if v["type"] != "assistant" || !v["parent_tool_use_id"].is_null() {
+        return None;
+    }
+    let u = v["message"].get("usage").filter(|u| u.is_object())?;
+    let n = |k: &str| u[k].as_u64().unwrap_or_default();
+    let input = n("input_tokens")
+        .saturating_add(n("cache_creation_input_tokens"))
+        .saturating_add(n("cache_read_input_tokens"));
+    (input > 0).then(|| Event::Context {
+        tokens: Some(input.saturating_add(n("output_tokens"))),
+        window: None,
+        model: v["message"]["model"].as_str().map(str::to_owned),
+    })
+}
+
+/// Each model's window from a result's `modelUsage`.
+fn claude_context_windows(v: &Value) -> Vec<Event> {
+    let Some(models) = v["modelUsage"].as_object() else {
+        return Vec::new();
+    };
+    models
+        .iter()
+        .filter_map(|(model, m)| {
+            let window = m["contextWindow"].as_u64().filter(|w| *w > 0)?;
+            Some(Event::Context {
+                tokens: None,
+                window: Some(window),
+                model: Some(model.clone()),
             })
         })
         .collect()
