@@ -93,7 +93,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   every view. A px size never scales.
 - Bake a theme choice into the `light_theme`/`dark_theme` configs, then `Theme::change` (refreshes every window).
   Fields written on `Theme` are lost at the next appearance flip (`ui::themes::apply`).
-- `window.open_dialog` panics without `Root` (test windows: `threads_test::add_rooted`).
+- `window.open_dialog` panics without `Root` (test windows: `threads_test::add_rooted`), and so does
+  `window.push_notification`: a toast from code that test windows also run goes through `manage::push_note`, which
+  skips it when the window has no `Root`.
 - A `Dialog` sits in `Root`'s layer, outside the workspace: actions dispatched inside it never reach the workspace.
   A modal that must reach it is a `deferred` layer in `Workspace::render` (`settings_tab::settings_modal`).
 - A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.

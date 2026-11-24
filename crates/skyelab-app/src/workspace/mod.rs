@@ -54,6 +54,7 @@ mod accounts_file;
 pub(crate) mod github;
 pub(crate) mod orchestrate;
 mod orchestrate_ui;
+mod palette_forwards;
 mod palette_items;
 mod panels;
 mod projects;
@@ -497,6 +498,8 @@ mod env_approval_test;
 mod env_flat_list_test;
 #[cfg(test)]
 mod env_followups_test;
+#[cfg(test)]
+mod env_forward_test;
 #[cfg(test)]
 mod env_harness;
 #[cfg(test)]

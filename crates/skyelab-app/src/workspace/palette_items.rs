@@ -30,7 +30,10 @@ impl Workspace {
             return;
         };
         let entries = self.palette_entries(&prev, window, cx);
-        let search = (!self.is_remote()).then(|| self.palette_search());
+        let search = match self.is_remote() {
+            true => self.forward_search(cx),
+            false => Some(self.palette_search()),
+        };
         palette::open(entries, search, prev, window, cx);
     }
 
@@ -98,6 +101,7 @@ impl Workspace {
         let mut out = actions;
         // Another machine shown: its projects and the selected one's threads, as the switcher lists them.
         if let Some(env) = self.remote_env() {
+            out.extend(self.forward_entries(cx));
             let env = env.read(cx);
             out.extend(env.projects.iter().map(|p| {
                 let label = format!("Switch to project: {}", p.name);

@@ -25,7 +25,9 @@
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
   with `tailscale whois`), and carry a device key you approved on this machine for that device (kept in the
   macOS keychain by release builds on a Mac). Browser pages (any `Origin` header) are refused. A connected device can list and drive
-  threads, but can't add projects, change accounts or bindings, or open terminals. The client checks the
+  threads, and forward ports from this machine's loopback (1024 and up, not SkyeLab's own port or a denylist of
+  services such as Docker's API or debuggers), each tunnel through the same gate and only while that device's
+  connection asked for it. It can't add projects, change accounts or bindings, or open terminals. The client checks the
   certificate against the exact MagicDNS name it dialled, and the desktop app also asks its own Tailscale who it
   dialled: only your own untagged devices, and the same Tailscale node it saw for that name before. The phone
   remembers the node too, but only from what the machine says about itself (it has no Tailscale CLI to ask).

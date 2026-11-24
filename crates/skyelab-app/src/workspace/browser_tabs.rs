@@ -23,7 +23,17 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let url = std::env::var("SKYELAB_BROWSER_URL").ok();
-        let browser = cx.new(|cx| BrowserView::new(url.as_deref(), window, cx));
+        self.open_browser_at(url.as_deref(), window, cx);
+    }
+
+    /// A user browser tab at `url` (a blank one without), focused.
+    pub(super) fn open_browser_at(
+        &mut self,
+        url: Option<&str>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let browser = cx.new(|cx| BrowserView::new(url, window, cx));
         let panel = self.add_browser(browser, None, window, cx);
         panel.read(cx).focus_handle(cx).focus(window, cx);
     }

@@ -126,6 +126,8 @@ pub fn client_options(tailnet: skyelab_daemon::SharedTailnet) -> skyelab_client:
 
 pub enum EnvEvent {
     Thread(ThreadEvent),
+    /// A message for a toast.
+    Note(SharedString),
     /// The connection was refused or its identity failed: its tabs show threads of a machine not trusted now.
     Untrusted,
 }
@@ -159,6 +161,9 @@ pub struct RemoteEnv {
     _refresh: Option<Task<()>>,
     _node: Option<Task<()>>,
     _trust: Option<Task<()>>,
+    /// Ports of this machine forwarded to this one.
+    pub forwards: Vec<skyelab_client::Forward>,
+    pending_forwards: std::collections::HashMap<u16, Task<()>>,
 }
 
 impl EventEmitter<EnvEvent> for RemoteEnv {}
@@ -201,6 +206,8 @@ impl RemoteEnv {
             _refresh: None,
             _node: None,
             _trust: None,
+            forwards: Vec::new(),
+            pending_forwards: Default::default(),
         }
     }
 
@@ -233,6 +240,7 @@ impl RemoteEnv {
                 if let Some(state) = ConnState::from_update(&update) {
                     self.node = None;
                     self.hello = None;
+                    self.drop_forwards();
                     if untrusted {
                         return self.refuse(state, cx);
                     }
@@ -302,6 +310,7 @@ impl RemoteEnv {
     /// pass hello stays held by the client, so nothing is sent on it.
     fn refuse(&mut self, state: ConnState, cx: &mut Context<Self>) {
         self.state = state;
+        self.drop_forwards();
         self.projects.clear();
         self.threads.clear();
         self.project = None;
@@ -459,6 +468,10 @@ impl RemoteEnv {
         })
     }
 }
+
+#[path = "environment_forwards.rs"]
+mod forwards;
+pub use forwards::{forwarded_address, forwarded_url};
 
 #[cfg(test)]
 #[path = "environment_tests.rs"]
