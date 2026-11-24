@@ -182,7 +182,7 @@ impl Settings {
         let test_input = input("/path/to/a/folder", window, cx);
         let keys_search = input("Search shortcuts", window, cx);
         let search_input = input("Search", window, cx);
-        let editor_input = input("$VISUAL, $EDITOR, then code or zed", window, cx);
+        let editor_input = input("Automatic", window, cx); // the row says what empty tries
         editor_input.update(cx, |i, cx| i.set_value(general::editor(cx), window, cx));
         // Empty means the account's default app-wide and Inherit for a project; the row's description says which.
         let codex_model_input = input("Not set", window, cx);
