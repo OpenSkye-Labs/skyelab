@@ -89,3 +89,60 @@ fn quit_asks_only_while_a_thread_waits(cx: &mut TestAppContext) {
     assert_eq!(quits(cx), 3, "Don't ask again: quits at once");
     assert!(!dialog_open(cx));
 }
+
+#[test]
+fn unsent_work_alone_is_lost_not_stopped() {
+    let one = [("x".into(), Blocker::Unsent)];
+    let (_, body) = question(&one);
+    assert_eq!(
+        body.as_ref(),
+        "1 thread has unsent comments or context. Quitting loses it."
+    );
+    let (_, body) = question(&[("x".into(), Blocker::Working), ("y".into(), Blocker::Unsent)]);
+    assert_eq!(
+        body.as_ref(),
+        "1 thread is working and 1 thread has unsent comments or context. Quitting stops them."
+    );
+}
+
+#[gpui::test]
+fn unsent_comments_and_chips_ask_before_quitting(cx: &mut TestAppContext) {
+    use crate::workspace::changes_model::{ChangedFile, Changes, LineKind, Row, Scope};
+    use crate::workspace::thread::composer::composer_context::ChipKind;
+    let (r, cx) = rig(cx);
+    cx.dispatch_action(NewThread);
+    cx.run_until_parked();
+    let view = r.ws.read_with(cx, |ws, _| ws.open_threads.last().cloned()).expect("a thread tab");
+    assert!(cx.update(|_, cx| blockers(cx)).is_empty(), "an idle, empty thread");
+    let title = view.read_with(cx, |v, _| v.title());
+
+    // A diff comment saved on the Changes tab and not yet sent: memory only.
+    let changes = Changes {
+        files: vec![ChangedFile {
+            path: "a.rs".into(),
+            old_path: None,
+            kind: skyelab_git::ChangeKind::Modified,
+            binary: false,
+            first_row: 0,
+        }],
+        rows: vec![
+            Row::File(0),
+            Row::Line { old: None, new: Some(1), kind: LineKind::Added, text: "a".into() },
+        ],
+        ..Default::default()
+    };
+    view.update(cx, |v, _| v.composer.review.add(&changes, Scope::Working, 1, 1, "why?"))
+        .expect("added");
+    assert_eq!(cx.update(|_, cx| blockers(cx)), vec![(title.clone(), Blocker::Unsent)]);
+    quit(cx);
+    assert!(dialog_open(cx), "unsent comments: the dialog asks");
+    cx.update(|window, cx| window.close_dialog(cx));
+    cx.run_until_parked();
+
+    // Sent into the composer as a chip, still unsent.
+    view.update(cx, |v, cx| {
+        v.composer.review.clear(Scope::Working);
+        assert!(v.push_context(ChipKind::Review, "1 comment".into(), "why?".into(), None, cx));
+    });
+    assert_eq!(cx.update(|_, cx| blockers(cx)), vec![(title, Blocker::Unsent)]);
+}

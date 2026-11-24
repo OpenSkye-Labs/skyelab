@@ -1,5 +1,6 @@
 //! Quitting while work is in flight: ⌘Q, the Quit menu and (off macOS) closing the last window ask first when a
-//! thread is working or waiting on the user, or a terminal runs a command, since quitting stops them all. A second
+//! thread or side chat is working or waiting on the user, a thread holds diff comments or context chips not sent yet
+//! (kept in memory only), or a terminal runs a command, since quitting stops or drops them all. A second
 //! ⌘Q while the dialog is open quits; "Don't ask again" (Settings → General) quits at once from then on.
 
 use super::panels::Ask;
@@ -58,29 +59,64 @@ pub(crate) fn set_asks(ask: bool, cx: &mut App) -> anyhow::Result<()> {
 pub(crate) enum Blocker {
     Working,
     Waiting(Ask),
+    /// Diff comments (saved or being written) or context chips not sent yet: memory only, so a quit drops them.
+    Unsent,
     Terminal,
 }
 
-/// Every local thread that works or waits on the user, and every terminal running a command, with its name.
+/// What quitting would stop or drop in thread `v`; `drafting`: a diff comment is being written for it.
+fn thread_blocker(v: &super::thread::ThreadView, drafting: bool) -> Option<Blocker> {
+    let state = super::thread_rows::RowState {
+        status: v.live_status(),
+        ask: super::thread_rows::waiting_ask(v),
+        started_ms: None,
+    };
+    if let Some(ask) = state.ask {
+        Some(Blocker::Waiting(ask))
+    } else if state.running() {
+        Some(Blocker::Working)
+    } else if drafting || !v.composer.review.items.is_empty() || !v.composer.contexts.is_empty() {
+        Some(Blocker::Unsent)
+    } else {
+        None
+    }
+}
+
+/// Every local thread and side chat that works, waits on the user or holds something unsent, and every terminal
+/// running a command, with its name.
 pub(crate) fn blockers(cx: &App) -> Vec<(SharedString, Blocker)> {
     let Some(reg) = cx.try_global::<Windows>() else {
         return Vec::new();
     };
+    let workspaces: Vec<_> = reg
+        .workspaces
+        .iter()
+        .filter_map(|r| r.workspace.upgrade())
+        .collect();
+    // Threads with a diff comment being written in a Changes tab (its text typed, not saved yet).
+    let drafting: Vec<_> = workspaces
+        .iter()
+        .flat_map(|ws| ws.read(cx).changes_views.iter().filter_map(|c| c.upgrade()))
+        .filter_map(|c| {
+            let c = c.read(cx);
+            let typed = !c.draft.as_ref()?.input.read(cx).value().trim().is_empty();
+            typed.then_some(c.thread.as_ref()?.entity_id())
+        })
+        .collect();
+    let sides = workspaces.iter().flat_map(|ws| {
+        ws.read(cx)
+            .side_chats
+            .iter()
+            .map(|p| p.read(cx).view.clone())
+    });
     let mut out = Vec::new();
-    for view in &reg.threads {
+    for view in reg.threads.iter().cloned().chain(sides) {
         let v = view.read(cx);
-        let state = super::thread_rows::RowState {
-            status: v.live_status(),
-            ask: super::thread_rows::waiting_ask(v),
-            started_ms: None,
-        };
-        if let Some(ask) = state.ask {
-            out.push((v.title(), Blocker::Waiting(ask)));
-        } else if state.running() {
-            out.push((v.title(), Blocker::Working));
+        if let Some(b) = thread_blocker(v, drafting.contains(&view.entity_id())) {
+            out.push((v.title(), b));
         }
     }
-    for ws in reg.workspaces.iter().filter_map(|r| r.workspace.upgrade()) {
+    for ws in &workspaces {
         for panel in &ws.read(cx).terminals {
             let p = panel.read(cx);
             let ids: Vec<_> = p.panes.iter().map(|p| p.view.entity_id()).collect();
@@ -95,6 +131,7 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
     let count = |f: fn(&Blocker) -> bool| items.iter().filter(|(_, b)| f(b)).count();
     let working = count(|b| *b == Blocker::Working);
     let waiting = count(|b| matches!(b, Blocker::Waiting(_)));
+    let unsent = count(|b| *b == Blocker::Unsent);
     let terminals = count(|b| *b == Blocker::Terminal);
     let plural = |n: usize, one: &str, many: &str| {
         if n == 1 {
@@ -114,6 +151,13 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
             "threads are waiting for you",
         ));
     }
+    if unsent > 0 {
+        parts.push(plural(
+            unsent,
+            "thread has unsent comments or context",
+            "threads have unsent comments or context",
+        ));
+    }
     if terminals > 0 {
         parts.push(plural(
             terminals,
@@ -129,7 +173,12 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
     (
         "Quit SkyeLab?".into(),
         format!(
-            "{list}. Quitting stops {}.",
+            "{list}. Quitting {} {}.",
+            if unsent == items.len() {
+                "loses"
+            } else {
+                "stops"
+            },
             if items.len() == 1 { "it" } else { "them" }
         )
         .into(),
@@ -141,6 +190,7 @@ fn label(b: Blocker) -> &'static str {
     match b {
         Blocker::Working => "Working",
         Blocker::Waiting(ask) => ask.label(),
+        Blocker::Unsent => "Not sent",
         Blocker::Terminal => "Terminal",
     }
 }

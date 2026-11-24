@@ -159,6 +159,22 @@ fn a_side_chat_runs_beside_its_thread_and_brings_its_answer_back(cx: &mut gpui::
     });
     cx.run_until_parked();
     assert_eq!(ws.read_with(cx, |ws, _| ws.side_chats.len()), 1);
+
+    // A side chat waiting on the user counts for the quit check, as a thread does (the parent's chip counts too).
+    side_view
+        .update_in(cx, |v, window, cx| v.submit_remote("permit", window, cx))
+        .expect("sent");
+    let side_title = side_view.read_with(cx, |v, _| v.title());
+    wait_until(cx, "the side chat to wait on an approval", |cx| {
+        cx.update(|_, cx| {
+            crate::workspace::quit_guard::blockers(cx)
+                .iter()
+                .any(|(n, b)| {
+                    *n == side_title
+                        && matches!(b, crate::workspace::quit_guard::Blocker::Waiting(_))
+                })
+        })
+    });
 }
 
 #[test]

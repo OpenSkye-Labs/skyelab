@@ -16,8 +16,9 @@ Closing the last window quits on Linux and Windows. On macOS SkyeLab keeps runni
 
 ## Quitting
 
-Quitting stops every agent and terminal command. So while a thread is working or waiting for you (an approval, a
-question, a plan), or a terminal runs a command, Quit (<kbd>⌘Q</kbd>, the menu, or closing the last window on Linux and
+Quitting stops every agent and terminal command. So while a thread or side chat is working or waiting for you (an
+approval, a question, a plan), a thread holds diff comments or context chips you haven't sent (they live in memory
+only), or a terminal runs a command, Quit (<kbd>⌘Q</kbd>, the menu, or closing the last window on Linux and
 Windows) first asks, listing them. **Quit** quits, **Cancel** keeps everything running, and pressing <kbd>⌘Q</kbd> again
 while it asks quits too. Tick **Don't ask again** to quit at once from then on; **Quit confirmation** in Settings →
 General turns the question back on. With nothing in flight it quits at once. Windows, drafts and thread state are saved
