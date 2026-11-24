@@ -50,9 +50,16 @@ bindings, or open terminals. Turning sharing off closes every connection.
 
 ## The environment switcher
 
-The top of the sidebar (**SkyeLab on This Mac ▾**) picks which machine the window shows. Open it to see your online
-devices and recent ones, or type a MagicDNS name such as `desktop.example.ts.net` and click **Connect**. Only full
-MagicDNS names work, not IP addresses or short names. The other machine must have sharing turned on. The first
+The machine chip at the start of the strip under the composer (**Studio Mac ⌃⌄**, your machine's name) picks which
+machine the window shows. Click it to see this machine, your online devices (a green dot) and recent ones, with full
+names; hover a row for its MagicDNS name and state. The palette's **Switch Machine** and the status bar's **Remote**
+badge open the same menu. Its last row, **Manage machines…**, opens **Settings → Machines**.
+
+**Settings → Machines** (under Connections) is where machines are managed: whether this machine is shared (the same
+switch as in Sharing & access), every machine with its status and **Connect**, **Disconnect** (back to this machine)
+or **Forget** (drops a recent name; connecting to it again still checks it is the same machine), and **Add by MagicDNS
+name**: type a name such as `desktop.example.ts.net` and click **Connect**. Only full MagicDNS names work, not IP
+addresses or short names. The other machine must have sharing turned on. The first
 time, it must also allow this device: the status bar says **Waiting for approval** with this device's code; check
 that the other machine shows the same code, click **Allow** there, and this window connects within a few seconds.
 
