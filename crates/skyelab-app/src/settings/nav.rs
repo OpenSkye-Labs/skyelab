@@ -3,8 +3,9 @@
 
 use super::page::GROUPS;
 use super::*;
+use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
-use gpui_component::{Icon, h_flex, kbd::Kbd, v_flex};
+use gpui_component::{Icon, h_flex, v_flex};
 
 /// Every setting the search finds: its section, its row title, and other words it answers to.
 const INDEX: &[(Section, &str, &str)] = &[

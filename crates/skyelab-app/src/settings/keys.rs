@@ -3,10 +3,9 @@
 
 use super::{Settings, SettingsEvent, widgets};
 use crate::ui;
+use crate::ui::{Button, Kbd, TextField};
 use gpui::{AnyElement, App, AsKeystroke as _, Context, Keystroke, SharedString, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Sizable as _, button::Button, h_flex, input::Input, kbd::Kbd, v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 
 /// One action's row.
 pub(super) struct KeyRow {
@@ -110,7 +109,7 @@ impl Settings {
                 div()
                     .flex_1()
                     .min_w(gpui::px(200.))
-                    .child(Input::new(&self.keys_search).small().cleanable(true)),
+                    .child(TextField::new(&self.keys_search).small().cleanable(true)),
             )
             .child(
                 Button::new("open-keys-file")

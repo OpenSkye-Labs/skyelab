@@ -5,6 +5,7 @@ use super::widgets::{path_line, path_text, section};
 use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui_component::{Icon, h_flex, v_flex};
 
 /// Why a stale binding stops agents, in one sentence.
@@ -248,7 +249,7 @@ impl Settings {
                 .flex_col()
                 .items_start()
                 .gap_2()
-                .child(div().w_full().child(Input::new(&self.test_input)))
+                .child(div().w_full().child(TextField::new(&self.test_input)))
                 .children(result)
                 .into_any_element()],
             cx,

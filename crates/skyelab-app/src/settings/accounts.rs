@@ -5,6 +5,7 @@ use super::widgets::{heading, path_line};
 use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
+use crate::ui::TextField;
 use gpui::AnyElement;
 use gpui_component::{Icon, h_flex, v_flex};
 
@@ -408,13 +409,13 @@ impl Settings {
                     .child(div().flex_1().child(field(
                         "Name",
                         "e.g. Work, Personal",
-                        Input::new(&self.label_input).into_any_element(),
+                        TextField::new(&self.label_input).into_any_element(),
                     )))
                     .when(editing.is_none(), |d| {
                         d.child(div().w(gpui::px(180.)).child(field(
                             "Id",
                             "optional",
-                            Input::new(&self.id_input).into_any_element(),
+                            TextField::new(&self.id_input).into_any_element(),
                         )))
                     }),
             )
@@ -423,7 +424,12 @@ impl Settings {
                 "where this login lives",
                 h_flex()
                     .gap_2()
-                    .child(div().flex_1().min_w_0().child(Input::new(&self.dir_input)))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .child(TextField::new(&self.dir_input)),
+                    )
                     .child(
                         Button::new("pick-config-dir")
                             .outline()
@@ -438,7 +444,7 @@ impl Settings {
             .child(field(
                 "GitHub folder",
                 "optional: its own gh login for push and pull requests",
-                Input::new(&self.gh_input).into_any_element(),
+                TextField::new(&self.gh_input).into_any_element(),
             ))
             .child(
                 h_flex()

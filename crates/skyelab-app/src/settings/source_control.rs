@@ -141,7 +141,7 @@ impl Settings {
                                             .child(status)
                                             .when_some(error, |d, e| {
                                                 d.tooltip(move |window, cx| {
-                                                    gpui_component::tooltip::Tooltip::new(e.clone())
+                                                    crate::ui::Tooltip::new(e.clone())
                                                         .build(window, cx)
                                                 })
                                             }),

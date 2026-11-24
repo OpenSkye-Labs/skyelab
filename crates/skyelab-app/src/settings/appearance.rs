@@ -6,7 +6,7 @@ use super::*;
 use crate::ui::SkyeIcon;
 use crate::ui::{self, themes};
 use gpui::Hsla;
-use gpui_component::{Disableable as _, Icon, h_flex, try_parse_color, v_flex};
+use gpui_component::{Icon, h_flex, try_parse_color, v_flex};
 use skyelab_core::{AppearanceSettings, ColorMode};
 
 /// A theme config color by its key, for the previews.
@@ -299,9 +299,7 @@ impl Settings {
                         .border_color(if on { ring } else { gpui::transparent_black() })
                         .cursor_pointer()
                         .child(swatch)
-                        .tooltip(move |window, cx| {
-                            gpui_component::tooltip::Tooltip::new(label).build(window, cx)
-                        })
+                        .tooltip(move |window, cx| crate::ui::Tooltip::new(label).build(window, cx))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.set_appearance(|s| s.accent = key.map(str::to_owned), cx)
                         }))
