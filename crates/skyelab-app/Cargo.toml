@@ -88,6 +88,9 @@ tempfile.workspace = true
 tungstenite.workspace = true
 skyelab-client = { workspace = true, features = ["test-support"] }
 rustls.workspace = true
+# The fake https remote (skyelab-git's tests/support/https_remote.rs) for the clone test.
+base64.workspace = true
+rcgen.workspace = true
 
 [package.metadata.packager]
 product-name = "SkyeLab"

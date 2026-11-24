@@ -1,22 +1,71 @@
 //! The palette's view: T3's card in a dialog, with gpui-component's `Command` for the list (its virtual list, arrow
 //! keys that wrap, hover select and keep-in-view), our rows, pages for submenus, and the footer of key hints.
 
-use super::{Entry, Group, Kind, PLACEHOLDER, Search, arrange, flatten, match_ranges, rank};
-use crate::ui::{CommandRow, Kbd, RADIUS_XL, SkyeIcon};
+use super::{Entry, Group, Kind, PLACEHOLDER, Search, arrange, flatten, rank};
+use crate::ui::RADIUS_XL;
 use gpui::{
-    App, AppContext as _, Context, Entity, FocusHandle, IntoElement, Keystroke, ParentElement as _,
-    Render, SharedString, Styled as _, Task, WeakEntity, Window, div, prelude::*, px,
+    App, AppContext as _, Context, Entity, FocusHandle, IntoElement, ParentElement as _, Render,
+    SharedString, Styled as _, Task, WeakEntity, Window, div, prelude::*, px,
 };
+#[path = "palette_rows.rs"]
+mod rows;
+use rows::{back_row, footer, row};
+
 use gpui_component::{
-    ActiveTheme as _, Icon, IndexPath, WindowExt as _,
+    ActiveTheme as _, IndexPath, WindowExt as _,
     command::{Command, CommandGroup, CommandItem, CommandState},
-    h_flex,
 };
 
-/// A submenu's items, shown instead of the root with a Back row.
+/// A page to open: its title, fixed rows, the rows found for each query (the empty one too), the field's hint.
+#[derive(Clone)]
+pub struct PageSpec {
+    pub title: SharedString,
+    pub entries: Vec<Entry>,
+    pub search: Option<Search>,
+    pub placeholder: Option<SharedString>,
+}
+
+impl PageSpec {
+    pub fn new(title: impl Into<SharedString>, entries: Vec<Entry>) -> Self {
+        Self {
+            title: title.into(),
+            entries,
+            search: None,
+            placeholder: None,
+        }
+    }
+
+    pub fn search(mut self, search: Search) -> Self {
+        self.search = Some(search);
+        self
+    }
+
+    pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
+        self.placeholder = Some(text.into());
+        self
+    }
+}
+
+/// A submenu's items (or a [`PageSpec`]), shown instead of the root with a Back row.
 struct Page {
     title: SharedString,
+    /// The fixed rows, then (from `fixed`) the last search's.
     entries: Vec<Entry>,
+    fixed: usize,
+    search: Option<Search>,
+    placeholder: Option<SharedString>,
+}
+
+impl Page {
+    fn of(spec: PageSpec) -> Self {
+        Self {
+            fixed: spec.entries.len(),
+            title: spec.title,
+            entries: spec.entries,
+            search: spec.search,
+            placeholder: spec.placeholder,
+        }
+    }
 }
 
 struct Palette {
@@ -26,6 +75,8 @@ struct Palette {
     nested: usize,
     fixed: usize,
     page: Option<Page>,
+    /// The pages under the shown one, for Back.
+    stack: Vec<Page>,
     query: SharedString,
     /// What the list shows now, by `arrange`; indexes into [`Self::list`].
     groups: Vec<Group>,
@@ -53,11 +104,12 @@ pub fn open_page(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let page = Page {
-        title: title.into(),
-        entries,
-    };
-    open_with(Vec::new(), Some(page), None, prev, window, cx);
+    open_spec(PageSpec::new(title, entries), prev, window, cx);
+}
+
+/// Opens the palette straight on `spec` (the Add project page); Back from it closes.
+pub fn open_spec(spec: PageSpec, prev: FocusHandle, window: &mut Window, cx: &mut App) {
+    open_with(Vec::new(), Some(Page::of(spec)), None, prev, window, cx);
 }
 
 fn open_with(
@@ -71,13 +123,14 @@ fn open_with(
     let nested = entries.len();
     let entries = flatten(entries);
     let state = cx.new(|cx| CommandState::new(window, cx));
-    let palette = cx.new(|_| {
+    let palette = cx.new(|cx| {
         let mut p = Palette {
             state: state.clone(),
             nested,
             fixed: entries.len(),
             entries,
             page,
+            stack: Vec::new(),
             query: SharedString::default(),
             groups: Vec::new(),
             prev,
@@ -85,8 +138,11 @@ fn open_with(
             _search: None,
         };
         p.arrange();
+        p.find_more(cx);
         p
     });
+    #[cfg(test)]
+    cx.set_global(OpenPalette(palette.downgrade()));
     window.open_dialog(cx, move |dialog, _, _| {
         let palette = palette.clone();
         // T3's card: max-w-xl, rounded-2xl, the list and footer reaching its edges.
@@ -110,12 +166,25 @@ impl Palette {
         self.groups = match &self.page {
             Some(page) => {
                 // By the shown title: a page's labels share a prefix ("Theme: …") that would match every row.
-                let rows = rank(&self.query, page.entries.iter().map(|e| e.shown().as_ref()));
+                let fixed = &page.entries[..page.fixed];
+                let rows = rank(&self.query, fixed.iter().map(|e| e.shown().as_ref()));
                 let label = page.title.clone();
-                (!rows.is_empty())
+                let mut groups: Vec<Group> = (!rows.is_empty())
                     .then_some(Group { label, rows })
                     .into_iter()
-                    .collect()
+                    .collect();
+                // Found rows keep the search's order, under their own sections.
+                for (i, e) in page.entries.iter().enumerate().skip(page.fixed) {
+                    let label = e.group.clone().unwrap_or_else(|| "Results".into());
+                    match groups.iter_mut().find(|g| g.label == label) {
+                        Some(g) => g.rows.push(i),
+                        None => groups.push(Group {
+                            label,
+                            rows: vec![i],
+                        }),
+                    }
+                }
+                groups
             }
             None => arrange(&self.query, &self.entries, self.nested, self.fixed),
         };
@@ -129,16 +198,28 @@ impl Palette {
     /// Runs the search for `query` and appends what it finds; a newer query drops (cancels) an older search.
     fn find_more(&mut self, cx: &mut Context<Self>) {
         let query = self.query.to_string();
-        let search = self.search.clone();
-        let Some(search) = search.filter(|_| self.page.is_none() && !query.trim().is_empty())
-        else {
+        // A page searches every query, the empty one too (its recent rows); the root only a typed one.
+        let search = match &self.page {
+            Some(page) => page.search.clone(),
+            None => self.search.clone().filter(|_| !query.trim().is_empty()),
+        };
+        let Some(search) = search else {
             self._search = None;
             return;
         };
         let task = search(query, cx);
+        let paged = self.page.is_some();
         self._search = Some(cx.spawn(async move |p, cx| {
             let found = task.await;
             _ = p.update(cx, |p, cx| {
+                if paged {
+                    if let Some(page) = p.page.as_mut() {
+                        page.entries.truncate(page.fixed);
+                        page.entries.extend(found);
+                    }
+                    p.arrange();
+                    return cx.notify();
+                }
                 p.entries.truncate(p.fixed);
                 let shown: std::collections::HashSet<SharedString> = p
                     .groups
@@ -156,10 +237,79 @@ impl Palette {
     fn set_query(&mut self, query: &str, cx: &mut Context<Self>) {
         self.query = query.to_owned().into();
         self.entries.truncate(self.fixed);
+        if let Some(page) = self.page.as_mut() {
+            page.entries.truncate(page.fixed);
+        }
         self.arrange();
         self.find_more(cx);
         cx.notify();
     }
+}
+
+gpui::actions!(skyelab, [CompleteFolder]);
+
+/// Tests: the palette opened last.
+#[cfg(test)]
+struct OpenPalette(WeakEntity<Palette>);
+
+#[cfg(test)]
+impl gpui::Global for OpenPalette {}
+
+/// Tests: what the open palette shows.
+#[cfg(test)]
+#[derive(Debug, Clone, PartialEq)]
+pub struct Shown {
+    /// The page's title, `None` at the root.
+    pub page: Option<String>,
+    pub query: String,
+    /// (section, title, subtitle) of each row, in order.
+    pub rows: Vec<(String, String, String)>,
+    /// The highlighted row.
+    pub selected: Option<usize>,
+}
+
+#[cfg(test)]
+pub fn shown(cx: &App) -> Option<Shown> {
+    let p = cx.try_global::<OpenPalette>()?.0.upgrade()?;
+    let p = p.read(cx);
+    let list = p.list();
+    let mut rows = Vec::new();
+    let mut selected = None;
+    let at = p.state.read(cx).selected_index();
+    for (gi, g) in p.groups.iter().enumerate() {
+        for (ri, &i) in g.rows.iter().enumerate() {
+            if at == Some(IndexPath::default().section(gi).row(ri)) {
+                selected = Some(rows.len());
+            }
+            let e = &list[i];
+            rows.push((
+                g.label.to_string(),
+                e.shown().to_string(),
+                e.subtitle
+                    .as_ref()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default(),
+            ));
+        }
+    }
+    Some(Shown {
+        page: p.page.as_ref().map(|pg| pg.title.to_string()),
+        query: p.state.read(cx).query(cx).to_string(),
+        rows,
+        selected,
+    })
+}
+
+/// The palette's own key context: Tab completes a folder there (Root's Tab would move focus).
+const KEY_CONTEXT: &str = "SkyePalette";
+
+/// Tab in the palette: complete the highlighted folder into the field.
+pub(super) fn bind_keys(cx: &mut App) {
+    cx.bind_keys([gpui::KeyBinding::new(
+        "tab",
+        CompleteFolder,
+        Some(KEY_CONTEXT),
+    )]);
 }
 
 /// Closes the palette and gives focus back to what had it.
@@ -168,6 +318,39 @@ fn close(palette: &Entity<Palette>, window: &mut Window, cx: &mut App) {
     window.close_dialog(cx);
     // The dialog sits outside the workspace, so the action must start from the element focused before it.
     window.focus(&prev, cx);
+}
+
+/// Opens `page` over the shown one, which Back returns to.
+fn push_page(palette: &Entity<Palette>, page: Page, window: &mut Window, cx: &mut App) {
+    palette.update(cx, |p, _| {
+        if let Some(under) = p.page.take() {
+            p.stack.push(under);
+        }
+    });
+    show_page(palette, Some(page), window, cx);
+}
+
+/// Puts `query` in the field as if typed (a folder browsed into), the caret at its end.
+fn set_field(palette: &Entity<Palette>, query: SharedString, window: &mut Window, cx: &mut App) {
+    let state = palette.update(cx, |p, cx| {
+        p.set_query(&query, cx);
+        p.state.clone()
+    });
+    state.update(cx, |s, cx| {
+        s.set_query(query, window, cx);
+        s.set_selected_index(Some(IndexPath::default()), window, cx);
+    });
+}
+
+/// Tab: the highlighted row's folder into the field.
+fn complete(palette: &Entity<Palette>, window: &mut Window, cx: &mut App) -> bool {
+    let p = palette.read(cx);
+    let ix = p.state.read(cx).selected_index().unwrap_or_default();
+    let Some(query) = p.entry_at(ix).and_then(|e| e.browse.clone()) else {
+        return false;
+    };
+    set_field(palette, query, window, cx);
+    true
 }
 
 /// Shows `page` (or the root for `None`) with an empty query.
@@ -188,6 +371,10 @@ fn show_page(palette: &Entity<Palette>, page: Option<Page>, window: &mut Window,
 /// Escape, Backspace on an empty query and the Back row: a page goes back to the root; the root (or a page opened
 /// on its own) closes.
 fn back(palette: &Entity<Palette>, window: &mut Window, cx: &mut App) {
+    let under = palette.update(cx, |p, _| p.stack.pop());
+    if let Some(under) = under {
+        return show_page(palette, Some(under), window, cx);
+    }
     let p = palette.read(cx);
     let to_root = p.page.is_some() && !p.entries.is_empty();
     if to_root {
@@ -204,163 +391,18 @@ fn choose(palette: &WeakEntity<Palette>, ix: IndexPath, window: &mut Window, cx:
     let Some(entry) = palette.read(cx).entry_at(ix).cloned() else {
         return;
     };
+    if let Some(query) = entry.browse {
+        return set_field(&palette, query, window, cx);
+    }
+    if let Some(spec) = entry.page {
+        return push_page(&palette, Page::of((*spec).clone()), window, cx);
+    }
     if let Some(items) = entry.submenu {
-        let page = Page {
-            title: entry.title.unwrap_or(entry.label),
-            entries: items.to_vec(),
-        };
-        return show_page(&palette, Some(page), window, cx);
+        let spec = PageSpec::new(entry.title.unwrap_or(entry.label), items.to_vec());
+        return push_page(&palette, Page::of(spec), window, cx);
     }
     close(&palette, window, cx);
     (entry.run)(window, cx);
-}
-
-/// The icon a row shows when its entry names none: by kind, and for actions by a word in their name.
-fn icon_for(entry: &Entry) -> SkyeIcon {
-    if let Some(icon) = entry.icon {
-        return icon;
-    }
-    let name = match entry.kind {
-        Kind::Project => return SkyeIcon::Folder,
-        Kind::Thread => return SkyeIcon::MessageCircle,
-        Kind::Tab => return SkyeIcon::PanelBottom,
-        Kind::Action(name) => name.rsplit("::").next().unwrap_or(name),
-    };
-    const BY_WORD: &[(&str, SkyeIcon)] = &[
-        ("NewThread", SkyeIcon::NewThread),
-        ("NewScratch", SkyeIcon::NewThread),
-        ("NewSideChat", SkyeIcon::MessagesSquare),
-        ("Settings", SkyeIcon::Settings),
-        ("Theme", SkyeIcon::Palette),
-        ("Script", SkyeIcon::Play),
-        ("Forward", SkyeIcon::Plug),
-        ("Terminal", SkyeIcon::SquareTerminal),
-        ("Sidebar", SkyeIcon::PanelLeft),
-        ("BottomPanel", SkyeIcon::PanelBottom),
-        ("RightPanel", SkyeIcon::PanelRight),
-        ("FilePicker", SkyeIcon::File),
-        ("Find", SkyeIcon::Search),
-        ("Search", SkyeIcon::Search),
-        ("Browser", SkyeIcon::Browser),
-        ("Device", SkyeIcon::Smartphone),
-        ("Environment", SkyeIcon::Remote),
-        ("Remote", SkyeIcon::Remote),
-        ("Sharing", SkyeIcon::Remote),
-        ("PullRequest", SkyeIcon::GitPullRequest),
-        ("ThreadPr", SkyeIcon::GitPullRequest),
-        ("Issues", SkyeIcon::CircleDot),
-        ("Changes", SkyeIcon::FileDiff),
-        ("Worktree", SkyeIcon::GitBranch),
-        ("Branch", SkyeIcon::GitBranch),
-        ("Commit", SkyeIcon::GitCommitVertical),
-        ("Copy", SkyeIcon::Copy),
-        ("Archive", SkyeIcon::Archive),
-        ("Delete", SkyeIcon::Trash),
-        ("Pin", SkyeIcon::Pin),
-        ("Rename", SkyeIcon::PenLine),
-        ("Project", SkyeIcon::FolderPlus),
-        ("Folder", SkyeIcon::FolderOpen),
-        ("Account", SkyeIcon::User),
-        ("Update", SkyeIcon::RefreshCw),
-        ("Stop", SkyeIcon::Square),
-        ("Interrupt", SkyeIcon::Square),
-        ("Schedule", SkyeIcon::Clock),
-        ("Dictation", SkyeIcon::Mic),
-        ("Editor", SkyeIcon::SquareCode),
-        ("Gallery", SkyeIcon::Rows3),
-        ("Debug", SkyeIcon::Code),
-        ("Keymap", SkyeIcon::Keyboard),
-        ("Window", SkyeIcon::Monitor),
-        ("Quit", SkyeIcon::X),
-        ("Codex", SkyeIcon::Codex),
-        ("Claude", SkyeIcon::Claude),
-        ("Thread", SkyeIcon::MessageCircle),
-    ];
-    BY_WORD
-        .iter()
-        .find(|(word, _)| name.contains(word))
-        .map_or(SkyeIcon::SquareMenu, |&(_, icon)| icon)
-}
-
-fn row(entry: &Entry, query: &str) -> CommandRow {
-    let title = entry.shown().clone();
-    let strong = match_ranges(query, &title, entry.bold.clone());
-    CommandRow::new(icon_for(entry), title)
-        .strong(strong)
-        .subtitle(entry.subtitle.clone())
-        .checked(entry.checked)
-        .shortcut(entry.binding.clone())
-        .submenu(entry.submenu.is_some())
-}
-
-/// A key cap with T3's words ("Enter", not ↩).
-fn cap(key: &str, label: &'static str) -> Kbd {
-    Kbd::new(Keystroke {
-        modifiers: Default::default(),
-        key: key.into(),
-        key_char: None,
-    })
-    .with_label(label)
-}
-
-/// T3's footer: ↑ ↓ Navigate, Enter Select, (Backspace Back), Esc Close.
-fn footer(paged: bool, cx: &App) -> gpui::Div {
-    let theme = cx.theme();
-    let hint = |caps: Vec<Kbd>, text: &'static str| {
-        h_flex()
-            .gap_1()
-            .children(caps)
-            .child(div().ml_0p5().child(text))
-    };
-    h_flex()
-        .w_full()
-        .gap_3()
-        .px_4()
-        .py_2p5()
-        .border_t_1()
-        .border_color(theme.foreground.opacity(0.07))
-        .bg(theme.foreground.opacity(0.025))
-        .text_size(crate::ui::META)
-        .font_weight(gpui::FontWeight::MEDIUM)
-        .text_color(theme.muted_foreground)
-        .child(hint(vec![cap("up", "↑"), cap("down", "↓")], "Navigate"))
-        .child(hint(vec![cap("enter", "Enter")], "Select"))
-        .when(paged, |f| {
-            f.child(hint(vec![cap("backspace", "Backspace")], "Back"))
-        })
-        .child(hint(
-            vec![cap("escape", "Esc")],
-            if paged { "Back" } else { "Close" },
-        ))
-}
-
-/// Above a page's search field: ‹ and the page's title, back to the root on click (T3's Back addon).
-fn back_row(
-    title: SharedString,
-    palette: WeakEntity<Palette>,
-    cx: &App,
-) -> gpui::Stateful<gpui::Div> {
-    let theme = cx.theme();
-    h_flex()
-        .id("palette-back")
-        .debug_selector(|| "palette-back".into())
-        .mx_2()
-        .mt_2()
-        .px_2()
-        .py_1()
-        .gap_1p5()
-        .rounded(crate::ui::RADIUS_MD)
-        .text_size(crate::ui::META)
-        .font_weight(gpui::FontWeight::MEDIUM)
-        .text_color(theme.muted_foreground)
-        .hover(|s| s.bg(theme.foreground.opacity(0.06)))
-        .child(Icon::new(SkyeIcon::ChevronLeft).size_3p5())
-        .child(title)
-        .on_click(move |_, window, cx| {
-            if let Some(p) = palette.upgrade() {
-                back(&p, window, cx);
-            }
-        })
 }
 
 impl Render for Palette {
@@ -383,16 +425,18 @@ impl Render for Palette {
             .collect();
         let this = cx.entity().downgrade();
         let paged = self.page.as_ref().map(|p| p.title.clone());
+        let placeholder = self
+            .page
+            .as_ref()
+            .map(|p| p.placeholder.clone().unwrap_or_else(|| "Search…".into()));
+        let completes = self.page.as_ref().is_some_and(|p| p.search.is_some());
+        let stacked = !self.stack.is_empty();
         let mut command = Command::new(&self.state)
             .filterable(false)
             .bordered(false)
             .bg(gpui::transparent_black())
             .max_h(px(420.))
-            .placeholder(if paged.is_some() {
-                "Search…"
-            } else {
-                PLACEHOLDER
-            })
+            .placeholder(placeholder.unwrap_or_else(|| PLACEHOLDER.into()))
             .empty(|_, _, cx| {
                 div()
                     .py_10()
@@ -404,8 +448,8 @@ impl Render for Palette {
             })
             .footer({
                 // A page opened on its own has no root to go back to: its keys close.
-                let back = paged.is_some() && !self.entries.is_empty();
-                move |_, _, cx| footer(back, cx)
+                let back = paged.is_some() && (stacked || !self.entries.is_empty());
+                move |_, _, cx| footer(back, completes, cx)
             })
             .on_query({
                 let this = this.clone();
@@ -425,8 +469,16 @@ impl Render for Palette {
         for group in groups {
             command = command.group(group);
         }
-        let (on_escape, on_backspace) = (this.clone(), this);
+        let (on_escape, on_backspace, on_tab) = (this.clone(), this.clone(), this);
         div()
+            .key_context(KEY_CONTEXT)
+            .capture_action(move |_: &CompleteFolder, window, cx| {
+                if let Some(p) = on_tab.upgrade()
+                    && complete(&p, window, cx)
+                {
+                    cx.stop_propagation();
+                }
+            })
             // Before the Command's own Escape, which first clears the query: T3 closes (or goes back) at once.
             .capture_action(move |_: &gpui_base::actions::Cancel, window, cx| {
                 if let Some(p) = on_escape.upgrade() {
@@ -445,27 +497,5 @@ impl Render for Palette {
                 }
             })
             .child(command)
-    }
-}
-
-#[cfg(test)]
-mod icon_test {
-    use super::*;
-
-    #[test]
-    fn action_icons_match_whole_words_not_prefixes() {
-        let icon = |name: &'static str| {
-            icon_for(&Entry::new(
-                "x",
-                Kind::Action(name),
-                std::rc::Rc::new(|_, _| {}),
-            ))
-        };
-        // "Pr" once matched inside Project and Prompt.
-        assert_eq!(icon("skyelab::AddProject"), SkyeIcon::FolderPlus);
-        assert_eq!(icon("skyelab::SchedulePrompt"), SkyeIcon::Clock);
-        assert_eq!(icon("skyelab::OpenThreadPr"), SkyeIcon::GitPullRequest);
-        assert_eq!(icon("skyelab::OpenPullRequests"), SkyeIcon::GitPullRequest);
-        assert_eq!(icon("skyelab::OpenSettings"), SkyeIcon::Settings);
     }
 }

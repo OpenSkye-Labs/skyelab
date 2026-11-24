@@ -4,6 +4,18 @@
 #[cfg(all(test, unix))]
 mod accounts_file_reread_test;
 #[cfg(test)]
+mod add_project_bind_test;
+#[cfg(all(test, unix, debug_assertions))]
+mod add_project_clone_test;
+#[cfg(test)]
+mod add_project_keys_test;
+#[cfg(test)]
+mod add_project_new_test;
+#[cfg(test)]
+mod add_project_rig;
+#[cfg(test)]
+mod add_project_test;
+#[cfg(test)]
 mod agent_bin_test;
 #[cfg(all(test, unix))]
 mod browser_agent_cap_test;
@@ -254,3 +266,5 @@ mod worktree_guard_test;
 mod worktree_review_test;
 #[cfg(test)]
 mod worktree_thread_test;
+#[cfg(test)]
+mod new_thread_no_finder_test;

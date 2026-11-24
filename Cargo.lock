@@ -8471,6 +8471,7 @@ dependencies = [
  "image",
  "markdown",
  "mermaid-rs-renderer",
+ "rcgen",
  "resvg 0.50.0",
  "rusqlite",
  "rustls",

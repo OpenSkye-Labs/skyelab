@@ -6,7 +6,7 @@ use super::worktree;
 use super::{
     AddProject, NewThread, NewThreadIn, OpenThread, SelectProject, Workspace, account_label, lock,
 };
-use gpui::{AppContext as _, Context, Entity, PathPromptOptions, Window};
+use gpui::{AppContext as _, Context, Entity, Window};
 
 use skyelab_store::Thread;
 use std::path::PathBuf;
@@ -82,26 +82,6 @@ impl Workspace {
         }));
     }
 
-    pub(super) fn pick_project(&mut self, _: &AddProject, _: &mut Window, cx: &mut Context<Self>) {
-        if self.is_remote() {
-            return; // a local folder picker would add to this machine while another one is shown
-        }
-        let picked = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: Some("Add project".into()),
-        });
-        self._add = Some(cx.spawn(async move |this, cx| {
-            let Ok(Ok(Some(paths))) = picked.await else {
-                return; // cancelled, or the platform has no picker
-            };
-            if let Some(dir) = paths.into_iter().next() {
-                let _ = this.update(cx, |this, cx| this.add_project(dir, cx));
-            }
-        }));
-    }
-
     pub(super) fn select_project(
         &mut self,
         a: &SelectProject,
@@ -173,12 +153,22 @@ impl Workspace {
         }
     }
 
-    /// The palette as a project picker: "New thread in: <project>" for each one.
+    /// The palette as a project picker: "New thread in: <project>" for each one, then Add project….
     fn pick_new_thread_project(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(prev) = window.focused(cx) else {
             return;
         };
-        let entries = self.new_thread_in_entries();
+        let mut entries = self.new_thread_in_entries();
+        entries.push(
+            crate::palette::Entry::new(
+                "Add project…",
+                crate::palette::Kind::Action("skyelab::AddProject"),
+                std::rc::Rc::new(|_, _| {}),
+            )
+            .icon(crate::ui::SkyeIcon::FolderPlus)
+            .subtitle("Add a folder, create a project or clone one")
+            .page(self.add_project_page(cx)),
+        );
         crate::palette::open_page("New thread in", entries, prev, window, cx);
     }
 

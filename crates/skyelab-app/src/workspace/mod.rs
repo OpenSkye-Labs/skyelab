@@ -61,6 +61,7 @@ pub(crate) mod usage_page;
 mod usage_page_render;
 use terminal_launch::{terminal_env, unbound_root};
 mod accounts_file;
+mod add_project;
 pub(crate) mod github;
 pub(crate) mod orchestrate;
 mod orchestrate_ui;
