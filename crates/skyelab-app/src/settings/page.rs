@@ -272,7 +272,7 @@ impl Settings {
 
 impl Render for Settings {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("Settings");
+        let _render = crate::debug_renders::count("Settings");
         let nav = self.render_nav(cx);
         let header = self.render_header(cx);
         let section = self.render_section(cx);

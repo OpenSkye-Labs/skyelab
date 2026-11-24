@@ -280,6 +280,7 @@ impl Codex {
     }
 
     /// One line from codex: the events it means, and the lines to write back.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub(crate) fn on_line(&mut self, v: Value) -> (Vec<Event>, Vec<String>) {
         let method = v["method"].as_str().map(str::to_owned);
         match (method, v.get("id").filter(|id| !id.is_null()).cloned()) {

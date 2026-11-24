@@ -342,6 +342,8 @@ impl Store {
         })
     }
 
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[tracing::instrument(name = "store.thread", skip_all)]
     pub fn thread(&self, id: i64) -> Result<Option<Thread>> {
         let sql = format!("SELECT {THREAD_COLS} FROM threads WHERE id = ?1");
         Ok(self
@@ -352,6 +354,8 @@ impl Store {
 
     /// Most recently updated first, archived ones included. Deleted ones (still in their undo window) and side chats
     /// are left out.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[tracing::instrument(name = "store.list_threads", skip_all)]
     pub fn list_threads(&self, project_id: i64) -> Result<Vec<Thread>> {
         let sql = format!(
             "SELECT {THREAD_COLS} FROM threads WHERE project_id = ?1 AND deleted_at IS NULL AND side_of IS NULL
@@ -364,6 +368,8 @@ impl Store {
 
     /// Every listed project's threads, most recently updated first, archived ones included. Deleted threads, side
     /// chats and removed projects are left out.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[tracing::instrument(name = "store.list_all_threads", skip_all)]
     pub fn list_all_threads(&self) -> Result<Vec<Thread>> {
         let cols = THREAD_COLS
             .split(", ")

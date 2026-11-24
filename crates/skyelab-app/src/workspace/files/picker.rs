@@ -192,7 +192,7 @@ fn row(path: &str, cx: &App) -> gpui::Div {
 
 impl Render for FilePicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("FilePicker");
+        let _render = crate::debug_renders::count("FilePicker");
         let items = self
             .shown
             .iter()

@@ -214,6 +214,35 @@ pub fn rpc_method(json: &str) -> String {
         .unwrap_or_else(|| "?".into())
 }
 
+/// One RPC being timed for the log: `side` is `client` or `daemon`. `None` while debug mode is off.
+pub struct RpcCall {
+    at: std::time::Instant,
+    what: String,
+    bytes: usize,
+}
+
+impl RpcCall {
+    /// Times the request whose JSON text is `json`; only its method name and size are kept.
+    pub fn start(side: &str, json: &str) -> Option<Self> {
+        enabled().then(|| Self {
+            at: std::time::Instant::now(),
+            what: format!("{side} {}", rpc_method(json)),
+            bytes: json.len(),
+        })
+    }
+
+    /// Logs the answer: the round trip time, or the error (redacted).
+    pub fn done(self, error: Option<&str>) {
+        record(|| {
+            let entry = Entry::new(Kind::Rpc, self.what).ms(self.at.elapsed());
+            match error {
+                None => entry.detail(format!("{} B", self.bytes)),
+                Some(why) => entry.failed(&format!("{} B, {why}", self.bytes)),
+            }
+        });
+    }
+}
+
 /// Logs a started child: program and redacted args, never its env. The Tailscale CLI is logged as tailnet.
 pub fn record_spawn(cmd: &std::process::Command, started: &std::io::Result<std::process::Child>) {
     record(|| {

@@ -133,6 +133,10 @@ and a dark side), the **Mode** (System, Light or Dark), an **Accent color**, **D
 the **Text size** and **Code text size**. Changes apply at once in every window and are saved under `[appearance]` in
 `settings.toml`. The palette has the same choices as **Theme: …** entries.
 
+**Settings → General → Advanced → Developer mode** is for people working on SkyeLab itself: a **Debug** chip in the
+status bar, an overlay with frame times and live counts, and a debug log of network calls and child processes (no
+prompts or secrets). [debugging.md](debugging.md) explains it.
+
 ## Updates
 
 Once a day at most, when SkyeLab starts (and every hour after that it checks whether a day has passed), it asks

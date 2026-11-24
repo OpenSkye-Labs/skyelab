@@ -101,6 +101,26 @@ impl Settings {
                 cx,
             ))
             .child(section(
+                "Advanced",
+                "Tools for working on SkyeLab itself.",
+                [setting(
+                    true,
+                    "Developer mode",
+                    "Debug mode at every launch: the Debug chip in the status bar, the overlay with frame times and \
+                     live counts, and a debug log of network calls and child processes (no prompts or secrets).",
+                    Switch::new("developer-mode")
+                        .checked(crate::debug_mode::developer_mode(cx))
+                        .accessibility_label("Developer mode")
+                        .on_click(cx.listener(|this, on: &bool, _, cx| {
+                            let save = crate::debug_mode::set_developer_mode(*on, cx);
+                            this.report(save, "Developer mode", cx);
+                            cx.notify();
+                        })),
+                    cx,
+                )],
+                cx,
+            ))
+            .child(section(
                 "Updates",
                 "SkyeLab only looks; it never installs anything itself.",
                 [setting(

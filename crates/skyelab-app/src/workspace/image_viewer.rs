@@ -86,7 +86,7 @@ pub(in crate::workspace) fn open(
 
 impl Render for ImageViewer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("ImageViewer");
+        let _render = crate::debug_renders::count("ImageViewer");
         let theme = cx.theme();
         let viewport = window.viewport_size();
         let (w, h) = (viewport.width * 0.92 - px(16.), viewport.height * 0.8);

@@ -92,12 +92,14 @@ fn read_all(mut file: File) -> io::Result<Vec<u8>> {
 }
 
 /// Like [`Command::output`], with `input` on stdin: runs `cmd` to its exit and returns what it printed.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn output(cmd: &mut Command, input: Option<&[u8]>) -> io::Result<Output> {
     let _span = tracing::info_span!("process", program = ?cmd.get_program()).entered();
     Captured::spawn(cmd, input)?.wait()
 }
 
 /// [`output`], with the child killed once `limit` passes: then a `TimedOut` error, never a wait forever.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub fn output_within(
     cmd: &mut Command,
     input: Option<&[u8]>,

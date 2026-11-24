@@ -25,6 +25,8 @@ use crate::{
 /// A browser pane. Agents drive it with `navigate`, `current_url` and `eval_js`, which only reach
 /// http and https pages. The URL bar is the user's path and also opens local files.
 pub struct BrowserView {
+    /// Debug mode's live count of browser tabs.
+    _live: skyelab_core::debug::Live,
     /// `None` when the native webview couldn't be built (e.g. a Wayland window); `error` says why.
     webview: Option<Entity<WebView>>,
     /// What loads and runs scripts: the webview, or a test's fake. `None` once closed.
@@ -177,6 +179,7 @@ impl BrowserView {
         });
 
         Self {
+            _live: skyelab_core::debug::Live::new("browser tabs"),
             webview,
             engine,
             url_bar,

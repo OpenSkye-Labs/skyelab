@@ -356,8 +356,19 @@ fn respond(
         "tools/list" => json!({"tools": tools::list()}),
         "tools/call" => {
             let name = params["name"].as_str().unwrap_or_default();
+            let _span = tracing::info_span!("mcp.tool", tool = name).entered();
+            let started = std::time::Instant::now();
             let answer = tools::parse(name, &params["arguments"])
                 .and_then(|tool| host.call_granted(caller, tool, granted));
+            // The tool's name, time and outcome only: its input and answer can hold prompts and page text.
+            skyelab_core::debug::record(|| {
+                let entry = skyelab_core::debug::Entry::new(skyelab_core::debug::Kind::Mcp, name)
+                    .ms(started.elapsed());
+                match &answer {
+                    Ok(_) => entry,
+                    Err(_) => entry.failed("the tool returned an error"),
+                }
+            });
             match answer {
                 Ok(v) if name == "browser_screenshot" || name == "device_screenshot" => {
                     json!({"content": image_content(v), "isError": false})

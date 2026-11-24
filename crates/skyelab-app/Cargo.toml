@@ -41,6 +41,38 @@ tempfile.workspace = true
 dirs.workspace = true
 mermaid-rs-renderer.workspace = true
 resvg.workspace = true
+# Debug mode (docs/debugging.md): the dump's child processes, the SKYELAB_TRACE trace.
+sysinfo.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-chrome.workspace = true
+# Opt-in profilers, each behind a feature below; none is in a default build.
+hotpath = { workspace = true, optional = true }
+dhat = { workspace = true, optional = true }
+tracing-tracy = { workspace = true, optional = true }
+console-subscriber = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["tracing"] }
+
+[features]
+# Function timing on the hot paths, report on quit: `cargo run -p skyelab-app --release --features hotpath`.
+hotpath = [
+    "dep:hotpath",
+    "hotpath/hotpath",
+    "skyelab-core/hotpath",
+    "skyelab-store/hotpath",
+    "skyelab-agent/hotpath",
+    "skyelab-daemon/hotpath",
+]
+# The same, plus bytes allocated per function (replaces the global allocator; not with dhat-heap).
+hotpath-alloc = ["hotpath", "hotpath/hotpath-alloc"]
+# dhat heap profile written on quit; open it in https://nnethercote.github.io/dh_view/dh_view.html.
+dhat-heap = ["dep:dhat"]
+# Live profiling in the Tracy profiler app.
+tracy = ["dep:tracing-tracy"]
+# tokio-console for the daemon and client runtimes; also needs RUSTFLAGS="--cfg tokio_unstable".
+tokio-console = ["dep:console-subscriber", "dep:tokio"]
+# GPUI's own frame-time overlay, drawn with ours (adds GPUI's per-task timing).
+gpui-profiler = ["gpui/profiler"]
 
 [lints]
 workspace = true

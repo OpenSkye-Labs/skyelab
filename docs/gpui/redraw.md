@@ -41,9 +41,11 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Element ids and keyed element state of list rows use a key the row keeps (`thread_model::Items` gives each row one
   from a global counter), never the row's index: the timeline is spliced, and an index id hands a row's markdown
   cache, selection or open fold to its neighbour. A list built again gets new keys, so stale state never attaches.
-- Measure redraws with `SKYELAB_DEBUG_RENDERS=1` (debug builds): every view's `render` calls
-  `crate::debug_renders::count("Name")`, and stderr gets `renders/s Workspace=17 ThreadView=16 timeline row=144 …`
-  once a second. `Workspace` is the frame count per window. A new view adds the call as its render's first line.
+- Measure redraws with `SKYELAB_DEBUG_RENDERS=1` (any build) or debug mode's overlay ([debugging.md](../debugging.md)):
+  every view's `render` starts with `let _render = crate::debug_renders::count("Name");`, and stderr gets
+  `renders/s Workspace=17 ThreadView=16 timeline row=144 …` once a second. `Workspace` is the frame count per window. A
+  new view adds the line as its render's first, keeping the guard: it is also the view's `render` span in a
+  `SKYELAB_TRACE` trace. Tests read the counts with `debug_renders::take_test_count` (per test thread, always on).
   Measured: the focused composer's caret blink re-renders `ThreadView` (and rebuilds its visible timeline rows)
   twice a second while idle.
 - A cached view nested under another cached view is **not** reused when that ancestor renders again: on a cache miss
@@ -72,3 +74,13 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - An overlay drawn from a view's own rows (the timeline minimap) stays in that view's render: inside a dock panel a
   child entity would render on every frame of its parent anyway. Keep its per-frame work to a tag scan of the rows
   and one div per mark, notify only when its hover changes, and derive text (previews) only for the hovered mark.
+
+- A debug overlay that is an entity re-renders the whole window on each of its ticks (ancestor dirtying), so it is
+  absent, not hidden, while off: `Workspace::debug_hud` is `None` and nothing ticks (`debug_hud_test.rs` proves an
+  idle window draws 0 frames in 5 s). Its own tick shows up as one frame a second; close it to measure idle.
+- GPUI ships a frame-time overlay painted straight into the scene, with no view redraw
+  (`window.set_debug_frame_overlay_mode`), but only with its `profiler` feature, which also times every task. We turn
+  it on only in `--features gpui-profiler` builds.
+- Frame time without GPUI's profiler: note `Instant::now()` at the root view's render and close it in the paint of an
+  invisible `canvas` that is the root's last child (`debug_mode::frame_probe`). It covers render, layout, prepaint and
+  most of paint; deferred layers paint after it, so it slightly undercounts.

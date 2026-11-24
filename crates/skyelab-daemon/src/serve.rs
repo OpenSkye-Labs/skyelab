@@ -153,6 +153,7 @@ fn on_text(
     replies: &mpsc::Sender<ServerMessage>,
     running: &mut JoinSet<()>,
 ) -> Step {
+    let timed = skyelab_core::debug::RpcCall::start("daemon", text);
     let req = match Request::parse(text) {
         Ok(req) => req,
         Err(msg) => return Step::Send(msg),
@@ -209,7 +210,10 @@ fn on_text(
             ErrorCode::BadRequest,
             "open_tunnel needs a connection that said hello as a tunnel",
         )),
-        (call, true) => on_call(call, id, shared, who, in_flight, replies, running),
+        (call, true) => {
+            let incoming = Incoming { id, call, timed };
+            on_call(incoming, shared, who, in_flight, replies, running)
+        }
     }
 }
 
@@ -243,10 +247,16 @@ fn hello_checked(
     }
 }
 
-/// A call after hello on a connection that isn't a tunnel.
-fn on_call(
-    call: Call,
+/// A request past hello, and its timing for the debug log (`None` while debug mode is off).
+struct Incoming {
     id: skyelab_protocol::RequestId,
+    call: Call,
+    timed: Option<skyelab_core::debug::RpcCall>,
+}
+
+/// A call after hello on a connection that isn't a tunnel. Backend calls are timed for the debug log.
+fn on_call(
+    Incoming { id, call, timed }: Incoming,
     shared: &Shared,
     who: &Who,
     in_flight: &Arc<Semaphore>,
@@ -323,6 +333,12 @@ fn on_call(
                         error: RpcError::new(ErrorCode::Internal, "request failed"),
                     },
                 };
+                if let Some(timed) = timed {
+                    match &reply {
+                        ServerMessage::Error { error, .. } => timed.done(Some(&error.message)),
+                        _ => timed.done(None),
+                    }
+                }
                 // Waits only while `serve` is busy writing; it drains this channel every turn.
                 let _ = replies.send(reply).await;
                 drop(permit);
@@ -363,6 +379,8 @@ fn hello(
     }
 }
 
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[tracing::instrument(name = "daemon.dispatch", skip_all)]
 fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
     match call {
         Call::Hello { .. } => Err(RpcError::new(ErrorCode::BadRequest, "already said hello")),

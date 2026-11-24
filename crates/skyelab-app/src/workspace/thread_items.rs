@@ -126,6 +126,7 @@ pub(super) trait ItemsView: Sized + 'static {
 }
 
 /// One row of a thread's item list, folded into its finished turn's header when the turn folds it.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub(super) fn render_item<V: ItemsView>(
     this: &mut V,
     ix: usize,
@@ -134,7 +135,7 @@ pub(super) fn render_item<V: ItemsView>(
 ) -> AnyElement {
     #[cfg(test)]
     ROWS_BUILT.with(|n| n.set(n.get() + 1));
-    crate::debug_renders::count("timeline row");
+    let _render = crate::debug_renders::count("timeline row");
     let mark = this.find_mark(ix);
     let row = timeline_fold::fold_row(this, ix, |this, cx| render_row(this, ix, window, cx), cx);
     match mark {

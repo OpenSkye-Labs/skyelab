@@ -4,7 +4,9 @@ use super::*;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("Workspace");
+        let _render = crate::debug_renders::count("Workspace");
+        // Debug mode's frame timing: from here to the probe's paint (docs/debugging.md).
+        let frame_start = skyelab_core::debug::enabled().then(std::time::Instant::now);
         let ring = self.render_ring(window, cx);
         let settings = self.settings_modal(window, cx);
         let theme = cx.theme();
@@ -61,6 +63,9 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::focus_next_area))
             .on_action(cx.listener(Self::focus_previous_area))
             .on_action(cx.listener(Self::focus_composer))
+            .on_action(cx.listener(Self::toggle_debug_overlay))
+            .on_action(cx.listener(Self::open_debug_log))
+            .on_action(cx.listener(Self::dump_debug_state))
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| this.clear_ring(cx)))
             .map(|el| self.env_actions(el, cx))
             .map(|el| self.manage_actions(el, cx))
@@ -88,6 +93,8 @@ impl Render for Workspace {
             .child(self.render_status(cx))
             .children(self.env_menu(window, cx))
             .children(settings)
+            .children(self.debug_overlay())
+            .children(frame_start.map(crate::debug_mode::frame_probe))
     }
 }
 

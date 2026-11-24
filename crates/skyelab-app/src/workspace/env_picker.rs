@@ -282,7 +282,7 @@ pub(super) fn machine_icon(kind: MachineKind) -> SkyeIcon {
 
 impl Render for EnvPicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("EnvPicker");
+        let _render = crate::debug_renders::count("EnvPicker");
         let machines = self.machines(cx);
         let theme = cx.theme();
         let row = |m: Machine| {
