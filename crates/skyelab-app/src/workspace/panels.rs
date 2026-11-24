@@ -230,7 +230,7 @@ impl BasePanel for BrowserPanel {
         false
     }
     fn set_active(&mut self, active: bool, _: &mut Window, cx: &mut Context<Self>) {
-        self.browser.read(cx).set_visible(active, cx);
+        self.browser.update(cx, |b, cx| b.set_visible(active, cx));
     }
     fn on_removed(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         self.browser.update(cx, |b, cx| b.close(cx));

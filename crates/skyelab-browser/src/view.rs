@@ -16,6 +16,7 @@ use gpui_webview::WebView;
 use crate::{
     Engine,
     agent::{check_agent_eval, parse_agent_url},
+    controls,
     engine::Wry,
     js, parse_url,
 };
@@ -34,6 +35,13 @@ pub struct BrowserView {
     /// Pages committed so far, so a caller can wait for the next one.
     loads: u64,
     focus: FocusHandle,
+    /// The page zoom, 1.0 being the page's own size.
+    zoom: f64,
+    /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
+    shown: bool,
+    menu_open: bool,
+    find: Option<controls_ui::Find>,
+    _find_task: Task<()>,
     _data_dir: Option<tempfile::TempDir>,
     _subscription: Subscription,
     _sync_url_bar: Task<()>,
@@ -165,6 +173,11 @@ impl BrowserView {
             loaded: false,
             loads: 0,
             focus: cx.focus_handle(),
+            zoom: 1.0,
+            shown: true,
+            menu_open: false,
+            find: None,
+            _find_task: Task::ready(()),
             _data_dir: None,
             _subscription: subscription,
             _sync_url_bar: sync_url_bar,
@@ -203,9 +216,15 @@ impl BrowserView {
     }
 
     /// Shows or hides the native view, which otherwise stays on screen when its pane isn't drawn.
-    pub fn set_visible(&self, visible: bool, cx: &gpui::App) {
+    pub fn set_visible(&mut self, visible: bool, cx: &gpui::App) {
+        self.shown = visible;
+        self.apply_visibility(cx);
+    }
+
+    /// The native view draws over GPUI overlays, so it is hidden while the ⋯ menu is open over it.
+    fn apply_visibility(&self, cx: &gpui::App) {
         if let Some(page) = &self.webview {
-            let _ = page.read(cx).set_visible(visible);
+            let _ = page.read(cx).set_visible(self.shown && !self.menu_open);
         }
     }
 
@@ -334,34 +353,45 @@ impl Focusable for BrowserView {
 }
 
 impl Render for BrowserView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let nav =
             |id: &'static str, label: &'static str| Button::new(id).label(label).small().ghost();
+        let toolbar = div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .p_1()
+            .border_b_1()
+            .border_color(theme.border)
+            .child(nav("back", "←").on_click(cx.listener(|this, _, _, cx| this.back(cx))))
+            .child(nav("forward", "→").on_click(cx.listener(|this, _, _, cx| this.forward(cx))))
+            .child(nav("reload", "↻").on_click(cx.listener(|this, _, _, cx| this.reload(cx))))
+            .child(div().flex_1().child(Input::new(&self.url_bar).small()))
+            .children(self.render_zoom_chip(cx))
+            .child(self.render_menu(cx));
+        let find_bar = self.render_find(window, cx);
+        let theme = cx.theme();
         div()
             .track_focus(&self.focus)
+            .key_context(controls::CONTEXT)
+            .on_action(cx.listener(Self::zoom_in))
+            .on_action(cx.listener(Self::zoom_out))
+            .on_action(cx.listener(Self::zoom_reset))
+            .on_action(cx.listener(Self::open_find))
+            .on_action(cx.listener(Self::close_find))
+            .on_action(cx.listener(|this, _: &controls::BrowserReload, _, cx| this.reload(cx)))
+            .on_action(cx.listener(Self::duplicate))
+            .on_action(cx.listener(Self::copy_url))
+            .on_action(cx.listener(Self::open_external))
+            .on_action(cx.listener(Self::dev_tools))
             .size_full()
             .flex()
             .flex_col()
             .bg(theme.background)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .p_1()
-                    .border_b_1()
-                    .border_color(theme.border)
-                    .child(nav("back", "←").on_click(cx.listener(|this, _, _, cx| this.back(cx))))
-                    .child(
-                        nav("forward", "→")
-                            .on_click(cx.listener(|this, _, _, cx| this.forward(cx))),
-                    )
-                    .child(
-                        nav("reload", "↻").on_click(cx.listener(|this, _, _, cx| this.reload(cx))),
-                    )
-                    .child(div().flex_1().child(Input::new(&self.url_bar).small())),
-            )
+            .child(toolbar)
+            // A row, not an overlay: the page would draw over an overlay.
+            .children(find_bar)
             .children(self.error.clone().map(|e| {
                 div()
                     .px_2()
@@ -373,3 +403,7 @@ impl Render for BrowserView {
             .children(self.webview.clone().map(|w| div().flex_1().child(w)))
     }
 }
+
+#[path = "view_controls.rs"]
+mod controls_ui;
+pub use controls_ui::DuplicateTab;
