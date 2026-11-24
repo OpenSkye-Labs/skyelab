@@ -5,13 +5,9 @@
 use super::Workspace;
 use super::terminal_panel::{CloseTerminal, TerminalPanel};
 use super::thread_extras::prefs;
+use crate::ui::Button;
 use gpui::{AppContext as _, Context, Entity, EntityId, SharedString, Window, prelude::*};
-use gpui_component::{
-    Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    dialog::DialogFooter,
-    dock::DockPlacement,
-};
+use gpui_component::{WindowExt as _, dialog::DialogFooter, dock::DockPlacement};
 use std::cell::RefCell;
 use std::rc::Rc;
 

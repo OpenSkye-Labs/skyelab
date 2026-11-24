@@ -6,15 +6,9 @@ use super::env_mode::SwitchEnvironment;
 use super::env_picker::{ConnectTyped, EnvPicker, ForgetEnvironment, MachineKind, machine_icon};
 use crate::remote::{Remote, ToggleSharing};
 use crate::ui;
+use crate::ui::{Button, Switch, TextField};
 use gpui::{Context, Entity, IntoElement, SharedString, Subscription, Window, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::Input,
-    switch::Switch,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 pub struct MachinesPage {
     picker: Entity<EnvPicker>,
@@ -184,7 +178,7 @@ impl Render for MachinesPage {
                             .debug_selector(|| "machines-add".into())
                             .w_full()
                             .gap_2()
-                            .child(div().flex_1().min_w_0().child(Input::new(&typed)))
+                            .child(div().flex_1().min_w_0().child(TextField::new(&typed)))
                             .child(
                                 Button::new("machines-connect-typed")
                                     .primary()

@@ -3,7 +3,7 @@
 
 use super::{OpenThread, Workspace, lock};
 use gpui::{Action, AppContext as _, Context, SharedString, Window, actions};
-use gpui_component::{Sizable as _, WindowExt as _, button::Button, notification::Notification};
+use gpui_component::{WindowExt as _, notification::Notification};
 use skyelab_store::Store;
 use std::time::Duration;
 
@@ -124,12 +124,9 @@ impl Workspace {
             .message(text)
             .action(move |_, _, _| {
                 let (ws, undo) = (ws.clone(), undo.clone());
-                Button::new("undo")
-                    .xsmall()
-                    .label("Undo")
-                    .on_click(move |_, window, cx| {
-                        let _ = ws.update(cx, |ws, cx| undo(ws, window, cx));
-                    })
+                crate::ui::notice_action("undo", "Undo", move |_, window, cx| {
+                    let _ = ws.update(cx, |ws, cx| undo(ws, window, cx));
+                })
             })
             .autohide(true);
         super::manage::push_note(window, note, cx);

@@ -1,0 +1,19 @@
+# Clippy reads this file instead of the root one for skyelab-app, so it repeats the root settings first.
+# CLAUDE.md: unwrap/expect are fine in tests, not in shipped code.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+
+# SkyeLab's own controls replace these gpui-component ones (docs/design/components.md). Use crate::ui's.
+disallowed-types = [
+    { path = "gpui_component::button::Button", reason = "use crate::ui::Button (or ui::icon_button)" },
+    { path = "gpui_component::button::ButtonVariant", reason = "use crate::ui::Variant" },
+    { path = "gpui_component::switch::Switch", reason = "use crate::ui::Switch" },
+    { path = "gpui_component::checkbox::Checkbox", reason = "use crate::ui::Checkbox" },
+    { path = "gpui_component::tooltip::Tooltip", reason = "use crate::ui::Tooltip" },
+]
+# ui::Kbd borrows gpui-component's platform spelling (`Kbd::format`), so only its constructors are banned.
+disallowed-methods = [
+    { path = "gpui_component::kbd::Kbd::new", reason = "use crate::ui::Kbd::new" },
+    { path = "gpui_component::kbd::Kbd::binding_for_action", reason = "use crate::ui::Kbd::for_action" },
+    { path = "gpui_component::kbd::Kbd::binding_for_action_in", reason = "use crate::ui::Kbd::for_action_in" },
+]

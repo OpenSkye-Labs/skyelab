@@ -3,15 +3,10 @@
 use super::super::device_agent::DeviceClaims;
 use super::{DevicesPanel, SectionView, badge};
 use crate::ui;
+use crate::ui::Button;
+use crate::ui::TextField;
 use gpui::{Context, ObjectFit, SharedString, Window, div, img, prelude::*, px};
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    input::Input,
-    spinner::Spinner,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, Sizable as _, h_flex, spinner::Spinner, v_flex};
 use skyelab_devices::{Device, DeviceKind, DeviceState, Holder, Platform};
 
 impl DevicesPanel {
@@ -70,7 +65,11 @@ impl DevicesPanel {
         let url_row = (self.url_for.as_deref() == Some(device.id.as_str())).then(|| {
             h_flex()
                 .gap_2()
-                .child(div().flex_1().child(Input::new(&self.url_input).small()))
+                .child(
+                    div()
+                        .flex_1()
+                        .child(TextField::new(&self.url_input).small()),
+                )
                 .child(
                     Button::new(SharedString::from(format!("url-open-{}", device.id)))
                         .small()

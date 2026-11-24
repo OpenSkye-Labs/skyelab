@@ -1,6 +1,7 @@
 //! The command palette: one key to find and run any action, switch project, open a thread or focus a tab.
 //! Entries come from the workspace; this file ranks them and hosts gpui-component's `Command` in a dialog.
 
+use crate::ui::Kbd;
 use crate::ui::SkyeIcon;
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding, NoAction,
@@ -11,7 +12,6 @@ use gpui_component::{
     ActiveTheme as _, Icon, Sizable as _, WindowExt as _,
     command::{Command, CommandItem, CommandState},
     h_flex,
-    kbd::Kbd,
 };
 use std::rc::Rc;
 

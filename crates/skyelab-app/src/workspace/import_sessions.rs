@@ -5,19 +5,14 @@
 use super::thread_model::Record;
 use super::{Workspace, lock};
 use crate::ui;
+use crate::ui::{Button, Checkbox};
 use anyhow::{Context as _, Result, bail};
 use gpui::{
     App, AppContext as _, Context, InteractiveElement as _, IntoElement, ParentElement as _,
     Render, SharedString, StatefulInteractiveElement as _, Styled as _, WeakEntity, Window,
     actions, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{
-    ActiveTheme as _, Disableable as _, Sizable as _, WindowExt as _,
-    button::{Button, ButtonVariants as _},
-    checkbox::Checkbox,
-    dialog::DialogFooter,
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, WindowExt as _, dialog::DialogFooter, h_flex, v_flex};
 use skyelab_agent::import::{self, Entry, MAX_TRANSCRIPT_BYTES, Transcript};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::{NewThread, Project, Thread};
