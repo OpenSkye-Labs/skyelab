@@ -13,16 +13,41 @@ const VERIFY_ACTION_GAP: std::time::Duration = std::time::Duration::from_secs(2)
 /// there (hover cards), `drag:x;y;x2;y2` drags with the left button, and `scroll:x;y;lines` scrolls the wheel there
 /// (positive: up), `wait` sends nothing (one more gap). `window:N` sends the entries after it to the Nth workspace window (0 is the first, in open order).
 pub(crate) fn dispatch_verify_actions(cx: &mut App) {
-    let Some(entries) = std::env::var("SKYELAB_VERIFY_ACTIONS")
-        .ok()
-        .filter(|_| cfg!(debug_assertions))
-    else {
+    if !cfg!(debug_assertions) {
         return;
-    };
+    }
+    let entries = std::env::var("SKYELAB_VERIFY_ACTIONS").ok();
+    // Lines appended to this file later run the same way, so a live check can follow a real agent's timing.
+    let file = std::env::var_os("SKYELAB_VERIFY_ACTIONS_FILE").map(std::path::PathBuf::from);
+    if entries.is_none() && file.is_none() {
+        return;
+    }
     cx.spawn(async move |cx| {
-        let entries: Vec<String> = entries.split(',').map(str::to_owned).collect();
-        let mut target = 0;
-        for entry in entries {
+        let mut queue: std::collections::VecDeque<String> = entries
+            .iter()
+            .flat_map(|e| e.split(','))
+            .map(str::to_owned)
+            .collect();
+        let (mut target, mut seen) = (0, 0);
+        loop {
+            let Some(entry) = queue.pop_front() else {
+                let Some(file) = &file else { break };
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(500))
+                    .await;
+                let text = std::fs::read_to_string(file).unwrap_or_default();
+                let lines: Vec<&str> = text.lines().collect();
+                if lines.len() > seen {
+                    queue.extend(
+                        lines[seen..]
+                            .iter()
+                            .flat_map(|l| l.split(','))
+                            .map(str::to_owned),
+                    );
+                    seen = lines.len();
+                }
+                continue;
+            };
             cx.background_executor().timer(VERIFY_ACTION_GAP).await;
             if entry == "wait" {
                 continue; // one more gap, with no input (idle and streaming measurements)
