@@ -138,3 +138,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   the first rows frame builds 44 rows, 28 with no overdraw (`scripts/perf.sh idle`). It can't be deferred safely:
   the overdraw is fixed at `ListState::new`, and `set_item_measurement_readiness` marks visible rows provisional and
   moves the scroll anchor. Keep that frame cheap by keeping each row cheap.
+- A dialog or notification lives in gpui-component's `Root`, so every notify inside it (each palette keystroke or
+  hover) re-renders `Root` and, through it, the window's main view. `Root`'s child is therefore a tiny shell that
+  returns the workspace as `AnyView::cached` (`windows.rs`, `CachedWorkspace`): the workspace renders only on its own
+  notify or a window refresh. Check with `SKYELAB_DEBUG_RENDERS=1`: typing in the palette prints `Palette` and no
+  `Workspace`.

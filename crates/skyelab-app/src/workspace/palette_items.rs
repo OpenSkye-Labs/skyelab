@@ -18,6 +18,11 @@ fn dispatch(label: String, kind: Kind, action: Box<dyn Action>) -> Entry {
     )
 }
 
+/// A project's folder as its row's second line, home written `~`.
+fn short(path: &std::path::Path) -> String {
+    crate::ui::short_path(path, dirs::home_dir().as_deref())
+}
+
 /// A row that only opens its submenu.
 fn submenu(label: &str, icon: SkyeIcon, items: Vec<Entry>) -> Entry {
     Entry::new(
@@ -154,7 +159,7 @@ impl Workspace {
                 let label = format!("Switch to project: {}", p.name);
                 dispatch(label, Kind::Project, Box::new(SelectProject { id: p.id }))
                     .title(p.name.clone())
-                    .subtitle(p.path.display().to_string())
+                    .subtitle(short(&p.path))
             }));
             out.extend(self.scripts.iter().map(|s| {
                 let label = format!("Run script: {}", s.name);
@@ -207,7 +212,7 @@ impl Workspace {
                 let action = Box::new(super::NewThreadIn { id: p.id });
                 dispatch(format!("New thread in: {}", p.name), Kind::Project, action)
                     .title(p.name.clone())
-                    .subtitle(p.path.display().to_string())
+                    .subtitle(short(&p.path))
             })
             .collect()
     }

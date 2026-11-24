@@ -241,8 +241,8 @@ fn icon_for(entry: &Entry) -> SkyeIcon {
         ("Environment", SkyeIcon::Remote),
         ("Remote", SkyeIcon::Remote),
         ("Sharing", SkyeIcon::Remote),
-        ("Pull", SkyeIcon::GitPullRequest),
-        ("Pr", SkyeIcon::GitPullRequest),
+        ("PullRequest", SkyeIcon::GitPullRequest),
+        ("ThreadPr", SkyeIcon::GitPullRequest),
         ("Issues", SkyeIcon::CircleDot),
         ("Changes", SkyeIcon::FileDiff),
         ("Worktree", SkyeIcon::GitBranch),
@@ -439,5 +439,27 @@ impl Render for Palette {
                 }
             })
             .child(command)
+    }
+}
+
+#[cfg(test)]
+mod icon_test {
+    use super::*;
+
+    #[test]
+    fn action_icons_match_whole_words_not_prefixes() {
+        let icon = |name: &'static str| {
+            icon_for(&Entry::new(
+                "x",
+                Kind::Action(name),
+                std::rc::Rc::new(|_, _| {}),
+            ))
+        };
+        // "Pr" once matched inside Project and Prompt.
+        assert_eq!(icon("skyelab::AddProject"), SkyeIcon::FolderPlus);
+        assert_eq!(icon("skyelab::SchedulePrompt"), SkyeIcon::Clock);
+        assert_eq!(icon("skyelab::OpenThreadPr"), SkyeIcon::GitPullRequest);
+        assert_eq!(icon("skyelab::OpenPullRequests"), SkyeIcon::GitPullRequest);
+        assert_eq!(icon("skyelab::OpenSettings"), SkyeIcon::Settings);
     }
 }
