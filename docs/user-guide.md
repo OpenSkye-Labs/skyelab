@@ -145,7 +145,8 @@ Once a day at most, when SkyeLab starts (and every hour after that it checks whe
 GitHub for the latest release of SkyeLab. When that release is newer than yours, a small notice at the bottom of the
 sidebar offers **Download and install** and **Skip this version**, which hides it until a newer one comes out.
 **Check for Updates** (the palette, or the SkyeLab menu on macOS) and **Check now** in **Settings → About** check
-right away, skipped version included. The requests carry nothing about you. **Settings → General → Check for
+right away, skipped version included. Before the first release is published, they say **No release published
+yet**. The requests carry nothing about you. **Settings → General → Check for
 updates** turns the daily check off.
 
 **Download and install** downloads the release's file for your computer (with its progress in the notice) and checks

@@ -227,7 +227,13 @@ pub(crate) async fn exchange<S: AsyncRead + AsyncWrite + Unpin>(
         return Ok(Got::Redirect(to));
     }
     if status != "200" {
-        return Err(io::Error::other(format!("{host} answered {status}")));
+        // GitHub's latest release is a 404 while the repo has published none.
+        let kind = if status == "404" {
+            io::ErrorKind::NotFound
+        } else {
+            io::ErrorKind::Other
+        };
+        return Err(io::Error::new(kind, format!("{host} answered {status}")));
     }
     let total = header("content-length").and_then(|v| v.parse::<u64>().ok());
     if total.is_some_and(|t| t > cap) {
