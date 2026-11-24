@@ -29,6 +29,7 @@ mod agent;
 mod controls;
 mod engine;
 mod js;
+pub mod page;
 mod shot;
 mod url;
 mod view;

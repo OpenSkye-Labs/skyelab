@@ -8,6 +8,7 @@
 
 mod browser;
 mod device;
+mod html;
 mod proxy;
 mod server;
 mod tools;
@@ -15,6 +16,10 @@ mod transport;
 
 pub use browser::BrowserTool;
 pub use device::{DeviceKey, DeviceTool};
+pub use html::{
+    COLUMN_WIDTH as HTML_COLUMN_WIDTH, HtmlTool, MAX_HEIGHT as HTML_MAX_HEIGHT,
+    MAX_HTML as HTML_MAX_CHARS, RENDERED as HTML_RENDERED, is_rendered_page,
+};
 pub use proxy::{proxy_main, run_proxy};
 pub use server::{Grant, Server, remove_stale_runs};
 pub use tools::Tool;

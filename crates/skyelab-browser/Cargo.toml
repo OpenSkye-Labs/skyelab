@@ -38,5 +38,10 @@ harness = false
 name = "wkwebview_screenshot"
 harness = false
 
+# A visual reply's locked page and its hidden snapshot, main thread too.
+[[test]]
+name = "wkwebview_page"
+harness = false
+
 [lints]
 workspace = true

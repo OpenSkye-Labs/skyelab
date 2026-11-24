@@ -26,5 +26,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
 - A menu left open when its pane stops being drawn is dropped without `on_open_change(false)`: clear the
   menu-open flag when the host hides the pane, or the page stays hidden when the tab comes back.
 - Zoom with `gpui_webview::WebView::set_zoom`, not wry's `zoom`: on Linux it also makes up for GTK's integer scale.
+- A native view can't be partly clipped without `gpui-fast` composition: `set_geometry` hides it only when it is
+  wholly outside the content mask and otherwise shows all of it, over whatever is around. So never put a webview in a
+  scrolling list (the timeline). Visual replies draw a snapshot image there, taken from a hidden webview, and the live
+  page only in a modal dialog. A hidden (`set_visible(false)`) WKWebView still loads, runs scripts and snapshots
+  (`takeSnapshotWithConfiguration`) at the bounds you give it, so it can render offscreen.
+- A dialog that hosts a webview hides it when `window.has_active_dialog` turns false: a closing dialog is still drawn
+  while it fades, and the native page would sit over the backdrop until it is gone.
 - Drop a page's in-flight task (find, eval) when a new page commits: the callback still answers about the old page,
   and landing it showed "No matches" on the new one.

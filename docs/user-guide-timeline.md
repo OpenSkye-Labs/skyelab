@@ -22,6 +22,14 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   source). The code icon in its corner shows the source, the diagram icon brings the drawing back, and copy copies the
   source. A diagram SkyeLab can't draw (bad syntax, over 16 KB, or too big to read) shows its source with the reason.
   Diagrams never load images or links.
+- **Visual replies.** Ask for a chart, diagram or mockup ("show this as a chart") and the agent can answer with a page
+  of its own (SkyeLab's `html_render` tool). It shows in the thread as a card with the page's title and a picture of
+  the page, in your theme's colors; it is drawn again when you switch light and dark. Click the picture or the expand
+  button to open the live page over the window (scripts run in it); **×** or a click outside closes it. The page is
+  sandboxed: it can't reach your files, SkyeLab or your browser's cookies, can't send requests, and its links don't
+  open. It may load scripts, styles, images and fonts from public `https` addresses (a CDN). The page is saved with the
+  thread, so it is there when you reopen it. The picture needs macOS (or Linux); on Windows the card says so and the
+  expand button still opens the page.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
   **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›** (that turn's own tokens and cost). Click it to open or fold the work. A running turn shows
   everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.
