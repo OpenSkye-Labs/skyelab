@@ -27,7 +27,9 @@ or a terminal writes, a commit, a `git switch` or a pull updates the Changes tab
 branch, and the details card's **Changes vs** line within about a second, with SkyeLab still in front. It waits until
 the edits pause (or 2 seconds into a steady stream), then reads the folder once. Files git ignores and doesn't track
 (`target/`, `node_modules/`, anything in `.gitignore`) don't count, so a running build costs nothing, and nothing redraws when
-what is shown didn't change. A folder stops being watched when its last thread tab and Changes tab close.
+what is shown didn't change. A folder that isn't a git repo yet is watched from the moment you `git init` it (or clone
+into it). Views reaching one folder through a symlink share one watcher. A folder stops being watched when its last
+thread tab and Changes tab close.
 
 On Linux each folder takes its own watch from the system. A project with more than 8,192 folders git can see is
 watched only at its top level plus git's own state (branch, commits, staging); other edits show when you come back
@@ -82,7 +84,7 @@ next message as a fenced block, and removes them from the diff. **Clear** drops 
 Each thread keeps its own comments, per diff (the working tree, or one turn). When the diff reloads (a turn ended, a
 commit), each comment finds its lines again, even if they moved; a comment whose lines are gone is dropped, and the
 strip says how many. A comment's message shows at most 30 of its lines. Comments are kept in memory only: closing the
-thread's tab or quitting SkyeLab loses unsent ones.
+thread's tab loses unsent ones, and quitting SkyeLab asks first while any are unsent.
 
 ## Turns and rewind
 

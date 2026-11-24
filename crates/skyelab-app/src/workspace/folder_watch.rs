@@ -1,5 +1,6 @@
 //! Live folder watching for the views that show a folder's git state (the composer footer, the details card, the
-//! Changes tab): one [`FolderWatch`] per folder however many views show it, ended when the last of them goes.
+//! Changes tab): one [`FolderWatch`] per folder however many views show it (by its real path, so views reaching it
+//! through a symlink share it), ended when the last of them goes.
 //!
 //! Off unless [`FolderWatches`] is set as a global (the app sets it at launch; tests opt in), so the many gpui
 //! tests that open threads on temp repos start no watcher threads.
@@ -29,9 +30,14 @@ impl FolderWatches {
     pub(crate) fn ready(dir: &Path, cx: &App) -> bool {
         let shared = cx
             .try_global::<Self>()
-            .and_then(|w| w.0.get(dir)?.upgrade());
+            .and_then(|w| w.0.get(&real(dir))?.upgrade());
         shared.is_some_and(|s| s._watch.wait_ready(std::time::Duration::from_secs(60)))
     }
+}
+
+/// `dir` with symlinks resolved (as given when it can't be: a folder not made yet).
+fn real(dir: &Path) -> PathBuf {
+    std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_owned())
 }
 
 /// Watching turns on for the rest of the run.
@@ -53,6 +59,7 @@ pub(crate) fn watch<T: 'static>(
     on_change: impl Fn(&mut T, &mut Context<T>) + 'static,
 ) -> Option<Task<()>> {
     let watches = cx.try_global::<FolderWatches>()?;
+    let dir = &real(dir);
     let shared = watches.0.get(dir).and_then(Weak::upgrade);
     let shared = match shared {
         Some(s) => s,

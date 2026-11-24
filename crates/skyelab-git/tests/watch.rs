@@ -218,7 +218,43 @@ fn ends_when_dropped() {
 }
 
 #[test]
-fn a_folder_outside_git_is_not_watched() {
+fn a_folder_that_becomes_a_repo_is_watched_from_then_on() {
+    for mode in modes() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let dir = std::fs::canonicalize(tmp.path()).expect("canon");
+        let calls = Arc::new(AtomicUsize::new(0));
+        let c = calls.clone();
+        let watch = FolderWatch::start(&dir, mode, move || {
+            c.fetch_add(1, Ordering::SeqCst);
+        });
+        assert!(!watch.wait_ready(Duration::from_secs(60)), "not a repo yet");
+        std::fs::write(dir.join("loose.txt"), "x").expect("w");
+        std::thread::sleep(Duration::from_secs(1));
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "{mode:?}: nothing to report outside a repo"
+        );
+
+        git(&dir, &["init", "-q"]);
+        let w = Watched {
+            calls,
+            _watch: watch,
+        };
+        wait_for_call(&w, "the folder becoming a repo");
+        // From then on it is watched as any repo: a new file is reported.
+        std::thread::sleep(Duration::from_secs(3));
+        w.calls.store(0, Ordering::SeqCst);
+        std::fs::create_dir(dir.join("src")).expect("mkdir");
+        std::thread::sleep(Duration::from_secs(1));
+        w.calls.store(0, Ordering::SeqCst);
+        std::fs::write(dir.join("src/new.txt"), "x").expect("w");
+        wait_for_call(&w, "a write in the new repo");
+    }
+}
+
+#[test]
+fn a_folder_outside_git_ends_its_thread_when_dropped() {
     let tmp = tempfile::tempdir().expect("tmp");
     let held = Arc::new(());
     let h = held.clone();
@@ -226,6 +262,7 @@ fn a_folder_outside_git_is_not_watched() {
         let _ = &h;
     });
     assert!(!watch.wait_ready(Duration::from_secs(60)), "not a repo");
+    drop(watch);
     let end = Instant::now() + Duration::from_secs(60);
     while Arc::strong_count(&held) > 1 {
         assert!(Instant::now() < end, "the watcher thread never ended");

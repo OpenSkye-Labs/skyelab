@@ -17,7 +17,9 @@ gpui::actions!(skyelab, [FocusQuestion]);
 impl ThreadView {
     /// A question that just docked takes the focus, so 1–9, ↑/↓ and Enter answer it at once, unless the user is
     /// typing in the composer (T3 leaves keys typed in a text field alone) or works outside this thread. With nothing
-    /// focused, only the window's selected thread takes it, not every shown one that got a question too.
+    /// focused, only the window's selected thread takes it, not every shown one that got a question too; on a page
+    /// with no selected thread (Compare), the first shown pane (a side chat) to get one takes it, and the focus it
+    /// takes keeps the others from doing the same.
     pub(super) fn focus_new_question(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let held = self
             .composer
@@ -47,7 +49,7 @@ impl ThreadView {
             // A window with no workspace page (a lone thread) has only this thread.
             shown
                 .and_then(|s| s.0.get(&window.window_handle().window_id()))
-                .is_none_or(|page| *page == Some(cx.entity_id()))
+                .is_none_or(|page| page.is_none_or(|id| id == cx.entity_id()))
         };
         let here = held
             || self.focus.contains_focused(window, cx)

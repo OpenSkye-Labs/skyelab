@@ -43,3 +43,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Moving focus to something that just appeared (a docked question): do it from `render` once per item, remembering its
   id (`ComposerState::dock_focused`), never on every render, or a click elsewhere is taken back the next frame.
   `window.focus` while drawing is safe: `refresh` is a no-op mid-draw. Don't steal it from a text field holding text.
+- `window.focus` sets `window.focused()` at once, not at the next frame, so when several views may take the focus in
+  one draw (side chat panes on a Compare page each getting a question), "only while nothing is focused" lets the first
+  one win and keeps the rest from stealing it back (`focus_new_question`).
