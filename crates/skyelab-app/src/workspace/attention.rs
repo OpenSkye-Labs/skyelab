@@ -89,12 +89,43 @@ pub fn init(cx: &mut App) {
 struct ThreadNote;
 
 impl Workspace {
+    /// The current thread page's thread only. Whether the user can see a thread (a Compare page shows several) is
+    /// [`Self::shows_thread`].
     pub(super) fn shown_thread(&self, cx: &App) -> Option<i64> {
         self.current_thread()?
             .read(cx)
             .thread
             .as_ref()
             .map(|t| t.id)
+    }
+
+    /// The thread views this window's page shows: its thread, or every thread of a Compare page.
+    pub(super) fn shown_views(&self, cx: &App) -> Vec<Entity<ThreadView>> {
+        match &self.page {
+            super::center::Page::Compare(group) => self.group_views(*group, cx),
+            _ => self.current_thread().into_iter().collect(),
+        }
+    }
+
+    /// Whether this window's page shows thread `id` (a Compare page shows several).
+    pub(super) fn shows_thread(&self, id: i64, cx: &App) -> bool {
+        self.shown_views(cx)
+            .iter()
+            .any(|v| v.read(cx).thread.as_ref().is_some_and(|t| t.id == id))
+    }
+
+    /// A thread this window owns started in the background, and this window isn't showing it to the user.
+    pub(super) fn started_unseen(
+        &self,
+        view: &Entity<ThreadView>,
+        id: i64,
+        window: &Window,
+        cx: &App,
+    ) -> bool {
+        let v = view.read(cx);
+        v.background
+            && v.owned_by(window)
+            && !(window.is_window_active() && self.shows_thread(id, cx))
     }
 
     /// A thread's turn finished: unless the user is looking at it, mark it unread and tell them.
@@ -107,7 +138,7 @@ impl Workspace {
         let Some(thread) = view.read(cx).thread.clone() else {
             return;
         };
-        let here = window.is_window_active() && self.shown_thread(cx) == Some(thread.id);
+        let here = window.is_window_active() && self.shows_thread(thread.id, cx);
         if here || self.seen_elsewhere(thread.id, cx) {
             return;
         }
@@ -129,7 +160,7 @@ impl Workspace {
         let Some(thread) = view.read(cx).thread.clone() else {
             return;
         };
-        let here = window.is_window_active() && self.shown_thread(cx) == Some(thread.id);
+        let here = window.is_window_active() && self.shows_thread(thread.id, cx);
         if here || self.seen_elsewhere(thread.id, cx) {
             return;
         }
@@ -212,31 +243,30 @@ impl Workspace {
         self._attention = vec![activation, search];
     }
 
-    /// The shown thread was looked at: clear its unread marker.
+    /// The shown threads were looked at: clear their unread markers.
     pub(super) fn mark_seen(&mut self, window: &Window, cx: &mut Context<Self>) {
         if !window.is_window_active() {
             return;
         }
-        let Some(view) = self.current_thread() else {
-            return;
-        };
-        let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
-            return;
-        };
-        self.clear_woke(id, cx);
-        let in_tab = view.update(cx, |v, _| {
-            v.thread
-                .as_mut()
-                .is_some_and(|t| std::mem::replace(&mut t.unread, false))
-        });
-        let in_list = self
-            .threads
-            .iter_mut()
-            .find(|t| t.id == id)
-            .is_some_and(|t| std::mem::replace(&mut t.unread, false));
-        if in_tab || in_list {
-            self.write_unread(id, false, cx);
-            self.refresh_sidebar(cx);
+        for view in self.shown_views(cx) {
+            let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) else {
+                continue;
+            };
+            self.clear_woke(id, cx);
+            let in_tab = view.update(cx, |v, _| {
+                v.thread
+                    .as_mut()
+                    .is_some_and(|t| std::mem::replace(&mut t.unread, false))
+            });
+            let in_list = self
+                .threads
+                .iter_mut()
+                .find(|t| t.id == id)
+                .is_some_and(|t| std::mem::replace(&mut t.unread, false));
+            if in_tab || in_list {
+                self.write_unread(id, false, cx);
+                self.refresh_sidebar(cx);
+            }
         }
     }
 

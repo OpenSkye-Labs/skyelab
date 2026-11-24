@@ -103,3 +103,17 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   quad it overlaps. A strip of hundreds of stacked ticks (the minimap's one tick per prompt in a 600-turn thread)
   made `BoundsTree::insert` a third of each streaming frame. Cap what a fixed-size strip draws by its pixels, not by
   the data (`minimap::MAX_TICKS`); measured with `scripts/perf.sh stream`, frame p50 7.7 to 2.1 ms.
+- A `ListState` anchors on (row, offset in row), so rows above the first drawn one never move what is shown, but it
+  keeps each row's height from when it was measured in the leading overdraw (600 px above the viewport) and maps a
+  wheel delta to a row through those heights. A row that finishes laying out later keeps a stale, smaller height there:
+  gpui-component parses a `TextView` over 4 KB in the background (its first layout is nearly empty), and diagrams,
+  images and HTML cards land late. The wheel step that crosses into such a row lands at its top, a jump of its whole
+  height (5,500 px for a 9 KB reply in `timeline_scroll_jump_test`). The timelines call
+  `timeline_list::settle_rows_above` as they build the `list`: it `remeasure_items` the 8 rows above the first drawn
+  one, so a parse or asset that lands (and re-renders the view) fixes their heights before the reader gets there.
+  This is the one write `render` makes, an exception to "render only reads": it only marks list rows for measuring
+  (no notify, no entity update), and the rows it marks lie in the leading overdraw the list lays out anyway.
+- `ListState::splice` puts a reader whose top row is in the spliced range back at that row's top (offset 0), and drops
+  the rows' heights. For rows changed in place (a tool result, a fold toggle, a row refreshed) use `remeasure_items`,
+  which keeps the offset; `timeline_list::splice` does that for the rows a change keeps and splices only the rows added or
+  removed. Test scrolling with `ScrollEvent` pixel deltas and check each step moves a drawn row by exactly the delta.

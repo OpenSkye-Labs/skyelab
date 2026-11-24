@@ -46,11 +46,16 @@ pub(crate) fn visible(raw: &str) -> String {
         .collect()
 }
 
-/// The title in an agent's answer: its first non-empty line, quotes and markdown stripped, cut to six words and 80
-/// characters. `None` when nothing is left.
+/// The title in an agent's answer: its one non-empty line, quotes and markdown stripped, cut to six words and 80
+/// characters. `None` when nothing is left, or when the answer isn't a title: more than one line, JSON or code. The
+/// caller then keeps the prompt-based title.
 pub fn clean_title(raw: &str) -> Option<String> {
     let raw = visible(raw);
-    let line = raw.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let mut lines = raw.lines().map(str::trim).filter(|l| !l.is_empty());
+    let line = lines.next()?;
+    if lines.next().is_some() || looks_like_code(line) {
+        return None;
+    }
     let line = line
         .trim_start_matches(['#', '*', '-', '>', ' '])
         .trim_start_matches("Title:")
@@ -62,6 +67,18 @@ pub fn clean_title(raw: &str) -> Option<String> {
     }
     let t = t.trim().to_owned();
     (!t.is_empty() && !t.chars().any(char::is_control)).then_some(t)
+}
+
+/// Whether a title line reads as JSON or code rather than words: a code fence, a JSON array or object, a closing tag,
+/// a line ending in `;`, or code punctuation (`{`, `}`, `=>`). "[WIP] Fix login; add tests" and
+/// "Fix AccountsConfig::resolve()" pass.
+fn looks_like_code(line: &str) -> bool {
+    line.starts_with("```")
+        || (line.starts_with('[') && line.ends_with(']'))
+        || line.ends_with(';')
+        || ["{", "}", "=>", "</", "\":"]
+            .iter()
+            .any(|p| line.contains(p))
 }
 
 /// Asks `account`'s agent for a title for `prompt` (from [`title_prompt`]), in `dir`, which must still resolve to
@@ -174,7 +191,7 @@ mod tests {
     #[test]
     fn titles_are_cleaned_and_cut() {
         assert_eq!(
-            clean_title("\n  \"Fix the login bug.\"\nmore").as_deref(),
+            clean_title("\n  \"Fix the login bug.\"\n\n").as_deref(),
             Some("Fix the login bug")
         );
         assert_eq!(
@@ -190,6 +207,31 @@ mod tests {
             clean_title("Fix\u{202E}gol bug").as_deref(),
             Some("Fixgol bug")
         );
+    }
+
+    #[test]
+    fn answers_that_are_not_titles_are_rejected() {
+        for raw in [
+            r#"{"title": "Fix login"}"#,
+            r#"["Fix login"]"#,
+            "```\nFix login\n```",
+            "Fix the login bug\nThe user wants a title",
+            "fn main() { println!(\"hi\"); }",
+            "let x = 1;",
+            "<title>Fix login</title>",
+            "[]",
+            "items.map(x => x.id)",
+        ] {
+            assert_eq!(clean_title(raw), None, "{raw:?}");
+        }
+        assert_eq!(
+            clean_title("Fix AccountsConfig::resolve() fallback").as_deref(),
+            Some("Fix AccountsConfig::resolve() fallback"),
+            "a title about code is still a title"
+        );
+        for title in ["[WIP] Fix login", "Fix login; add tests"] {
+            assert_eq!(clean_title(title).as_deref(), Some(title));
+        }
     }
 
     #[test]

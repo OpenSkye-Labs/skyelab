@@ -71,7 +71,8 @@ fn picking_a_thread_sends_its_gist_and_other_accounts_stay_out(cx: &mut gpui::Te
             t.title
         );
     }
-    let items = context_items(&threads, None, "acme", &f.config, &f.project);
+    let none = Default::default();
+    let items = context_items(&threads, None, "acme", &f.config, &f.project, &none, 0);
     let picks: Vec<_> = items.iter().map(|i| i.context).collect();
     assert_eq!(
         picks,
@@ -82,7 +83,7 @@ fn picking_a_thread_sends_its_gist_and_other_accounts_stay_out(cx: &mut gpui::Te
     );
     assert_eq!(items[1].label, "PR #7 · sibling");
     // The other account sees only its own thread there.
-    let theirs = context_items(&threads, None, "other", &f.config, &f.project);
+    let theirs = context_items(&threads, None, "other", &f.config, &f.project, &none, 0);
     assert!(
         theirs
             .iter()
@@ -190,5 +191,54 @@ fn picking_a_thread_sends_its_gist_and_other_accounts_stay_out(cx: &mut gpui::Te
         Some(
             "fix it\n\nContext from the thread \"sibling\":\n```text\nTitle: sibling\nLast reply:\nreply of sibling\n```"
         )
+    );
+}
+
+/// Two threads with the same title read differently in `#`: each row shows its age, worktree branch and last reply.
+#[test]
+fn same_titled_threads_differ_in_the_menu() {
+    let f = fixture();
+    let mut s = f.store.lock().expect("store");
+    let project = s.create_project("demo", &f.project).expect("project").id;
+    let a = seed(&mut s, project, "Fix login", &f.project, "acme");
+    let b = seed(&mut s, project, "Fix login", &f.project, "acme");
+    s.append_event(
+        b.id,
+        "agent",
+        r###"{"Assistant":{"content":[{"type":"text","text":"## Done\n**Tests** pass now"}]}}"###,
+    )
+    .expect("reply");
+    let mut threads = s.list_threads(project).expect("list");
+    let hour = 3_600_000;
+    for t in &mut threads {
+        if t.id == a.id {
+            t.worktree_branch = Some("fix-login-2".into());
+            t.updated_at = 0;
+        } else {
+            t.updated_at = 2 * hour;
+        }
+    }
+    let replies = s.last_replies(Some(project)).expect("replies");
+    let items = context_items(
+        &threads,
+        None,
+        "acme",
+        &f.config,
+        &f.project,
+        &replies,
+        3 * hour,
+    );
+    let detail = |id| {
+        items
+            .iter()
+            .find(|i| i.context == Some(ContextPick::Thread(id)))
+            .map(|i| i.detail.clone())
+            .expect("row")
+    };
+    assert_eq!(detail(a.id), "3h · fix-login-2 · reply of Fix login");
+    assert_eq!(
+        detail(b.id),
+        "1h · Done Tests pass now",
+        "plain text, latest reply"
     );
 }

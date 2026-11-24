@@ -399,9 +399,10 @@ fn render_row<V: ItemsView>(
 pub(super) fn tool_summary(tool: &ToolItem) -> String {
     tool.input
         .lines()
-        .find_map(|l| l.split_once(':').map(|(_, v)| v))
+        .filter_map(|l| l.split_once(':').map(|(_, v)| v.trim()))
+        // A nested list or object (`"questions": [`) says nothing; its first plain value does.
+        .find(|v| !v.starts_with(['[', '{']))
         .unwrap_or_default()
-        .trim()
         .trim_end_matches(',')
         .trim_matches('"')
         .chars()

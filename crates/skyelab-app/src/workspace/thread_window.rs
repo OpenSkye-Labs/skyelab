@@ -100,7 +100,7 @@ impl Lists {
 
     pub(in crate::workspace) fn splice(&self, old: std::ops::Range<usize>, count: usize) {
         for (_, l) in &self.0 {
-            l.splice(old.clone(), count);
+            super::super::timeline_list::splice(l, old.clone(), count);
         }
     }
 
