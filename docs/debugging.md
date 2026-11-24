@@ -209,6 +209,8 @@ frames are timed without the overlay's tick), drives the app with `SKYELAB_VERIF
 | `startup` | launch and quit twice on one HOME (cold, then warm), no thread open |
 | `idle` | launch and wait: after the caret blink's 5 s timeout it should draw nothing |
 
+Launch frame numbers for `open`, and what didn't speed them up: [debugging-launch-frames.md](debugging-launch-frames.md).
+
 `PERF_SAMPLY=1` records a samply profile of the run (with a `.syms.json` sidecar), and
 `scripts/profile-top.py <profile.json.gz>` prints the main thread's top functions without the Firefox Profiler
 (`SPAN=50-57` limits it to a stretch, in seconds). `PERF_FEATURES=dhat-heap` (or `hotpath`) builds with a profiler.
