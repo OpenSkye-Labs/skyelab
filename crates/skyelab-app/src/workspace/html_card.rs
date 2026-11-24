@@ -19,7 +19,7 @@ use gpui_component::{
     h_flex, v_flex,
 };
 use serde_json::{Value, json};
-use skyelab_agent::mcp::HTML_COLUMN_WIDTH;
+use skyelab_agent::mcp::{HTML_COLUMN_WIDTH, HTML_MAX_CHARS};
 use skyelab_browser::page::{self, MAX_SHOT_HEIGHT, Page, PageTheme};
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash as _, Hasher as _};
@@ -31,11 +31,15 @@ pub(super) fn page_of(tool: &ToolItem) -> Option<(&str, &str, u32)> {
         return None;
     }
     let raw = &tool.raw;
-    // The server checked these when it answered; a stored stream is still read defensively.
+    // The server checked these when it answered, but a remote machine's stream is checked again (by bytes: cheap).
     let height = raw["height"]
         .as_u64()?
         .clamp(80, u64::from(MAX_SHOT_HEIGHT));
-    Some((raw["title"].as_str()?, raw["html"].as_str()?, height as u32))
+    let html = raw["html"]
+        .as_str()
+        .filter(|h| h.len() <= 4 * HTML_MAX_CHARS)?;
+    let title = raw["title"].as_str().filter(|t| t.len() <= 4 * 200)?;
+    Some((title, html, height as u32))
 }
 
 /// T3's theme variables, from the app's theme in `dark` or light mode.
@@ -121,7 +125,8 @@ fn hex(c: Hsla) -> String {
 #[derive(Clone)]
 enum Shot {
     Pending,
-    Ready(Arc<Image>),
+    /// The image and the page's height in CSS pixels at the column width (the image is at the screen's scale).
+    Ready(Arc<Image>, u32),
     Failed(SharedString),
 }
 
@@ -145,19 +150,33 @@ impl Global for Shots {}
 // shortcut: past this many the whole cache is dropped and visible cards render again; an LRU if that shows.
 const MAX_SHOTS: usize = 64;
 
-/// The snapshot of `tool_id`'s page in `theme`, queuing it the first time it's asked for.
+/// The snapshot of `tool_id`'s page in `theme`, queuing it the first time it's asked for. The key holds the page
+/// too: a tool id is only unique within its own thread (Codex), and a remote machine names its own.
 fn shot(tool_id: &str, html: &str, theme: PageTheme, window: &Window, cx: &mut App) -> Shot {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     theme.dark.hash(&mut h);
     theme.vars.hash(&mut h);
+    html.hash(&mut h);
     let key = (tool_id.to_owned(), h.finish());
-    let shots = cx.default_global::<Shots>();
-    if let Some(s) = shots.done.get(&key) {
+    if let Some(s) = cx.default_global::<Shots>().done.get(&key) {
         return s.clone();
     }
-    if shots.done.len() >= MAX_SHOTS {
-        shots.done.retain(|_, s| matches!(s, Shot::Pending));
+    if cx.default_global::<Shots>().done.len() >= MAX_SHOTS {
+        let shots = cx.default_global::<Shots>();
+        let dropped: Vec<Arc<Image>> = shots
+            .done
+            .extract_if(|_, s| !matches!(s, Shot::Pending))
+            .filter_map(|(_, s)| match s {
+                Shot::Ready(image, _) => Some(image),
+                _ => None,
+            })
+            .collect();
+        // GPUI keeps every decoded image until told.
+        for image in dropped {
+            image.remove_asset(cx);
+        }
     }
+    let shots = cx.default_global::<Shots>();
     shots.done.insert(key.clone(), Shot::Pending);
     shots.queue.push_back(Job {
         key,
@@ -186,19 +205,33 @@ fn pump(cx: &mut App) {
     cx.spawn(async move |cx| {
         let result = match task {
             Ok(task) => match task.await {
-                Ok(shot) => background
-                    .spawn(async move { shot.to_png() })
-                    .await
-                    .map(|png| Shot::Ready(Arc::new(Image::from_bytes(ImageFormat::Png, png)))),
+                Ok(shot) => {
+                    let height = shot.content_height.min(MAX_SHOT_HEIGHT);
+                    background
+                        .spawn(async move { shot.to_png() })
+                        .await
+                        .map(|png| {
+                            Shot::Ready(Arc::new(Image::from_bytes(ImageFormat::Png, png)), height)
+                        })
+                }
                 Err(e) => Err(e),
             },
             Err(e) => Err(e),
         };
-        let shot = result.unwrap_or_else(|e| Shot::Failed(format!("{e:#}").into()));
         cx.update(|cx| {
             let shots = cx.default_global::<Shots>();
             shots.busy = false;
-            shots.done.insert(job.key, shot);
+            match result {
+                // The asking window closed before its turn: the next card drawn asks again from its own window.
+                Err(_) if job.window.update(cx, |_, _, _| ()).is_err() => {
+                    cx.default_global::<Shots>().done.remove(&job.key);
+                }
+                // shortcut: a failure (a timeout too) stays until the cache is cleared; retry timeouts if that bites.
+                r => {
+                    let shot = r.unwrap_or_else(|e| Shot::Failed(format!("{e:#}").into()));
+                    cx.default_global::<Shots>().done.insert(job.key, shot);
+                }
+            }
             let _ = job.window.update(cx, |_, window, _| window.refresh());
             pump(cx);
         });
@@ -241,10 +274,20 @@ pub(super) fn render<V: ItemsView>(
             .child(text)
     };
     let body = match shot {
-        Shot::Ready(image) => div()
+        // A box of the page's shape, at most its CSS width (a narrow column scales it down); left alone, img() takes its
+        // height from the 2x pixels and letterboxes the page.
+        Shot::Ready(image, h) => div()
             .debug_selector(|| "html-card-shot".into())
             .w_full()
-            .child(img(image).w_full())
+            .flex()
+            .justify_center()
+            .child(
+                div()
+                    .w(px(HTML_COLUMN_WIDTH as f32))
+                    .max_w_full()
+                    .aspect_ratio(HTML_COLUMN_WIDTH as f32 / h.max(1) as f32)
+                    .child(img(image).size_full()),
+            )
             .into_any_element(),
         Shot::Pending => note("Rendering the page…".into()).into_any_element(),
         Shot::Failed(why) => {

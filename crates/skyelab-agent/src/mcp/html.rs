@@ -94,14 +94,14 @@ pub(super) fn parse(name: &str, args: &Map<String, Value>) -> Option<Result<Html
     Some(match name {
         RENDER_TOOL => (|| {
             Ok(HtmlTool::Render {
-                html: bounded(args, "html", MAX_HTML)?,
+                html: page(args)?,
                 title: bounded(args, "title", MAX_TITLE)?.trim().to_owned(),
                 height: int(args, "height", MIN_HEIGHT, MAX_HEIGHT)?,
             })
         })(),
         PREVIEW_TOOL => (|| {
             Ok(HtmlTool::Preview {
-                html: bounded(args, "html", MAX_HTML)?,
+                html: page(args)?,
                 width: match args.get("width") {
                     None => COLUMN_WIDTH,
                     Some(_) => int(args, "width", MIN_WIDTH.into(), MAX_WIDTH.into())?,
@@ -115,6 +115,49 @@ pub(super) fn parse(name: &str, args: &Map<String, Value>) -> Option<Result<Html
         })(),
         _ => return None,
     })
+}
+
+/// The `html` field, refused (as T3 does) when it sizes anything by the viewport's height: the page is measured
+/// at a small height and drawn at its content's, so a `vh` size measures wrong and draws clipped.
+fn page(args: &Map<String, Value>) -> Result<String, String> {
+    let html = bounded(args, "html", MAX_HTML)?;
+    match viewport_height_unit(&html) {
+        Some(found) => Err(format!(
+            "the page uses a viewport height unit ({found}). The frame fits the page's content, so let content set \
+             the height, or use fixed pixel heights"
+        )),
+        None => Ok(html),
+    }
+}
+
+/// The first `<number>vh` (or `svh`, `lvh`, `dvh`) length in `html`, anywhere in it. Not after a letter, digit or
+/// `_.+/`, so a base64 run (an inlined image) that happens to hold "1vh" passes.
+fn viewport_height_unit(html: &str) -> Option<&str> {
+    let b = html.as_bytes();
+    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    for i in 0..b.len().saturating_sub(1) {
+        if !b[i..i + 2].eq_ignore_ascii_case(b"vh")
+            || b.get(i + 2).is_some_and(|&c| word(c) || c == b'-')
+        {
+            continue;
+        }
+        let unit = if i > 0 && matches!(b[i - 1].to_ascii_lowercase(), b's' | b'l' | b'd') {
+            i - 1
+        } else {
+            i
+        };
+        let mut start = unit;
+        while start > 0 && (b[start - 1].is_ascii_digit() || b[start - 1] == b'.') {
+            start -= 1;
+        }
+        let number = &b[start..unit];
+        let lead_ok =
+            start == 0 || !(word(b[start - 1]) || matches!(b[start - 1], b'.' | b'+' | b'/'));
+        if number.iter().any(u8::is_ascii_digit) && lead_ok {
+            return Some(&html[start..i + 2]);
+        }
+    }
+    None
 }
 
 fn int(args: &Map<String, Value>, field: &str, min: u64, max: u64) -> Result<u32, String> {

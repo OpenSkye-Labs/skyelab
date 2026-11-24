@@ -18,7 +18,7 @@ pub use browser::BrowserTool;
 pub use device::{DeviceKey, DeviceTool};
 pub use html::{
     COLUMN_WIDTH as HTML_COLUMN_WIDTH, HtmlTool, MAX_HEIGHT as HTML_MAX_HEIGHT,
-    RENDERED as HTML_RENDERED, is_rendered_page,
+    MAX_HTML as HTML_MAX_CHARS, RENDERED as HTML_RENDERED, is_rendered_page,
 };
 pub use proxy::{proxy_main, run_proxy};
 pub use server::{Grant, Server, remove_stale_runs};

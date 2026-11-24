@@ -97,16 +97,18 @@ emulators with `device_list`, `device_open`, `device_screenshot`, `device_tap`, 
   reloads the page, ending the agent's scripts, and an eval still running answers with an error.
 - **Visual replies.** T3's `html_render` and `html_preview` (`skyelab-agent/src/mcp/html.rs`), T3's limits: html
   1-512 000 chars, title 1-200, height 80-2000, preview width 240-1600 (default 728), appearance dark (default) or
-  light. Only inline HTML (T3's `path` input and local image inlining are left out). `html_render` stores nothing of
+  light, and a page that uses viewport height units (`100vh`, `dvh`...) is refused. Only inline HTML (T3's `path` input and local image inlining are left out). `html_render` stores nothing of
   its own: the tool call, already saved with the thread's events, is what the timeline draws (`html_card.rs`), and only
   a call that came back without an error. Both answer only while the caller is live. `html_preview` lays the page out
   hidden at the width, waits 600 ms after the load, measures `scrollHeight` and returns a PNG (the browser
   screenshot's caps) with `{width, contentHeight, capturedHeight, bytes}`; 10 s timeout. Every page runs in
   `skyelab_browser::page`: a fresh webview per render on its own in-memory store (Windows: a temp folder), loaded from
   a string (opaque `about:blank` origin, no file access), every later navigation, new window and download refused, no
-  IPC, no devtools, and a CSP meta put before anything in the document: scripts, styles, images, fonts and media
+  IPC, no devtools, and a doctype and CSP meta of ours put before anything of the page (anything first, even a stray U+000B, would open
+  `<body>`, where WebKit ignores a CSP meta): scripts, styles, images, fonts and media
   inline or from `https:` (T3 lets pages load public resources too; it also blocks private addresses in previews, which
-  a CSP can't do, so an `https` name on your network can still be requested, never read), `connect-src`, frames,
+  a CSP can't do: a page can still request an `https` name on your network, run a script-shaped answer (JSONP) and
+  pass what it got on in an image URL, though with no cookies of yours, on its fresh store), `connect-src`, frames,
   workers, objects, forms and `base` all `'none'`, no `http:`. Theme variables are T3's names, from the app theme.
   Snapshots render one at a time per app, cached in memory by tool call and theme. Not yet: T3's console messages,
   link opening and zoom.

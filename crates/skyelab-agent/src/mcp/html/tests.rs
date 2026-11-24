@@ -117,3 +117,38 @@ fn only_a_successful_skyelab_render_is_a_page() {
         false
     )));
 }
+
+#[test]
+fn viewport_height_units_are_refused_but_lookalikes_pass() {
+    let render = |html: &str| {
+        parse(
+            "html_render",
+            json!({"html": html, "title": "T", "height": 200}),
+        )
+    };
+    for bad in [
+        "<div style='height:100vh'>",
+        "<style>.a{min-height: 50.5VH}</style>",
+        "<style>.a{height:.5dvh}</style>",
+        "<style>.a{height:calc(100svh - 8px)}</style>",
+        "<div style=\"height:1lvh;\">",
+    ] {
+        let e = render(bad).expect_err(bad);
+        assert!(e.contains("viewport height"), "{e}");
+    }
+    assert!(parse("html_preview", json!({"html": "<p style='height:9vh'>"})).is_err());
+    for good in [
+        "<p>vh is a unit</p>",
+        "<img src='data:image/png;base64,AAA1vhBBB'>",
+        "<p>a+1vh</p>",
+        "<div style='height:100vw'>",
+        "<p>100vh-like</p>",
+        "<p>v1vhx</p>",
+        "vh",
+        "",
+    ] {
+        if !good.is_empty() {
+            assert!(render(good).is_ok(), "{good}");
+        }
+    }
+}

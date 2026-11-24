@@ -76,6 +76,8 @@ fn the_page_theme_has_t3s_variables_for_both_modes() {
 /// End to end: the fake claude's `chart` calls html_render through the real proxy and server; the call is
 /// stored with the thread's events and draws as a card. `peek` (html_preview) answers, here with an error,
 /// since a test window has no web engine.
+// The fake claude and the MCP socket are unix only.
+#[cfg(unix)]
 #[gpui::test]
 fn a_rendered_page_is_stored_and_drawn_as_a_card(cx: &mut gpui::TestAppContext) {
     use crate::workspace::delegation_test::{open, rig, send, start, thread_id, wait_result};

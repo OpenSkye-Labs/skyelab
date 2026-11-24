@@ -16,26 +16,32 @@ fn theme(dark: bool) -> PageTheme {
 const META: &str = "<meta http-equiv=\"Content-Security-Policy\"";
 
 #[test]
-fn the_policy_comes_first_after_a_doctype() {
-    let out = prepare(
-        "  <!DOCTYPE html><html><head><script>1</script>",
-        &theme(true),
-    );
-    assert!(out.starts_with("  <!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\""));
-    assert!(out.ends_with("<html><head><script>1</script>"));
-}
-
-#[test]
-fn a_page_without_a_doctype_gets_one_and_the_policy_before_anything() {
-    for page in [
-        "<script>1</script>",
-        "<!-- <!doctype html> --><p>",
+fn our_doctype_and_policy_come_before_anything_of_the_page() {
+    let leads = [
         "",
-        "<!doc",
-    ] {
-        let out = prepare(page, &theme(false));
-        assert!(out.starts_with(&format!("<!doctype html>{META}")), "{out}");
-        assert!(out.ends_with(page));
+        "  ",
+        "\u{0B}",
+        "\u{A0}",
+        "\u{2028}",
+        "\u{3000}",
+        "\u{FEFF}",
+        "<!-- x -->",
+    ];
+    for lead in leads {
+        for page in [
+            "<!DOCTYPE html><html><head><script>1</script>",
+            "<script>1</script>",
+            "",
+            "<!doc",
+        ] {
+            let page = format!("{lead}{page}");
+            let out = prepare(&page, &theme(false));
+            assert!(
+                out.starts_with(&format!("<!doctype html>{META}")),
+                "{lead:?}: {out}"
+            );
+            assert!(out.ends_with(&page));
+        }
     }
 }
 

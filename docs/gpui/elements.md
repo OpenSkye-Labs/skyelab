@@ -116,3 +116,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - gpui-component's `Textarea` / `Input` element writes its own `disabled` and `readonly` builder values into the state
   on every render, so `state.set_readonly(true)` is undone by the next frame. Drive read-only from the element
   (`.readonly(dictating)` in `composer.rs`). Programmatic `set_value` / `insert` still edit a read-only field.
+- An `img()` of a 2x bitmap (a webview snapshot) given only `.w_full()` takes its height from the bitmap's pixel
+  height, not its aspect, and letterboxes the picture inside (blank bands above and below). Give it its logical size
+  (`.w(px(css_w)).h(px(css_h))`), or put it `size_full` in a div that has `.max_w_full().aspect_ratio(..)`
+  (`html_card`); `.aspect_ratio` on the `img` itself didn't change it.

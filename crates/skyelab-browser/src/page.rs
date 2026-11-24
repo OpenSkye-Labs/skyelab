@@ -3,7 +3,7 @@
 //! - The page loads from a string (`loadHTMLString` with no base URL): an opaque `about:blank` origin with no file
 //!   access. Every later navigation, new window and download is refused, there is no IPC handler and no custom
 //!   scheme, and each page gets its own in-memory web data store (on Windows a fresh temp folder).
-//! - [`prepare`] puts a Content-Security-Policy meta first in the document, so it governs everything after it:
+//! - [`prepare`] puts a doctype and a Content-Security-Policy meta first in the document, so it governs everything after it:
 //!   scripts, styles, images, fonts and media from inline code, `data:`/`blob:` or https only; no fetch, XHR,
 //!   WebSocket, frames, workers, plugins, forms or `<base>`.
 //! - Then T3's theme variables and base sheet, which the page may override.
@@ -50,7 +50,6 @@ pub struct PageTheme {
 
 /// The document the webview loads: `html` with the CSP and the theme put in front of it.
 pub fn prepare(html: &str, theme: &PageTheme) -> String {
-    let doctype_end = doctype_len(html);
     let mut root = format!(
         ":root{{color-scheme:{};",
         if theme.dark { "dark" } else { "light" }
@@ -68,22 +67,10 @@ pub fn prepare(html: &str, theme: &PageTheme) -> String {
         "<meta http-equiv=\"Content-Security-Policy\" content=\"{CSP}\">\
          <style id=\"skyelab-theme\">{root}{BASE_CSS}</style>"
     );
-    match doctype_end {
-        Some(end) => format!("{}{head}{}", &html[..end], &html[end..]),
-        None => format!("<!doctype html>{head}{html}"),
-    }
-}
-
-/// The length of a leading `<!doctype …>` (after whitespace), so the CSP goes right after it and the page keeps
-/// standards mode.
-fn doctype_len(html: &str) -> Option<usize> {
-    let start = html.len() - html.trim_start().len();
-    let rest = &html[start..];
-    let tag = rest.get(..9)?;
-    if !tag.eq_ignore_ascii_case("<!doctype") {
-        return None;
-    }
-    rest.find('>').map(|end| start + end + 1)
+    // Ours always comes first: anything of the page's before the meta (even a character the HTML parser doesn't
+    // count as space, like U+000B) would open <body>, and a CSP meta outside <head> is ignored. The page's own
+    // doctype, after ours, is ignored too.
+    format!("<!doctype html>{head}{html}")
 }
 
 /// A page in its own locked webview, hidden until the host shows it.
