@@ -122,7 +122,7 @@ impl Render for Welcome {
                 .child(ui::KeyHint::new(label, action))
         };
         let welcome = ui::EmptyState::new("Pick a thread to continue")
-            .hint("Or start one with + at the top of the sidebar. Every folder runs on the account it is bound to.")
+            .hint("Or start a new one. Every folder runs on the account it is bound to.")
             .page();
         let body = div().flex_1().flex().items_center().justify_center().child(
             v_flex()
@@ -137,6 +137,7 @@ impl Render for Welcome {
                 .child(
                     v_flex()
                         .gap_0p5()
+                        .child(shortcut("New thread", Box::new(super::NewThread)))
                         .child(shortcut("Toggle sidebar", Box::new(super::ToggleSidebar)))
                         .child(shortcut(
                             "Toggle bottom panel",
