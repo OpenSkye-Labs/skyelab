@@ -215,3 +215,32 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
         assert_eq!(v.stale, vec![(acme.clone(), Some(root.clone()))])
     });
 }
+
+#[test]
+fn binding_picker_shows_labels_and_picks_ids() {
+    use gpui_component::select::SelectItem as _;
+    let account = |id: &str, label: &str| Account {
+        id: id.into(),
+        label: label.into(),
+        config_dir: "/c".into(),
+        provider: skyelab_core::Provider::Claude,
+        gh_config_dir: None,
+        ssh_agent: false,
+    };
+    let config = AccountsConfig {
+        accounts: vec![account("work", "Work (Acme)"), account("home", "")],
+        ..Default::default()
+    };
+    let choices = account_ids(&config);
+    let shown: Vec<_> = choices
+        .iter()
+        .map(|c| (c.title(), c.value().clone()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("Work (Acme)".into(), "work".into()),
+            ("home".into(), "home".into())
+        ]
+    );
+}

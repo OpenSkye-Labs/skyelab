@@ -86,7 +86,24 @@ pub fn init(cx: &mut App) {
     cx.bind_keys(bindings);
 }
 
-type AccountSelect = SelectState<Vec<SharedString>>;
+type AccountSelect = SelectState<Vec<AccountChoice>>;
+
+/// An account in the binding picker: shown by its label, picked by its id.
+#[derive(Clone)]
+pub(super) struct AccountChoice {
+    id: SharedString,
+    label: SharedString,
+}
+
+impl gpui_component::select::SelectItem for AccountChoice {
+    type Value = SharedString;
+    fn title(&self) -> SharedString {
+        self.label.clone()
+    }
+    fn value(&self) -> &SharedString {
+        &self.id
+    }
+}
 
 pub struct Settings {
     pub(super) path: Option<PathBuf>,
@@ -278,7 +295,8 @@ impl Settings {
         self.account_select.update(cx, |s, cx| {
             let keep = s.selected_value().cloned();
             s.set_items(ids.clone(), window, cx);
-            if let Some(id) = keep.filter(|id| ids.contains(id)).or(ids.first().cloned()) {
+            let known = |id: &SharedString| ids.iter().any(|c| &c.id == id);
+            if let Some(id) = keep.filter(known).or(ids.first().map(|c| c.id.clone())) {
                 s.set_selected_value(&id, window, cx);
             }
         });
@@ -382,11 +400,16 @@ fn stale_bindings(config: &AccountsConfig) -> Vec<(PathBuf, Option<PathBuf>)> {
         .collect()
 }
 
-fn account_ids(config: &AccountsConfig) -> Vec<SharedString> {
+fn account_ids(config: &AccountsConfig) -> Vec<AccountChoice> {
     config
         .accounts
         .iter()
-        .map(|a| a.id.clone().into())
+        .map(|a| AccountChoice {
+            id: a.id.clone().into(),
+            label: if a.label.is_empty() { &a.id } else { &a.label }
+                .clone()
+                .into(),
+        })
         .collect()
 }
 
