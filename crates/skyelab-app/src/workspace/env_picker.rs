@@ -22,7 +22,7 @@ use skyelab_tailnet::own_online_peers;
 
 actions!(skyelab, [ToggleEnvironments, ConnectTyped]);
 
-/// Opens the machine menu with its bottom-left corner at a window point (where the chip was clicked).
+/// Opens the machine menu just above and left of a window point (where the chip was clicked).
 #[derive(Clone, PartialEq, Action)]
 #[action(namespace = skyelab, no_json)]
 pub struct ShowEnvironments {
@@ -49,7 +49,7 @@ pub struct ForgetEnvironment {
 pub const THIS_MAC: &str = "This Mac";
 
 /// The menu's width: roomy enough for a full MagicDNS name.
-const MENU_W: f32 = 340.;
+pub(super) const MENU_W: f32 = 340.;
 
 /// Which list a machine row belongs to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -261,7 +261,7 @@ impl EnvPicker {
 }
 
 /// A list caption (T3's select group label).
-pub(super) fn caption(text: &'static str, cx: &gpui::App) -> gpui::Div {
+fn caption(text: &'static str, cx: &gpui::App) -> gpui::Div {
     div()
         .px_2p5()
         .pt_2()

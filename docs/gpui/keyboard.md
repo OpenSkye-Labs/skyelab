@@ -31,3 +31,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A read-only gpui-component text field drops ⌘↩ instead of emitting `InputEvent::PressEnter`, so a submit hung on
   that event stops working while it is read-only: bind the send action in a key context set only then
   (`ComposerDictation > Input`, `composer_voice.rs`).
+- A popup the workspace draws (even through `deferred`) still has the Workspace on its key dispatch path, and key
+  bindings run before any element's `on_key_down`. So the workspace's `escape` → `FocusComposer` takes Escape before an
+  open menu's own handler sees it, whenever a composer is on screen. Close such a popup from the bound action
+  (`focus_composer` closes the machine menu, as it closes the details card) and test Escape with a thread open, not
+  only over the Welcome page.

@@ -194,6 +194,10 @@ impl Workspace {
         if self.details_open {
             return self.close_details(window, cx);
         }
+        // The workspace's escape binding runs before the open machine menu's own key handler.
+        if self.close_env_menu(window, cx) {
+            return;
+        }
         let areas = self.areas(window, cx);
         match areas.into_iter().find(|(a, ..)| *a == Area::Composer) {
             Some((_, focus, false)) => self.ring(Area::Composer, focus, window, cx),

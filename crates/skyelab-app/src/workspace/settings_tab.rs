@@ -32,6 +32,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.close_env_menu(window, cx);
         let settings = self.ensure_settings(window, cx);
         if !self.settings_open {
             // The view lives all session: show the file as it is now (an edit elsewhere, a login since).

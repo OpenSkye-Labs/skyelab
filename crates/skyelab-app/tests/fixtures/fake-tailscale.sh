@@ -1,6 +1,6 @@
 #!/bin/sh
 # Debug-only stand-in for the tailscale CLI (SKYELAB_TAILSCALE_BIN): a running tailnet where this machine has two
-# online devices of its own, so live checks never list or reach real machines. Only `status --json` answers.
+# online devices of its own, so live checks never list or reach real machines. Only `status` answers.
 [ "$1" = status ] || { echo "fake-tailscale: only status is faked" >&2; exit 1; }
 cat <<'JSON'
 {

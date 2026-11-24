@@ -70,7 +70,7 @@ start new ones, send follow-ups and stop them, answer permission requests and qu
 thread with ⌘F (Ctrl+F). The thread filter, scope menu, unread and approval marks are local only, and a machine on an
 older SkyeLab shows no pins or reply previews and can't take question answers. A screenshot the other machine's
 store didn't keep reads **Image (205 KB) not kept**, on the desktop and in the mobile app. The account shown is the one that machine resolved. Terminals and worktree controls are
-local only. A remote thread is shown as the page, like a local one. Switching back to **This Mac** closes the remote
+local only. A remote thread is shown as the page, like a local one. Switching back to this machine closes the remote
 threads. A thread that starts on this machine while you look at another one (a delegated thread, or one started from
 your phone) waits: the sidebar shows **This Mac · 1 new thread here**, and clicking it switches back, where the
 thread is marked unread.

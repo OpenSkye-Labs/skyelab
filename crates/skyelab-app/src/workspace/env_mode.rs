@@ -6,7 +6,7 @@
 use super::Workspace;
 use super::center::Page;
 use super::env_picker::{
-    ConnectTyped, EnvPicker, ForgetEnvironment, ShowEnvironments, ToggleEnvironments,
+    ConnectTyped, EnvPicker, ForgetEnvironment, MENU_W, ShowEnvironments, ToggleEnvironments,
 };
 use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
 use crate::environment::{EnvEvent, RemoteEnv};
@@ -151,9 +151,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(picker) = &self.env.picker {
-            picker.update(cx, |p, cx| p.toggle(None, window, cx));
-        }
+        self.open_env_menu(None, window, cx);
     }
 
     fn show_environments(
@@ -162,10 +160,32 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let at = gpui::point(px(a.x), px(a.y));
-        if let Some(picker) = &self.env.picker {
-            picker.update(cx, |p, cx| p.toggle(Some(at), window, cx));
+        self.open_env_menu(Some(gpui::point(px(a.x), px(a.y))), window, cx);
+    }
+
+    /// Toggles the menu, except under the Settings modal, which would cover it.
+    fn open_env_menu(
+        &mut self,
+        at: Option<gpui::Point<gpui::Pixels>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.settings_open {
+            return;
         }
+        if let Some(picker) = &self.env.picker {
+            picker.update(cx, |p, cx| p.toggle(at, window, cx));
+        }
+    }
+
+    /// Closes the machine menu; true when it was open.
+    pub(super) fn close_env_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(picker) = self.env.picker.clone() else {
+            return false;
+        };
+        let open = picker.read(cx).open;
+        picker.update(cx, |p, cx| p.close(window, cx));
+        open
     }
 
     /// The machine menu over everything, while it is open: a backdrop that closes it on a press, and the card with
@@ -178,7 +198,7 @@ impl Workspace {
         }
         let size = window.viewport_size();
         let at = p.anchor.map_or(
-            gpui::point(size.width / 2. - px(170.), size.height - px(72.)),
+            gpui::point(size.width / 2. - px(MENU_W / 2.), size.height - px(72.)),
             |a| a - gpui::point(px(8.), px(10.)),
         );
         let weak = picker.downgrade();

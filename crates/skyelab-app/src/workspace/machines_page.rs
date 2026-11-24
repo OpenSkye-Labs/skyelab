@@ -45,6 +45,7 @@ impl Render for MachinesPage {
         crate::debug_renders::count("MachinesPage");
         let picker = self.picker.read(cx);
         let machines = picker.machines(cx);
+        let recents = picker.recents.clone();
         let (typed, error, peers_error) = (
             picker.typed_input().clone(),
             picker.error.clone(),
@@ -94,7 +95,7 @@ impl Render for MachinesPage {
                 MachineKind::This if m.current => "This machine · shown now".into(),
                 MachineKind::This => "This machine".into(),
                 _ if m.current => m.status.1.clone(),
-                MachineKind::Device => "Online".into(),
+                MachineKind::Device => m.status.1.clone(),
                 MachineKind::Recent => "Recent · not among your online devices".into(),
             };
             let host = m.host.clone();
@@ -148,17 +149,24 @@ impl Render for MachinesPage {
                         .child(button("machine-connect", "Switch back").on_click(switch_to(None))),
                     (None, true) => row,
                 })
-                .when(m.kind == MachineKind::Recent && !m.current, |row| {
-                    let host = host.clone().unwrap_or_default();
-                    row.child(
-                        button("machine-forget", "Forget").on_click(move |_, window, cx| {
-                            window.dispatch_action(
-                                Box::new(ForgetEnvironment { host: host.clone() }),
-                                cx,
-                            )
-                        }),
-                    )
-                })
+                // A recent name can also be online now, listed among your devices.
+                .when(
+                    !m.current
+                        && host
+                            .as_ref()
+                            .is_some_and(|h| recents.iter().any(|r| r.eq_ignore_ascii_case(h))),
+                    |row| {
+                        let host = host.clone().unwrap_or_default();
+                        row.child(button("machine-forget", "Forget").on_click(
+                            move |_, window, cx| {
+                                window.dispatch_action(
+                                    Box::new(ForgetEnvironment { host: host.clone() }),
+                                    cx,
+                                )
+                            },
+                        ))
+                    },
+                )
         });
         let add = ui::group_row(true, theme)
             .items_start()
