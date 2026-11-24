@@ -47,9 +47,9 @@ to a default account: no pick, no thread. Remove the project or its binding like
   <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd>, to take it out of the stash and add it after what you have typed;
   × deletes one. There is one stash for all projects and threads; it keeps the last 20 and survives restarts.
   A restore brings everything back (text, files, quote, terminal and diff-comment chips), whatever account it was
-  stashed under, so a quote of one account's agent can reach another account's agent this way. Only a chip that
-  names a thread (a thread, pull request, issue or side chat) is checked again: it comes back only on that thread's
-  account while its folder is still bound to it, else a note says it was left out. A
+  stashed under, so a quote of one account's agent can reach another account's agent this way. Only a thread,
+  pull request, issue or side-chat chip is checked again: it comes back only on the account it was picked under,
+  while its folder is still bound to it, else a note says it was left out. A
   restore that would pass 8 chips or 10 files is refused and the entry stays in the stash.
 - **Dictate** (macOS): click the microphone left of Send, or press <kbd>⌘⇧M</kbd>. Words appear in the prompt at the
   cursor as you speak (replacing what you had selected), and the prompt is read-only meanwhile. <kbd>⌘⇧M</kbd> again

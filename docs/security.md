@@ -25,8 +25,8 @@
   profile. Reopen Closed never brings these tabs back, and Open in system browser is refused for them.
 - **The prompt stash is shared across accounts.** There is one stash for all threads, and a restore brings back its
   text, files and quote, terminal and diff-comment chips on whatever account the restoring thread runs, so one
-  account's agent output can reach another account's agent when you restore it there. A chip naming a thread or pull
-  request comes back only on that thread's account.
+  account's agent output can reach another account's agent when you restore it there. A thread, pull request, issue or
+  side-chat chip comes back only on the account it was picked under, while its folder is still bound to it.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Updates.** Only the shown release's own assets download (redirects only to GitHub's download hosts, size

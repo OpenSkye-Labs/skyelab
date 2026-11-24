@@ -304,15 +304,17 @@ impl ThreadView {
         // Read back through the same checks as an attached file.
         let files = files.into_iter();
         (self.composer.attachments).extend(files.filter_map(|(n, d)| Attachment::new(n, d).ok()));
-        // A chip naming a thread passes the `#` menu's check again (its account and folder binding, now).
+        // A chip picked under a binding (thread, PR, issue, side chat) passes `chip_allowed` again, now.
         let mut left_out = 0;
         for c in stashed.chips {
-            left_out +=
-                usize::from(!self.push_context(c.kind, c.label.into(), c.text, c.bound, cx));
+            let bound = c.bound.is_some();
+            left_out += usize::from(
+                !self.push_context(c.kind, c.label.into(), c.text, c.bound, cx) && bound,
+            );
         }
         if left_out > 0 {
             self.composer.notice = Some(
-                format!("{left_out} thread chip(s) left out: that thread isn't on this account.")
+                format!("{left_out} chip(s) left out: they were picked under another account.")
                     .into(),
             );
         }
