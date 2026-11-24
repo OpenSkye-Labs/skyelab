@@ -8,6 +8,7 @@ mod button;
 #[cfg(test)]
 mod button_test;
 mod choice;
+mod command_row;
 mod components;
 #[cfg(test)]
 mod contrast_test;
@@ -32,6 +33,7 @@ mod tooltip;
 
 pub use button::{Button, Variant, icon_button};
 pub use choice::{SegmentedControl, Tabs};
+pub use command_row::CommandRow;
 pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title,

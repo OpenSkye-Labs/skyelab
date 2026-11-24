@@ -13,6 +13,8 @@ pub struct Kbd {
     stroke: Keystroke,
     /// Plain text, no cap: inside a menu row or a button, where the row is the box.
     bare: bool,
+    /// Words instead of the platform's symbol (T3's palette footer reads "Enter", not ↩).
+    text: Option<SharedString>,
 }
 
 impl Kbd {
@@ -20,6 +22,7 @@ impl Kbd {
         Self {
             stroke,
             bare: false,
+            text: None,
         }
     }
 
@@ -53,6 +56,11 @@ impl Kbd {
         }))
     }
 
+    pub fn with_label(mut self, text: impl Into<SharedString>) -> Self {
+        self.text = Some(text.into());
+        self
+    }
+
     pub fn bare(mut self) -> Self {
         self.bare = true;
         self
@@ -61,6 +69,9 @@ impl Kbd {
     /// The keystroke as the platform writes it, except Escape: macOS's ⎋ reads as a refresh arrow at 12 px, so it
     /// is "Esc" as in T3.
     pub fn label(&self) -> SharedString {
+        if let Some(text) = &self.text {
+            return text.clone();
+        }
         gpui_component::kbd::Kbd::format(&self.stroke)
             .replace('⎋', "Esc")
             .into()

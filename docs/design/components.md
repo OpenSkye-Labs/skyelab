@@ -52,8 +52,11 @@ the `Kbd` constructors, so new code reaches for these.
   composer, the settings search, find-in-thread) keeps the bare `Input` with `appearance(false)`.
 - **`Pill`**: T3's badge and SkyeLab's chip, neutral or tinted with `color`, with an optional `icon`.
   **`AccountBadge`**, **`StatusDot`**, **`SectionHeader`**, **`EmptyState`**, **`KeyHint`** are in `ui/components.rs`.
+- **`CommandRow`** (`ui/command_row.rs`): a command palette row after T3's: icon, title with `strong` byte ranges
+  (matched letters, a project name), an optional muted `subtitle`, then a toggle's tick (`checked`), the `shortcut` as
+  plain text and a chevron for a `submenu` row. The list around it draws the hover and selected (accent) background.
 - **`Kbd`** (`ui/kbd.rs`): a key cap, `Kbd::for_action(action, context, window)` / `for_action_in(action, focus,
-  window)`; `.bare()` drops the cap inside a row or button. Escape reads "Esc", as in T3: macOS's ⎋ looks like refresh at 12 px.
+  window)`; `.bare()` drops the cap inside a row or button; `.with_label("Enter")` writes words instead of the symbol (the palette footer). Escape reads "Esc", as in T3: macOS's ⎋ looks like refresh at 12 px.
 - **`Tooltip`** (`ui/tooltip.rs`): `Tooltip::new(text).action(..).build(window, cx)`, or
   `.tooltip(Tooltip::text("Copy"))` on any stateful element. Buttons take `.tooltip(..)` directly.
 - **`Card` / `Divider`** (`ui/surface.rs`): a card is radius 12 with a hairline border on the muted fill. Use `raised()`

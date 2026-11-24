@@ -1,18 +1,11 @@
-//! The command palette: one key to find and run any action, switch project, open a thread or focus a tab.
-//! Entries come from the workspace; this file ranks them and hosts gpui-component's `Command` in a dialog.
+//! The command palette (T3's CommandPalette): one key to find and run any action, switch project, open a thread or
+//! focus a tab. Entries come from the workspace; this file groups and ranks them and draws them, T3's way, in
+//! gpui-component's `Command` (its virtual list, arrow keys and hover) inside a dialog.
 
-use crate::ui::Kbd;
-use crate::ui::SkyeIcon;
-use gpui::{
-    App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding, NoAction,
-    ParentElement as _, Render, SharedString, Styled as _, Task, WeakEntity, Window, actions, div,
-    prelude::FluentBuilder as _, px,
-};
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _, WindowExt as _,
-    command::{Command, CommandItem, CommandState},
-    h_flex,
-};
+use crate::ui::{Kbd, SkyeIcon};
+use gpui::{App, KeyBinding, NoAction, SharedString, Task, Window, actions};
+use std::cmp::Reverse;
+use std::ops::Range;
 use std::rc::Rc;
 
 actions!(skyelab, [OpenCommandPalette]);
@@ -24,6 +17,11 @@ pub const OPEN_PALETTE_KEY: &str = if cfg!(target_os = "macos") {
     "ctrl-k"
 };
 
+/// T3's root placeholder.
+const PLACEHOLDER: &str = "Search commands, projects, and threads…";
+/// How many threads an empty query lists, most recently used first (T3's `RECENT_THREAD_LIMIT`).
+const RECENT_LIMIT: usize = 12;
+
 /// What an entry does when chosen.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Kind {
@@ -34,14 +32,14 @@ pub enum Kind {
     Tab,
 }
 
-impl Kind {
-    fn label(&self) -> &'static str {
-        match self {
-            Kind::Action(_) => "Action",
-            Kind::Project => "Project",
-            Kind::Thread => "Thread",
-            Kind::Tab => "Tab",
-        }
+/// The section a kind lists under.
+fn group_of(kind: &Kind) -> &'static str {
+    match kind {
+        Kind::Action("skyelab::RunProjectScript") => "Scripts",
+        Kind::Action(_) => "Actions",
+        Kind::Project => "Projects",
+        Kind::Thread => "Threads",
+        Kind::Tab => "Tabs",
     }
 }
 
@@ -50,12 +48,99 @@ pub type Run = Rc<dyn Fn(&mut Window, &mut App)>;
 
 #[derive(Clone)]
 pub struct Entry {
+    /// What the search matches, and what tests find an entry by.
     pub label: SharedString,
     pub kind: Kind,
     pub binding: Option<Kbd>,
-    /// A toggle's current state, shown as a checkbox and On/Off; `None` for anything else.
+    /// A toggle's current state, shown as a ticked box; `None` for anything else.
     pub checked: Option<bool>,
     pub run: Run,
+    /// What the row shows when it differs from `label` ("demo" for "Switch to project: demo").
+    pub title: Option<SharedString>,
+    /// A muted second line (the project of another project's thread).
+    pub subtitle: Option<SharedString>,
+    /// The row's icon; `None` picks one from the kind.
+    pub icon: Option<SkyeIcon>,
+    /// Bytes of the shown title drawn bold (T3's "New thread in **project**").
+    pub bold: Option<Range<usize>>,
+    /// Choosing the row opens these as a page with a Back row, instead of running.
+    pub submenu: Option<Rc<[Entry]>>,
+    /// When a thread was last used (ms since the epoch), for Recent threads.
+    pub recency: i64,
+}
+
+impl Entry {
+    pub fn new(label: impl Into<SharedString>, kind: Kind, run: Run) -> Self {
+        Self {
+            label: label.into(),
+            kind,
+            binding: None,
+            checked: None,
+            run,
+            title: None,
+            subtitle: None,
+            icon: None,
+            bold: None,
+            submenu: None,
+            recency: 0,
+        }
+    }
+
+    pub fn title(mut self, title: impl Into<SharedString>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    pub fn subtitle(mut self, subtitle: impl Into<SharedString>) -> Self {
+        self.subtitle = Some(subtitle.into());
+        self
+    }
+
+    pub fn icon(mut self, icon: SkyeIcon) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    pub fn bold(mut self, bytes: Range<usize>) -> Self {
+        self.bold = Some(bytes);
+        self
+    }
+
+    pub fn submenu(mut self, items: Vec<Entry>) -> Self {
+        self.submenu = Some(items.into());
+        self
+    }
+
+    pub fn recency(mut self, ms: i64) -> Self {
+        self.recency = ms;
+        self
+    }
+
+    pub fn binding(mut self, binding: Option<Kbd>) -> Self {
+        self.binding = binding;
+        self
+    }
+
+    pub fn checked(mut self, checked: Option<bool>) -> Self {
+        self.checked = checked;
+        self
+    }
+
+    fn shown(&self) -> &SharedString {
+        self.title.as_ref().unwrap_or(&self.label)
+    }
+}
+
+/// `entries` with every submenu's items after them, so a query finds those too (T3's nested search).
+pub(crate) fn flatten(mut entries: Vec<Entry>) -> Vec<Entry> {
+    let nested: Vec<Entry> = entries
+        .iter()
+        .filter_map(|e| e.submenu.as_deref())
+        .flatten()
+        .cloned()
+        .collect();
+    entries.extend(nested);
+    entries
 }
 
 /// The palette keys for one OS. `KeyBinding::new` can't resolve `secondary-`, so the caller picks.
@@ -91,16 +176,15 @@ fn is_word_start(text: &[char], i: usize) -> bool {
         || (text[i - 1].is_lowercase() && text[i].is_uppercase())
 }
 
-/// How well `query` fuzzy-matches `text`, higher is better; `None` when its letters aren't all there in order.
-/// Case and spaces in the query are ignored. Word starts and consecutive runs score; gaps cost.
-pub fn score(query: &str, text: &str) -> Option<i32> {
+/// The best fuzzy match of `query` in `text`: its score and the char indexes it used. See [`score`].
+fn best_match(query: &str, text: &str) -> Option<(i32, Vec<usize>)> {
     let query: Vec<char> = query
         .chars()
         .filter(|c| !c.is_whitespace())
         .map(lower)
         .collect();
     let Some((&first, rest)) = query.split_first() else {
-        return Some(0);
+        return Some((0, Vec::new()));
     };
     let text: Vec<char> = text.chars().collect();
     let lower: Vec<char> = text.iter().copied().map(lower).collect();
@@ -111,19 +195,26 @@ pub fn score(query: &str, text: &str) -> Option<i32> {
             if is_word_start(&text, start) {
                 score += 10;
             }
-            let mut prev = start;
+            let mut at = vec![start];
             for &c in rest {
+                let prev = *at.last()?;
                 let i = (prev + 1..text.len()).find(|&i| lower[i] == c)?;
                 let gap = (i - prev - 1) as i32;
                 score += if gap == 0 { 8 } else { -gap.min(5) };
                 if gap > 0 && is_word_start(&text, i) {
                     score += 6;
                 }
-                prev = i;
+                at.push(i);
             }
-            Some(score)
+            Some((score, at))
         })
-        .max()
+        .max_by_key(|(score, _)| *score)
+}
+
+/// How well `query` fuzzy-matches `text`, higher is better; `None` when its letters aren't all there in order.
+/// Case and spaces in the query are ignored. Word starts and consecutive runs score; gaps cost.
+pub fn score(query: &str, text: &str) -> Option<i32> {
+    best_match(query, text).map(|(score, _)| score)
 }
 
 /// Indexes of the labels that match `query`, best first.
@@ -133,8 +224,87 @@ pub fn rank<'a>(query: &str, labels: impl IntoIterator<Item = &'a str>) -> Vec<u
         .enumerate()
         .filter_map(|(i, label)| score(query, label).map(|s| (s, i)))
         .collect();
-    scored.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
+    scored.sort_by_key(|&(s, _)| Reverse(s));
     scored.into_iter().map(|(_, i)| i).collect()
+}
+
+/// The byte ranges of `text` a row draws bold: the letters `query` matched, and `bold`.
+pub fn match_ranges(query: &str, text: &str, bold: Option<Range<usize>>) -> Vec<Range<usize>> {
+    let matched = best_match(query, text)
+        .map(|(_, at)| at)
+        .unwrap_or_default();
+    let mut out: Vec<Range<usize>> = Vec::new();
+    for (n, (i, c)) in text.char_indices().enumerate() {
+        let strong = matched.contains(&n) || bold.as_ref().is_some_and(|b| b.contains(&i));
+        if !strong {
+            continue;
+        }
+        let end = i + c.len_utf8();
+        match out.last_mut() {
+            Some(last) if last.end == i => last.end = end,
+            _ => out.push(i..end),
+        }
+    }
+    out
+}
+
+/// A titled section of the list: indexes into the entries.
+#[derive(Debug, PartialEq)]
+pub struct Group {
+    pub label: SharedString,
+    pub rows: Vec<usize>,
+}
+
+fn push_to(groups: &mut Vec<Group>, label: &'static str, row: usize) {
+    match groups.iter_mut().find(|g| g.label.as_ref() == label) {
+        Some(group) => group.rows.push(row),
+        None => groups.push(Group {
+            label: label.into(),
+            rows: vec![row],
+        }),
+    }
+}
+
+/// T3's sections. `entries[..nested]` are the top-level ones, `[nested..found]` their submenus' items (listed only
+/// for a query), `[found..]` the message search's threads. An empty query lists Actions, then Recent threads (newest
+/// first, at most [`RECENT_LIMIT`]), Projects, Scripts and Tabs. A query ranks everything with [`score`]; each section
+/// keeps that order and sections come in the order of their best row; found threads follow in Threads.
+pub fn arrange(query: &str, entries: &[Entry], nested: usize, found: usize) -> Vec<Group> {
+    let found = found.min(entries.len());
+    let mut groups = Vec::new();
+    if query.trim().is_empty() {
+        let top = &entries[..nested.min(found)];
+        let mut recent: Vec<usize> = (0..top.len())
+            .filter(|&i| top[i].kind == Kind::Thread)
+            .collect();
+        recent.sort_by_key(|&i| Reverse(top[i].recency));
+        recent.truncate(RECENT_LIMIT);
+        for name in ["Actions", "Threads", "Projects", "Scripts", "Tabs"] {
+            let rows: Vec<usize> = match name {
+                "Threads" => std::mem::take(&mut recent),
+                _ => (0..top.len())
+                    .filter(|&i| group_of(&top[i].kind) == name)
+                    .collect(),
+            };
+            if !rows.is_empty() {
+                let label = if name == "Threads" {
+                    "Recent threads"
+                } else {
+                    name
+                };
+                groups.push(Group {
+                    label: label.into(),
+                    rows,
+                });
+            }
+        }
+        return groups;
+    }
+    let ranked = rank(query, entries[..found].iter().map(|e| e.label.as_ref()));
+    for i in ranked.into_iter().chain(found..entries.len()) {
+        push_to(&mut groups, group_of(&entries[i].kind), i);
+    }
+    groups
 }
 
 const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
@@ -200,158 +370,14 @@ pub fn listed(name: &str) -> bool {
 /// the ranked entries, minus any label already there.
 pub type Search = Rc<dyn Fn(String, &mut App) -> Task<Vec<Entry>>>;
 
-struct Palette {
-    state: Entity<CommandState>,
-    entries: Vec<Entry>,
-    row_to_entry: Vec<usize>,
-    prev: FocusHandle,
-    /// How many of `entries` are the fixed ones; the rest are the last search's.
-    fixed: usize,
-    search: Option<Search>,
-    _search: Option<Task<()>>,
-}
-
-pub fn open(
-    entries: Vec<Entry>,
-    search: Option<Search>,
-    prev: FocusHandle,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    let state = cx.new(|cx| CommandState::new(window, cx));
-    let palette = cx.new(|_| Palette {
-        state: state.clone(),
-        row_to_entry: (0..entries.len()).collect(),
-        fixed: entries.len(),
-        entries,
-        prev,
-        search,
-        _search: None,
-    });
-    window.open_dialog(cx, move |dialog, _, _| {
-        let palette = palette.clone();
-        dialog
-            .w(px(560.))
-            .close_button(false)
-            .content(move |content, _, _| content.child(palette.clone()))
-    });
-    state.update(cx, |state, cx| state.focus(window, cx));
-}
-
-fn choose(palette: &WeakEntity<Palette>, row: usize, window: &mut Window, cx: &mut App) {
-    let Some(palette) = palette.upgrade() else {
-        return;
-    };
-    let picked = {
-        let p = palette.read(cx);
-        p.row_to_entry
-            .get(row)
-            .map(|&i| (p.entries[i].run.clone(), p.prev.clone()))
-    };
-    let Some((run, prev)) = picked else {
-        return;
-    };
-    window.close_dialog(cx);
-    // The dialog sits outside the workspace, so the action must start from the element focused before it.
-    window.focus(&prev, cx);
-    run(window, cx);
-}
-
-fn row(entry: &Entry, cx: &App) -> gpui::Div {
-    let muted = cx.theme().muted_foreground;
-    h_flex()
-        .w_full()
-        .gap_2()
-        .justify_between()
-        .child(entry.label.clone())
-        .child(
-            h_flex()
-                .gap_2()
-                .text_color(muted)
-                .children(entry.checked.map(|on| {
-                    let theme = cx.theme();
-                    // Drawn, not a control: the row is what toggles (T3's box is pointer-events-none too).
-                    let tick = div()
-                        .size_3p5()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .rounded(px(3.))
-                        .border_1()
-                        .border_color(if on { theme.primary } else { muted })
-                        .when(on, |b| {
-                            b.bg(theme.primary).child(
-                                Icon::new(SkyeIcon::Check)
-                                    .xsmall()
-                                    .text_color(theme.primary_foreground),
-                            )
-                        });
-                    h_flex()
-                        .gap_1()
-                        .child(if on { "On" } else { "Off" })
-                        .child(tick)
-                }))
-                .child(entry.kind.label())
-                .children(entry.binding.clone()),
-        )
-}
-
-impl Palette {
-    /// Runs the search for `query` and appends what it finds; a newer query drops (cancels) an older search.
-    fn find_more(&mut self, query: &str, cx: &mut Context<Self>) {
-        let Some(search) = self.search.clone().filter(|_| !query.trim().is_empty()) else {
-            self._search = None;
-            return;
-        };
-        let task = search(query.to_owned(), cx);
-        self._search = Some(cx.spawn(async move |p, cx| {
-            let found = task.await;
-            _ = p.update(cx, |p, cx| {
-                p.entries.truncate(p.fixed);
-                let shown: std::collections::HashSet<SharedString> = p
-                    .row_to_entry
-                    .iter()
-                    .map(|&i| p.entries[i].label.clone())
-                    .collect();
-                for entry in found.into_iter().filter(|e| !shown.contains(&e.label)) {
-                    p.row_to_entry.push(p.entries.len());
-                    p.entries.push(entry);
-                }
-                cx.notify();
-            });
-        }));
-    }
-}
-
-impl Render for Palette {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let _render = crate::debug_renders::count("Palette");
-        let items = self.row_to_entry.iter().map(|&i| {
-            let entry = self.entries[i].clone();
-            CommandItem::new()
-                .label(entry.label.clone())
-                .child(move |_, cx| row(&entry, cx))
-        });
-        let this = cx.entity().downgrade();
-        let on_query = this.clone();
-        Command::new(&self.state)
-            .filterable(false)
-            .bordered(false)
-            .placeholder("Search actions, projects, threads and tabs")
-            .items(items)
-            .on_query(move |query, _, cx| {
-                // A confirm deferred after this query must index the rows it ranks, before any redraw.
-                _ = on_query.update(cx, |p, cx| {
-                    p.entries.truncate(p.fixed);
-                    p.row_to_entry = rank(query, p.entries.iter().map(|e| e.label.as_ref()));
-                    p.find_more(query, cx);
-                    cx.notify();
-                });
-            })
-            .on_confirm(move |ix, window, cx| choose(&this, ix.row, window, cx))
-    }
-}
+#[path = "palette_view.rs"]
+mod view;
+pub use view::{open, open_page};
 
 #[cfg(test)]
 #[path = "palette_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "palette_arrange_test.rs"]
+mod arrange_tests;

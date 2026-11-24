@@ -43,3 +43,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Moving focus to something that just appeared (a docked question): do it from `render` once per item, remembering its
   id (`ComposerState::dock_focused`), never on every render, or a click elsewhere is taken back the next frame.
   `window.focus` while drawing is safe: `refresh` is a no-op mid-draw. Don't steal it from a text field holding text.
+- To override a gpui-component widget's own key action (Command's Escape first clears the query), wrap it in a div
+  with `.capture_action::<gpui_base::actions::Cancel>` and `cx.stop_propagation()`: capture runs root-down before the
+  widget's bubble handler (`palette_view.rs`). Don't call a widget's `set_query` inside your own view's `update` when its
+  query callback updates that view: do it after the update (`show_page`).

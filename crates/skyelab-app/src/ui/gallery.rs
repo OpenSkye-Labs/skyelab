@@ -3,9 +3,9 @@
 //! own window.
 
 use super::{
-    AccountBadge, Button, Card, Checkbox, Divider, EmptyState, Kbd, Pill, SECTION, SectionHeader,
-    SegmentedControl, Size, SkyeIcon, StatusDot, Switch, Tabs, TextField, Variant, dialog_cancel,
-    dialog_footer, icon_button,
+    AccountBadge, Button, Card, Checkbox, CommandRow, Divider, EmptyState, Kbd, Pill, SECTION,
+    SectionHeader, SegmentedControl, Size, SkyeIcon, StatusDot, Switch, Tabs, TextField, Variant,
+    dialog_cancel, dialog_footer, icon_button,
 };
 use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
@@ -256,6 +256,42 @@ fn badges(cx: &App) -> impl IntoElement {
         ))
 }
 
+/// The palette's rows: plain, a bold part and a shortcut, a subtitle, a toggle, a submenu; the second one selected.
+fn command_rows(cx: &App) -> impl IntoElement {
+    let theme = cx.theme();
+    let key = |k: &'static str| Kbd::new(gpui::Keystroke::parse(k).expect("a plain key parses"));
+    let rows = [
+        CommandRow::new(SkyeIcon::NewThread, "New thread in skyelab")
+            .strong(crate::palette::match_ranges(
+                "",
+                "New thread in skyelab",
+                Some(14..21),
+            ))
+            .shortcut(Some(key("cmd-n"))),
+        CommandRow::new(SkyeIcon::NewThread, "New thread in…").submenu(true),
+        CommandRow::new(SkyeIcon::Copy, "Copy thread")
+            .subtitle(Some("Fix the flaky login test".into())),
+        CommandRow::new(SkyeIcon::Remote, "Toggle Sharing on Tailnet").checked(Some(true)),
+        CommandRow::new(SkyeIcon::Settings, "Open Settings")
+            .strong(crate::palette::match_ranges("set", "Open Settings", None))
+            .shortcut(Some(key("cmd-,"))),
+    ];
+    div()
+        .w(px(520.))
+        .flex()
+        .flex_col()
+        .children(rows.into_iter().enumerate().map(|(i, row)| {
+            div()
+                .px_2()
+                .py_1p5()
+                .rounded(super::RADIUS_MD)
+                .when(i == 1, |d| {
+                    d.bg(theme.accent).text_color(theme.accent_foreground)
+                })
+                .child(row)
+        }))
+}
+
 impl Render for UiGallery {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("UiGallery");
@@ -436,6 +472,7 @@ impl Render for UiGallery {
                 .child(title)
                 .child(section("Buttons", buttons(loading, cx)))
                 .child(section("Badges, chips, keys", badges(cx)))
+                .child(section("Command palette rows", command_rows(cx)))
                 .child(section("Switch and checkbox", toggles))
                 .child(section("Segmented control and tabs", choices))
                 .child(section("Text field", fields))

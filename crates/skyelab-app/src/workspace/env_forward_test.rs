@@ -30,7 +30,8 @@ fn echo_server() -> u16 {
 fn entries(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<crate::palette::Entry> {
     ws.update_in(cx, |ws, window, cx| {
         let focus = gpui::Focusable::focus_handle(ws, cx);
-        ws.palette_entries(&focus, window, cx)
+        // Forwards list in the "Forwarded ports" page.
+        crate::palette::flatten(ws.palette_entries(&focus, window, cx))
     })
 }
 

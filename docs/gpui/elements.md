@@ -107,6 +107,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   markdown; align it yourself with `h_flex().justify_end()`). Their ids are scoped per block, so a plain `"copy"`
   id is fine. Pass a fn that returns `AnyElement`: an `fn(..) -> impl IntoElement` fails the hook's higher-ranked
   bound ("one type is more general than the other").
+- Edition 2024: a `fn(.., cx: &App) -> impl IntoElement` captures `cx`'s lifetime, so a `'static` slot closure that
+  returns it (gpui-component `Command::footer` / `header`) fails with "lifetime may not live long enough". Return the
+  concrete type (`gpui::Div`, `Stateful<Div>`) from such helpers (`palette_view.rs`).
 - GPUI's `ClipboardItem` carries only text, images and paths: no `text/html`. A rich copy (a table as HTML) goes
   through `arboard` (`set().html(html, Some(plain))`), with one `Clipboard` kept for the app's life, since on Linux
   the owner serves pastes (`table_copy.rs`).

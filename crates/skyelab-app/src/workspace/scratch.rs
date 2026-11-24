@@ -54,19 +54,19 @@ impl Workspace {
             .iter()
             .map(|a| {
                 let account = a.id.clone();
-                crate::palette::Entry {
-                    label: format!("New scratch thread with: {}", a.label).into(),
-                    kind: crate::palette::Kind::Project,
-                    binding: None,
-                    checked: None,
-                    run: std::rc::Rc::new(move |window, cx| {
+                crate::palette::Entry::new(
+                    format!("New scratch thread with: {}", a.label),
+                    crate::palette::Kind::Project,
+                    std::rc::Rc::new(move |window, cx| {
                         let account = account.clone();
                         window.dispatch_action(Box::new(NewScratchThreadFor { account }), cx)
                     }),
-                }
+                )
+                .title(a.label.clone())
+                .icon(crate::ui::SkyeIcon::User)
             })
             .collect();
-        crate::palette::open(entries, None, prev, window, cx);
+        crate::palette::open_page("New scratch thread with", entries, prev, window, cx);
     }
 
     /// Binds the account's scratch folder (creating it on first use), stores it as a project and opens a new thread.

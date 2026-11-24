@@ -264,14 +264,15 @@ impl Workspace {
     /// or linked), and each linked machine's threads.
     pub(super) fn linked_palette_entries(&self, cx: &gpui::App) -> Vec<crate::palette::Entry> {
         use crate::palette::{Entry, Kind};
-        let entry = |label: String, kind, checked, action: Box<dyn Action>| Entry {
-            label: label.into(),
-            kind,
-            binding: None,
-            checked,
-            run: std::rc::Rc::new(move |window, cx| {
-                window.dispatch_action(action.boxed_clone(), cx)
-            }),
+        let entry = |label: String, kind, checked, action: Box<dyn Action>| {
+            Entry::new(
+                label,
+                kind,
+                std::rc::Rc::new(move |window, cx| {
+                    window.dispatch_action(action.boxed_clone(), cx)
+                }),
+            )
+            .checked(checked)
         };
         let mut hosts = self.linked_names();
         if let Some(picker) = &self.env.picker {
