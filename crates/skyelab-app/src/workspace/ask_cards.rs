@@ -500,18 +500,54 @@ pub(super) fn render_approval<V: ItemsView>(
                 .text_size(ui::BODY)
                 .child(a.summary.clone()),
         )
-        .child(
-            div()
-                .px_3()
-                .py_2()
-                .rounded(ui::RADIUS)
-                .bg(theme.muted)
-                .border_1()
-                .border_color(theme.border)
-                .font_family(theme.mono_font_family.clone())
-                .text_size(ui::META)
-                .child(clip(&a.input)),
-        )
+        .children(match detail(a) {
+            Detail::Json => Some(
+                div()
+                    .px_3()
+                    .py_2()
+                    .rounded(ui::RADIUS)
+                    .bg(theme.muted)
+                    .border_1()
+                    .border_color(theme.border)
+                    .font_family(theme.mono_font_family.clone())
+                    .text_size(ui::META)
+                    .child(clip(&a.input)),
+            ),
+            Detail::Note(note) => Some(
+                div()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(note),
+            ),
+            Detail::Nothing => None,
+        })
         .child(actions)
         .into_any_element()
 }
+
+/// What a permission card shows under its one-line summary.
+#[derive(Debug, PartialEq)]
+pub(super) enum Detail {
+    /// The input as JSON: anything beyond a plain command, so nothing it asks for is hidden.
+    Json,
+    /// A plain command's description (the command itself is the summary).
+    Note(String),
+    Nothing,
+}
+
+pub(super) fn detail(a: &ApprovalItem) -> Detail {
+    let Some(fields) = a.raw.as_object() else {
+        return Detail::Json;
+    };
+    let plain = fields.keys().all(|k| k == "command" || k == "description")
+        && fields.get("command").and_then(|c| c.as_str()) == Some(a.summary.as_str());
+    match fields.get("description").and_then(|d| d.as_str()) {
+        _ if !plain => Detail::Json,
+        Some(d) if !d.trim().is_empty() => Detail::Note(d.to_owned()),
+        _ => Detail::Nothing,
+    }
+}
+
+#[cfg(test)]
+#[path = "ask_cards_test.rs"]
+mod tests;
