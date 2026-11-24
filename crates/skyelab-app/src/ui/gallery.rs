@@ -19,15 +19,15 @@ use gpui_component::{
 
 actions!(skyelab, [OpenUiGallery]);
 
-/// Registers the gallery's action (debug builds only), so the palette lists it.
-pub fn init(cx: &mut App) {
-    if cfg!(debug_assertions) {
-        cx.on_action(|_: &OpenUiGallery, cx| {
-            if let Err(e) = open(cx) {
-                eprintln!("couldn't open the UI gallery: {e:#}");
-            }
-        });
-    }
+/// The action's handler. The workspace registers it in debug builds only: the palette lists an action only when a
+/// handler sits on the focused element's path, so an App-level `on_action` would never show there.
+pub fn on_open(_: &OpenUiGallery, _: &mut Window, cx: &mut App) {
+    // Out of the workspace window's update before opening another window.
+    cx.defer(|cx| {
+        if let Err(e) = open(cx) {
+            eprintln!("couldn't open the UI gallery: {e:#}");
+        }
+    });
 }
 
 /// Opens the gallery in a window of its own, with the same window options as a workspace window.

@@ -128,6 +128,8 @@ mod palette_remote_test;
 #[cfg(test)]
 mod palette_search_test;
 #[cfg(test)]
+mod palette_gallery_test;
+#[cfg(test)]
 mod palette_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_mode_test;

@@ -36,3 +36,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   open menu's own handler sees it, whenever a composer is on screen. Close such a popup from the bound action
   (`focus_composer` closes the machine menu, as it closes the details card) and test Escape with a thread open, not
   only over the Welcome page.
+- The palette lists an action only when a handler sits on the focused element's dispatch path
+  (`Window::is_action_available_in` reads the rendered dispatch tree, not App-level `cx.on_action`). A new palette
+  action goes on the workspace (`render.rs`), and its test reads `palette_entries` from a real workspace
+  (`palette_gallery_test.rs`), never only `all_action_names`.

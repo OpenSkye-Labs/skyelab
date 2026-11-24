@@ -193,7 +193,10 @@ pub fn humanize(name: &str) -> String {
 }
 
 pub fn listed(name: &str) -> bool {
-    name.starts_with("skyelab::") && !HIDDEN.contains(&name)
+    name.starts_with("skyelab::")
+        && !HIDDEN.contains(&name)
+        // A debug-only page: release builds register no handler, so it must not show as bindable either.
+        && (cfg!(debug_assertions) || name != "skyelab::OpenUiGallery")
 }
 
 /// More entries for a query, found off the UI thread (the store's thread search over message text). They list after

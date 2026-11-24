@@ -1,22 +1,17 @@
-//! The UI Gallery: OpenUiGallery opens a window drawing every section, and the palette lists the action.
+//! The UI Gallery opens in a window of its own whose root view is the gallery (the palette entry that opens it is
+//! `workspace::palette_gallery_test`).
 
 use gpui::TestAppContext;
 
 #[gpui::test]
-fn open_ui_gallery_opens_a_window_with_every_section(cx: &mut TestAppContext) {
+fn the_gallery_opens_in_its_own_window(cx: &mut TestAppContext) {
     super::button_test::setup(cx);
-    cx.update(super::gallery::init);
     let before = cx.update(|cx| cx.windows().len());
-    cx.update(|cx| cx.dispatch_action(&super::gallery::OpenUiGallery));
+    let handle = cx
+        .update(super::gallery::open)
+        .expect("the gallery window opens");
     cx.run_until_parked();
-    let windows = cx.update(|cx| cx.windows());
-    assert_eq!(windows.len(), before + 1, "a gallery window opened");
-    let handle = windows
-        .last()
-        .copied()
-        .expect("the gallery window")
-        .downcast::<gpui_component::Root>()
-        .expect("rooted");
+    assert_eq!(cx.update(|cx| cx.windows().len()), before + 1);
     let gallery = handle
         .update(cx, |root, _, _| {
             root.view()
@@ -26,12 +21,4 @@ fn open_ui_gallery_opens_a_window_with_every_section(cx: &mut TestAppContext) {
         })
         .expect("window alive");
     assert!(gallery, "the window's root view is the gallery");
-}
-
-#[gpui::test]
-fn the_palette_lists_open_ui_gallery_in_debug_builds(cx: &mut TestAppContext) {
-    cx.update(super::gallery::init);
-    let names = cx.update(|cx| cx.all_action_names().to_vec());
-    assert!(names.contains(&"skyelab::OpenUiGallery"));
-    assert!(crate::palette::listed("skyelab::OpenUiGallery"));
 }
