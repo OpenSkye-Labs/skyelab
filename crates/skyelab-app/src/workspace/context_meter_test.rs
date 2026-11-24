@@ -126,3 +126,49 @@ fn the_window_follows_the_model_that_ran(cx: &mut TestAppContext) {
     });
     assert_eq!(percent(cx), Some(17), "back on opus: its [1m] window");
 }
+
+/// An alias pick (`sonnet`) runs whatever this Claude Code maps it to: the init line's real id picks the window (an
+/// older Claude Code maps `sonnet` to a 200k 4.x model), and a reported window still wins once there is one.
+#[gpui::test]
+fn an_alias_takes_the_window_of_the_model_its_init_line_names(cx: &mut TestAppContext) {
+    use super::thread_model::Record;
+    use skyelab_agent::Event;
+    let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
+    let (one, cx) = one_view(cx, Provider::Claude, bin, None);
+    let init = |model: &str| {
+        Record::Agent(Event::Init {
+            session_id: "s".into(),
+            model: model.into(),
+        })
+    };
+    let reading = |tokens: Option<u64>, window: Option<u64>| {
+        Record::Agent(Event::Context {
+            tokens,
+            window,
+            model: None,
+        })
+    };
+    let percent = |cx: &mut gpui::VisualTestContext| {
+        one.view
+            .read_with(cx, |v, _| v.context_meter().and_then(|m| m.percent))
+    };
+    one.view.update(cx, |v, cx| {
+        v.composer.pick.model = Some("sonnet".into());
+        v.push(&reading(Some(170_000), None), cx);
+    });
+    assert_eq!(percent(cx), Some(17), "no init line yet: the alias's 1M");
+    one.view.update(cx, |v, cx| {
+        v.push(&init("claude-sonnet-4-6"), cx);
+        v.push(&reading(Some(170_000), None), cx);
+    });
+    assert_eq!(percent(cx), Some(85), "sonnet ran as a 4.x model: 200k");
+    one.view.update(cx, |v, cx| v.push(&init("claude-sonnet-5-5"), cx));
+    assert_eq!(percent(cx), Some(17), "sonnet ran as a 5 model: 1M");
+    one.view.update(cx, |v, cx| v.push(&init("claude-opus-4-7"), cx));
+    assert_eq!(percent(cx), Some(17), "an init for another family doesn't resolve the pick");
+    one.view.update(cx, |v, cx| {
+        v.push(&init("claude-sonnet-5-5"), cx);
+        v.push(&reading(None, Some(340_000)), cx);
+    });
+    assert_eq!(percent(cx), Some(50), "the reported window wins");
+}

@@ -92,7 +92,7 @@ impl ThreadView {
     }
 
     /// The meter, once the agent reported tokens. The window is the one reported for the model that ran; else the
-    /// table's, for a picked `[1m]` model, the model that ran, or the thread's model.
+    /// table's, for a picked `[1m]` model, the model that ran, or the thread's model (an alias as its init line named it).
     pub(in crate::workspace) fn context_meter(&self) -> Option<Meter> {
         let r = &self.context;
         let tokens = r.tokens?;
@@ -106,8 +106,16 @@ impl ThreadView {
             })
             .or_else(|| r.model.as_deref().and_then(context::window))
             .or_else(|| {
-                pick.or(c.reported_model.as_deref())
-                    .and_then(context::window)
+                // An alias pick (`sonnet`) is whatever this Claude Code maps it to: the init line's id says which.
+                let reported = c.reported_model.as_deref();
+                let model = match pick {
+                    Some(p) if reported.is_some_and(|r| r.starts_with(&format!("claude-{p}-"))) => {
+                        reported
+                    }
+                    Some(p) => Some(p),
+                    None => reported,
+                };
+                model.and_then(context::window)
             });
         Some(Meter {
             tokens,

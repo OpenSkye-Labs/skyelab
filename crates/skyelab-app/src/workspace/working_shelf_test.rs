@@ -37,6 +37,28 @@ fn stored_running_thread_without_view_is_working(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_only_thread_working_leaves_no_empty_state(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let id = r.thread("only one", cx);
+    r.f.store
+        .lock()
+        .expect("lock")
+        .set_thread_status(id, "running")
+        .expect("status");
+    r.reload(cx);
+    assert_eq!(section(&r, "Working", cx), vec!["only one"]);
+    let sidebar = r.ws.read_with(cx, |ws, _| ws.sidebar.clone());
+    let empties: Vec<String> = sidebar.read_with(cx, |s, _| {
+        s.sections
+            .iter()
+            .filter(|s| !s.empty_title.is_empty())
+            .map(|s| s.empty_title.to_string())
+            .collect()
+    });
+    assert!(empties.is_empty(), "no empty state: {empties:?}");
+}
+
+#[gpui::test]
 fn approval_after_turn_is_working(cx: &mut TestAppContext) {
     let (r, cx) = rig(cx);
     let view = new_thread(&r, cx);
@@ -61,4 +83,30 @@ pub(super) fn new_thread(r: &Rig, cx: &mut VisualTestContext) -> Entity<thread::
     cx.run_until_parked();
     r.ws.read_with(cx, |ws, _| ws.open_threads.last().cloned())
         .expect("new thread tab")
+}
+
+/// Each waiting kind names itself in the row, as T3's sidebar does: Approval, Input, and a plan to approve.
+#[gpui::test]
+fn a_waiting_row_says_what_it_waits_for(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let sidebar = r.ws.read_with(cx, |ws, _| ws.sidebar.clone());
+    for (prompt, want) in [
+        ("permit", panels::Ask::Approval),
+        ("question", panels::Ask::Input),
+        ("plan", panels::Ask::Plan),
+    ] {
+        let view = new_thread(&r, cx);
+        view.update_in(cx, |v, window, cx| v.submit_remote(prompt, window, cx))
+            .expect("sent");
+        wait_until(cx, prompt, |cx| {
+            let id = view.read_with(cx, |v, _| v.thread.as_ref().map(|t| t.id));
+            let Some(id) = id else { return false };
+            let key: SharedString = format!("thread-{id}").into();
+            sidebar.read_with(cx, |s, _| s.marks.get(&key).and_then(|m| m.ask)) == Some(want)
+        });
+    }
+    assert_eq!(
+        [panels::Ask::Approval, panels::Ask::Input, panels::Ask::Plan].map(panels::Ask::label),
+        ["Approval", "Input", "Plan ready"]
+    );
 }

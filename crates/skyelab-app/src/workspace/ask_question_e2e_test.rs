@@ -239,3 +239,87 @@ fn an_answer_takes_at_most_a_hundred_files() {
     attach(&[], &mut drafts, "q", 0, many);
     assert_eq!(drafts["q"].files[0].len(), 100);
 }
+
+/// Whether the docked question's panel has the focus.
+fn panel_focused(one: &One, cx: &mut VisualTestContext) -> bool {
+    one.view.update_in(cx, |v, window, _| {
+        v.composer.dock_focus.as_ref().is_some_and(|f| f.is_focused(window))
+    })
+}
+
+fn prompt_focused(one: &One, cx: &mut VisualTestContext) -> bool {
+    one.view.update_in(cx, |v, window, cx| {
+        gpui::Focusable::focus_handle(v.prompt.read(cx), cx).is_focused(window)
+    })
+}
+
+/// A question that docks takes the focus, so the keys answer it at once (T3's 1–9 work without a click); Esc goes
+/// back to the composer, and FocusQuestion comes back.
+#[gpui::test]
+fn a_docked_question_takes_the_keys_without_a_click(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    one.view.update_in(cx, |v, window, cx| {
+        window.focus(&gpui::Focusable::focus_handle(v.prompt.read(cx), cx), cx)
+    });
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    cx.run_until_parked();
+    assert!(panel_focused(&one, cx), "the panel took the focus from the empty composer");
+    // ↓ ↓ picks the second option and stays on question 1; Enter moves on.
+    cx.simulate_keystrokes("down down");
+    let id = ask(&one, cx).expect("asked").0;
+    let picked = |cx: &mut VisualTestContext| {
+        one.view
+            .read_with(cx, |v, _| v.drafts[&id].picked[0].iter().copied().collect::<Vec<_>>())
+    };
+    assert_eq!(picked(cx), [1]);
+    cx.simulate_keystrokes("up");
+    assert_eq!(picked(cx), [0]);
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((0, 2)));
+    cx.simulate_keystrokes("enter");
+    assert_eq!(one.view.read_with(cx, |v, _| v.dock_step()), Some((1, 2)));
+    cx.simulate_keystrokes("escape");
+    assert!(prompt_focused(&one, cx), "Esc is back in the composer");
+    cx.dispatch_action(super::ask_dock::FocusQuestion);
+    assert!(panel_focused(&one, cx), "FocusQuestion goes back to the panel");
+    // A digit is an option here, not text.
+    cx.simulate_keystrokes("1");
+    assert_eq!(
+        one.view.read_with(cx, |v, _| v.drafts[&id].picked[1].iter().copied().collect::<Vec<_>>()),
+        [0]
+    );
+    assert!(one.view.read_with(cx, |v, cx| v.prompt.read(cx).value().is_empty()));
+}
+
+/// Text being typed in the composer keeps the focus when a question docks (T3 leaves keys typed in a field alone).
+#[gpui::test]
+fn a_docked_question_leaves_a_composer_being_typed_in(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    one.view.update_in(cx, |v, window, cx| {
+        v.prompt.update(cx, |p, cx| p.set_value("half a thought", window, cx));
+        window.focus(&gpui::Focusable::focus_handle(v.prompt.read(cx), cx), cx)
+    });
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    cx.run_until_parked();
+    assert!(prompt_focused(&one, cx), "the composer kept the focus");
+    assert!(!panel_focused(&one, cx));
+}
+
+/// Answered from the keys alone, the question goes and its keys go back to the composer, not to a panel no longer
+/// drawn; a letter typed on the panel starts the typed answer in the composer.
+#[gpui::test]
+fn the_keys_come_back_to_the_composer(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    cx.run_until_parked();
+    assert!(panel_focused(&one, cx));
+    cx.simulate_keystrokes("2 h i");
+    assert!(prompt_focused(&one, cx), "a letter moves to the composer");
+    assert_eq!(one.view.read_with(cx, |v, cx| v.prompt.read(cx).value().to_string()), "hi");
+    cx.dispatch_action(super::ask_dock::FocusQuestion);
+    cx.simulate_keystrokes("enter");
+    wait_until(cx, "the answer taken", |cx| {
+        ask(&one, cx).is_some_and(|(_, d)| d.is_some())
+    });
+    cx.run_until_parked();
+    assert!(prompt_focused(&one, cx), "the composer has the keys again");
+}

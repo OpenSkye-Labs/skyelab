@@ -118,7 +118,7 @@ fn a_run_waiting_on_a_permission_answer_says_so(cx: &mut TestAppContext) {
             ws.open_threads.iter().any(|v| {
                 let v = v.read(cx);
                 v.thread.as_ref().is_some_and(|t| t.id == id)
-                    && super::super::thread_rows::awaiting_approval(v)
+                    && super::super::thread_rows::waiting_ask(v).is_some()
             })
         })
     };

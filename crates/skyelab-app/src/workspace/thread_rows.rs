@@ -1,6 +1,7 @@
 //! What a sidebar thread row shows of its thread's session (status, an approval wait, the working timer) and which
 //! account and binding its project folder resolves to.
 
+use super::panels::Ask;
 use super::{Workspace, thread::ThreadView};
 use crate::ui::Status;
 use gpui::{AppContext as _, Context, Entity, Window};
@@ -17,7 +18,7 @@ impl Workspace {
                 let v = v.read(cx);
                 let state = RowState {
                     status: v.live_status(),
-                    approval: awaiting_approval(v),
+                    ask: waiting_ask(v),
                     started_ms: v.turn_started_ms,
                 };
                 Some((v.thread.as_ref()?.id, state))
@@ -59,11 +60,11 @@ impl Workspace {
     }
 }
 
-/// A thread row's session state: what its status says, whether it waits on an approval, when its turn started.
+/// A thread row's session state: what its status says, what it waits on the user for, when its turn started.
 #[derive(Clone, Copy)]
 pub(super) struct RowState {
     pub status: Status,
-    pub approval: bool,
+    pub ask: Option<Ask>,
     pub started_ms: Option<i64>,
 }
 
@@ -74,7 +75,7 @@ impl RowState {
 
     /// On the Working shelf: busy, or waiting for the user's answer.
     pub(super) fn working(self) -> bool {
-        self.running() || self.approval
+        self.running() || self.ask.is_some()
     }
 }
 
@@ -82,21 +83,20 @@ impl RowState {
 pub(super) fn row_state(live: &HashMap<i64, RowState>, t: &Thread) -> RowState {
     live.get(&t.id).copied().unwrap_or(RowState {
         status: Status::parse(&t.status),
-        approval: false,
+        ask: None,
         started_ms: None,
     })
 }
 
-/// The thread's agent waits for a permission answer (T3's "Approval" in the sidebar).
-pub(super) fn awaiting_approval(v: &ThreadView) -> bool {
+/// What the thread's agent waits on the user for: a permission, a question or a plan (T3's sidebar status).
+pub(super) fn waiting_ask(v: &ThreadView) -> Option<Ask> {
     // shortcut: only the last 32 items are checked (a waiting agent adds nothing after its ask, so it is near the
     // end); scan further if asks ever get buried.
-    v.session.is_some()
-        && v.items
-            .iter()
-            .rev()
-            .take(32)
-            .any(|i| matches!(i, super::thread_model::Item::Approval(a) if a.decision.is_none()))
+    v.session.as_ref()?;
+    v.items.iter().rev().take(32).find_map(|i| match i {
+        super::thread_model::Item::Approval(a) if a.decision.is_none() => Some(Ask::of(&a.tool)),
+        _ => None,
+    })
 }
 
 /// What a sidebar row shows of an open view. The sidebar is rebuilt when this changes, not on every notify (a streamed
@@ -104,21 +104,21 @@ pub(super) fn awaiting_approval(v: &ThreadView) -> bool {
 #[derive(Clone, PartialEq)]
 pub(super) struct RowSig {
     id: Option<i64>,
-    state: (Status, bool, Option<i64>),
+    state: (Status, Option<Ask>, Option<i64>),
     pr_url: Option<String>,
 }
 
 impl RowSig {
-    /// The agent waits on a permission answer.
+    /// The agent waits on the user's answer.
     pub(super) fn asks(&self) -> bool {
-        self.state.1
+        self.state.1.is_some()
     }
 }
 
 pub(super) fn row_sig(v: &ThreadView) -> RowSig {
     RowSig {
         id: v.thread.as_ref().map(|t| t.id),
-        state: (v.live_status(), awaiting_approval(v), v.turn_started_ms),
+        state: (v.live_status(), waiting_ask(v), v.turn_started_ms),
         pr_url: v.thread.as_ref().and_then(|t| t.pr_url.clone()),
     }
 }

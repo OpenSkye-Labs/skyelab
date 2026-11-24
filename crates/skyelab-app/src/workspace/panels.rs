@@ -61,8 +61,8 @@ mod sidebar_card;
 mod sidebar_rows;
 mod sidebar_views;
 pub use sidebar::{
-    ArchivedRows, RowAccount, RowCard, RowMarks, RowShelf, ScopeMenu, ScopeProject, Shelf, Sidebar,
-    SidebarItem, SidebarSearch, SidebarSection,
+    ArchivedRows, Ask, RowAccount, RowCard, RowMarks, RowShelf, ScopeMenu, ScopeProject, Shelf,
+    Sidebar, SidebarItem, SidebarSearch, SidebarSection,
 };
 pub use sidebar_card::{ThreadCards, with_card_at};
 

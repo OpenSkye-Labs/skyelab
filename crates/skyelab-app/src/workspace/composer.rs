@@ -13,6 +13,8 @@ mod composer_context_pick;
 mod composer_draft;
 #[path = "composer_footer.rs"]
 mod composer_footer;
+#[path = "composer_keys.rs"]
+mod composer_keys;
 #[path = "composer_machine.rs"]
 mod composer_machine;
 #[path = "composer_menu.rs"]
@@ -78,14 +80,14 @@ use crate::ui::SkyeIcon;
 #[cfg(test)]
 use crate::workspace::*;
 use crate::workspace::{lock, thread, thread_worktree};
-pub(in crate::workspace) use composer_state::{
-    Composer, SteerPrompt, Submit, bind_keys, shown_prompt,
-};
+pub(in crate::workspace) use composer_keys::bind_keys;
+pub(in crate::workspace) use composer_state::{Composer, SteerPrompt, Submit, shown_prompt};
 
 use crate::ui;
 use crate::ui::Button;
+use composer_keys::MENU_CONTEXT;
 use composer_menu::MenuKind;
-use composer_state::{AttachFiles, MENU_CONTEXT, Menu};
+use composer_state::{AttachFiles, Menu};
 use gpui::{
     AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
 };
