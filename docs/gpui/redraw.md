@@ -72,3 +72,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - An overlay drawn from a view's own rows (the timeline minimap) stays in that view's render: inside a dock panel a
   child entity would render on every frame of its parent anyway. Keep its per-frame work to a tag scan of the rows
   and one div per mark, notify only when its hover changes, and derive text (previews) only for the hovered mark.
+- A progress bar fed by frequent updates (the update download) is two plain divs (`w(relative(fraction))`), not
+  gpui-component's `Progress`: that one runs a `transition` animation on every value change, so a stream of updates
+  keeps the window animating. Also send the UI one update per percent, not per read.

@@ -302,11 +302,21 @@ fn main() {
                 ws.restore_layout(AppSettings::default_path(), None, window, cx);
             }),
         });
+        let fake_dir = std::env::var_os("SKYELAB_UPDATE_FAKE_DIR").map(std::path::PathBuf::from);
         updates::init(
             AppSettings::default_path(),
             updates::fetcher(
                 std::env::var("SKYELAB_UPDATE_FAKE").ok(),
+                fake_dir.clone(),
                 cfg!(debug_assertions),
+            ),
+            cx,
+        );
+        updates::set_installer(
+            updates::installer(
+                std::env::var_os("SKYELAB_UPDATE_FAKE_APP").map(std::path::PathBuf::from),
+                cfg!(debug_assertions),
+                updates::downloader(fake_dir, cfg!(debug_assertions)),
             ),
             cx,
         );

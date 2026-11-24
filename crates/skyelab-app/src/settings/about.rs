@@ -14,10 +14,12 @@ impl Settings {
             UpdateStatus::Idle => None,
             UpdateStatus::Checking => Some("Checking…".to_owned()),
             UpdateStatus::UpToDate => Some("SkyeLab is up to date.".to_owned()),
-            UpdateStatus::Available { tag, .. } => Some(format!(
-                "SkyeLab {} is available.",
-                skyelab_core::update::display_version(tag)
-            )),
+            UpdateStatus::Available { tag, .. } | UpdateStatus::Updating { tag, .. } => {
+                Some(format!(
+                    "SkyeLab {} is available.",
+                    skyelab_core::update::display_version(tag)
+                ))
+            }
             UpdateStatus::Failed(e) => Some(format!("Couldn't check: {e}")),
         };
         let version = widgets::setting(

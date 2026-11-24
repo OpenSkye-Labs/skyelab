@@ -21,6 +21,12 @@
   the project's or your Claude settings. Full access asks before it turns on.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
+- **Updates.** Only the shown release's own assets download (redirects only to GitHub's download hosts, size
+  capped), and an asset must match that release's `SHA256SUMS`. That proves integrity, not authorship: the list sits
+  on the same release. On macOS a signed install takes only a new app that verifies with `codesign`, has the same
+  Developer ID team and passes Gatekeeper (`spctl`); an unsigned install relies on the checksum, and a signature
+  that can't be read refuses the update. Nothing installs until the user's Restart click, which checks the staged
+  copy again first (hash or signature). Windows installers are not checked for Authenticode yet.
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
   with `tailscale whois`), and carry a device key you approved on this machine for that device (kept in the
