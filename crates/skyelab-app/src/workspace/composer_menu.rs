@@ -6,6 +6,8 @@ use std::path::Path;
 
 /// The most rows a menu shows.
 pub(crate) const MAX_ROWS: usize = 50;
+/// Model rows in the `@` menu, as T3 caps them, so they never push the files out.
+pub(crate) const MAX_MODEL_ROWS: usize = 8;
 /// How many tracked files the `@` menu ranks at most (the file picker's cap).
 const MAX_TRACKED: usize = 100_000;
 /// How much of a command or skill file is read for its description.
@@ -66,8 +68,8 @@ pub(crate) struct MenuItem {
     pub insert: String,
     /// A `#` row: the chip picking it adds.
     pub context: Option<ContextPick>,
-    /// An `@` model row (T3's model mention): picking it routes the thread to this model id, as the picker does,
-    /// and leaves no text behind.
+    /// An `@` model row (T3's model mention): this model id. Picking it inserts a `model:<provider>/<id>` reference
+    /// for the agent to read; the thread's own model stays as it is.
     pub model: Option<String>,
 }
 
@@ -80,7 +82,7 @@ pub(crate) enum ContextPick {
 
 /// The rows matching `query`, best first, at most [`MAX_ROWS`]. A match is the query's characters in order
 /// (ignoring case); a prefix of the file name beats a substring, which beats a scattered match, and shorter wins ties.
-/// Model rows match only by [`model_matches`] and come first.
+/// Model rows match only by [`model_matches`], come first, and are at most [`MAX_MODEL_ROWS`].
 pub(crate) fn rank(items: &[MenuItem], query: &str) -> Vec<usize> {
     let q = query.to_lowercase();
     let mut scored: Vec<(u32, usize, usize)> = items
@@ -92,8 +94,13 @@ pub(crate) fn rank(items: &[MenuItem], query: &str) -> Vec<usize> {
         })
         .collect();
     scored.sort();
+    let mut models = 0;
     scored
         .into_iter()
+        .filter(|&(_, _, i)| {
+            models += usize::from(items[i].model.is_some());
+            items[i].model.is_none() || models <= MAX_MODEL_ROWS
+        })
         .take(MAX_ROWS)
         .map(|(_, _, i)| i)
         .collect()
@@ -136,13 +143,16 @@ fn model_matches(label: &str, id: &str, q: &str) -> bool {
             .all(|w| words.iter().any(|x| x.starts_with(w.as_str())))
 }
 
-/// The `@` rows for the thread's models (id, label); `provider` names them in the row.
-pub(crate) fn model_items(models: &[(String, String)], provider: &str) -> Vec<MenuItem> {
+/// The `@` rows for the thread's models (id, label). Picking one inserts `model:<provider>/<id>` (T3's mention,
+/// with the provider's config id), text for the agent to read.
+pub(crate) fn model_items(models: &[(String, String)], provider: Provider) -> Vec<MenuItem> {
+    let key = provider.label().to_lowercase();
     models
         .iter()
         .map(|(id, label)| MenuItem {
             label: label.clone(),
-            detail: format!("{provider} model · run this thread on it"),
+            detail: format!("{} model", provider.label()),
+            insert: format!("model:{key}/{id} "),
             model: Some(id.clone()),
             ..Default::default()
         })

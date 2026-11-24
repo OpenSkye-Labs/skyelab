@@ -499,9 +499,6 @@ impl ThreadView {
             p.set_selected_range(menu.start..cursor, cx);
             p.replace(item.insert, window, cx);
         });
-        if let Some(model) = item.model {
-            self.pick_mentioned(model, cx);
-        }
         if let Some(pick) = item.context {
             self.add_context_pick(pick, cx);
         }
