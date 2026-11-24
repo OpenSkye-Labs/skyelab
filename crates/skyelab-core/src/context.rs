@@ -6,7 +6,8 @@ pub const NEAR_FULL: u32 = 80;
 pub const FULL: u32 = 90;
 
 /// The context window of `model` (a `--model` alias or a full id) in tokens, when SkyeLab knows it. Claude 5 models
-/// (`claude-haiku-5-5`, and the aliases, which name them) take 1M, as real Claude reports them; older Claude models
+/// (`claude-haiku-5-5`, and a bare alias, whose callers first resolve it through the init line's id) take 1M, as real
+/// Claude reports them; older Claude models
 /// 200k, or 1M with the `[1m]` suffix. Anything else is `None`: Codex reports its own window, and a reading the agent
 /// sends always wins over this table.
 pub fn window(model: &str) -> Option<u64> {
