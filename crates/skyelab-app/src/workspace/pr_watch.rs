@@ -191,7 +191,27 @@ impl Workspace {
             return;
         }
         self.pr_watch.polling_since = Some(now);
-        let started = now;
+        self.read_prs(jobs, Some(now), cx);
+    }
+
+    /// Reads `thread`'s PR now, whatever its last read (an action on it just ran), beside any running batch.
+    pub(super) fn reread_pr(&mut self, thread: i64, cx: &mut Context<Self>) {
+        let Some(job) = self.threads.iter().find(|t| t.id == thread).and_then(|t| {
+            Some(Job {
+                thread: t.id,
+                url: t.pr_url.clone()?,
+                dir: t.cwd.clone(),
+                account: t.account_id.clone(),
+                stored: t.pr_state.clone(),
+            })
+        }) else {
+            return;
+        };
+        self.read_prs(vec![job], None, cx);
+    }
+
+    /// Reads `jobs` one after another off the UI thread; `started` is the batch mark it clears when done.
+    fn read_prs(&mut self, jobs: Vec<Job>, started: Option<i64>, cx: &mut Context<Self>) {
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
         let (config, store) = (self.config.clone(), self.backend.store.clone());
@@ -217,7 +237,7 @@ impl Workspace {
             let read = read.await;
             let _ = this.update(cx, |this, cx| {
                 // A batch taken as hung may end after a newer one started: that one's mark stays.
-                if this.pr_watch.polling_since == Some(started) {
+                if started.is_some() && this.pr_watch.polling_since == started {
                     this.pr_watch.polling_since = None;
                 }
                 let now = crate::ui::now_ms();

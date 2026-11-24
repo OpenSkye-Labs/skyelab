@@ -177,6 +177,40 @@ impl GhPage {
         cx.notify();
     }
 
+    /// The merge and review dialog for PR `number` of `project`'s shown list, acting with the group's account; the
+    /// lists are read again after an action.
+    pub(crate) fn open_pr_actions(
+        &mut self,
+        project: i64,
+        number: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<super::pr_actions::PrActions>> {
+        let source = self.sources.iter().find(|s| s.id == project)?;
+        let group = self.groups.get(&(project, self.filter))?;
+        let Listing::Prs(list) = &group.listing else {
+            return None;
+        };
+        let pr = &list.iter().find(|r| r.row.number == number)?.row;
+        // gh's JSON is untrusted: only a canonical PR link is acted on.
+        let url = skyelab_core::github_pr_url(&pr.url)?;
+        let target = super::pr_actions::Target {
+            url,
+            number,
+            checks: pr.checks,
+            dir: source.path.clone(),
+            account: group.account.as_ref()?.0.clone(),
+            config: self.inputs.as_ref()?.config.clone(),
+        };
+        let page = cx.weak_entity();
+        Some(super::pr_actions::open(
+            target,
+            move |_, cx| _ = page.update(cx, |p, cx| p.refresh(cx)),
+            window,
+            cx,
+        ))
+    }
+
     /// `list` narrowed to the picked label, if any.
     pub(crate) fn issues_shown<'a>(&self, list: &'a [Dated<IssueRow>]) -> Vec<&'a Dated<IssueRow>> {
         let label = self.label.as_ref().map(|l| l.as_ref());
@@ -330,7 +364,7 @@ pub(crate) fn review_prompt(number: u64, url: &str) -> String {
 /// The workspace's two pages, made on first open.
 #[derive(Default)]
 pub(crate) struct Pages {
-    prs: Option<Entity<GhPage>>,
+    pub(super) prs: Option<Entity<GhPage>>,
     issues: Option<Entity<GhPage>>,
     _subs: Vec<Subscription>,
 }

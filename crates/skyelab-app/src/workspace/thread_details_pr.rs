@@ -58,6 +58,19 @@ impl ThreadView {
                     .text_color(color)
                     .child(word),
             )
+            .when(state.is_none_or(|s| !s.is_done()), |r| {
+                r.child(
+                    Button::new("details-pr-actions")
+                        .ghost()
+                        .xsmall()
+                        .icon(IconName::GitMerge)
+                        .tooltip("Merge or review…")
+                        .on_click(on.click(|this, window, cx| {
+                            cx.stop_propagation(); // not the row's open-in-browser
+                            this.open_pr_actions(window, cx);
+                        })),
+                )
+            })
             .child(
                 Button::new("details-unlink-pr")
                     .ghost()
@@ -148,6 +161,40 @@ impl ThreadView {
             }
         }
         Some(v_flex().children(rows).into_any_element())
+    }
+
+    /// The merge and review dialog for the thread's PR, acting with the thread's account in its folder; the PR is
+    /// read again after an action.
+    pub(in crate::workspace) fn open_pr_actions(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::Entity<super::super::pr_actions::PrActions>> {
+        let thread = self.thread.as_ref()?;
+        let url = thread.pr_url.clone()?;
+        let checks = match PrStatuses::view(cx, thread.id, &url) {
+            Some(PrView::Status(s)) => s.checks,
+            _ => Checks::None,
+        };
+        let target = super::super::pr_actions::Target {
+            number: url
+                .rsplit('/')
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0),
+            url,
+            checks,
+            dir: self.cwd.clone(),
+            account: thread.account_id.clone(),
+            config: self.config.clone(),
+        };
+        let view = cx.weak_entity();
+        Some(super::super::pr_actions::open(
+            target,
+            move |_, cx| _ = view.update(cx, |_, cx| cx.emit(ThreadViewEvent::PrActed)),
+            window,
+            cx,
+        ))
     }
 
     /// "2 behind / 1 ahead" of the branch's upstream, for the branch row; nothing when even or without one.

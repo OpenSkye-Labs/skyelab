@@ -12,7 +12,7 @@
 #   fake-gh.actions  one line per `pr merge` / `pr review` call (its args)     fake-gh.review-body  stdin of `pr review`
 #   fake-gh.repoview  one line per `repo view` call (its args)
 # A "$GH_CONFIG_DIR/fake-action-fail" file makes `pr merge` and `pr review` fail (exit 1) with its text on stderr. A
-# merge that succeeds leaves "fake-merged", and the default `pr view` then answers MERGED. `repo view` prints
+# merge that succeeds leaves "fake-merged", and `pr view` then answers MERGED (over fake-pr.json too). `repo view` prints
 # "$GH_CONFIG_DIR/fake-repo.json" when it exists, else a repo allowing every merge method.
 dir="${GH_CONFIG_DIR:?fake gh: no GH_CONFIG_DIR}"
 env > "$dir/fake-gh.fullenv"
@@ -35,10 +35,10 @@ case "$1 $2" in
     echo "To get started with GitHub CLI, please run:  gh auth login" >&2
     exit 4
   fi
-  if [ -f "$dir/fake-pr.json" ]; then
-    cat "$dir/fake-pr.json"
-  elif [ -f "$dir/fake-merged" ]; then
+  if [ -f "$dir/fake-merged" ]; then
     echo '{"state":"MERGED","isDraft":false,"mergedAt":"2026-11-24T09:00:00Z","reviewDecision":"","statusCheckRollup":[]}'
+  elif [ -f "$dir/fake-pr.json" ]; then
+    cat "$dir/fake-pr.json"
   else
     echo '{"state":"OPEN","isDraft":false,"mergedAt":null,"reviewDecision":"","statusCheckRollup":[{"__typename":"CheckRun","name":"build","status":"COMPLETED","conclusion":"SUCCESS","detailsUrl":"https://github.com/acme/demo/actions/runs/1"}]}'
   fi

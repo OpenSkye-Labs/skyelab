@@ -388,6 +388,11 @@ impl Workspace {
                     let cwd = v.cwd.clone();
                     this.run_script(script, cwd, account, window, cx);
                 }
+                ThreadViewEvent::PrActed => {
+                    if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
+                        this.reread_pr(id, cx);
+                    }
+                }
                 ThreadViewEvent::PrUnlinked(url) => {
                     if let Some(id) = view.read(cx).thread.as_ref().map(|t| t.id) {
                         this.pr_unlinked(id, url.clone(), window, cx);
