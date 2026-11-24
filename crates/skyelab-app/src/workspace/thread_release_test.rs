@@ -98,4 +98,28 @@ mod live {
             .to_owned();
         assert!(args.contains("--resume"), "{args}");
     }
+
+    #[gpui::test]
+    fn a_delegated_thread_keeps_its_agent(cx: &mut TestAppContext) {
+        setup(cx);
+        let f = fixture(true);
+        let (ws, cx) = open_workspace(&f, cx);
+        let thread = project_thread(&f, &ws, cx);
+        type_and_send(&thread, cx);
+        wait_done(&thread, cx);
+        let id = thread.read_with(cx, |t, _| t.thread.as_ref().expect("row").id);
+        wait_until(cx, "the fake's env report", |_| {
+            !env_reports(&f.store, id).is_empty()
+        });
+        let pid = env_reports(&f.store, id)[0]["pid"].as_i64().expect("pid");
+        // Its parent sends follow-ups to the running agent, so it must not be released.
+        thread.update(cx, |t, _| {
+            t.thread.as_mut().expect("row").parent_thread_id = Some(id + 1000);
+        });
+        cx.executor()
+            .advance_clock(IDLE_RELEASE + Duration::from_secs(60));
+        cx.run_until_parked();
+        assert!(alive(pid), "a delegated thread's agent stays");
+        assert!(thread.read_with(cx, |t, _| t.session.is_some()));
+    }
 }

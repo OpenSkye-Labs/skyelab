@@ -166,7 +166,8 @@ impl ThreadView {
             // off is stored first, so a reload shows it above that output.
             let stopped = this
                 .update(cx, |this, cx| {
-                    let stopped = this.stop_requested || launch != this.launches;
+                    let stopped =
+                        this.stop_requested || this.release.releasing || launch != this.launches;
                     if launch == this.launches {
                         this.keep_partial(cx);
                     }

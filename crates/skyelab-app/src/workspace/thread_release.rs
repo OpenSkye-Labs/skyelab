@@ -3,7 +3,8 @@
 //! agent process (and its memory) until SkyeLab quit.
 //!
 //! Never while it holds work that outlives a turn: a command or subagent it started in the background, a subagent
-//! still running, or an approval still asked. Those pin it until its process ends on its own.
+//! still running, or an approval still asked; nor in a delegation (a parent sends to its child's running agent).
+//! Those pin it until its process ends on its own.
 
 use super::{Item, ThreadView, lock};
 use anyhow::Context as _;
@@ -76,36 +77,51 @@ impl ThreadView {
     fn releasable(&self) -> bool {
         self.session.is_some()
             && !self.starting
+            && !self.stop_requested
             && !self.turn_running()
             && !self.release.releasing
+            && !self.in_delegation()
             && !holds_work(self.items.get(self.release.from..).unwrap_or_default())
     }
 
-    /// Ends the idle agent; the thread stays idle, and the next send resumes its session.
+    /// A delegated thread, or one with children still live: the other side sends to its running agent
+    /// (`send_to_thread` refuses a thread with none), so it is never released.
+    fn in_delegation(&self) -> bool {
+        use crate::ui::Status;
+        self.thread
+            .as_ref()
+            .is_some_and(|t| t.parent_thread_id.is_some())
+            || self
+                .children
+                .iter()
+                .any(|c| matches!(c.status, Status::Starting | Status::Running | Status::Idle))
+    }
+
+    /// Ends the idle agent; the thread stays idle (its row already says so), and the next send resumes its session.
+    /// The view lets go of the session at once, so a send that comes while the kill runs takes the resume path.
     fn release_now(&mut self, cx: &mut Context<Self>) {
         self.release._timer = None;
-        let (true, Some(session), Some(thread)) =
-            (self.releasable(), self.session.clone(), &self.thread)
-        else {
+        if !self.releasable() {
+            return;
+        }
+        let Some(session) = self.session.take() else {
             return;
         };
         self.release.releasing = true;
-        let (store, id) = (self.backend.store.clone(), thread.id);
-        self._task = Some(cx.spawn(async move |this, cx| {
-            let ended = cx
-                .background_spawn(async move {
-                    lock(&session)?.kill().context("ending the idle agent")?;
-                    lock(&store)?.set_thread_status(id, "idle")
-                })
-                .await;
-            let _ = this.update(cx, |this, cx| {
-                if let Err(e) = ended {
-                    return this.show_error(e, cx);
-                }
-                this.session = None; // killed and reaped, so dropping it doesn't wait
-                this.finish(cx);
-            });
-        }));
+        self.finish(cx);
+        let ended =
+            cx.background_spawn(
+                async move { lock(&session)?.kill().context("ending the idle agent") },
+            );
+        cx.spawn(async move |this, cx| {
+            if let Err(e) = ended.await {
+                let _ = this.update(cx, |this, cx| {
+                    this.release.releasing = false;
+                    this.show_error(e, cx);
+                });
+            }
+        })
+        .detach(); // `this` is weak; the kill itself runs to the end either way
     }
 }
 
