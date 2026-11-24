@@ -73,6 +73,8 @@ See [gpui/keyboard.md](gpui/keyboard.md).
   then `run_until_parked`), and drive it with `cx.debug_bounds("..")` and `simulate_mouse_down/move/up` at its center.
   `debug_selector` records only with debug assertions on: `mobile/` turns them off in dev (Android emulator), so its
   `[profile.test]` turns them back on, or every `debug_bounds` is `None`.
+  A gpui-component `Button`'s id is not a debug selector and `Button` has no `.debug_selector`: wrap it in
+  `div().debug_selector(..).child(button)` (`thread_failure.rs`, the account card), or `debug_bounds` finds nothing.
 - Visual or behavior check of the real app: `/loop-verify-ui`.
 
 ## Platform notes
