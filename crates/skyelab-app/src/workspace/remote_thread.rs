@@ -369,13 +369,14 @@ impl Render for RemoteThreadView {
                 .flex_1()
                 .min_h_0()
                 .flex()
+                .flex_col()
+                .children(find)
                 .child({
                     super::timeline_list::settle_rows_above(&self.list);
                     list(self.list.clone(), cx.processor(render_item))
                         .flex_1()
                         .py_2()
                 })
-                .children(find)
                 .into_any_element()
         };
         v_flex()

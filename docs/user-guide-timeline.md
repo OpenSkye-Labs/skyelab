@@ -77,7 +77,7 @@ turn's last reply; click a line to scroll its message to the top.
 
 ## Find in thread
 
-**⌘F** (Ctrl+F elsewhere) in a thread opens a find bar at the timeline's top right. It counts every match of what you
+**⌘F** (Ctrl+F elsewhere) in a thread opens a find bar above the timeline, on the right. It counts every match of what you
 type, ignoring case, in prompts, replies, thinking, tool calls and their output, and subagent cards (**2/7**). **Enter**
 goes to the next match and **Shift+Enter** to the previous one, wrapping around; the timeline scrolls to it, and a
 folded turn or a closed tool row opens when the match is inside it. In your messages and the agent's replies the
