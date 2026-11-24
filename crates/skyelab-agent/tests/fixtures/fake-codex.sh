@@ -9,6 +9,8 @@
 # A folder with a .fake-session-gone file has no rollouts: thread/resume is refused as real codex refuses it.
 # A prompt containing "hang" starts a turn that only an interrupt ends; "approve" first asks for an approval;
 # one starting "usage" first reports rate limits (5h at 47%, weekly at 83%).
+# With a fake-mcp-status file in CODEX_HOME, thread/start/resume first reports its lines as MCP startup statuses
+# (`name status [error...]`, like `docs failed no such command`).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 here=$(dirname "$0")
 # `codex exec` (a one-shot call): logs CODEX_HOME, its args and stdin to .fake-title-call, answers in the
@@ -54,6 +56,12 @@ while IFS= read -r line; do
         continue
       fi
       [ -n "$thread" ] || thread=thr_fake
+      if [ -f "$CODEX_HOME/fake-mcp-status" ]; then
+        while read -r name status error; do
+          printf '{"method":"mcpServer/startupStatus/updated","params":{"name":"%s","status":"%s","error":%s}}\n' \
+            "$name" "$status" "$([ -n "$error" ] && printf '"%s"' "$error" || printf null)"
+        done < "$CODEX_HOME/fake-mcp-status"
+      fi
       printf '{"method":"fake/env","params":{"codex_home":"%s","claude_config_dir":"%s","openai_api_key":"%s","openai_base_url":"%s","openai_org_id":"%s","codex_api_key":"%s","codex_access_token":"%s","cwd":"%s","args":"%s"}}\n' \
         "$(v CODEX_HOME)" "$(v CLAUDE_CONFIG_DIR)" "$(v OPENAI_API_KEY)" "$(v OPENAI_BASE_URL)" "$(v OPENAI_ORG_ID)" \
         "$(v CODEX_API_KEY)" "$(v CODEX_ACCESS_TOKEN)" "$(pwd -P)" "$(printf '%s' "$*" | sed 's/\\/\\\\/g; s/"/\\"/g')"

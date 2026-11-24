@@ -79,6 +79,7 @@ impl ThreadView {
                     Some((None, self.render_actions(on, cx))),
                     titled(lineage),
                     titled(self.render_side_chats(on, cx)),
+                    titled(self.render_mcp(cx)),
                     Some((None, usage)),
                     self.render_pr(on, cx)
                         .map(|pr| (Some("Pull request".into()), pr)),
@@ -149,6 +150,47 @@ impl ThreadView {
         .on_click(on.click(|_, _, cx| cx.emit(ThreadViewEvent::Side(SideAsk::New(None)))));
         let body = v_flex().children(chats).child(new).into_any_element();
         Some(("Side chats".into(), body))
+    }
+
+    /// "MCP servers": each server of the latest agent process and its state, the failure as a tooltip. None until an
+    /// agent reported some.
+    fn render_mcp(&self, cx: &App) -> Option<(SharedString, AnyElement)> {
+        if self.details.mcp.is_empty() {
+            return None;
+        }
+        let theme = cx.theme();
+        let rows = self.details.mcp.iter().enumerate().map(|(i, s)| {
+            let failed = matches!(s.status.as_str(), "failed" | "needs-auth" | "cancelled");
+            let color = if failed {
+                theme.danger
+            } else {
+                theme.muted_foreground
+            };
+            tinted_row(
+                ("details-mcp", i),
+                IconName::Plug,
+                color,
+                s.name.clone(),
+                theme,
+            )
+            .cursor_default()
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(s.state().to_owned()),
+            )
+            .when_some(s.error.clone(), |r, error| {
+                r.tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(error.clone()).build(window, cx)
+                })
+            })
+        });
+        Some((
+            "MCP servers".into(),
+            v_flex().children(rows).into_any_element(),
+        ))
     }
 
     fn render_actions(&self, on: &On, cx: &App) -> AnyElement {

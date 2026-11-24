@@ -45,15 +45,17 @@ fn main_repo(dir: &Path) -> Option<PathBuf> {
     common.parent().map(Path::to_owned)
 }
 
-/// The `config.mcp_servers` entry for SkyeLab's tools, from a grant file written for `claude --mcp-config`.
-/// Sent over stdin, so the token never shows on a command line.
+/// The `config` override for SkyeLab's tools, from a `claude --mcp-config` grant file, sent over stdin (no token on a
+/// command line). A dotted key sets one entry; a whole `mcp_servers` table would drop the account's own servers.
 pub(crate) fn mcp_servers(grant: &Path) -> Result<Value> {
     let text =
         std::fs::read_to_string(grant).with_context(|| format!("reading {}", grant.display()))?;
     let v: Value = serde_json::from_str(&text).context("parsing the MCP grant")?;
     let s = &v["mcpServers"]["skyelab"];
     anyhow::ensure!(s["command"].is_string(), "the MCP grant names no command");
-    Ok(json!({ "skyelab": { "command": s["command"], "args": s["args"], "env": s["env"] } }))
+    Ok(
+        json!({ "mcp_servers.skyelab": { "command": s["command"], "args": s["args"], "env": s["env"] } }),
+    )
 }
 
 /// Client state for one app-server process.
@@ -146,7 +148,7 @@ impl Codex {
             "cwd": dir,
             "approvalPolicy": approval,
             "sandbox": sandbox,
-            "config": mcp.map(|m| json!({ "mcp_servers": m })),
+            "config": mcp,
         });
         if let Some(model) = &c.pick.model {
             params["model"] = json!(model);
@@ -442,6 +444,9 @@ impl Codex {
             "turn/plan/updated" => (plan(p).into_iter().collect(), Vec::new()),
             "account/rateLimits/updated" if p["rateLimits"].is_object() => {
                 (rate_limit(&p["rateLimits"]), Vec::new())
+            }
+            "mcpServer/startupStatus/updated" => {
+                (items::mcp_status(p).into_iter().collect(), Vec::new())
             }
             // Streaming deltas and status chatter: the completed items carry what matters.
             m if NOISE.iter().any(|n| m.starts_with(n)) => (Vec::new(), Vec::new()),

@@ -44,11 +44,14 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
   `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
   subagent cards (one holds 4 s mid-run), `login` fails the turn as a signed-out account, a
-  `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, and one starting `crash` writes
+  `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, a `fake-mcp-status.json` list of
+  `{name, status}` in the account dir goes into its init line as `mcp_servers` (the details card's MCP servers), it prints
+  the `--mcp-config` file it got as a `fake_mcp` line, and one starting `crash` writes
   to stderr and exits 3), Codex with
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
   project; a prompt starting `usage` reports 5h and weekly rate limits, and a `.fake-session-gone` file in the folder
-  makes its `thread/resume` fail as a missing thread), and `gh` (Push, Open PR, the
+  makes its `thread/resume` fail as a missing thread; a `fake-mcp-status` file in CODEX_HOME, one `name status [error]`
+  per line, is reported as MCP startup statuses), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
   and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed; `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there). Never verify against the real `gh`. All of these are debug builds only.

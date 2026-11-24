@@ -320,12 +320,23 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
         Record::Agent(Event::Nested { parent, content }) => {
             first_changed = subagent::nested(items, parent, content);
         }
+        Record::Agent(Event::Mcp {
+            warning: Some(text),
+            ..
+        }) => items.push(Item::Notice {
+            text: text.clone(),
+            explains_failure: false,
+        }),
         Record::Agent(Event::Stderr { text }) => items.push(Item::Output {
             id: format!("output-{before}"),
             text: text.clone(),
         }),
         Record::Agent(
-            Event::Init { .. } | Event::Unknown(_) | Event::RateLimit { .. } | Event::SessionGone,
+            Event::Init { .. }
+            | Event::Unknown(_)
+            | Event::RateLimit { .. }
+            | Event::SessionGone
+            | Event::Mcp { .. },
         ) => {}
     }
     if items.len() > before {

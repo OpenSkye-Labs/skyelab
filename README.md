@@ -199,7 +199,9 @@ app) talk to it over a WebSocket protocol. Details, decisions and the roadmap ar
   `EDITOR`, `PAGER` and `SSH_AUTH_SOCK`). An agent's own `git push` asks only the account's `gh` for https
   credentials, and gets no ssh-agent unless the account sets `ssh_agent = true`.
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
-  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. Codex runs with the folder and
+  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. The MCP servers you added to the
+  bound account itself (Claude's user scope, Codex's `config.toml`) do load, and ask before each tool call; the thread
+  details card lists them with their state, and **Restart Agent Session** reloads them. Codex runs with the folder and
   every folder above it (and a worktree's main repo) marked untrusted, so a repo's `.codex/config.toml`, hooks and
   `.rules` never load. Codex keeps its `workspace-write` sandbox (writes stay in the folder, no network) unless a
   thread picks Plan (read-only) or Full access, and its approval requests come to the thread.

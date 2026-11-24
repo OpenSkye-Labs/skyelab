@@ -405,6 +405,7 @@ impl Render for ThreadView {
             .on_action(cx.listener(Self::menu_close))
             .on_action(cx.listener(Self::interrupt))
             .on_action(cx.listener(Self::stop))
+            .on_action(cx.listener(Self::restart_session))
             .on_action(cx.listener(Self::toggle_worktree))
             .on_action(cx.listener(Self::open_changes))
             .on_action(cx.listener(Self::open_worktree_terminal))

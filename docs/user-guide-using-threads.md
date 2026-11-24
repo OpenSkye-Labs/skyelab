@@ -57,7 +57,10 @@ the folder's path) with the provider (**Claude** or **Codex**) and
 the account it runs on. While a turn runs, **Working for 1m 12s** above the composer counts how long, and while the
 composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
 ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
-**Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. Threads are saved, and opening an old one and sending a follow-up resumes the
+**Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. **Restart Agent Session**
+(command palette) ends it too, so your next message resumes the same session in a new agent process that loads the
+account's MCP servers, skills and plugins as they are now; while a turn runs it asks first. Like Stop, it ends the
+agent for everything else too: a parent agent can't message the thread any more. Threads are saved, and opening an old one and sending a follow-up resumes the
 same session (Claude's `--resume`, or Codex's `thread/resume`). If the thread store can't save an event (a full disk,
 another SkyeLab on the same data), the thread still shows it and says how many events weren't saved. SkyeLab retries every few seconds and with each new
 event, and saves them in order once the store works again. Quitting before then loses them.

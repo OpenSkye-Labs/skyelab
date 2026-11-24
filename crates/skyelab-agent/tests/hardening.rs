@@ -302,6 +302,10 @@ fn oversized_line_is_capped() {
         "hi",
     )
     .expect("start");
+    assert!(matches!(
+        next(session.events()),
+        Event::Mcp { launch: true, .. }
+    ));
     match next(session.events()) {
         Event::Unknown(serde_json::Value::String(s)) => assert_eq!(s.len(), 16 << 20),
         other => panic!("expected a truncated line, got {other:?}"),

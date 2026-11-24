@@ -63,6 +63,8 @@ pub struct Details {
     editors: Option<Editors>,
     /// This thread's side chats (id, title), newest first.
     pub(in crate::workspace) side_chats: Vec<(i64, SharedString)>,
+    /// The MCP servers of the thread's latest agent process, as it reported them.
+    pub(in crate::workspace) mcp: Vec<skyelab_agent::McpServer>,
     /// Who the Commit & push menu pushes as: the account's GitHub login, or why there is none.
     pub(in crate::workspace) gh_login: Option<SharedString>,
     /// The "Link pull request…" field and what was wrong with the last link.
@@ -97,6 +99,31 @@ struct Editors {
     /// The editor "Open in" runs now (settings, `$VISUAL`, `$EDITOR`, else one on PATH).
     current: Option<String>,
     choices: Vec<String>,
+}
+
+/// Folds an MCP report into `list`: a launch report (a new agent process) starts it over, any other updates each server
+/// it names. Returns whether `list` changed.
+pub(in crate::workspace) fn fold_mcp(
+    list: &mut Vec<skyelab_agent::McpServer>,
+    record: &super::thread_model::Record,
+) -> bool {
+    let super::thread_model::Record::Agent(skyelab_agent::Event::Mcp {
+        servers, launch, ..
+    }) = record
+    else {
+        return false;
+    };
+    let before = list.clone();
+    if *launch {
+        list.clear();
+    }
+    for s in servers {
+        match list.iter_mut().find(|m| m.name == s.name) {
+            Some(m) => *m = s.clone(),
+            None => list.push(s.clone()),
+        }
+    }
+    *list != before
 }
 
 /// A running (or starting) child is listed under Lineage; the rest are previous agents.
@@ -145,6 +172,7 @@ pub(in crate::workspace) struct DetailsSig {
     stat: Option<(u64, u64)>,
     editors: Option<Editors>,
     side_chats: Vec<(i64, SharedString)>,
+    mcp: Vec<skyelab_agent::McpServer>,
     gh_login: Option<SharedString>,
     pr_input: Option<gpui::EntityId>,
     pr_error: Option<SharedString>,
@@ -167,6 +195,7 @@ impl ThreadView {
             stat: d.stat,
             editors: d.editors.clone(),
             side_chats: d.side_chats.clone(),
+            mcp: d.mcp.clone(),
             gh_login: d.gh_login.clone(),
             pr_input: d.pr_input.as_ref().map(|i| i.entity_id()),
             pr_error: d.pr_error.clone(),

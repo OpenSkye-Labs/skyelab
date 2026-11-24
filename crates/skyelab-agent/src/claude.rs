@@ -152,7 +152,10 @@ pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
         events.push(event);
         return events;
     }
-    vec![event]
+    let mcp = matches!(event, Event::Init { .. })
+        .then(|| crate::event::claude_mcp(&v))
+        .flatten();
+    std::iter::once(event).chain(mcp).collect()
 }
 
 /// The `control_response` line answering AskUserQuestion ask `id`: `answers` holds each question's picked labels,

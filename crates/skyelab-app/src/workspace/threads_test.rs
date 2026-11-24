@@ -445,3 +445,7 @@ mod session_gone;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "threads_resume_contexts_test.rs"]
 mod resume_contexts;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "restart_session_test.rs"]
+mod restart_session;

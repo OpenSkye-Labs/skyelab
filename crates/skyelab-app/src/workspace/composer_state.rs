@@ -117,6 +117,9 @@ pub(crate) struct Composer {
     pub compare: Option<crate::workspace::compare::Compare>,
     /// The user picked in this tab, so a late store read doesn't overwrite it.
     pub picked: bool,
+    /// Counts picks; each pick's save runs in the background and skips itself once a newer pick exists, so two
+    /// quick picks can't land in the store in the wrong order.
+    pub pick_saves: std::sync::Arc<std::sync::atomic::AtomicU64>,
     /// Codex's models, once listed (or why they couldn't be).
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// The model this thread's agent last reported running (its init line).
@@ -290,9 +293,15 @@ impl ThreadView {
             self.project_id,
         );
         let session = self.session.clone();
+        let saves = self.composer.pick_saves.clone();
+        let this_save = saves.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
         self.in_background(cx, move || {
             {
                 let s = lock(&store)?;
+                // Checked under the store lock: a newer pick that ran first already saved and applied its own.
+                if saves.load(std::sync::atomic::Ordering::SeqCst) != this_save {
+                    return Ok(());
+                }
                 if let Some(id) = thread {
                     s.set_thread_model(id, &pick)?;
                 }

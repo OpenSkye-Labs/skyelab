@@ -87,7 +87,10 @@ fn failed_event_writes_are_held_retried_and_reported(cx: &mut TestAppContext) {
     });
     let saved = agent_records(&f, id);
     assert!(
-        matches!(saved.first(), Some(Event::Init { .. })),
+        matches!(
+            &saved[..],
+            [Event::Mcp { launch: true, .. }, Event::Init { .. }, ..]
+        ),
         "{saved:?}"
     );
     assert_eq!(
