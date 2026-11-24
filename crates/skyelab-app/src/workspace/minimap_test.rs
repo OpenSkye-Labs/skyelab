@@ -71,3 +71,26 @@ fn the_rail_draws_a_tick_per_prompt_and_a_click_jumps_to_it(cx: &mut gpui::TestA
         .read_with(cx, |v, _| v.own_list().logical_scroll_top().item_ix);
     assert_eq!(top, 31, "prompt 1's row is at the top");
 }
+
+#[test]
+fn a_long_thread_draws_a_bounded_rail_that_keeps_its_ends_and_the_current_tick() {
+    use super::{MAX_TICKS, shown_ticks};
+    assert_eq!(shown_ticks(5, [None, None]), vec![0, 1, 2, 3, 4]);
+    let shown = shown_ticks(600, [Some(301), Some(7)]);
+    assert!(shown.len() <= MAX_TICKS + 2, "{} ticks", shown.len());
+    assert_eq!(
+        (shown[0], shown[shown.len() - 1]),
+        (0, 599),
+        "first and last prompt"
+    );
+    assert!(
+        shown.contains(&301) && shown.contains(&7),
+        "current and hovered"
+    );
+    assert!(shown.windows(2).all(|w| w[0] < w[1]), "sorted, no repeats");
+    assert_eq!(
+        shown_ticks(600, [Some(900), None]).len(),
+        MAX_TICKS,
+        "out of range is ignored"
+    );
+}

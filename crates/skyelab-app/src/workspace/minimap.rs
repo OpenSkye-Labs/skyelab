@@ -3,7 +3,9 @@
 //! that prompt to the top.
 //!
 //! Redraw: it notifies only when the hovered tick changes and on a jump. Each frame scans the items for prompt
-//! rows (a tag check per row) and draws a div per prompt; preview text is derived only for the hovered tick.
+//! rows (a tag check per row) and draws at most [`MAX_TICKS`] ticks; preview text is derived only for the hovered
+//! tick. A tick per prompt in a long thread stacked hundreds of overlapping quads in the rail, and GPUI's paint
+//! order tree pays for every overlap: a third of each streaming frame went there (docs/gpui/redraw.md).
 
 use crate::ui;
 use crate::workspace::thread::ThreadView;
@@ -24,6 +26,9 @@ const MAX_SHARE: f32 = 0.7;
 const TICK_W: f32 = 24.0;
 /// Each tick's hit box: as tall as the spacing, wider than the tick.
 const HIT_W: f32 = 40.0;
+/// The most ticks drawn: past this, evenly spread prompts (plus the current and hovered ones) stand for the rest.
+/// About the rail's cap (70% of a tall timeline) at 8 px apart.
+pub(super) const MAX_TICKS: usize = 64;
 /// How long the previews may be, in characters.
 const PREVIEW: usize = 300;
 
@@ -49,6 +54,21 @@ pub(super) fn tick_at(i: usize, n: usize) -> f32 {
 /// The tick for the turn being read: the last prompt at or above the list's top row.
 pub(super) fn current(rows: &[usize], top: usize) -> Option<usize> {
     rows.iter().rposition(|&r| r <= top)
+}
+
+/// Which of `n` prompts get a tick: all of them up to [`MAX_TICKS`], else [`MAX_TICKS`] spread evenly from the
+/// first to the last, plus `keep` (the current and hovered ones). Sorted, no repeats.
+pub(super) fn shown_ticks(n: usize, keep: [Option<usize>; 2]) -> Vec<usize> {
+    if n <= MAX_TICKS {
+        return (0..n).collect();
+    }
+    let mut shown: Vec<usize> = (0..MAX_TICKS)
+        .map(|k| (k * (n - 1) + (MAX_TICKS - 1) / 2) / (MAX_TICKS - 1))
+        .chain(keep.into_iter().flatten().filter(|&i| i < n))
+        .collect();
+    shown.sort_unstable();
+    shown.dedup();
+    shown
 }
 
 /// T3's fisheye: the hovered tick full width, its neighbours shorter.
@@ -123,8 +143,12 @@ impl ThreadView {
             theme.border,
             theme.muted_foreground,
         );
-        let ticks = rows.iter().enumerate().map(|(i, &row)| {
-            let distance = hovered.map(|h| h.abs_diff(i));
+        let shown = shown_ticks(n, [now, hovered]);
+        // The fisheye counts drawn ticks, so a squeezed rail still narrows its neighbours.
+        let hovered_at = hovered.and_then(|h| shown.iter().position(|&i| i == h));
+        let ticks = shown.iter().enumerate().map(|(at, &i)| {
+            let row = rows[i];
+            let distance = hovered_at.map(|h| h.abs_diff(at));
             let color = if distance == Some(0) || now == Some(i) {
                 lit
             } else {

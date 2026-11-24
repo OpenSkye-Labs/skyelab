@@ -87,3 +87,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Frame time without GPUI's profiler: note `Instant::now()` at the root view's render and close it in the paint of an
   invisible `canvas` that is the root's last child (`debug_mode::frame_probe`). It covers render, layout, prepaint and
   most of paint; deferred layers paint after it, so it slightly undercounts.
+
+- Overlapping quads are not free: GPUI orders each painted primitive in a `BoundsTree`, and an insert pays for every
+  quad it overlaps. A strip of hundreds of stacked ticks (the minimap's one tick per prompt in a 600-turn thread)
+  made `BoundsTree::insert` a third of each streaming frame. Cap what a fixed-size strip draws by its pixels, not by
+  the data (`minimap::MAX_TICKS`); measured with `scripts/perf.sh stream`, frame p50 7.7 to 2.1 ms.
