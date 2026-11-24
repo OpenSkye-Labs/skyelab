@@ -91,6 +91,8 @@ For each forwarded port, the palette then lists **Open Forwarded Port** (a brows
   machine can, as with any local port, and so can web pages open in your browser here (as with a dev server you
   run yourself).
 - Forwards stop when you stop them, switch machines, or the connection drops. After a reconnect, forward again.
+- A forwarded page opens in a private tab: its cookies and storage aren't shared with your other tabs or other
+  forwards, and are gone when the tab closes. A copied address pasted into another browser gets no such separation.
 - The other machine must run a SkyeLab that knows forwarding (protocol 1.5). For an older one, the palette says
   it runs an older SkyeLab.
 

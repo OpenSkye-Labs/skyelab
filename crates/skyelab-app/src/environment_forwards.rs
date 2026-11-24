@@ -16,6 +16,16 @@ pub fn forwarded_url(forward: &Forward) -> String {
     format!("http://{}/", forwarded_address(forward))
 }
 
+/// Whether `url` is a page of a forward listening on one of `local_ports`. Such a page is the other machine's, so it
+/// opens on a private web store: cookies ignore the port, and this machine's 127.0.0.1 cookies must not reach it.
+pub fn is_forwarded_page(url: &str, local_ports: impl IntoIterator<Item = u16>) -> bool {
+    skyelab_browser::parse_url(url).is_ok_and(|u| {
+        u.host_str() == Some("127.0.0.1")
+            && u.port_or_known_default()
+                .is_some_and(|p| local_ports.into_iter().any(|l| l == p))
+    })
+}
+
 impl RemoteEnv {
     fn connected(&self) -> bool {
         self.state == ConnState::Connected
@@ -63,6 +73,11 @@ impl RemoteEnv {
             });
         });
         self.pending_forwards.insert(port, task);
+    }
+
+    /// Whether `url` is a page of one of this machine's forwards ([`is_forwarded_page`]).
+    pub fn forwards_page(&self, url: &str) -> bool {
+        is_forwarded_page(url, self.forwards.iter().map(|f| f.local_port))
     }
 
     pub fn stop_forward(&mut self, remote_port: u16, cx: &mut Context<Self>) {

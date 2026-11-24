@@ -224,13 +224,9 @@ fn window_closed(id: gpui::WindowId, cx: &mut App) {
     if let Some(ws) = gone.workspace.upgrade().filter(|_| held) {
         ws.update(cx, |ws, _| ws.release_hub());
     }
-    // Its forwarded ports close with it, even if the workspace lives on a while.
-    if let Some(env) = gone
-        .workspace
-        .upgrade()
-        .and_then(|ws| ws.read(cx).remote_env())
-    {
-        env.update(cx, |env, _| env.drop_forwards());
+    // Its connections and forwarded ports close with it, even if the workspace lives on a while.
+    if let Some(ws) = gone.workspace.upgrade() {
+        ws.update(cx, |ws, cx| ws.leave_machines(cx));
     }
     for view in &all {
         view.update(cx, |v, _| v.lists.remove(gone.window));
