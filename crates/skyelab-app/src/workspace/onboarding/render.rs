@@ -4,18 +4,18 @@
 
 use super::{Onboarding, OnboardingEvent};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, Context, Div, FontWeight, IntoElement, ParentElement as _, SharedString, Window,
     div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Disableable as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::Input,
     v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 
 pub(super) fn home_relative(p: &std::path::Path, home: Option<&std::path::Path>) -> SharedString {
     match home.and_then(|h| p.strip_prefix(h).ok()) {
@@ -47,7 +47,7 @@ pub(super) fn step(
             if done {
                 d.bg(theme.success.opacity(0.16))
                     .text_color(ui::ink(theme, theme.success))
-                    .child(Icon::new(IconName::Check).size_3p5())
+                    .child(Icon::new(SkyeIcon::Check).size_3p5())
             } else {
                 d.bg(theme.secondary)
                     .text_color(theme.foreground)
@@ -191,7 +191,7 @@ impl Onboarding {
                         Button::new(("setup-rename", ix))
                             .ghost()
                             .xsmall()
-                            .icon(Icon::new(Lucide::PenLine))
+                            .icon(Icon::new(SkyeIcon::PenLine))
                             .tooltip("Rename before adding")
                             .on_click(cx.listener({
                                 let dir = dir.clone();
@@ -214,7 +214,7 @@ impl Onboarding {
                         Button::new(("setup-add", ix))
                             .primary()
                             .small()
-                            .icon(Icon::new(IconName::Plus))
+                            .icon(Icon::new(SkyeIcon::Plus))
                             .label("Add")
                             .on_click(
                                 cx.listener(move |this, _, _, cx| this.add_account(&dir, cx)),
@@ -226,7 +226,7 @@ impl Onboarding {
         if cards.is_empty() {
             cards.push(
                 card("setup-none", true, cx)
-                    .child(Icon::new(IconName::CircleUser).size_4().text_color(cx.theme().muted_foreground))
+                    .child(Icon::new(SkyeIcon::CircleUser).size_4().text_color(cx.theme().muted_foreground))
                     .child(name_and_folder(
                         "No config folders found",
                         "No Claude Code or Codex config folder in your home folder. Add one by hand.".into(),
@@ -269,9 +269,9 @@ impl Onboarding {
         };
         h_flex()
             .gap_2()
-            .child(chip(Icon::new(IconName::Folder), "~/work/api"))
+            .child(chip(Icon::new(SkyeIcon::Folder), "~/work/api"))
             .child(
-                Icon::new(IconName::ArrowRight)
+                Icon::new(SkyeIcon::ArrowRight)
                     .size_3p5()
                     .text_color(theme.muted_foreground),
             )

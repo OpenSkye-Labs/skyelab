@@ -219,8 +219,8 @@ impl Status {
 
     /// What a thread row shows in place of its time, as T3 does: an icon and a word for states that need a look.
     /// `None` for settled states (idle, stopped), which show the time instead.
-    pub fn badge(self) -> Option<(gpui_component::IconName, &'static str)> {
-        use gpui_component::IconName as I;
+    pub fn badge(self) -> Option<(SkyeIcon, &'static str)> {
+        use SkyeIcon as I;
         match self {
             Self::Starting | Self::Running => Some((I::LoaderCircle, "Working")),
             Self::Interrupted => Some((I::TriangleAlert, "Interrupted")),
@@ -293,68 +293,8 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
     }
 }
 
-// The Lucide icons SkyeLab draws beyond gpui-component's own set (the composer's attach, footer, queue and
-// permission icons; the sidebar's branch and pull request states; the details card's commit, checks and review; the
-// diff toggles; the terminal chip; the mermaid card's code/diagram toggle; diff comments and side chats; snooze and the
-// footer's Usage; the details card's MCP servers).
-gpui_kit_assets::icon_assets!(
-    ExtraIcons,
-    [
-        Paperclip,
-        GitBranch,
-        Laptop,
-        Folder,
-        FolderGit2,
-        FileDiff,
-        X,
-        Clock,
-        Square,
-        Monitor,
-        Plug,
-        SquareCode,
-        CloudUpload,
-        Trash,
-        GitPullRequest,
-        Lock,
-        ClipboardList,
-        PenLine,
-        ShieldOff,
-        GitCommitVertical,
-        Unlink,
-        Sparkles,
-        Rows3,
-        Columns2,
-        TextWrap,
-        Pilcrow,
-        Terminal,
-        GitMerge,
-        GitPullRequestDraft,
-        GitPullRequestClosed,
-        CircleDot,
-        UserCheck,
-        UserRoundX,
-        Keyboard,
-        Code,
-        Workflow,
-        MessageCircle,
-        MessagesSquare,
-        CornerDownLeft,
-        // The page header's thread details toggle and the right dock's "Open a surface" list.
-        SquareMenu,
-        Globe,
-        SquareTerminal,
-        Files,
-        Link,
-        Smartphone,
-        // Snooze, and the sidebar footer's Usage.
-        AlarmClock,
-        AlarmClockOff,
-        ChartNoAxesColumn,
-        // The composer's Quote chip and button, and its prompt stash.
-        Quote,
-        Bookmark
-    ]
-);
+mod icons;
+pub(crate) use icons::SkyeIcon;
 
 const BRAND_MARK: &str = "icons/skyelab-mark.svg";
 
@@ -379,30 +319,36 @@ fn brand_svg(path: &'static str, size: Pixels, color: Hsla) -> gpui::Svg {
         .text_color(color)
 }
 
-/// gpui-component's icons plus [`ExtraIcons`].
+/// SkyeLab artwork plus the assets used by gpui-component controls.
 pub struct AppAssets;
 
 impl gpui::AssetSource for AppAssets {
     fn load(&self, path: &str) -> gpui::Result<Option<std::borrow::Cow<'static, [u8]>>> {
+        let native_icon = match path {
+            "icons/maximize.svg" => Some(SkyeIcon::Expand),
+            "icons/minimize.svg" => Some(SkyeIcon::Collapse),
+            _ => None,
+        };
+        let resolved = native_icon.map(gpui_component::IconNamed::path);
+        let path = resolved.as_deref().unwrap_or(path);
         let bytes: &'static [u8] = match path {
             BRAND_MARK => include_bytes!("../../icons/mark.svg"),
             GRIP_MARK => include_bytes!("../../icons/grip.svg"),
-            _ => {
-                return match ExtraIcons.load(path)? {
-                    Some(bytes) => Ok(Some(bytes)),
-                    None => gpui_kit_assets::Assets.load(path),
-                };
-            }
+            _ => match icons::bytes(path) {
+                Some(bytes) => bytes,
+                None => return gpui_kit_assets::Assets.load(path),
+            },
         };
         Ok(Some(std::borrow::Cow::Borrowed(bytes)))
     }
 
     fn list(&self, path: &str) -> gpui::Result<Vec<gpui::SharedString>> {
         let mut paths = gpui_kit_assets::Assets.list(path)?;
-        paths.extend(ExtraIcons.list(path)?);
         paths.extend(
-            [BRAND_MARK, GRIP_MARK]
-                .into_iter()
+            icons::PATHS
+                .iter()
+                .copied()
+                .chain([BRAND_MARK, GRIP_MARK])
                 .filter(|asset| asset.starts_with(path))
                 .map(gpui::SharedString::from),
         );

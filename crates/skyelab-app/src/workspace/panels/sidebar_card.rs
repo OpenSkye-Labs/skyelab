@@ -4,9 +4,9 @@
 
 use super::sidebar::{RowAccount, RowCard};
 use super::*;
+use crate::ui::SkyeIcon;
 use gpui::{Anchor, AnyElement};
 use gpui_component::hover_card::HoverCard;
-use gpui_kit_assets::IconName as Lucide;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -55,7 +55,7 @@ pub fn with_card_at(
 fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
     let theme = cx.theme();
     let muted = theme.muted_foreground;
-    let line = |icon: Lucide, text: SharedString| {
+    let line = |icon: SkyeIcon, text: SharedString| {
         h_flex()
             .min_w_0()
             .gap_2()
@@ -72,7 +72,7 @@ fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
     });
     let pr = card.pr_url.clone().map(|url| {
         let shown: SharedString = url.trim_start_matches("https://").to_owned().into();
-        line(Lucide::GitPullRequest, shown)
+        line(SkyeIcon::GitPullRequest, shown)
             .id("card-pr")
             .cursor_pointer()
             .text_color(ui::ink(theme, theme.success))
@@ -106,14 +106,14 @@ fn render_card(card: &RowCard, cx: &App) -> impl IntoElement + use<> {
                 .gap_1p5()
                 .text_color(theme.foreground.opacity(0.75))
                 .child(line(
-                    Lucide::Folder,
+                    SkyeIcon::Folder,
                     format!("{} · {}", card.project, card.path).into(),
                 ))
-                .children(card.worktree.clone().map(|w| line(Lucide::FolderGit2, w)))
-                .children(card.branch.clone().map(|b| line(Lucide::GitBranch, b)))
+                .children(card.worktree.clone().map(|w| line(SkyeIcon::FolderGit2, w)))
+                .children(card.branch.clone().map(|b| line(SkyeIcon::GitBranch, b)))
                 .children(pr)
                 .children(account)
-                .children(card.binding.clone().map(|b| line(Lucide::Lock, b)))
-                .child(line(Lucide::Clock, times.into())),
+                .children(card.binding.clone().map(|b| line(SkyeIcon::Lock, b)))
+                .child(line(SkyeIcon::Clock, times.into())),
         )
 }

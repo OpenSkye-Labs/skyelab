@@ -6,13 +6,13 @@
 
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use gpui_component::{
     ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 use skyelab_core::terminal_context;
 
 /// The most excerpts one message carries; a new one past it replaces the oldest.
@@ -224,25 +224,25 @@ impl ThreadView {
                     cx.notify();
                 }))
                 .child(match c.kind {
-                    ChipKind::Terminal => Icon::new(Lucide::Terminal)
+                    ChipKind::Terminal => Icon::new(SkyeIcon::Terminal)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.success)),
-                    ChipKind::Thread => Icon::new(gpui_component::IconName::Bot)
+                    ChipKind::Thread => Icon::new(crate::ui::SkyeIcon::Bot)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.info)),
-                    ChipKind::PullRequest => Icon::new(Lucide::GitPullRequest)
+                    ChipKind::PullRequest => Icon::new(SkyeIcon::GitPullRequest)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.primary)),
-                    ChipKind::Review => Icon::new(Lucide::MessageCircle)
+                    ChipKind::Review => Icon::new(SkyeIcon::MessageCircle)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.primary)),
-                    ChipKind::SideChat => Icon::new(Lucide::MessagesSquare)
+                    ChipKind::SideChat => Icon::new(SkyeIcon::MessagesSquare)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.info)),
-                    ChipKind::Issue => Icon::new(Lucide::CircleDot)
+                    ChipKind::Issue => Icon::new(SkyeIcon::CircleDot)
                         .xsmall()
                         .text_color(ui::ink(theme, theme.success)),
-                    ChipKind::Quote => Icon::new(Lucide::Quote)
+                    ChipKind::Quote => Icon::new(SkyeIcon::Quote)
                         .xsmall()
                         .text_color(theme.muted_foreground),
                 })
@@ -251,7 +251,7 @@ impl ThreadView {
                     Button::new(("remove-context-chip", id))
                         .ghost()
                         .xsmall()
-                        .icon(Icon::new(Lucide::X))
+                        .icon(Icon::new(SkyeIcon::X))
                         .tooltip("Remove")
                         .on_click(cx.listener(move |this, _, _, cx| {
                             cx.stop_propagation();

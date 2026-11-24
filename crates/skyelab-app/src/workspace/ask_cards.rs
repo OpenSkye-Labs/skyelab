@@ -5,11 +5,12 @@ use super::thread_items::{ItemsView, clip};
 use super::thread_model::ApprovalItem;
 use super::tool_cards::slot;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
     input::Input,
@@ -58,7 +59,7 @@ fn settled_row(
         .gap_1p5()
         .px_1()
         .text_size(ui::BODY)
-        .child(slot(IconName::Check, color))
+        .child(slot(SkyeIcon::Check, color))
         .child(
             div()
                 .font_weight(FontWeight::MEDIUM)
@@ -142,7 +143,7 @@ pub(super) fn render_questions<V: ItemsView>(
                     .when(on, |d| d.bg(theme.primary).border_color(theme.primary))
                     .child(div().when(on, |d| {
                         d.child(
-                            Icon::new(IconName::Check)
+                            Icon::new(SkyeIcon::Check)
                                 .size_3()
                                 .text_color(theme.primary_foreground),
                         )
@@ -277,7 +278,7 @@ pub(super) fn render_questions<V: ItemsView>(
                 .gap_1p5()
                 .text_size(ui::META)
                 .text_color(ui::ink(theme, theme.info))
-                .child(Icon::new(IconName::Info).size_3p5())
+                .child(Icon::new(SkyeIcon::Info).size_3p5())
                 .child("The agent has a question"),
         )
         .children(blocks)
@@ -330,7 +331,7 @@ pub(super) fn render_plan<V: ItemsView>(
                 .text_size(ui::BODY)
                 .font_weight(FontWeight::MEDIUM)
                 .child(
-                    Icon::new(IconName::Map)
+                    Icon::new(SkyeIcon::Map)
                         .size_4()
                         .text_color(theme.muted_foreground),
                 )
@@ -394,10 +395,10 @@ pub(super) fn render_approval<V: ItemsView>(
     if let Some(d) = a.decision {
         let (icon, color) = match d {
             Decision::AllowOnce | Decision::AllowThread => {
-                (IconName::Check, theme.muted_foreground)
+                (SkyeIcon::Check, theme.muted_foreground)
             }
-            Decision::Deny => (IconName::CircleAlert, theme.danger),
-            Decision::Withdrawn => (IconName::CircleAlert, theme.muted_foreground),
+            Decision::Deny => (SkyeIcon::CircleAlert, theme.danger),
+            Decision::Withdrawn => (SkyeIcon::CircleAlert, theme.muted_foreground),
         };
         return h_flex()
             .min_h(px(28.))
@@ -485,7 +486,7 @@ pub(super) fn render_approval<V: ItemsView>(
                 .gap_1p5()
                 .text_size(ui::BODY)
                 .child(
-                    Icon::new(IconName::TriangleAlert)
+                    Icon::new(SkyeIcon::TriangleAlert)
                         .size_4()
                         .text_color(ui::ink(theme, theme.warning)),
                 )

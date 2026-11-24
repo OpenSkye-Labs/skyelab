@@ -2,9 +2,10 @@
 //! Skip this version. Shown only while `updates` has one.
 
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, App, IntoElement, ParentElement as _, Styled as _, div};
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
@@ -28,7 +29,7 @@ pub(super) fn notice(cx: &App) -> Option<AnyElement> {
                     .gap_2()
                     .items_center()
                     .child(
-                        Icon::new(IconName::ArrowDown)
+                        Icon::new(SkyeIcon::ArrowDown)
                             .size_4()
                             .text_color(ui::ink(theme, theme.info)),
                     )

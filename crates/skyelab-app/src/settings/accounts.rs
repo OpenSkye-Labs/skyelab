@@ -4,9 +4,9 @@
 use super::widgets::{heading, path_line};
 use super::*;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::AnyElement;
-use gpui_component::{Icon, IconName, h_flex, v_flex};
-use gpui_kit_assets::IconName as Lucide;
+use gpui_component::{Icon, h_flex, v_flex};
 
 /// An id made from a name: lowercase letters, digits and dashes ("Acme Team" → `acme-team`).
 pub(super) fn slug(name: &str) -> String {
@@ -24,8 +24,8 @@ pub(super) fn slug(name: &str) -> String {
 /// The provider's mark: a 32 px tile tinted with the account's color.
 pub(crate) fn provider_mark(provider: Provider, color: gpui::Hsla) -> gpui::Div {
     let icon = match provider {
-        Provider::Claude => Icon::new(Lucide::Sparkles),
-        Provider::Codex => Icon::new(Lucide::SquareCode),
+        Provider::Claude => Icon::new(SkyeIcon::Claude),
+        Provider::Codex => Icon::new(SkyeIcon::Codex),
     };
     div()
         .flex_shrink_0()
@@ -290,7 +290,7 @@ impl Settings {
                     })
                     .child(
                         Button::new(SharedString::from(format!("edit-{}", a.id)))
-                            .icon(Lucide::PenLine)
+                            .icon(SkyeIcon::PenLine)
                             .tooltip("Edit")
                             .small()
                             .ghost()
@@ -300,7 +300,7 @@ impl Settings {
                     )
                     .child(
                         Button::new(SharedString::from(format!("remove-account-{}", a.id)))
-                            .icon(Lucide::Trash)
+                            .icon(SkyeIcon::Trash)
                             .tooltip("Remove account")
                             .small()
                             .ghost()
@@ -339,7 +339,7 @@ impl Settings {
                     .rounded(ui::RADIUS)
                     .bg(theme.secondary)
                     .child(
-                        Icon::new(IconName::Plus)
+                        Icon::new(SkyeIcon::Plus)
                             .size_4()
                             .text_color(theme.muted_foreground),
                     ),
@@ -427,7 +427,7 @@ impl Settings {
                     .child(
                         Button::new("pick-config-dir")
                             .outline()
-                            .icon(IconName::FolderOpen)
+                            .icon(SkyeIcon::FolderOpen)
                             .label("Choose…")
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.pick_config_dir(window, cx)),

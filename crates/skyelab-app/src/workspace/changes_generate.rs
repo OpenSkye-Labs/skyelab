@@ -7,13 +7,13 @@ use super::changes::ChangesView;
 use super::thread_extras::title::Bins;
 use super::thread_model::Record;
 use super::{SharedStore, lock};
+use crate::ui::SkyeIcon;
 use anyhow::{Context as _, Result, bail};
 use gpui::{AnyElement, App, Context, Window, prelude::*};
 use gpui_component::{
     Disableable as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
 };
-use gpui_kit_assets::IconName;
 use skyelab_core::AccountsConfig;
 use std::path::{Path, PathBuf};
 
@@ -110,7 +110,7 @@ impl ChangesView {
             Button::new(id)
                 .ghost()
                 .xsmall()
-                .icon(Icon::new(IconName::Sparkles))
+                .icon(Icon::new(SkyeIcon::Sparkles))
                 .tooltip(tip)
                 .loading(self.generating == Some(what))
                 .disabled(self.busy || self.generating.is_some())

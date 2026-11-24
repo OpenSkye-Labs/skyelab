@@ -5,6 +5,7 @@ use super::thread_find::FindHost as _;
 use super::thread_items::render_item;
 use super::{NewThread, OpenSettings, OpenThread, SelectProject};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, list, prelude::*,
     px,
@@ -17,7 +18,6 @@ use gpui_component::{
     tooltip::Tooltip,
     v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 
 #[path = "subagent_strip.rs"]
 mod subagent_strip;
@@ -145,13 +145,13 @@ impl ThreadView {
 }
 
 /// The mode's icon, T3's: a lock (asks), a clipboard (plans), a pen (edits go ahead), an open shield (nothing asks).
-fn mode_icon(mode: skyelab_agent::Mode) -> Lucide {
+fn mode_icon(mode: skyelab_agent::Mode) -> SkyeIcon {
     use skyelab_agent::Mode;
     match mode {
-        Mode::Default => Lucide::Lock,
-        Mode::Plan => Lucide::ClipboardList,
-        Mode::AcceptEdits => Lucide::PenLine,
-        Mode::Bypass => Lucide::ShieldOff,
+        Mode::Default => SkyeIcon::Ask,
+        Mode::Plan => SkyeIcon::ClipboardList,
+        Mode::AcceptEdits => SkyeIcon::PenLine,
+        Mode::Bypass => SkyeIcon::ShieldOff,
     }
 }
 

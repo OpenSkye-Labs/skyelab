@@ -3,13 +3,14 @@
 
 use crate::palette::score;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, IntoElement, KeyBinding,
     ParentElement as _, Render, SharedString, Styled as _, Task, Window, actions, div, prelude::*,
     px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, WindowExt as _,
+    ActiveTheme as _, Icon, WindowExt as _,
     command::{Command, CommandItem, CommandState},
     h_flex,
 };
@@ -169,7 +170,7 @@ fn row(path: &str, cx: &App) -> gpui::Div {
         .min_w_0()
         .gap_2()
         .child(
-            Icon::new(IconName::File)
+            Icon::new(SkyeIcon::File)
                 .size_3p5()
                 .text_color(theme.muted_foreground),
         )

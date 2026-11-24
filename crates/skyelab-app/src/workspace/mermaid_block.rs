@@ -90,9 +90,9 @@ pub(super) fn render(node: &MarkdownNode, window: &mut Window, cx: &mut App) -> 
     };
     let toggle = toggle.then(|| {
         let (icon, label) = if showing_code {
-            (gpui_kit_assets::IconName::Workflow, "Show diagram")
+            (crate::ui::SkyeIcon::Workflow, "Show diagram")
         } else {
-            (gpui_kit_assets::IconName::Code, "Show code")
+            (crate::ui::SkyeIcon::Code, "Show code")
         };
         Button::new(("mermaid-toggle", at))
             .ghost()

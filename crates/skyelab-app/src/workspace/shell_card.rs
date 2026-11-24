@@ -4,8 +4,9 @@ use super::thread_items::{ItemsView, clip};
 use super::thread_model::ToolItem;
 use super::tool_cards::chevron;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 pub(super) use skyelab_agent::timeline::cards::{exit_status, plain_output};
 
 /// A shell command, T3's command block: `$ command` in mono with how it ended; opened, its output in a scroll box.
@@ -22,9 +23,9 @@ pub(super) fn render_bash<V: ItemsView>(
         .unwrap_or_else(|| tool.raw["command"].to_string());
     let status = exit_status(tool);
     let (icon, color) = match (&tool.result, &status) {
-        (None, _) => (IconName::LoaderCircle, theme.info),
-        (Some(_), Some(_)) => (IconName::CircleAlert, theme.danger),
-        (Some(_), None) => (IconName::SquareTerminal, theme.muted_foreground),
+        (None, _) => (SkyeIcon::LoaderCircle, theme.info),
+        (Some(_), Some(_)) => (SkyeIcon::CircleAlert, theme.danger),
+        (Some(_), None) => (SkyeIcon::SquareTerminal, theme.muted_foreground),
     };
     let key = tool.id.clone();
     let line = h_flex()

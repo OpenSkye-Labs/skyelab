@@ -35,7 +35,7 @@ pub(in crate::workspace) fn button(action: ForkThread) -> AnyElement {
             Button::new(SharedString::from(format!("fork-{}", action.turns)))
                 .ghost()
                 .xsmall()
-                .icon(Icon::new(gpui_kit_assets::IconName::GitBranch))
+                .icon(Icon::new(crate::ui::SkyeIcon::GitBranch))
                 .tooltip("Fork from here")
                 .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx)),
         )

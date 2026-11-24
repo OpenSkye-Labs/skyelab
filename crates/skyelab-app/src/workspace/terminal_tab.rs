@@ -3,12 +3,13 @@
 
 use super::terminal_panel::{Pane, TabEvent, TerminalPanel};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     App, ClickEvent, Context, EventEmitter, Focusable as _, IntoElement, KeyBinding, SharedString,
     Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     dock::{BasePanel, Panel, PanelControl, PanelEvent},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -130,7 +131,7 @@ impl TerminalPanel {
                     .rounded(ui::RADIUS)
                     .text_color(theme.muted_foreground)
                     .hover(|s| s.bg(theme.secondary_hover).text_color(theme.foreground))
-                    .child(Icon::new(IconName::Close).xsmall())
+                    .child(Icon::new(SkyeIcon::Close).xsmall())
                     .on_click(cx.listener(|_, _, _, cx| {
                         cx.stop_propagation();
                         cx.emit(TabEvent::Close);

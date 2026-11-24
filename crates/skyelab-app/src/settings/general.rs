@@ -4,8 +4,9 @@
 use super::widgets::{DESC, section, setting};
 use super::*;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use crate::workspace::thread_extras::prefs;
-use gpui_component::{IconName, h_flex, switch::Switch, v_flex};
+use gpui_component::{h_flex, switch::Switch, v_flex};
 use skyelab_core::{AppSettings, DiffSettings, ThreadSettings};
 
 /// The "Open in editor" command saved in settings.toml (empty: the default lookup).
@@ -215,7 +216,7 @@ impl Settings {
                     h_flex()
                         .gap_3()
                         .child(
-                            gpui_component::Icon::new(IconName::CircleAlert)
+                            gpui_component::Icon::new(SkyeIcon::CircleAlert)
                                 .size_4()
                                 .text_color(ink),
                         )
@@ -258,7 +259,7 @@ impl Settings {
                                 Button::new("settings-error-copy")
                                     .ghost()
                                     .xsmall()
-                                    .icon(IconName::Copy)
+                                    .icon(SkyeIcon::Copy)
                                     .tooltip("Copy")
                                     .on_click(move |_, _, cx| {
                                         cx.write_to_clipboard(gpui::ClipboardItem::new_string(

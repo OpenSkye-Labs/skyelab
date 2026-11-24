@@ -4,6 +4,7 @@
 //! only, never stored) and the Preview tab's image file.
 
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, AppContext as _, Context, Image, ImageFormat, ImageSource, IntoElement,
     ObjectFit, SharedString, Window, div, img, prelude::*, px,
@@ -13,7 +14,6 @@ use gpui_component::{
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 use skyelab_agent::{Attachment, AttachmentKind};
 use std::sync::Arc;
 
@@ -113,7 +113,7 @@ impl Render for ImageViewer {
                             .child(self.name.clone()),
                     )
                     .child(
-                        button("image-zoom-out", Icon::new(Lucide::Minus), "Zoom out")
+                        button("image-zoom-out", Icon::new(SkyeIcon::Minus), "Zoom out")
                             .disabled(self.zoom == 0)
                             .on_click(cx.listener(|this, _, _, cx| this.zoom(-1, cx))),
                     )
@@ -125,7 +125,7 @@ impl Render for ImageViewer {
                             .child(label),
                     )
                     .child(
-                        button("image-zoom-in", Icon::new(Lucide::Plus), "Zoom in")
+                        button("image-zoom-in", Icon::new(SkyeIcon::Plus), "Zoom in")
                             .disabled(self.zoom == ZOOMS.len() - 1)
                             .on_click(cx.listener(|this, _, _, cx| this.zoom(1, cx))),
                     )
@@ -137,7 +137,7 @@ impl Render for ImageViewer {
                             .on_click(cx.listener(|this, _, _, cx| this.zoom(0, cx))),
                     )
                     .child(
-                        button("image-close", Icon::new(Lucide::X), "Close (Esc)")
+                        button("image-close", Icon::new(SkyeIcon::X), "Close (Esc)")
                             .on_click(|_, window, cx| window.close_dialog(cx)),
                     ),
             )

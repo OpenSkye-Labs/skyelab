@@ -2,12 +2,13 @@
 //! project content search). The search runs off the UI thread; a newer query cancels the one before it.
 
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
     Subscription, Task, Window, div, prelude::*, px, uniform_list,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -194,7 +195,7 @@ impl SearchPanel {
                         .gap_2()
                         .text_size(ui::META)
                         .child(
-                            Icon::new(IconName::File)
+                            Icon::new(SkyeIcon::File)
                                 .size_3p5()
                                 .text_color(theme.muted_foreground),
                         )
@@ -307,7 +308,7 @@ impl Render for SearchPanel {
             .child(
                 div().p_2().child(
                     Input::new(&self.input).small().cleanable(true).prefix(
-                        Icon::new(IconName::Search)
+                        Icon::new(SkyeIcon::Search)
                             .size_3p5()
                             .text_color(theme.muted_foreground),
                     ),
