@@ -56,7 +56,7 @@ fn quit_asks_only_while_a_thread_waits(cx: &mut TestAppContext) {
     cx.dispatch_action(NewThread);
     cx.run_until_parked();
     let view = r.ws.read_with(cx, |ws, _| ws.open_threads.last().cloned()).expect("a thread tab");
-    // The agent asks to run a command and waits for the answer (a `hold` prompt can end with the replayed session).
+    // The agent asks to run a command and waits for the answer: a steady "waiting" state.
     view.update_in(cx, |v, window, cx| v.submit_remote("permit", window, cx))
         .expect("sent");
     wait_until(cx, "the agent to wait on an approval", |cx| {
@@ -72,7 +72,7 @@ fn quit_asks_only_while_a_thread_waits(cx: &mut TestAppContext) {
     assert!(dialog_open(cx), "a waiting thread: the dialog asks");
     assert_eq!(quits(cx), 1, "and the app keeps running");
 
-    cx.update(|window, cx| window.close_dialog(cx)); // Cancel
+    cx.update(|window, cx| window.close_dialog(cx)); // the dialog closes, as Cancel or Escape close it
     cx.run_until_parked();
     quit(cx);
     assert!(dialog_open(cx), "after Cancel, Quit asks again");

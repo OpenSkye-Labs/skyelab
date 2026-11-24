@@ -90,7 +90,7 @@ pub(crate) fn blockers(cx: &App) -> Vec<(SharedString, Blocker)> {
     out
 }
 
-/// The dialog's title and summary line for `items` (never empty).
+/// The dialog's title and summary line for `items` (each part starts with its count).
 pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, SharedString) {
     let count = |f: fn(&Blocker) -> bool| items.iter().filter(|(_, b)| f(b)).count();
     let working = count(|b| *b == Blocker::Working);
@@ -126,14 +126,10 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
         [one] => one.clone(),
         [init @ .., last] => format!("{} and {last}", init.join(", ")),
     };
-    let mut summary = list;
-    if let Some(first) = summary.get(..1) {
-        summary = first.to_uppercase() + &summary[1..];
-    }
     (
         "Quit SkyeLab?".into(),
         format!(
-            "{summary}. Quitting stops {}.",
+            "{list}. Quitting stops {}.",
             if items.len() == 1 { "it" } else { "them" }
         )
         .into(),
@@ -161,6 +157,12 @@ pub fn request_quit(cx: &mut App) {
     let items = blockers(cx);
     if items.is_empty() || !asks(cx) {
         return quit_now(cx);
+    }
+    // macOS keeps running with every window closed, agents included: a window opens to ask in.
+    if window_handles(cx).is_empty()
+        && let Some(open) = cx.try_global::<crate::FreshWindow>().map(|f| f.0.clone())
+    {
+        open(cx);
     }
     let handles = window_handles(cx);
     let target = cx

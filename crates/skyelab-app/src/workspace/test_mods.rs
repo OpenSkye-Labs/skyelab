@@ -117,6 +117,8 @@ mod manage_projects_test;
 mod manage_threads_test;
 #[cfg(all(test, unix))] // the fake claude is a shell script
 mod quit_guard_test;
+#[cfg(all(test, unix))] // the fake claude is a shell script
+mod quit_no_window_test;
 #[cfg(test)]
 mod mermaid_cap_test;
 #[cfg(test)]
