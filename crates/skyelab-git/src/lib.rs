@@ -5,6 +5,7 @@
 
 mod branch;
 mod checkpoint;
+mod clone;
 mod commit;
 mod diff;
 mod frozen;
@@ -27,6 +28,7 @@ pub use checkpoint::{
     Checkpoint, RewindPlan, capture_checkpoint, checkpoints, delete_checkpoints, plan_rewind,
     rewind,
 };
+pub use clone::{clone, clone_config_args, init};
 pub use commit::{commit, snapshot_tree};
 pub use diff::{
     Against, FileDiff, Hunk, Line, MAX_FILE_LINES, MAX_TOTAL_LINES, diff, diff_merge_base,

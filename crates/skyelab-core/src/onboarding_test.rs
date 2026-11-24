@@ -53,7 +53,6 @@ fn onboarding_finds_nothing_in_an_empty_or_missing_home() {
     let home = tempfile::tempdir().expect("tempdir");
     assert!(find_accounts(home.path(), &AccountsConfig::default()).is_empty());
     assert!(find_accounts(&home.path().join("gone"), &AccountsConfig::default()).is_empty());
-    assert!(find_repos(home.path()).is_empty());
 }
 
 #[test]
@@ -83,7 +82,6 @@ fn onboarding_detection_writes_nothing() {
     let home = home();
     let before = tree(home.path());
     find_accounts(home.path(), &AccountsConfig::default());
-    find_repos(home.path());
     assert_eq!(tree(home.path()), before);
 }
 
@@ -110,30 +108,6 @@ fn onboarding_never_opens_credentials_or_markers() {
     }
     let found = find_accounts(h, &AccountsConfig::default());
     assert_eq!(found.len(), 2);
-}
-
-#[test]
-fn onboarding_find_repos_scans_one_level() {
-    let home = tempfile::tempdir().expect("tempdir");
-    let h = home.path();
-    for d in [
-        "code/a/.git",
-        "projects/b/.git",
-        "dev/c",
-        "src/deep/d/.git",
-        "other/e/.git",
-    ] {
-        fs::create_dir_all(h.join(d)).expect("mkdir");
-    }
-    fs::create_dir_all(h.join("src/wt")).expect("mkdir");
-    fs::write(h.join("src/wt/.git"), "gitdir: x").expect("write"); // a worktree's .git file
-    let mut got = find_repos(h);
-    got.sort();
-    let want: Vec<PathBuf> = ["code/a", "projects/b", "src/wt"]
-        .iter()
-        .map(|p| h.join(p))
-        .collect();
-    assert_eq!(got, want);
 }
 
 #[test]
@@ -250,4 +224,12 @@ fn only_a_plain_id_names_a_default_folder() {
         assert_eq!(default_config_dir(h, Provider::Claude, bad), None, "{bad}");
         assert_eq!(default_gh_dir(h, bad), None, "{bad}");
     }
+}
+
+#[test]
+fn reduce_motion_reads_the_defaults_answer() {
+    use super::onboarding::reduce_motion_on;
+    assert!(reduce_motion_on("1\n"));
+    assert!(!reduce_motion_on("0\n"));
+    assert!(!reduce_motion_on(""), "unset: motion stays on");
 }

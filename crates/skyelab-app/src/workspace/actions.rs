@@ -16,7 +16,7 @@ actions!(
         ShowAllProjects,
         GoBack,
         GoForward,
-        SetUpAccounts,
+        OpenOnboarding,
         OpenUsage
     ]
 );

@@ -86,6 +86,13 @@ impl Welcome {
 impl Render for Welcome {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("Welcome");
+        // Onboarding held the focus until it closed: take it back so the keys work.
+        let stale = window
+            .focused(cx)
+            .is_none_or(|f| f == self.setup.read(cx).focus);
+        if !self.show_setup && stale {
+            window.focus(&self.focus, cx);
+        }
         let theme = cx.theme();
         if self.show_setup {
             let header = super::layout::page_header(window, cx)
@@ -94,7 +101,7 @@ impl Render for Welcome {
                         .flex_1()
                         .text_size(ui::META)
                         .text_color(theme.muted_foreground.opacity(0.5))
-                        .child("Set up"),
+                        .child("Onboarding"),
                 )
                 .child(super::layout::panel_toggles(window, cx));
             return v_flex()
@@ -103,7 +110,7 @@ impl Render for Welcome {
                 .size_full()
                 .bg(theme.background)
                 .child(header)
-                .child(self.setup.clone())
+                .child(div().flex_1().min_h_0().child(self.setup.clone()))
                 .into_any_element();
         }
         let shortcut = |label: &'static str, action: Box<dyn Action>| {

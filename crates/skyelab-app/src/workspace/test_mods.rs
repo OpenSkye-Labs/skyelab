@@ -3,6 +3,19 @@
 
 #[cfg(all(test, unix))]
 mod accounts_file_reread_test;
+// Unix: the rows show `~/` paths and the rig's gh is a shell script.
+#[cfg(all(test, unix))]
+mod add_project_bind_test;
+#[cfg(all(test, unix, debug_assertions))]
+mod add_project_clone_test;
+#[cfg(all(test, unix))]
+mod add_project_keys_test;
+#[cfg(all(test, unix))]
+mod add_project_new_test;
+#[cfg(all(test, unix))]
+mod add_project_rig;
+#[cfg(all(test, unix))]
+mod add_project_test;
 #[cfg(test)]
 mod agent_bin_test;
 #[cfg(all(test, unix))]
@@ -258,3 +271,19 @@ mod worktree_guard_test;
 mod worktree_review_test;
 #[cfg(test)]
 mod worktree_thread_test;
+#[cfg(all(test, unix))]
+mod new_thread_no_finder_test;
+#[cfg(all(test, unix))]
+mod onboarding_agents_test;
+#[cfg(all(test, unix))]
+mod onboarding_idle_test;
+#[cfg(all(test, unix))]
+mod onboarding_import_test;
+#[cfg(all(test, unix))]
+mod onboarding_steps_test;
+#[cfg(all(test, unix))]
+mod onboarding_theme_test;
+#[cfg(all(test, unix))]
+mod onboarding_import_back_test;
+#[cfg(all(test, unix))]
+mod add_project_overlap_test;

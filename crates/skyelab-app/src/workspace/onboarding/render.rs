@@ -1,15 +1,15 @@
-//! The setup page's look, in Settings' card language: the Bean mark and one line on the idea (folder → account), a
-//! compact strip of the agents found, then two numbered steps. Accounts are cards (provider mark in the account's
-//! color, name, folder in small type); found config folders are dashed suggestion cards with their own Add.
+//! The Agents & accounts page, in Settings' card language: the agent CLIs found (version, or not found), then the
+//! accounts. Added accounts are cards (provider mark in the account's color, name, folder in small type, sign-in);
+//! found config folders are dashed suggestion cards with their own Add. Also the shared helpers of every page.
 
-use super::{Onboarding, OnboardingEvent};
+use super::{Onboarding, motion};
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
 use gpui::{
-    AnyElement, Context, Div, FontWeight, IntoElement, ParentElement as _, SharedString, Window,
-    div, prelude::*, px,
+    AnyElement, Context, Div, FontWeight, IntoElement, ParentElement as _, SharedString, div,
+    prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
@@ -20,57 +20,14 @@ pub(super) fn home_relative(p: &std::path::Path, home: Option<&std::path::Path>)
     }
 }
 
-/// A numbered step: its number in a small circle, the title, a muted line, then its body.
-pub(super) fn step(
-    n: u8,
-    title: &'static str,
-    about: &'static str,
-    done: bool,
-    body: impl IntoElement,
-    cx: &gpui::App,
-) -> Div {
-    let theme = cx.theme();
-    let badge = div()
-        .size_6()
-        .flex_shrink_0()
-        .flex()
-        .items_center()
-        .justify_center()
-        .rounded_full()
-        .text_size(ui::META)
-        .font_weight(FontWeight::SEMIBOLD)
-        .map(|d| {
-            if done {
-                d.bg(theme.success.opacity(0.16))
-                    .text_color(ui::ink(theme, theme.success))
-                    .child(Icon::new(SkyeIcon::Check).size_3p5())
-            } else {
-                d.bg(theme.secondary)
-                    .text_color(theme.foreground)
-                    .child(n.to_string())
-            }
-        });
-    v_flex()
-        .gap_4()
-        .child(
-            h_flex().items_start().gap_3().child(badge).child(
-                v_flex()
-                    .gap_0p5()
-                    .child(
-                        div()
-                            .text_size(ui::SECTION)
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(title),
-                    )
-                    .child(
-                        div()
-                            .text_size(ui::BODY)
-                            .text_color(theme.muted_foreground)
-                            .child(about),
-                    ),
-            ),
-        )
-        .child(div().pl_9().child(body))
+/// A muted line standing in for an empty list.
+pub(super) fn note(text: &'static str, cx: &gpui::App) -> Div {
+    div()
+        .py_4()
+        .px_3()
+        .text_size(ui::BODY)
+        .text_color(cx.theme().muted_foreground)
+        .child(text)
 }
 
 /// A card's frame: solid for what is set up, dashed for a suggestion.
@@ -117,37 +74,42 @@ pub(super) fn name_and_folder(name: impl IntoElement, folder: SharedString, cx: 
 }
 
 impl Onboarding {
-    /// The agents found, as one compact line of chips.
-    fn agents_strip(&self, cx: &Context<Self>) -> Div {
+    /// The agent CLIs and gh found: one card each, with the version or why it is missing.
+    fn agent_cards(&self, cx: &Context<Self>) -> Div {
         let theme = cx.theme();
-        h_flex()
-            .flex_wrap()
+        v_flex()
             .gap_2()
-            .children(self.agents.iter().map(|a| {
+            .children(self.agents.iter().enumerate().map(|(i, a)| {
                 let (dot, text) = match &a.version {
                     None => (theme.muted_foreground, "checking…".to_owned()),
                     Some(Ok(v)) => (theme.success, v.clone()),
                     Some(Err(_)) => (theme.warning, "not found in PATH".to_owned()),
                 };
-                h_flex()
-                    .h_7()
-                    .px_2p5()
-                    .gap_2()
-                    .rounded_full()
-                    .border_1()
-                    .border_color(theme.border)
-                    .text_size(ui::META)
-                    .child(ui::StatusDot::new(dot))
-                    .child(div().font_weight(FontWeight::MEDIUM).child(a.name))
-                    .child(div().text_color(theme.muted_foreground).child(text))
-                    .when_some(a.update.clone(), |d, v| {
-                        d.child(
-                            div()
-                                .debug_selector(|| "agent-update".into())
-                                .text_color(ui::ink(theme, theme.info))
-                                .child(format!("{v} available")),
-                        )
-                    })
+                let icon = match i {
+                    0 => SkyeIcon::Claude,
+                    1 => SkyeIcon::Codex,
+                    _ => SkyeIcon::Github,
+                };
+                let name = a.name;
+                motion::row(
+                    card(("setup-agent", i), false, cx)
+                        .relative()
+                        .debug_selector(move || format!("setup-agent-{name}"))
+                        .child(Icon::new(icon).size_4().text_color(theme.muted_foreground))
+                        .child(name_and_folder(a.name, text.into(), cx))
+                        .when_some(a.update.clone(), |d, v| {
+                            d.child(
+                                div()
+                                    .debug_selector(|| "agent-update".into())
+                                    .text_size(ui::META)
+                                    .text_color(ui::ink(theme, theme.info))
+                                    .child(format!("{v} available")),
+                            )
+                        })
+                        .child(ui::StatusDot::new(dot)),
+                    ("setup-agent-row", i),
+                    i,
+                )
             }))
     }
 
@@ -198,7 +160,7 @@ impl Onboarding {
             })
     }
 
-    fn accounts_step(&self, cx: &mut Context<Self>) -> Div {
+    fn account_cards(&self, cx: &mut Context<Self>) -> Div {
         let home = self.home.clone();
         let mut cards: Vec<AnyElement> = Vec::new();
         for a in &self.config.accounts {
@@ -285,18 +247,64 @@ impl Onboarding {
                     .into_any_element(),
             );
         }
-        step(
-            1,
-            "Accounts",
-            "Each Claude or Codex login keeps its own config folder. Add the ones you use.",
-            !self.config.accounts.is_empty(),
-            v_flex().gap_2().children(cards),
-            cx,
-        )
+        let n = cards.len();
+        v_flex()
+            .gap_2()
+            .children(
+                cards
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, c)| {
+                        motion::row(div().relative().child(c), ("setup-account-row", i), i + 3)
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .when(n > 0, |d| {
+                d.child(
+                    h_flex().pt_1().child(
+                        Button::new("setup-add-account")
+                            .ghost()
+                            .small()
+                            .icon(Icon::new(SkyeIcon::Plus))
+                            .label("Add account…")
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(
+                                    Box::new(super::super::OpenSettingsSection {
+                                        section: crate::settings::Section::Accounts,
+                                    }),
+                                    cx,
+                                )
+                            }),
+                    ),
+                )
+            })
+    }
+
+    pub(super) fn agents_page(&self, cx: &mut Context<Self>) -> Div {
+        let (agents, accounts) = (self.agent_cards(cx), self.account_cards(cx));
+        let theme = cx.theme();
+        let caption = |text: &'static str| {
+            div()
+                .pt_4()
+                .pb_2()
+                .text_size(ui::META)
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(theme.muted_foreground)
+                .child(text)
+        };
+        v_flex()
+            .child(Self::heading(
+                "Agents and accounts",
+                "Each Claude or Codex login keeps its own config folder. Add the ones you use.",
+                cx,
+            ))
+            .child(agents)
+            .child(caption("Accounts"))
+            .child(accounts)
     }
 
     /// The one idea, as a tiny picture: a folder, an arrow, an account.
-    fn idea(&self, cx: &Context<Self>) -> Div {
+    pub(super) fn idea(&self, cx: &Context<Self>) -> Div {
         let theme = cx.theme();
         let chip = |icon: Icon, text: &'static str| {
             h_flex()
@@ -330,92 +338,5 @@ impl Onboarding {
                     .child(ui::StatusDot::new(theme.primary))
                     .child("Work account"),
             )
-    }
-}
-
-impl gpui::Render for Onboarding {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (agents, idea) = (self.agents_strip(cx), self.idea(cx));
-        let steps = [self.accounts_step(cx), self.projects_step(cx)];
-        let theme = cx.theme();
-        let complete = self.complete();
-        let error = self.error.clone().or_else(|| {
-            self.load_error
-                .clone()
-                .map(|e| format!("accounts.toml could not be read, so nothing can be saved: {e}"))
-        });
-        let column = v_flex()
-            .w_full()
-            .max_w(px(720.))
-            .mx_auto()
-            .px_6()
-            .pt_12()
-            .pb_10()
-            .gap_8()
-            .child(
-                v_flex()
-                    .gap_4()
-                    .child(
-                        div()
-                            .size_12()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .rounded(ui::RADIUS_XL)
-                            .bg(theme.secondary)
-                            .child(ui::grip_mark(px(30.), theme.foreground)),
-                    )
-                    .child(
-                        v_flex()
-                            .gap_1p5()
-                            .child(div().text_size(px(26.)).font_weight(FontWeight::SEMIBOLD).child("Welcome to SkyeLab"))
-                            .child(
-                                div().text_size(ui::BODY).text_color(theme.muted_foreground).child(
-                                    "Every folder runs on the account it is bound to, and nothing ever falls back to another.",
-                                ),
-                            ),
-                    )
-                    .child(idea)
-                    .child(agents),
-            )
-            .child(div().h_px().bg(theme.border))
-            .children(steps)
-            .children(error.map(|e| div().text_size(ui::META).text_color(ui::ink(theme, theme.danger)).child(e)))
-            .child(
-                h_flex()
-                    .justify_between()
-                    .child(
-                        Button::new("setup-skip")
-                            .ghost()
-                            .small()
-                            .label("Skip for now")
-                            .on_click(cx.listener(|_, _, _, cx| cx.emit(OnboardingEvent::Close))),
-                    )
-                    .child(
-                        h_flex()
-                            .gap_3()
-                            .when(!complete, |el| {
-                                el.child(
-                                    div()
-                                        .text_size(ui::META)
-                                        .text_color(theme.muted_foreground)
-                                        .child("Add an account and a project to start."),
-                                )
-                            })
-                            .child(
-                                Button::new("setup-done")
-                                    .primary()
-                                    .label("Done")
-                                    .disabled(!complete)
-                                    .on_click(cx.listener(|_, _, _, cx| cx.emit(OnboardingEvent::Close))),
-                            ),
-                    ),
-            );
-        div()
-            .id("setup-scroll")
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
-            .child(column)
     }
 }

@@ -68,7 +68,11 @@ Above the list are the search field, saved views (the bookmark button), the proj
 **New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
 **Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
-it asks which project. **Saved views** keep the ticked projects and the search text under a name: **Save current
+it asks which project in the palette (**New thread in**), whose last row is **Add project…**. With no project at all
+it opens Add project. Neither ever opens the system folder picker.
+
+**Add project** opens a palette page with path completion, recent folders, New project and Clone from URL: see
+[user-guide-projects.md](user-guide-projects.md). **Saved views** keep the ticked projects and the search text under a name: **Save current
 view…** asks for one (a name you already used replaces that view), picking a view brings both back, and **Delete
 view** removes one. The view the list shows now is checked. Views are kept in `settings.toml` (`[[sidebar_views]]`),
 projects by folder, so a project you remove is skipped. The **Working** header shows how many threads work now; click it to fold them away.
@@ -141,33 +145,11 @@ prompts or secrets). [debugging.md](debugging.md) explains it.
 
 ## Updates
 
-Once a day at most, when SkyeLab starts (and every hour after that it checks whether a day has passed), it asks
-GitHub for the latest release of SkyeLab. When that release is newer than yours, a small notice at the bottom of the
-sidebar offers **Download and install** and **Skip this version**, which hides it until a newer one comes out.
-**Check for Updates** (the palette, or the SkyeLab menu on macOS) and **Check now** in **Settings → About** check
-right away, skipped version included. Before the first release is published, they say **No release published
-yet**. The requests carry nothing about you. **Settings → General → Check for
-updates** turns the daily check off.
-
-**Download and install** downloads the release's file for your computer (with its progress in the notice) and checks
-it against the `SHA256SUMS` list published with the release. On macOS it also opens the disk image, copies the new
-app next to yours; it must be SkyeLab (the same bundle identifier) and, when your SkyeLab is signed with a Developer ID, signed by the
-same developer and accepted by Gatekeeper. On Windows a signed SkyeLab runs only an installer validly signed by the
-same publisher. Nothing you run changes yet. When it says **SkyeLab x.y.z is ready**, click **Restart to
-update**: SkyeLab replaces itself and opens again.
-
-- **macOS:** the `.app` is swapped in place (a failed swap puts the old one back).
-- **Windows:** the installer runs silently once SkyeLab has quit, then starts it again. If the installer fails, your
-  old SkyeLab opens and the notice says why.
-- **Linux AppImage:** the AppImage file is replaced in place. **.deb:** the package is saved to your Downloads folder
-  and **Show in folder** opens it there; install it with your package manager.
-
-If anything fails, the notice says why and offers **Try again** and **Release page**; your installed SkyeLab is left
-as it was. A copy that can't update itself (built from source) shows **Download**, which opens the release page.
+Checking for, downloading and installing updates: [user-guide-updates.md](user-guide-updates.md).
 
 ## Accounts and bindings
 
-First-run setup on the Welcome page (or **Set Up Accounts** in the palette), binding folders to accounts, and a GitHub
+First-run onboarding (or **Open Onboarding** in the palette), binding folders to accounts, and a GitHub
 login per account: see [user-guide-accounts.md](user-guide-accounts.md).
 
 ## Threads

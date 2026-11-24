@@ -69,6 +69,10 @@ pub struct Entry {
     pub recency: i64,
     /// The section it lists under when not its kind's: a submenu item found by a query lists under its submenu.
     pub group: Option<SharedString>,
+    /// Choosing the row (or Tab on it) puts this in the search field instead of running: a folder to browse into.
+    pub browse: Option<SharedString>,
+    /// Choosing the row opens this page (with its own search) over the shown one.
+    pub page: Option<Rc<view::PageSpec>>,
 }
 
 impl Entry {
@@ -86,7 +90,24 @@ impl Entry {
             submenu: None,
             recency: 0,
             group: None,
+            browse: None,
+            page: None,
         }
+    }
+
+    pub fn group(mut self, group: impl Into<SharedString>) -> Self {
+        self.group = Some(group.into());
+        self
+    }
+
+    pub fn page(mut self, spec: view::PageSpec) -> Self {
+        self.page = Some(Rc::new(spec));
+        self
+    }
+
+    pub fn browse(mut self, query: impl Into<SharedString>) -> Self {
+        self.browse = Some(query.into());
+        self
     }
 
     pub fn title(mut self, title: impl Into<SharedString>) -> Self {
@@ -170,6 +191,7 @@ pub fn bindings(mac: bool) -> Vec<KeyBinding> {
 
 pub fn init(cx: &mut App) {
     cx.bind_keys(bindings(cfg!(target_os = "macos")));
+    view::bind_keys(cx);
 }
 
 /// One char per char, so text indexes stay aligned (`İ` lowercases to two).
@@ -348,6 +370,9 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
 
 const HIDDEN: &[&str] = &[
     "skyelab::OpenCommandPalette",
+    "skyelab::CompleteFolder",
+    "skyelab::OnboardingNext",
+    "skyelab::OnboardingBack",
     "skyelab::ConnectTyped",
     "skyelab::ConfirmDiscardWorktree",
     "skyelab::CancelDiscardWorktree",
@@ -383,7 +408,10 @@ pub type Search = Rc<dyn Fn(String, &mut App) -> Task<Vec<Entry>>>;
 
 #[path = "palette_view.rs"]
 mod view;
-pub use view::{open, open_page};
+pub use view::{PageSpec, open, open_page, open_spec};
+// The Add project tests' hook (unix only, as they are).
+#[cfg(all(test, unix))]
+pub use view::{Shown, shown};
 
 #[cfg(test)]
 #[path = "palette_tests.rs"]

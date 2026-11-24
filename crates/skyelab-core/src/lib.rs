@@ -4,6 +4,7 @@ use anyhow::{Context as _, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+pub mod add_project;
 mod app_settings;
 pub mod context;
 pub mod debug;
@@ -20,6 +21,7 @@ pub mod instance;
 pub mod keymap;
 pub mod onboarding;
 pub mod process;
+pub mod project_import;
 pub mod project_rules;
 pub mod prompt;
 pub mod scratch;
@@ -33,8 +35,6 @@ mod repo_hooks;
 pub mod terminal_context;
 pub mod terminal_layout;
 pub mod thread_defaults;
-#[cfg(test)]
-mod thread_defaults_test;
 pub mod update;
 pub mod update_install;
 

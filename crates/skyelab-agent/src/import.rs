@@ -81,6 +81,62 @@ pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
         .collect()
 }
 
+/// The most session files one [`project_folders`] scan looks at per account (the newest).
+pub const MAX_SCAN_FILES: usize = 2000;
+/// The most of one Claude transcript read to learn its folder.
+const CWD_SCAN_BYTES: u64 = 64 * 1024;
+
+/// Every folder `home`'s sessions ran in, with how many sessions and the newest one's last change (Unix ms), for
+/// onboarding's Import projects. Only `home` itself is read (no links out of it), at most [`MAX_SCAN_FILES`] files,
+/// and only enough of each to find its folder.
+pub fn project_folders(provider: Provider, home: &Path) -> Vec<(PathBuf, usize, i64)> {
+    let files: Vec<PathBuf> = match provider {
+        Provider::Claude => real_dir(&home.join("projects"))
+            .into_iter()
+            .flat_map(|dirs| dirs.flatten())
+            .filter(|d| d.file_type().is_ok_and(|t| t.is_dir()))
+            .filter_map(|d| real_dir(&d.path()))
+            .flat_map(|files| files.flatten().map(|f| f.path()))
+            .filter(|p| p.extension().is_some_and(|e| e == "jsonl"))
+            .collect(),
+        Provider::Codex => codex::all_files(home),
+    };
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = files
+        .into_iter()
+        .filter_map(|p| Some((regular_file(&p)?.modified().ok()?, p)))
+        .collect();
+    files.sort_by_key(|f| std::cmp::Reverse(f.0));
+    files.truncate(MAX_SCAN_FILES);
+    let mut by_folder: std::collections::BTreeMap<PathBuf, (usize, i64)> = Default::default();
+    for (modified, path) in files {
+        let cwd = match provider {
+            Provider::Claude => claude_cwd(&path),
+            Provider::Codex => codex::cwd_of(&path),
+        };
+        let Some(cwd) = cwd.filter(|c| plain_path(c)) else {
+            continue;
+        };
+        let ms = modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as i64);
+        let entry = by_folder.entry(cwd).or_insert((0, ms));
+        entry.0 += 1;
+        entry.1 = entry.1.max(ms);
+    }
+    by_folder
+        .into_iter()
+        .map(|(cwd, (n, ms))| (cwd, n, ms))
+        .collect()
+}
+
+/// The first `cwd` a Claude transcript records, from its first [`CWD_SCAN_BYTES`].
+fn claude_cwd(path: &Path) -> Option<PathBuf> {
+    let file = std::fs::File::open(path).ok()?;
+    let len = file.metadata().ok()?.len();
+    let mut lines = Lines::new(file, CWD_SCAN_BYTES, len > CWD_SCAN_BYTES);
+    lines.find_map(|v| v["cwd"].as_str().map(PathBuf::from))
+}
+
 /// `path`'s metadata when it is a plain file: not a link (it could point into another account's dir) and not a FIFO
 /// or device (opening one can block for ever).
 fn regular_file(path: &Path) -> Option<std::fs::Metadata> {

@@ -7,26 +7,41 @@
 SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
 A folder with no binding never runs an agent.
 
-### First-run setup
+### First-run onboarding
 
-With no accounts or no projects, the Welcome page shows setup instead of its usual shortcuts. To open it again later,
-run **Set Up Accounts** from the command palette.
+On a fresh install (no accounts or no projects), onboarding opens in place of the Welcome page, one page per step,
+with progress dots on top. **Return** or **Space** goes to the next page and **Esc** to the one before, while no field
+or button has the keyboard; **Back** and **Skip** do the same with the mouse. **Skip** or **Start building** on the last
+page saves `onboarded = true` in `settings.toml`, so it never opens by itself again. Run **Open Onboarding** from the
+command palette to go through it again. Pages slide in and lists fade up; with macOS **Reduce motion** on (read at
+launch), they appear without moving.
 
-- **Agents** lists Claude Code and Codex, found on your `PATH` the same way threads find them, with the version each
-  reports. "Not found" means a thread can't start on that provider yet. While **Check for updates** is on, SkyeLab
+1. **Welcome**: the one idea, a folder bound to an account.
+2. **Theme**: the five theme families and System / Light / Dark. The whole app changes as you click (a miniature shows
+   it too), and the choice is saved like Settings → Appearance.
+3. **Agents & accounts**:
+
+- **Agents** lists Claude Code, Codex and the GitHub CLI, found on your `PATH` the same way threads find them, with the
+  version each reports. "Not found" means a thread can't start on that provider yet. While **Check for updates** is on, SkyeLab
   also asks the npm registry for each CLI's latest release and shows **2.2.0 available** beside an older one. Update
   it the way you installed it; SkyeLab never installs anything.
 - **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex` and `~/.codex-*` folder that looks like a login
   (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`).
-  SkyeLab only checks that those names exist: it never opens a file in them, so no login or token is read. Tick the
+  To find accounts SkyeLab only checks that those names exist; it never opens a login or token file. (Import
+  projects, below, reads the session history of accounts you added.) Tick the
   ones you want, edit a label if you like, and click **Add account**. Nothing is saved before that click. Folders
   already added are not offered again.
-- **Projects**: click **Choose folder…**, or one of the git repos found directly under `~/code`, `~/projects`, `~/dev`
-  or `~/src`. Then pick the account it runs on and click **Bind and add project**. With two or more accounts none is
-  picked for you; with exactly one it is picked, and still waits for your click. If the folder already runs on that
-  account (through a parent folder's binding), no new binding is added.
+  Each added account shows whether it is signed in, with **Log in** (a terminal in that account's folder) while it
+  isn't. **Add account…** opens Settings → Accounts.
 
-**Done** (once you have an account and a project) or **Skip for now** returns to the usual Welcome page.
+4. **Import projects** lists the folders the added accounts' agents worked in, read from each account's own history
+   (`projects/` for Claude, `sessions/` for Codex; a folder another account's history names is never read through a
+   link). Folders that are already projects or no longer exist are left out. They are grouped by repository (the
+   origin URL), plain folders last. A git repo with at least 3 sessions, the newest within 30 days, is ticked for you.
+   Each row shows the account it will be bound to: the one whose history has the most sessions there. Click it to
+   pick another. A folder that already runs on an account (its own or a parent's binding) shows that account with a
+   lock. **Import N projects** binds each ticked folder to its shown account and adds it; nothing is bound before.
+5. **Done** lists the keys to start with.
 
 ### Add an account
 

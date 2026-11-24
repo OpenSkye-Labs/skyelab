@@ -17,6 +17,11 @@
 # "$GH_CONFIG_DIR/fake-repo.json" when it exists, else a repo allowing every merge method.
 # The PR's head commit is the content of "$GH_CONFIG_DIR/fake-head", else 40 1s; the default `pr view` and `pr list`
 # answers report it as headRefOid, and `pr merge` fails unless its --match-head-commit is that sha.
+# `--version` needs no config dir (onboarding's agent list asks it with none).
+if [ "$1" = "--version" ]; then
+  echo "gh version 2.99.0 (fake)"
+  exit 0
+fi
 dir="${GH_CONFIG_DIR:?fake gh: no GH_CONFIG_DIR}"
 env > "$dir/fake-gh.fullenv"
 head_sha=$(cat "$dir/fake-head" 2>/dev/null || echo 1111111111111111111111111111111111111111)

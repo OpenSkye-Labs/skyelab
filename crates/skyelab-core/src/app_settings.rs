@@ -49,6 +49,8 @@ pub struct AppSettings {
     /// Settings → General: quit at once even while threads work or terminals run ("Don't ask again" on the quit
     /// dialog). Off: the dialog asks.
     pub quit_without_asking: bool,
+    /// The first-run onboarding was finished or skipped, so it never opens by itself again.
+    pub onboarded: bool,
 }
 
 /// A named sidebar filter: the scope's projects, by folder (a project's id changes if it is added again), and the

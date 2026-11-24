@@ -144,6 +144,11 @@ fn removed_projects_hide_keep_threads_and_come_back() {
 
     store.set_project_removed(p.id, true).expect("remove");
     assert!(store.list_projects().expect("list").is_empty());
+    assert_eq!(
+        store.removed_project_paths().expect("removed"),
+        [Path::new("/work/demo")],
+        "offered again by Add project"
+    );
     assert!(store.thread(t.id).expect("read").is_some(), "audit kept");
 
     let back = store

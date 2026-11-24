@@ -1,5 +1,5 @@
-//! First-run setup on the Welcome page: shown on a fresh install, nothing written before a click, a project bound
-//! only to an account the user picked, and the palette action that reopens it.
+//! First-run onboarding: shown on a fresh install, nothing written before a click, accounts added only from a
+//! found dir's Add. Also the rig the other onboarding tests share.
 
 use super::onboarding::Onboarding;
 use super::threads_test::{fake_bin, setup, test_backend, wait_until};
@@ -8,12 +8,12 @@ use gpui::{TestAppContext, VisualTestContext};
 use gpui_component::Root;
 use std::path::Path;
 
-struct Rig {
+pub(super) struct Rig {
     _root: tempfile::TempDir,
-    home: PathBuf,
-    accounts: PathBuf,
-    ws: Entity<Workspace>,
-    setup: Entity<Onboarding>,
+    pub home: PathBuf,
+    pub accounts: PathBuf,
+    pub ws: Entity<Workspace>,
+    pub setup: Entity<Onboarding>,
 }
 
 fn mkdirs(home: &Path, dirs: &[&str]) {
@@ -23,7 +23,7 @@ fn mkdirs(home: &Path, dirs: &[&str]) {
 }
 
 /// A fresh install: no accounts.toml, no projects, and a home with `.claude`, `.claude-work` and `.codex` logins.
-fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
+pub(super) fn rig(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
     rig_with(cx, None)
 }
 
@@ -46,7 +46,13 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
     let accounts = root.path().join("config/accounts.toml");
     let codex =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-agent/tests/fixtures/fake-codex.sh");
-    cx.update(|cx| cx.set_global(CodexBin(codex)));
+    let gh = Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-git/tests/fixtures/fake-gh.sh");
+    cx.update(|cx| {
+        // A fresh install: never onboarded, nothing saved.
+        super::onboarding::first_run::install(None, cx);
+        cx.set_global(CodexBin(codex));
+        cx.set_global(github::GhBin(gh));
+    });
     let (mut ws, path, h) = (None, accounts.clone(), home.clone());
     let window = cx.add_window(|window, cx| {
         let backend = Backend {
@@ -74,7 +80,7 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
     let setup = ws.read_with(cx, |ws, cx| ws.welcome.read(cx).setup.clone());
     wait_until(cx, "detection", |cx| {
         setup.read_with(cx, |o, _| {
-            o.found.len() == 3 && o.agents.iter().all(|a| a.version.is_some())
+            o.found.len() == 3 && o.agents.len() == 3 && o.agents.iter().all(|a| a.version.is_some())
         })
     });
     let rig = Rig {
@@ -88,23 +94,23 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
 }
 
 impl Rig {
-    fn shown(&self, cx: &mut VisualTestContext) -> bool {
+    pub fn shown(&self, cx: &mut VisualTestContext) -> bool {
         self.ws
             .read_with(cx, |ws, cx| ws.welcome.read(cx).show_setup)
     }
 
-    fn saved(&self) -> AccountsConfig {
+    pub fn saved(&self) -> AccountsConfig {
         AccountsConfig::load(&self.accounts).expect("load")
     }
 
-    fn dir(&self, id: &str, cx: &mut VisualTestContext) -> PathBuf {
+    pub fn dir(&self, id: &str, cx: &mut VisualTestContext) -> PathBuf {
         self.setup.read_with(cx, |o, _| {
             let f = o.found.iter().find(|f| f.found.id == id);
             f.expect("found dir offered").found.config_dir.clone()
         })
     }
 
-    fn rename(&self, id: &str, label: &str, cx: &mut VisualTestContext) {
+    pub fn rename(&self, id: &str, label: &str, cx: &mut VisualTestContext) {
         let (setup, dir) = (self.setup.clone(), self.dir(id, cx));
         cx.update(|window, cx| {
             setup.update(cx, |o, cx| {
@@ -116,7 +122,7 @@ impl Rig {
         });
     }
 
-    fn add(&self, id: &str, cx: &mut VisualTestContext) {
+    pub fn add(&self, id: &str, cx: &mut VisualTestContext) {
         let dir = self.dir(id, cx);
         self.setup.update(cx, |o, cx| o.add_account(&dir, cx));
         cx.run_until_parked();
@@ -137,12 +143,12 @@ fn onboarding_shows_on_a_fresh_install_with_agents_and_found_dirs(cx: &mut TestA
             versions,
             [
                 Some("2.1.0 (Claude Code)".into()),
-                Some("codex-cli 0.99.0".into())
+                Some("codex-cli 0.99.0".into()),
+                Some("gh version 2.99.0 (fake)".into())
             ]
         );
         let ids: Vec<_> = o.found.iter().map(|f| f.found.id.as_str()).collect();
         assert_eq!(ids, ["claude", "claude-work", "codex"]);
-        assert_eq!(o.repos, [rig.home.join("code/app")]);
     });
 }
 
@@ -166,74 +172,6 @@ fn onboarding_writes_nothing_before_confirm(cx: &mut TestAppContext) {
     rig.setup.read_with(cx, |o, _| {
         assert_eq!(o.found.len(), 2, "the added dir is no longer offered")
     });
-}
-
-#[gpui::test]
-fn onboarding_bind_needs_a_picked_account(cx: &mut TestAppContext) {
-    let (rig, cx) = rig(cx);
-    rig.add("claude", cx);
-    rig.add("claude-work", cx);
-    let repo = rig.home.join("code/app");
-    rig.setup.update(cx, |o, cx| {
-        o.set_folder(repo.clone(), cx);
-        assert_eq!(o.account, None, "two accounts: none is picked for the user");
-        o.add_project(cx);
-    });
-    cx.run_until_parked();
-    assert!(rig.saved().bindings.is_empty(), "no account, no binding");
-    assert!(rig.ws.read_with(cx, |ws, _| ws.projects.is_empty()));
-    rig.setup.update(cx, |o, cx| {
-        o.account = Some("claude-work".into());
-        o.add_project(cx);
-    });
-    wait_until(cx, "project stored", |cx| {
-        rig.ws.read_with(cx, |ws, _| ws.projects.len() == 1)
-    });
-    assert_eq!(
-        rig.saved().resolve(&repo).map(|a| a.id.clone()),
-        Some("claude-work".into())
-    );
-    assert!(rig.shown(cx), "stays open until Done");
-    rig.setup.update(cx, |o, cx| {
-        assert!(o.complete() && o.folder.is_none());
-        cx.emit(super::onboarding::OnboardingEvent::Close);
-    });
-    cx.run_until_parked();
-    assert!(!rig.shown(cx), "Done returns Welcome to normal");
-}
-
-#[gpui::test]
-fn onboarding_preselects_a_single_account_but_waits_for_the_click(cx: &mut TestAppContext) {
-    let (rig, cx) = rig(cx);
-    rig.add("codex", cx);
-    rig.setup.update(cx, |o, cx| {
-        o.set_folder(rig.home.join("code/app"), cx);
-        assert_eq!(o.account.as_deref(), Some("codex"));
-    });
-    cx.run_until_parked();
-    assert!(rig.saved().bindings.is_empty(), "preselected is not bound");
-}
-
-#[gpui::test]
-fn onboarding_reopens_from_the_palette_action(cx: &mut TestAppContext) {
-    let (rig, cx) = rig(cx);
-    rig.setup.update(cx, |_, cx| {
-        cx.emit(super::onboarding::OnboardingEvent::Close)
-    });
-    cx.run_until_parked();
-    assert!(!rig.shown(cx), "skipped");
-    let focus = rig.ws.read_with(cx, |ws, _| ws.focus.clone());
-    cx.update(|window, cx| {
-        window.focus(&focus, cx);
-        window.dispatch_action(Box::new(SetUpAccounts), cx)
-    });
-    cx.run_until_parked();
-    assert!(rig.shown(cx));
-    assert!(cx.update(|_, cx| cx.all_action_names().contains(&"skyelab::SetUpAccounts")));
-    assert_eq!(
-        crate::palette::humanize("skyelab::SetUpAccounts"),
-        "Set Up Accounts"
-    );
 }
 
 #[gpui::test]
@@ -298,8 +236,8 @@ fn welcome_names_a_newer_agent_cli_release(cx: &mut TestAppContext) {
     let updates: Vec<_> = rig.setup.read_with(cx, |o, _| {
         o.agents.iter().map(|a| a.update.clone()).collect()
     });
-    // Claude Code 2.1.0 is behind 2.2.0; Codex 0.99.0 is current.
-    assert_eq!(updates, [Some("2.2.0".to_owned()), None]);
+    // Claude Code 2.1.0 is behind 2.2.0; Codex 0.99.0 is current; gh is never checked.
+    assert_eq!(updates, [Some("2.2.0".to_owned()), None, None]);
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
 }
 
@@ -317,6 +255,7 @@ fn welcome_asks_nothing_with_the_update_check_off(cx: &mut TestAppContext) {
 #[gpui::test]
 fn added_accounts_say_whether_they_are_signed_in(cx: &mut TestAppContext) {
     let (rig, cx) = rig(cx);
+    rig.setup.update(cx, |o, cx| o.go(super::onboarding::Step::Agents, cx));
     std::fs::write(rig.home.join(".codex/fake-login"), "").expect("sign codex in");
     rig.add("claude-work", cx);
     rig.add("codex", cx);

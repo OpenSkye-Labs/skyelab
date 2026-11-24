@@ -377,6 +377,8 @@ fn main() {
         // The last frame when it still shows on a connected display, else most of the primary display.
         workspace::thread_extras::prefs::install(AppSettings::default_path(), cx);
         workspace::quit_guard::install(AppSettings::default_path(), cx);
+        workspace::onboarding::first_run::install(AppSettings::default_path(), cx);
+        workspace::onboarding::motion::reduce_motion(cx);
         ui::themes::load(AppSettings::default_path(), cx);
         workspace::scheduled::install(AppSettings::default_path(), cx);
         let saved = AppSettings::default_path()
