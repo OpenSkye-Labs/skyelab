@@ -26,6 +26,9 @@ pub(crate) struct Entry {
     pub(crate) gate: crate::CallGate,
     /// Set once hello passed with an approved key; a revoke of it closes the connection.
     pub(crate) approval: Option<crate::Approval>,
+    pub(crate) forwards: BTreeMap<u16, crate::forward::Forward>,
+    /// Declared a tunnel in hello: it may only `open_tunnel`, and isn't listed as a connected device.
+    pub(crate) tunnel: bool,
 }
 
 pub(crate) type Peers = Arc<Mutex<BTreeMap<u64, Entry>>>;

@@ -31,6 +31,10 @@ and how Zed uses it, not blog posts or memory.
   views holding `Entity`s of each other. Keep the returned `Subscription` in a field, or it is dropped and stops firing.
 - Shared app-wide state (settings, accounts): `impl Global` and `cx.set_global` / `cx.global::<T>()`, sparingly.
 - Never `observe` something that you then `notify` from in the same chain. That's an infinite re-render.
+- An entity lives while anything holds a strong `Entity` to it (another view, a test, a task), so dropping your own
+  handle doesn't run its `Drop`. A resource that must end when the user leaves it (a remote machine's forwarded ports
+  and their listeners) is released explicitly at that point (`switch_environment` calls `drop_forwards`), not only
+  in `Drop`.
 
 ## Async
 

@@ -7938,6 +7938,7 @@ dependencies = [
  "rustls-webpki",
  "security-framework",
  "serde_json",
+ "skyelab-core",
  "skyelab-daemon",
  "skyelab-protocol",
  "skyelab-store",

@@ -7,7 +7,14 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 4 };
+pub const VERSION: Version = Version { major: 1, minor: 5 };
+
+/// The minor version that added port forwarding (`forward_port`, `stop_forward`, `open_tunnel`).
+pub const FORWARDS_SINCE_MINOR: u32 = 5;
+
+/// The hello capability a tunnel connection declares (1.5): it may only call `open_tunnel`, gets no pushed events,
+/// and isn't listed as a connected device.
+pub const TUNNEL_CAPABILITY: &str = "tunnel";
 
 /// The TCP port an environment's daemon listens on, and a client dials, unless configured otherwise.
 pub const DEFAULT_PORT: u16 = 7287;
@@ -157,6 +164,25 @@ pub enum Call {
         request_id: String,
         answers: Vec<Vec<String>>,
     },
+    /// Lets this connection's device tunnel to `port` on the serving machine's loopback (1.5), until it calls
+    /// `stop_forward` or this connection ends. Answered with [`Reply::Forwarded`]. Refused for system, own and
+    /// denylisted ports, and when nothing listens there.
+    ForwardPort {
+        port: u16,
+    },
+    /// Ends the forward `token` names and every tunnel opened through it (1.5).
+    StopForward {
+        port: u16,
+        token: String,
+    },
+    /// Turns this connection, which declared [`TUNNEL_CAPABILITY`] in hello, into a tunnel to `port` on the serving
+    /// machine's loopback (1.5). Allowed only while another live connection of the same approved device holds the
+    /// forward `token` names. After the `Ok` reply the connection carries raw TCP bytes in binary frames both ways,
+    /// and nothing else.
+    OpenTunnel {
+        port: u16,
+        token: String,
+    },
 }
 
 /// What a remote user may answer a permission request with (1.3).
@@ -203,7 +229,12 @@ pub enum Reply {
     ThreadStarted {
         thread_id: i64,
     },
-    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`).
+    /// `forward_port` succeeded (1.5): tunnels and `stop_forward` name the forward by this token.
+    Forwarded {
+        token: String,
+    },
+    /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`,
+    /// `stop_forward`, `open_tunnel`).
     Ok,
 }
 

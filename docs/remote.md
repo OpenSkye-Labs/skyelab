@@ -106,8 +106,8 @@ project, send follow-ups, interrupt, and answer a permission request the thread'
 ExitPlanMode request an allow approves the plan and moves the thread out of Plan, as Approve does there; the reply waits
 until the agent took it), and answer an AskUserQuestion (`answer_questions`, 1.4: one list of labels per question, sent
 as a Submit there; the agent refuses a count that doesn't match). Both go through `UiAgents` and its `CallGate` like
-every agent call. It can't change a thread's permission mode, add projects, change accounts or bindings, open terminals or run
-anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
+every agent call. It can forward ports from this machine's loopback (below). It can't change a thread's permission mode, add projects,
+change accounts or bindings, open terminals or run anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread appears in the local window's sidebar with an
 unread dot (it never takes the page or focus), and closing it stops its agent, as for any thread. Every stored event, local or remote, is
@@ -115,6 +115,44 @@ pushed to connected clients. A reply to `thread_events_since` holds at most 500 
 client's 16 MiB message limit), and the client asks again from the last seq until it has caught up. A single event
 over 8 MiB keeps its seq but arrives as a short notice to open the thread on its own machine. Settings → Sharing & access lists connected devices (MagicDNS name, login, address) with a
 Disconnect button.
+
+**Port forwarding (1.5).** A connected device may also forward a port on this machine's loopback to itself, so a
+dev server an agent started here opens in a browser there. The main connection asks with `forward_port {port}` and
+gets a random token for that forward. The daemon refuses ports below 1024, its own listening ports, and a denylist
+of services that hand over the machine without a login of their own: 2375/2376 Docker, 2379 etcd, 3389 RDP, 5037
+adb, 5432 Postgres, 5900 VNC, 6000 X11, 6379 Redis, 8001 kubectl proxy, 9222 browser debugging, 9229 Node
+inspector, 11211 memcached and 27017 MongoDB. It also refuses more than 32 forwards per connection, and a port
+nothing accepts on 127.0.0.1 or ::1 (it dials once to check). It never dials any other host.
+
+Each TCP connection the client accepts locally opens **a new connection to the same listener**, through the whole
+gate again (whois, TLS, no `Origin`, approved key in hello). That hello declares the `tunnel` capability. A tunnel
+connection gets no pushed events, isn't listed as a connected device, and may call only `open_tunnel
+{port, token}`: anything else is refused and closes it. That rule keeps a hidden connection from forwarding or
+driving anything out of Disconnect's reach. `open_tunnel` is admitted only while another live, non-tunnel connection
+with **the same approval** (node and key hash) holds the forward that token names. So a port nobody asked for, or one
+another device, key or window asked for, is never reached. After its `ok`, the connection carries raw bytes in binary
+frames to and from that port. No new listener is opened on the tailnet.
+
+A tunnel ends when its forward does (`stop_forward {port, token}`, or the owning connection closes, is revoked or
+Disconnected), when it is kicked itself, on EOF from either side, or when a write stalls past the idle timeout.
+Each forward has at most 64 tunnels.
+
+The client (`Client::forward_port`) binds 127.0.0.1 only, through `skyelab_core::process::exclusive`. It keeps the
+remote port number when nothing here answers on it at 127.0.0.1 or ::1, else it takes any free port. A connect
+check is needed because std sets SO_REUSEADDR, and on macOS that lets a bind to 127.0.0.1:P succeed over a local
+server on the wildcard address. The desktop opens and copies `http://127.0.0.1:<port>/`, the socket the client owns,
+never `localhost`, which a browser may send to whatever holds ::1. The client dials at most 3 tunnels at a time
+across all its forwards, because the gate admits 4 pending per address and drops the rest. It keeps at most 64
+open per forward. A tunnel's hello must name the node the approved main connection named, and the client skips
+any pushed event while it waits for the `open_tunnel` reply. A port is forwarded once per client.
+
+Dropping the `Forward`, or the main connection ending, closes the listener and its tunnels. Dropping it also sends
+`stop_forward`, and so does a forward that the server allowed but the client couldn't start. A `forward_port`
+request never times out on the client, so a late reply can't leave a forward that nobody stops (the daemon's probe
+bounds it to 10 s). The desktop also drops every forward on a refusal, on a machine switch and when the window
+closes. Half-close isn't carried: EOF on either side closes the tunnel. A client checks `hello.protocol.minor >= 5`
+and never sends the calls to an older server, and the desktop palette says that machine is too old. An older client
+never sends them.
 
 **Driving another machine (the environment switcher).** The top of the sidebar picks which machine the window
 shows: "This Mac", your own online tailnet devices (same ownership rule as the gate: your user, untagged, not this

@@ -8,6 +8,7 @@ mod big_events;
 mod disconnect_kind;
 mod events;
 mod fill_retry;
+mod forward;
 mod guard;
 mod hello;
 mod hostile;

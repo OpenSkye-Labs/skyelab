@@ -12,6 +12,7 @@
 
 mod access;
 mod backend;
+mod forward;
 mod gate;
 mod peers;
 mod serve;
@@ -122,6 +123,8 @@ struct Shared {
     access: SharedAccess,
     next_peer: AtomicU64,
     tls: Arc<Tls>,
+    /// The ports the daemon listens on, which a forward may never reach.
+    own_ports: Vec<u16>,
 }
 
 impl Daemon {
@@ -171,7 +174,7 @@ impl Daemon {
                 .context("make listener non-blocking")?;
             listeners.push(l);
         }
-        let addrs = listeners
+        let addrs: Vec<SocketAddr> = listeners
             .iter()
             .map(|l| l.local_addr())
             .collect::<std::io::Result<_>>()
@@ -203,6 +206,7 @@ impl Daemon {
             pending: Slots::new(config.max_pending, config.max_pending_per_peer),
             tls: tls.clone(),
             node_id: me.stable_id.clone(),
+            own_ports: addrs.iter().map(SocketAddr::port).collect(),
             config,
             tailnet,
             backend,
@@ -247,7 +251,7 @@ impl Daemon {
     pub fn peers(&self) -> Vec<Peer> {
         lock_peers(&self.peers)
             .values()
-            .filter(|e| e.approval.is_some())
+            .filter(|e| e.approval.is_some() && !e.tunnel)
             .map(|e| e.peer.clone())
             .collect()
     }
@@ -398,6 +402,8 @@ async fn handle(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>, permit
             kick: kick.clone(),
             gate: gate.clone(),
             approval: None,
+            forwards: Default::default(),
+            tunnel: false,
         },
     );
     let _registered = Registered {

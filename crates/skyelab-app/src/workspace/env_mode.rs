@@ -200,7 +200,12 @@ impl Workspace {
         // Leaving an environment closes all of its tabs and drops its client: nothing remote stays around.
         self.close_remote_tabs(window, cx);
         self.env.subs.clear();
-        self.env.remote = None;
+        if let Some(env) = self.env.remote.take() {
+            env.update(cx, |env, cx| {
+                env.drop_forwards();
+                cx.notify();
+            });
+        }
         let mut error = None;
         if let Some(host) = a.host.clone() {
             // Every connection waits for `RemoteEnv` to check its node before anything is asked of it.
@@ -217,10 +222,12 @@ impl Workspace {
                     self.env.subs.push(cx.subscribe_in(
                         &env,
                         window,
-                        |this, _, e: &EnvEvent, window, cx| {
-                            if let EnvEvent::Untrusted = e {
-                                this.close_remote_tabs(window, cx);
+                        |this, _, e: &EnvEvent, window, cx| match e {
+                            EnvEvent::Untrusted => this.close_remote_tabs(window, cx),
+                            EnvEvent::Note(note) => {
+                                super::manage::push_note(window, note.to_string().into(), cx)
                             }
+                            EnvEvent::Thread(_) => {}
                         },
                     ));
                     self.env.remote = Some(env);

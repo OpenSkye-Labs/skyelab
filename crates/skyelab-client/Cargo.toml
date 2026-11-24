@@ -13,6 +13,7 @@ test-support = []
 flume.workspace = true
 futures.workspace = true
 serde_json.workspace = true
+skyelab-core.workspace = true
 skyelab-protocol.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

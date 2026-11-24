@@ -68,6 +68,25 @@ threads. A thread that starts on this machine while you look at another one (a d
 your phone) waits: the sidebar shows **This Mac · 1 new thread here**, and clicking it switches back, where the
 thread is marked unread.
 
+### Forwarding a port from the other machine
+
+When an agent on the other machine starts a dev server (say on port 5173), you can open it here. Press ⌘K (Ctrl+K)
+while that machine is shown and type the port number. **Forward Port 5173 from <machine>** forwards it. A note then
+says which address it got on this machine: `127.0.0.1:5173` when nothing here uses that port, or another free port.
+For each forwarded port, the palette then lists **Open Forwarded Port** (a browser tab at its address),
+**Copy Forwarded Address** and **Stop Forwarding**. Type "forward" to find them.
+
+- Only ports on the other machine's own loopback (127.0.0.1 or ::1) can be forwarded, and only from 1024 up. It
+  refuses SkyeLab's own port, and services that would hand over the machine without a login (Docker's API, Screen
+  Sharing/VNC, Remote Desktop, adb, databases such as Redis, Postgres and MongoDB, kubectl proxy, browser and Node
+  debuggers). A port with nothing listening is refused with a note.
+- The local end listens on 127.0.0.1 only, so other devices on your network can't use it. Any program on this
+  machine can, as with any local port, and so can web pages open in your browser here (as with a dev server you
+  run yourself).
+- Forwards stop when you stop them, switch machines, or the connection drops. After a reconnect, forward again.
+- The other machine must run a SkyeLab that knows forwarding (protocol 1.5). For an older one, the palette says
+  it runs an older SkyeLab.
+
 Before connecting, SkyeLab asks this machine's own Tailscale who is at the address it dialled. It connects only to
 one of your own devices (same Tailscale user, not tagged), and it remembers that machine's Tailscale node for the
 name. If the name later answers from another node, its threads close and a warning offers **Trust it**: trust it only if

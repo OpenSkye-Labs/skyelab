@@ -87,7 +87,7 @@ impl RemoteThreadView {
             }),
             cx.subscribe(&env, |this, _, e: &EnvEvent, cx| match e {
                 EnvEvent::Thread(event) => this.on_event(event, cx),
-                EnvEvent::Untrusted => {}
+                EnvEvent::Untrusted | EnvEvent::Note(_) => {}
             }),
             // The header's state and account follow the environment. The account is kept once seen, since
             // the list it comes from changes with the selected project.
