@@ -24,6 +24,7 @@ fn result() -> Record {
         result: None,
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     })
 }
 

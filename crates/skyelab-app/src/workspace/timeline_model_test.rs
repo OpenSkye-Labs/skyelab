@@ -29,6 +29,7 @@ fn result(is_error: bool, usage: Option<Usage>) -> Record {
         result: None,
         prompts: 1,
         usage,
+        turn_cost_usd: None,
     })
 }
 

@@ -8,6 +8,7 @@ fn done(duration_ms: u64, total: f64, text: &str) -> Record {
         result: Some(text.into()),
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     })
 }
 

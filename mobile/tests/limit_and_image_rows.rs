@@ -78,6 +78,7 @@ fn a_limit_shows_until_a_turn_succeeds() {
         result: None,
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     }));
     assert!(!thread_status("idle", &cleared).contains("Limited"));
 }

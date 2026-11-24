@@ -211,6 +211,7 @@ mod tests {
             result: None,
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         })
         .to_row()
         .1

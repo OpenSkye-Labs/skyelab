@@ -29,6 +29,10 @@ pub enum Event {
         /// The turn's tokens, when the agent reported them.
         #[serde(default)]
         usage: Option<Usage>,
+        /// What this turn alone cost, when the agent says (Claude's `model_usage_since_last_result`): preferred over
+        /// [`turn_cost`], whose running total can drop on a resume and so can't tell a restart from a fresh session.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        turn_cost_usd: Option<f64>,
     },
     /// The agent asks to use a tool and waits until [`crate::Session::answer`] answers `id`.
     Permission {
@@ -359,6 +363,9 @@ impl Event {
                 result: o.text(),
                 prompts: 1,
                 usage: v.get("usage").filter(|u| u.is_object()).map(claude_usage),
+                turn_cost_usd: v["model_usage_since_last_result"]
+                    .as_object()
+                    .map(|m| m.values().filter_map(|u| u["costUSD"].as_f64()).sum()),
             }),
             _ => None,
         };

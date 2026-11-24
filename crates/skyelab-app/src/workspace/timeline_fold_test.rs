@@ -105,6 +105,7 @@ fn the_end_of_a_turn_redraws_the_whole_turn_and_is_dated() {
             result: None,
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         }),
     );
     assert_eq!(changed, Some(1), "its rows now fold, so they all change");

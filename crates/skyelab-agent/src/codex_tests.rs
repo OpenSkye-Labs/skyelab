@@ -275,6 +275,7 @@ fn items_map_to_tool_use_results_and_text() {
             result: Some("done".into()),
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         }]
     );
 }

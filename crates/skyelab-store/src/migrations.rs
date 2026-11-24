@@ -372,4 +372,9 @@ ALTER TABLE threads ADD COLUMN snoozed_until INTEGER;
 ALTER TABLE threads ADD COLUMN compare_group INTEGER;
 CREATE INDEX threads_by_compare_group ON threads(compare_group) WHERE compare_group IS NOT NULL;
 ",
+    turn_price::MIGRATION_V24,
 ];
+
+// After the macros: the migration builds its trigger with `turn_cost!` and `fork_copy!`.
+#[path = "migration_turn_price.rs"]
+mod turn_price;

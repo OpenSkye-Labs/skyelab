@@ -95,6 +95,7 @@ fn result() -> Record {
         result: Some("Fixed the redirect.".into()),
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     })
 }
 

@@ -21,6 +21,7 @@ fn a_crashed_follow_up_is_not_reported_as_the_previous_success() {
             result: Some("first done".into()),
             prompts: 1,
             usage: None,
+            turn_cost_usd: None,
         }),
         Record::Prompt("crash now".into()),
         Record::Agent(Event::Stderr {

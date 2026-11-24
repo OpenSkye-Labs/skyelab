@@ -12,6 +12,7 @@ fn result(total: f64) -> Record {
         result: None,
         prompts: 1,
         usage: None,
+        turn_cost_usd: None,
     })
 }
 
