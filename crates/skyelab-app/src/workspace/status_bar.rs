@@ -2,13 +2,9 @@
 
 use super::{OpenDevices, OpenSettings, Workspace};
 use crate::ui;
+use crate::ui::Button;
 use gpui::{Context, IntoElement, div, prelude::*};
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    status_bar::StatusBar,
-};
+use gpui_component::{ActiveTheme as _, h_flex, status_bar::StatusBar};
 
 impl Workspace {
     pub(super) fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {

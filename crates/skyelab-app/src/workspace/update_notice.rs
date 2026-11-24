@@ -2,13 +2,10 @@
 //! Skip this version. Shown only while `updates` has one.
 
 use crate::ui;
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{AnyElement, App, IntoElement, ParentElement as _, Styled as _, div};
-use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex, v_flex,
-};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 pub(super) fn notice(cx: &App) -> Option<AnyElement> {
     let (tag, _) = crate::updates::available(cx)?;

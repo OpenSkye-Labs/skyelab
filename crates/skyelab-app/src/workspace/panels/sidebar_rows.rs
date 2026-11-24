@@ -5,7 +5,6 @@ use super::sidebar::{RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, Sid
 use super::*;
 use crate::ui::SkyeIcon;
 use gpui::AnyElement;
-use gpui_component::Selectable as _;
 use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
 use skyelab_core::snooze;
 

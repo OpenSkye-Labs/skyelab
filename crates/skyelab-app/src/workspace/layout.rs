@@ -2,14 +2,14 @@
 //! saving the window frame, right dock and current page to settings.toml.
 
 use super::{CONTEXT, ToggleBottomPanel, ToggleSidebar, Workspace};
+use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use gpui::{
     App, AppContext as _, Context, Div, Entity, Global, IntoElement, KeyBinding, NoAction, Pixels,
     Task, Window, actions, prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
+    ActiveTheme as _,
     dock::{DockEvent, DockPlacement, Panel, panel_handle},
     h_flex,
 };

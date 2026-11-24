@@ -1,17 +1,15 @@
 //! The workspace's dock panels and the dock traits each one needs.
 
 use crate::ui;
+use crate::ui::{Button, Kbd};
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, Sizable as _,
-    button::{Button, ButtonVariants as _},
+    ActiveTheme as _, Icon,
     dock::{BasePanel, Panel, PanelEvent},
-    h_flex,
-    kbd::Kbd,
-    v_flex,
+    h_flex, v_flex,
 };
 use skyelab_browser::BrowserView;
 

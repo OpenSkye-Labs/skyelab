@@ -3,7 +3,6 @@
 use super::sidebar::ScopeMenu;
 use super::*;
 use crate::ui::SkyeIcon;
-use gpui_component::Selectable as _;
 use gpui_component::menu::DropdownMenu as _;
 
 /// The saved views menu (T3's `SavedViewsMenu`): each view (checked while the sidebar shows it), Save current view…,

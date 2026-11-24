@@ -2,17 +2,12 @@
 
 use super::{AllowDevice, DenyDevice, DisconnectPeer, Remote, RevokeDevice, ToggleSharing};
 use crate::ui;
+use crate::ui::{Button, Switch};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Window, div,
     prelude::*,
 };
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    switch::Switch,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 
 pub struct RemotePanel {
     remote: Entity<Remote>,
