@@ -26,6 +26,19 @@ impl Store {
         expect_one(n, "project", id)
     }
 
+    /// Folders of removed projects, most recently removed first (Add project offers them again).
+    pub fn removed_project_paths(&self) -> Result<Vec<PathBuf>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT path FROM projects WHERE removed_at IS NOT NULL ORDER BY removed_at DESC, id DESC",
+        )?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+        Ok(rows
+            .collect::<rusqlite::Result<Vec<_>>>()?
+            .into_iter()
+            .map(PathBuf::from)
+            .collect())
+    }
+
     /// The project stored at `path`, brought back if it was removed. `None` when no project has that path.
     pub fn readd_project(&self, path: &Path) -> Result<Option<Project>> {
         let path: PathBuf = path.components().collect();

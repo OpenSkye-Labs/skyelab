@@ -98,7 +98,7 @@ fn cap(key: &str, label: &'static str) -> Kbd {
     .with_label(label)
 }
 
-/// T3's footer: ↑ ↓ Navigate, (Tab Complete), Enter Select, (Backspace Back), Esc Close.
+/// T3's footer: ↑ ↓ Navigate, (Tab Complete), Enter Select, (Backspace Back), Esc Close (Back on a page).
 pub(super) fn footer(paged: bool, completes: bool, cx: &App) -> gpui::Div {
     let theme = cx.theme();
     let hint = |caps: Vec<Kbd>, text: &'static str| {
@@ -132,7 +132,7 @@ pub(super) fn footer(paged: bool, completes: bool, cx: &App) -> gpui::Div {
         ))
 }
 
-/// Above a page's search field: ‹ and the page's title, back to the root on click (T3's Back addon).
+/// Above a page's search field: ‹ and the page's title, back one page on click (T3's Back addon).
 pub(super) fn back_row(
     title: SharedString,
     palette: WeakEntity<Palette>,

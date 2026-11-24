@@ -33,6 +33,14 @@ pub(crate) struct Import {
     pub other: Vec<usize>,
 }
 
+impl Import {
+    /// The repository groups for the rows as they are now: groups hold row indexes, so redo them whenever rows go.
+    pub(crate) fn regroup(&mut self) {
+        let cands: Vec<Candidate> = self.rows.iter().map(|r| r.cand.clone()).collect();
+        (self.groups, self.other) = project_import::group(&cands);
+    }
+}
+
 /// Every added account's history folders that exist and aren't projects yet, with their git facts. Blocking: run it
 /// off the UI thread.
 pub(crate) fn scan(
@@ -55,21 +63,6 @@ pub(crate) fn scan(
         .collect()
 }
 
-fn ago(ms: i64, now: i64) -> String {
-    let mins = (now - ms).max(0) / 60_000;
-    match mins {
-        0..60 => format!("{mins}m ago"),
-        60..1440 => format!("{}h ago", mins / 60),
-        _ => format!("{}d ago", mins / 1440),
-    }
-}
-
-pub(crate) fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as i64)
-}
-
 impl Onboarding {
     /// Scans the added accounts' histories when the step opens, or again when the accounts changed since.
     pub(super) fn start_import_scan(&mut self, cx: &mut Context<Self>) {
@@ -89,7 +82,7 @@ impl Onboarding {
         self._scan = Some(cx.spawn(async move |this, cx| {
             let found = task.await;
             let _ = this.update(cx, |this, cx| {
-                let now = now_ms();
+                let now = ui::now_ms();
                 this.import.rows = found
                     .into_iter()
                     .map(|cand| {
@@ -102,9 +95,7 @@ impl Onboarding {
                         }
                     })
                     .collect();
-                let cands: Vec<Candidate> =
-                    this.import.rows.iter().map(|r| r.cand.clone()).collect();
-                (this.import.groups, this.import.other) = project_import::group(&cands);
+                this.import.regroup();
                 this.import.scanning = false;
                 this.import.scanned_for = Some(ids);
                 cx.notify();
@@ -158,7 +149,7 @@ impl Onboarding {
         let r = &self.import.rows[ix];
         let home = self.home.clone();
         let theme = cx.theme();
-        let now = now_ms();
+        let now = ui::now_ms();
         let path = r.cand.path.clone();
         let name: SharedString = r
             .cand
@@ -174,7 +165,7 @@ impl Onboarding {
             home_relative(&path, home.as_deref()),
             r.cand.threads,
             if r.cand.threads == 1 { "" } else { "s" },
-            ago(r.cand.last_active_ms, now)
+            ui::ago(now, r.cand.last_active_ms)
         );
         let account = self.config.accounts.iter().find(|a| a.id == r.account);
         let badge = account.map(|a| ui::AccountBadge::of(a).into_any_element());

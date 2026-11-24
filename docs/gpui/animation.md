@@ -18,6 +18,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. Learned building onboa
   around it, so the page's height doesn't jump while it slides.
 - `App::reduce_motion` makes every `with_animation` draw its end state with no frames, but GPUI never reads the OS
   setting. On macOS SkyeLab reads `defaults read com.apple.universalaccess reduceMotion` once at launch, off the UI
-  thread (`main.rs`'s `reduce_motion`), and sets it.
+  thread (`onboarding::motion::reduce_motion`, called from `main.rs`), and sets it.
 - A width "morph" (the current progress dot) is the animator setting `.w(px(from + (to - from) * t))`, keyed by the
   step shown: the dot that grows and the one that shrinks each get one run per change.

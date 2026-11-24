@@ -78,7 +78,8 @@ impl Workspace {
             }
             first.ok_or_else(|| anyhow::anyhow!("no folder to add"))
         });
-        self._add = Some(cx.spawn(async move |this, cx| {
+        // Detached: each add finishes even when another starts (onboarding's import beside a palette add).
+        cx.spawn(async move |this, cx| {
             let added = task.await;
             let _ = this.update(cx, |this, cx| match added {
                 Ok(id) => {
@@ -91,7 +92,8 @@ impl Workspace {
                     cx.notify();
                 }
             });
-        }));
+        })
+        .detach();
     }
 
     pub(super) fn select_project(

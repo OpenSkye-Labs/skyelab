@@ -30,3 +30,21 @@ fn add_project_opens_the_palette_page_with_recent_folders(cx: &mut TestAppContex
     assert_eq!(hist.0, "Recent");
     assert_eq!(hist.2, "git · dev · ~/work/hist");
 }
+
+#[gpui::test]
+fn recent_lists_earlier_projects_too(cx: &mut TestAppContext) {
+    let (rig, cx) = rig(cx, |_, _| {});
+    let api = rig.home.join("code/api");
+    let store = rig.ws.read_with(cx, |ws, _| ws.backend.store.clone());
+    {
+        let store = store.lock().expect("store");
+        let p = store.create_project("api", &api).expect("project");
+        store.set_project_removed(p.id, true).expect("remove");
+    }
+    rig.open_add(cx);
+    let s = shown(cx);
+    assert!(
+        s.rows.iter().any(|r| r.0 == "Recent" && r.1 == "api" && r.2 == "~/code/api"),
+        "{s:?}"
+    );
+}

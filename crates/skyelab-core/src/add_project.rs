@@ -1,6 +1,6 @@
 //! The Add project page's path field (T3's in-palette folder browse): a typed path split into the folder to list and
 //! the name being typed, that folder's subfolders with their git branch (read from `.git/HEAD`, no process), Tab
-//! completion, and the checks for a new project's folder and a clone URL. Read only, except nothing here writes.
+//! completion, and the checks for a new project's folder and a clone URL. Nothing here writes.
 
 use anyhow::{Result, bail};
 use std::path::{MAIN_SEPARATOR, Path, PathBuf};
@@ -129,9 +129,13 @@ pub fn git_dir(dir: &Path) -> Option<PathBuf> {
     Some(dir.join(target))
 }
 
-/// A short text file, read up to 64 KB (HEAD, config); `None` past that or when unreadable.
+/// The first 64 KB of a short text file (HEAD, config); `None` when it isn't a regular file (a FIFO would block
+/// the read for good) or can't be read.
 pub(crate) fn read_small(path: &Path) -> Option<String> {
     use std::io::Read as _;
+    if !std::fs::metadata(path).is_ok_and(|m| m.is_file()) {
+        return None;
+    }
     let file = std::fs::File::open(path).ok()?;
     let mut text = String::new();
     file.take(64 * 1024).read_to_string(&mut text).ok()?;
@@ -148,6 +152,16 @@ pub fn git_info(dir: &Path) -> Option<Option<String>> {
     )
 }
 
+/// Whether `name` is one plain folder name on every platform: no separator of either kind, no drive (`C:`), not
+/// `.` or `..`. Joined onto a base, it can't leave it.
+fn one_name(name: &str) -> bool {
+    !name.contains(['/', '\\', ':'])
+        && matches!(
+            Path::new(name).components().collect::<Vec<_>>().as_slice(),
+            [std::path::Component::Normal(_)]
+        )
+}
+
 /// The folder a new project goes in: `input` as a path, else as a name inside `base`. Refuses an empty name, a name
 /// that climbs out (`..`), a file, and a folder that already has something in it.
 pub fn new_project_dir(input: &str, base: &Path, home: Option<&Path>) -> Result<PathBuf> {
@@ -158,7 +172,7 @@ pub fn new_project_dir(input: &str, base: &Path, home: Option<&Path>) -> Result<
     let dir = match typed_path(input, home) {
         Some(dir) => dir,
         None => {
-            if input.contains(is_sep) || input == "." || input == ".." {
+            if !one_name(input) {
                 bail!("Type a plain name, or a full path starting with ~ or /.");
             }
             base.join(input)
@@ -207,7 +221,7 @@ pub fn clone_name(url: &str) -> Result<String> {
         .next()
         .unwrap_or_default();
     let name = name.strip_suffix(".git").unwrap_or(name);
-    if name.is_empty() || name == "." || name == ".." || name.starts_with('-') {
+    if !one_name(name) || name.starts_with('-') {
         bail!("The URL names no repository.");
     }
     Ok(name.to_owned())

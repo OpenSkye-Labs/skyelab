@@ -108,6 +108,9 @@ fn new_project_folder_is_a_name_or_a_path_and_never_a_full_folder() {
         new_project_dir("../up", &base, Some(&home)).is_err(),
         "no climbing out by name"
     );
+    for bad in ["C:foo", "a\\b", ".", ".."] {
+        assert!(new_project_dir(bad, &base, Some(&home)).is_err(), "{bad}");
+    }
     std::fs::create_dir_all(base.join("empty")).expect("mkdir");
     assert!(
         new_project_dir("empty", &base, Some(&home)).is_ok(),

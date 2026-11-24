@@ -1,4 +1,4 @@
-//! First-run onboarding, one page per step (Rex's layout, T3's content): Welcome → Theme → Agents & accounts →
+//! First-run onboarding, one page per step (T3's content): Welcome → Theme → Agents & accounts →
 //! Import projects → Done. Detection only reads names and runs `--version`; nothing is written until a click, and
 //! the workspace does the writing (`OnboardingEvent`). Return or Space goes next and Esc back while the page itself
 //! has focus (a field or button keeps its keys).
@@ -169,11 +169,16 @@ impl Onboarding {
                 .any(|a| a.config_dir == f.found.config_dir)
         };
         self.found.retain(|f| !added(f));
-        // Imported folders leave the list; an account removed elsewhere can't stay picked.
+        // Imported folders leave the list (and its groups, which index it); an account removed elsewhere can't
+        // stay picked.
         let (projects, config) = (&self.projects, &self.config);
+        let before = self.import.rows.len();
         self.import
             .rows
             .retain(|r| !projects.contains(&r.cand.path));
+        if self.import.rows.len() != before {
+            self.import.regroup();
+        }
         for r in &mut self.import.rows {
             if !config.accounts.iter().any(|a| a.id == r.account) {
                 r.checked = false;
@@ -273,6 +278,8 @@ impl Onboarding {
     /// Next, Return or Space: the next page; Import imports the ticked folders first; Done closes.
     pub fn next(&mut self, cx: &mut Context<Self>) {
         match self.step {
+            // Still scanning: nothing to import yet, and skipping ahead would look like an empty history.
+            Step::Import if self.import.scanning => {}
             Step::Import => self.import_picked(cx),
             Step::Done => cx.emit(OnboardingEvent::Close),
             step => {

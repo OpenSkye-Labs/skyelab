@@ -1,4 +1,4 @@
-//! Onboarding's motion (Rex's page-per-step feel): a page slides in from the side it came from and fades up, its
+//! Onboarding's motion: a page slides in from the side it came from and fades up, its
 //! rows enter one after another, and the progress dot of the current step widens. Every animation is one-shot, so
 //! a settled page draws no frames, and GPUI draws each at its end state when `App::reduce_motion` is on.
 
@@ -49,16 +49,18 @@ pub(super) fn row<E: IntoElement + Styled + 'static>(
     )
 }
 
-/// A progress dot morphing from `from` to `to` px wide.
+/// A progress dot springing from `from` to `to` px wide.
 pub(super) fn dot<E: IntoElement + Styled + 'static>(
     el: E,
     id: impl Into<ElementId>,
     from: f32,
     to: f32,
 ) -> impl IntoElement {
+    // A spring, sampled into a one-shot easing: it overshoots a touch and settles, then asks for no more frames.
+    let (duration, spring) = gpui::sampled_easing(gpui::SpringConfig::new(420., 26., 1.), 0.01);
     el.with_animation(
         id,
-        Animation::new(PAGE).with_easing(ease_out_quint()),
+        Animation::new(duration).with_easing(spring),
         move |el, t| el.w(px(from + (to - from) * t)),
     )
 }

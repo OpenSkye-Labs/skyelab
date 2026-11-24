@@ -27,7 +27,8 @@ launch), they appear without moving.
   it the way you installed it; SkyeLab never installs anything.
 - **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex` and `~/.codex-*` folder that looks like a login
   (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`).
-  SkyeLab only checks that those names exist: it never opens a file in them, so no login or token is read. Tick the
+  To find accounts SkyeLab only checks that those names exist; it never opens a login or token file. (Import
+  projects, below, reads the session history of accounts you added.) Tick the
   ones you want, edit a label if you like, and click **Add account**. Nothing is saved before that click. Folders
   already added are not offered again.
   Each added account shows whether it is signed in, with **Log in** (a terminal in that account's folder) while it

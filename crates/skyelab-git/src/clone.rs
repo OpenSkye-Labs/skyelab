@@ -47,7 +47,7 @@ pub fn clone_config_args(gh: Option<&GitHub>, url: &str) -> Result<Vec<String>> 
 }
 
 /// Clones `url` (plain https, no login in it: see `skyelab_core::add_project::clone_name`) into `dest`, which must
-/// not exist yet. Credentials come only from `gh` (the account bound to `dest`), else from nowhere: every helper and
+/// not exist yet. Credentials come only from `gh` (the account picked for `dest`), else from nowhere: every helper and
 /// askpass is cleared and prompts are off, so only a public repo clones. Submodules aren't fetched. A failed clone
 /// leaves no folder behind.
 pub fn clone(url: &str, dest: &Path, gh: Option<&GitHub>) -> Result<PathBuf> {

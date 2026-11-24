@@ -1,5 +1,5 @@
 //! Onboarding's frame and the pages that need no detection: progress dots and Skip on top, one page in the middle,
-//! Back and the next action at the bottom (Rex's page-per-step layout); Welcome, Theme with a live miniature of the
+//! Back and the next action at the bottom (one page per step); Welcome, Theme with a live miniature of the
 //! app, and Done.
 
 use super::{Onboarding, OnboardingNext, Step, motion};
@@ -55,7 +55,7 @@ impl Onboarding {
         let theme = cx.theme();
         let step = self.step;
         let enter = Kbd::for_action_in(&OnboardingNext, &self.focus, window);
-        let (next, ready) = self.next_label(cx);
+        let next = self.next_label();
         let forward = self.forward;
         v_flex()
             .size_full()
@@ -151,7 +151,6 @@ impl Onboarding {
                             Button::new("onboarding-next")
                                 .primary()
                                 .label(next)
-                                .disabled(!ready)
                                 .on_click(cx.listener(|this, _, _, cx| this.next(cx))),
                         ),
                     ),
@@ -276,14 +275,16 @@ impl Onboarding {
                     .child(
                         v_flex().flex_1().gap_4().child(list).child(
                             h_flex().child(
-                                SegmentedControl::new("onboarding-mode")
-                                    .icon_item(SkyeIcon::Monitor, "System")
-                                    .icon_item(SkyeIcon::Sun, "Light")
-                                    .icon_item(SkyeIcon::Moon, "Dark")
-                                    .selected(Some(mode))
-                                    .on_click(cx.listener(|this, ix: &usize, _, cx| {
-                                        this.pick_mode(*ix, cx)
-                                    })),
+                                div().debug_selector(|| "onboarding-mode".into()).child(
+                                    SegmentedControl::new("onboarding-mode")
+                                        .icon_item(SkyeIcon::Monitor, "System")
+                                        .icon_item(SkyeIcon::Sun, "Light")
+                                        .icon_item(SkyeIcon::Moon, "Dark")
+                                        .selected(Some(mode))
+                                        .on_click(cx.listener(|this, ix: &usize, _, cx| {
+                                            this.pick_mode(*ix, cx)
+                                        })),
+                                ),
                             ),
                         ),
                     )
@@ -348,17 +349,17 @@ impl Onboarding {
             ))
     }
 
-    /// What Next says on this step, and whether it can go.
-    fn next_label(&self, _: &Context<Self>) -> (SharedString, bool) {
+    /// What Next says on this step.
+    fn next_label(&self) -> SharedString {
         match self.step {
-            Step::Welcome => ("Get started".into(), true),
-            Step::Theme | Step::Agents => ("Continue".into(), true),
+            Step::Welcome => "Get started".into(),
+            Step::Theme | Step::Agents => "Continue".into(),
             Step::Import => match self.picked().len() {
-                0 => ("Continue".into(), true),
-                1 => ("Import 1 project".into(), true),
-                n => (format!("Import {n} projects").into(), true),
+                0 => "Continue".into(),
+                1 => "Import 1 project".into(),
+                n => format!("Import {n} projects").into(),
             },
-            Step::Done => ("Start building".into(), true),
+            Step::Done => "Start building".into(),
         }
     }
 }

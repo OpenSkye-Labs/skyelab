@@ -279,3 +279,7 @@ mod onboarding_import_test;
 mod onboarding_steps_test;
 #[cfg(all(test, unix))]
 mod onboarding_theme_test;
+#[cfg(all(test, unix))]
+mod onboarding_import_back_test;
+#[cfg(all(test, unix))]
+mod add_project_overlap_test;

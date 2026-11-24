@@ -112,26 +112,6 @@ pub fn find_accounts(home: &Path, config: &AccountsConfig) -> Vec<FoundAccount> 
         .collect()
 }
 
-/// Where people keep their checkouts; scanned one level deep.
-const REPO_ROOTS: [&str; 4] = ["code", "projects", "dev", "src"];
-const MAX_REPOS: usize = 8;
-
-/// Git repos directly under `~/code`, `~/projects`, `~/dev` or `~/src`, most recently changed first, at most 8.
-pub fn find_repos(home: &Path) -> Vec<PathBuf> {
-    let mut repos: Vec<(std::time::SystemTime, PathBuf)> = REPO_ROOTS
-        .iter()
-        .filter_map(|r| std::fs::read_dir(home.join(r)).ok())
-        .flat_map(|d| d.flatten())
-        .map(|e| e.path())
-        .filter_map(|p| {
-            let git = std::fs::metadata(p.join(".git")).ok()?;
-            Some((git.modified().unwrap_or(std::time::UNIX_EPOCH), p))
-        })
-        .collect();
-    repos.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    repos.into_iter().take(MAX_REPOS).map(|(_, p)| p).collect()
-}
-
 /// Binds `dir` to `account` for a new project, unless it already resolves to that account. A folder bound to
 /// another account stays an error from `add_binding`: the user picks again, nothing is overwritten.
 pub fn bind_project(config: &mut AccountsConfig, dir: &Path, account: &str) -> Result<()> {

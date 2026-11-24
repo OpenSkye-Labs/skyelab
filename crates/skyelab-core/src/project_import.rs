@@ -88,7 +88,7 @@ pub fn group(candidates: &[Candidate]) -> (Vec<Group>, Vec<usize>) {
                 |n| n.to_string_lossy().into_owned(),
             )
         });
-        // A repo folder without an origin is its own group, keyed by its path.
+        // A repo folder without an origin is a group of its own, named after its folder.
         let found = c
             .repo
             .as_ref()
