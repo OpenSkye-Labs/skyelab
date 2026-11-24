@@ -209,7 +209,7 @@ impl ThreadView {
 
     /// The running agent an answer may go to: an answer lets it carry on, so it is a send like any other, and a folder
     /// rebound (or unbound) since it started ends it instead (`end_refused`).
-    fn answer_session(
+    pub(in crate::workspace) fn answer_session(
         &mut self,
         cx: &mut Context<Self>,
     ) -> Result<std::sync::Arc<std::sync::Mutex<skyelab_agent::Session>>, String> {
@@ -260,6 +260,12 @@ impl ItemsView for ThreadView {
     }
     fn answer(&mut self, id: &str, decision: Decision, _: &mut Window, cx: &mut Context<Self>) {
         ThreadView::answer(self, id, decision, cx)
+    }
+    fn offers_project_rule(&self, tool: &str) -> bool {
+        self.takes_project_rules() && skyelab_core::project_rules::offers(tool)
+    }
+    fn allow_for_project(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_rule_dialog(id, window, cx)
     }
     fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.interrupt(&super::Interrupt, window, cx)

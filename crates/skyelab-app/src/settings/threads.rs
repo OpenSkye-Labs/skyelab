@@ -177,6 +177,16 @@ impl Settings {
                 defaults,
                 cx,
             ))
+            // A project picked: its own "Allow for this project" rules under the folder's account.
+            .when_some(self.rules.clone().filter(|_| self.scope.is_some()), |d, rules| {
+                d.child(section(
+                    "Permission rules",
+                    "Saved with Allow for this project on an approval. SkyeLab allows a matching ask for this \
+                     project's agent under its bound account; never written to the repo.",
+                    [rules.into_any_element()],
+                    cx,
+                ))
+            })
             // App-wide only: a project picked shows just what it can override.
             .when(self.scope.is_none(), |d| {
                 d.child(section(

@@ -175,7 +175,11 @@ impl FakeSource {
         let id = id.into();
         self.record(
             thread_id,
-            &Record::Agent(Event::PermissionResolved { id, decision }),
+            &Record::Agent(Event::PermissionResolved {
+                id,
+                decision,
+                rule: None,
+            }),
         );
     }
 }

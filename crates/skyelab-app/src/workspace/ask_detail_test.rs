@@ -13,6 +13,7 @@ fn tool_item(tool: &str, summary: &str, raw: serde_json::Value) -> ApprovalItem 
         input: serde_json::to_string_pretty(&raw).expect("json"),
         raw,
         decision: None,
+        rule: None,
     }
 }
 

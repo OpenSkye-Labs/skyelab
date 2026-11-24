@@ -286,6 +286,7 @@ pub(crate) fn withdraw_all(open: &Asks) -> Vec<Event> {
         .map(|id| Event::PermissionResolved {
             id,
             decision: Decision::Withdrawn,
+            rule: None,
         })
         .collect()
 }
@@ -321,6 +322,7 @@ fn control(line: &str, open: &Asks) -> Option<Vec<Event>> {
                 .map(|_| Event::PermissionResolved {
                     id,
                     decision: Decision::Withdrawn,
+                    rule: None,
                 })
                 .into_iter()
                 .collect(),
@@ -346,7 +348,8 @@ mod tests {
             events[0],
             Event::PermissionResolved {
                 id: "r1".into(),
-                decision: Decision::Withdrawn
+                decision: Decision::Withdrawn,
+                rule: None,
             }
         );
         assert!(matches!(events[1], Event::Result { .. }));

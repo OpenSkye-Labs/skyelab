@@ -133,6 +133,9 @@ impl ThreadView {
                         this.resumed_prompt = None;
                     }
                     this.push(&record, cx);
+                    if let Record::Agent(Event::Permission { id, tool, input }) = &record {
+                        this.auto_allow(id, tool, input, cx);
+                    }
                     if matches!(record, Record::Agent(Event::Result { .. })) {
                         this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);

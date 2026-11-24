@@ -42,6 +42,8 @@ pub struct ApprovalItem {
     pub raw: Value,
     /// `None` while the agent waits for an answer.
     pub decision: Option<Decision>,
+    /// The project rule that allowed it, when SkyeLab answered by one.
+    pub rule: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -277,9 +279,10 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
                 input: serde_json::to_string_pretty(input).unwrap_or_default(),
                 raw: input.clone(),
                 decision: None,
+                rule: None,
             }))
         }
-        Record::Agent(Event::PermissionResolved { id, decision }) => {
+        Record::Agent(Event::PermissionResolved { id, decision, rule }) => {
             if let Some((ix, a)) = items
                 .iter_mut()
                 .enumerate()
@@ -290,6 +293,7 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
                 })
             {
                 a.decision = Some(*decision);
+                a.rule = rule.clone();
                 first_changed = Some(ix);
             }
         }

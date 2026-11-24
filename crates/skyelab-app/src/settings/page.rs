@@ -152,6 +152,9 @@ impl Settings {
             self.threads_error = None;
             self.error_open = false;
         }
+        if section == Section::Chat {
+            self.refresh_rules(cx); // a binding changed on Accounts shows here
+        }
         cx.notify();
     }
 

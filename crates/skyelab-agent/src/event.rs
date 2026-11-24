@@ -44,6 +44,9 @@ pub enum Event {
     PermissionResolved {
         id: String,
         decision: crate::Decision,
+        /// The project rule SkyeLab allowed it by ("Allow for this project"), in words; `None` otherwise.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rule: Option<String>,
     },
     /// What the agent wrote to stderr, stored when a turn failed or the agent exited with an error.
     Stderr {

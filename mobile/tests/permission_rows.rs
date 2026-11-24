@@ -32,6 +32,7 @@ fn pending_until_resolved() {
     let resolved = Record::Agent(Event::PermissionResolved {
         id: "p1".into(),
         decision: Decision::AllowThread,
+        rule: None,
     });
     apply(&mut items, &resolved);
     assert_eq!(pending(&items), ["p2"]);

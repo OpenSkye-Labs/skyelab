@@ -214,6 +214,7 @@ impl Codex {
             .map(|id| Event::PermissionResolved {
                 id,
                 decision: Decision::Withdrawn,
+                rule: None,
             })
             .collect()
     }
@@ -401,6 +402,7 @@ impl Codex {
                 let events = self.asks.remove(&id).map(|_| Event::PermissionResolved {
                     id,
                     decision: Decision::Withdrawn,
+                    rule: None,
                 });
                 (events.into_iter().collect(), Vec::new())
             }

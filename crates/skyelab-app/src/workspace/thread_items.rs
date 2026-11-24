@@ -43,6 +43,12 @@ pub(super) trait ItemsView: Sized + 'static {
     /// Whether an agent is there to answer a pending permission request.
     fn can_answer(&self, cx: &App) -> bool;
     fn answer(&mut self, id: &str, decision: Decision, window: &mut Window, cx: &mut Context<Self>);
+    /// Whether a pending call to `tool` offers "Allow for this project" (a local thread's own agent).
+    fn offers_project_rule(&self, _tool: &str) -> bool {
+        false
+    }
+    /// Opens the dialog that shows the project rule for ask `id` before saving it.
+    fn allow_for_project(&mut self, _id: &str, _window: &mut Window, _cx: &mut Context<Self>) {}
     /// Stops the running turn instead of answering (T3 keeps Interrupt beside a pending ask).
     fn interrupt_turn(&mut self, window: &mut Window, cx: &mut Context<Self>);
     /// Shows `path` (a tool card's file) in the Changes tab. Remote tabs have no local files.

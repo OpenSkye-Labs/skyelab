@@ -87,6 +87,7 @@ fn a_plan_link_with_an_app_scheme_does_not_open(cx: &mut gpui::TestAppContext) {
             input: raw.to_string(),
             raw,
             decision: None,
+            rule: None,
         })]);
         v.lists.reset(1);
         cx.notify();

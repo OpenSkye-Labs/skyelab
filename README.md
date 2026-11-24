@@ -139,7 +139,7 @@ What's built today:
   delegated threads under Lineage, with their status. macOS and Linux only for now.
 
 - **Tool approvals in the thread.** When an agent needs permission for a tool (a command, an edit), the thread shows
-  what it wants to run and waits: **Allow once**, **Allow for this thread** or **Deny**. Each thread has a
+  what it wants to run and waits: **Allow once**, **Allow for this thread**, **Allow for this project** (a rule SkyeLab keeps per project and account, shown before it is saved) or **Deny**. Each thread has a
   permission mode (Ask, Plan, Accept edits, Full access, the last behind a confirm). Phones and other machines viewing
   the thread can answer too. When a turn fails or the agent exits with an error, its stderr shows as an
   **Agent output** row.

@@ -143,6 +143,11 @@ mod palette_pages_test;
 mod permission_mode_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_thread_test;
+
+#[cfg(all(test, unix))] // the fake agent is a shell script
+mod project_rules_flow_test;
+#[cfg(test)]
+mod project_rules_page_test;
 #[cfg(all(test, unix))]
 mod pr_reopen_test;
 #[cfg(all(test, unix))]

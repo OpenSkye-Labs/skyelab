@@ -20,6 +20,7 @@ mod images;
 mod import;
 mod manage;
 mod model;
+pub mod project_rules;
 pub mod scheduled;
 mod thread_row;
 pub use model::ModelChoice;
