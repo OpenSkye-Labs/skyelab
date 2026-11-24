@@ -32,7 +32,7 @@ fn copy_tree(from: &Path, to: &Path) {
     }
 }
 
-/// `project` bound to account `work`, whose config dir is the fixture; its plugin cache sits outside it (`shared`), as
+/// `project` bound to account `work`, whose config dir is the fixture; its plugin cache is another config dir's (`other-config/plugins/cache`), as
 /// a real `installPath` into another config dir does. Account `home` exists too.
 fn fixture() -> Fixture {
     let tmp = tempfile::tempdir().expect("tempdir");
@@ -44,7 +44,8 @@ fn fixture() -> Fixture {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/claude-plugins");
     let work = root.join("work-config");
     copy_tree(&src, &work);
-    let shared = root.join("shared-cache");
+    let shared = root.join("other-config/plugins/cache");
+    std::fs::create_dir_all(root.join("other-config/plugins")).expect("mkdir");
     std::fs::rename(work.join("plugins/cache"), &shared).expect("move cache");
     let installed = work.join("plugins/installed_plugins.json");
     let text = std::fs::read_to_string(&installed).expect("installed");
@@ -163,7 +164,7 @@ fn enabled_plugin_servers_merge_into_the_grant() {
         "https://mcp.posthog.com/mcp"
     );
     // ${CLAUDE_PLUGIN_ROOT} is the install dir, ${CLAUDE_PLUGIN_DATA} the account's own data dir for that plugin.
-    let rooty = f.root.join("shared-cache/local/rooty/1.0.0");
+    let rooty = f.root.join("other-config/plugins/cache/local/rooty/1.0.0");
     let data = f.config.accounts[0]
         .config_dir
         .join("plugins/data/rooty-local");

@@ -91,8 +91,11 @@ Each entry is dated; newest at the bottom.
   `plugin:<plugin>:<server>` (Claude accepts that name in `--mcp-config`, and the tool names match what users know);
   `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` (`<config>/plugins/data/<plugin>-<marketplace>`) filled in.
   `installPath` may point into another config dir (a copied `installed_plugins.json`); Claude follows it and runs that
-  plugin's skills and hooks from there, so we do too, reading only the plugin's files. A user-scope server keeps a name
-  a plugin also uses. Codex reads `CODEX_HOME/config.toml` itself; SkyeLab now sends its server as the one dotted override key
+  plugin's skills and hooks from there, so we do too, reading only the plugin's files, but only from a `plugins/cache`
+  folder (where Claude installs every plugin): a path elsewhere could be a checkout an agent writes. A plugin's server
+  files must stay inside it (no `../`, no absolute path: one could name a repo's `.mcp.json`), and a file its manifest
+  names must exist. A plugin that breaks any of this, or whose server isn't an object, is left out with a warning; the
+  others load. A user-scope server keeps a name a plugin also uses; two plugins with one server name keep the first. Codex reads `CODEX_HOME/config.toml` itself; SkyeLab now sends its server as the one dotted override key
   `mcp_servers.skyelab` (as T3 does), because a whole `mcp_servers` table replaces the account's list. Not checked
   against a real Codex. The MCP servers start with the agent's env (the allowlist plus the account's own vars) plus
   whatever `env` the account's config gives them. (2026-11-24)

@@ -7,7 +7,7 @@
 use anyhow::{Context as _, Result, bail};
 use serde_json::{Map, Value};
 use std::io::Write as _;
-use std::path::Path;
+use std::path::{Component, Path};
 
 /// The `mcpServers` at the top of `<config_dir>/.claude.json`, where Claude Code keeps user-scope servers. No file or
 /// no key: none. Anything else that isn't an object of objects is an error, so the caller can say why it skipped them.
@@ -107,6 +107,8 @@ fn one_plugin(config_dir: &Path, key: &str, root: &Path) -> Result<Map<String, V
         bail!("its folder {} is missing", root.display());
     }
     let manifest = read_object(&root.join(".claude-plugin/plugin.json"))?.unwrap_or_default();
+    let mut servers = Map::new();
+    // The default `.mcp.json` may be absent; a file the manifest names must be there.
     let files: Vec<String> = match manifest.get("mcpServers") {
         None => vec![".mcp.json".into()],
         Some(Value::String(path)) => vec![path.clone()],
@@ -118,13 +120,26 @@ fn one_plugin(config_dir: &Path, key: &str, root: &Path) -> Result<Map<String, V
                     .context("an mcpServers entry isn't a path")
             })
             .collect::<Result<_>>()?,
-        Some(Value::Object(inline)) => return Ok(named(config_dir, key, root, inline.clone())),
+        Some(Value::Object(inline)) => {
+            servers = named(config_dir, key, root, inline.clone());
+            Vec::new()
+        }
         Some(_) => bail!("its mcpServers is neither a path nor an object"),
     };
-    let mut servers = Map::new();
+    let default = manifest.get("mcpServers").is_none();
     for file in files {
+        // Inside the plugin only: a `../` or absolute path could name a repo's `.mcp.json`.
+        let inside = Path::new(&file)
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir));
+        if !inside {
+            bail!("its server file {file} is outside the plugin");
+        }
         let Some(v) = read_object(&root.join(&file))? else {
-            continue;
+            if default {
+                continue;
+            }
+            bail!("its server file {file} is missing");
         };
         // `.mcp.json` holds `{"mcpServers": {…}}`; a file without that key is the servers map itself.
         let list = match v.get("mcpServers") {
@@ -212,8 +227,28 @@ pub(crate) fn plugin_servers(config_dir: &Path) -> (Map<String, Value>, Vec<Stri
             problems.push(format!("{key}: its install path isn't absolute"));
             continue;
         }
+        // Claude Code installs every plugin into a `plugins/cache` (this config dir's or another's). Anywhere else
+        // could be a checkout an agent can write, which would let it add servers to its own next launch.
+        let parts: Vec<_> = root.components().map(|c| c.as_os_str()).collect();
+        if !parts
+            .windows(2)
+            .any(|w| w[0] == "plugins" && w[1] == "cache")
+        {
+            problems.push(format!(
+                "{key}: it isn't installed in a plugins/cache folder"
+            ));
+            continue;
+        }
         match one_plugin(config_dir, &key, root) {
-            Ok(list) => servers.extend(list),
+            Ok(list) => {
+                for (name, server) in list {
+                    if servers.contains_key(&name) {
+                        problems.push(format!("{key}: another plugin already has {name}"));
+                    } else {
+                        servers.insert(name, server);
+                    }
+                }
+            }
             Err(e) => problems.push(format!("{key}: {e:#}")),
         }
     }

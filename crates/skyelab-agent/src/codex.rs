@@ -208,6 +208,7 @@ impl Codex {
     /// Every open request, withdrawn: its turn or its process is over.
     pub(crate) fn withdraw_all(&mut self) -> Vec<Event> {
         self.questions.clear();
+        self.patches.clear();
         std::mem::take(&mut self.asks)
             .into_keys()
             .map(|id| Event::PermissionResolved {
