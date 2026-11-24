@@ -84,6 +84,7 @@ mod ask_files;
 mod pr_actions;
 mod pr_watch;
 mod shell_card;
+mod smooth_scroll;
 mod surfaces;
 pub(crate) mod thread_checkpoints;
 mod thread_details;
