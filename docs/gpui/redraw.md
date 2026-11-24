@@ -117,3 +117,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   the rows' heights. For rows changed in place (a tool result, a fold toggle, a row refreshed) use `remeasure_items`,
   which keeps the offset; `timeline_list::splice` does that for the rows a change keeps and splices only the rows added or
   removed. Test scrolling with `ScrollEvent` pixel deltas and check each step moves a drawn row by exactly the delta.
+
+- A `list` row is laid out whole on every frame it draws, so one growing row costs more with each delta: a 15 KB
+  streamed reply's frames climbed from 2.2 to 3.1 ms (p50) as it grew. Split what grows into rows: the timeline
+  model moves a streaming reply's whole markdown blocks (cut after a blank line, never inside a code fence) into a
+  `Live` row of their own once the tail passes 2 KB (`timeline::split_live`), so a delta re-lays out only the tail
+  and the rows on screen; the complete block joins the parts into one row again. Measured with `scripts/perf.sh
+  stream`'s p50 per 10 s: flat at 2.0-2.2 ms. Parts sit together (no row padding between them) to read as one message.
