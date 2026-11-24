@@ -66,8 +66,10 @@ never a repo's `.mcp.json` or a folder's local-scope servers, so a cloned repo c
 permission for their tools like any other tool; Codex follows its own approval setting for them (not yet tested
 against the real Codex). A server whose name starts with `skyelab` is left out, with a note in the thread (SkyeLab's own server keeps that
 name). If the account's
-`.claude.json` can't be read, the thread starts without those servers and says why. Claude Code connects no plugin MCP
-servers in this mode (plugin skills and commands still load). After you add or change a server, run **Restart Agent
+`.claude.json` can't be read, the thread starts without those servers and says why. The MCP servers of the account's
+enabled Claude Code plugins load too (the plugins on in its `settings.json`, installed for the user, not per project),
+named as Claude names them, such as `plugin:posthog:posthog`, and their tools ask like any other. A plugin that can't be
+read is left out with a note; so is a plugin server whose name one of your own servers already uses. After you add or change a server, run **Restart Agent
 Session** in a thread to pick it up.
 
 Accounts and bindings are saved in `accounts.toml` in the platform config folder:

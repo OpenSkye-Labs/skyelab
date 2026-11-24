@@ -48,10 +48,18 @@ fn fixture() -> Fixture {
     std::fs::rename(work.join("plugins/cache"), &shared).expect("move cache");
     let installed = work.join("plugins/installed_plugins.json");
     let text = std::fs::read_to_string(&installed).expect("installed");
-    std::fs::write(&installed, text.replace("@CACHE@", shared.to_str().expect("utf8"))).expect("write");
+    std::fs::write(
+        &installed,
+        text.replace("@CACHE@", shared.to_str().expect("utf8")),
+    )
+    .expect("write");
     let home = root.join("home-config");
     std::fs::create_dir_all(home.join("plugins/cache/p/personal/1/.claude-plugin")).expect("mkdir");
-    std::fs::write(home.join("settings.json"), r#"{"enabledPlugins":{"personal@p":true}}"#).expect("settings");
+    std::fs::write(
+        home.join("settings.json"),
+        r#"{"enabledPlugins":{"personal@p":true}}"#,
+    )
+    .expect("settings");
     std::fs::write(
         home.join("plugins/installed_plugins.json"),
         format!(
@@ -150,10 +158,15 @@ fn enabled_plugin_servers_merge_into_the_grant() {
     let servers = &config["mcpServers"];
     assert_eq!(servers["plugin:aikido:aikido-mcp"]["command"], "npx");
     assert_eq!(servers["plugin:posthog:posthog"]["type"], "http");
-    assert_eq!(servers["plugin:posthog:posthog"]["url"], "https://mcp.posthog.com/mcp");
+    assert_eq!(
+        servers["plugin:posthog:posthog"]["url"],
+        "https://mcp.posthog.com/mcp"
+    );
     // ${CLAUDE_PLUGIN_ROOT} is the install dir, ${CLAUDE_PLUGIN_DATA} the account's own data dir for that plugin.
     let rooty = f.root.join("shared-cache/local/rooty/1.0.0");
-    let data = f.config.accounts[0].config_dir.join("plugins/data/rooty-local");
+    let data = f.config.accounts[0]
+        .config_dir
+        .join("plugins/data/rooty-local");
     let tools = &servers["plugin:rooty:tools"];
     assert_eq!(tools["command"], format!("{}/bin/tools", rooty.display()));
     assert_eq!(tools["args"][1], format!("{}/db", data.display()));
@@ -191,7 +204,10 @@ fn a_user_server_keeps_a_name_a_plugin_also_uses() {
     .expect(".claude.json");
     let (reported, warning, config) = run(&f);
     assert_eq!(reported, LOADED);
-    assert_eq!(config["mcpServers"]["plugin:posthog:posthog"]["command"], "/bin/mine");
+    assert_eq!(
+        config["mcpServers"]["plugin:posthog:posthog"]["command"],
+        "/bin/mine"
+    );
     let warning = warning.expect("the clash is said");
     assert!(warning.contains("plugin:posthog:posthog"), "{warning}");
 }
