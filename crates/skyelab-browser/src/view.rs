@@ -45,6 +45,9 @@ pub struct BrowserView {
     /// The host shows the pane ([`Self::set_visible`]); the page is also hidden while the ⋯ menu is open.
     shown: bool,
     menu_open: bool,
+    /// An agent's page, or a copy of one ([`Self::mark_agent_page`]): its copies open private and it never opens
+    /// in the system browser, so an agent never gets a page into the user's own profile.
+    agent_page: bool,
     find: Option<controls_ui::Find>,
     _find_task: Task<()>,
     _data_dir: Option<tempfile::TempDir>,
@@ -70,6 +73,15 @@ impl BrowserView {
     /// storage or cache shared with the user's tabs, other agents' tabs or later runs.
     pub fn new_agent(window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self::with_wry(None, true, window, cx)
+    }
+
+    /// Marks this as an agent's page, or a copy of one (see `agent_page`). It stays marked after Take over.
+    pub fn mark_agent_page(&mut self) {
+        self.agent_page = true;
+    }
+
+    pub fn is_agent_page(&self) -> bool {
+        self.agent_page
     }
 
     fn with_wry(
@@ -191,6 +203,7 @@ impl BrowserView {
             zoom: 1.0,
             shown: true,
             menu_open: false,
+            agent_page: false,
             find: None,
             _find_task: Task::ready(()),
             _data_dir: None,

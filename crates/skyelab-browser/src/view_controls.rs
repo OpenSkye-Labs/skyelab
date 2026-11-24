@@ -112,6 +112,14 @@ impl BrowserView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.agent_page {
+            return self.report(
+                Err(anyhow::anyhow!(
+                    "an agent's page never opens in your browser; copy its URL instead"
+                )),
+                cx,
+            );
+        }
         match self
             .page_url(cx)
             .as_deref()
@@ -302,7 +310,9 @@ impl BrowserView {
             .dropdown_menu_with_anchor(gpui::Anchor::TopRight, move |menu, _, cx| {
                 let url = this.upgrade().and_then(|b| b.read(cx).page_url(cx));
                 let no_page = url.is_none();
-                let no_web = url.as_deref().and_then(controls::external_url).is_none();
+                let agent_page = this.upgrade().is_some_and(|b| b.read(cx).agent_page);
+                let no_web =
+                    agent_page || url.as_deref().and_then(controls::external_url).is_none();
                 let menu = menu
                     .action_context(focus.clone())
                     .menu("Reload", Box::new(BrowserReload))

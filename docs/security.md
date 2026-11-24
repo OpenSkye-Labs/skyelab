@@ -20,6 +20,9 @@
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
   the project's or your Claude settings. Full access asks before it turns on.
+- **Agent pages stay private.** An agent's browser tab has its own in-memory cookies and storage. Duplicate tab on it
+  (also after Take over, and on any copy of it) opens another private, throwaway tab, never one on your own browser
+  profile. Reopen Closed never brings these tabs back, and Open in system browser is refused for them.
 - **Delegation stays on one account.** An agent can start threads only in projects bound to its own account, and can
   read or message only the threads it started. Its tools reach SkyeLab over a private socket with a one-use token.
 - **Updates.** Only the shown release's own assets download (redirects only to GitHub's download hosts, size

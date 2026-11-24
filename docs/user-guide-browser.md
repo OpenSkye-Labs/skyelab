@@ -13,7 +13,8 @@ the tab):
   there is none. <kbd>Esc</kbd> closes it. The search runs inside the page, so the page's own scripts can see
   what you search for.
 - The **⋯** button at the end of the toolbar has **Reload**, **Duplicate tab** (a new tab of yours on the same page,
-  even when an agent drives this one), **Copy URL**, **Open in system browser** (http and https pages only), find and
+  even when an agent drives this one; see below for an agent's page), **Copy URL**, **Open in system browser** (http
+  and https pages only, never an agent's page), find and
   zoom, and, in development builds, **Open DevTools**, which opens the page's inspector in a window of its own.
   The page hides while that menu is open, because it would otherwise draw over the menu.
 
@@ -36,3 +37,9 @@ An agent can't see or drive the tabs you open with <kbd>⌥⌘B</kbd>, or anothe
 in-memory cookies and storage, so it is not signed in to anything you are, and nothing it sets reaches your tabs.
 Take over reloads the page, which stops any script the agent left running. While the agent still has the tab,
 don't sign in to anything in it: the agent can read that page. macOS and Linux only.
+
+An agent's page never moves into your own browser profile. **Duplicate tab** on an agent's tab (before or after Take
+over), or on a copy of one, opens a private, throwaway tab: its own in-memory cookies and storage, gone when it
+closes. **Reopen Closed** never brings these tabs back, and **Open in system browser** is off for them. To open the
+page in your profile anyway, use **Copy URL** and paste it into a tab of yours. Your own tabs duplicate into your
+profile as before.
