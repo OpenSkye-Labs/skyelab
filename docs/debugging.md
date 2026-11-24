@@ -212,7 +212,6 @@ frames are timed without the overlay's tick), drives the app with `SKYELAB_VERIF
 `PERF_SAMPLY=1` records a samply profile of the run (with a `.syms.json` sidecar), and
 `scripts/profile-top.py <profile.json.gz>` prints the main thread's top functions without the Firefox Profiler
 (`SPAN=50-57` limits it to a stretch, in seconds). `PERF_FEATURES=dhat-heap` (or `hotpath`) builds with a profiler.
-Results and the numbers before and after each fix are kept in `.agent/perf/`.
 
 ## Heap profiles (dhat)
 

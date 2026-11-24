@@ -1,4 +1,4 @@
-//! Regression tests for the review findings in .agent/review/findings.md.
+//! Regression tests for findings from a code review.
 
 use std::fs;
 use std::path::{Path, PathBuf};

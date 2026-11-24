@@ -229,7 +229,7 @@ pub(crate) fn mark_launch() {
 }
 
 /// A launch milestone (`first frame`, `threads listed`), once each, to stderr and the debug log while debug mode
-/// is on: the cold and warm start numbers in `.agent/perf/`.
+/// is on: the cold and warm start numbers.
 pub(crate) fn launch_milestone(what: &'static str) {
     static SEEN: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
     let Some(at) = LAUNCHED.get().filter(|_| debug::enabled()) else {

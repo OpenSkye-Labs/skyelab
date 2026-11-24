@@ -77,7 +77,7 @@ That keeps it small whichever UI tech it ends up on.
 
 ## Roadmap
 
-Each item goes through `/loop` (see CLAUDE.md).
+Each item follows [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 1. **Accounts:** core resolver and config (done). Then an accounts/bindings settings UI, and a binding indicator in every thread header.
 2. **Threads:** run `claude` in a folder with the resolved account, stream output into a thread view, and persist to SQLite.

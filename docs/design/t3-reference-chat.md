@@ -1,7 +1,7 @@
 # T3 Code design reference: chat, composer, diff, terminal, palette, settings
 
 The second half of [t3-reference.md](t3-reference.md) (tokens, shell, sidebar, primitives and the GPUI mapping are
-there). Paths are relative to `/Volumes/leo-exe/projects/openskye/t3code` (main, `6b38ec931a`); `c/` means
+there). Paths are relative to a T3 Code clone (main, `6b38ec931a`); `c/` means
 `apps/web/src/components/`, `css` means `apps/web/src/index.css`.
 
 ## 1. Message list
