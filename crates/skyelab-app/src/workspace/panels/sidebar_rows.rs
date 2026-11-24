@@ -1,10 +1,11 @@
 //! The sidebar's rows: a flat list's thread row (title, reply preview, meta line), the plain row (remote projects and their threads), and the
 //! project scope button.
 
-use super::sidebar::{RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, SidebarSection};
+use super::sidebar::{Ask, RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, SidebarSection};
 use super::*;
 use crate::ui::SkyeIcon;
 use gpui::AnyElement;
+use gpui_component::Colorize as _;
 use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
 use skyelab_core::snooze;
 
@@ -72,19 +73,27 @@ fn thread_row(
     let action = item.action.boxed_clone();
     let empty = RowMarks::default();
     let marks = marks.unwrap_or(&empty);
-    let (pinned, unread, approval) = (marks.pinned, marks.unread, marks.approval);
+    let (pinned, unread) = (marks.pinned, marks.unread);
     let project = item.project.clone().unwrap_or_default();
     let snoozed = marks.shelf.and_then(|s| s.snoozed_until);
     let running = matches!(
         item.status,
         Some(ui::Status::Starting | ui::Status::Running)
     );
-    let status = if approval {
-        Some((
-            Icon::new(SkyeIcon::TriangleAlert),
-            "Approval".into(),
-            theme.warning,
-        ))
+    let status = if let Some(ask) = marks.ask {
+        // T3's colors: amber for a permission, indigo for a question, violet for a plan.
+        let (icon, color) = match ask {
+            Ask::Approval => (SkyeIcon::TriangleAlert, theme.warning),
+            Ask::Input => (
+                SkyeIcon::MessageCircle,
+                theme.blue.mix_oklab(theme.magenta, 0.7),
+            ),
+            Ask::Plan => (
+                SkyeIcon::ClipboardList,
+                theme.magenta.mix_oklab(theme.blue, 0.6),
+            ),
+        };
+        Some((Icon::new(icon), ask.label().into(), color))
     } else if let Some(until) = snoozed.filter(|_| !running) {
         // T3's alarm clock: asleep shows when it wakes; woke (passed, not opened yet) says so.
         if snooze::is_woke(Some(until), now) {

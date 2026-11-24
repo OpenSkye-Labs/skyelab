@@ -122,7 +122,7 @@ impl Workspace {
                     }),
                     scheduled: t.scheduled_task_id.is_some(),
                     unread: t.unread,
-                    approval: state.approval,
+                    ask: state.ask,
                     started_ms: state.started_ms.filter(|_| state.running()),
                     card: Some(std::rc::Rc::new(card)),
                     menu: super::manage::thread_menu(t),

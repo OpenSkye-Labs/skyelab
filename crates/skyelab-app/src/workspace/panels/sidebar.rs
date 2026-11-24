@@ -48,6 +48,37 @@ pub struct SidebarSection {
     pub foldable: bool,
 }
 
+/// What a waiting agent asks the user for, as T3's row status names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Ask {
+    /// A permission request.
+    Approval,
+    /// An AskUserQuestion.
+    Input,
+    /// An ExitPlanMode plan to approve.
+    Plan,
+}
+
+impl Ask {
+    /// The ask a waiting request's tool makes.
+    pub fn of(tool: &str) -> Self {
+        match tool {
+            skyelab_agent::QUESTION_TOOL => Self::Input,
+            skyelab_agent::PLAN_TOOL => Self::Plan,
+            _ => Self::Approval,
+        }
+    }
+
+    /// The row's status word (T3: Approval, Input; a waiting plan is its "Plan Ready").
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Approval => "Approval",
+            Self::Input => "Input",
+            Self::Plan => "Plan ready",
+        }
+    }
+}
+
 /// What a thread row carries besides its section item: kept apart so remote sections build rows as before.
 #[derive(Default)]
 pub struct RowMarks {
@@ -57,8 +88,8 @@ pub struct RowMarks {
     /// A scheduled task started it (from the stored row): the "Scheduled" badge.
     pub scheduled: bool,
     pub unread: bool,
-    /// The agent waits for a permission answer.
-    pub approval: bool,
+    /// What the agent waits on the user for.
+    pub ask: Option<Ask>,
     /// The right-click menu: label and the action it dispatches.
     pub menu: Vec<(SharedString, Box<dyn Action>)>,
     /// The agent's last reply as plain text, drawn muted under the title.
