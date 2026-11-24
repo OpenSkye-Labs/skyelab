@@ -63,20 +63,13 @@ impl Settings {
         }
     }
 
-    /// Asks for a terminal running `codex login` in a Codex account's `CODEX_HOME`.
-    pub(crate) fn codex_log_in(&mut self, id: &str, cx: &mut Context<Self>) {
-        let dir = self
-            .config
-            .accounts
-            .iter()
-            .find(|a| a.id == id && a.provider == Provider::Codex)
-            .map(|a| a.config_dir.clone());
-        match dir {
-            Some(dir) => cx.emit(SettingsEvent::CodexLogin { dir }),
-            None => {
-                self.error = Some(format!("'{id}' is not a Codex account"));
-                cx.notify();
-            }
+    /// Asks for a terminal that logs account `id` in to its agent (`claude auth login` or `codex login`).
+    pub(crate) fn log_in(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.config.accounts.iter().any(|a| a.id == id) {
+            cx.emit(SettingsEvent::AgentLogin { id: id.to_owned() });
+        } else {
+            self.error = Some(format!("no account '{id}'"));
+            cx.notify();
         }
     }
 

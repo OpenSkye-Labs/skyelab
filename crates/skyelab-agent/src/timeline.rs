@@ -336,7 +336,8 @@ pub fn apply(items: &mut Items, record: &Record) -> Option<usize> {
             | Event::Unknown(_)
             | Event::RateLimit { .. }
             | Event::SessionGone
-            | Event::Mcp { .. },
+            | Event::Mcp { .. }
+            | Event::Context { .. },
         ) => {}
     }
     if items.len() > before {

@@ -91,6 +91,21 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         warning: Option<String>,
     },
+    /// How full the context window is: `tokens` the newest model call took in and wrote (Claude: a main assistant
+    /// message's input, cache and output tokens; Codex: `last.totalTokens`), `window` the model's window when the agent
+    /// says (Claude's result `modelUsage.*.contextWindow`, Codex's `modelContextWindow`). Claude sends the two on
+    /// different lines, so either may be missing; the newest of each holds.
+    Context {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tokens: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        window: Option<u64>,
+        /// The model the reading is for (Claude's `message.model`, or the `modelUsage` key): `modelUsage` keeps
+        /// listing every model the process used, so a window counts only for its own model. `None` from Codex, whose
+        /// window is always the running model's.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        model: Option<String>,
+    },
     /// The session `--resume` named doesn't exist any more (another config dir, or its history was deleted).
     SessionGone,
     /// Any line we don't model, or that doesn't parse: the raw JSON, or the raw text as a JSON string.
@@ -464,4 +479,40 @@ fn claude_usage(u: &Value) -> Usage {
         input: n("input_tokens") + n("cache_creation_input_tokens") + n("cache_read_input_tokens"),
         output: n("output_tokens"),
     }
+}
+
+/// A main-thread assistant line's context reading: input, cache writes, cache reads and output, and its model.
+/// `None` for a subagent's line and for a placeholder usage with no input.
+pub(crate) fn claude_context(v: &Value) -> Option<Event> {
+    if v["type"] != "assistant" || !v["parent_tool_use_id"].is_null() {
+        return None;
+    }
+    let u = v["message"].get("usage").filter(|u| u.is_object())?;
+    let n = |k: &str| u[k].as_u64().unwrap_or_default();
+    let input = n("input_tokens")
+        .saturating_add(n("cache_creation_input_tokens"))
+        .saturating_add(n("cache_read_input_tokens"));
+    (input > 0).then(|| Event::Context {
+        tokens: Some(input.saturating_add(n("output_tokens"))),
+        window: None,
+        model: v["message"]["model"].as_str().map(str::to_owned),
+    })
+}
+
+/// Each model's window from a result's `modelUsage`.
+pub(crate) fn claude_context_windows(v: &Value) -> Vec<Event> {
+    let Some(models) = v["modelUsage"].as_object() else {
+        return Vec::new();
+    };
+    models
+        .iter()
+        .filter_map(|(model, m)| {
+            let window = m["contextWindow"].as_u64().filter(|w| *w > 0)?;
+            Some(Event::Context {
+                tokens: None,
+                window: Some(window),
+                model: Some(model.clone()),
+            })
+        })
+        .collect()
 }

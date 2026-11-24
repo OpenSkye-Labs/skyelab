@@ -28,21 +28,18 @@ run **Set Up Accounts** from the command palette.
 
 ### Add an account
 
-1. Sign in to the account in its own config folder:
-
-   ```sh
-   CLAUDE_CONFIG_DIR=~/.claude-work claude auth login
-   ```
-
-2. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude** or **Codex**, give
+1. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude** or **Codex**, give
    it a name (`Work`; the id is made from it unless you type one), choose its config folder
    (`/Users/you/.claude-work`, or **Choose…**), then click **Add account**. Each account shows as a card: its provider
    mark in the account's color, its name (click it, or the pencil, to edit in place) and its config folder, with a
    copy button.
+2. Press **Log in** on its card. For Claude that opens a terminal tab running `claude auth login` with
+   `CLAUDE_CONFIG_DIR` set to the account's folder (and its GitHub folder as `GH_CONFIG_DIR`, when it has one), so
+   the login lands in that folder and nowhere else. SkyeLab creates the folder first, private to you, and never sees
+   the token. Signing in from a shell works too: `CLAUDE_CONFIG_DIR=~/.claude-work claude auth login`.
 
-For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). After adding it,
-press **Log in** on its card: that opens a terminal running `codex login` with `CODEX_HOME` set to that
-folder (SkyeLab creates the folder first, private to you). A config file written before Codex support has no
+For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). Its **Log in** runs
+`codex login` with `CODEX_HOME` set to that folder, created the same way. A config file written before Codex support has no
 `provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's
 sessions); to switch, add a new account and re-bind the folder.
 

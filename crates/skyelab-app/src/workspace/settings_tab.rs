@@ -192,17 +192,18 @@ impl Workspace {
                     }
                     SettingsEvent::Closed => return this.close_settings(window, cx),
                     SettingsEvent::GhLogin { dir } => (gh_login_options(&gh_bin(cx), dir), dir),
-                    SettingsEvent::CodexLogin { dir } => (
-                        github::codex_login_options(&github::codex_bin(cx), dir),
-                        dir,
-                    ),
+                    SettingsEvent::AgentLogin { id } => {
+                        return this.log_in_account(&LogInAccount { id: id.clone() }, window, cx);
+                    }
                 };
                 // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
                 this.close_settings(window, cx);
                 // The tab names the account being logged in to, not the folder it starts in.
-                let account = this.config.accounts.iter().find(|a| {
-                    a.gh_config_dir.as_deref() == Some(dir.as_path()) || a.config_dir == *dir
-                });
+                let account = this
+                    .config
+                    .accounts
+                    .iter()
+                    .find(|a| a.gh_config_dir.as_deref() == Some(dir.as_path()));
                 let account = account.cloned();
                 let opened = opened.and_then(|o| this.add_terminal_with(o, account, window, cx));
                 if let Err(e) = opened {
@@ -212,6 +213,30 @@ impl Workspace {
         ));
         self.settings = Some(settings.clone());
         settings
+    }
+
+    /// Opens a terminal tab that logs account `a.id` in to its agent, under that account's own config dir.
+    pub(super) fn log_in_account(
+        &mut self,
+        a: &LogInAccount,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(account) = self.config.accounts.iter().find(|x| x.id == a.id).cloned() else {
+            eprintln!("no account '{}' to log in", a.id);
+            return;
+        };
+        let bin = match account.provider {
+            skyelab_core::Provider::Claude => self.backend.claude_bin.clone(),
+            skyelab_core::Provider::Codex => github::codex_bin(cx),
+        };
+        let options =
+            github::agent_login_options(&bin, github::login_args(account.provider), &account);
+        // The login terminal opens in the bottom dock, under the modal: close it so the terminal shows.
+        self.close_settings(window, cx);
+        if let Err(e) = options.and_then(|o| self.add_terminal_with(o, Some(account), window, cx)) {
+            eprintln!("failed to open the login terminal: {e:#}");
+        }
     }
 
     pub(super) fn reload_accounts(&mut self) {

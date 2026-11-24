@@ -4,9 +4,12 @@
 //! SkyeLab sees the same stream as from `claude`.
 
 use crate::{Decision, DeltaKind, Event, Mode, Usage};
+#[path = "codex_config.rs"]
+mod config;
 #[path = "codex_items.rs"]
 mod items;
 use anyhow::{Context as _, Result};
+pub(crate) use config::{mcp_servers, policy};
 use items::{NOISE, answer, completed, delta, failed, plan, rate_limit, started};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -43,19 +46,6 @@ fn main_repo(dir: &Path) -> Option<PathBuf> {
     let common = std::fs::read_to_string(gitdir.join("commondir")).ok()?;
     let common = std::fs::canonicalize(gitdir.join(common.trim())).ok()?;
     common.parent().map(Path::to_owned)
-}
-
-/// The `config` override for SkyeLab's tools, from a `claude --mcp-config` grant file, sent over stdin (no token on a
-/// command line). A dotted key sets one entry; a whole `mcp_servers` table would drop the account's own servers.
-pub(crate) fn mcp_servers(grant: &Path) -> Result<Value> {
-    let text =
-        std::fs::read_to_string(grant).with_context(|| format!("reading {}", grant.display()))?;
-    let v: Value = serde_json::from_str(&text).context("parsing the MCP grant")?;
-    let s = &v["mcpServers"]["skyelab"];
-    anyhow::ensure!(s["command"].is_string(), "the MCP grant names no command");
-    Ok(
-        json!({ "mcp_servers.skyelab": { "command": s["command"], "args": s["args"], "env": s["env"] } }),
-    )
 }
 
 /// Client state for one app-server process.
@@ -96,16 +86,6 @@ pub(crate) struct Codex {
     mode_sent: Option<Mode>,
     /// Starts every ask id, new per process (see `claude::Book`).
     pub(crate) nonce: String,
-}
-
-/// Codex's `approvalPolicy` and `sandbox` for a mode. Codex has no plan mode, so Plan is a read-only sandbox.
-pub(crate) fn policy(mode: Mode) -> (&'static str, &'static str) {
-    match mode {
-        // Edits inside the folder never ask under workspace-write, so Accept edits differs only for Claude.
-        Mode::Default | Mode::AcceptEdits => ("untrusted", "workspace-write"),
-        Mode::Plan => ("on-request", "read-only"),
-        Mode::Bypass => ("never", "danger-full-access"),
-    }
 }
 
 impl Codex {
@@ -439,7 +419,10 @@ impl Codex {
                 if let Some(total) = tokens::reading(&p["tokenUsage"], &mut self.turn_base) {
                     self.tokens = Some(total);
                 }
-                (Vec::new(), Vec::new())
+                (
+                    tokens::context(&p["tokenUsage"]).into_iter().collect(),
+                    Vec::new(),
+                )
             }
             "turn/plan/updated" => (plan(p).into_iter().collect(), Vec::new()),
             "account/rateLimits/updated" if p["rateLimits"].is_object() => {
@@ -469,3 +452,7 @@ mod tests;
 #[cfg(test)]
 #[path = "codex_stream_tests.rs"]
 mod stream_tests;
+
+#[cfg(test)]
+#[path = "context_stream_test.rs"]
+mod context_stream_test;

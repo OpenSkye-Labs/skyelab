@@ -53,6 +53,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::go_back))
             .on_action(cx.listener(Self::go_forward))
             .on_action(cx.listener(Self::open_settings_section))
+            .on_action(cx.listener(Self::log_in_account))
             .on_action(cx.listener(Self::focus_next_area))
             .on_action(cx.listener(Self::focus_previous_area))
             .on_action(cx.listener(Self::focus_composer))

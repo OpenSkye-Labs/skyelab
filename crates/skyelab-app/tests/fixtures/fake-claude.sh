@@ -1,6 +1,7 @@
 #!/bin/sh
 # `--version` prints a fixed version (the Welcome page's agent list).
 [ "$1" = --version ] && { echo '2.1.0 (Claude Code)'; exit 0; }
+[ "$1 $2" = "auth login" ] && { echo "fake claude auth login for $CLAUDE_CONFIG_DIR"; exit 0; }
 # Stand-in for `claude` (tests and SKYELAB_CLAUDE_BIN): replays a recorded session, reports the
 # account dir and args it got, then echoes every stdin line so tests can see what was sent.
 # A prompt starting "permit" asks to run `make deploy` (a can_use_tool control request), waits for the answer,
@@ -10,7 +11,8 @@
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
 # plan and a question (left waiting). "subagent" runs two subagents (fake-subagent.sh), and "login" fails the turn
-# the way a signed-out Claude Code does. With a .fake-session-gone file in the folder, a --resume start fails the way
+# the way a signed-out Claude Code does. "context" ends a turn whose last call held 170k tokens of a 200k window
+# (85%: the meter warns and hints /compact). `auth login` prints which config dir it logs in to and exits 0. With a .fake-session-gone file in the folder, a --resume start fails the way
 # Claude Code does for a session it doesn't have; a fresh start then reports session fake-sess-new.
 # A title call (`-p ... --no-session-persistence`) appends its config dir, args (one per line) and stdin to
 # .fake-title-call in its folder and answers "Fake title from <config dir name>"; a commit message prompt gets
@@ -114,6 +116,9 @@ while IFS= read -r line; do
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
     *'"content":"subagent'*)
       sh "$(dirname "$0")/fake-subagent.sh" ;;
+    *'"content":"context'*)
+      printf '{"type":"assistant","parent_tool_use_id":null,"message":{"id":"msg_c","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Context is filling up."}],"usage":{"input_tokens":2,"cache_creation_input_tokens":1000,"cache_read_input_tokens":168598,"output_tokens":400}},"session_id":"fake-sess-1"}\n'
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":50,"result":"Context is filling up.","session_id":"fake-sess-1","total_cost_usd":0,"modelUsage":{"claude-opus-5-5":{"inputTokens":170000,"outputTokens":400,"contextWindow":200000}}}\n' ;;
     *'"content":"login'*)
       printf '{"type":"result","subtype":"success","is_error":true,"duration_ms":40,"total_cost_usd":0,"result":"Not logged in \\u00b7 Please run /login"}\n' ;;
     *'"content":"partial'*)

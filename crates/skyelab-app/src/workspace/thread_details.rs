@@ -184,6 +184,7 @@ pub(in crate::workspace) struct DetailsSig {
     cwd: std::path::PathBuf,
     use_worktree: bool,
     status: Status,
+    context: Option<super::thread::context_meter::Meter>,
 }
 
 impl ThreadView {
@@ -207,6 +208,7 @@ impl ThreadView {
             cwd: self.cwd.clone(),
             use_worktree: self.wt.use_worktree,
             status: self.live_status(),
+            context: self.context_meter(),
         }
     }
 

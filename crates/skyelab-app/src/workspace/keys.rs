@@ -24,6 +24,12 @@ pub struct OpenSettingsSection {
 
 #[derive(Clone, PartialEq, gpui::Action)]
 #[action(namespace = skyelab, no_json)]
+pub struct LogInAccount {
+    pub id: String,
+}
+
+#[derive(Clone, PartialEq, gpui::Action)]
+#[action(namespace = skyelab, no_json)]
 pub struct SelectProject {
     pub id: i64,
 }

@@ -45,6 +45,8 @@ mod session;
 #[path = "thread_window.rs"]
 mod window_owner;
 
+#[path = "thread_context.rs"]
+pub(super) mod context_meter;
 #[path = "thread_event.rs"]
 mod event;
 pub use super::thread_details::ChildLink;
@@ -71,6 +73,7 @@ pub struct ThreadView {
     pub(super) items: super::thread_model::Items,
     /// `Some(resets_at)` while the account's usage limit holds the agent back.
     pub(super) limited: Option<Option<i64>>,
+    pub(super) context: context_meter::Reading,
     /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
     pub(super) lists: window_owner::Lists,
     expanded: HashSet<String>,
@@ -244,6 +247,7 @@ impl ThreadView {
                         if fork_made.is_none_or(|made| *at > made) {
                             super::thread_details::fold_mcp(&mut this.details.mcp, r);
                         }
+                        this.note_context(r);
                     }
                     this.lists.reset(this.items.len());
                     this.load_turn_files(cx);
@@ -301,6 +305,7 @@ impl ThreadView {
             needs_binding: false,
             items: Default::default(),
             limited: None,
+            context: Default::default(),
             lists,
             expanded: HashSet::new(),
             timeline: Default::default(),
@@ -417,6 +422,10 @@ impl ThreadView {
             cx.emit(ThreadViewEvent::UsageReported);
         }
         self.note_model(record, true);
+        if matches!(record, Record::Agent(skyelab_agent::Event::Context { .. })) {
+            self.note_context(record);
+            cx.notify();
+        }
         if super::thread_details::fold_mcp(&mut self.details.mcp, record) {
             cx.notify();
         }

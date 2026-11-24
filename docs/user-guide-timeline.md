@@ -50,8 +50,9 @@ says what went wrong:
 - **×** closes the banner until another turn fails.
 
 When the agent says its account isn't signed in ("Not logged in", a 401), the banner says **Account Work isn't signed
-in** and **Open Settings** goes to Settings → Accounts. Sign that account in again (for Claude Code, run `claude` with
-its `CLAUDE_CONFIG_DIR` and `/login`). SkyeLab never retries under another account: the folder's binding decides.
+in**. **Log in** opens a terminal tab that signs that same account in (`claude auth login` or `codex login`, with the
+account's own config folder); when it finishes, press **Retry**. **Open Settings** goes to Settings → Accounts.
+SkyeLab never retries under another account: the folder's binding decides.
 Stopping a turn yourself (Stop, Interrupt) shows no banner.
 
 ## Find in thread
