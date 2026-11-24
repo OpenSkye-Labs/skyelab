@@ -97,7 +97,8 @@ What's built today:
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.
 - **Terminal.** An embedded terminal panel (`alacritty_terminal`), opened in the project or worktree folder, with
   split panes, tabs that follow their thread, and **Add to prompt** to send selected output to the agent.
-- **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
+- **Browser preview.** A browser tab for your dev server, with zoom, find in page, Copy URL, Duplicate tab, Open in
+  system browser and (development builds) DevTools. Agents can open their own tab and navigate it, read its
   URL, evaluate JavaScript in it and take a screenshot of it (http and https only, localhost included; screenshots
   on macOS and Linux). The tab says an agent controls it;
   **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps

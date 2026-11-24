@@ -150,6 +150,25 @@ press <kbd>⌘L</kbd> (<kbd>Ctrl+Shift+L</kbd>) or right-click and pick **Add to
 of the thread on screen as a chip (click it to read the text, × to drop it) and is sent after your message as a
 code block, up to 20,000 characters.
 
+### Browser tabs
+
+<kbd>⌥⌘B</kbd> opens a browser tab in the right panel. Type a `localhost` address, any http or https address, or a
+local file path in its address bar. While the tab has the focus (its address bar, or right after you open or click
+the tab):
+
+- <kbd>⌘+</kbd> / <kbd>⌘−</kbd> zoom the page in and out, <kbd>⌘0</kbd> puts it back to its own size
+  (<kbd>Ctrl</kbd> on Linux and Windows). The toolbar shows the zoom level when it isn't 100%; click it to reset.
+- <kbd>⌘F</kbd> (<kbd>Ctrl+F</kbd>) opens a find bar under the toolbar. Typing selects the first match and scrolls to
+  it, <kbd>Enter</kbd> or the arrows go to the next or previous one (wrapping round), and **No matches** shows when
+  there is none. <kbd>Esc</kbd> closes it.
+- The **⋯** button at the end of the toolbar has **Reload**, **Duplicate tab** (a new tab of yours on the same page,
+  even when an agent drives this one), **Copy URL**, **Open in system browser** (http and https pages only), find and
+  zoom, and, in development builds, **Open DevTools**, which opens the page's inspector in a window of its own.
+  The page hides while that menu is open, because it would otherwise draw over the menu.
+
+Right-clicking inside the page shows the page engine's own menu, not SkyeLab's. After you click into the page, the
+shortcuts may reach the page instead: click the address bar first, or use the **⋯** menu.
+
 ### Agent browser tabs
 
 An agent can open a browser tab of its own with SkyeLab's `browser_open` tool, then `browser_navigate`, read

@@ -123,6 +123,23 @@ impl BrowserView {
         #[cfg(debug_assertions)]
         if let Some(page) = &self.webview {
             page.read(cx).raw().open_devtools();
+            // WebKit docks the inspector across the whole host window (over the GPUI views), and only once its
+            // frontend has loaded, so it is moved to a window of its own a moment later.
+            #[cfg(target_os = "macos")]
+            {
+                let page = page.downgrade();
+                cx.spawn(async move |_, cx| {
+                    cx.background_executor()
+                        .timer(std::time::Duration::from_millis(500))
+                        .await;
+                    let _ = page.read_with(cx, |page, _| {
+                        skyelab_webkit_sys::detach_inspector(&wry::WebViewExtMacOS::webview(
+                            page.raw(),
+                        ))
+                    });
+                })
+                .detach();
+            }
         }
         let _ = cx;
     }
