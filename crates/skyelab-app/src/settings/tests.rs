@@ -39,7 +39,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
     set(&label, "Acme Team", cx);
     set(&dir_in, "/home/me/.claude-acme", cx);
     view.update_in(cx, |v, window, cx| v.focus.focus(window, cx));
-    cx.simulate_keystrokes("cmd-enter"); // the SaveAccount binding
+    cx.simulate_keystrokes("secondary-enter"); // the SaveAccount binding: cmd on macOS, ctrl elsewhere
     cx.run_until_parked();
     assert_eq!(
         AccountsConfig::load(&path).expect("saved").accounts[0].id,

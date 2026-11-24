@@ -22,7 +22,14 @@ fn head(root: &Path) -> String {
 fn listed(root: &Path) -> (Vec<PathBuf>, String) {
     let c = load(root, None).expect("load");
     let paths = c.files.iter().map(|f| f.path.clone()).collect();
-    (paths, c.tree.expect("load records the tree it showed"))
+    // On a miss, say why: a snapshot error (git's message), or a tree that changed between load's two snapshots.
+    let tree = c.tree.unwrap_or_else(|| {
+        panic!(
+            "load records the tree it showed; a snapshot now gives {:?}",
+            skyelab_git::snapshot_tree(root)
+        )
+    });
+    (paths, tree)
 }
 
 fn refuses(root: &Path, paths: &[PathBuf], tree: &str) {
