@@ -18,11 +18,20 @@ impl ThreadView {
     /// A question that just docked takes the focus, so 1–9, ↑/↓ and Enter answer it at once, unless the user is
     /// typing in the composer (T3 leaves keys typed in a text field alone) or works outside this thread.
     pub(super) fn focus_new_question(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let held = self
+            .composer
+            .dock_focus
+            .as_ref()
+            .is_some_and(|f| f.is_focused(window));
         let Some(id) = self
             .dock_step()
             .and_then(|_| self.dock())
             .map(|a| a.id.clone())
         else {
+            // The answered question's panel is gone: its keys go back to the composer, not to nothing.
+            if held {
+                window.focus(&self.prompt.focus_handle(cx), cx);
+            }
             return;
         };
         if self.composer.dock_focused.as_deref() == Some(id.as_str()) {
@@ -32,10 +41,25 @@ impl ThreadView {
         let prompt = self.prompt.read(cx);
         let typing =
             prompt.focus_handle(cx).is_focused(window) && !prompt.value().trim().is_empty();
-        let here = window.focused(cx).is_none() || self.focus.contains_focused(window, cx);
+        let here = held || window.focused(cx).is_none() || self.focus.contains_focused(window, cx);
         if here && !typing {
             self.focus_question(&FocusQuestion, window, cx);
         }
+    }
+
+    /// A letter typed while the panel has the focus starts the typed answer: it goes to the composer, which keeps
+    /// the focus from then on.
+    pub(in crate::workspace) fn dock_type(
+        &mut self,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let focus = self.prompt.focus_handle(cx);
+        window.focus(&focus, cx);
+        let text = text.to_owned();
+        self.prompt.update(cx, |p, cx| p.insert(text, window, cx));
+        cx.notify();
     }
 
     /// The FocusQuestion action: into the docked question's panel (unfolded, so its options take the keys).

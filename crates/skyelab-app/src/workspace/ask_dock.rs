@@ -333,6 +333,13 @@ impl ThreadView {
                 let k = &e.keystroke;
                 if !k.modifiers.modified() && this.dock_key(&k.key, window, cx) {
                     cx.stop_propagation();
+                } else if let Some(text) = k.key_char.as_deref().filter(|t| {
+                    let m = &k.modifiers;
+                    !(m.control || m.alt || m.platform || m.function)
+                        && t.chars().all(|c| !c.is_control())
+                }) {
+                    this.dock_type(text, window, cx);
+                    cx.stop_propagation();
                 }
             }))
             .w_full()

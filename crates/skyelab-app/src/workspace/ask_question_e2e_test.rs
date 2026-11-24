@@ -303,3 +303,23 @@ fn a_docked_question_leaves_a_composer_being_typed_in(cx: &mut TestAppContext) {
     assert!(prompt_focused(&one, cx), "the composer kept the focus");
     assert!(!panel_focused(&one, cx));
 }
+
+/// Answered from the keys alone, the question goes and its keys go back to the composer, not to a panel no longer
+/// drawn; a letter typed on the panel starts the typed answer in the composer.
+#[gpui::test]
+fn the_keys_come_back_to_the_composer(cx: &mut TestAppContext) {
+    let (one, cx) = start("question please", Mode::Default, cx);
+    wait_until(cx, "the question", |cx| ask(&one, cx).is_some());
+    cx.run_until_parked();
+    assert!(panel_focused(&one, cx));
+    cx.simulate_keystrokes("2 h i");
+    assert!(prompt_focused(&one, cx), "a letter moves to the composer");
+    assert_eq!(one.view.read_with(cx, |v, cx| v.prompt.read(cx).value().to_string()), "hi");
+    cx.dispatch_action(super::ask_dock::FocusQuestion);
+    cx.simulate_keystrokes("enter");
+    wait_until(cx, "the answer taken", |cx| {
+        ask(&one, cx).is_some_and(|(_, d)| d.is_some())
+    });
+    cx.run_until_parked();
+    assert!(prompt_focused(&one, cx), "the composer has the keys again");
+}
