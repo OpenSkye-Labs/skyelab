@@ -2,15 +2,16 @@
 //! when on; a 16 px checkbox, radius 4, primary fill with a check when on. Stateless: the caller owns the value and
 //! gets the flipped one in `on_click`.
 //!
-//! Like gpui-component's, a click is not stopped here: a row that is itself clickable takes the handler, and the
-//! control inside it is only its picture (docs/gpui/elements.md).
+//! The row is gpui-base's headless button, so it is a tab stop that Space and Enter flip, and a disabled one swallows
+//! the press. An enabled one's click still bubbles: a row that is itself clickable takes the handler, and the control
+//! inside it is only its picture (docs/gpui/elements.md).
 
 use super::{DISABLED_OPACITY, META, RADIUS_SM, SkyeIcon};
 use gpui::{
     App, ClickEvent, ElementId, FontWeight, IntoElement, ParentElement as _, RenderOnce,
     SharedString, Styled as _, Window, accesskit, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, h_flex};
+use gpui_component::{ActiveTheme as _, Icon};
 use std::rc::Rc;
 
 type OnToggle = Rc<dyn Fn(&bool, &mut Window, &mut App)>;
@@ -49,20 +50,28 @@ impl Toggle {
         let checked = self.checked;
         let interactive = !self.disabled;
         let theme = cx.theme();
-        h_flex()
-            .id(self.id)
-            .flex_shrink_0()
-            .gap_2()
+        let focus_bg = theme.accent;
+        gpui_base::Button::new(self.id)
             .role(role)
+            .disabled(self.disabled)
+            .flex_shrink_0()
+            .justify_start()
+            .gap_2()
+            .rounded(RADIUS_SM)
             .aria_toggled(if checked {
                 accesskit::Toggled::True
             } else {
                 accesskit::Toggled::False
             })
             .when_some(self.aria.or_else(|| self.label.clone()), |d, l| {
-                d.aria_label(l)
+                d.accessibility_label(l)
             })
-            .when(interactive, |d| d.cursor_pointer())
+            .when(interactive, |d| {
+                d.cursor_pointer()
+                    // Like a button press: the field being typed in keeps focus.
+                    .on_any_mouse_down(|_, window, _| window.prevent_default())
+            })
+            .focus_visible(move |s| s.bg(focus_bg))
             .when(self.disabled, |d| d.opacity(DISABLED_OPACITY))
             .child(control)
             .when_some(self.label, |d, l| {

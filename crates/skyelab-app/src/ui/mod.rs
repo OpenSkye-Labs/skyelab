@@ -444,3 +444,9 @@ impl gpui::AssetSource for AppAssets {
         Ok(paths)
     }
 }
+#[cfg(test)]
+mod toggle_disabled_regress_test;
+#[cfg(test)]
+mod toggle_focus_regress_test;
+#[cfg(test)]
+mod toggle_keys_test;
