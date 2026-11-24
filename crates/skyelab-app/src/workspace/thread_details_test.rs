@@ -141,3 +141,21 @@ fn the_card_lists_children_by_status_and_the_reported_usage(cx: &mut TestAppCont
     parent.update_in(cx, |p, window, cx| p.stop(&Stop, window, cx));
     cx.run_until_parked();
 }
+
+#[test]
+fn an_ended_agent_lists_its_mcp_servers_as_stopped() {
+    use super::mcp_state;
+    let server = |status: &str| skyelab_agent::McpServer {
+        name: "skyelab".into(),
+        status: status.into(),
+        error: None,
+    };
+    assert_eq!(mcp_state(&server("pending"), false), "Starting");
+    assert_eq!(mcp_state(&server("pending"), true), "Stopped");
+    assert_eq!(mcp_state(&server("connected"), true), "Stopped");
+    assert_eq!(
+        mcp_state(&server("failed"), true),
+        "Failed",
+        "a failure stays"
+    );
+}
