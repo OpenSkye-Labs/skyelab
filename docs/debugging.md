@@ -86,6 +86,9 @@ Spans in the trace:
 | Span | Where |
 |---|---|
 | `render` (field `view`) | every view's `render` (the same calls the render counter makes) |
+| `thread.replay` | a thread's stored events turned into timeline rows when it opens (UI thread) |
+| `sidebar.refresh` | the sidebar's rows rebuilt from the thread list |
+| `frame` event (field `ms`) | each frame debug mode timed (`scripts/perf.sh` reads them) |
 | `store.events_since`, `store.append_event`, `store.thread`, `store.list_threads`, `store.list_all_threads`, `store.search_threads` | SQLite queries |
 | `agent.parse_line` | one stdout line of Claude or Codex parsed into events |
 | `process` (field `program`) | every short-lived child: git, gh, tailscale, the agents' one-shot calls |
@@ -167,6 +170,32 @@ Read a flame graph from the bottom: width is time. Look for wide towers under `s
 (that is the UI thread: anything wide there is a slow frame), and filter by thread name for agent readers
 (`skyelab-agent-reader`) and the daemon's tokio workers.
 
+## Performance runs
+
+`scripts/perf.sh <scenario>` is the repeatable benchmark: it builds the `profiling` profile, makes a fixture HOME
+with `crates/skyelab-app/examples/perf_fixture.rs` (40 projects, 601 threads, one "Long history" thread of ~6,800
+events with tool rows, diffs, mermaid diagrams, tables and HTML cards, restored open at launch, Developer mode on so
+frames are timed without the overlay's tick), drives the app with `SKYELAB_VERIFY_ACTIONS` and quits it. It prints:
+
+- launch milestones from stderr: `first frame`, `threads listed` and `thread replayed`, in ms after `main` started
+  (debug mode prints them and logs them as `frame` entries);
+- frame count, p50, p95, max and how many took over 16 ms, read from the `frame` events (field `ms`) every timed
+  frame writes into the `SKYELAB_TRACE` trace;
+- the busiest views' renders in the run.
+
+| Scenario | What it does |
+|---|---|
+| `open` | launch on the long thread, wheel-scroll down through it |
+| `stream` | send the fake agent's `stream` prompt (1,500 deltas) to the long thread, wait for the turn |
+| `search` | type into the sidebar search a key at a time, then clear it |
+| `startup` | launch and quit twice on one HOME (cold, then warm), no thread open |
+| `idle` | launch and wait: after the caret blink's 5 s timeout it should draw nothing |
+
+`PERF_SAMPLY=1` records a samply profile of the run (with a `.syms.json` sidecar), and
+`scripts/profile-top.py <profile.json.gz>` prints the main thread's top functions without the Firefox Profiler
+(`SPAN=50-57` limits it to a stretch, in seconds). `PERF_FEATURES=dhat-heap` (or `hotpath`) builds with a profiler.
+Results and the numbers before and after each fix are kept in `.agent/perf/`.
+
 ## Heap profiles (dhat)
 
 ```sh
@@ -187,7 +216,9 @@ quit. Open it in [DH View](https://nnethercote.github.io/dh_view/dh_view.html): 
 4. Back where you started, the counts should be back too. A count that grows with each round is a leak: something
    still holds a strong `Entity` (a subscription, a task, a map entry). See the "Several windows" and "State and
    updates" rules in [gpui.md](gpui.md).
-5. **Dump Debug State** also lists this process's child processes (pid, name, run time): an agent or shell left
+5. `memory_mb` in the dump is this process's resident memory: it should level off over the rounds, not climb with
+   each one. `scripts/perf.sh leaks` runs the rounds for you and prints each dump's counts and memory.
+6. **Dump Debug State** also lists this process's child processes (pid, name, run time): an agent or shell left
    running after its thread or terminal closed shows there.
 
 The dump is a JSON file in `<local data>/skyelab/debug/state-<unix ms>.json`:
@@ -199,6 +230,7 @@ The dump is a JSON file in `<local data>/skyelab/debug/state-<unix ms>.json`:
   "renders_per_second": {"Workspace": 2, "ThreadView": 1},
   "live": {"windows": 1, "thread views": 3, "terminals": 1, "browser tabs": 0, "agent sessions": 1, "remote connections": 0},
   "child_processes": [{"pid": 4242, "name": "claude", "run_secs": 120}],
+  "memory_mb": 412,
   "log": [ /* the last 200 debug log entries */ ]
 }
 ```

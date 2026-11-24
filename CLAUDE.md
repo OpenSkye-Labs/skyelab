@@ -40,7 +40,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   topmost windows. Find the window id (CGWindowList, layer > 0) and capture only that window with
   `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
-  (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point (`hover:x;y` only moves the mouse there),
+  (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point (`hover:x;y` only moves the mouse there, `wait` sends nothing for one more gap),
   at the window screenshot's own x and y at 1x (no title-bar offset: the window has no separate title strip); `drag:x;y;x2;y2` drags,
   `scroll:x;y;lines` turns the wheel, positive up; `window:N` sends the entries after it to the Nth open window, 0 being the first). Fake the agent with
   `SKYELAB_CLAUDE_BIN=crates/skyelab-app/tests/fixtures/fake-claude.sh` (absolute path; `fake-claude-delegate.sh` also
@@ -50,7 +50,7 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
   `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir and exits 0 (the Log in terminal),
   `table` replies with a markdown table, `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
-  `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
+  `stream` streams a long answer fast (1,500 deltas, ~30 s; `scripts/perf.sh`), `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
   subagent cards (one holds 4 s mid-run), `login` fails the turn as a signed-out account, a
   `.fake-session-gone` file in the folder makes a `--resume` fail as a missing session, a `fake-mcp-status.json` list of
   `{name, status}` in the account dir goes into its init line as `mcp_servers` (the details card's MCP servers), it prints

@@ -6,10 +6,14 @@ use super::worktree;
 use super::{
     AddProject, NewThread, NewThreadIn, OpenThread, SelectProject, Workspace, account_label, lock,
 };
-use gpui::{App, AppContext as _, Context, Entity, PathPromptOptions, Window};
+use gpui::{AppContext as _, Context, Entity, PathPromptOptions, Window};
 
 use skyelab_store::Thread;
 use std::path::PathBuf;
+
+#[path = "project_name.rs"]
+mod project_name;
+use project_name::name_project;
 
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
@@ -133,6 +137,7 @@ impl Workspace {
             let _ = this.update(cx, |this, cx| {
                 match loaded {
                     Ok(threads) => {
+                        crate::debug_mode::launch_milestone("threads listed");
                         this.threads = threads;
                         this.rerun_search(cx);
                         this.load_previews(cx);
@@ -445,20 +450,5 @@ impl Workspace {
         }
         self.push_side_config(cx);
         self.sync_setup(cx);
-    }
-}
-
-/// Gives `view` its project's stored name, when it differs.
-fn name_project(projects: &[skyelab_store::Project], view: &Entity<ThreadView>, cx: &mut App) {
-    let id = view.read(cx).project_id;
-    let Some(p) = projects.iter().find(|p| p.id == id) else {
-        return;
-    };
-    if view.read(cx).project_name.as_ref() != p.name {
-        let name = p.name.clone().into();
-        view.update(cx, |v, cx| {
-            v.project_name = name;
-            cx.notify();
-        });
     }
 }

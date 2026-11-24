@@ -11,7 +11,7 @@ const VERIFY_ACTION_GAP: std::time::Duration = std::time::Duration::from_secs(2)
 /// `/loop-verify-ui` can't send input to a topmost window. `keys:` types keystrokes into the focus,
 /// `click:x;y` clicks at a window point (entries are comma-separated, hence the `;`), `hover:x;y` only moves the mouse
 /// there (hover cards), `drag:x;y;x2;y2` drags with the left button, and `scroll:x;y;lines` scrolls the wheel there
-/// (positive: up). `window:N` sends the entries after it to the Nth workspace window (0 is the first, in open order).
+/// (positive: up), `wait` sends nothing (one more gap). `window:N` sends the entries after it to the Nth workspace window (0 is the first, in open order).
 pub(crate) fn dispatch_verify_actions(cx: &mut App) {
     let Some(entries) = std::env::var("SKYELAB_VERIFY_ACTIONS")
         .ok()
@@ -24,6 +24,9 @@ pub(crate) fn dispatch_verify_actions(cx: &mut App) {
         let mut target = 0;
         for entry in entries {
             cx.background_executor().timer(VERIFY_ACTION_GAP).await;
+            if entry == "wait" {
+                continue; // one more gap, with no input (idle and streaming measurements)
+            }
             if let Some(n) = entry.strip_prefix("window:") {
                 target = n.trim().parse().unwrap_or(0);
                 continue;

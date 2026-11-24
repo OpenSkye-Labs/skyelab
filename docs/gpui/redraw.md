@@ -93,3 +93,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   eased out, and end with an exact `scroll_to(target)` (rows measured on the way move the estimate). Stop when
   `logical_scroll_top()` isn't where the last step left it: the user scrolled. The task ends when it arrives, so an
   idle view never redraws for it (`smooth_scroll.rs`). Tests advance it with `executor().advance_clock`.
+
+- Overlapping quads are not free: GPUI orders each painted primitive in a `BoundsTree`, and an insert pays for every
+  quad it overlaps. A strip of hundreds of stacked ticks (the minimap's one tick per prompt in a 600-turn thread)
+  made `BoundsTree::insert` a third of each streaming frame. Cap what a fixed-size strip draws by its pixels, not by
+  the data (`minimap::MAX_TICKS`); measured with `scripts/perf.sh stream`, frame p50 7.7 to 2.1 ms.

@@ -36,6 +36,7 @@ pub struct NewThreadIn {
 
 impl Workspace {
     pub(super) fn refresh_sidebar(&mut self, cx: &mut Context<Self>) {
+        let _span = tracing::info_span!("sidebar.refresh").entered();
         if let Some((sections, marks)) = self.remote_sections(cx) {
             return self.sidebar.update(cx, |sidebar, cx| {
                 sidebar.sections = sections;
