@@ -11,8 +11,8 @@ use crate::ui::Button;
 use anyhow::{Result, bail};
 use gpui::Global;
 use gpui::{
-    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, FontWeight,
-    SharedString, Subscription, WeakEntity, Window, actions, div, prelude::*, px,
+    App, AppContext as _, Context, Entity, EventEmitter, FocusHandle, Focusable, SharedString,
+    Subscription, WeakEntity, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{
     ActiveTheme as _,
@@ -164,7 +164,7 @@ impl ThreadView {
     }
 }
 
-/// A side chat in the right dock: its title, "Bring back", and the chat itself without its page header.
+/// A side chat in the right dock: "Bring back" and the chat itself without its page header (the dock tab is its title).
 pub struct SideChatPanel {
     focus: FocusHandle,
     pub(super) id: i64,
@@ -225,28 +225,18 @@ impl Focusable for SideChatPanel {
 impl Render for SideChatPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("SideChatPanel");
-        let v = self.view.read(cx);
-        let title = v.title();
-        let answered = v.last_answer().is_some();
+        let answered = self.view.read(cx).last_answer().is_some();
         let theme = cx.theme();
-        // T3's side chat header: 36 tall, the title in xs medium, its actions on the right.
+        // T3's side chat header: 36 tall, its actions on the right. The dock tab above already names the chat.
         let header = h_flex()
             .h(px(36.))
             .flex_shrink_0()
+            .justify_end()
             .pl_3()
             .pr_1()
             .gap_1()
             .border_b_1()
             .border_color(theme.border)
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .text_xs()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(title),
-            )
             .child(
                 Button::new("side-chat-bring-back")
                     .ghost()
