@@ -15,8 +15,11 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::{Disconnect, DisconnectKind, Error, Options, Update, WatchId};
 
 mod connect;
+pub(crate) mod forward;
+mod forward_calls;
 mod watched;
 use connect::{Target, connect};
+use forward::{Forward, Forwarding};
 use watched::Watched;
 
 /// The longest wait between tries while the machine hasn't approved this device yet.
@@ -25,10 +28,20 @@ const NOT_APPROVED_RETRY: Duration = Duration::from_secs(3);
 pub(crate) type ReplyFn = Box<dyn FnOnce(Result<Reply, Error>) + Send>;
 
 pub(crate) enum Command {
-    Call { call: Call, reply: ReplyFn },
-    Watch { id: WatchId, after_seq: i64 },
+    Call {
+        call: Call,
+        reply: ReplyFn,
+    },
+    Watch {
+        id: WatchId,
+        after_seq: i64,
+    },
     Unwatch(WatchId),
     Approve(Hello),
+    Forward {
+        port: u16,
+        reply: flume::Sender<Result<Forward, Error>>,
+    },
 }
 
 enum End {
@@ -61,9 +74,12 @@ struct Ctx {
     options: Options,
     tls: Arc<ClientConfig>,
     commands: flume::Receiver<Command>,
+    /// For forwards to send `stop_forward` when dropped, without keeping the client alive.
+    commands_tx: flume::WeakSender<Command>,
     updates: flume::Sender<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
     watched: HashMap<i64, Watched>,
+    forwarding: Forwarding,
 }
 
 impl Ctx {
@@ -79,6 +95,9 @@ impl Ctx {
             Ok(Command::Watch { id, after_seq }) => self.watch(id, after_seq),
             Ok(Command::Unwatch(id)) => self.unwatch(id),
             Ok(Command::Approve(_)) => {} // for a connection that has gone
+            Ok(Command::Forward { reply, .. }) => {
+                let _ = reply.send(Err(Error::NotConnected));
+            }
         }
         true
     }
@@ -123,6 +142,18 @@ impl Ctx {
         None
     }
 
+    fn target(&self) -> Target {
+        Target {
+            host: self.host.clone(),
+            options: self.options.clone(),
+            tls: self.tls.clone(),
+            allow_loopback: self.allow_loopback(),
+            plaintext: self.plaintext(),
+            resolve_to: self.resolve_to(),
+            protocol: self.protocol(),
+        }
+    }
+
     fn protocol(&self) -> Version {
         #[cfg(any(test, feature = "test-support"))]
         return self.options.protocol;
@@ -136,6 +167,7 @@ pub(crate) async fn run(
     options: Options,
     tls: Arc<ClientConfig>,
     commands: flume::Receiver<Command>,
+    commands_tx: flume::WeakSender<Command>,
     updates: flume::Sender<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
 ) {
@@ -144,9 +176,11 @@ pub(crate) async fn run(
         options,
         tls,
         commands,
+        commands_tx,
         updates,
         hello,
         watched: HashMap::new(),
+        forwarding: Forwarding::default(),
     };
     let mut backoff = cx.options.backoff_min;
     loop {
@@ -186,16 +220,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
 type Ws = WebSocketStream<Box<dyn Io>>;
 
 async fn session(cx: &mut Ctx) -> End {
-    let target = Target {
-        host: cx.host.clone(),
-        options: cx.options.clone(),
-        tls: cx.tls.clone(),
-        allow_loopback: cx.allow_loopback(),
-        plaintext: cx.plaintext(),
-        resolve_to: cx.resolve_to(),
-        protocol: cx.protocol(),
-    };
-    let connecting = timeout(cx.options.connect_timeout, connect(target));
+    let connecting = timeout(cx.options.connect_timeout, connect(cx.target()));
     tokio::pin!(connecting);
     let (ws, hello) = loop {
         tokio::select! {
@@ -216,12 +241,21 @@ async fn session(cx: &mut Ctx) -> End {
         pending: HashMap::new(),
         retry_at: None,
         retry_delay: cx.options.backoff_min,
+        session: tokio::sync::watch::channel(()).0,
     };
     let end = live.serve(cx).await;
     // Whatever was in flight on this connection can't be answered now.
     for (_, (_, waiter)) in live.pending.drain() {
-        if let Waiter::User(reply) = waiter {
-            reply(Err(Error::ConnectionLost));
+        match waiter {
+            Waiter::User(reply) => reply(Err(Error::ConnectionLost)),
+            Waiter::Forward(port, reply) => {
+                cx.forwarding
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .remove(&port);
+                let _ = reply.send(Err(Error::ConnectionLost));
+            }
+            Waiter::Fill(_) => {}
         }
     }
     let _ = timeout(Duration::from_secs(1), live.ws.close(None)).await;
@@ -234,6 +268,8 @@ async fn session(cx: &mut Ctx) -> End {
 enum Waiter {
     User(ReplyFn),
     Fill(i64),
+    /// `forward_port` for this port; on `Ok` the local listener starts.
+    Forward(u16, flume::Sender<Result<Forward, Error>>),
 }
 
 struct Live {
@@ -245,6 +281,8 @@ struct Live {
     /// When to refill the stale threads, and the delay after that (doubles while fills keep failing).
     retry_at: Option<Instant>,
     retry_delay: Duration,
+    /// Dropped with this connection: every forward started on it stops.
+    session: tokio::sync::watch::Sender<()>,
 }
 
 impl Live {
@@ -333,6 +371,11 @@ impl Live {
                 self.resync(cx).await
             }
             Command::Approve(_) => Ok(()), // another connection's hello, or already approved
+            Command::Forward { reply, .. } if self.held.is_some() => {
+                let _ = reply.send(Err(Error::NotConnected));
+                Ok(())
+            }
+            Command::Forward { port, reply } => self.forward(cx, port, reply).await,
         }
     }
 
@@ -370,6 +413,10 @@ impl Live {
                 Ok(())
             }
             Some((_, Waiter::Fill(thread_id))) => self.filled(cx, thread_id, result).await,
+            Some((_, Waiter::Forward(port, reply))) => {
+                self.forwarded(cx, port, reply, result);
+                Ok(())
+            }
             None => Ok(()), // timed out already, or an id we never sent
         }
     }
@@ -492,6 +539,13 @@ impl Live {
                         w.filling = false;
                     }
                     self.mark_stale(cx, thread_id);
+                }
+                Some((_, Waiter::Forward(port, reply))) => {
+                    cx.forwarding
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .remove(&port);
+                    let _ = reply.send(Err(Error::Timeout));
                 }
                 None => {}
             }

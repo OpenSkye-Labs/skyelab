@@ -32,6 +32,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
+pub use conn::forward::Forward;
 pub use device_key::load_or_create_device_key;
 #[cfg(target_os = "macos")]
 pub use device_key::{keychain_device_key, keychain_device_key_in};
@@ -191,6 +192,7 @@ impl Client {
             .enable_all()
             .build()?;
         let shared_hello = hello.clone();
+        let task_commands = commands.downgrade();
         let stopped = Arc::new(Mutex::new(false));
         let task_stopped = stopped.clone();
         std::thread::Builder::new()
@@ -201,6 +203,7 @@ impl Client {
                     options,
                     tls,
                     commands_rx.clone(),
+                    task_commands,
                     updates_tx,
                     shared_hello,
                 ));
@@ -317,6 +320,17 @@ impl Client {
         )
     }
 
+    /// Forwards `port` on the environment's loopback to a port on this machine's 127.0.0.1 (protocol 1.5): the same
+    /// port when it is free here, else any free one ([`Forward::local_port`]). Each connection to it goes to the
+    /// environment over a new connection through its full gate. Fails when the environment refuses the port (a
+    /// system or denylisted port, or nothing listens there), when it is older than 1.5, or when this client already
+    /// forwards that port. The forward lasts until dropped or until this connection drops.
+    pub fn forward_port(&self, port: u16) -> Pending<Forward> {
+        let (reply, rx) = flume::bounded(1);
+        self.command(conn::Command::Forward { port, reply });
+        Pending(rx)
+    }
+
     /// Delivers the thread's events after `after_seq` on [`Client::updates`], then every new one, each once, in
     /// order, across reconnects. Watching a thread again (a reopened tab) replays from the new `after_seq`, so a
     /// watcher already following it sees those events again and must drop them by seq.
@@ -373,8 +387,12 @@ impl Client {
 }
 
 fn fail_stopped(command: conn::Command) {
-    if let conn::Command::Call { reply, .. } = command {
-        reply(Err(Error::Stopped));
+    match command {
+        conn::Command::Call { reply, .. } => reply(Err(Error::Stopped)),
+        conn::Command::Forward { reply, .. } => {
+            let _ = reply.send(Err(Error::Stopped));
+        }
+        _ => {}
     }
 }
 

@@ -22,6 +22,7 @@ use super::{End, Io, Ws, lost, lost_as};
 use crate::{DisconnectKind, Error, Options, guard};
 
 /// Resolve, refuse non-tailnet addresses, dial the checked addresses, TLS, handshake, hello.
+#[derive(Clone)]
 pub(super) struct Target {
     pub(super) host: String,
     pub(super) options: Options,
