@@ -6599,6 +6599,7 @@ dependencies = [
  "rustls-webpki",
  "security-framework",
  "serde_json",
+ "skyelab-core",
  "skyelab-protocol",
  "thiserror 2.0.21",
  "tokio",
