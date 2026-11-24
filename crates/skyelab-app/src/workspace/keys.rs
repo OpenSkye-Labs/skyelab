@@ -43,6 +43,7 @@ pub struct OpenThread {
 
 /// Binds the workspace keys. Call once at startup.
 pub fn init(cx: &mut App) {
+    cx.set_global(super::device_agent::DeviceClaims::default());
     cx.bind_keys([
         KeyBinding::new(TOGGLE_SIDEBAR_KEY, ToggleSidebar, Some(CONTEXT)),
         KeyBinding::new(TOGGLE_BOTTOM_KEY, ToggleBottomPanel, Some(CONTEXT)),

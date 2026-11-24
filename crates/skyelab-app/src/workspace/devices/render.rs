@@ -1,5 +1,6 @@
 //! Drawing the Devices tab: platform sections, device rows, inline URL row and screenshot.
 
+use super::super::device_agent::DeviceClaims;
 use super::{DevicesPanel, SectionView, badge};
 use crate::ui;
 use gpui::{Context, ObjectFit, SharedString, Window, div, img, prelude::*, px};
@@ -11,7 +12,7 @@ use gpui_component::{
     spinner::Spinner,
     v_flex,
 };
-use skyelab_devices::{Device, DeviceKind, DeviceState, Platform};
+use skyelab_devices::{Device, DeviceKind, DeviceState, Holder, Platform};
 
 impl DevicesPanel {
     fn render_device(
@@ -20,6 +21,7 @@ impl DevicesPanel {
         first: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
+        let holder = self.holder_row(device, cx);
         let theme = cx.theme();
         let ops = self.ops.get(&device.id);
         let busy = ops.and_then(|o| o.busy);
@@ -126,6 +128,7 @@ impl DevicesPanel {
                     }))
                     .child(actions),
             )
+            .children(holder)
             .children(url_row)
             .children(ops.and_then(|o| o.error.clone()).map(|e| {
                 div()
@@ -139,6 +142,51 @@ impl DevicesPanel {
                     .h(px(420.))
                     .object_fit(ObjectFit::Contain)
             }))
+    }
+
+    /// "Used by <thread>" with Take back, or "Taken back" with Let agents use, when an agent claimed the device.
+    fn holder_row(
+        &self,
+        device: &Device,
+        cx: &mut Context<Self>,
+    ) -> Option<impl IntoElement + use<>> {
+        let claims = cx.try_global::<DeviceClaims>()?;
+        let (text, label, back): (SharedString, &'static str, bool) =
+            match claims.claims.holder(&device.id)? {
+                Holder::Thread(t) => {
+                    let title = claims.titles.get(&t).cloned();
+                    let title = title.unwrap_or_else(|| format!("thread {t}").into());
+                    (format!("Used by {title}").into(), "Take back", true)
+                }
+                Holder::User => ("Taken back from agents".into(), "Let agents use", false),
+            };
+        let theme = cx.theme();
+        let id = device.id.clone();
+        Some(
+            h_flex()
+                .gap_2()
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(ui::META)
+                        .text_color(if back {
+                            ui::ink(theme, theme.info)
+                        } else {
+                            theme.muted_foreground
+                        })
+                        .child(text),
+                )
+                .child(
+                    Button::new(SharedString::from(format!("take-back-{}", device.id)))
+                        .xsmall()
+                        .ghost()
+                        .label(label)
+                        .on_click(
+                            cx.listener(move |_, _, _, cx| DeviceClaims::take_back(&id, back, cx)),
+                        ),
+                ),
+        )
     }
 
     fn render_section(&self, platform: Platform, cx: &mut Context<Self>) -> impl IntoElement {
