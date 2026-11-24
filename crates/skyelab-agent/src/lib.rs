@@ -464,3 +464,6 @@ impl Drop for Session {
         let _ = self.kill();
     }
 }
+
+#[cfg(test)]
+mod real_claude_test;
