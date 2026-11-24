@@ -114,3 +114,61 @@ fn approval_request_waits_for_answer() {
         );
     }
 }
+
+/// Each approval request in arrival order, with what SkyeLab did about it, until the turn's result.
+fn until_result(s: &Session) -> Vec<Event> {
+    std::iter::from_fn(|| Some(next(s)))
+        .take_while(|e| !matches!(e, Event::Result { .. }))
+        .collect()
+}
+
+#[test]
+fn a_thread_prefix_allow_answers_the_next_matching_command() {
+    let (mut s, _tmp) = start("approve2 please", Mode::Default);
+    let (id, input) = loop {
+        if let Event::Permission { id, input, .. } = next(&s) {
+            break (id, input);
+        }
+    };
+    assert_eq!(input["command"], "cargo test --lib");
+    assert!(
+        s.allow_thread_prefix(&id, "bash").is_err(),
+        "a shell prefix allows anything"
+    );
+    s.allow_thread_prefix(&id, "cargo test").expect("allowed");
+    let rest = until_result(&s);
+    let replies: Vec<Value> = rest
+        .iter()
+        .filter_map(|e| match e {
+            Event::Unknown(v)
+                if v["method"] == "fake/request" && v["params"]["result"].is_object() =>
+            {
+                Some(v["params"].clone())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        replies,
+        vec![
+            json!({ "id": 99, "result": { "decision": "accept" } }),
+            json!({ "id": 100, "result": { "decision": "accept" } }),
+        ],
+        "the second command was answered without asking: {rest:?}"
+    );
+    let resolved: Vec<_> = rest
+        .iter()
+        .filter_map(|e| match e {
+            Event::PermissionResolved { decision, rule, .. } => Some((*decision, rule.clone())),
+            _ => None,
+        })
+        .collect();
+    let by = Some("shell · starts with cargo test".to_owned());
+    assert_eq!(
+        resolved,
+        vec![
+            (Decision::AllowThread, by.clone()),
+            (Decision::AllowThread, by)
+        ]
+    );
+}

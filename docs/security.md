@@ -79,7 +79,14 @@
   git.
 - **Approvals stay with you.** An agent's permission ask waits in its thread until you answer it there, or from
   a device you approved for sharing. "Allow for this thread" lasts while that agent runs, and is never written to
-  the project's or your Claude settings. Full access asks before it turns on.
+  the project's or your Claude settings. For Codex (whose own session grant covers only that exact command) SkyeLab
+  keeps the thread's allows itself and answers a later shell ask they cover: the exact command, or "Allow `<words>` …
+  for this thread", a prefix checked like a project command rule below (one plain command, no shell or interpreter
+  prefix, never in Plan mode, never a subagent's ask). An ask carrying anything beyond its command and folder (a
+  `reason`, which is how Codex asks to rerun a blocked command outside its sandbox, network or permission fields, a
+  newer Codex's field) always waits for you; that holds for project rules too. Like Claude's own thread allows, these
+  keep answering until the agent stops, even if the folder was rebound meanwhile (the next send or answer you make
+  ends it). Whether the real Codex reruns an approved command outside its sandbox without asking again is untested. Full access asks before it turns on.
 - **Project rules are SkyeLab's, not the repo's.** A repo can't allow itself anything: its `.claude/settings*.json`
   stays ignored. "Allow for this project" saves a rule in SkyeLab's own database, keyed by the project and the account
   id the agent runs under, so it never applies under another account or in another project (rebinding the folder to
@@ -91,7 +98,7 @@
     matches a prefix; words split only on ASCII spaces and tabs, as the shell does. A prefix can't start with a
     program that runs whatever its arguments say (a shell, `env`, `xargs`, `sudo`, `python`, `node`, `find`, …) or
     end in a flag (`git -c`). An ask that carries anything beyond the command, its description, timeout and folder
-    (Claude's `dangerouslyDisableSandbox`, a newer agent's field) is never matched. The arguments after a prefix are
+    (Claude's `dangerouslyDisableSandbox`, Codex's `reason` for a rerun outside its sandbox, a newer agent's field) is never matched. The arguments after a prefix are
     still the agent's: a test runner's flags or a config option can run code, so pick prefixes knowingly.
   - A file rule is a glob relative to the thread's folder, with no `..` or absolute paths. The file must be inside
     the folder by its text and after symlinks are resolved (a dangling symlink never matches), and never under

@@ -2,12 +2,12 @@
 //! is the desktop's (`skyelab_agent::timeline`); this only decides what a row shows closed and open. Every line is
 //! clipped, so a huge payload from the other machine can't stall a frame.
 
-use skyelab_agent::TodoStatus;
 use skyelab_agent::timeline::cards::{
     LineKind, divider_text, edit_lines, exit_status, is_edit, is_shell, limited_text, plain_output,
 };
 use skyelab_agent::timeline::subagent::{SubagentItem, SubagentStatus};
 use skyelab_agent::timeline::{Item, ToolItem};
+use skyelab_agent::{Decision, TodoStatus};
 
 /// Output lines an open shell or tool row shows.
 pub const OUTPUT_LINES: usize = 20;
@@ -102,6 +102,10 @@ pub fn row_lines(item: &Item, open: bool) -> Vec<String> {
         Item::Limit { resets_at } => vec![limited_text(*resets_at, now_secs())],
         Item::Notice { text, .. } => head(text, TEXT_LINES),
         Item::Approval(a) => match &a.rule {
+            Some(rule) if a.decision == Some(Decision::AllowThread) => vec![clip(&format!(
+                "{}: {} · allowed for this thread {rule}",
+                a.tool, a.summary
+            ))],
             Some(rule) => vec![clip(&format!(
                 "{}: {} · allowed by project rule {rule}",
                 a.tool, a.summary

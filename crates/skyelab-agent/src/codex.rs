@@ -4,49 +4,19 @@
 //! SkyeLab sees the same stream as from `claude`.
 
 use crate::{Decision, DeltaKind, Event, Mode, Usage};
+#[path = "codex_allow.rs"]
+mod allow;
 #[path = "codex_config.rs"]
 mod config;
 #[path = "codex_items.rs"]
 mod items;
-use anyhow::{Context as _, Result};
-pub(crate) use config::{mcp_servers, policy};
+#[cfg(test)]
+use config::main_repo;
+pub(crate) use config::{args, mcp_servers, policy};
 use items::{NOISE, answer, completed, delta, failed, file_changes, plan, rate_limit, started};
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::ffi::OsString;
-use std::path::{Path, PathBuf};
-
-/// `app-server` with every project layer off: `dir`, each ancestor and (for a worktree) its main repo are
-/// marked untrusted, so a repo's `.codex/config.toml`, hooks and `.rules` never load. Overrides merge
-/// with the user's `projects` table, which is why every ancestor is named, not just `dir`.
-pub(crate) fn args(dir: &Path) -> Result<Vec<OsString>> {
-    let mut roots: BTreeSet<&Path> = dir.ancestors().collect();
-    let main = main_repo(dir);
-    roots.extend(main.iter().flat_map(|m| m.ancestors()));
-    let entries = roots
-        .iter()
-        .map(|p| {
-            let p = p.to_str().context("folder path is not UTF-8")?;
-            // A JSON string is a valid TOML basic string.
-            Ok(format!("{}={{trust_level=\"untrusted\"}}", json!(p)))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(vec![
-        "app-server".into(),
-        "-c".into(),
-        format!("projects={{{}}}", entries.join(",")).into(),
-    ])
-}
-
-/// The main checkout of the git worktree `dir` is in (from its `.git` file and `commondir`), if any.
-fn main_repo(dir: &Path) -> Option<PathBuf> {
-    let top = dir.ancestors().find(|a| a.join(".git").exists())?;
-    let text = std::fs::read_to_string(top.join(".git")).ok()?; // a directory: a plain repo, no worktree
-    let gitdir = top.join(text.strip_prefix("gitdir:")?.trim());
-    let common = std::fs::read_to_string(gitdir.join("commondir")).ok()?;
-    let common = std::fs::canonicalize(gitdir.join(common.trim())).ok()?;
-    common.parent().map(Path::to_owned)
-}
+use std::collections::{BTreeMap, VecDeque};
+use std::path::Path;
 
 /// Client state for one app-server process.
 pub(crate) struct Codex {
@@ -86,6 +56,8 @@ pub(crate) struct Codex {
     mode_change: Option<Mode>,
     /// The mode the `turn/start` in flight carries, put back if codex refuses that turn.
     mode_sent: Option<Mode>,
+    /// The thread's own allows, which SkyeLab answers by.
+    allow: allow::ThreadAllow,
     /// Starts every ask id, new per process (see `claude::Book`).
     pub(crate) nonce: String,
 }
@@ -123,6 +95,7 @@ impl Codex {
             mode_sent: None,
             nonce: String::new(),
             resuming: resume.is_some(),
+            allow: allow::ThreadAllow::new(dir, mode),
         };
         let init = c.request("initialize", initialize_params());
         let initialized = json!({ "method": "initialized", "params": {} }).to_string();
@@ -184,79 +157,7 @@ impl Codex {
 
     pub(crate) fn set_mode(&mut self, mode: Mode) {
         self.mode_change = Some(mode);
-    }
-
-    /// The reply to approval request `id`, or `None` when it isn't waiting. It stays open until [`Self::forget`].
-    pub(crate) fn answer(&mut self, id: &str, decision: Decision) -> Option<String> {
-        let rpc = self.asks.get(id)?;
-        if self.questions.contains_key(id) {
-            return Some(json!({ "id": rpc, "result": { "answers": {} } }).to_string());
-        }
-        let decision = match decision {
-            Decision::AllowOnce => "accept",
-            Decision::AllowThread => "acceptForSession",
-            Decision::Deny | Decision::Withdrawn => "decline",
-        };
-        Some(json!({ "id": rpc, "result": { "decision": decision } }).to_string())
-    }
-
-    pub(crate) fn forget(&mut self, id: &str) {
-        self.asks.remove(id);
-        self.questions.remove(id);
-    }
-
-    /// Every open request, withdrawn: its turn or its process is over.
-    pub(crate) fn withdraw_all(&mut self) -> Vec<Event> {
-        self.questions.clear();
-        self.patches.clear();
-        std::mem::take(&mut self.asks)
-            .into_keys()
-            .map(|id| Event::PermissionResolved {
-                id,
-                decision: Decision::Withdrawn,
-                rule: None,
-            })
-            .collect()
-    }
-
-    /// A server request: an approval waits for the user; anything else is answered now.
-    fn on_request(
-        &mut self,
-        method: &str,
-        rpc: Value,
-        params: &Value,
-    ) -> (Vec<Event>, Vec<String>) {
-        // A secret answer would be typed into a plain field, so those stay unsupported.
-        let secret = params["questions"]
-            .as_array()
-            .is_some_and(|qs| qs.iter().any(|q| q["isSecret"] == true));
-        if method == "item/tool/requestUserInput" && params["questions"].is_array() && !secret {
-            return self.on_question(rpc, params);
-        }
-        let (tool, keys): (_, &[&str]) = match method {
-            "item/commandExecution/requestApproval" => ("shell", &["command", "cwd", "reason"]),
-            "item/fileChange/requestApproval" => ("apply_patch", &["grantRoot", "reason"]),
-            _ => return (Vec::new(), vec![answer(method, rpc)]),
-        };
-        // Only the fields codex sent: an absent `grantRoot` must not show as null.
-        let input: serde_json::Map<String, Value> = keys
-            .iter()
-            .filter(|k| !params[**k].is_null())
-            .map(|k| ((*k).to_owned(), params[*k].clone()))
-            .collect();
-        let mut input = Value::Object(input);
-        // What the patch does, so the card never asks to approve an edit it can't show.
-        if let Some(changes) = params["itemId"].as_str().and_then(|i| self.patches.get(i)) {
-            input["changes"] = changes.clone();
-        }
-        let id = format!("{}codex-{}", self.nonce, rpc);
-        self.asks.insert(id.clone(), rpc);
-        let event = Event::Permission {
-            id,
-            tool: tool.to_owned(),
-            input,
-        };
-        (vec![event], Vec::new())
+        self.allow.picked = mode;
     }
 
     /// Stops the running turn; before its id is known, as soon as it is.
@@ -341,6 +242,10 @@ impl Codex {
         self.turn_req = None;
         match error {
             None => {
+                // The turn runs with the mode it carried, if any (a refused one never applied it).
+                if let Some(mode) = self.mode_sent {
+                    self.allow.running = mode;
+                }
                 let turn = v["result"]["turn"]["id"].as_str();
                 (Vec::new(), self.turn_known(turn))
             }
@@ -399,6 +304,7 @@ impl Codex {
             "serverRequest/resolved" => {
                 let id = format!("{}codex-{}", self.nonce, p["requestId"]);
                 self.questions.remove(&id);
+                self.allow.forget(&id);
                 let events = self.asks.remove(&id).map(|_| Event::PermissionResolved {
                     id,
                     decision: Decision::Withdrawn,
@@ -446,6 +352,15 @@ impl Codex {
                 )
             }
             "turn/plan/updated" => (plan(p).into_iter().collect(), Vec::new()),
+            // Before the thread opens its id is unknown, so a hook then is taken as this thread's.
+            "hook/started" | "hook/completed"
+                if p["threadId"]
+                    .as_str()
+                    .is_none_or(|t| self.thread_id.as_deref().is_none_or(|own| own == t)) =>
+            {
+                (items::hook(&p["run"]).into_iter().collect(), Vec::new())
+            }
+            "hook/started" | "hook/completed" => (Vec::new(), Vec::new()),
             "account/rateLimits/updated" if p["rateLimits"].is_object() => {
                 (rate_limit(&p["rateLimits"]), Vec::new())
             }
@@ -477,3 +392,14 @@ mod stream_tests;
 #[cfg(test)]
 #[path = "context_stream_test.rs"]
 mod context_stream_test;
+
+#[cfg(test)]
+#[path = "codex_hook_tests.rs"]
+mod hook_tests;
+
+#[cfg(test)]
+#[path = "codex_allow_tests.rs"]
+mod allow_tests;
+
+#[path = "codex_asks.rs"]
+mod asks;

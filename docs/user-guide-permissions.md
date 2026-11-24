@@ -24,7 +24,11 @@ write its line count and first 20 lines, and for an edit its diff (a line betwee
 only a part, the card says **Showing 20 of 2,000 lines** and **View all** opens the whole change, every line, in a
 read-only diff; for anything
 else, or text with hidden or control characters, the full input it sent), and the agent waits until you answer: **Allow once**, **Allow for this thread** (Claude's own suggested rule
-for this call, or this exact command when it has none; while this agent runs; after a resume it asks again),
+for this call, or this exact command when it has none; while this agent runs; after a resume it asks again;
+for a Codex command, SkyeLab itself allows that exact command again in this thread), for a Codex command also
+**Allow "cargo test …" for this thread** (any one plain command starting with those words, the first two to start, by
+the same rules as a project prefix below: never one that chains, pipes, substitutes or redirects, never a shell or
+interpreter; while this agent runs, and not in Plan mode; its row then says **Allowed for this thread** and the rule),
 **Allow for this project** (below) or **Deny**, or **Interrupt** to stop the turn instead. Afterwards the row says
 what was decided.
 An ask the agent withdraws (an interrupt, its turn ended, or the agent stopped) shows **Withdrawn**. Sending a message instead declines the ask and redirects the agent (the composer says so). A request in a thread whose agent has

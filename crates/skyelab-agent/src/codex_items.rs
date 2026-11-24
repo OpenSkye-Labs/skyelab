@@ -35,6 +35,23 @@ pub(super) fn mcp_status(p: &Value) -> Option<Event> {
     })
 }
 
+/// A hook run (`hook/started` / `hook/completed`'s `run`): running while its status says so.
+pub(super) fn hook(run: &Value) -> Option<Event> {
+    let event = run["eventName"].as_str().unwrap_or("hook");
+    let name = match run["statusMessage"]
+        .as_str()
+        .filter(|m| !m.trim().is_empty())
+    {
+        Some(message) => format!("{event} ({})", message.trim()),
+        None => event.to_owned(),
+    };
+    Some(Event::Hook {
+        id: run["id"].as_str()?.to_owned(),
+        name,
+        running: run["status"] == "running",
+    })
+}
+
 pub(super) fn delta(kind: DeltaKind, p: &Value) -> Vec<Event> {
     p["delta"]
         .as_str()

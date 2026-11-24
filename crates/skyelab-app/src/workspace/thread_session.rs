@@ -93,6 +93,17 @@ impl ThreadView {
                 // Streaming text is shown, never stored: the complete block that follows is.
                 // After Stop, what streamed is already kept as a partial message (`finish`), so a killed agent's
                 // last deltas aren't shown as a second one.
+                if let Event::Hook { id, name, running } = event {
+                    let shown = this.update(cx, |this, cx| {
+                        if launch == this.launches {
+                            this.on_hook(id, name, running, cx)
+                        }
+                    });
+                    if shown.is_err() {
+                        return;
+                    }
+                    continue;
+                }
                 if matches!(event, Event::Delta { .. }) {
                     let record = Record::Agent(event);
                     let shown = this.update(cx, |this, cx| {
@@ -137,6 +148,9 @@ impl ThreadView {
                         this.auto_allow(id, tool, input, cx);
                     }
                     if matches!(record, Record::Agent(Event::Result { .. })) {
+                        if launch == this.launches {
+                            this.hooks.clear();
+                        }
                         this.checkpoint_turn_end(cx);
                         cx.emit(ThreadViewEvent::TurnDone);
                         this.after_turn(cx);
@@ -260,6 +274,7 @@ impl ThreadView {
     /// The agent is gone. The next prompt resumes its session, if it reported one.
     pub(super) fn finish(&mut self, cx: &mut Context<Self>) {
         self.grant = None; // revokes the token and cuts the MCP connection
+        self.hooks.clear(); // a stopped agent runs no hooks, and its drain can't clear them once a relaunch counts
         self.keep_partial(cx);
         let old = self.items.len();
         if let Some(first) = crate::workspace::thread_model::settle_live(&mut self.items) {
