@@ -4,19 +4,13 @@
 
 use super::{Workspace, manage::push_note};
 use crate::debug_mode;
-use crate::ui::{self, SkyeIcon};
+use crate::ui::{self, Button, SkyeIcon};
 use gpui::{
     AppContext as _, Context, InteractiveElement as _, IntoElement, ParentElement as _, Render,
     SharedString, StatefulInteractiveElement as _, Styled as _, Task, Window, actions, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::{
-    ActiveTheme as _, Sizable as _,
-    button::{Button, ButtonVariants as _},
-    h_flex,
-    notification::Notification,
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, h_flex, notification::Notification, v_flex};
 use skyelab_core::debug;
 use std::time::Duration;
 

@@ -1,5 +1,6 @@
 //! The UI Gallery: every SkyeLab component, variant and state on one page in the current theme, the place to redesign
-//! from (docs/design/components.md). Debug builds only: palette → "Open Ui Gallery" opens it in its own window.
+//! from (docs/design/components.md). Debug builds, or Developer mode on: palette → "Open Ui Gallery" opens it in its
+//! own window.
 
 use super::{
     AccountBadge, Button, Card, Checkbox, Divider, EmptyState, Kbd, Pill, SECTION, SectionHeader,
@@ -19,8 +20,8 @@ use gpui_component::{
 
 actions!(skyelab, [OpenUiGallery]);
 
-/// The action's handler. The workspace registers it in debug builds only: the palette lists an action only when a
-/// handler sits on the focused element's path, so an App-level `on_action` would never show there.
+/// The action's handler. The workspace registers it in debug builds or with Developer mode on: the palette lists an
+/// action only when a handler sits on the focused element's path, so an App-level `on_action` would never show there.
 pub fn on_open(_: &OpenUiGallery, _: &mut Window, cx: &mut App) {
     // Out of the workspace window's update before opening another window.
     cx.defer(|cx| {
@@ -259,7 +260,7 @@ fn badges(cx: &App) -> impl IntoElement {
 
 impl Render for UiGallery {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("UiGallery");
+        let _render = crate::debug_renders::count("UiGallery");
         let theme = cx.theme();
         let toggles = h_flex()
             .gap_6()

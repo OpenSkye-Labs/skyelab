@@ -28,9 +28,10 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::close_terminal))
             .on_action(cx.listener(Self::on_run_project_script))
             .on_action(cx.listener(Self::open_settings))
-            .when(cfg!(debug_assertions), |d| {
-                d.on_action(crate::ui::gallery::on_open)
-            })
+            .when(
+                cfg!(debug_assertions) || crate::debug_mode::developer_mode(cx),
+                |d| d.on_action(crate::ui::gallery::on_open),
+            )
             .on_action(cx.listener(Self::new_window))
             .on_action(|_: &crate::updates::CheckForUpdates, _, cx| crate::updates::check(true, cx))
             .on_action(cx.listener(Self::open_usage))
