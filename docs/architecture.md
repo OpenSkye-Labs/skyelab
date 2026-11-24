@@ -96,6 +96,11 @@ the wall clock. Rules in `skyelab_core::schedule` (croner for cron and times of 
 A run resolves the folder's account at run time and pauses the task on any mismatch. See
 [user-guide-scheduled.md](user-guide-scheduled.md).
 
+## Debugging
+
+Debug mode, traces, flame graphs, heap and leak hunting, the network log: [debugging.md](debugging.md). Its code is
+`skyelab_core::debug` (switch, log, redaction, live counts) and the app's `debug_mode` and `workspace/debug_hud`.
+
 ## Decisions
 
 Recorded decisions (agent env, browser access, minimum macOS, machine names, ...): [decisions.md](decisions.md).

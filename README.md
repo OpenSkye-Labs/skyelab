@@ -222,6 +222,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
+To find out why something is slow or leaks, turn on debug mode (`SKYELAB_DEBUG=1`, or Settings → General → Advanced →
+Developer mode): an overlay with frame times, redraws and live object counts, a redacted log of network calls and
+child processes, Perfetto traces, flame graphs (`scripts/profile.sh`) and opt-in profilers (hotpath, dhat, Tracy).
+[docs/debugging.md](docs/debugging.md) explains each one.
+
 ## License
 
 [MIT](LICENSE). Credit to [T3 Code](https://github.com/pingdotgg/t3code) (MIT) for the design this follows.

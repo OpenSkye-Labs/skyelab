@@ -113,7 +113,7 @@ impl Focusable for SurfacesPanel {
 
 impl Render for SurfacesPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("SurfacesPanel");
+        let _render = crate::debug_renders::count("SurfacesPanel");
         let theme = cx.theme();
         let a = self.avail;
         let rows: [Row; 8] = [

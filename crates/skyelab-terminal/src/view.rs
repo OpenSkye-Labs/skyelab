@@ -68,6 +68,8 @@ pub(crate) struct Geometry {
 }
 
 pub struct TerminalView {
+    /// Debug mode's live count of terminals.
+    _live: skyelab_core::debug::Live,
     pub(crate) terminal: Terminal,
     option_keys: OptionKeys,
     pub(crate) focus: FocusHandle,
@@ -114,6 +116,7 @@ impl TerminalView {
             }
         });
         Self {
+            _live: skyelab_core::debug::Live::new("terminals"),
             terminal,
             option_keys: OptionKeys::default(),
             focus: cx.focus_handle(),

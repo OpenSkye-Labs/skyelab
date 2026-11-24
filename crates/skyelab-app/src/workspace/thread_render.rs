@@ -190,7 +190,7 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
 
 impl Render for ThreadView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("ThreadView");
+        let _render = crate::debug_renders::count("ThreadView");
         let header = self.render_header(window, cx);
         let cta = self.needs_binding.then(|| self.render_cta(cx));
         let discard_confirm = self.render_discard_confirm(cx);

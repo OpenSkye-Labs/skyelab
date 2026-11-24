@@ -153,63 +153,97 @@ fn on_text(
     replies: &mpsc::Sender<ServerMessage>,
     running: &mut JoinSet<()>,
 ) -> Step {
-    let req = match Request::parse(text) {
-        Ok(req) => req,
-        Err(msg) => return Step::Send(msg),
-    };
-    let id = req.id;
-    let error = move |code, message: &str| ServerMessage::Error {
-        id: Some(id),
-        error: RpcError::new(code, message),
-    };
-    // Set at hello; a tunnel connection may only open its tunnel.
-    let tunnel = lock_peers(&shared.peers)
-        .get(&who.peer_id)
-        .is_some_and(|e| e.tunnel);
-    match (req.call, events.is_some()) {
-        (
-            Call::Hello {
-                protocol,
-                device_key,
-                capabilities,
-            },
-            false,
-        ) => {
-            // Marked before the approval lands on the entry, so a tunnel is never listed as a device.
-            let tunnel = capabilities.iter().any(|c| c == TUNNEL_CAPABILITY);
-            if tunnel && let Some(entry) = lock_peers(&shared.peers).get_mut(&who.peer_id) {
-                entry.tunnel = true;
+    let mut timed = skyelab_core::debug::RpcCall::start("daemon", text);
+    let step = (|| {
+        let req = match Request::parse(text) {
+            Ok(req) => req,
+            Err(msg) => return Step::Send(msg),
+        };
+        let id = req.id;
+        let error = move |code, message: &str| ServerMessage::Error {
+            id: Some(id),
+            error: RpcError::new(code, message),
+        };
+        // Set at hello; a tunnel connection may only open its tunnel.
+        let tunnel = lock_peers(&shared.peers)
+            .get(&who.peer_id)
+            .is_some_and(|e| e.tunnel);
+        match (req.call, events.is_some()) {
+            (
+                Call::Hello {
+                    protocol,
+                    device_key,
+                    capabilities,
+                },
+                false,
+            ) => {
+                // Marked before the approval lands on the entry, so a tunnel is never listed as a device.
+                let tunnel = capabilities.iter().any(|c| c == TUNNEL_CAPABILITY);
+                if tunnel && let Some(entry) = lock_peers(&shared.peers).get_mut(&who.peer_id) {
+                    entry.tunnel = true;
+                }
+                hello_checked(
+                    id,
+                    protocol,
+                    tunnel,
+                    device_key.as_deref(),
+                    shared,
+                    who,
+                    events,
+                )
             }
-            hello_checked(
-                id,
-                protocol,
-                tunnel,
-                device_key.as_deref(),
-                shared,
-                who,
-                events,
-            )
-        }
-        (Call::Hello { .. }, true) => {
-            Step::Send(error(ErrorCode::BadRequest, "already said hello"))
-        }
-        (_, false) => Step::Send(error(ErrorCode::HelloRequired, "send hello first")),
-        (Call::OpenTunnel { port, token }, true) if tunnel => {
-            match forward::join(&shared.peers, who.peer_id, port, &token) {
-                Ok(ended) => Step::Tunnel { id, port, ended },
-                Err(why) => Step::SendAndClose(error(ErrorCode::BadRequest, &why)),
+            (Call::Hello { .. }, true) => {
+                Step::Send(error(ErrorCode::BadRequest, "already said hello"))
+            }
+            (_, false) => Step::Send(error(ErrorCode::HelloRequired, "send hello first")),
+            (Call::OpenTunnel { port, token }, true) if tunnel => {
+                match forward::join(&shared.peers, who.peer_id, port, &token) {
+                    Ok(ended) => Step::Tunnel { id, port, ended },
+                    Err(why) => Step::SendAndClose(error(ErrorCode::BadRequest, &why)),
+                }
+            }
+            // Hidden from the device list and Disconnect's reach, so it may do nothing else.
+            (_, true) if tunnel => Step::SendAndClose(error(
+                ErrorCode::BadRequest,
+                "a tunnel connection can only open a tunnel",
+            )),
+            (Call::OpenTunnel { .. }, true) => Step::Send(error(
+                ErrorCode::BadRequest,
+                "open_tunnel needs a connection that said hello as a tunnel",
+            )),
+            (call, true) => {
+                let incoming = Incoming {
+                    id,
+                    call,
+                    timed: timed.take(),
+                };
+                on_call(incoming, shared, who, in_flight, replies, running)
             }
         }
-        // Hidden from the device list and Disconnect's reach, so it may do nothing else.
-        (_, true) if tunnel => Step::SendAndClose(error(
-            ErrorCode::BadRequest,
-            "a tunnel connection can only open a tunnel",
-        )),
-        (Call::OpenTunnel { .. }, true) => Step::Send(error(
-            ErrorCode::BadRequest,
-            "open_tunnel needs a connection that said hello as a tunnel",
-        )),
-        (call, true) => on_call(call, id, shared, who, in_flight, replies, running),
+    })();
+    log_reply(timed, &step);
+    step
+}
+
+/// Logs a request answered here and now (the backend and forward tasks log their own).
+fn log_reply(timed: Option<skyelab_core::debug::RpcCall>, step: &Step) {
+    match step {
+        Step::Send(msg) | Step::SendAndClose(msg) => log_message(timed, msg),
+        _ => {
+            if let Some(timed) = timed {
+                timed.done(None);
+            }
+        }
+    }
+}
+
+/// Logs the reply to a timed request: its error, or success.
+fn log_message(timed: Option<skyelab_core::debug::RpcCall>, msg: &ServerMessage) {
+    if let Some(timed) = timed {
+        match msg {
+            ServerMessage::Error { error, .. } => timed.done(Some(&error.message)),
+            _ => timed.done(None),
+        }
     }
 }
 
@@ -243,10 +277,20 @@ fn hello_checked(
     }
 }
 
-/// A call after hello on a connection that isn't a tunnel.
-fn on_call(
-    call: Call,
+/// A request past hello, and its timing for the debug log (`None` while debug mode is off).
+struct Incoming {
     id: skyelab_protocol::RequestId,
+    call: Call,
+    timed: Option<skyelab_core::debug::RpcCall>,
+}
+
+/// A call after hello on a connection that isn't a tunnel. Backend calls are timed for the debug log.
+fn on_call(
+    Incoming {
+        id,
+        call,
+        mut timed,
+    }: Incoming,
     shared: &Shared,
     who: &Who,
     in_flight: &Arc<Semaphore>,
@@ -257,79 +301,87 @@ fn on_call(
         id: Some(id),
         error: RpcError::new(code, message),
     };
-    match call {
-        Call::ForwardPort { port } => {
-            if let Some(why) = forward::refusal(port, &shared.own_ports) {
-                return Step::Send(error(ErrorCode::BadRequest, &why));
-            }
-            let Ok(permit) = in_flight.clone().try_acquire_owned() else {
-                return Step::Send(error(
-                    ErrorCode::TooManyRequests,
-                    "too many requests in flight",
-                ));
-            };
-            let (peers, replies, peer) = (shared.peers.clone(), replies.clone(), who.peer_id);
-            running.spawn(async move {
-                // Probe first, so the user hears at once that nothing listens there.
-                let reply = match forward::dial_loopback(port).await {
-                    Err(why) => error(ErrorCode::NotFound, &why),
-                    Ok(_probe) => match forward::allow(&peers, peer, port) {
-                        Ok(token) => ServerMessage::Response {
-                            id,
-                            result: Reply::Forwarded { token },
+    let step = (|| {
+        match call {
+            Call::ForwardPort { port } => {
+                if let Some(why) = forward::refusal(port, &shared.own_ports) {
+                    return Step::Send(error(ErrorCode::BadRequest, &why));
+                }
+                let Ok(permit) = in_flight.clone().try_acquire_owned() else {
+                    return Step::Send(error(
+                        ErrorCode::TooManyRequests,
+                        "too many requests in flight",
+                    ));
+                };
+                let (peers, replies, peer) = (shared.peers.clone(), replies.clone(), who.peer_id);
+                let timed = timed.take();
+                running.spawn(async move {
+                    // Probe first, so the user hears at once that nothing listens there.
+                    let reply = match forward::dial_loopback(port).await {
+                        Err(why) => error(ErrorCode::NotFound, &why),
+                        Ok(_probe) => match forward::allow(&peers, peer, port) {
+                            Ok(token) => ServerMessage::Response {
+                                id,
+                                result: Reply::Forwarded { token },
+                            },
+                            Err(why) => error(ErrorCode::BadRequest, &why),
                         },
-                        Err(why) => error(ErrorCode::BadRequest, &why),
-                    },
+                    };
+                    log_message(timed, &reply);
+                    let _ = replies.send(reply).await;
+                    drop(permit);
+                });
+                Step::Nothing
+            }
+            Call::StopForward { port, token } => {
+                forward::stop(&shared.peers, who.peer_id, port, &token);
+                Step::Send(ServerMessage::Response {
+                    id,
+                    result: Reply::Ok,
+                })
+            }
+            call => {
+                let Ok(permit) = in_flight.clone().try_acquire_owned() else {
+                    return Step::Send(error(
+                        ErrorCode::TooManyRequests,
+                        "too many requests in flight",
+                    ));
                 };
-                let _ = replies.send(reply).await;
-                drop(permit);
-            });
-            Step::Nothing
+                let backend = shared.backend.clone();
+                let replies = replies.clone();
+                let gate = who.gate.clone();
+                let timed = timed.take();
+                running.spawn(async move {
+                    // The call can wait for a blocking thread while its device is revoked.
+                    let run = move || match gate.cancelled() {
+                        true => Err(RpcError::new(
+                            ErrorCode::NotApproved,
+                            "this device was cut off",
+                        )),
+                        false => gate.run(|| dispatch(&*backend, call)),
+                    };
+                    let reply = match tokio::task::spawn_blocking(run).await {
+                        Ok(Ok(result)) => ServerMessage::Response { id, result },
+                        Ok(Err(error)) => ServerMessage::Error {
+                            id: Some(id),
+                            error,
+                        },
+                        Err(_) => ServerMessage::Error {
+                            id: Some(id),
+                            error: RpcError::new(ErrorCode::Internal, "request failed"),
+                        },
+                    };
+                    log_message(timed, &reply);
+                    // Waits only while `serve` is busy writing; it drains this channel every turn.
+                    let _ = replies.send(reply).await;
+                    drop(permit);
+                });
+                Step::Nothing
+            }
         }
-        Call::StopForward { port, token } => {
-            forward::stop(&shared.peers, who.peer_id, port, &token);
-            Step::Send(ServerMessage::Response {
-                id,
-                result: Reply::Ok,
-            })
-        }
-        call => {
-            let Ok(permit) = in_flight.clone().try_acquire_owned() else {
-                return Step::Send(error(
-                    ErrorCode::TooManyRequests,
-                    "too many requests in flight",
-                ));
-            };
-            let backend = shared.backend.clone();
-            let replies = replies.clone();
-            let gate = who.gate.clone();
-            running.spawn(async move {
-                // The call can wait for a blocking thread while its device is revoked.
-                let run = move || match gate.cancelled() {
-                    true => Err(RpcError::new(
-                        ErrorCode::NotApproved,
-                        "this device was cut off",
-                    )),
-                    false => gate.run(|| dispatch(&*backend, call)),
-                };
-                let reply = match tokio::task::spawn_blocking(run).await {
-                    Ok(Ok(result)) => ServerMessage::Response { id, result },
-                    Ok(Err(error)) => ServerMessage::Error {
-                        id: Some(id),
-                        error,
-                    },
-                    Err(_) => ServerMessage::Error {
-                        id: Some(id),
-                        error: RpcError::new(ErrorCode::Internal, "request failed"),
-                    },
-                };
-                // Waits only while `serve` is busy writing; it drains this channel every turn.
-                let _ = replies.send(reply).await;
-                drop(permit);
-            });
-            Step::Nothing
-        }
-    }
+    })();
+    log_reply(timed, &step);
+    step
 }
 
 fn hello(
@@ -363,6 +415,8 @@ fn hello(
     }
 }
 
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
+#[tracing::instrument(name = "daemon.dispatch", skip_all)]
 fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
     match call {
         Call::Hello { .. } => Err(RpcError::new(ErrorCode::BadRequest, "already said hello")),

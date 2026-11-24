@@ -12,9 +12,15 @@ ring.workspace = true
 rusqlite.workspace = true
 serde_json.workspace = true
 skyelab-core.workspace = true
+tracing.workspace = true
+# Function timing for `--features hotpath` builds (docs/debugging.md); nothing when off.
+hotpath = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true
+
+[features]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]
 
 [lints]
 workspace = true

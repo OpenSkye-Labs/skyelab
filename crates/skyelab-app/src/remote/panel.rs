@@ -33,7 +33,7 @@ impl Focusable for RemotePanel {
 
 impl Render for RemotePanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("RemotePanel");
+        let _render = crate::debug_renders::count("RemotePanel");
         let theme = cx.theme();
         let remote = self.remote.read(cx);
         let (status, status_color) = (remote.status.label(), remote.status.color(theme));

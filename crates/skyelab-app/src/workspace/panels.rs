@@ -85,7 +85,7 @@ impl Welcome {
 
 impl Render for Welcome {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("Welcome");
+        let _render = crate::debug_renders::count("Welcome");
         let theme = cx.theme();
         if self.show_setup {
             let header = super::layout::page_header(window, cx)
@@ -190,7 +190,7 @@ panel!(TerminalsEmpty, "TerminalsEmpty", closable: false, |_this| "Terminal");
 
 impl Render for TerminalsEmpty {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("TerminalsEmpty");
+        let _render = crate::debug_renders::count("TerminalsEmpty");
         let theme = cx.theme();
         h_flex()
             .id("terminals-empty")
@@ -283,7 +283,7 @@ impl BrowserPanel {
 
 impl Render for BrowserPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("BrowserPanel");
+        let _render = crate::debug_renders::count("BrowserPanel");
         let theme = cx.theme();
         // Drawn above the page: the native webview covers anything inside its own bounds.
         let bar = self.agent.as_ref().map(|a| {

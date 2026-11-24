@@ -168,6 +168,8 @@ impl Store {
     /// Threads whose title or message text (prompts, assistant text) contains `query`, most recently updated
     /// first, in `project` or in every project. Deleted threads and removed projects are left out. Under three
     /// characters only titles are searched: the trigram index needs three.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[tracing::instrument(name = "store.search_threads", skip_all)]
     pub fn search_threads(
         &self,
         query: &str,

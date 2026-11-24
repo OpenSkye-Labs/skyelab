@@ -289,7 +289,7 @@ impl Focusable for SearchPanel {
 
 impl Render for SearchPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("SearchPanel");
+        let _render = crate::debug_renders::count("SearchPanel");
         let theme = cx.theme();
         let status = self.status();
         let empty = self.rows.is_empty();

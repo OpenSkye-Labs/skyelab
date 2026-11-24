@@ -226,7 +226,7 @@ impl ImportPicker {
 
 impl Render for ImportPicker {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("ImportPicker");
+        let _render = crate::debug_renders::count("ImportPicker");
         let theme = cx.theme();
         let (now, project) = (ui::now_ms(), &self.project.path);
         let open = self.rows.iter().filter(|r| !r.imported).count();

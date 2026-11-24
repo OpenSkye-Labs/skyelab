@@ -109,6 +109,7 @@ pub(crate) fn user_message(text: &str, attachments: &[crate::Attachment], pendin
 /// One stdout line. A result that lists prompt uuids answers those of ours it names. Without the list, one from
 /// another origin than the user (a background wake, a peer) answers none, and any other answers the oldest prompt
 /// (an older CLI). Streaming chatter nobody shows yields nothing.
+#[cfg_attr(feature = "hotpath", hotpath::measure)]
 pub(crate) fn parse(line: &str, pending: &Sent, open: &Asks) -> Vec<Event> {
     if let Some(events) = control(line, open) {
         return events;

@@ -13,6 +13,8 @@ impl Store {
 
     /// Stores an event under the thread's next seq and bumps the thread's `updated_at`. Image bytes in the payload
     /// are stored as a placeholder (see `images.rs`); the returned event is what was stored.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[tracing::instrument(name = "store.append_event", skip_all)]
     pub fn append_event(
         &mut self,
         thread_id: i64,
@@ -55,6 +57,8 @@ impl Store {
     }
 
     /// Events with `seq > after_seq`, in order. Pass 0 for all of them.
+    #[cfg_attr(feature = "hotpath", hotpath::measure)]
+    #[tracing::instrument(name = "store.events_since", skip_all)]
     pub fn events_since(&self, thread_id: i64, after_seq: i64) -> Result<Vec<Event>> {
         let mut stmt = self.conn.prepare(
             "SELECT thread_id, seq, kind, payload_json, created_at FROM events

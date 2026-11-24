@@ -15,6 +15,7 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::{Disconnect, DisconnectKind, Error, Options, Update, WatchId};
 
 mod connect;
+mod expire;
 pub(crate) mod forward;
 mod forward_calls;
 mod watched;
@@ -173,6 +174,8 @@ pub(crate) async fn run(
     updates: flume::Sender<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
 ) {
+    // Debug mode's live count (docs/debugging.md): one per machine this app is connected to or retrying.
+    let _live = skyelab_core::debug::Live::new("remote connections");
     let mut cx = Ctx {
         host,
         options,
@@ -242,12 +245,16 @@ async fn session(cx: &mut Ctx) -> End {
         ws,
         next_id: 1,
         pending: HashMap::new(),
+        timing: HashMap::new(),
         retry_at: None,
         retry_delay: cx.options.backoff_min,
         session_ended: tokio::sync::watch::channel(()).0,
     };
     let end = live.serve(cx).await;
     // Whatever was in flight on this connection can't be answered now.
+    for (_, call) in live.timing.drain() {
+        call.done(Some("connection lost"));
+    }
     for (_, (_, waiter)) in live.pending.drain() {
         match waiter {
             Waiter::User(reply) => reply(Err(Error::ConnectionLost)),
@@ -280,6 +287,8 @@ struct Live {
     ws: Ws,
     next_id: RequestId,
     pending: HashMap<RequestId, (Instant, Waiter)>,
+    /// Requests timed for the debug log (empty while debug mode is off).
+    timing: HashMap<RequestId, skyelab_core::debug::RpcCall>,
     /// When to refill the stale threads, and the delay after that (doubles while fills keep failing).
     retry_at: Option<Instant>,
     retry_delay: Duration,
@@ -409,6 +418,9 @@ impl Live {
                 return Ok(());
             }
         };
+        if let Some(call) = self.timing.remove(&id) {
+            call.done(result.as_ref().err().map(ToString::to_string).as_deref());
+        }
         match self.pending.remove(&id) {
             Some((_, Waiter::User(reply))) => {
                 reply(result);
@@ -511,6 +523,9 @@ impl Live {
         let text = serde_json::to_string(&Request { id, call })
             .unwrap_or_else(|_| unreachable!("Request always serializes"));
         let deadline = Instant::now() + cx.options.request_timeout;
+        if let Some(call) = skyelab_core::debug::RpcCall::start("client", &text) {
+            self.timing.insert(id, call);
+        }
         // In the table first, so a failed send still answers the caller (ConnectionLost).
         self.pending.insert(id, (deadline, waiter));
         self.write(Message::text(text), cx.options.ping_interval)
@@ -523,29 +538,6 @@ impl Live {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => Err(lost(format!("send failed: {e}"))),
             Err(_) => Err(lost("send stalled")),
-        }
-    }
-
-    fn expire(&mut self, cx: &mut Ctx, now: Instant) {
-        let expired: Vec<RequestId> = self
-            .pending
-            .iter()
-            .filter(|(_, (deadline, waiter))| {
-                *deadline <= now && !matches!(waiter, Waiter::Forward(..))
-            })
-            .map(|(id, _)| *id)
-            .collect();
-        for id in expired {
-            match self.pending.remove(&id) {
-                Some((_, Waiter::User(reply))) => reply(Err(Error::Timeout)),
-                Some((_, Waiter::Fill(thread_id))) => {
-                    if let Some(w) = cx.watched.get_mut(&thread_id) {
-                        w.filling = false;
-                    }
-                    self.mark_stale(cx, thread_id);
-                }
-                Some((_, Waiter::Forward(..))) | None => {}
-            }
         }
     }
 }

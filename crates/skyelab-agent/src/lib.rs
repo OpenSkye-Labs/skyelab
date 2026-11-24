@@ -73,6 +73,8 @@ pub struct Session {
     asks: claude::Asks,
     /// The mode it started in: Claude takes Full access later only if it started with it.
     launched: Mode,
+    /// Debug mode's live count of agent processes.
+    _live: skyelab_core::debug::Live,
     /// Where [`Session::answer`] reports its answer. Weak, so the channel still closes with the agent's stdout.
     events_tx: flume::WeakSender<Event>,
     /// stderr not yet taken by [`Session::take_stderr`], at most [`STDERR_TAIL`] bytes.
@@ -206,6 +208,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         sent: claude::Sent::default(),
         asks: claude::Book::new(nonce),
         launched: mode,
+        _live: skyelab_core::debug::Live::new("agent sessions"),
         events_tx: tx.downgrade(),
         stderr: Arc::default(),
         #[cfg(windows)]

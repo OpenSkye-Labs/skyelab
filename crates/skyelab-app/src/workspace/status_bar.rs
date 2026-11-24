@@ -20,6 +20,17 @@ impl Workspace {
             .child(badge.chip())
             .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenSettings), cx));
         let remote = self.is_remote();
+        // Debug mode on: a chip that shows or hides the overlay (docs/debugging.md).
+        let debug = skyelab_core::debug::enabled().then(|| {
+            Button::new("status-debug")
+                .ghost()
+                .xsmall()
+                .label("Debug")
+                .tooltip("Debug mode is on: show or hide the overlay")
+                .on_click(|_, window, cx| {
+                    window.dispatch_action(Box::new(super::ToggleDebugOverlay), cx)
+                })
+        });
         StatusBar::new()
             .left(
                 h_flex()
@@ -42,6 +53,7 @@ impl Workspace {
                             .child(format!("Store error: {e}"))
                     })),
             )
+            .right(h_flex().children(debug))
             .right(
                 Button::new("status-devices")
                     .ghost()

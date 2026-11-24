@@ -16,6 +16,8 @@ mod child_slots;
 mod compare;
 mod compare_sidebar;
 mod compare_view;
+mod debug_hud;
+pub(crate) use debug_hud::ToggleDebugOverlay;
 mod details_panel;
 mod device_agent;
 mod devices;
@@ -155,6 +157,10 @@ pub use keys::init;
 pub(crate) use keys::*;
 
 pub struct Workspace {
+    /// Debug mode's overlay, while shown (docs/debugging.md).
+    debug_hud: Option<Entity<debug_hud::DebugHud>>,
+    /// Debug mode's live count of windows.
+    _live: skyelab_core::debug::Live,
     focus: FocusHandle,
     /// This window, as the window registry (`windows`) knows it.
     window_handle: gpui::AnyWindowHandle,
@@ -331,6 +337,9 @@ impl Workspace {
 
         crate::ui::set_accounts(cx, &config);
         let mut this = Self {
+            _live: skyelab_core::debug::Live::new("windows"),
+            debug_hud: crate::debug_mode::take_open_at_start()
+                .then(|| cx.new(|cx| debug_hud::DebugHud::new(false, cx))),
             focus: cx.focus_handle(),
             window_handle: window.window_handle(),
             dock,

@@ -6589,6 +6589,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml 1.2.2+spec-1.1.0",
+ "tracing",
  "uuid",
  "win32job",
 ]
@@ -6625,8 +6626,10 @@ dependencies = [
  "ignore",
  "ring",
  "serde",
+ "serde_json",
  "tempfile",
  "toml 1.2.2+spec-1.1.0",
+ "tracing",
 ]
 
 [[package]]
@@ -6646,6 +6649,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
+ "tracing",
  "x509-parser",
 ]
 
@@ -6710,6 +6714,7 @@ dependencies = [
  "rusqlite",
  "serde_json",
  "skyelab-core",
+ "tracing",
 ]
 
 [[package]]

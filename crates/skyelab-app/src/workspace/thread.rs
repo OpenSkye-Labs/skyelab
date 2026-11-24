@@ -53,6 +53,8 @@ pub use super::thread_details::ChildLink;
 pub use event::{GitAction, ThreadViewEvent};
 
 pub struct ThreadView {
+    /// Debug mode's live count (docs/debugging.md): a count that grows as threads close is a leak.
+    _live: skyelab_core::debug::Live,
     pub(super) focus: FocusHandle,
     pub(super) project_id: i64,
     /// The project's name, as the sidebar shows it (the workspace keeps it current across renames).
@@ -292,6 +294,7 @@ impl ThreadView {
             branch_picker,
             scripts,
             folder_account: config.resolve(&cwd).cloned(),
+            _live: skyelab_core::debug::Live::new("thread views"),
             focus: cx.focus_handle(),
             project_id,
             // The folder's name until the workspace names the project (`new` and `open_stored` do at once).

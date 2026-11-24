@@ -36,7 +36,7 @@ impl MachinesPage {
 
 impl Render for MachinesPage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("MachinesPage");
+        let _render = crate::debug_renders::count("MachinesPage");
         let picker = self.picker.read(cx);
         let machines = picker.machines(cx);
         let recents = picker.recents.clone();

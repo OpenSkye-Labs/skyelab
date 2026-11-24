@@ -151,7 +151,7 @@ fn divider(
 
 impl Render for TerminalPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::debug_renders::count("TerminalPanel");
+        let _render = crate::debug_renders::count("TerminalPanel");
         if let Some(at) = self.focused_pane(window, cx) {
             self.active = at; // a click moved focus; the tab's title and account follow it
         }

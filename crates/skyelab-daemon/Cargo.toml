@@ -9,6 +9,9 @@ license.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 skyelab-core.workspace = true
+tracing.workspace = true
+# Function timing for `--features hotpath` builds (docs/debugging.md); nothing when off.
+hotpath = { workspace = true, optional = true }
 skyelab-protocol.workspace = true
 skyelab-store.workspace = true
 skyelab-tailnet.workspace = true
@@ -22,6 +25,7 @@ serde_json.workspace = true
 tempfile = { workspace = true, optional = true }
 
 [features]
+hotpath = ["dep:hotpath", "hotpath/hotpath"]
 # The shared remote-test harness (test CA, fake tailnet, served store) for this and other crates' tests.
 # Never in a shipped build.
 test-support = ["dep:rcgen", "dep:tempfile"]
