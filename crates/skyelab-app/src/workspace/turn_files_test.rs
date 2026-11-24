@@ -50,6 +50,49 @@ fn turn_numbers_need_matching_counts() {
     assert_eq!(turn_of(&items, 0, 2, 2), None, "not a divider");
 }
 
+#[test]
+fn a_file_with_no_lines_to_count_says_what_it_is() {
+    use skyelab_git::{ChangeKind, FileDiff, Hunk, Line};
+    let file = |name: &str, kind, binary, lines: Vec<Line>| FileDiff {
+        old_path: None,
+        new_path: Some(name.into()),
+        kind,
+        binary,
+        too_large: None,
+        hunks: vec![Hunk {
+            old_start: 0,
+            old_lines: 0,
+            new_start: 1,
+            new_lines: lines.len() as u32,
+            header: String::new(),
+            lines,
+        }],
+    };
+    let mut big = file("big.rs", ChangeKind::Added, false, vec![]);
+    big.too_large = Some(6_000);
+    let stats = super::turn_files::stats(
+        std::path::Path::new("/repo"),
+        vec![
+            big,
+            file("empty.txt", ChangeKind::Added, false, vec![]),
+            file("logo.png", ChangeKind::Added, true, vec![]),
+            file("new.rs", ChangeKind::Added, false, vec![Line::Added("x".into())]),
+            file("old.rs", ChangeKind::Modified, false, vec![Line::Removed("x".into())]),
+        ],
+    );
+    let notes: Vec<_> = stats.iter().map(|s| (s.rel.as_str(), s.note)).collect();
+    assert_eq!(
+        notes,
+        [
+            ("big.rs", Some("too large to show")),
+            ("empty.txt", Some("new file")),
+            ("logo.png", Some("binary")),
+            ("new.rs", None),
+            ("old.rs", None),
+        ]
+    );
+}
+
 #[gpui::test]
 fn turn_files_list_each_turns_checkpoint_diff(cx: &mut TestAppContext) {
     let f = fixture();

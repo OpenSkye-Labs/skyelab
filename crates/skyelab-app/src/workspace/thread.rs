@@ -151,6 +151,8 @@ pub struct ThreadView {
     pub(super) on_sent: Option<flume::Sender<Result<(), String>>>,
     /// Attachments, menus, the model pick, the queue and the footer (`composer_state.rs`).
     pub(super) composer: composer::Composer,
+    /// The rows and minimap, drawn cached so a composer-only redraw (the caret blink) doesn't rebuild them.
+    pub(super) timeline_view: Entity<super::timeline_view::TimelineView>,
     _pump: Option<Task<()>>,
     /// Ends the agent once it has sat idle a while (`thread_release.rs`).
     pub(super) release: release::Release,
@@ -304,6 +306,8 @@ impl ThreadView {
         let scripts = cx.new(|cx| {
             super::scripts::ScriptMenu::new(owner, backend.store.clone(), project_id, window, cx)
         });
+        let this = cx.entity();
+        let timeline_view = cx.new(|cx| super::timeline_view::TimelineView::new(&this, cx));
         Self {
             window: window.window_handle(),
             branch_picker,
@@ -363,6 +367,7 @@ impl ThreadView {
             send_chain: None,
             on_sent: None,
             composer: Default::default(),
+            timeline_view,
             _pump: None,
             release: Default::default(),
             _task: None,

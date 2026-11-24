@@ -69,6 +69,68 @@ fn word_ranges_find_each_match_in_the_text() {
     assert!(word_ranges("abc", " ").is_empty());
 }
 
+#[test]
+fn a_reply_is_counted_as_drawn() {
+    use skyelab_agent::DeltaKind;
+    let reply = |t: &str| vec![Item::Text(t.into())];
+    assert!(
+        matches(&reply("see [docs](a.rs)"), "a.rs").is_empty(),
+        "a link target isn't drawn, so it isn't counted"
+    );
+    assert_eq!(matches(&reply("see [a.rs](a.rs)"), "a.rs"), [0], "its text is, once");
+    assert_eq!(matches(&reply("**bold** move"), "bold move"), [0], "markup left out");
+    assert_eq!(matches(&reply(r"a\_b"), "a_b"), [0], "an escape resolved");
+    let live = vec![Item::Live {
+        kind: DeltaKind::Text,
+        text: "[x](needle.rs) needle".into(),
+    }];
+    assert_eq!(matches(&live, "needle"), [0], "a streaming reply part too");
+}
+
+#[test]
+fn the_greek_final_sigma_matches_either_way() {
+    let items = vec![Item::Prompt("ΟΔΟΣ οδος".into())];
+    assert_eq!(matches(&items, "οδος"), [0, 0]);
+    assert_eq!(matches(&items, "ΟΔΟΣ"), [0, 0]);
+    assert_eq!(
+        super::find_marks::word_ranges("ΟΔΟΣ οδος", "οδοσ").len(),
+        2,
+        "and marks both"
+    );
+}
+
+/// The count is the number of marks: each reply's matches in gpui-component's own rendered text.
+#[gpui::test]
+fn the_count_equals_the_marks_in_the_rendered_text(cx: &mut gpui::TestAppContext) {
+    use gpui::AppContext as _;
+    cx.update(gpui_component::init);
+    for (source, query) in [
+        ("see [docs](needle.rs) and needle", "needle"),
+        ("# Needle\n\n- a needle\n- `needle`\n\n```\nneedle\n```", "needle"),
+        ("| a | needle |\n|---|---|\n| needle | b |", "needle"),
+        ("**bold** text, _it_ here", "bold text"),
+        (r"a\_b and a_b", "a_b"),
+        ("end of one.\n\nStart of two", "one. start"),
+        ("the needle\nhaystack here", "needle haystack"),
+        ("two  spaces", "two spaces"),
+        ("| a | b |\n|---|---|\n| c | d |", "b c"),
+        ("| a | b |\n|---|---|\n| c | d |", "b\nc"),
+        ("a <strong>bold</strong> word, a <Button> tag", "strong"),
+        ("a <strong>bold</strong> word", "bold word"),
+        ("fix the <Button> now", "button"),
+        ("fix the <Button> now", "the now"),
+    ] {
+        let state = cx.new(|cx| gpui_component::text::TextViewState::markdown(source, cx));
+        cx.run_until_parked();
+        let rendered = state.read_with(cx, |s, _| s.rendered_text().as_str().to_owned());
+        assert_eq!(
+            matches(&[Item::Text(source.into())], query).len(),
+            super::find_marks::word_ranges(&rendered, query).len(),
+            "{source:?} as {rendered:?}"
+        );
+    }
+}
+
 #[cfg(unix)] // the fake agent is a shell script
 #[gpui::test]
 fn find_keys_open_step_and_close(cx: &mut TestAppContext) {

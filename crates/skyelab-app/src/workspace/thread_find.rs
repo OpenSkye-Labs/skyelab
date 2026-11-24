@@ -2,10 +2,12 @@
 //! (case-insensitive) in the thread's rows, steps through them with Enter / Shift-Enter, scrolls to each, opens the
 //! folded turn or collapsed row it sits in, and marks the matched words (other rows that match are tinted). Esc closes it.
 
+use super::find_marks::word_ranges;
 use super::thread::{CONTEXT, ThreadView};
 use super::thread_items::ItemsView;
 use super::thread_model::Item;
 use super::timeline_fold::{fold_key, folded_by};
+use super::turn_files::minimap::markdown_plain;
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
@@ -17,6 +19,7 @@ use gpui_component::{
     ActiveTheme as _, Sizable as _, h_flex,
     input::{Input, InputEvent, InputState},
 };
+use skyelab_agent::DeltaKind;
 
 actions!(skyelab, [FindInThread, FindNext, FindPrevious, CloseFind]);
 
@@ -76,7 +79,8 @@ impl Find {
     }
 }
 
-/// The text a row is searched in, folded or not: a tool's whole input and result, not only its one-line summary.
+/// The text a row is searched in, folded or not: a tool's whole input and result, not only its one-line summary. A
+/// reply is searched as drawn (its markdown's rendered text, the text find marks), so the count and the marks agree.
 pub fn text_of(item: &Item) -> String {
     let tool = |t: &super::thread_model::ToolItem| {
         format!(
@@ -87,7 +91,12 @@ pub fn text_of(item: &Item) -> String {
         )
     };
     match item {
-        Item::Prompt(t) | Item::Steer(t) | Item::Text(t) => t.clone(),
+        Item::Text(t)
+        | Item::Live {
+            kind: DeltaKind::Text,
+            text: t,
+        } => markdown_plain(t),
+        Item::Prompt(t) | Item::Steer(t) => t.clone(),
         Item::Live { text, .. } | Item::Thinking { text, .. } | Item::Output { text, .. } => {
             text.clone()
         }
@@ -109,16 +118,17 @@ pub fn text_of(item: &Item) -> String {
     }
 }
 
-/// Each match's row, in order (case-insensitive). An empty query matches nothing.
+/// Each match's row, in order (case-insensitive, as the marks find them). An empty query matches nothing.
 pub fn matches(items: &[Item], query: &str) -> Vec<usize> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() {
+    if query.trim().is_empty() {
         return Vec::new();
     }
     items
         .iter()
         .enumerate()
-        .flat_map(|(ix, i)| std::iter::repeat_n(ix, text_of(i).to_lowercase().matches(&q).count()))
+        // shortcut: parses every reply's markdown on each count (a keystroke, a step); cache the rendered text per row
+        // if find lags on long threads.
+        .flat_map(|(ix, i)| std::iter::repeat_n(ix, word_ranges(&text_of(i), query).len()))
         .collect()
 }
 

@@ -79,7 +79,20 @@ impl Render for Center {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 |_, window, cx| window.dispatch_action(Box::new(GoForward), cx),
             )
-            .child(self.content.clone())
+            .child(page(&self.content))
+    }
+}
+
+/// The page, cached (the dock draws the center uncached, `center_skin.rs`) unless it is a thread: its composer's
+/// caret blink would miss the cache and rebuild every timeline row, so the thread page caches its timeline itself.
+fn page(content: &AnyView) -> gpui::AnyElement {
+    if content.clone().downcast::<ThreadView>().is_ok() {
+        content.clone().into_any_element()
+    } else {
+        content
+            .clone()
+            .cached(gpui::StyleRefinement::default().size_full())
+            .into_any_element()
     }
 }
 

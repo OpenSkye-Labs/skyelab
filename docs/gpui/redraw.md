@@ -51,17 +51,25 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `renders/s Workspace=17 ThreadView=16 timeline row=144 …` once a second. `Workspace` is the frame count per window. A
   new view adds the line as its render's first, keeping the guard: it is also the view's `render` span in a
   `SKYELAB_TRACE` trace. Tests read the counts with `debug_renders::take_test_count` (per test thread, always on).
-  Measured: the focused composer's caret blink re-renders `ThreadView` (and rebuilds its visible timeline rows)
-  twice a second while idle.
+  Measured: the focused composer's caret blink re-renders `ThreadView` twice a second, and no timeline row.
 - A cached view nested under another cached view is **not** reused when that ancestor renders again: on a cache miss
-  GPUI sets `window.refreshing` for the whole subtree (`prepaint_view` in `view.rs`). gpui-component's `TabPanel`
-  draws every dock panel cached, so anything inside the center (or any panel) renders again whenever anything else
-  in that panel notifies. Splitting the thread page into a cached timeline view and a composer view was tried and
-  measured (idle 10 s / typing 20 chars / streamed `timeline` turn, 3 threads, right panel open): 264 / 880 / 651
-  timeline rows built before, 264 / 880 / 659 after, with the timeline view rendering on every frame (branch
-  `t3/split-thread-timeline-view-attempt`). Caching inside a panel only helps a subtree whose panel nothing else
-  notifies; to spare rows from a sibling's ticks, stop the ticks (gpui-component's `Theme::cursor_blink` takes
-  `CursorBlink::with_idle_timeout`) or put the sibling in another dock panel.
+  GPUI sets `window.refreshing` for the whole subtree (`prepaint_view` in `view.rs`). And a notify dirties every
+  view on the dispatch path above the notifier (`mark_view_dirty`), so a cached view misses whenever anything
+  inside it notifies. Uncached ancestors don't refresh anything. So the cache boundary goes on the expensive part,
+  with no cached view above it that a frequent notifier also sits under. Zed works the same way: its panes aren't
+  cached views, so an editor's caret blink re-renders the pane but not the cached views beside it.
+- gpui-component's skin draws every dock panel cached (`render_active_panel` in its `tab_panel.rs`). The center's
+  thread page has a frequent notifier, the composer: gpui-base's text area is a view of its own (`InputBaseState`
+  is `Render`) and notifies on each caret blink phase. With `Center` cached, each blink missed the cache and
+  rebuilt every visible timeline row, and a cached timeline view under it didn't help (measured on branch
+  `t3/split-thread-timeline-view-attempt`). The fix: `center_skin::CenterSkin` wraps the skin through
+  `DockArea::with_renderer` and draws the center panel and side chat panels (thread pages too) uncached
+  (`TabGroupRenderer::render_active_panel` is the hook for that). `Center` caches non-thread pages itself, and the thread page draws its rows and minimap as a cached
+  `TimelineView`. It observes `ThreadView`, so anything `ThreadView` notifies (an event, a delta, a fold, find)
+  still rebuilds the rows, but a blink (`InputBaseState`'s own notify) doesn't. `scripts/perf.sh idle`: 156 to 21
+  frames, 4,902 to 266 timeline rows, 0 rows in the seconds the caret blinks. Tests: `blink_redraw_test.rs`, `side_chat_blink_test.rs`.
+- The list inside `TimelineView` notifies `TimelineView` on a wheel scroll (the view that drew it), not `ThreadView`.
+  Whatever reads the scroll position each frame (the minimap's current tick) is drawn by `TimelineView` too.
 - Subscriptions to a view that can close live in a map keyed by its `EntityId` and are removed when it closes. A
   one-shot wait removes its own `Subscription` once it fires.
 
@@ -69,8 +77,8 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   decide (the composer's multi-model send) must leave its draft untouched when it emits: the parent takes the text
   and files only once it accepts, and a refusal leaves the composer as it was (`compare::compare_send`).
 
-- The caret blink alone kept an idle window redrawing twice a second (the center panel plus ~17 timeline rows each time).
-  `ui::CURSOR_BLINK` stops blinking after 5 s idle (`CursorBlink::with_idle_timeout`); measured with
+- The caret blink keeps an idle window redrawing twice a second (the thread page minus its timeline rows, which are
+  cached). `ui::CURSOR_BLINK` stops blinking after 5 s idle (`CursorBlink::with_idle_timeout`); measured with
   `SKYELAB_DEBUG_RENDERS=1`, idle redraws drop to zero.
 
 - A list's wheel scroll notifies the view that drew the `list` (`cx.notify(current_view)` in `ListState`), so that
@@ -124,16 +132,6 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `Live` row of their own once the tail passes 2 KB (`timeline::split_live`), so a delta re-lays out only the tail
   and the rows on screen; the complete block joins the parts into one row again. Measured with `scripts/perf.sh
   stream`'s p50 per 10 s: flat at 2.0-2.2 ms. Parts sit together (no row padding between them) to read as one message.
-- Why the caret blink redraws the timeline (traced, not fixable in our code): gpui-base's `InputState` observes its
-  `BlinkCursor` and notifies itself on each phase (`state.rs`, `cx.observe(&blink_cursor, .. cx.notify())`); a notify
-  dirties every view on the dispatch-tree path above it (`mark_view_dirty` walks `view_path_reversed`), so
-  `ThreadView` and `Center` go dirty; the center `TabPanel` draws `Center` with `.cached(..)`, the dirty cache misses
-  and sets `window.refreshing` for its whole subtree, and every row is built again. Dead ends: `DockLayout` has only
-  tab panels (always cached), a `deferred` element keeps its parent's dispatch node (so it is still a descendant),
-  and a list row can't be reused without a cached view. What would work: a paint-only invalidation in GPUI, or the
-  composer in a dock panel of its own (its actions then need routing back to the thread). Until then the blink stops
-  after 5 s idle (`ui::CURSOR_BLINK`), ~10 redraws of the visible rows (`scripts/perf.sh idle`: 17 ThreadView renders,
-  590 timeline rows).
 - A `list` lays out its leading overdraw (600 px above the viewport for the timeline) and never paints it: at launch
   the first rows frame builds 44 rows, 28 with no overdraw (`scripts/perf.sh idle`). It can't be deferred safely:
   the overdraw is fixed at `ListState::new`, and `set_item_measurement_readiness` marks visible rows provisional and

@@ -5,6 +5,7 @@ mod branch_picker;
 mod browser_agent;
 mod browser_tabs;
 mod center;
+mod center_skin;
 mod changes;
 mod changes_generate;
 mod changes_model;
@@ -111,6 +112,7 @@ mod thread_rows;
 mod thread_worktree;
 mod timeline_fold;
 mod timeline_text;
+mod timeline_view;
 mod tool_cards;
 mod turn_files;
 mod update_notice;
@@ -304,7 +306,17 @@ impl Workspace {
         let details = cx.new(details_panel::DetailsPanel::new);
         let surfaces = cx.new(surfaces::SurfacesPanel::new);
 
-        let (dock, skin) = DockSkin::dock_area("workspace", None, window, cx);
+        // gpui-component's skin, the center drawn uncached (`center_skin.rs`).
+        let mut skin = None;
+        let dock = cx.new(|cx| {
+            let s = DockSkin::new(cx);
+            skin = Some(s.clone());
+            let center = center.entity_id();
+            DockArea::new("workspace", None, window, cx).with_renderer(std::rc::Rc::new(
+                center_skin::CenterSkin { skin: s, center },
+            ))
+        });
+        let skin = skin.expect("the dock area's constructor ran");
         skin.set_toggle_button_visible(false, cx);
         dock.update(cx, |dock, cx| {
             let tabs = |panel, cx: &App| DockLayout::tabs().panel_view(panel, cx);

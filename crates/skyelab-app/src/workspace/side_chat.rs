@@ -26,6 +26,9 @@ use skyelab_store::{NewThread, Store, Thread};
 #[path = "side_chat_allow_test.rs"]
 mod allow_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
+#[path = "side_chat_blink_test.rs"]
+mod blink_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
 #[path = "side_chat_close_test.rs"]
 mod close_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script

@@ -29,6 +29,10 @@ mod working_elapsed_test;
 mod sidebar_rebuild_test;
 
 #[cfg(unix)] // the fake agent is a shell script
+#[path = "blink_redraw_test.rs"]
+mod blink_redraw_test;
+
+#[cfg(unix)] // the fake agent is a shell script
 #[path = "details_redraw_test.rs"]
 mod details_redraw_test;
 
