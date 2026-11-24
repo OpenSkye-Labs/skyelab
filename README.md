@@ -109,7 +109,8 @@ What's built today:
   **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
   its own cookies and storage. macOS and Linux only (like delegation).
 - **Device hub.** Lists iOS Simulators and Android emulators. Boot, shut down, take screenshots, open URLs and
-  install apps.
+  install apps. Agents can open a booted device for their thread, screenshot it and (Android) tap, type and press
+  Home or Back; the panel shows who uses it and its latest screen, and **Take back** stops the agent.
 - **Share a machine over your tailnet.** Off by default. When on, the app serves this machine over `wss://` with its
   Tailscale HTTPS certificate, and only your own, untagged devices may connect, each one after you allow it once
   (matching a code shown on both screens). Revoke cuts a device off at once.

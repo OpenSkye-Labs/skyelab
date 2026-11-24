@@ -3,7 +3,7 @@
 # Stand-in for `claude` that calls SkyeLab's MCP tools (tests and SKYELAB_CLAUDE_BIN). A prompt
 # `mcp:<tool>:<json args>` makes one tools/call through the proxy named in --mcp-config, shown as a
 # tool_use + tool_result pair; `delegate <project id>` is short for a start_thread there (easy to type
-# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (echoed as text plus a base64 image block, as real claude does); `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
+# in /loop-verify-ui; `delegate <project id> hold` starts a child that never finishes), `browse <url>` for a browser_open, `title` for a browser_eval of document.title and `shot` for a browser_screenshot (echoed as text plus a base64 image block, as real claude does), `device <id>` for a device_open and `tap <id>` for a device_tap at 50,100; `hold` never finishes its turn; `usage` reports two usage windows (rate_limit_event); `limit` ends its turn, then reports the account limited; any other prompt gets a short answer. Never contacts a real account.
 head -n 1 "$(dirname "$0")/session.jsonl"
 cfg=
 while [ $# -gt 0 ]; do
@@ -61,6 +61,10 @@ while IFS= read -r line; do
   [ -n "$browse" ] && call="browser_open {\\\"url\\\":\\\"$browse\\\"}"
   case $line in *'"content":"title"'*) call='browser_eval {\"expression\":\"document.title\"}' ;; esac
   case $line in *'"content":"shot"'*) call='browser_screenshot {}' ;; esac
+  device=$(printf '%s' "$line" | sed -nE 's/.*"content":"device ([A-Za-z0-9._:-]+)".*/\1/p')
+  [ -n "$device" ] && call="device_open {\\\"device_id\\\":\\\"$device\\\"}"
+  tap=$(printf '%s' "$line" | sed -nE 's/.*"content":"tap ([A-Za-z0-9._:-]+)".*/\1/p')
+  [ -n "$tap" ] && call="device_tap {\\\"device_id\\\":\\\"$tap\\\",\\\"x\\\":50,\\\"y\\\":100}"
   [ -n "$project" ] && call="start_thread {\\\"project_id\\\":$project,\\\"prompt\\\":\\\"${child:-Write the release notes}\\\"}"
   if [ -z "$call" ] || [ -z "$cfg" ]; then
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"Done with the delegated task."}]}}'
