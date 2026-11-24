@@ -6,6 +6,11 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   Use `secondary-` (cmd on mac, ctrl elsewhere) for cross-platform bindings.
 - Handlers: `.key_context("Workspace").on_action(cx.listener(Self::new_thread))`. Every user command is an action,
   so it is bindable and shows in the command palette. No ad-hoc `on_key_down` for commands.
+- The palette lists the actions the focused element can handle (`is_action_available`), so an action that only makes
+  sense in some states is registered only then (`ThreadView::handoff_actions`: a Claude thread registers
+  `ContinueInCodex` and not `ContinueInClaude`). A handler that is always registered and does nothing shows a dead entry.
+- A helper that registers listeners from `render` takes `&Context<Self>` (`cx.listener` needs only `&`): a `&mut cx`
+  inside a builder `.map` conflicts with the `cx.theme()` borrow the rest of the element still holds.
 - A user keymap is Zed's reload: snapshot `cx.key_bindings()` once every `init` has bound (`KeyBinding` is `Clone`,
   and the snapshot keeps gpui-component's bindings too), then on each load `clear_key_bindings`, the snapshot, the
   user's rules last. Later wins at equal context depth, so the rules override. A binding added after the snapshot is
