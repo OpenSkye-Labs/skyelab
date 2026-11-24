@@ -52,6 +52,8 @@ base64 = "0.23"
 gpui-webview = "0.10.0"
 wry = { package = "lb-wry", version = "0.53.3" }
 # The WKWebView snapshot (skyelab-webkit-sys); same majors as lb-wry, so one copy in the tree.
+# The WebKit inspector's private `detach` (skyelab-webkit-sys), same objc2 as objc2-web-kit.
+objc2 = { version = "0.6.5", default-features = false, features = ["std"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "objc2-app-kit", "block2", "WKWebView", "WKSnapshotConfiguration"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSData", "NSError", "NSString"] }
 block2 = "0.6.2"

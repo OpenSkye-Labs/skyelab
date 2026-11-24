@@ -1,15 +1,16 @@
-//! `WKWebView takeSnapshotWithConfiguration:completionHandler:`, which objc2 binds only as an `unsafe fn`.
-//! Everything else (decoding, scaling, size caps) stays in safe code in skyelab-browser. macOS only.
+//! `WKWebView takeSnapshotWithConfiguration:completionHandler:`, which objc2 binds only as an `unsafe fn`, and the
+//! private `_inspector detach` that puts DevTools in a window of its own. Everything else (decoding, scaling, size caps) stays in safe code in skyelab-browser. macOS only.
 #![allow(unsafe_code)]
 
 #[cfg(target_os = "macos")]
-pub use mac::snapshot;
+pub use mac::{detach_inspector, snapshot};
 
 #[cfg(target_os = "macos")]
 mod mac {
     use std::cell::RefCell;
 
     use block2::RcBlock;
+    use objc2::{rc::Retained, runtime::AnyObject, sel};
     use objc2_app_kit::NSImage;
     use objc2_foundation::NSError;
     use objc2_web_kit::WKWebView;
@@ -39,5 +40,27 @@ mod mac {
         // reference proves it). A nil configuration is documented as "the view's bounds". WebKit copies the block,
         // so dropping our `RcBlock` after the call is fine.
         unsafe { view.takeSnapshotWithConfiguration_completionHandler(None, &block) };
+    }
+
+    /// Moves `view`'s open Web Inspector into a window of its own. Docked, WebKit lays it out over the whole host
+    /// window and stretches the page across it, covering the GPUI views beside the pane. Does nothing when this
+    /// WebKit has no such private method.
+    pub fn detach_inspector(view: &WKWebView) {
+        // SAFETY: `_inspector` is WKWebView's private getter for its `_WKInspector` (what wry's `open_devtools`
+        // calls), checked with respondsToSelector first; it returns a retained object or nil, never anything else.
+        let inspector: Option<Retained<AnyObject>> = unsafe {
+            if !objc2::msg_send![view, respondsToSelector: sel!(_inspector)] {
+                return;
+            }
+            objc2::msg_send![view, _inspector]
+        };
+        let Some(inspector) = inspector else { return };
+        // SAFETY: `detach` is `_WKInspector`'s `- (void)detach`, checked first; called on the main thread (the
+        // `&WKWebView`, which is MainThreadOnly, proves it), as WebKit requires.
+        unsafe {
+            if objc2::msg_send![&inspector, respondsToSelector: sel!(detach)] {
+                let () = objc2::msg_send![&inspector, detach];
+            }
+        }
     }
 }

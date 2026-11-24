@@ -61,6 +61,10 @@ See [gpui/windows.md](gpui/windows.md).
 
 See [gpui/keyboard.md](gpui/keyboard.md).
 
+## Native webviews
+
+See [gpui/webview.md](gpui/webview.md).
+
 ## Testing
 
 - Logic goes in `skyelab-core` and gets plain `#[test]`s. Views stay thin.
@@ -80,6 +84,7 @@ See [gpui/keyboard.md](gpui/keyboard.md).
 ## Platform notes
 
 - macOS needs the Xcode Metal Toolchain (see CLAUDE.md). Linux needs X11 for the webview (WebKitGTK has no Wayland
-  embedding in `gpui-webview`). Native webviews draw over GPUI overlays, so don't put menus over a webview.
+  embedding in `gpui-webview`). Native webviews draw over GPUI overlays, so don't put menus over a webview
+  ([gpui/webview.md](gpui/webview.md)).
 - iOS: our pinned `gpui-pre-platform` already includes the experimental `gpui_ios`. Android: no official support; we use
   longbridge's `gpui-pre-mobile`, ported to our pin. A GPUI bump means re-porting it. See [mobile.md](mobile.md).

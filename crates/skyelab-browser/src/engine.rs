@@ -13,6 +13,9 @@ pub type EvalDone = Box<dyn FnOnce(String) + Send>;
 /// A snapshot's encoded image (TIFF from WebKit, any format `image` reads), or the engine's error.
 pub type SnapshotDone = Box<dyn FnOnce(Result<Vec<u8>, String>)>;
 
+/// Whether a find in page hit.
+pub type FindDone = Box<dyn FnOnce(bool) + Send>;
+
 pub trait Engine {
     fn load(&self, url: &str, cx: &App) -> anyhow::Result<()>;
     /// The URL as the engine reports it, which may name a pending load.
@@ -24,6 +27,19 @@ pub trait Engine {
     fn snapshot(&self, done: SnapshotDone, cx: &App) -> anyhow::Result<()> {
         let _ = (done, cx);
         anyhow::bail!("screenshots are not supported on this platform yet")
+    }
+    /// Finds `query` in the page (see `controls::find_script`; an empty query clears the last match) and calls
+    /// `done` with whether it hit. The user's find bar, not the agent path: it runs in any page.
+    fn find(
+        &self,
+        query: &str,
+        backwards: bool,
+        restart: bool,
+        done: FindDone,
+        cx: &App,
+    ) -> anyhow::Result<()> {
+        let _ = (query, backwards, restart, done, cx);
+        anyhow::bail!("find in page is not supported here")
     }
     /// Loads the current page again.
     fn reload(&self, cx: &App) -> anyhow::Result<()> {
@@ -74,6 +90,28 @@ impl Engine for Wry {
             },
         );
         Ok(())
+    }
+
+    fn find(
+        &self,
+        query: &str,
+        backwards: bool,
+        restart: bool,
+        done: FindDone,
+        cx: &App,
+    ) -> anyhow::Result<()> {
+        let script = crate::controls::find_script(query, backwards, restart);
+        // wry wants `Fn`; the result comes once.
+        let done = Mutex::new(Some(done));
+        (self
+            .0
+            .read(cx)
+            .evaluate_script_with_callback(&script, move |raw| {
+                if let Some(done) = done.lock().ok().and_then(|mut d| d.take()) {
+                    done(raw == "true");
+                }
+            }))
+        .context("find in page")
     }
 
     fn eval(&self, js: &str, done: EvalDone, cx: &App) -> anyhow::Result<()> {

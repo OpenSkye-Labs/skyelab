@@ -91,6 +91,7 @@ pub fn init(cx: &mut App) {
     surfaces::bind_keys(cx);
     files::bind_keys(cx);
     thread_find::bind_keys(cx);
+    skyelab_browser::bind_keys(cx);
     changes::bind_keys(cx);
     terminal_panel::bind_keys(cx);
     terminal_tab::bind_keys(cx);

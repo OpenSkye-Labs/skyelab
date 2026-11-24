@@ -142,7 +142,7 @@ pub(super) fn fake_pages(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> 
     pages
 }
 
-fn workspace(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContext) {
+pub(super) fn workspace(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContext) {
     cx.update(|cx| {
         gpui_component::init(cx);
         crate::settings::init(cx);
@@ -168,7 +168,7 @@ fn workspace(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestCont
 }
 
 /// One browser tool call as `thread`, answered on the UI thread.
-fn call(
+pub(super) fn call(
     ws: &Entity<Workspace>,
     thread: i64,
     tool: BrowserTool,
@@ -188,7 +188,7 @@ fn call(
     panic!("no answer");
 }
 
-fn open_url(url: &str) -> BrowserTool {
+pub(super) fn open_url(url: &str) -> BrowserTool {
     BrowserTool::Open { url: url.into() }
 }
 
@@ -198,7 +198,10 @@ fn eval(expression: &str) -> BrowserTool {
     }
 }
 
-fn tabs(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Vec<Entity<BrowserPanel>> {
+pub(super) fn tabs(
+    ws: &Entity<Workspace>,
+    cx: &mut VisualTestContext,
+) -> Vec<Entity<BrowserPanel>> {
     ws.read_with(cx, |ws, _| {
         ws.browsers.iter().filter_map(|b| b.upgrade()).collect()
     })

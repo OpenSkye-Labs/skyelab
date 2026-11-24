@@ -433,6 +433,8 @@ mod browser_agent_cap_test;
 mod browser_agent_review_test;
 #[cfg(all(test, unix))]
 mod browser_agent_test;
+#[cfg(all(test, unix))]
+mod browser_controls_test;
 #[cfg(test)]
 mod browser_tests;
 #[cfg(test)]

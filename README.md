@@ -100,7 +100,8 @@ What's built today:
   side-by-side and stacked split panes you can resize, tabs named after what runs in them (rename with a double-click)
   that follow their thread and reopen after a restart, a confirm before closing a running command, theme colors, and
   **Add to prompt** to send selected output to the agent.
-- **Browser preview.** A browser tab for your dev server. Agents can open their own tab and navigate it, read its
+- **Browser preview.** A browser tab for your dev server, with zoom, find in page, Copy URL, Duplicate tab, Open in
+  system browser and (development builds) DevTools. Agents can open their own tab and navigate it, read its
   URL, evaluate JavaScript in it and take a screenshot of it (http and https only, localhost included; screenshots
   on macOS and Linux). The tab says an agent controls it;
   **Take over** detaches the agent. An agent never reaches a tab you opened or another thread's, and its tab keeps
