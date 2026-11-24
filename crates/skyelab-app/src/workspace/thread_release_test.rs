@@ -1,4 +1,4 @@
-use super::{IDLE_RELEASE, holds_work};
+use super::holds_work;
 use crate::workspace::thread_model::Item;
 use skyelab_agent::timeline::ToolItem;
 use skyelab_agent::timeline::subagent::{SubagentItem, SubagentStatus};
@@ -34,7 +34,7 @@ fn background_work_pins_the_agent_and_plain_turns_do_not() {
 
 #[cfg(unix)]
 mod live {
-    use super::IDLE_RELEASE;
+    use super::super::IDLE_RELEASE;
     use crate::test_wait::wait_ticking;
     use crate::workspace::threads_test::resume::env_reports;
     use crate::workspace::threads_test::{
