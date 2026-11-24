@@ -99,10 +99,14 @@ pub(crate) fn freeze(bin: &Path, dir: &Path) -> Result<Frozen> {
     // Both at once: each is a process start on every git call.
     let common_args = ["rev-parse", "--path-format=absolute", "--git-common-dir"];
     let list_args = ["config", "--list", "--show-scope", "-z", "--includes"];
+    // Both are reaped before either can fail: an unwaited child stays a zombie, and enough of them hit the process
+    // limit (outside a repo the first fails every time).
     let common = start(bin, dir, &common_args)?;
-    let listing = start(bin, dir, &list_args)?;
-    let common = finish(dir, &common_args, common.wait()?)?;
-    let listing = finish(dir, &list_args, listing.wait()?)?;
+    let listing = start(bin, dir, &list_args);
+    let common = common.wait();
+    let listing = listing?.wait();
+    let common = finish(dir, &common_args, common?)?;
+    let listing = finish(dir, &list_args, listing?)?;
     let common = PathBuf::from(lossy(&common).trim_end_matches('\n'));
     let entries = parse(&listing);
     let tmp = tempfile::Builder::new().prefix("skyelab-git-").tempdir()?;

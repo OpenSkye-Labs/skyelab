@@ -103,6 +103,7 @@ mod real {
             "<img src='http://{host}/img'><iframe src='http://{host}/frame'></iframe>\
              <link rel='stylesheet' href='http://{host}/css'>\
              <script>\
+             window.__start=location.href;\
              try{{fetch('http://{host}/fetch').catch(function(){{}})}}catch(e){{}}\
              try{{var x=new XMLHttpRequest();x.open('GET','http://{host}/xhr');x.send()}}catch(e){{}}\
              try{{new WebSocket('ws://{host}/ws')}}catch(e){{}}\
@@ -120,7 +121,7 @@ mod real {
         let tx = std::sync::Mutex::new(Some(tx));
         cx.update(|cx| {
             page.webview().read(cx).raw().evaluate_script_with_callback(
-                "(function(){try{return document.title==='ran'&&location.href==='about:blank'}catch(e){return false}})()",
+                "(function(){try{return document.title==='ran'&&location.href===window.__start}catch(e){return false}})()",
                 move |raw| {
                     if let Some(tx) = tx.lock().ok().and_then(|mut t| t.take()) {
                         let _ = tx.send(raw);
