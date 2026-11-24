@@ -1,13 +1,19 @@
 # GPUI rules
 
 GPUI is pre-1.0 and its API breaks often. These rules keep us on one consistent version and out of the known traps.
-When in doubt, the source of truth is the pinned crate's own code and examples (`~/.cargo/registry/src/*/gpui-pre-0.3.12/`)
+When in doubt, the source of truth is the pinned crate's own code and examples (`~/.cargo/registry/src/*/gpui-pre-0.3.14/`)
 and how Zed uses it, not blog posts or memory.
+
+GPUI now lives in its own repo, https://github.com/zed-industries/gpui (it used to be `crates/gpui` in Zed), and may
+publish its own crate releases as crates.io `gpui`. Read it there for GPUI itself, and Zed's `crates/ui` for how a
+component crate is built on it. We still follow gpui-component's pin (`gpui-pre`, a snapshot of that code) until
+gpui-component moves to the official `gpui` crate; then we move with it.
 
 ## Version pin
 
-- We use **`gpui-pre` =0.3.12** (snapshot of Zed main, aliased as `gpui`) + `gpui-pre-platform`, because
-  `gpui-component` 0.10 pins exactly that. crates.io `gpui` 0.2.x is a year stale; don't use it.
+- We use **`gpui-pre` =0.3.14** (a snapshot of GPUI main, aliased as `gpui`) + `gpui-pre-platform`, because
+  `gpui-component` 0.11 pins exactly that (with `gpui-base`, `gpui-kit-assets` and `gpui-webview` at the same 0.11).
+  crates.io `gpui` 0.2.x is a year stale; don't use it.
 - All three are pinned in `[workspace.dependencies]`. **Bump them together, in one PR, and nothing else in it.**
 - The same PR re-ports gpui-mobile: raise the same pins in `mobile/Cargo.toml`, regenerate the patches in
   `mobile/upstream/` against the new `gpui-pre` (see [mobile/UPSTREAM.md](../mobile/UPSTREAM.md)), and build `mobile/` for

@@ -69,7 +69,7 @@ MCP delegation, account rule and limits: [orchestration.md](orchestration.md).
 | | Status |
 |---|---|
 | macOS, Windows, Linux | GPUI official. v1 targets. |
-| iOS | GPUI via upstream `gpui_ios`, already in our pin (`gpui-pre-platform` 0.3.12). Experimental. See [mobile.md](mobile.md). |
+| iOS | GPUI via upstream `gpui_ios`, already in our pin (`gpui-pre-platform` 0.3.14). Experimental. See [mobile.md](mobile.md). |
 | Android | GPUI via longbridge `gpui-pre-mobile`, ported to our pin. Community fork. See [mobile.md](mobile.md). |
 
 Mobile is a **remote client only**: it controls a desktop environment over the tailnet and runs no agents itself.

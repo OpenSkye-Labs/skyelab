@@ -8,7 +8,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - Use `gpui-component` before building a widget: `Input`, `Button`, `List`, `Table`, `Dock`, `Tabs`, `Dialog`, `Notification`,
   `Markdown`, the code editor. Only drop to raw `div()` for layout.
 - Colors come from `cx.theme()` (`ActiveTheme`), never hard-coded `rgb(..)` in views. That keeps light/dark themes working.
-- gpui-component 0.10's `DialogClose` wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
+- gpui-component's `DialogClose` (0.10 and 0.11) wraps its trigger in a `size_full` div, so in a `DialogFooter` the Cancel button
   stretches across the footer. Use `ui::dialog_cancel(id)` (a plain `Button` whose `on_click` calls
   `window.close_dialog(cx)`); `DialogClose` appears nowhere in the app.
 - A click on a gpui-component `Checkbox` also reaches a clickable row around it, so handlers on both toggle twice
@@ -49,7 +49,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `anchored().position(click).anchor(Anchor::BottomLeft).snap_to_window_with_margin(..)`. The backdrop eats the press,
   so a second click on the trigger closes the menu instead of closing and reopening it, and nothing under it reacts.
   The trigger passes `ClickEvent::position()` in its action, since only it knows where it was drawn. The card itself
-  stops `on_mouse_down` propagation so its own rows don't reach the backdrop. In gpui-pre 0.3.12 the corner enum is
+  stops `on_mouse_down` propagation so its own rows don't reach the backdrop. In gpui-pre 0.3.12 and 0.3.14 the corner enum is
   `gpui::Anchor`, not `Corner`.
 - A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
   `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight
