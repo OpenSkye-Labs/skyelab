@@ -36,7 +36,7 @@ pub mod update;
 pub mod update_install;
 
 /// Which agent CLI an account logs in to. Config files from before Codex have no `provider`: Claude.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
     #[default]

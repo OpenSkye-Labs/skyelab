@@ -59,6 +59,9 @@ pub struct Onboarding {
     /// `account` was picked by `preselect`, not the user.
     auto_account: bool,
     pub error: Option<String>,
+    /// Whether each account is signed in (the workspace asks; shared with Settings).
+    pub(super) login: Entity<super::login_status::LoginStatus>,
+    _login: gpui::Subscription,
     _detect: Option<Task<()>>,
     _pick: Option<Task<()>>,
 }
@@ -66,8 +69,11 @@ pub struct Onboarding {
 impl EventEmitter<OnboardingEvent> for Onboarding {}
 
 impl Onboarding {
-    pub fn new(_: &mut Context<Self>) -> Self {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let login = super::login_status::LoginStatus::shared(cx);
         Self {
+            _login: cx.observe(&login, |_, _, cx| cx.notify()),
+            login,
             // Tests set it themselves, so no test reads the real home folder.
             home: if cfg!(test) { None } else { dirs::home_dir() },
             shown: false,

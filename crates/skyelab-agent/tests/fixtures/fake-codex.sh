@@ -12,6 +12,18 @@
 # With a fake-mcp-status file in CODEX_HOME, thread/start/resume first reports its lines as MCP startup statuses
 # (`name status [error...]`, like `docs failed no such command`).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
+# `login status` says "Logged in using ChatGPT" (exit 0) while CODEX_HOME has a fake-login file, else "Not logged in"
+# (exit 1), on stderr like codex; `login` writes that file.
+if [ "$1 $2" = "login status" ]; then
+  if [ -f "$CODEX_HOME/fake-login" ]; then echo "Logged in using ChatGPT" >&2; exit 0; fi
+  echo "Not logged in" >&2
+  exit 1
+fi
+if [ "$1" = login ] && [ $# -eq 1 ]; then
+  mkdir -p "$CODEX_HOME" && touch "$CODEX_HOME/fake-login"
+  echo "fake codex login for $CODEX_HOME"
+  exit 0
+fi
 here=$(dirname "$0")
 # `codex exec` (a one-shot call): logs CODEX_HOME, its args and stdin to .fake-title-call, answers in the
 # --output-last-message file (a commit message or PR for those prompts, else a title).

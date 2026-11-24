@@ -48,7 +48,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `title` evaluates `document.title` in that tab and `shot` calls `browser_screenshot` on it; `chart` calls `html_render` with a small bar chart (a visual reply card) and `peek` calls `html_preview` on it; `delegate <project id> hold` starts a child that keeps working,
   `usage` reports two usage windows for the thread details card and `limit` ends its turn, then reports the account limited; in `fake-claude.sh` a prompt starting `permit` asks to run
   `make deploy` and waits for the answer, `question` asks an AskUserQuestion and `plan` an ExitPlanMode the same way,
-  `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir and exits 0 (the Log in terminal),
+  `context` ends a turn at 85% of its context window (170k of 200k), `auth login` prints its config dir, writes `fake-login` (`fake@example.com`) there and exits 0 (the Log in terminal),
+`auth status` answers Claude Code's JSON, signed in as `fake-login`'s content while the account dir has that file, else `loggedIn: false` (the account cards' sign-in),
   `table` replies with a markdown table, `mermaid` replies with a mermaid diagram, a mermaid block that doesn't parse and a plain code block,
   `turn` ends a plain turn with Claude's running `total_cost_usd` (+$0.0125 a turn), `timeline` streams a turn with every rich timeline row and leaves a plan and a question waiting, `subagent` runs two
   subagent cards (one holds 4 s mid-run), `login` fails the turn as a signed-out account, a
@@ -57,7 +58,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   the `--mcp-config` file it got as a `fake_mcp` line, and one starting `crash` writes
   to stderr and exits 3), Codex with
   `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
-  project; a prompt starting `usage` reports 5h and weekly rate limits, and a `.fake-session-gone` file in the folder
+  project; `login status` says "Logged in using ChatGPT" while CODEX_HOME has a `fake-login` file, else "Not logged in", and `login` writes it;
+a prompt starting `usage` reports 5h and weekly rate limits, and a `.fake-session-gone` file in the folder
   makes its `thread/resume` fail as a missing thread; a `fake-mcp-status` file in CODEX_HOME, one `name status [error]`
   per line, is reported as MCP startup statuses), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in

@@ -34,6 +34,9 @@ impl Workspace {
             claude_bin: self.backend.claude_bin.clone(),
             codex_bin: github::codex_bin(cx),
         };
+        if show {
+            self.refresh_logins(cx);
+        }
         self.welcome.update(cx, |w, cx| {
             w.setup.update(cx, |o, cx| o.sync(show, sync, cx));
             if w.show_setup != show {

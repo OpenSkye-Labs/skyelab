@@ -151,6 +151,53 @@ impl Onboarding {
             }))
     }
 
+    /// An added account's sign-in: a pill, and Log in while it is signed out.
+    fn login_badge(&self, a: &skyelab_core::Account, cx: &mut Context<Self>) -> Div {
+        use super::super::login_status::Status;
+        let status = self.login.read(cx).get(a).cloned();
+        let theme = cx.theme();
+        let (text, _, why) = Status::label(status.as_ref(), theme);
+        let tint = match &status {
+            Some(Status::SignedIn(_)) => Some(theme.success),
+            Some(Status::SignedOut) => Some(theme.warning),
+            _ => None,
+        };
+        let pill = ui::Pill::new(text);
+        let pill = match tint {
+            Some(c) => pill.color(c),
+            None => pill,
+        };
+        let selector = format!("setup-login-{}", a.id);
+        h_flex()
+            .gap_2()
+            .flex_shrink_0()
+            .child(
+                div()
+                    .id(SharedString::from(selector.clone()))
+                    .debug_selector(move || selector)
+                    .child(pill)
+                    .when_some(why, |d, why| d.tooltip(ui::Tooltip::text(why))),
+            )
+            .when(Status::signed_out(status.as_ref()), |d| {
+                let id = a.id.clone();
+                let selector = format!("setup-log-in-{id}");
+                d.child(
+                    div().debug_selector(move || selector).child(
+                        Button::new(SharedString::from(format!("setup-log-in-{}", a.id)))
+                            .label("Log in")
+                            .small()
+                            .primary()
+                            .on_click(move |_, window, cx| {
+                                window.dispatch_action(
+                                    Box::new(super::super::LogInAccount { id: id.clone() }),
+                                    cx,
+                                )
+                            }),
+                    ),
+                )
+            })
+    }
+
     fn accounts_step(&self, cx: &mut Context<Self>) -> Div {
         let home = self.home.clone();
         let mut cards: Vec<AnyElement> = Vec::new();
@@ -169,7 +216,7 @@ impl Onboarding {
                 )
                 .child(crate::settings::provider_mark(a.provider, color))
                 .child(name_and_folder(a.label.clone(), folder.into(), cx))
-                .child(ui::Pill::new("Added").color(cx.theme().success))
+                .child(self.login_badge(a, cx))
                 .into_any_element(),
             );
         }

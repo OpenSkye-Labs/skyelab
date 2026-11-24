@@ -42,6 +42,13 @@ run **Set Up Accounts** from the command palette.
    the login lands in that folder and nowhere else. SkyeLab creates the folder first, private to you, and never sees
    the token. Signing in from a shell works too: `CLAUDE_CONFIG_DIR=~/.claude-work claude auth login`.
 
+Each account card says whether that account is signed in: **Signed in as you@example.com**, **Not signed in** (and
+**Log in** turns blue), or **Sign-in unknown** when the CLI couldn't answer (hover it for why). SkyeLab asks the
+account's own CLI with only that account's folder (`claude auth status`, `codex login status`), never reads a token,
+and asks again once a Log in terminal ends, or when Settings opens a minute or more later. A card with a GitHub folder
+also shows its GitHub login, as **Source control** does. The setup page shows the same on its account cards, with
+**Log in** on one that is signed out.
+
 For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). Its **Log in** runs
 `codex login` with `CODEX_HOME` set to that folder, created the same way. A config file written before Codex support has no
 `provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's

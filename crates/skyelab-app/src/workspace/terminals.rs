@@ -100,7 +100,10 @@ impl Workspace {
             Some(a) => format!("Log in: {}", a.id),
             None => "Log in".to_owned(),
         };
-        let tab = self.add_terminal_tab(options, account, None, window, cx)?;
+        let tab = self.add_terminal_tab(options, account.clone(), None, window, cx)?;
+        if let Some(account) = account {
+            self.recheck_after_login(&tab, account, cx);
+        }
         tab.update(cx, |t, cx| {
             t.name = Some(title.into());
             t.one_shot = true;
