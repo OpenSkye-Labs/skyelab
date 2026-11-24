@@ -137,6 +137,8 @@ mod palette_search_test;
 mod palette_gallery_test;
 #[cfg(test)]
 mod palette_test;
+#[cfg(test)]
+mod palette_pages_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
 mod permission_mode_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
