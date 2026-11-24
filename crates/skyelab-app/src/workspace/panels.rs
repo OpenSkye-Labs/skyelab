@@ -6,7 +6,7 @@ use gpui::{
     SharedString, Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     dock::{BasePanel, Panel, PanelEvent},
     h_flex,

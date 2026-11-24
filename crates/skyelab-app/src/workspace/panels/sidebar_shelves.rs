@@ -1,6 +1,7 @@
 //! The sidebar's folded shelves (Snoozed, Settled, paged), foldable sections (Working) and footer icon row.
 
 use super::*;
+use crate::ui::SkyeIcon;
 
 impl Sidebar {
     pub(super) fn entries(&self) -> Vec<Entry> {
@@ -97,9 +98,9 @@ impl Sidebar {
             )
             .child(
                 Icon::new(if open {
-                    IconName::ChevronDown
+                    SkyeIcon::ChevronDown
                 } else {
-                    IconName::ChevronRight
+                    SkyeIcon::ChevronRight
                 })
                 .size_3(),
             )
@@ -111,7 +112,6 @@ impl Sidebar {
 pub(super) fn footer() -> impl IntoElement {
     use crate::workspace::gh_pages::{OpenIssues, OpenPullRequests};
     use crate::workspace::thread_list::RefreshThreads;
-    use gpui_kit_assets::IconName as Lucide;
     let button = |id: &'static str, icon: Icon, tip: &'static str, action: Box<dyn Action>| {
         Button::new(id)
             .ghost()
@@ -126,32 +126,32 @@ pub(super) fn footer() -> impl IntoElement {
         .gap_0p5()
         .child(button(
             "sidebar-settings",
-            Icon::new(IconName::Settings),
+            Icon::new(SkyeIcon::Settings),
             "Settings",
             Box::new(crate::workspace::OpenSettings),
         ))
         .child(button(
             "sidebar-prs",
-            Icon::new(Lucide::GitPullRequest),
+            Icon::new(SkyeIcon::GitPullRequest),
             "Pull requests",
             Box::new(OpenPullRequests),
         ))
         .child(button(
             "sidebar-issues",
-            Icon::new(Lucide::CircleDot),
+            Icon::new(SkyeIcon::CircleDot),
             "Issues",
             Box::new(OpenIssues),
         ))
         .child(button(
             "sidebar-usage",
-            Icon::new(Lucide::ChartNoAxesColumn),
+            Icon::new(SkyeIcon::ChartNoAxesColumn),
             "Usage",
             Box::new(crate::workspace::OpenUsage),
         ))
         .child(div().flex_1())
         .child(button(
             "sidebar-refresh",
-            Icon::new(IconName::RefreshCw),
+            Icon::new(SkyeIcon::RefreshCw),
             "Refresh",
             Box::new(RefreshThreads),
         ))

@@ -6,9 +6,10 @@ use super::thread::ThreadView;
 use super::thread_model::Item;
 use super::{LogInAccount, OpenSettingsSection};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, Window, div, prelude::*};
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
@@ -234,7 +235,7 @@ impl ThreadView {
                 .border_1()
                 .border_color(theme.danger.opacity(0.35))
                 .child(
-                    Icon::new(IconName::CircleAlert)
+                    Icon::new(SkyeIcon::CircleAlert)
                         .size_4()
                         .mt_0p5()
                         .text_color(ink),
@@ -269,7 +270,7 @@ impl ThreadView {
                     Button::new("failure-dismiss")
                         .ghost()
                         .xsmall()
-                        .icon(IconName::Close)
+                        .icon(SkyeIcon::Close)
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.timeline.dismissed_failure = Some(row);
                             cx.notify();

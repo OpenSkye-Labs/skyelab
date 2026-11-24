@@ -2,8 +2,8 @@
 //! and close, and the chosen section in a centered column.
 
 use super::*;
-use gpui_component::{Icon, IconName, h_flex, v_flex};
-use gpui_kit_assets::IconName as Lucide;
+use crate::ui::SkyeIcon;
+use gpui_component::{Icon, h_flex, v_flex};
 
 /// A Settings section, picked in the nav (T3's settings routes).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -108,26 +108,20 @@ impl Section {
     }
 
     pub(super) fn icon(self) -> Icon {
-        let lucide = |i: Lucide| Some(Icon::new(i));
-        let icon = match self {
-            Section::Keys => lucide(Lucide::Keyboard),
-            Section::Scheduled => lucide(Lucide::Clock),
-            Section::Chat => lucide(Lucide::MessagesSquare),
-            Section::Diffs => lucide(Lucide::FileDiff),
-            Section::SourceControl => lucide(Lucide::GitBranch),
-            Section::Worktrees => lucide(Lucide::FolderGit2),
-            Section::Projects => lucide(Lucide::Folder),
-            _ => None,
-        };
-        icon.unwrap_or_else(|| {
-            Icon::new(match self {
-                Section::General => IconName::Settings2,
-                Section::Appearance => IconName::Palette,
-                Section::Accounts => IconName::CircleUser,
-                Section::Usage => IconName::ChartPie,
-                Section::Sharing => IconName::Globe,
-                _ => IconName::Info,
-            })
+        Icon::new(match self {
+            Section::General => SkyeIcon::Settings2,
+            Section::Appearance => SkyeIcon::Palette,
+            Section::Chat => SkyeIcon::MessagesSquare,
+            Section::Diffs => SkyeIcon::FileDiff,
+            Section::Keys => SkyeIcon::Keyboard,
+            Section::Accounts => SkyeIcon::CircleUser,
+            Section::Scheduled => SkyeIcon::Clock,
+            Section::Usage => SkyeIcon::ChartPie,
+            Section::Projects => SkyeIcon::Folder,
+            Section::SourceControl => SkyeIcon::GitBranch,
+            Section::Worktrees => SkyeIcon::FolderGit2,
+            Section::Sharing => SkyeIcon::Globe,
+            Section::About => SkyeIcon::Info,
         })
     }
 
@@ -182,7 +176,7 @@ impl Settings {
                     Button::new("settings-restore")
                         .ghost()
                         .small()
-                        .icon(IconName::Undo2)
+                        .icon(SkyeIcon::Undo2)
                         .label("Restore defaults")
                         .tooltip("Reset this section's settings")
                         .on_click(
@@ -194,7 +188,7 @@ impl Settings {
                 Button::new("settings-close")
                     .ghost()
                     .small()
-                    .icon(IconName::Close)
+                    .icon(SkyeIcon::Close)
                     .tooltip("Close (Esc)")
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(SettingsEvent::Closed))),
             )

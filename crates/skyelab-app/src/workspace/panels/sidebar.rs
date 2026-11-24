@@ -4,6 +4,7 @@
 
 use super::sidebar_rows::{THREAD_INDENT, scope_button, section_button, sidebar_row};
 use super::*;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, ListAlignment, ListOffset, ListState, Subscription, list};
 use gpui_component::input::{Input, InputEvent, InputState};
 
@@ -380,12 +381,13 @@ impl Sidebar {
             })
             .child(
                 Icon::new(if open {
-                    IconName::ChevronDown
+                    SkyeIcon::ChevronDown
                 } else {
-                    IconName::ChevronRight
+                    SkyeIcon::ChevronRight
                 })
                 .size_3(),
             )
+            .child(Icon::new(SkyeIcon::Archive).size_3())
             .child(div().flex_1().child("Archived"))
             .child(count.to_string())
     }
@@ -442,7 +444,7 @@ impl Render for Sidebar {
                         .child(
                             div().flex_1().min_w_0().child(
                                 Input::new(&self.search).small().cleanable(true).prefix(
-                                    Icon::new(IconName::Search)
+                                    Icon::new(SkyeIcon::Search)
                                         .size_3p5()
                                         .text_color(theme.muted_foreground),
                                 ),
@@ -453,7 +455,7 @@ impl Render for Sidebar {
                             Button::new("sidebar-new-thread")
                                 .ghost()
                                 .small()
-                                .icon(IconName::Plus)
+                                .icon(SkyeIcon::NewThread)
                                 .tooltip("New thread")
                                 .on_click(|_, window, cx| {
                                     window.dispatch_action(Box::new(super::super::NewThread), cx)

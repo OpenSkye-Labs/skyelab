@@ -6,6 +6,7 @@ use super::gh_pages::{Dated, Filter, GhEvent, GhPage, Group, Kind, Listing, Sour
 use super::pr_watch::{checks_look, review_look, state_look};
 use super::usage_page_render::segments;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, Context, Focusable as _, FontWeight, Hsla, IntoElement, Render, SharedString,
     Window, div, prelude::*, px,
@@ -17,7 +18,6 @@ use gpui_component::{
     tooltip::Tooltip,
     v_flex,
 };
-use gpui_kit_assets::IconName;
 use skyelab_git::{IssueFilter, IssueRow, PrFilter, PrRow, PrState};
 
 const PR_FILTERS: [(Filter, &str); 3] = [
@@ -32,7 +32,7 @@ const ISSUE_FILTERS: [(Filter, &str); 2] = [
 /// T3's `text-2xs`: the row's meta line.
 const SMALL: gpui::Pixels = px(11.);
 
-fn glyph(icon: IconName, color: Hsla, tip: &'static str) -> AnyElement {
+fn glyph(icon: SkyeIcon, color: Hsla, tip: &'static str) -> AnyElement {
     div()
         .id(tip)
         .flex_shrink_0()
@@ -113,7 +113,7 @@ fn browser_button(id: SharedString, url: &str) -> AnyElement {
     Button::new(id)
         .ghost()
         .xsmall()
-        .icon(IconName::ExternalLink)
+        .icon(SkyeIcon::ExternalLink)
         .tooltip("Open in browser")
         .on_click(move |_, _, cx| {
             cx.stop_propagation(); // not the row's thread
@@ -153,7 +153,7 @@ impl GhPage {
                 Button::new(SharedString::from(format!("pr-actions-{project}-{number}")))
                     .ghost()
                     .xsmall()
-                    .icon(IconName::GitMerge)
+                    .icon(SkyeIcon::GitMerge)
                     .tooltip("Merge or review…")
                     .on_click(cx.listener(move |this, _, window, cx| {
                         cx.stop_propagation(); // not the row's review thread
@@ -229,7 +229,7 @@ impl GhPage {
         let number = issue.number;
         row(format!("issue-{project}-{number}").into(), theme)
             .child(glyph(
-                IconName::CircleDot,
+                SkyeIcon::CircleDot,
                 ui::ink(theme, theme.success),
                 "Open",
             ))
@@ -371,7 +371,7 @@ impl Render for GhPage {
             Button::new("gh-label-clear")
                 .ghost()
                 .xsmall()
-                .icon(IconName::Close)
+                .icon(SkyeIcon::Close)
                 .label(format!("Label: {l}"))
                 .on_click(cx.listener(|this, _, _, cx| this.pick_label(None, cx)))
         });
@@ -389,7 +389,7 @@ impl Render for GhPage {
                 Button::new("gh-refresh")
                     .ghost()
                     .small()
-                    .icon(IconName::RefreshCw)
+                    .icon(SkyeIcon::RefreshCw)
                     .tooltip("Refresh")
                     .on_click(cx.listener(|this, _, _, cx| this.refresh(cx))),
             )

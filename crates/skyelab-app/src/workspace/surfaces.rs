@@ -4,6 +4,7 @@
 use super::thread::ThreadView;
 use super::{NewTerminal, OpenBrowser, OpenDevices, Workspace, files::SearchFiles};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding,
     Render, Subscription, Window, actions, div, prelude::*,
@@ -15,7 +16,6 @@ use gpui_component::{
     kbd::Kbd,
     v_flex,
 };
-use gpui_kit_assets::IconName;
 
 actions!(skyelab, [OpenThreadChanges, OpenThreadPr, OpenSideChat]);
 
@@ -52,7 +52,7 @@ fn avail(v: &ThreadView) -> Avail {
 }
 
 /// A surface: its icon, name, letter, whether the thread can have it, and the action that opens it.
-type Row = (IconName, &'static str, &'static str, bool, Box<dyn Action>);
+type Row = (SkyeIcon, &'static str, &'static str, bool, Box<dyn Action>);
 
 pub struct SurfacesPanel {
     focus: FocusHandle,
@@ -99,7 +99,7 @@ impl BasePanel for SurfacesPanel {
 impl Panel for SurfacesPanel {
     // T3's "+" that opens this list.
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        Icon::new(IconName::Plus).size_3p5()
+        Icon::new(SkyeIcon::Plus).size_3p5()
     }
     fn zoom_control(&self, _: &App) -> Option<PanelControl> {
         Some(PanelControl::Toolbar)
@@ -118,30 +118,36 @@ impl Render for SurfacesPanel {
         let theme = cx.theme();
         let a = self.avail;
         let rows: [Row; 8] = [
-            (IconName::Globe, "Browser", "B", true, Box::new(OpenBrowser)),
             (
-                IconName::SquareTerminal,
+                SkyeIcon::Browser,
+                "Browser",
+                "B",
+                true,
+                Box::new(OpenBrowser),
+            ),
+            (
+                SkyeIcon::SquareTerminal,
                 "Terminal",
                 "T",
                 true,
                 Box::new(NewTerminal),
             ),
             (
-                IconName::Files,
+                SkyeIcon::Files,
                 "Files",
                 "F",
                 a.thread,
                 Box::new(SearchFiles),
             ),
             (
-                IconName::FileDiff,
+                SkyeIcon::FileDiff,
                 "Diff",
                 "D",
                 a.thread,
                 Box::new(OpenThreadChanges),
             ),
             (
-                IconName::GitPullRequest,
+                SkyeIcon::GitPullRequest,
                 "Pull request",
                 "P",
                 a.pr,
@@ -149,21 +155,21 @@ impl Render for SurfacesPanel {
             ),
             // No linked issues here yet: always greyed, as T3 greys what a thread doesn't have.
             (
-                IconName::Link,
+                SkyeIcon::Link,
                 "Linked items",
                 "L",
                 false,
                 Box::new(gpui::NoAction),
             ),
             (
-                IconName::Smartphone,
+                SkyeIcon::Smartphone,
                 "Device",
                 "M",
                 true,
                 Box::new(OpenDevices),
             ),
             (
-                IconName::MessagesSquare,
+                SkyeIcon::MessagesSquare,
                 "Side chat",
                 "S",
                 a.side_chat,

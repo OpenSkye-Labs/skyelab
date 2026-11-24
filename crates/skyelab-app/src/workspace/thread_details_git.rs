@@ -6,6 +6,7 @@ use super::super::thread::{GitAction, ThreadViewEvent};
 use super::super::thread_worktree::{DiscardWorktree, OpenChanges, OpenWorktreeTerminal};
 use super::card::{chevron, row};
 use super::{On, Page, is_running};
+use crate::ui::SkyeIcon;
 use crate::ui::{self, Status};
 use gpui::Focusable as _;
 use gpui::{
@@ -18,7 +19,6 @@ use gpui_component::{
     input::{Input, InputEvent, InputState},
     v_flex,
 };
-use gpui_kit_assets::IconName;
 
 impl ThreadView {
     pub(super) fn render_git_rows(&self, on: &On, cx: &App) -> Option<AnyElement> {
@@ -43,19 +43,19 @@ impl ThreadView {
         });
         let branch_row = match worktree_branch {
             // A worktree thread's branch is its own; it doesn't switch.
-            Some(branch) => row("details-branch", IconName::GitBranch, branch, theme)
+            Some(branch) => row("details-branch", SkyeIcon::GitBranch, branch, theme)
                 .children(sync)
                 .cursor_default(),
             None => {
                 let picker = self.branch_picker.clone();
                 row(
                     "details-branch",
-                    IconName::GitBranch,
+                    SkyeIcon::GitBranch,
                     self.branch_picker.read(cx).label(picks_base),
                     theme,
                 )
                 .children(sync)
-                .child(chevron(IconName::ChevronDown, theme))
+                .child(chevron(SkyeIcon::ChevronDown, theme))
                 .on_click(on.click(move |_, _, cx| {
                     picker.update(cx, |p, cx| p.set_open(true, cx));
                     cx.notify();
@@ -90,17 +90,17 @@ impl ThreadView {
                 .child(
                     row(
                         "details-commit",
-                        IconName::CloudUpload,
+                        SkyeIcon::CloudUpload,
                         "Commit & push",
                         theme,
                     )
-                    .child(chevron(IconName::ChevronRight, theme))
+                    .child(chevron(SkyeIcon::ChevronRight, theme))
                     .on_click(on.click(|this, _, cx| this.open_git_menu(cx))),
                 )
                 .child(
                     row(
                         "details-changes",
-                        IconName::FileDiff,
+                        SkyeIcon::FileDiff,
                         format!("Changes vs {base}"),
                         theme,
                     )
@@ -114,7 +114,7 @@ impl ThreadView {
                     v.child(
                         row(
                             "details-worktree-terminal",
-                            IconName::SquareTerminal,
+                            SkyeIcon::SquareTerminal,
                             "Open terminal here",
                             theme,
                         )
@@ -126,7 +126,7 @@ impl ThreadView {
                     .child(
                         row(
                             "details-discard-worktree",
-                            IconName::Trash,
+                            SkyeIcon::Trash,
                             "Discard worktree",
                             theme,
                         )
@@ -149,7 +149,7 @@ impl ThreadView {
         let theme = cx.theme();
         // Where this thread came from: its fork or handoff source.
         let source = source.map(|(id, label)| {
-            row("details-source", IconName::GitBranch, label, theme).on_click(on.click(
+            row("details-source", SkyeIcon::GitBranch, label, theme).on_click(on.click(
                 move |this, window, cx| {
                     this.details_home(cx);
                     window.dispatch_action(Box::new(OpenThread { id }), cx);
@@ -171,14 +171,14 @@ impl ThreadView {
             .children(running.into_iter().map(|c| self.agent_row(c, on, cx)))
             .when(previous > 0, |v| {
                 v.child(
-                    row("details-previous", IconName::Bot, "Previous agents", theme)
+                    row("details-previous", SkyeIcon::Bot, "Previous agents", theme)
                         .child(
                             div()
                                 .text_size(ui::META)
                                 .text_color(theme.muted_foreground)
                                 .child(previous.to_string()),
                         )
-                        .child(chevron(IconName::ChevronRight, theme))
+                        .child(chevron(SkyeIcon::ChevronRight, theme))
                         .on_click(on.click(|this, _, cx| this.details_page(Page::Previous, cx))),
                 )
             });
@@ -231,7 +231,7 @@ impl ThreadView {
             .gh_login
             .clone()
             .unwrap_or_else(|| "Checking the GitHub login…".into());
-        let action = |id: &'static str, icon: IconName, label: &'static str, a: GitAction| {
+        let action = |id: &'static str, icon: SkyeIcon, label: &'static str, a: GitAction| {
             row(id, icon, label, theme)
                 .on_click(on.click(move |this, _, cx| {
                     this.details_home(cx);
@@ -242,7 +242,7 @@ impl ThreadView {
         let pr = match self.thread.as_ref().and_then(|t| t.pr_url.clone()) {
             Some(url) => row(
                 "details-git-view-pr",
-                IconName::ExternalLink,
+                SkyeIcon::ExternalLink,
                 "View PR",
                 theme,
             )
@@ -254,7 +254,7 @@ impl ThreadView {
             .into_any_element(),
             None => action(
                 "details-git-open-pr",
-                IconName::GitPullRequest,
+                SkyeIcon::GitPullRequest,
                 "Open PR",
                 GitAction::OpenPr,
             ),
@@ -270,25 +270,25 @@ impl ThreadView {
                 .into_any_element(),
             action(
                 "details-git-commit",
-                IconName::GitCommitVertical,
+                SkyeIcon::GitCommitVertical,
                 "Commit",
                 GitAction::Commit,
             ),
             action(
                 "details-git-commit-push",
-                IconName::CloudUpload,
+                SkyeIcon::CloudUpload,
                 "Commit & push",
                 GitAction::CommitPush,
             ),
             action(
                 "details-git-push",
-                IconName::ArrowUp,
+                SkyeIcon::ArrowUp,
                 "Push",
                 GitAction::Push,
             ),
             action(
                 "details-git-pull",
-                IconName::ArrowDown,
+                SkyeIcon::ArrowDown,
                 "Pull",
                 GitAction::Pull,
             ),

@@ -6,9 +6,9 @@
 use super::Workspace;
 use super::worktree::resolves_to;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AppContext as _, Context, Global, Hsla, SharedString, Task};
 use gpui_component::Theme;
-use gpui_kit_assets::IconName;
 use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, PrState, PrStatus};
 use std::collections::HashMap;
@@ -324,22 +324,22 @@ pub(super) fn badge(t: &skyelab_store::Thread, url: &str, cx: &gpui::App) -> PrB
 }
 
 /// T3's PR state glyphs and tones: open green, draft muted, merged violet, closed red; unread muted.
-pub(crate) fn state_look(state: Option<PrState>, theme: &Theme) -> (IconName, Hsla, &'static str) {
+pub(crate) fn state_look(state: Option<PrState>, theme: &Theme) -> (SkyeIcon, Hsla, &'static str) {
     match state {
-        None => (IconName::GitPullRequest, theme.muted_foreground, ""),
+        None => (SkyeIcon::GitPullRequest, theme.muted_foreground, ""),
         Some(PrState::Open) => (
-            IconName::GitPullRequest,
+            SkyeIcon::GitPullRequest,
             ui::ink(theme, theme.success),
             "Open",
         ),
         Some(PrState::Draft) => (
-            IconName::GitPullRequestDraft,
+            SkyeIcon::GitPullRequestDraft,
             theme.muted_foreground,
             "Draft",
         ),
-        Some(PrState::Merged) => (IconName::GitMerge, ui::ink(theme, theme.magenta), "Merged"),
+        Some(PrState::Merged) => (SkyeIcon::GitMerge, ui::ink(theme, theme.magenta), "Merged"),
         Some(PrState::Closed) => (
-            IconName::GitPullRequestClosed,
+            SkyeIcon::GitPullRequestClosed,
             ui::ink(theme, theme.danger),
             "Closed",
         ),
@@ -347,21 +347,21 @@ pub(crate) fn state_look(state: Option<PrState>, theme: &Theme) -> (IconName, Hs
 }
 
 /// The checks' glyph and tone, `None` when the PR has no checks.
-pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hsla, &'static str)> {
+pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(SkyeIcon, Hsla, &'static str)> {
     match checks {
         Checks::None => None,
         Checks::Passing => Some((
-            IconName::CircleCheck,
+            SkyeIcon::CircleCheck,
             ui::ink(theme, theme.success),
             "Checks passing",
         )),
         Checks::Pending => Some((
-            IconName::CircleDot,
+            SkyeIcon::CircleDot,
             ui::ink(theme, theme.warning),
             "Checks running",
         )),
         Checks::Failing => Some((
-            IconName::CircleX,
+            SkyeIcon::CircleX,
             ui::ink(theme, theme.danger),
             "Checks failing",
         )),
@@ -372,21 +372,21 @@ pub(crate) fn checks_look(checks: Checks, theme: &Theme) -> Option<(IconName, Hs
 pub(crate) fn review_look(
     review: skyelab_git::Review,
     theme: &Theme,
-) -> Option<(IconName, Hsla, &'static str)> {
+) -> Option<(SkyeIcon, Hsla, &'static str)> {
     use skyelab_git::Review;
     match review {
         Review::None => None,
         Review::Approved => Some((
-            IconName::UserCheck,
+            SkyeIcon::UserCheck,
             ui::ink(theme, theme.success),
             "Approved",
         )),
         Review::ChangesRequested => Some((
-            IconName::UserRoundX,
+            SkyeIcon::UserRoundX,
             ui::ink(theme, theme.warning),
             "Changes requested",
         )),
-        Review::Required => Some((IconName::User, theme.muted_foreground, "Awaiting review")),
+        Review::Required => Some((SkyeIcon::User, theme.muted_foreground, "Awaiting review")),
     }
 }
 

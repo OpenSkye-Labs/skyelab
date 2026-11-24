@@ -8,9 +8,10 @@ use super::thread::ThreadView;
 use super::thread_items::ItemsView;
 use super::thread_model::Item;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, SharedString, Task, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
@@ -208,9 +209,9 @@ pub(super) fn render<V: ItemsView>(
         .on_click(cx.listener(move |this, _, _, cx| this.toggle_tool(&toggle, cx)))
         .child(
             Icon::new(if open {
-                IconName::ChevronDown
+                SkyeIcon::ChevronDown
             } else {
-                IconName::ChevronRight
+                SkyeIcon::ChevronRight
             })
             .size_3()
             .text_color(theme.muted_foreground),
@@ -242,7 +243,7 @@ pub(super) fn render<V: ItemsView>(
             .hover(|s| s.bg(theme.accent))
             .on_click(cx.listener(move |this, _, _, cx| this.open_turn_file(turn, &path, cx)))
             .child(
-                Icon::new(IconName::File)
+                Icon::new(SkyeIcon::File)
                     .size_3p5()
                     .text_color(theme.muted_foreground),
             )

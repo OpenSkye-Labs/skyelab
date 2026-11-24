@@ -3,6 +3,7 @@
 use super::super::thread::ThreadView;
 use super::{On, OpenInEditorWith, Page, editor_name, is_running};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, ClickEvent, Context, FontWeight, SharedString, Window, div, prelude::*, px,
 };
@@ -11,7 +12,6 @@ use gpui_component::{
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
-use gpui_kit_assets::IconName;
 
 impl ThreadView {
     /// The card's content: a picker page when one is open, else its titled sections with `usage` (every account's,
@@ -110,13 +110,13 @@ impl ThreadView {
         let cwd = self.cwd.clone();
         v_flex()
             .child(
-                row("details-machine", IconName::Monitor, machine, theme)
+                row("details-machine", SkyeIcon::Monitor, machine, theme)
                     .cursor_default()
                     .child(
                         Button::new("details-open-folder")
                             .ghost()
                             .xsmall()
-                            .icon(Icon::new(IconName::FolderOpen))
+                            .icon(Icon::new(SkyeIcon::FolderOpen))
                             .tooltip("Open the thread's folder")
                             .on_click(move |_, _, cx| cx.open_with_system(&cwd)),
                     ),
@@ -136,7 +136,7 @@ impl ThreadView {
             let id = *id;
             row(
                 ("details-side-chat", id as u64),
-                IconName::MessagesSquare,
+                SkyeIcon::MessagesSquare,
                 title.clone(),
                 theme,
             )
@@ -144,7 +144,7 @@ impl ThreadView {
         });
         let new = row(
             "details-new-side-chat",
-            IconName::Plus,
+            SkyeIcon::Plus,
             "New side chat",
             theme,
         )
@@ -169,7 +169,7 @@ impl ThreadView {
             };
             tinted_row(
                 ("details-mcp", i),
-                IconName::Plug,
+                SkyeIcon::Plug,
                 color,
                 s.name.clone(),
                 theme,
@@ -198,9 +198,9 @@ impl ThreadView {
         let theme = cx.theme();
         let no_scripts = self.scripts.read(cx).scripts.is_empty();
         let (icon, label) = if no_scripts {
-            (IconName::Plus, "Add project script")
+            (SkyeIcon::Plus, "Add project script")
         } else {
-            (IconName::Play, "Run project script")
+            (SkyeIcon::Play, "Run project script")
         };
         let scripts =
             row("details-scripts", icon, label, theme).on_click(on.click(|this, _, cx| {
@@ -215,7 +215,7 @@ impl ThreadView {
             .children(to.map(|to| {
                 row(
                     "details-handoff",
-                    IconName::ArrowRight,
+                    SkyeIcon::ArrowRight,
                     super::super::thread_extras::handoff::label(to),
                     theme,
                 )
@@ -236,7 +236,7 @@ impl ThreadView {
             None => "Open in editor".into(),
         };
         let can_choose = editors.is_some_and(|e| !e.choices.is_empty());
-        row("details-open-in", IconName::SquareCode, open_in, theme)
+        row("details-open-in", SkyeIcon::SquareCode, open_in, theme)
             .on_click(on.click(|this, window, cx| {
                 this.details_home(cx);
                 window.dispatch_action(Box::new(super::super::attention::OpenInEditor), cx);
@@ -244,7 +244,7 @@ impl ThreadView {
             .when(can_choose, |r| {
                 r.child(chevron_button(
                     "details-editor-choices",
-                    IconName::ChevronDown,
+                    SkyeIcon::ChevronDown,
                     on.click(|this, _, cx| this.details_page(Page::Editors, cx)),
                 ))
             })
@@ -264,13 +264,13 @@ impl ThreadView {
                 let editor = bin.clone();
                 row(
                     SharedString::from(format!("details-editor-{bin}")),
-                    IconName::SquareCode,
+                    SkyeIcon::SquareCode,
                     editor_name(bin),
                     theme,
                 )
                 .when(current, |r| {
                     r.child(
-                        Icon::new(IconName::Check)
+                        Icon::new(SkyeIcon::Check)
                             .size_4()
                             .text_color(theme.muted_foreground),
                     )
@@ -297,7 +297,7 @@ impl ThreadView {
         back: impl Fn(&mut ThreadView, &mut Context<ThreadView>) + 'static,
     ) -> AnyElement {
         let theme = cx.theme();
-        row("details-back", IconName::ChevronLeft, title, theme)
+        row("details-back", SkyeIcon::ChevronLeft, title, theme)
             .on_click(on.click(move |this, _, cx| back(this, cx)))
             .into_any_element()
     }
@@ -331,7 +331,7 @@ fn section(
 /// T3's details row: 32 tall, a 16 px muted icon, a 13 px medium label; hover fills.
 pub(super) fn row(
     id: impl Into<gpui::ElementId>,
-    icon: IconName,
+    icon: SkyeIcon,
     label: impl Into<SharedString>,
     theme: &Theme,
 ) -> gpui::Stateful<gpui::Div> {
@@ -341,7 +341,7 @@ pub(super) fn row(
 /// [`row`] with its icon in `color` (a PR's state, a check's result).
 pub(super) fn tinted_row(
     id: impl Into<gpui::ElementId>,
-    icon: IconName,
+    icon: SkyeIcon,
     color: gpui::Hsla,
     label: impl Into<SharedString>,
     theme: &Theme,
@@ -361,13 +361,13 @@ pub(super) fn tinted_row(
         .child(div().flex_1().min_w_0().truncate().child(label.into()))
 }
 
-pub(super) fn chevron(icon: IconName, theme: &Theme) -> Icon {
+pub(super) fn chevron(icon: SkyeIcon, theme: &Theme) -> Icon {
     Icon::new(icon).size_4().text_color(theme.muted_foreground)
 }
 
 fn chevron_button(
     id: &'static str,
-    icon: IconName,
+    icon: SkyeIcon,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut gpui::App) + 'static,
 ) -> Button {
     Button::new(id)

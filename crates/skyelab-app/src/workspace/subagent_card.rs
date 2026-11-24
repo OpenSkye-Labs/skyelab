@@ -3,9 +3,10 @@
 
 use super::{SubagentItem, SubagentStatus};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use crate::workspace::thread_items::{ItemsView, clip, tool_summary};
 use gpui::{AnyElement, Context, FontWeight, SharedString, div, prelude::*, px};
-use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 
 /// "Running · 4s", "Done · 1m 02s", "Failed".
 pub fn status_text(s: &SubagentItem) -> String {
@@ -25,12 +26,12 @@ pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> 
     let theme = cx.theme();
     let open = this.is_expanded(&s.id);
     let (icon, color) = match s.status {
-        SubagentStatus::Running => (IconName::LoaderCircle, theme.info),
-        SubagentStatus::Done => (IconName::Check, theme.muted_foreground),
-        SubagentStatus::Failed => (IconName::CircleAlert, theme.danger),
-        SubagentStatus::Stopped => (IconName::CircleAlert, theme.muted_foreground),
+        SubagentStatus::Running => (SkyeIcon::LoaderCircle, theme.info),
+        SubagentStatus::Done => (SkyeIcon::Check, theme.muted_foreground),
+        SubagentStatus::Failed => (SkyeIcon::CircleAlert, theme.danger),
+        SubagentStatus::Stopped => (SkyeIcon::CircleAlert, theme.muted_foreground),
     };
-    let slot = |icon: IconName, color| {
+    let slot = |icon: SkyeIcon, color| {
         div()
             .w(px(24.))
             .flex()
@@ -78,9 +79,9 @@ pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> 
         )
         .child(
             Icon::new(if open {
-                IconName::ChevronDown
+                SkyeIcon::ChevronDown
             } else {
-                IconName::ChevronRight
+                SkyeIcon::ChevronRight
             })
             .size_3()
             .text_color(theme.muted_foreground.opacity(0.7)),
@@ -96,9 +97,9 @@ pub fn render<V: ItemsView>(this: &V, s: &SubagentItem, cx: &mut Context<V>) -> 
     };
     let calls = s.tools.iter().map(|t| {
         let (icon, color) = match (&t.result, t.is_error) {
-            (None, _) => (IconName::LoaderCircle, theme.info),
-            (Some(_), true) => (IconName::CircleAlert, theme.danger),
-            (Some(_), false) => (IconName::Check, theme.muted_foreground),
+            (None, _) => (SkyeIcon::LoaderCircle, theme.info),
+            (Some(_), true) => (SkyeIcon::CircleAlert, theme.danger),
+            (Some(_), false) => (SkyeIcon::Check, theme.muted_foreground),
         };
         h_flex()
             .min_h(px(24.))

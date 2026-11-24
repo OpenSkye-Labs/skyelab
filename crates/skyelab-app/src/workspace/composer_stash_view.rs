@@ -4,13 +4,13 @@ use super::composer_stash::{PromptStash, SHORTCUT};
 use super::popover;
 use super::thread::ThreadView;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{AnyElement, Context, FontWeight, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 
 impl ThreadView {
     /// The tab on the composer's top-right shoulder: "Stash" and the count. Hidden while empty or open.
@@ -38,7 +38,7 @@ impl ThreadView {
             .text_color(theme.muted_foreground)
             .cursor_pointer()
             .hover(|this| this.text_color(cx.theme().foreground))
-            .child(Icon::new(Lucide::Bookmark).xsmall())
+            .child(Icon::new(SkyeIcon::Bookmark).xsmall())
             .child("Stash")
             .child(
                 div()
@@ -80,7 +80,7 @@ impl ThreadView {
             .cursor_pointer()
             .hover(|this| this.bg(cx.theme().accent))
             .child(
-                Icon::new(Lucide::Bookmark)
+                Icon::new(SkyeIcon::Bookmark)
                     .xsmall()
                     .text_color(theme.muted_foreground),
             )
@@ -96,7 +96,7 @@ impl ThreadView {
                     .child(rows.len().to_string()),
             )
             .child(
-                Icon::new(IconName::ChevronDown)
+                Icon::new(SkyeIcon::ChevronDown)
                     .xsmall()
                     .text_color(theme.muted_foreground),
             )
@@ -130,7 +130,7 @@ impl ThreadView {
                         })
                         .hover(|this| this.bg(cx.theme().accent))
                         .child(
-                            Icon::new(Lucide::FileText)
+                            Icon::new(SkyeIcon::FileText)
                                 .xsmall()
                                 .text_color(theme.muted_foreground),
                         )
@@ -148,7 +148,7 @@ impl ThreadView {
                                     .gap_1()
                                     .text_size(ui::META)
                                     .text_color(theme.muted_foreground)
-                                    .child(Icon::new(IconName::File).xsmall())
+                                    .child(Icon::new(SkyeIcon::File).xsmall())
                                     .child(row.files.to_string()),
                             )
                         })
@@ -162,7 +162,7 @@ impl ThreadView {
                             Button::new(("stash-delete", ix))
                                 .ghost()
                                 .xsmall()
-                                .icon(Icon::new(Lucide::X))
+                                .icon(Icon::new(SkyeIcon::X))
                                 .tooltip("Delete stashed prompt")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     cx.stop_propagation();

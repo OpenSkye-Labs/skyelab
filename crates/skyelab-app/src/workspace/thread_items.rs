@@ -6,11 +6,12 @@ use super::timeline_fold;
 use super::timeline_text::{divider_text, limited_text, markdown};
 use super::tool_cards;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
     relative,
 };
-use gpui_component::{ActiveTheme as _, Icon, IconName, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 use skyelab_agent::{Decision, DeltaKind};
 
 /// Longest tool input or result shown when a row is expanded; the store keeps the whole text.
@@ -304,7 +305,7 @@ fn render_row<V: ItemsView>(
                 .border_color(theme.warning.opacity(0.35))
                 .text_size(ui::BODY)
                 .child(
-                    Icon::new(IconName::TriangleAlert)
+                    Icon::new(SkyeIcon::TriangleAlert)
                         .size_4()
                         .text_color(ui::ink(theme, theme.warning)),
                 )
@@ -318,7 +319,7 @@ fn render_row<V: ItemsView>(
                 .px_1()
                 .text_size(ui::META)
                 .text_color(theme.muted_foreground)
-                .child(Icon::new(IconName::Info).size_3p5())
+                .child(Icon::new(SkyeIcon::Info).size_3p5())
                 .child(text.clone())
                 .into_any_element(),
         ),
@@ -400,9 +401,9 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
     };
     let id = tool.id.clone();
     let (icon, icon_color) = match (&tool.result, tool.is_error) {
-        (None, _) => (IconName::LoaderCircle, theme.info),
-        (Some(_), true) => (IconName::CircleAlert, theme.danger),
-        (Some(_), false) => (IconName::Check, theme.muted_foreground),
+        (None, _) => (SkyeIcon::LoaderCircle, theme.info),
+        (Some(_), true) => (SkyeIcon::CircleAlert, theme.danger),
+        (Some(_), false) => (SkyeIcon::Check, theme.muted_foreground),
     };
     // T3's work-log row: 24 px icon slot, the tool's name, its argument in mono, a chevron that turns when open.
     let header = h_flex()
@@ -449,9 +450,9 @@ fn render_tool<V: ItemsView>(this: &V, tool: &ToolItem, cx: &mut Context<V>) -> 
         })
         .child(
             Icon::new(if open {
-                IconName::ChevronDown
+                SkyeIcon::ChevronDown
             } else {
-                IconName::ChevronRight
+                SkyeIcon::ChevronRight
             })
             .size_3()
             .text_color(theme.muted_foreground.opacity(0.7)),

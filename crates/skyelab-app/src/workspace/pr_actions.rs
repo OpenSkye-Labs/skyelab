@@ -7,6 +7,7 @@
 use super::usage_page_render::segments;
 use super::worktree::resolves_to;
 use crate::ui;
+use crate::ui::SkyeIcon;
 use anyhow::bail;
 use gpui::{
     App, AppContext as _, Context, Entity, IntoElement, Render, SharedString, Task, Window, div,
@@ -21,7 +22,6 @@ use gpui_component::{
     input::{Input, InputEvent, InputState},
     v_flex,
 };
-use gpui_kit_assets::IconName;
 use skyelab_core::AccountsConfig;
 use skyelab_git::{Checks, GitHub, MergeMethod, Verdict};
 use std::path::{Path, PathBuf};
@@ -320,7 +320,7 @@ impl PrActions {
         let ready = matches!(&self.methods, Some(Ok(m)) if m.contains(&self.method));
         let button = Button::new("pr-merge")
             .small()
-            .icon(IconName::GitMerge)
+            .icon(SkyeIcon::GitMerge)
             .label(label)
             .disabled(self.busy || !ready)
             .loading(self.busy)
@@ -354,7 +354,7 @@ impl PrActions {
                             .gap_1()
                             .text_size(ui::META)
                             .text_color(ui::ink(theme, theme.danger))
-                            .child(Icon::new(IconName::CircleX).xsmall())
+                            .child(Icon::new(SkyeIcon::CircleX).xsmall())
                             .child(w)
                     }))
                     .child(div().ml_auto().child(button)),
@@ -391,7 +391,7 @@ impl PrActions {
                     .child(
                         verdict("pr-review-approve", "Approve", Verdict::Approve)
                             .outline()
-                            .icon(IconName::Check),
+                            .icon(SkyeIcon::Check),
                     ),
             )
     }

@@ -206,7 +206,7 @@ impl Render for DevicesPanel {
                         h_flex()
                             .justify_between()
                             .child(ui::page_title("Devices", theme))
-                            .child(refresh.icon(gpui_component::IconName::RefreshCw)),
+                            .child(refresh.icon(crate::ui::SkyeIcon::RefreshCw)),
                     )
                     .child(self.render_section(Platform::Ios, cx))
                     .child(self.render_section(Platform::Android, cx)),

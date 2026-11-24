@@ -4,13 +4,14 @@
 use super::form::Kind;
 use super::page::{Editor, Pick, Row, ScheduledPage};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use crate::workspace::OpenThread;
 use gpui::{
     AnyElement, Context, IntoElement, ParentElement as _, Render, SharedString, Styled as _,
     Window, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, Icon, IconName, Sizable as _,
+    ActiveTheme as _, Icon, Sizable as _,
     button::{Button, ButtonVariants as _},
     checkbox::Checkbox,
     h_flex,
@@ -19,7 +20,6 @@ use gpui_component::{
     switch::Switch,
     v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 use skyelab_agent::Mode;
 use skyelab_core::schedule::Schedule;
 
@@ -89,7 +89,7 @@ impl ScheduledPage {
                 Button::new(SharedString::from(format!("sched-run-{id}")))
                     .ghost()
                     .xsmall()
-                    .icon(IconName::Play)
+                    .icon(SkyeIcon::Play)
                     .tooltip("Run now")
                     .on_click(cx.listener(move |this, _, _, cx| this.run_now(id, cx))),
             )
@@ -97,7 +97,7 @@ impl ScheduledPage {
                 Button::new(SharedString::from(format!("sched-edit-{id}")))
                     .ghost()
                     .xsmall()
-                    .icon(Icon::new(Lucide::PenLine))
+                    .icon(Icon::new(SkyeIcon::PenLine))
                     .tooltip("Edit")
                     .on_click(move |_, window, cx| {
                         let _ = page.update(cx, |this, cx| this.edit(id, window, cx));
@@ -109,7 +109,7 @@ impl ScheduledPage {
                     .xsmall()
                     .when(armed, |b| b.danger().label("Delete?"))
                     .when(!armed, |b| {
-                        b.icon(Icon::new(Lucide::Trash)).tooltip("Delete")
+                        b.icon(Icon::new(SkyeIcon::Trash)).tooltip("Delete")
                     })
                     .on_click(cx.listener(move |this, _, _, cx| this.delete(id, cx))),
             );
@@ -304,7 +304,7 @@ impl Render for ScheduledPage {
                 Button::new("sched-new")
                     .primary()
                     .small()
-                    .icon(Icon::new(Lucide::Plus))
+                    .icon(Icon::new(SkyeIcon::Plus))
                     .label("New task")
                     .on_click(cx.listener(|this, _, window, cx| this.new_task(None, None, window, cx))),
             );

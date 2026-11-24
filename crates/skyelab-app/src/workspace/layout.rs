@@ -2,6 +2,7 @@
 //! saving the window frame, right dock and current page to settings.toml.
 
 use super::{CONTEXT, ToggleBottomPanel, ToggleSidebar, Workspace};
+use crate::ui::SkyeIcon;
 use gpui::{
     App, AppContext as _, Context, Div, Entity, Global, IntoElement, KeyBinding, NoAction, Pixels,
     Task, Window, actions, prelude::*, px,
@@ -12,7 +13,6 @@ use gpui_component::{
     dock::{DockEvent, DockPlacement, Panel, panel_handle},
     h_flex,
 };
-use gpui_kit_assets::IconName;
 use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -99,7 +99,7 @@ pub(crate) fn panel_toggles(window: &Window, cx: &App) -> impl IntoElement {
 fn dock_toggles(open: DockToggles) -> Vec<Button> {
     // The tooltip shows the action's key binding for this OS.
     let toggle = |id: &'static str,
-                  icon: IconName,
+                  icon: SkyeIcon,
                   on: bool,
                   tip: &'static str,
                   action: &dyn gpui::Action| {
@@ -115,28 +115,28 @@ fn dock_toggles(open: DockToggles) -> Vec<Button> {
     vec![
         toggle(
             "toggle-details",
-            IconName::SquareMenu,
+            SkyeIcon::SquareMenu,
             open.details,
             "Toggle thread details",
             &ToggleThreadDetails,
         ),
         toggle(
             "toggle-sidebar",
-            IconName::PanelLeft,
+            SkyeIcon::PanelLeft,
             open.left,
             "Toggle sidebar",
             &ToggleSidebar,
         ),
         toggle(
             "toggle-bottom",
-            IconName::PanelBottom,
+            SkyeIcon::PanelBottom,
             open.bottom,
             "Toggle terminal",
             &ToggleBottomPanel,
         ),
         toggle(
             "toggle-right",
-            IconName::PanelRight,
+            SkyeIcon::PanelRight,
             open.right,
             "Toggle tools panel",
             &ToggleRightPanel,

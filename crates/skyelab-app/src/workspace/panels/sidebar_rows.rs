@@ -3,10 +3,10 @@
 
 use super::sidebar::{RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, SidebarSection};
 use super::*;
+use crate::ui::SkyeIcon;
 use gpui::AnyElement;
 use gpui_component::Selectable as _;
 use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
-use gpui_kit_assets::IconName as Lucide;
 use skyelab_core::snooze;
 
 pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
@@ -15,7 +15,7 @@ pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
         Button::new(SharedString::from(format!("section-{}", s.title)))
             .ghost()
             .xsmall()
-            .icon(IconName::Plus)
+            .icon(SkyeIcon::Plus)
             .label(label.clone())
             .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
     })
@@ -82,17 +82,21 @@ fn thread_row(
     );
     let status = if approval {
         Some((
-            Icon::new(IconName::TriangleAlert),
+            Icon::new(SkyeIcon::TriangleAlert),
             "Approval".into(),
             theme.warning,
         ))
     } else if let Some(until) = snoozed.filter(|_| !running) {
         // T3's alarm clock: asleep shows when it wakes; woke (passed, not opened yet) says so.
         if snooze::is_woke(Some(until), now) {
-            Some((Icon::new(Lucide::AlarmClock), "Woke".into(), theme.warning))
+            Some((
+                Icon::new(SkyeIcon::AlarmClock),
+                "Woke".into(),
+                theme.warning,
+            ))
         } else {
             let when = snooze::wake_label(until, now).into();
-            Some((Icon::new(Lucide::AlarmClock), when, theme.info))
+            Some((Icon::new(SkyeIcon::AlarmClock), when, theme.info))
         }
     } else if let Some((icon, word)) = item.status.and_then(ui::Status::badge) {
         let color = item
@@ -107,7 +111,7 @@ fn thread_row(
     } else {
         // T3's "Done": a finished turn nobody has looked at yet.
         unread.then_some((
-            Icon::new(IconName::CircleCheck),
+            Icon::new(SkyeIcon::CircleCheck),
             "Done".into(),
             theme.success,
         ))
@@ -186,7 +190,7 @@ fn thread_row(
                         .map(|(count, open, group)| group_badge(count, open, group, theme)),
                 )
                 .when(pinned, |this| {
-                    this.child(Icon::new(IconName::Star).size_3().text_color(muted))
+                    this.child(Icon::new(SkyeIcon::Pin).size_3().text_color(muted))
                 })
                 .when(marks.scheduled, |this| this.child(scheduled_badge()))
                 .child(right),
@@ -241,7 +245,7 @@ fn thread_row(
                         .min_w(gpui::px(36.))
                         .max_w(gpui::px(104.))
                         .gap_0p5()
-                        .child(Icon::new(Lucide::GitBranch).size_3().flex_shrink_0())
+                        .child(Icon::new(SkyeIcon::GitBranch).size_3().flex_shrink_0())
                         .child(div().min_w_0().truncate().child(b))
                 })),
         )
@@ -270,9 +274,9 @@ fn group_badge(
         .child(format!("×{count}"))
         .child(
             Icon::new(if open {
-                IconName::ChevronUp
+                SkyeIcon::ChevronUp
             } else {
-                IconName::ChevronDown
+                SkyeIcon::ChevronDown
             })
             .size_3(),
         )
@@ -293,7 +297,7 @@ fn hover_actions(
 ) -> gpui::Stateful<gpui::Div> {
     use super::super::thread_list::{Shelf, ShelveThread, snooze_menu};
     let id = s.id;
-    let button = |name: &str, icon: Lucide, tip: &'static str| {
+    let button = |name: &str, icon: SkyeIcon, tip: &'static str| {
         Button::new(SharedString::from(format!("{name}-{id}")))
             .ghost()
             .xsmall()
@@ -312,18 +316,19 @@ fn hover_actions(
         .text_color(theme.muted_foreground)
         .on_click(|_, _, cx| cx.stop_propagation());
     if s.settled {
-        return row
-            .child(button("unsettle", Lucide::Undo2, "Un-settle").on_click(act(Shelf::Unsettle)));
+        return row.child(
+            button("unsettle", SkyeIcon::Undo2, "Un-settle").on_click(act(Shelf::Unsettle)),
+        );
     }
     if snooze::is_asleep(s.snoozed_until, now) {
         return row
-            .child(button("wake", Lucide::AlarmClockOff, "Wake now").on_click(act(Shelf::Wake)));
+            .child(button("wake", SkyeIcon::AlarmClockOff, "Wake now").on_click(act(Shelf::Wake)));
     }
     row.child(
-        button("snooze", Lucide::AlarmClock, "Snooze")
+        button("snooze", SkyeIcon::AlarmClock, "Snooze")
             .dropdown_menu(move |menu, _, _| snooze_menu(menu, id)),
     )
-    .child(button("settle", Lucide::Check, "Settle").on_click(act(Shelf::Settle)))
+    .child(button("settle", SkyeIcon::Check, "Settle").on_click(act(Shelf::Settle)))
 }
 
 /// A thread a scheduled task started.
@@ -362,7 +367,7 @@ fn plain_row(
         )
         .when(pinned, |this| {
             this.child(
-                Icon::new(IconName::Star)
+                Icon::new(SkyeIcon::Pin)
                     .size_3()
                     .text_color(theme.muted_foreground),
             )
@@ -416,7 +421,7 @@ pub(super) fn scope_button(scope: ScopeMenu, focus: &FocusHandle) -> impl IntoEl
     Button::new("sidebar-scope")
         .ghost()
         .small()
-        .icon(IconName::Folder)
+        .icon(SkyeIcon::Filter)
         .selected(filtered)
         .tooltip("Projects")
         .dropdown_menu(move |mut menu, window, cx| {
@@ -456,7 +461,7 @@ pub(super) fn scope_button(scope: ScopeMenu, focus: &FocusHandle) -> impl IntoEl
             }
             menu.separator().menu_with_icon(
                 "Add project",
-                IconName::Plus,
+                SkyeIcon::FolderPlus,
                 Box::new(super::super::AddProject),
             )
         })

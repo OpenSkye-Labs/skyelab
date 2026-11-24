@@ -4,13 +4,13 @@
 use super::Onboarding;
 use super::render::{card, home_relative, name_and_folder, step};
 use crate::ui;
+use crate::ui::SkyeIcon;
 use gpui::{Context, Div, FontWeight, ParentElement as _, SharedString, div, prelude::*, px};
 use gpui_component::{
-    ActiveTheme as _, Disableable as _, Icon, IconName, Selectable as _, Sizable as _,
+    ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _,
     button::{Button, ButtonVariants as _},
     h_flex, v_flex,
 };
-use gpui_kit_assets::IconName as Lucide;
 
 impl Onboarding {
     pub(super) fn projects_step(&self, cx: &mut Context<Self>) -> Div {
@@ -26,7 +26,7 @@ impl Onboarding {
             body = body.child(
                 card("setup-projects", false, cx)
                     .child(
-                        Icon::new(IconName::Folder)
+                        Icon::new(SkyeIcon::Folder)
                             .size_4()
                             .text_color(cx.theme().muted_foreground),
                     )
@@ -41,7 +41,7 @@ impl Onboarding {
         body = body.child(
             card("setup-pick", !chosen, cx)
                 .child(
-                    Icon::new(Lucide::FolderGit2)
+                    Icon::new(SkyeIcon::FolderGit2)
                         .size_4()
                         .text_color(cx.theme().muted_foreground),
                 )
@@ -60,7 +60,7 @@ impl Onboarding {
                     Button::new("setup-choose")
                         .outline()
                         .small()
-                        .icon(IconName::FolderOpen)
+                        .icon(SkyeIcon::FolderOpen)
                         .label("Choose folder…")
                         .on_click(cx.listener(|this, _, _, cx| this.choose_folder(cx))),
                 ),
@@ -113,7 +113,7 @@ impl Onboarding {
                             cx.listener(move |this, _, _, cx| this.set_folder(repo.clone(), cx)),
                         )
                         .child(
-                            Icon::new(Lucide::GitBranch)
+                            Icon::new(SkyeIcon::GitBranch)
                                 .size_3p5()
                                 .text_color(theme.muted_foreground),
                         )
