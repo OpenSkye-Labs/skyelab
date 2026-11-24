@@ -414,3 +414,24 @@ fn a_merge_without_a_known_head_is_refused_and_a_moved_branch_shows_ghs_refusal(
     assert!(dialog_open(cx));
     assert!(matches!(status(id, cx), Some(PrView::Status(s)) if s.state == PrState::Open));
 }
+
+/// A read is stamped with when it started: a poll that began before a merge and lands after the merge's re-read
+/// started must not make that fresher re-read look older and drop it.
+#[gpui::test]
+fn a_read_is_stamped_when_it_started_not_when_it_landed(cx: &mut gpui::TestAppContext) {
+    let (r, cx) = rig(cx);
+    let _gh = github(&r, cx);
+    let (id, _dialog) = thread_dialog(&r, cx);
+    let landed = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| cx.global::<PrStatuses>().0.get(&id).map(|e| e.checked_ms))
+    };
+    let first = landed(cx);
+    r.ws.update(cx, |ws, cx| ws.reread_pr(id, cx));
+    let asked_by = crate::ui::now_ms();
+    wait_until(cx, "read landed", |cx| landed(cx) != first);
+    let stamp = landed(cx).expect("stamped");
+    assert!(
+        stamp <= asked_by,
+        "STAMPED_ON_LANDING: {stamp} is after the read started ({asked_by})"
+    );
+}

@@ -42,6 +42,11 @@ pub(in crate::workspace) fn label(to: Provider) -> SharedString {
     format!("Continue in {}", to.label()).into()
 }
 
+/// Source threads whose handoff is still being created: a second click would make a second thread.
+#[derive(Default)]
+struct HandingOff(std::collections::HashSet<i64>);
+impl gpui::Global for HandingOff {}
+
 enum Outcome {
     Started(Box<Thread>),
     /// The folder isn't bound to a `to` account: what it is bound to now, if anything.
@@ -62,6 +67,9 @@ impl Workspace {
         if self.is_remote() {
             return; // a remote window's threads live on another machine; their history isn't here
         }
+        if !cx.default_global::<HandingOff>().0.insert(a.id) {
+            return;
+        }
         let (store, config, id, to) = (
             self.backend.store.clone(),
             self.accounts_job(cx),
@@ -81,11 +89,17 @@ impl Workspace {
             if from == Some(to) {
                 bail!("this thread already runs on {}", to.label());
             }
-            let account = match config.resolve(&project.path) {
+            // A thread that ran in its own worktree continues there, where its branch and edits are.
+            let cwd = if src.cwd.is_dir() {
+                &src.cwd
+            } else {
+                &project.path
+            };
+            let account = match config.resolve(cwd) {
                 Some(a) if a.provider == to => a.clone(),
                 bound => {
                     return Ok(Outcome::NeedsBinding {
-                        folder: project.path.display().to_string(),
+                        folder: cwd.display().to_string(),
                         bound: bound.map(|a| format!("{} ({})", a.label, a.provider.label())),
                     });
                 }
@@ -120,7 +134,7 @@ impl Workspace {
             let new = NewThread {
                 project_id: project.id,
                 title: &src.title,
-                cwd: &project.path,
+                cwd,
                 account_id: &account.id,
                 status: "stopped",
             };
@@ -134,16 +148,18 @@ impl Workspace {
         });
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;
-            let _ = this.update_in(cx, |ws, window, cx| match done {
-                Ok(Outcome::Started(thread)) => {
-                    let id = thread.id;
-                    ws.thread_started(&thread, cx);
-                    ws.open_thread(&OpenThread { id }, window, cx);
+            let _ = this.update_in(cx, |ws, window, cx| {
+                cx.default_global::<HandingOff>().0.remove(&id);
+                match done {
+                    Ok(Outcome::Started(thread)) => {
+                        ws.thread_started(&thread, cx);
+                        ws.open_thread(&OpenThread { id: thread.id }, window, cx);
+                    }
+                    Ok(Outcome::NeedsBinding { folder, bound }) => {
+                        ask_bind(folder, bound, to, window, cx)
+                    }
+                    Err(e) => ws.say(format!("Couldn't continue the thread: {e:#}"), window, cx),
                 }
-                Ok(Outcome::NeedsBinding { folder, bound }) => {
-                    ask_bind(folder, bound, to, window, cx)
-                }
-                Err(e) => ws.say(format!("Couldn't continue the thread: {e:#}"), window, cx),
             });
         })
         .detach();

@@ -212,7 +212,7 @@ impl Workspace {
 
     /// Reads `jobs` one after another off the UI thread; `started` is the batch mark it clears when done.
     fn read_prs(&mut self, jobs: Vec<Job>, started: Option<i64>, cx: &mut Context<Self>) {
-        // A read that started before the stored one landed is older news: it's dropped.
+        // Each read is stamped with when it started: one that started before the stored one is older news, dropped.
         let asked = crate::ui::now_ms();
         let gh = super::gh_bin(cx);
         let accounts_file = cx.try_global::<super::AccountsFile>().map(|f| f.0.clone());
@@ -242,7 +242,6 @@ impl Workspace {
                 if started.is_some() && this.pr_watch.polling_since == started {
                     this.pr_watch.polling_since = None;
                 }
-                let now = crate::ui::now_ms();
                 let statuses = cx.default_global::<PrStatuses>();
                 let mut changed = false;
                 let mut states = Vec::new();
@@ -259,7 +258,7 @@ impl Workspace {
                         PrEntry {
                             url: url.clone(),
                             view: view.clone(),
-                            checked_ms: now,
+                            checked_ms: asked,
                         },
                     );
                     changed |= old.is_none_or(|o| o.url != url || o.view != view);
