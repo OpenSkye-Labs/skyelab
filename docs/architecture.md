@@ -79,15 +79,18 @@ That keeps it small whichever UI tech it ends up on.
 
 Each item follows [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-1. **Accounts:** core resolver and config (done). Then an accounts/bindings settings UI, and a binding indicator in every thread header.
-2. **Threads:** run `claude` in a folder with the resolved account, stream output into a thread view, and persist to SQLite.
-3. **Projects and worktrees:** project sidebar, a worktree per thread, diff view.
-4. **Terminal:** `alacritty_terminal` + a GPUI renderer.
-5. **Remote:** daemon split, RPC, Tailscale peers and whois, an environment switcher.
-6. **Browser preview:** `gpui-webview` (experimental) plus agent automation.
-7. **Device hub:** iOS Simulator / Android Emulator control.
-8. **Orchestration:** delegate tasks between threads and environments.
-9. **Mobile client:** GPUI on iOS and Android, plan in [mobile.md](mobile.md).
+Items 1-8 are built (v0.1.0); the [user guide](user-guide.md) describes what each one does today. What's left is
+tracked in GitHub issues.
+
+1. **Accounts:** core resolver and config, the accounts/bindings settings UI, a binding indicator in every thread header. Built.
+2. **Threads:** run `claude` (or `codex`) in a folder with the resolved account, stream output into a thread view, persist to SQLite. Built.
+3. **Projects and worktrees:** project sidebar, a worktree per thread, diff view. Built.
+4. **Terminal:** `alacritty_terminal` + a GPUI renderer. Built.
+5. **Remote:** daemon split, RPC, Tailscale peers and whois, an environment switcher. Built.
+6. **Browser preview:** `gpui-webview` plus agent automation. Built (screenshots untested on Linux).
+7. **Device hub:** iOS Simulator / Android Emulator control. Built.
+8. **Orchestration:** delegate tasks between threads and environments. Built.
+9. **Mobile client:** GPUI on iOS and Android, plan in [mobile.md](mobile.md). In progress.
 
 ## Scheduled tasks
 
