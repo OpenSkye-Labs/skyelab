@@ -3,7 +3,7 @@
 //! will be bound to: the one whose history has the most sessions there, changeable, or the binding it already has.
 
 use super::render::home_relative;
-use super::{Onboarding, OnboardingEvent, motion};
+use super::{Onboarding, OnboardingEvent};
 use crate::ui;
 use crate::ui::{Button, Checkbox, SkyeIcon};
 use gpui::{Context, Div, FontWeight, ParentElement as _, SharedString, div, prelude::*, px};
@@ -145,7 +145,7 @@ impl Onboarding {
         }
     }
 
-    fn import_row(&self, ix: usize, n: usize, cx: &mut Context<Self>) -> impl IntoElement {
+    fn import_row(&self, ix: usize, cx: &mut Context<Self>) -> impl IntoElement {
         let r = &self.import.rows[ix];
         let home = self.home.clone();
         let theme = cx.theme();
@@ -230,57 +230,53 @@ impl Onboarding {
         };
         let toggle_path = path.clone();
         let selector = format!("import-row-{}", name);
-        motion::row(
-            h_flex()
-                .relative()
-                .id(SharedString::from(format!("import-{}", path.display())))
-                .debug_selector(move || selector)
-                .h(px(44.))
-                .px_3()
-                .gap_3()
-                .rounded(ui::RADIUS)
-                .cursor_pointer()
-                .hover(|s| s.bg(theme.accent))
-                .on_click(cx.listener(move |this, _, _, cx| this.toggle_row(&toggle_path, cx)))
-                .child(
-                    Checkbox::new(SharedString::from(format!(
-                        "import-check-{}",
-                        path.display()
-                    )))
-                    .checked(r.checked),
-                )
-                .child(
-                    Icon::new(if r.cand.git {
-                        SkyeIcon::FolderGit2
-                    } else {
-                        SkyeIcon::Folder
-                    })
-                    .size_4()
-                    .text_color(theme.muted_foreground),
-                )
-                .child(
-                    v_flex()
-                        .flex_1()
-                        .min_w_0()
-                        .child(
-                            div()
-                                .truncate()
-                                .text_size(ui::BODY)
-                                .font_weight(FontWeight::MEDIUM)
-                                .child(name),
-                        )
-                        .child(
-                            div()
-                                .truncate()
-                                .text_size(ui::META)
-                                .text_color(theme.muted_foreground)
-                                .child(meta),
-                        ),
-                )
-                .child(picker),
-            ("import-row", ix),
-            n,
-        )
+        h_flex()
+            .relative()
+            .id(SharedString::from(format!("import-{}", path.display())))
+            .debug_selector(move || selector)
+            .h(px(44.))
+            .px_3()
+            .gap_3()
+            .rounded(ui::RADIUS)
+            .cursor_pointer()
+            .hover(|s| s.bg(theme.accent))
+            .on_click(cx.listener(move |this, _, _, cx| this.toggle_row(&toggle_path, cx)))
+            .child(
+                Checkbox::new(SharedString::from(format!(
+                    "import-check-{}",
+                    path.display()
+                )))
+                .checked(r.checked),
+            )
+            .child(
+                Icon::new(if r.cand.git {
+                    SkyeIcon::FolderGit2
+                } else {
+                    SkyeIcon::Folder
+                })
+                .size_4()
+                .text_color(theme.muted_foreground),
+            )
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(ui::BODY)
+                            .font_weight(FontWeight::MEDIUM)
+                            .child(name),
+                    )
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(ui::META)
+                            .text_color(theme.muted_foreground)
+                            .child(meta),
+                    ),
+            )
+            .child(picker)
     }
 
     pub(super) fn import_page(&self, cx: &mut Context<Self>) -> Div {
@@ -303,7 +299,6 @@ impl Onboarding {
                 cx,
             ));
         } else {
-            let mut n = 0;
             let sections: Vec<(SharedString, Vec<usize>)> = self
                 .import
                 .groups
@@ -326,8 +321,7 @@ impl Onboarding {
                         .child(label),
                 );
                 for ix in rows {
-                    body = body.child(self.import_row(ix, n, cx));
-                    n += 1;
+                    body = body.child(self.import_row(ix, cx));
                 }
             }
         }

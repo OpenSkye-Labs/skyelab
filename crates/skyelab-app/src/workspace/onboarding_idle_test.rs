@@ -1,5 +1,6 @@
-//! Acceptance: onboarding's motion runs only while a page enters. A page change asks for frames during its slide,
-//! none once it settled, and none at all with Reduce Motion on (GPUI then draws the end state).
+//! Acceptance: onboarding's motion runs only while a page enters. A page change crossfades in place (the old page
+//! fades out over the new one behind a layer that takes the mouse, then goes) while the hero zooms in; it asks for
+//! frames only during that, none once it settled, and none at all with Reduce Motion on (GPUI then draws the end state).
 
 use super::onboarding::Step;
 use super::onboarding_test::rig;
@@ -44,4 +45,28 @@ fn reduce_motion_changes_pages_without_frames(cx: &mut TestAppContext) {
     rig.setup.update(cx, |o, cx| o.go(Step::Theme, cx));
     cx.run_until_parked();
     assert_eq!(pending_frames(cx), 0, "drawn at its end state at once");
+    assert!(cx.debug_bounds("onboarding-leaving").is_none(), "no old page to fade out");
+}
+
+#[gpui::test]
+fn a_step_change_crossfades_in_place_then_drops_the_old_page(cx: &mut TestAppContext) {
+    let (rig, cx) = rig(cx);
+    settle(cx);
+    rig.setup.update(cx, |o, cx| o.go(Step::Theme, cx));
+    cx.run_until_parked();
+    let moving = cx.debug_bounds("onboarding-page").expect("new page drawn");
+    let hero_in = cx.debug_bounds("onboarding-hero").expect("hero drawn");
+    assert!(cx.debug_bounds("onboarding-leaving").is_some(), "the old page fades out over it");
+    let old_hero = cx.debug_bounds("onboarding-hero-leaving").expect("old hero drawn");
+    settle(cx);
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("onboarding-leaving").is_none(), "the old page is gone once faded");
+    let settled = cx.debug_bounds("onboarding-page").expect("new page drawn");
+    assert_eq!(moving.origin.x, settled.origin.x, "a crossfade, not a slide");
+    let hero = cx.debug_bounds("onboarding-hero").expect("hero drawn");
+    let zoom = hero_in.size.width / hero.size.width;
+    assert!(zoom > 1.25, "the hero starts zoomed in: {zoom}");
+    assert_eq!(old_hero.size, hero.size, "the old page's hero stays settled while it fades");
+    assert_eq!(pending_frames(cx), 0, "idle again");
 }

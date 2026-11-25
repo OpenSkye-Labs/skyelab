@@ -2,7 +2,7 @@
 //! accounts. Added accounts are cards (provider mark in the account's color, name, folder in small type, sign-in);
 //! found config folders are dashed suggestion cards with their own Add. Also the shared helpers of every page.
 
-use super::{Onboarding, motion};
+use super::Onboarding;
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
@@ -47,7 +47,7 @@ pub(super) fn card(
             if dashed {
                 d.border_dashed().border_color(theme.input)
             } else {
-                d.border_color(theme.border).bg(theme.muted)
+                d.border_color(theme.border).bg(theme.background)
             }
         })
 }
@@ -91,25 +91,20 @@ impl Onboarding {
                     _ => SkyeIcon::Github,
                 };
                 let name = a.name;
-                motion::row(
-                    card(("setup-agent", i), false, cx)
-                        .relative()
-                        .debug_selector(move || format!("setup-agent-{name}"))
-                        .child(Icon::new(icon).size_4().text_color(theme.muted_foreground))
-                        .child(name_and_folder(a.name, text.into(), cx))
-                        .when_some(a.update.clone(), |d, v| {
-                            d.child(
-                                div()
-                                    .debug_selector(|| "agent-update".into())
-                                    .text_size(ui::META)
-                                    .text_color(ui::ink(theme, theme.info))
-                                    .child(format!("{v} available")),
-                            )
-                        })
-                        .child(ui::StatusDot::new(dot)),
-                    ("setup-agent-row", i),
-                    i,
-                )
+                card(("setup-agent", i), false, cx)
+                    .debug_selector(move || format!("setup-agent-{name}"))
+                    .child(Icon::new(icon).size_4().text_color(theme.muted_foreground))
+                    .child(name_and_folder(a.name, text.into(), cx))
+                    .when_some(a.update.clone(), |d, v| {
+                        d.child(
+                            div()
+                                .debug_selector(|| "agent-update".into())
+                                .text_size(ui::META)
+                                .text_color(ui::ink(theme, theme.info))
+                                .child(format!("{v} available")),
+                        )
+                    })
+                    .child(ui::StatusDot::new(dot))
             }))
     }
 
@@ -248,36 +243,25 @@ impl Onboarding {
             );
         }
         let n = cards.len();
-        v_flex()
-            .gap_2()
-            .children(
-                cards
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, c)| {
-                        motion::row(div().relative().child(c), ("setup-account-row", i), i + 3)
-                    })
-                    .collect::<Vec<_>>(),
+        v_flex().gap_2().children(cards).when(n > 0, |d| {
+            d.child(
+                h_flex().pt_1().child(
+                    Button::new("setup-add-account")
+                        .ghost()
+                        .small()
+                        .icon(Icon::new(SkyeIcon::Plus))
+                        .label("Add account…")
+                        .on_click(|_, window, cx| {
+                            window.dispatch_action(
+                                Box::new(super::super::OpenSettingsSection {
+                                    section: crate::settings::Section::Accounts,
+                                }),
+                                cx,
+                            )
+                        }),
+                ),
             )
-            .when(n > 0, |d| {
-                d.child(
-                    h_flex().pt_1().child(
-                        Button::new("setup-add-account")
-                            .ghost()
-                            .small()
-                            .icon(Icon::new(SkyeIcon::Plus))
-                            .label("Add account…")
-                            .on_click(|_, window, cx| {
-                                window.dispatch_action(
-                                    Box::new(super::super::OpenSettingsSection {
-                                        section: crate::settings::Section::Accounts,
-                                    }),
-                                    cx,
-                                )
-                            }),
-                    ),
-                )
-            })
+        })
     }
 
     pub(super) fn agents_page(&self, cx: &mut Context<Self>) -> Div {
@@ -285,7 +269,6 @@ impl Onboarding {
         let theme = cx.theme();
         let caption = |text: &'static str| {
             div()
-                .pt_4()
                 .pb_2()
                 .text_size(ui::META)
                 .font_weight(FontWeight::MEDIUM)
@@ -293,12 +276,9 @@ impl Onboarding {
                 .child(text)
         };
         v_flex()
-            .child(Self::heading(
-                "Agents and accounts",
-                "Each Claude or Codex login keeps its own config folder. Add the ones you use.",
-                cx,
-            ))
+            .child(caption("Agents"))
             .child(agents)
+            .child(div().h_4())
             .child(caption("Accounts"))
             .child(accounts)
     }
