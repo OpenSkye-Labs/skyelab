@@ -312,20 +312,17 @@ fn render_row<V: ItemsView>(
             column(ask_cards::render_plan(this, a, window, cx))
         }
         Item::Approval(a) => column(ask_cards::render_approval(this, a, false, cx)),
+        // A quiet history line (T3's work-log row); the docked banner is the loud one, with the actions.
         Item::Limit { resets_at } => column(
             h_flex()
                 .debug_selector(|| "limit-row".into())
                 .gap_1p5()
-                .px_3()
-                .py_2()
-                .rounded(ui::RADIUS_LG)
-                .bg(theme.warning.opacity(0.08))
-                .border_1()
-                .border_color(theme.warning.opacity(0.35))
-                .text_size(ui::BODY)
+                .px_1()
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
                 .child(
-                    Icon::new(SkyeIcon::TriangleAlert)
-                        .size_4()
+                    Icon::new(SkyeIcon::CircleAlert)
+                        .size_3p5()
                         .text_color(ui::ink(theme, theme.warning)),
                 )
                 .child(limited_text(*resets_at, ui::now_ms() / 1000))

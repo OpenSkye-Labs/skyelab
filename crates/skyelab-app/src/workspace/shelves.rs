@@ -266,6 +266,7 @@ impl Workspace {
     /// Redraws the sidebar when the next snoozed thread wakes. The timer is monotonic and stops while the machine
     /// sleeps, so it wakes at least each minute to read the wall clock again.
     pub(in crate::workspace) fn arm_wake(&mut self, cx: &mut Context<Self>) {
+        self.arm_limit_resume(cx);
         let now = crate::ui::now_ms();
         // Other machines' snoozes wake here too: the row moves on this window's clock, as a local one does.
         let envs = self

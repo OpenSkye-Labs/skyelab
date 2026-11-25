@@ -76,18 +76,19 @@ pub fn count(n: u64) -> String {
     }
 }
 
-/// "Limited until …": how long until the limit resets (the reset is in Unix seconds), when known.
+/// The timeline's limit row (T3's): "Usage limit reached. Retry after tomorrow at 2:10 AM (Asia/Manila)." in this
+/// machine's local time. The reset is in Unix seconds; "Usage limit reached." when the agent didn't say.
 pub fn limited_text(resets_at: Option<i64>, now: i64) -> String {
-    match resets_at.map(|r| r - now) {
-        Some(left) if left > 0 => {
-            format!(
-                "Usage limit reached. Limited until it resets in {}.",
-                wait(left)
-            )
-        }
-        Some(_) => "Usage limit reached. It should have reset; send again to retry.".into(),
-        None => "Usage limit reached. Limited until it resets.".into(),
-    }
+    use chrono::TimeZone as _;
+    let now = chrono::Local
+        .timestamp_opt(now, 0)
+        .single()
+        .unwrap_or_else(chrono::Local::now);
+    skyelab_core::limit_reset::retry_text(
+        resets_at.map(|r| r.saturating_mul(1000)),
+        &now,
+        skyelab_core::limit_reset::local_zone(),
+    )
 }
 
 /// `left` seconds as "2h 14m", rounded up to the minute.

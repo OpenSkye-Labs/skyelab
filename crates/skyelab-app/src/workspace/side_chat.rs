@@ -440,7 +440,7 @@ impl Workspace {
     }
 
     /// Sends `question` in the side chat once its row has loaded (it is read-only until then).
-    fn ask_when_ready(
+    pub(in crate::workspace) fn ask_when_ready(
         &mut self,
         view: &Entity<ThreadView>,
         question: String,

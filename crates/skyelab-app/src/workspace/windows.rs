@@ -427,13 +427,9 @@ impl Workspace {
 
     /// Shows the view another window already has for thread `id` (its share may not have reached this window yet),
     /// rather than make a second one: one agent session per thread.
-    pub(super) fn show_shared(
-        &mut self,
-        id: i64,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        let found = cx.try_global::<Windows>().and_then(|reg| {
+    /// Thread `id`'s view in any window of this store, when one is open.
+    pub(super) fn shared_view(&self, id: i64, cx: &App) -> Option<Entity<ThreadView>> {
+        cx.try_global::<Windows>().and_then(|reg| {
             reg.threads
                 .iter()
                 .find(|v| {
@@ -441,8 +437,16 @@ impl Workspace {
                         && v.read(cx).thread.as_ref().map(|t| t.id) == Some(id)
                 })
                 .cloned()
-        });
-        let Some(view) = found else {
+        })
+    }
+
+    pub(super) fn show_shared(
+        &mut self,
+        id: i64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(view) = self.shared_view(id, cx) else {
             return false;
         };
         if !self.open_threads.contains(&view) {

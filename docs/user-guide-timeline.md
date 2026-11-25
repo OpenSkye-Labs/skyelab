@@ -41,9 +41,20 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
   **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›** (that turn's own tokens and cost). Click it to open or fold the work. A running turn shows
   everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.
-- When the account hits its usage limit, the timeline shows one banner, **Usage limit reached. Limited until it resets
-  in …**, and the
-  sidebar shows **Limited**, until a turn succeeds again.
+- When the account hits its usage limit, the sidebar shows **Limited** and a banner docks above the composer:
+  **Usage limit reached · Resets tomorrow at 2:10 AM** (**Reset passed** once it has). The timeline keeps a quiet
+  history line for it, in the same words and your local time zone: **Usage limit reached. Retry after tomorrow at
+  2:10 AM (Asia/Manila).** (just **Usage limit reached.** when the agent didn't say when it resets). The line stays as a
+  record; the banner and **Limited** go once a turn succeeds again. The banner has two actions:
+  - **Resume at reset** continues the thread by itself once, at the reset: it sends **Continue where you left off.** in
+    the same session, under the thread's own account and permission mode (never another account; if the folder is now
+    bound elsewhere, the resume is refused as a typed message would be). It then reads **Cancel auto-resume**, and the
+    banner says **Resumes …**. The schedule is saved, so it survives a restart; it is dropped when you send anything
+    first, or archive or delete the thread. Once the reset has passed the button reads **Resume now** and sends at once.
+  - **Snooze until reset** snoozes the thread until the reset, like the sidebar's Snooze, and then reads **Wake now**.
+    Once the reset has passed it is refused with a message.
+
+  A thread on another machine shows the limit (the row and **Limited**) but not these actions.
 - If a Claude thread's earlier session can't be found when you continue it (its history was deleted, or it ran under
   another config dir), the thread says so and runs your message in a new session. A Codex thread shows the failure.
 - A subagent (Claude's **Agent** or **Task** tool) is one card: **Subagent · general-purpose**, what it was asked,

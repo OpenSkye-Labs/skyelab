@@ -86,6 +86,8 @@ pub struct Thread {
     pub settled_at: Option<i64>,
     /// Hidden until then; once passed it lists again as woke, until opened.
     pub snoozed_until: Option<i64>,
+    /// Usage limited: continues by itself then (T3's Resume at reset), once. Cleared when it fires or the user sends.
+    pub limit_resume_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -342,6 +344,7 @@ impl Store {
             scheduled_task_id: None,
             settled_at: None,
             snoozed_until: None,
+            limit_resume_at: None,
         })
     }
 
