@@ -40,6 +40,7 @@ case " $* " in
     input=$(cat)
     {
       printf 'config_dir=%s\n' "$CLAUDE_CONFIG_DIR"
+      printf 'claudeai_env=%s\n' "$ENABLE_CLAUDEAI_MCP_SERVERS"
       for a in "$@"; do printf 'arg=[%s]\n' "$a"; done
       printf '%s\n---\n' "$input"
     } >> .fake-title-call
@@ -75,11 +76,20 @@ if [ -f .fake-agent-edits ]; then
   printf 'turn\n' >> agent-edit.txt
 fi
 # Claude's init reports the MCP servers it connected: with a fake-mcp-status.json (a JSON list of {name, status})
-# in the account dir, the replayed init line carries it as `mcp_servers`.
-mcp_status="$CLAUDE_CONFIG_DIR/fake-mcp-status.json"
+# in the account dir, the replayed init line carries it as `mcp_servers`. Like Claude Code, a launch without
+# --strict-mcp-config and without ENABLE_CLAUDEAI_MCP_SERVERS=false also lists the account's claude.ai connectors:
+# a fake-claudeai-status.json list there (entries with "source":"claudeai"; "needs-auth" for one never connected).
+strict=false
+case " $* " in *" --strict-mcp-config "*) strict=true ;; esac
+mcp_list() { tr -d '\n|' < "$1" | sed 's/^ *\[//; s/\] *$//'; }
+mcp=
+[ -f "$CLAUDE_CONFIG_DIR/fake-mcp-status.json" ] && mcp=$(mcp_list "$CLAUDE_CONFIG_DIR/fake-mcp-status.json")
+if [ "$strict" = false ] && [ "$ENABLE_CLAUDEAI_MCP_SERVERS" != false ] && [ -f "$CLAUDE_CONFIG_DIR/fake-claudeai-status.json" ]; then
+  mcp="${mcp:+$mcp,}$(mcp_list "$CLAUDE_CONFIG_DIR/fake-claudeai-status.json")"
+fi
 replay() {
-  if [ -f "$mcp_status" ]; then
-    sed "s|\"subtype\":\"init\",|\"subtype\":\"init\",\"mcp_servers\":$(tr -d '\n|' < "$mcp_status"),|"
+  if [ -n "$mcp" ]; then
+    sed "s|\"subtype\":\"init\",|\"subtype\":\"init\",\"mcp_servers\":[$mcp],|"
   else
     cat
   fi
@@ -104,7 +114,13 @@ fi
 if [ -f .fake-session-gone ]; then
   printf '{"type":"system","subtype":"init","cwd":"/tmp/x","session_id":"fake-sess-new","tools":[],"model":"claude-opus-5-5"}\n'
 fi
-printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s","pid":%s}\n' "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$*" "$$"
+# Its args (one string, and as a list), whether it was strict and its ENABLE_CLAUDEAI_MCP_SERVERS, JSON-escaped
+# (a --settings arg holds quotes).
+esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+argv=
+for a in "$@"; do argv="${argv:+$argv,}\"$(esc "$a")\""; done
+printf '{"type":"fake_env","config_dir":"%s","cwd":"%s","args":"%s","argv":[%s],"strict":%s,"claudeai_env":"%s","pid":%s}\n' \
+  "$CLAUDE_CONFIG_DIR" "$(pwd -P)" "$(esc "$*")" "$argv" "$strict" "$ENABLE_CLAUDEAI_MCP_SERVERS" "$$"
 # The --mcp-config file it got, on one line (tests read which servers reached it).
 prev=
 for a in "$@"; do

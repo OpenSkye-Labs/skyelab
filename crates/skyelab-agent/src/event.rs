@@ -127,7 +127,8 @@ pub enum Event {
 }
 
 /// One MCP server's state as the agent reported it: Claude's `connected`, `failed`, `needs-auth` or `pending`, Codex's
-/// `starting`, `ready`, `failed` or `cancelled`.
+/// `starting`, `ready`, `failed` or `cancelled`, and `not-connected` for a claude.ai connector the account never
+/// connected (Claude's `needs-auth` from source `claudeai`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct McpServer {
     pub name: String,
@@ -143,6 +144,7 @@ impl McpServer {
             "connected" | "ready" => "Connected",
             "failed" => "Failed",
             "needs-auth" => "Needs sign-in",
+            "not-connected" => "Not connected",
             "pending" | "starting" => "Starting",
             "cancelled" => "Cancelled",
             other => other,

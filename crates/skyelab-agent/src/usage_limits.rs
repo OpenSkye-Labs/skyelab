@@ -72,6 +72,12 @@ pub fn usage_limits(bin: &Path, account: &Account) -> Result<Limits> {
         .env_clear()
         .envs(skyelab_core::env::inherited_agent_env(false))
         .envs(account.launch_env()?);
+    if account.provider == Provider::Claude {
+        cmd.env(
+            crate::launch::NO_CLAUDEAI_MCP.0,
+            crate::launch::NO_CLAUDEAI_MCP.1,
+        );
+    }
     let answer = ask(&mut cmd, &lines, account.provider)?;
     match account.provider {
         Provider::Claude => parse_claude(&answer),

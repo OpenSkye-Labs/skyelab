@@ -6,7 +6,8 @@ Each entry is dated; newest at the bottom.
 - **Agent env:** parent env is cleared, then an allowlist passes through. Network and session plumbing (proxy, CA certs,
   TZ, XDG) passes. Anything that can pick an account, provider or base URL does not. (2026-11-23)
 - **Project settings:** agents launch with `--setting-sources user --strict-mcp-config`, so a cloned repo's
-  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23)
+  `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. (2026-11-23; agent turns dropped
+  `--strict-mcp-config` on 2026-11-26, see "claude.ai connectors load in agent turns" below)
 - **Codex provider:** `codex app-server` under `CODEX_HOME`, the folder's account picks the provider. Protocol,
   event mapping, hardening and limits: [codex.md](../codex.md). (2026-11-23)
 - **One env allowlist** (`skyelab_core::env`) for agents, project terminals and every git/gh call SkyeLab runs. A
@@ -131,3 +132,25 @@ Each entry is dated; newest at the bottom.
   readings stay with their age. The debug log gets the spawn's program and redacted args only, as for every child.
   Risk: `get_usage` is marked experimental in the SDK; if a CLI drops it, the poll fails visibly and the passive
   readings still show. (2026-11-25)
+- **claude.ai connectors load in agent turns.** The user wants the connectors of their claude.ai account (Slack,
+  Notion, …) in SkyeLab's Claude threads, as T3 Code has them (its real turns use `settingSources` user/project/local
+  with no strict mode; only its health probes and text generation go strict with `ENABLE_CLAUDEAI_MCP_SERVERS=false`).
+  Under `--strict-mcp-config` none load: a real run on 2026-11-25 saw 27 connectors on one account without it (4
+  connected) and none with it. So a Claude agent turn that has SkyeLab's grant now launches with `--setting-sources user`
+  and no `--strict-mcp-config`. Checked on claude 2.1.332 with a throwaway `CLAUDE_CONFIG_DIR`: the init line then lists
+  the account's user-scope servers and the `--mcp-config` ones, and still not the repo's `.mcp.json` (even with
+  `enableAllProjectMcpServers: true` in the user's settings) nor a folder's local-scope servers; a user server named
+  exactly `skyelab` is replaced by ours (`--mcp-config` wins the name). The name-collision protection stays: SkyeLab
+  still reads the account's `.claude.json` and passes every user-scope name that would read as SkyeLab's (other than
+  exactly `skyelab`; denying that one refuses ours too) as `--settings '{"deniedMcpServers":[{"serverName":…}]}'`,
+  which 2.1.332 honours (case-sensitive) under `--setting-sources user`, and the thread still says what it left out.
+  When that file can't be read, or there is no grant (a side chat), the launch stays strict as before, since we can't
+  tell which names Claude would load. The account's servers and plugin servers are still copied into the grant file
+  (so a strict launch keeps them); Claude now also loads the account's enabled plugins itself, so the plugin path checks
+  above no longer keep a plugin's servers out of a non-strict launch. Every connector and server is the bound
+  account's only: Claude reads them through that account's `CLAUDE_CONFIG_DIR` (the launch env is the allowlist plus
+  `launch_env`), never another account's or the app user's default. Their tools are not pre-allowed and ask like any
+  tool. Background calls (title, commit and PR text, the usage poll, the login check) stay strict and set
+  `ENABLE_CLAUDEAI_MCP_SERVERS=false`. Claude reports a connector the account never connected as `needs-auth` with
+  source `claudeai`; SkyeLab maps it to `not-connected` ("Not connected", muted, no Sign in: `claude mcp login` can't
+  connect it; T3 skips those in its sign-in handling too). (2026-11-26)

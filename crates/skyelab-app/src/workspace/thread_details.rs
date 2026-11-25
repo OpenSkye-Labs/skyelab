@@ -128,10 +128,11 @@ pub(in crate::workspace) fn fold_mcp(
     *list != before
 }
 
-/// What the card says of an MCP server: its last report, or "Stopped" once the agent ended (a failure stays).
+/// What the card says of an MCP server: its last report, or "Stopped" once the agent ended (a failure, or a claude.ai
+/// connector that isn't connected, stays).
 pub(in crate::workspace) fn mcp_state(s: &skyelab_agent::McpServer, ended: bool) -> &str {
     match s.status.as_str() {
-        "failed" | "needs-auth" | "cancelled" => s.state(),
+        "failed" | "needs-auth" | "cancelled" | "not-connected" => s.state(),
         _ if ended => "Stopped",
         _ => s.state(),
     }

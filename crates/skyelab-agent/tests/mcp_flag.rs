@@ -54,10 +54,14 @@ fn mcp_config_flag_only_when_given() {
         "{args}"
     );
     assert!(args.contains("--allowedTools mcp__skyelab"), "{args}");
-    assert!(args.contains("--strict-mcp-config"), "{args}");
+    // With SkyeLab's grant the account's own servers and claude.ai connectors load (not strict).
+    assert!(!args.contains("--strict-mcp-config"), "{args}");
 
     let args = args_for(None);
     assert!(!args.contains("--mcp-config"), "{args}");
     assert!(!args.contains("mcp__skyelab"), "{args}");
-    assert!(args.contains("--strict-mcp-config"), "{args}");
+    assert!(
+        args.contains("--strict-mcp-config"),
+        "no grant (a side chat): no servers, {args}"
+    );
 }

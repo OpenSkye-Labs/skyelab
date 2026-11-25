@@ -6,6 +6,21 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4]
+
+### Added
+
+- **Antigravity** as a provider, on a shared ACP driver: each account keeps its own Google login in its own folder.
+- Claude agent turns load the account's own MCP servers and **claude.ai connectors**, as T3 Code does; connectors you
+  never connected show as "Not connected".
+
+### Fixed
+
+- **Windows:** one top row like macOS, with the window controls in its corner (no extra title strip), and shortcut
+  hints say Ctrl instead of ⌘.
+- **Codex:** turns no longer hang while the account's hooks run (children start with no blocked signals).
+- `git init` (New project) works on git 2.54 and later.
+
 ## [0.1.3]
 
 ### Added

@@ -10,9 +10,10 @@
   `EDITOR`, `PAGER` and `SSH_AUTH_SOCK`). A release build outside a terminal adds its login shell's PATH and a few
   allowed vars (`skyelab_core::login_shell`), never an account's dirs. An agent's own `git push` asks only the account's `gh` for https
   credentials, and gets no ssh-agent unless the account sets `ssh_agent = true`.
-- **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
+- **Project settings don't load.** Agents run with `--setting-sources user`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. The MCP servers you added to the
-  bound account itself (Claude's user scope and its enabled user-scope plugins, Codex's `config.toml`) do load. Claude asks for their tools as for any
+  bound account itself (Claude's user scope and its enabled user-scope plugins, Codex's `config.toml`) do load, as do its
+  claude.ai connectors: an agent reaches what they reach. Details: [decisions](decisions/agents.md). Claude asks for their tools as for any
   other tool (per the thread's permission mode and your "Allow for this thread" answers); Codex follows its own
   approval setting for them (not yet tested against the real Codex). The thread
   details card lists them with their state, and **Restart Agent Session** reloads them. Codex runs with the folder and

@@ -100,7 +100,9 @@ against the real Codex). A server whose name starts with `skyelab` is left out, 
 name). If the account's
 `.claude.json` can't be read, the thread starts without those servers and says why. The MCP servers of the account's
 enabled Claude Code plugins load too (the plugins on in its `settings.json`, installed for the user, not per project),
-named as Claude names them, such as `plugin:posthog:posthog`, and their tools ask like any other. A plugin that can't be
+named as Claude names them, such as `plugin:posthog:posthog`, and their tools ask like any other. A Claude account's
+claude.ai connectors (the ones you connected on claude.ai, such as Slack or Notion) load in its threads too, and only
+that account's; titles, commit messages and the usage check never load them. A plugin that can't be
 read is left out with a note; so is a plugin server whose name one of your own servers already uses. After you add or change a server, run **Restart Agent
 Session** in a thread to pick it up.
 
