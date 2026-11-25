@@ -100,7 +100,7 @@ mod real {
         let html = "<div style='height:300px;background:rgb(255,0,128)'></div>";
         let shot = window
             .update(cx, |_, window, cx| {
-                page::shoot(html, &theme, 400, window, cx)
+                page::shoot(html, &theme, &[], 400, window, cx)
             })?
             .await?;
         anyhow::ensure!(shot.content_height == 316, "height {}", shot.content_height);
@@ -128,7 +128,7 @@ mod real {
              </script>"
         );
         let page = window.update(cx, |_, window, cx| {
-            Page::new(page::prepare(&probe, &theme), window, cx)
+            Page::new(page::prepare(&probe, &theme, &[]), &[], window, cx)
         })??;
         cx.background_executor().timer(Duration::from_secs(2)).await;
         let (tx, rx) = futures::channel::oneshot::channel();
@@ -160,6 +160,58 @@ mod real {
             "the page reached the local server {n} times: {}",
             hits.join(", ")
         );
+
+        // 3. The allowlist: an https image is refused even from an allowed host, and a script from a host not on the
+        // list is refused and reported (only its host). `.example` never resolves, so nothing here reaches a network.
+        let hosts = vec!["img.example".to_owned()];
+        let html = "<script>document.addEventListener('securitypolicyviolation',function(e){\
+            if(e.effectiveDirective.indexOf('img-src')===0)document.title='img refused'})</script>\
+            <img src='https://img.example/a.png'><script src='https://cdn.notallowed.example/a.js'></script>\
+            <div style='height:100px'></div>";
+        let shot = window
+            .update(cx, |_, window, cx| {
+                page::shoot(html, &theme, &hosts, 400, window, cx)
+            })?
+            .await?;
+        anyhow::ensure!(
+            shot.blocked == ["cdn.notallowed.example"],
+            "blocked {:?}",
+            shot.blocked
+        );
+        // A page that replaces what the watch could call still reports plain ASCII: a lone surrogate never reaches
+        // the engine's bridge (which aborts the app on a string it can't encode).
+        let tamper = "<script>Array.prototype.join=function(){return '\\ud800'};\
+            String.prototype.charCodeAt=function(){return 0xd800};String.fromCharCode=function(){return '\\ud800'};\
+            String.prototype.indexOf=function(){return 0}</script><script src='https://x\\ud800.example/a.js'></script>\
+            <div style='height:100px'></div>";
+        let shot = window
+            .update(cx, |_, window, cx| {
+                page::shoot(tamper, &theme, &[], 400, window, cx)
+            })?
+            .await?;
+        anyhow::ensure!(shot.blocked.len() <= 1, "tampered {:?}", shot.blocked);
+        let page = window.update(cx, |_, window, cx| {
+            Page::new(page::prepare(html, &theme, &hosts), &hosts, window, cx)
+        })??;
+        cx.background_executor().timer(Duration::from_secs(1)).await;
+        let (tx, rx) = futures::channel::oneshot::channel();
+        let tx = std::sync::Mutex::new(Some(tx));
+        cx.update(|cx| {
+            page.webview().read(cx).raw().evaluate_script_with_callback(
+                "(function(){try{return document.title}catch(e){return ''}})()",
+                move |raw| {
+                    if let Some(tx) = tx.lock().ok().and_then(|mut t| t.take()) {
+                        let _ = tx.send(raw);
+                    }
+                },
+            )
+        })?;
+        let title = rx.await?;
+        anyhow::ensure!(
+            title == "\"img refused\"",
+            "image from an allowed host: {title}"
+        );
+
         println!("wkwebview_page: ok");
         Ok(())
     }

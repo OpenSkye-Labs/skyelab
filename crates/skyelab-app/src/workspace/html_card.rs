@@ -5,6 +5,7 @@
 //! dialog, where nothing GPUI draws over it.
 
 use super::orchestrate::Reply;
+use super::thread_extras::prefs;
 use super::thread_items::ItemsView;
 use super::thread_model::ToolItem;
 use crate::ui;
@@ -122,8 +123,9 @@ fn hex(c: Hsla) -> String {
 #[derive(Clone)]
 enum Shot {
     Pending,
-    /// The image and the page's height in CSS pixels at the column width (the image is at the screen's scale).
-    Ready(Arc<Image>, u32),
+    /// The image, the page's height in CSS pixels at the column width (the image is at the screen's scale), and the
+    /// hosts its scripts, styles or fonts were refused from (checked, but named by the page: only offered).
+    Ready(Arc<Image>, u32, Arc<[String]>),
     Failed(SharedString),
 }
 
@@ -131,10 +133,11 @@ struct Job {
     key: (String, u64),
     html: String,
     theme: PageTheme,
+    hosts: Vec<String>,
     window: AnyWindowHandle,
 }
 
-/// Snapshots by tool call and theme, rendered one at a time (each is a webview of its own).
+/// Snapshots by tool call, theme and allowed hosts, rendered one at a time (each is a webview of its own).
 #[derive(Default)]
 struct Shots {
     done: HashMap<(String, u64), Shot>,
@@ -150,9 +153,11 @@ const MAX_SHOTS: usize = 64;
 /// The snapshot of `tool_id`'s page in `theme`, queuing it the first time it's asked for. The key holds the page
 /// too: a tool id is only unique within its own thread (Codex), and a remote machine names its own.
 fn shot(tool_id: &str, html: &str, theme: PageTheme, window: &Window, cx: &mut App) -> Shot {
+    let hosts = prefs::page_hosts(cx);
     let mut h = std::collections::hash_map::DefaultHasher::new();
     theme.dark.hash(&mut h);
     theme.vars.hash(&mut h);
+    hosts.hash(&mut h);
     html.hash(&mut h);
     let key = (tool_id.to_owned(), h.finish());
     if let Some(s) = cx.default_global::<Shots>().done.get(&key) {
@@ -164,7 +169,7 @@ fn shot(tool_id: &str, html: &str, theme: PageTheme, window: &Window, cx: &mut A
             .done
             .extract_if(|_, s| !matches!(s, Shot::Pending))
             .filter_map(|(_, s)| match s {
-                Shot::Ready(image, _) => Some(image),
+                Shot::Ready(image, ..) => Some(image),
                 _ => None,
             })
             .collect();
@@ -179,6 +184,7 @@ fn shot(tool_id: &str, html: &str, theme: PageTheme, window: &Window, cx: &mut A
         key,
         html: html.to_owned(),
         theme,
+        hosts,
         window: window.window_handle(),
     });
     // Never from inside a frame: the next one builds the webview.
@@ -196,7 +202,14 @@ fn pump(cx: &mut App) {
     };
     shots.busy = true;
     let task = job.window.update(cx, |_, window, cx| {
-        page::shoot(&job.html, &job.theme, HTML_COLUMN_WIDTH, window, cx)
+        page::shoot(
+            &job.html,
+            &job.theme,
+            &job.hosts,
+            HTML_COLUMN_WIDTH,
+            window,
+            cx,
+        )
     });
     let background = cx.background_executor().clone();
     cx.spawn(async move |cx| {
@@ -204,11 +217,13 @@ fn pump(cx: &mut App) {
             Ok(task) => match task.await {
                 Ok(shot) => {
                     let height = shot.content_height.min(MAX_SHOT_HEIGHT);
+                    let blocked: Arc<[String]> = shot.blocked.clone().into();
                     background
                         .spawn(async move { shot.to_png() })
                         .await
                         .map(|png| {
-                            Shot::Ready(Arc::new(Image::from_bytes(ImageFormat::Png, png)), height)
+                            let image = Arc::new(Image::from_bytes(ImageFormat::Png, png));
+                            Shot::Ready(image, height, blocked)
                         })
                 }
                 Err(e) => Err(e),
@@ -270,10 +285,16 @@ pub(super) fn render<V: ItemsView>(
             .text_color(theme.muted_foreground)
             .child(text)
     };
+    let blocked = match &shot {
+        Shot::Ready(_, _, blocked) if !blocked.is_empty() => {
+            Some(allow::blocked_row(&tool.id, blocked, cx))
+        }
+        _ => None,
+    };
     let body = match shot {
         // A box of the page's shape, at most its CSS width (a narrow column scales it down); left alone, img() takes its
         // height from the 2x pixels and letterboxes the page.
-        Shot::Ready(image, h) => div()
+        Shot::Ready(image, h, _) => div()
             .debug_selector(|| "html-card-shot".into())
             .w_full()
             .flex()
@@ -346,6 +367,7 @@ pub(super) fn render<V: ItemsView>(
                 .on_click(move |e, w, cx| open(e, w, cx))
                 .child(body),
         )
+        .children(blocked)
         .into_any_element()
 }
 
@@ -358,8 +380,9 @@ struct PageViewer {
 
 fn open_page(title: String, html: &str, window: &mut Window, cx: &mut App) {
     let dark = cx.theme().is_dark();
-    let prepared = page::prepare(html, &page_theme(dark, cx));
-    let (page, error) = match Page::new(prepared, window, cx) {
+    let hosts = prefs::page_hosts(cx);
+    let prepared = page::prepare(html, &page_theme(dark, cx), &hosts);
+    let (page, error) = match Page::new(prepared, &hosts, window, cx) {
         Ok(page) => (Some(page), None),
         Err(e) => (None, Some(format!("{e:#}").into())),
     };
@@ -445,7 +468,8 @@ pub(super) fn preview(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let task = page::shoot(html, &page_theme(dark, cx), width, window, cx);
+    let hosts = prefs::page_hosts(cx);
+    let task = page::shoot(html, &page_theme(dark, cx), &hosts, width, window, cx);
     let background = cx.background_executor().clone();
     cx.spawn(async move |_| {
         let work = async move {
@@ -470,6 +494,9 @@ pub(super) fn preview(
     })
     .detach();
 }
+
+#[path = "html_card_allow.rs"]
+mod allow;
 
 #[cfg(test)]
 #[path = "html_card_test.rs"]

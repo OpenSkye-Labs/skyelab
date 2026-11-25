@@ -4,8 +4,10 @@
 //!   access. Every later navigation, new window and download is refused, there is no IPC handler and no custom
 //!   scheme, and each page gets its own in-memory web data store (on Windows a fresh temp folder).
 //! - [`prepare`] puts a doctype and a Content-Security-Policy meta first in the document, so it governs everything after it:
-//!   scripts, styles, images, fonts and media from inline code, `data:`/`blob:` or https only; no fetch, XHR,
-//!   WebSocket, frames, workers, plugins, forms or `<base>`.
+//!   inline scripts and styles, scripts, styles and fonts from the user's allowed hosts only (Settings → Chat →
+//!   Visual replies, `skyelab_core::page_hosts`), images and media from `data:`/`blob:` only; no fetch, XHR,
+//!   WebSocket, frames, workers, plugins, forms or `<base>`. A script of ours after it records what the policy
+//!   refused, so the card can offer to allow a host; the user decides, never the agent.
 //! - On Windows, `skyelab_webview2_sys::lock` enforces the same again under the CSP before the page loads: WebView2
 //!   answers every other request itself (a 403) and refuses new windows on the UI thread.
 //!   Its own browser process also fails to resolve local names and addresses, so preconnects and hints that
@@ -21,14 +23,64 @@ use futures::{FutureExt as _, channel::oneshot};
 use gpui::{App, AppContext as _, Entity, Task, Window};
 use gpui_webview::WebView;
 
+use skyelab_core::page_hosts::{parse_host, valid_hosts};
+
 use crate::{Engine as _, engine::Wry};
 
-/// The policy every page runs under. A meta CSP can't loosen one that is already there, and nothing in the page
-/// comes before it.
-pub const CSP: &str = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https:; \
-    style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; \
-    media-src data: blob: https:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; \
-    object-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'";
+/// The policy a page runs under, with `hosts` (the setting's list; entries `page_hosts` refuses are dropped) as the
+/// only places scripts, styles and fonts may load from. A meta CSP can't loosen one that is already there, and
+/// nothing in the page comes before it.
+pub fn csp(hosts: &[String]) -> String {
+    let from: String = valid_hosts(hosts)
+        .iter()
+        .map(|h| format!(" https://{h}"))
+        .collect();
+    format!(
+        "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'{from}; style-src 'unsafe-inline'{from}; \
+         font-src data:{from}; img-src data: blob:; media-src data: blob:; connect-src 'none'; frame-src 'none'; \
+         child-src 'none'; worker-src 'none'; object-src 'none'; manifest-src 'none'; form-action 'none'; \
+         base-uri 'none'"
+    )
+}
+
+/// Ours, right after the policy, so it runs before anything of the page's: records the address of each script,
+/// style or font the policy refused, for [`blocked_hosts`]. The page can lie to it; what it says is only a hint.
+/// It uses only functions it took before the page ran and keeps printable ASCII (at most 20 addresses of 190
+/// characters), so whatever the page replaces, the recorded string stays one the engine's bridge can encode.
+const WATCH_BLOCKED: &str = "<script>(function(){var ap=Reflect.apply,cc=String.prototype.charCodeAt,\
+    fc=String.fromCharCode,io=String.prototype.indexOf,s='',n=0;function clean(v){var u=String(v),o='';\
+    for(var i=0;i<u.length&&i<190;i++){var c=ap(cc,u,[i]);if(c>32&&c<127)o+=ap(fc,null,[c])}return o}\
+    document.addEventListener('securitypolicyviolation',function(e){try{var d=clean(e.effectiveDirective);\
+    if(n<20&&(ap(io,d,['script-src'])===0||ap(io,d,['style-src'])===0||ap(io,d,['font-src'])===0))\
+    {s+=' '+clean(e.blockedURI);n++}}catch(x){}},true);\
+    Object.defineProperty(window,'__skyelabBlocked',{value:function(){return s}})})()</script>";
+
+/// At most this many blocked hosts are offered on a card.
+const MAX_BLOCKED: usize = 5;
+
+/// The hosts in `reported` (what the page's [`WATCH_BLOCKED`] says it was refused: untrusted) worth offering: https
+/// addresses whose host `page_hosts` accepts and `allowed` doesn't hold yet, each once, at most [`MAX_BLOCKED`].
+pub fn blocked_hosts(reported: &str, allowed: &[String]) -> Vec<String> {
+    let allowed = valid_hosts(allowed);
+    let mut out: Vec<String> = Vec::new();
+    for word in reported.split_whitespace().take(20) {
+        let Ok(url) = url::Url::parse(word) else {
+            continue;
+        };
+        let Some(host) = url
+            .host_str()
+            .filter(|_| url.scheme() == "https" && url.port().is_none())
+            .and_then(|h| parse_host(h).ok())
+            .filter(|h| !h.starts_with('*'))
+        else {
+            continue;
+        };
+        if !allowed.contains(&host) && !out.contains(&host) && out.len() < MAX_BLOCKED {
+            out.push(host);
+        }
+    }
+    out
+}
 
 /// The page's WebView2 browser arguments: wry's defaults, plus every name and address on this machine or its networks
 /// failing to resolve. Chromium opens sockets the lock never sees (`<link rel=preconnect>` is outside CSP, and its
@@ -66,8 +118,8 @@ pub struct PageTheme {
     pub vars: Vec<(&'static str, String)>,
 }
 
-/// The document the webview loads: `html` with the CSP and the theme put in front of it.
-pub fn prepare(html: &str, theme: &PageTheme) -> String {
+/// The document the webview loads: `html` with the CSP (from `hosts`), our watch and the theme put in front of it.
+pub fn prepare(html: &str, theme: &PageTheme, hosts: &[String]) -> String {
     let mut root = format!(
         ":root{{color-scheme:{};",
         if theme.dark { "dark" } else { "light" }
@@ -82,8 +134,9 @@ pub fn prepare(html: &str, theme: &PageTheme) -> String {
     }
     root.push('}');
     let head = format!(
-        "<meta http-equiv=\"Content-Security-Policy\" content=\"{CSP}\">\
-         <style id=\"skyelab-theme\">{root}{BASE_CSS}</style>"
+        "<meta http-equiv=\"Content-Security-Policy\" content=\"{}\">{WATCH_BLOCKED}\
+         <style id=\"skyelab-theme\">{root}{BASE_CSS}</style>",
+        csp(hosts)
     );
     // Ours always comes first: anything of the page's before the meta (even a character the HTML parser doesn't
     // count as space, like U+000B) would open <body>, and a CSP meta outside <head> is ignored. The page's own
@@ -99,8 +152,14 @@ pub struct Page {
 }
 
 impl Page {
-    /// Builds the webview on `html` (already [`prepare`]d) in `window`, hidden.
-    pub fn new(prepared: String, window: &mut Window, cx: &mut App) -> anyhow::Result<Self> {
+    /// Builds the webview on `html` (already [`prepare`]d with `hosts`) in `window`, hidden. `hosts` is the same
+    /// list: on Windows the lock follows it too.
+    pub fn new(
+        prepared: String,
+        hosts: &[String],
+        window: &mut Window,
+        cx: &mut App,
+    ) -> anyhow::Result<Self> {
         let override_env = std::env::var_os("WEBVIEW2_USER_DATA_FOLDER");
         let data_dir = crate::webview_data_dir(cfg!(windows), true, override_env.as_deref())?;
         let mut context = data_dir
@@ -148,13 +207,16 @@ impl Page {
         #[cfg(windows)]
         {
             use wry::WebViewExtWindows as _;
-            skyelab_webview2_sys::lock(&webview.raw().webview()).context("lock the page")?;
+            skyelab_webview2_sys::lock(&webview.raw().webview(), valid_hosts(hosts))
+                .context("lock the page")?;
             webview
                 .raw()
                 .load_html(&prepared)
                 .context("load the page")?;
         }
         let _ = webview.set_visible(false);
+        #[cfg(not(windows))]
+        let _ = hosts;
         Ok(Self {
             webview: cx.new(|_| webview),
             loaded,
@@ -168,10 +230,12 @@ impl Page {
     }
 }
 
-/// A page's snapshot: the engine's image (TIFF on macOS, PNG on Linux and Windows) and the page's full height in CSS pixels.
+/// A page's snapshot: the engine's image (TIFF on macOS, PNG on Linux and Windows), the page's full height in CSS
+/// pixels, and the hosts its scripts, styles or fonts were refused from ([`blocked_hosts`]).
 pub struct PageShot {
     pub image: Vec<u8>,
     pub content_height: u32,
+    pub blocked: Vec<String>,
 }
 
 impl PageShot {
@@ -191,11 +255,13 @@ impl PageShot {
 pub fn shoot(
     html: &str,
     theme: &PageTheme,
+    hosts: &[String],
     width: u32,
     window: &mut Window,
     cx: &mut App,
 ) -> Task<anyhow::Result<PageShot>> {
-    let page = match Page::new(prepare(html, theme), window, cx) {
+    let allowed = hosts.to_vec();
+    let page = match Page::new(prepare(html, theme, hosts), hosts, window, cx) {
         Ok(page) => page,
         Err(e) => return Task::ready(Err(e)),
     };
@@ -215,6 +281,7 @@ pub fn shoot(
                 .map_err(|_| anyhow!("the page never finished loading"))?;
             executor.timer(SETTLE).await;
             let content_height = measure(&page, cx).await?;
+            let blocked = blocked_hosts(&eval(&page, READ_BLOCKED, cx).await?, &allowed);
             set_size(
                 &page,
                 width,
@@ -233,6 +300,7 @@ pub fn shoot(
             anyhow::Ok(PageShot {
                 image,
                 content_height,
+                blocked,
             })
         };
         futures::select! {
@@ -260,18 +328,35 @@ fn set_size(page: &Page, width: u32, height: u32, cx: &mut gpui::AsyncApp) -> an
 async fn measure(page: &Page, cx: &mut gpui::AsyncApp) -> anyhow::Result<u32> {
     const SCRIPT: &str = "(function(){try{var h=document.documentElement.scrollHeight|0;return h>0?h:0}\
         catch(e){return 0}})()";
+    let raw = eval(page, SCRIPT, cx).await?;
+    Ok(raw.trim().parse::<u32>().unwrap_or(0).max(MIN_SHOT_HEIGHT))
+}
+
+/// What [`WATCH_BLOCKED`] recorded, as a JSON string. Only a primitive string of bounded length gets out (`typeof`
+/// and a primitive's `length` are the page's to read but not to change), else an empty one.
+const READ_BLOCKED: &str = "(function(){try{var s=window.__skyelabBlocked();\
+    return typeof s==='string'&&s.length<4000?s:''}catch(e){return ''}})()";
+
+/// `script`'s raw result: the engine's JSON for it. A string result is decoded; anything else comes back as is.
+async fn eval(
+    page: &Page,
+    script: &'static str,
+    cx: &mut gpui::AsyncApp,
+) -> anyhow::Result<String> {
     let (tx, rx) = oneshot::channel();
     let tx = std::sync::Mutex::new(Some(tx));
     cx.read_entity(&page.webview, |w, _| {
-        w.raw().evaluate_script_with_callback(SCRIPT, move |raw| {
+        w.raw().evaluate_script_with_callback(script, move |raw| {
             if let Some(tx) = tx.lock().ok().and_then(|mut t| t.take()) {
                 let _ = tx.send(raw);
             }
         })
     })
-    .context("measure the page")?;
-    let raw = rx.await.context("the webview dropped the measurement")?;
-    Ok(raw.trim().parse::<u32>().unwrap_or(0).max(MIN_SHOT_HEIGHT))
+    .context("run a script in the page")?;
+    let raw = rx
+        .await
+        .context("the webview dropped the script's result")?;
+    Ok(serde_json::from_str::<String>(&raw).unwrap_or(raw))
 }
 
 #[cfg(test)]

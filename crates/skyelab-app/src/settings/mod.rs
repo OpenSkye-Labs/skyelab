@@ -138,6 +138,8 @@ pub struct Settings {
     /// Settings → Chat's Codex model field, and why its last Chat or Diffs save failed.
     pub(super) codex_model_input: Entity<InputState>,
     pub(super) threads_error: Option<String>,
+    /// Settings → Chat → Visual replies' new-host field.
+    pub(super) page_host_input: Entity<InputState>,
     /// Chat and Worktrees edit this project folder's own defaults (`None`: All projects).
     pub scope: Option<PathBuf>,
     /// The local projects the scope menu lists (name, folder); the workspace sets them as the modal opens.
@@ -194,6 +196,7 @@ impl Settings {
         codex_model_input.update(cx, |i, cx| {
             i.set_value(codex_model.unwrap_or_default(), window, cx)
         });
+        let page_host_input = input("cdn.example.com or *.example.com", window, cx);
         let ids = account_ids(&config);
         let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
         let account_select = cx.new(|cx| SelectState::new(ids, selected, window, cx));
@@ -232,6 +235,15 @@ impl Settings {
                     this.save_editor(cx);
                 }
             }),
+            cx.subscribe_in(
+                &page_host_input,
+                window,
+                |this, _, e: &InputEvent, window, cx| {
+                    if matches!(e, InputEvent::PressEnter { .. }) {
+                        this.add_page_host(window, cx);
+                    }
+                },
+            ),
             cx.subscribe(&codex_model_input, |this, _, e: &InputEvent, cx| {
                 if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
                     this.save_codex_model(cx);
@@ -267,6 +279,7 @@ impl Settings {
             test_input,
             codex_model_input,
             threads_error: None,
+            page_host_input,
             scope: None,
             projects: Vec::new(),
             keys_search,
@@ -464,6 +477,7 @@ mod project_scope;
 pub use page::Section;
 mod source_control;
 mod threads;
+mod visual_replies;
 mod widgets;
 
 #[cfg(test)]
@@ -472,6 +486,8 @@ mod outside_edit_test;
 mod project_scope_test;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod visual_replies_test;
 
 #[cfg(all(test, unix))] // the fake gh is a shell script
 mod github_test;

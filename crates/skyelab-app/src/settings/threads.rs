@@ -195,6 +195,7 @@ impl Settings {
                     titles,
                     cx,
                 ))
+                .child(self.render_visual_replies(cx))
             })
             .into_any_element()
     }

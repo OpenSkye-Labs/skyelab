@@ -30,7 +30,12 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   the page, in your theme's colors; it is drawn again when you switch light and dark. Click the picture or the expand
   button to open the live page over the window (scripts run in it); **×** or a click outside closes it. The page is
   sandboxed: it can't reach your files, SkyeLab or your browser's cookies, can't send requests, and its links don't
-  open. It may load scripts, styles, images and fonts from public `https` addresses (a CDN). The page is saved with the
+  open. It may load scripts, styles and fonts only from the `https` hosts in **Settings → Chat → Visual replies**
+  (by default `cdnjs.cloudflare.com`, `cdn.jsdelivr.net` and `unpkg.com`); images and media never load from the
+  network, so the agent puts them in the page. Add a host there (`cdn.example.com`, or `*.example.com` for its
+  subdomains), remove one, or reset the list. Local names, IP addresses and anything that isn't https are refused.
+  When a page was refused a host, its card lists it with **Allow <host>**: that asks you first, and only your
+  **Allow** adds it. An agent can never add one itself. The page is saved with the
   thread, so it is there when you reopen it. When no picture can be taken (Linux is untested so far), the card says so
   and the expand button still opens the page.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:

@@ -82,6 +82,7 @@ objc2-speech = { version = "0.3.2", default-features = false, features = ["std",
 objc2-avf-audio = { version = "0.3.2", default-features = false, features = ["std", "block2", "AVAudioApplication", "AVAudioBuffer", "AVAudioEngine", "AVAudioFormat", "AVAudioIONode", "AVAudioNode", "AVAudioTime", "AVAudioTypes"] }
 # Decodes the snapshot, scales it and writes the PNG; already in the tree through gpui.
 image = { version = "0.25.10", default-features = false, features = ["png", "tiff"] }
+psl = "2.1.262"
 url = "2.5.9"
 # Mermaid diagrams in replies: pure-Rust parse + layout + SVG (no CLI, no PNG feature), rasterized by resvg with
 # image hrefs refused. resvg's raster-images stay off: diagrams draw no embedded images.
