@@ -73,6 +73,8 @@ fn lost(message: impl Into<String>) -> End {
 struct Ctx {
     host: String,
     options: Options,
+    /// `options.device_key`, loaded.
+    device_key: Option<String>,
     tls: Arc<ClientConfig>,
     commands: flume::Receiver<Command>,
     commands_tx: flume::WeakSender<Command>,
@@ -148,6 +150,7 @@ impl Ctx {
         Target {
             host: self.host.clone(),
             options: self.options.clone(),
+            device_key: self.device_key.clone(),
             tls: self.tls.clone(),
             allow_loopback: self.allow_loopback(),
             plaintext: self.plaintext(),
@@ -176,9 +179,19 @@ pub(crate) async fn run(
 ) {
     // Debug mode's live count (docs/debugging.md): one per machine this app is connected to or retrying.
     let _live = skyelab_core::debug::Live::new("remote connections");
+    // Before anything else runs on this client's own runtime, so blocking here (a keychain prompt) stalls only it.
+    let device_key = match options.device_key.as_ref().map(crate::LazyDeviceKey::get) {
+        None => None,
+        Some(Ok(key)) => Some(key),
+        Some(Err(e)) => {
+            let _ = updates.send(Update::Fatal(crate::Error::DeviceKey(e)));
+            return;
+        }
+    };
     let mut cx = Ctx {
         host,
         options,
+        device_key,
         tls,
         commands,
         commands_tx,

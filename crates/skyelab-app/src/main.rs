@@ -58,19 +58,20 @@ fn agent_bin(env: Option<std::ffi::OsString>, debug: bool, name: &str) -> std::p
 
 /// This install's device key for connecting to other machines, which approve it. Release builds on macOS keep it
 /// in the keychain, where another program (an agent) can't read it without the user's yes. Debug builds and other
-/// OSes use a 0600 file in the config dir, so a throwaway `HOME` never touches the login keychain. `None` (logged)
-/// means other machines can't approve this one.
-fn device_key() -> Option<String> {
+/// OSes use a 0600 file in the config dir, so a throwaway `HOME` never touches the login keychain. Read through
+/// [`skyelab_client::LazyDeviceKey`] on the first connection, never at startup: the keychain may prompt.
+fn device_key() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     if !cfg!(debug_assertions) {
         return skyelab_client::keychain_device_key()
-            .map_err(|e| eprintln!("skyelab: no device key from the keychain: {e}"))
-            .ok();
+            .map_err(|e| format!("the keychain item dev.openskye.skyelab couldn't be read ({e})"));
     }
-    let path = dirs::config_dir()?.join(APP_DIR).join("device-key");
+    let path = dirs::config_dir()
+        .ok_or("no config folder")?
+        .join(APP_DIR)
+        .join("device-key");
     skyelab_client::load_or_create_device_key(&path)
-        .map_err(|e| eprintln!("skyelab: no device key in {}: {e}", path.display()))
-        .ok()
+        .map_err(|e| format!("{} couldn't be read ({e})", path.display()))
 }
 
 /// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.
@@ -355,7 +356,7 @@ fn main() {
         let store = Arc::new(Mutex::new(store));
         let (agents, calls) = remote::UiAgents::new();
         let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
-        let device_key = device_key();
+        let device_key = skyelab_client::LazyDeviceKey::new(device_key);
         let host = remote::Host {
             settings_path: AppSettings::default_path(),
             tailnet: tailnet.clone(),
@@ -400,7 +401,7 @@ fn main() {
             setup: std::rc::Rc::new(move |ws, window, cx| {
                 ws.set_remote(remote.clone(), None, window, cx);
                 let mut options = environment::client_options(setup_tailnet.clone());
-                options.device_key = device_key.clone();
+                options.device_key = Some(device_key.clone());
                 let tailnet = setup_tailnet.clone();
                 ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                 // Every window saves its frame and page; all of them open at the next launch.
