@@ -6589,7 +6589,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-agent"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -6611,7 +6611,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flume",
  "futures",
@@ -6631,7 +6631,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -6651,7 +6651,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "futures",
@@ -6706,7 +6706,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-net-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "socket2",
  "windows-sys 0.61.2",
@@ -6714,7 +6714,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-pipe-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tokio",
  "windows-sys 0.61.2",
@@ -6722,7 +6722,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ring",
  "serde",
@@ -6731,7 +6731,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -6744,7 +6744,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-tailnet"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",

@@ -8453,7 +8453,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-agent"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -8476,7 +8476,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "arboard",
@@ -8526,7 +8526,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-browser"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "cairo-rs",
@@ -8549,7 +8549,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "flume 0.12.0",
@@ -8575,7 +8575,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8597,7 +8597,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-daemon"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "flume 0.12.0",
@@ -8623,7 +8623,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-devices"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -8634,7 +8634,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-git"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.23.1",
  "dirs 7.0.0",
@@ -8651,7 +8651,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-net-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "socket2",
  "windows-sys 0.61.2",
@@ -8659,7 +8659,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-pipe-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tokio",
  "windows-sys 0.61.2",
@@ -8667,7 +8667,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-protocol"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ring",
  "serde",
@@ -8676,7 +8676,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-speech-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "block2 0.6.2",
  "objc2 0.6.5",
@@ -8688,7 +8688,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-store"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -8703,7 +8703,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-tailnet"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -8714,7 +8714,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-terminal"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -8731,7 +8731,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-webkit-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "block2 0.6.2",
  "objc2 0.6.5",
@@ -8742,7 +8742,7 @@ dependencies = [
 
 [[package]]
 name = "skyelab-webview2-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "webview2-com",
  "windows 0.61.3",

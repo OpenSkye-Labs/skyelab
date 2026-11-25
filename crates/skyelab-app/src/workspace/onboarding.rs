@@ -17,6 +17,7 @@ mod import;
 pub(crate) mod motion;
 mod pages;
 mod render;
+mod theme;
 
 actions!(skyelab, [OnboardingNext, OnboardingBack]);
 
@@ -97,8 +98,8 @@ pub struct Onboarding {
     pub step: Step,
     /// The step before the last change, for the dot that shrinks.
     pub(super) from: Step,
-    /// The last change went forward (the page slides in from the right).
-    pub(super) forward: bool,
+    /// The page fading out over the new one after a change, until its fade is over.
+    pub(super) leaving: Option<Step>,
     pub(super) focus: FocusHandle,
     /// The page took the focus since it was last shown.
     focused: bool,
@@ -114,6 +115,8 @@ pub struct Onboarding {
     _login: gpui::Subscription,
     _detect: Option<Task<()>>,
     _scan: Option<Task<()>>,
+    /// Drops `leaving` once its fade is over.
+    _leave: Option<Task<()>>,
 }
 
 impl EventEmitter<OnboardingEvent> for Onboarding {}
@@ -135,7 +138,7 @@ impl Onboarding {
             shown: false,
             step: Step::Welcome,
             from: Step::Welcome,
-            forward: true,
+            leaving: None,
             focus: cx.focus_handle(),
             focused: false,
             config: AccountsConfig::default(),
@@ -147,6 +150,7 @@ impl Onboarding {
             error: None,
             _detect: None,
             _scan: None,
+            _leave: None,
         }
     }
 
@@ -185,7 +189,7 @@ impl Onboarding {
             }
         }
         if opened {
-            (self.step, self.from, self.forward) = (Step::Welcome, Step::Welcome, true);
+            (self.step, self.from, self.leaving) = (Step::Welcome, Step::Welcome, None);
             self.import = Default::default();
             self.detect(s.claude_bin, s.codex_bin, s.gh_bin, cx);
         }
@@ -267,8 +271,19 @@ impl Onboarding {
         if to == self.step {
             return;
         }
-        (self.from, self.forward, self.step) = (self.step, to > self.step, to);
+        (self.from, self.step) = (self.step, to);
         self.error = None;
+        // The old page fades out over the new one, then goes; with Reduce Motion there is nothing to fade.
+        self.leaving = (!cx.reduce_motion()).then_some(self.from);
+        self._leave = self.leaving.map(|_| {
+            cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(motion::FADE_OUT).await;
+                let _ = this.update(cx, |this, cx| {
+                    this.leaving = None;
+                    cx.notify();
+                });
+            })
+        });
         if to == Step::Import {
             self.start_import_scan(cx);
         }
@@ -366,28 +381,14 @@ impl Onboarding {
 
 impl gpui::Render for Onboarding {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
-        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _, div, prelude::*};
+        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _, div};
         let _render = crate::debug_renders::count("Onboarding");
         // Take the keys once per showing; a click elsewhere afterwards keeps its focus.
         if self.shown && !self.focused {
             self.focused = true;
             window.focus(&self.focus, cx);
         }
-        let page = match self.step {
-            Step::Welcome => self.welcome_page(cx).into_any_element(),
-            Step::Theme => self.theme_page(cx).into_any_element(),
-            Step::Agents => self.agents_page(cx).into_any_element(),
-            Step::Import => gpui_component::v_flex()
-                .child(Self::heading(
-                    "Bring in your projects",
-                    "Folders your agents worked in. Each runs on the account shown; change it before importing.",
-                    cx,
-                ))
-                .child(self.import_page(cx))
-                .into_any_element(),
-            Step::Done => self.done_page(window, cx).into_any_element(),
-        };
-        let frame = self.frame(page, window, cx);
+        let frame = self.frame(window, cx);
         div()
             .id("onboarding")
             .key_context(CONTEXT)

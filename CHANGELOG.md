@@ -6,6 +6,42 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1]
+
+The first published build. 0.1.0 was tagged but never published; everything below is on top of it.
+
+### Added
+
+- **Add a project from the palette**: type a path (with completion), clone an https URL, or start a new project, and
+  pick its account right there. No Finder dialog.
+- **Onboarding** in five steps, with project import from the folders your agents already worked in, and calmer
+  motion (a crossfade with a zooming icon).
+- **Visual reply hosts** in Settings → Chat: a visual reply loads scripts, styles and fonts only from the hosts listed
+  there (cdnjs, jsdelivr and unpkg by default). When a reply asks for another host, its card offers to allow it,
+  and only your click adds it.
+- **Codex**: the working row shows a running `sessionStart` hook, and "Allow for this thread" matches commands like
+  project rules do.
+
+### Changed
+
+- Visual replies no longer load images or media from the network; agents inline them.
+
+### Security
+
+- On Windows, a visual reply's page can no longer reach the network or local addresses: every request its policy
+  doesn't allow is answered locally, new windows are refused, and local names and addresses don't resolve.
+- Asks that carry a reason or a network change (a sandbox escape) are never allowed by a saved rule.
+- Git calls that can run filters read a frozen copy of the repo's config (git 2.54 or later), so a repo can't swap in
+  a program between checks.
+- Every child process SkyeLab starts is ended and reaped when it's no longer needed.
+- Windows: a forwarded port's listener can't be shared by another program.
+
+### Fixed
+
+- Windows: worktrees in folders with long (`\\?\`) paths, rewind on Windows paths.
+- Linux: the daemon retries a port that's briefly busy.
+- CI is green on macOS, Linux and Windows, and the mobile builds pass.
+
 ## [0.1.0]
 
 The first public release. macOS (Apple silicon) is the main platform; Windows and Linux builds pass CI but get less
@@ -49,5 +85,6 @@ testing by hand.
 - **Debug mode** with an overlay, a redacted debug log, Perfetto traces and opt-in profilers.
 - Release packages: `.dmg` (macOS arm64), `-setup.exe` (Windows), `.deb` and `.AppImage` (Linux).
 
-[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/OpenSkye-Labs/skyelab/releases/tag/v0.1.0
