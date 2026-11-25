@@ -16,4 +16,6 @@ disallowed-methods = [
     { path = "gpui_component::kbd::Kbd::new", reason = "use crate::ui::Kbd::new" },
     { path = "gpui_component::kbd::Kbd::binding_for_action", reason = "use crate::ui::Kbd::for_action" },
     { path = "gpui_component::kbd::Kbd::binding_for_action_in", reason = "use crate::ui::Kbd::for_action_in" },
+    # Every dialog moves alike (ui::motion::DIALOG).
+    { path = "gpui_component::WindowExt::open_dialog", reason = "use crate::ui::open_dialog" },
 ]

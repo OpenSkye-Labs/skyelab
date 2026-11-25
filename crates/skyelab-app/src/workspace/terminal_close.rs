@@ -82,7 +82,7 @@ impl Workspace {
         let then: Rc<RefCell<Option<Then>>> = Rc::new(RefCell::new(Some(Box::new(then))));
         self.terms.pending_close = Some(then.clone());
         let ws = cx.entity().downgrade();
-        window.open_dialog(cx, move |dialog, _, _| {
+        crate::ui::open_dialog(window, cx, move |dialog, _, _| {
             let (ws, then) = (ws.clone(), then.clone());
             dialog
                 .w(gpui::px(420.))

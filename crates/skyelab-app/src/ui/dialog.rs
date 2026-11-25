@@ -1,10 +1,23 @@
 //! The dialog shell. The modal layer itself (focus trap, Esc, the dimmed `overlay` backdrop, the card's radius and
-//! border) is gpui-component's `Dialog`, opened with `window.open_dialog` and colored by the theme; what goes in it is
+//! border) is gpui-component's `Dialog`, opened with [`open_dialog`] and colored by the theme; what goes in it is
 //! ours: a title, the body, and [`dialog_footer`] with SkyeLab buttons, Cancel ([`dialog_cancel`]) before the action.
 
 use super::Button;
-use gpui::{Div, Styled as _};
-use gpui_component::{WindowExt as _, h_flex};
+use gpui::{App, Div, Styled as _, Window};
+use gpui_component::{WindowExt as _, dialog::Dialog, h_flex};
+
+/// Opens a dialog that fades in place ([`super::motion::DIALOG`]): every SkyeLab dialog goes through here, so they all
+/// move alike (clippy bans gpui-component's `open_dialog` elsewhere). `build` can still set its own entrance.
+#[allow(clippy::disallowed_methods)]
+pub fn open_dialog(
+    window: &mut Window,
+    cx: &mut App,
+    build: impl Fn(Dialog, &mut Window, &mut App) -> Dialog + 'static,
+) {
+    window.open_dialog(cx, move |dialog, window, cx| {
+        build(dialog.entrance(super::motion::DIALOG), window, cx)
+    });
+}
 
 /// A dialog footer's Cancel. Not gpui-component's `DialogClose`: it wraps its button in a `size_full` div, which
 /// stretches Cancel across the footer (docs/gpui.md).

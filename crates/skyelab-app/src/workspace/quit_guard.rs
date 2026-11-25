@@ -263,7 +263,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
     let (title, summary) = question(&items);
     cx.set_global(Asking(Some(window.window_handle())));
     let quiet = Rc::new(Cell::new(false));
-    window.open_dialog(cx, move |dialog, _, cx| {
+    crate::ui::open_dialog(window, cx, move |dialog, _, cx| {
         let muted = cx.theme().muted_foreground;
         let rows = items.iter().take(SHOWN).map(|(name, b)| {
             gpui::div()

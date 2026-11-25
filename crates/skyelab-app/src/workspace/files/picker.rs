@@ -108,7 +108,7 @@ pub(in crate::workspace) fn open(
         })
         .detach();
     let shown = picker.clone();
-    window.open_dialog(cx, move |dialog, _, _| {
+    crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         let picker = shown.clone();
         dialog
             .w(px(560.))

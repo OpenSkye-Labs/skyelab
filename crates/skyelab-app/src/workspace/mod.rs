@@ -317,9 +317,8 @@ impl Workspace {
             let s = DockSkin::new(cx);
             skin = Some(s.clone());
             let center = center.entity_id();
-            DockArea::new("workspace", None, window, cx).with_renderer(std::rc::Rc::new(
-                center_skin::CenterSkin { skin: s, center },
-            ))
+            DockArea::new("workspace", None, window, cx)
+                .with_renderer(std::rc::Rc::new(center_skin::CenterSkin::new(s, center)))
         });
         let skin = skin.expect("the dock area's constructor ran");
         skin.set_toggle_button_visible(false, cx);

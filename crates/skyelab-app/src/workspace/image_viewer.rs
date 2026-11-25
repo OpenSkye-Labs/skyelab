@@ -70,7 +70,7 @@ pub(in crate::workspace) fn open(
         name,
         zoom: 0,
     });
-    window.open_dialog(cx, move |dialog, window, _| {
+    crate::ui::open_dialog(window, cx, move |dialog, window, _| {
         let viewer = viewer.clone();
         dialog
             .w(window.viewport_size().width * 0.92)

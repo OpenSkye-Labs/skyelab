@@ -143,10 +143,12 @@ fn open_with(
     });
     #[cfg(all(test, unix))]
     cx.set_global(OpenPalette(palette.downgrade()));
-    window.open_dialog(cx, move |dialog, _, _| {
+    crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         let palette = palette.clone();
         // T3's card: max-w-xl, rounded-2xl, the list and footer reaching its edges.
+        // Rex's palette opens and closes in one frame.
         dialog
+            .entrance(gpui_component::dialog::DialogEntrance::None)
             .w(px(600.))
             .p_0()
             .rounded(RADIUS_XL)

@@ -139,6 +139,10 @@ and a dark side), the **Mode** (System, Light or Dark), an **Accent color**, **D
 the **Text size** and **Code text size**. Changes apply at once in every window and are saved under `[appearance]` in
 `settings.toml`. The palette has the same choices under **Change theme**.
 
+Motion is brief and mostly instant: the palette opens and closes at once, dialogs fade in, and a sidebar or panel
+you hide slides shut. With **Reduce motion** on in macOS (System Settings → Accessibility → Display), SkyeLab
+shows every change at once. It reads that setting when it starts.
+
 **Settings → General → Advanced → Developer mode** is for people working on SkyeLab itself: a **Debug** chip in the
 status bar, an overlay with frame times and live counts, and a debug log of network calls and child processes (no
 prompts or secrets). [debugging.md](debugging.md) explains it.

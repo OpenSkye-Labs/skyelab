@@ -298,7 +298,7 @@ impl Workspace {
             }
         )
         .into();
-        window.open_dialog(cx, move |dialog, _, _| {
+        crate::ui::open_dialog(window, cx, move |dialog, _, _| {
             let choose = |archive: bool| {
                 let ws = ws.clone();
                 move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut gpui::App| {
