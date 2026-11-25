@@ -70,6 +70,19 @@ pub(super) fn open_thread<'a>(
     Entity<ThreadView>,
     &'a mut VisualTestContext,
 ) {
+    open_thread_with(f, false, cx)
+}
+
+/// [`open_thread`], with the workspace inside gpui-component's `Root` when `root` (notices and dialogs need it).
+pub(super) fn open_thread_with<'a>(
+    f: &Fixture,
+    root: bool,
+    cx: &'a mut TestAppContext,
+) -> (
+    Entity<Workspace>,
+    Entity<ThreadView>,
+    &'a mut VisualTestContext,
+) {
     cx.executor().allow_parking(); // the fake agent is a real process
     cx.update(|cx| {
         gpui_component::init(cx);
@@ -82,11 +95,23 @@ pub(super) fn open_thread<'a>(
         claude_bin: Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh"),
     };
     let (config, folder) = (f.config.clone(), f.project.clone());
-    let (ws, cx) = cx.add_window_view(|window, cx| {
+    let build = |window: &mut gpui::Window, cx: &mut gpui::Context<Workspace>| {
         let ws = Workspace::new(folder, None, config, None, backend, window, cx);
         window.focus(&ws.focus, cx);
         ws
-    });
+    };
+    let (ws, cx) = if root {
+        let mut made = None;
+        let window = cx.add_window(|window, cx| {
+            let ws = cx.new(|cx| build(window, cx));
+            made = Some(ws.clone());
+            gpui_component::Root::new(ws, window, cx)
+        });
+        let cx = VisualTestContext::from_window(window.into(), cx).into_mut();
+        (made.expect("the window was built"), cx)
+    } else {
+        cx.add_window_view(build)
+    };
     let dir = f.project.clone();
     ws.update(cx, |ws, cx| ws.add_project(dir, cx));
     wait_until(cx, "project stored", |cx| {
