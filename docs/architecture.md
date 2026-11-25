@@ -45,6 +45,7 @@ personal plan by mistake.
 | `skyelab-protocol` | client↔environment RPC messages (JSON over WebSocket) |
 | `skyelab-daemon` | environment server: tailnet-only `wss://`, whois gate, RPC dispatch; hosted in the app |
 | `skyelab-client` | the client side of the protocol (desktop switcher, mobile app) |
+| `skyelab-env` | every machine as an environment: `EnvironmentId`, `Shell` (projects + thread rows) and the `Source` trait (one method per protocol call), with `LocalSource` (the daemon's `Backend` in-process) and `RemoteSource` (over `skyelab-client`); no GPUI |
 
 `mobile/` is a separate workspace (iOS/Android client); see [mobile.md](mobile.md).
 
