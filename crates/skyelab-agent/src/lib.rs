@@ -53,7 +53,7 @@ use anyhow::{Context as _, Result, bail};
 use serde_json::{Value, json};
 use skyelab_core::{Account, AccountsConfig, Provider};
 use std::path::Path;
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 
 /// Longest stdout line kept whole; a longer one arrives as a truncated [`Event::Unknown`].
@@ -167,13 +167,13 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let (mut cmd, bin, dir) = launch::agent_command(bin, config, account, dir)?;
     let dir = &dir;
     // After the folder was checked against `account`: only the bound account's own config is read.
-    let report = mcp_user::launch_report(
+    let (report, deny_mcp) = mcp_user::launch_report(
         (account.provider == Provider::Claude).then_some(account.config_dir.as_path()),
         mcp_config,
     );
     let (codex, cursor) = match account.provider {
         Provider::Claude => {
-            claude_args(&mut cmd, mcp_config, resume, mode);
+            launch::claude_args(&mut cmd, mcp_config, deny_mcp.as_deref(), resume, mode);
             cmd.args(model.into_iter().flat_map(|m| ["--model", m]))
                 .args(effort.into_iter().flat_map(|e| ["--effort", e]));
             (None, None)
@@ -355,45 +355,6 @@ fn lock_cursor(
     state: &Mutex<cursor::CursorState>,
 ) -> std::sync::MutexGuard<'_, cursor::CursorState> {
     state.lock().unwrap_or_else(|e| e.into_inner())
-}
-
-fn claude_args(cmd: &mut Command, mcp_config: Option<&Path>, resume: Option<&str>, mode: Mode) {
-    cmd.args([
-        "-p",
-        "--input-format",
-        "stream-json",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        // Text and thinking as they stream, as `Event::Delta`.
-        "--include-partial-messages",
-        // `-p` skips the trust dialog, so the project's own settings and .mcp.json must not load.
-        "--setting-sources",
-        "user",
-        "--strict-mcp-config",
-        // Every permission ask comes to us as a `can_use_tool` control request, answered in the thread.
-        "--permission-prompt-tool",
-        "stdio",
-    ])
-    // Always named, so the account's own `defaultMode` setting can't quietly loosen Ask.
-    .args(match mode {
-        Mode::Default | Mode::Plan | Mode::AcceptEdits => vec!["--permission-mode", mode.claude()],
-        Mode::Bypass => vec![
-            "--permission-mode",
-            mode.claude(),
-            "--allow-dangerously-skip-permissions",
-        ],
-    })
-    // Our own server only (--strict-mcp-config keeps every other out); its tools enforce their own rules.
-    .args(mcp_config.into_iter().flat_map(|path| {
-        [
-            "--mcp-config".as_ref(),
-            path.as_os_str(),
-            "--allowedTools".as_ref(),
-            "mcp__skyelab".as_ref(),
-        ]
-    }))
-    .args(resume.into_iter().flat_map(|id| ["--resume", id]));
 }
 
 /// Claude Code's session ids and Codex's thread ids are UUIDs; allowing only id-safe characters keeps anything flag-like off the command line.

@@ -134,7 +134,10 @@ fn an_agent_turn_loads_its_own_accounts_connectors() {
     let (servers, env) = launch(&f, true);
     let args = env["args"].as_str().expect("args");
     assert_eq!(env["strict"], false, "{env}");
-    assert_eq!(env["claudeai_env"], "", "connectors aren't turned off: {env}");
+    assert_eq!(
+        env["claudeai_env"], "",
+        "connectors aren't turned off: {env}"
+    );
     assert!(args.contains("--setting-sources user"), "{args}");
     assert!(!args.contains("--strict-mcp-config"), "{args}");
 
@@ -157,7 +160,10 @@ fn an_agent_turn_loads_its_own_accounts_connectors() {
         "another account's connector: {servers:?}"
     );
     // A user server that needs sign-in keeps its Sign in.
-    assert_eq!(find(&servers, "linear").expect("linear").status, "needs-auth");
+    assert_eq!(
+        find(&servers, "linear").expect("linear").status,
+        "needs-auth"
+    );
 }
 
 #[test]
@@ -178,8 +184,14 @@ fn an_unreadable_config_or_no_grant_stays_strict() {
 #[test]
 fn background_calls_stay_strict_with_connectors_off() {
     let f = fixture();
-    let msg = generate_commit_message(&fake_claude(), &f.config, work(&f), &f.dir, "Write a git commit message")
-        .expect("message");
+    let msg = generate_commit_message(
+        &fake_claude(),
+        &f.config,
+        work(&f),
+        &f.dir,
+        "Write a git commit message",
+    )
+    .expect("message");
     assert!(msg.starts_with("feat(fake)"), "{msg}");
     let log = std::fs::read_to_string(f.dir.join(".fake-title-call")).expect("call logged");
     assert!(log.contains("arg=[--strict-mcp-config]"), "{log}");
@@ -200,6 +212,9 @@ fn background_calls_stay_strict_with_connectors_off() {
     assert_eq!(lines.len(), 2, "{seen}");
     assert!(lines[0].contains("--strict-mcp-config"), "{seen}");
     for line in lines {
-        assert!(line.ends_with("ENABLE_CLAUDEAI_MCP_SERVERS=false"), "{seen}");
+        assert!(
+            line.ends_with("ENABLE_CLAUDEAI_MCP_SERVERS=false"),
+            "{seen}"
+        );
     }
 }

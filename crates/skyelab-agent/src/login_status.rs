@@ -42,6 +42,12 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
         .env_clear()
         .envs(skyelab_core::env::inherited_agent_env(false))
         .envs(account.launch_env()?);
+    if account.provider == Provider::Claude {
+        cmd.env(
+            crate::launch::NO_CLAUDEAI_MCP.0,
+            crate::launch::NO_CLAUDEAI_MCP.1,
+        );
+    }
     let out = skyelab_core::process::output_within(&mut cmd, None, DEADLINE)
         .with_context(|| format!("running {} {}", resolved.display(), args.join(" ")))?;
     let stdout = String::from_utf8_lossy(&out.stdout);

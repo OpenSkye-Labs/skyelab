@@ -1,8 +1,8 @@
 //! The bound account's own MCP servers (Claude Code's user scope), added next to SkyeLab's in the `--mcp-config`
 //! file. Never the repo's `.mcp.json` or the account's per-folder `projects.*` servers: a repo must not add tools.
 //! Their tools aren't pre-allowed, so each call asks like any other tool. The account's enabled plugins' servers load
-//! the same way, under the names Claude Code gives them (`plugin:<plugin>:<server>`), since `--strict-mcp-config` drops
-//! Claude's own plugin loading.
+//! the same way, under the names Claude Code gives them (`plugin:<plugin>:<server>`), since `--strict-mcp-config` (still used
+//! when the account's config can't be read) drops Claude's own plugin loading.
 
 use anyhow::{Context as _, Result, bail};
 use serde_json::{Map, Value};
@@ -259,14 +259,21 @@ pub(crate) fn plugin_servers(config_dir: &Path) -> (Map<String, Value>, Vec<Stri
 /// process's list): SkyeLab's server when there is a grant, and for Claude the account's own servers, merged into it.
 /// Those need the grant's file: a launch without one (a side chat) gets none. A config that can't be read or merged,
 /// or a server left out, starts without them and says why in `warning`.
+///
+/// Also the user-scope names Claude must be told to refuse (`deniedMcpServers`) when it loads the account's config
+/// and claude.ai connectors itself, or `None` to keep `--strict-mcp-config`: no grant, not Claude, or a config we
+/// couldn't read, so we can't tell which names it would load.
 pub(crate) fn launch_report(
     claude_config_dir: Option<&Path>,
     grant: Option<&Path>,
-) -> crate::Event {
+) -> (crate::Event, Option<Vec<String>>) {
     let mut names: Vec<String> = grant.map(|_| "skyelab".to_owned()).into_iter().collect();
     let mut notes = Vec::new();
+    let mut deny = None;
     if let (Some(dir), Some(grant)) = (claude_config_dir, grant) {
+        let mut read_ok = true;
         let mut servers = claude_servers(dir).unwrap_or_else(|e| {
+            read_ok = false;
             notes.push(format!(
                 "Your account's own MCP servers weren't loaded: {e:#}"
             ));
@@ -297,6 +304,14 @@ pub(crate) fn launch_report(
         match merge(grant, servers) {
             Ok((added, skipped)) => {
                 names.extend(added);
+                // Exactly `skyelab` is replaced by ours (`--mcp-config` wins a name); denying it would refuse ours too.
+                deny = read_ok.then(|| {
+                    skipped
+                        .iter()
+                        .filter(|n| *n != "skyelab")
+                        .cloned()
+                        .collect()
+                });
                 if !skipped.is_empty() {
                     notes.push(format!(
                         "Left out your MCP server{} {}: a name starting with \"skyelab\" is SkyeLab's own.",
@@ -311,7 +326,7 @@ pub(crate) fn launch_report(
         }
     }
     let warning = (!notes.is_empty()).then(|| notes.join(" "));
-    crate::Event::Mcp {
+    let report = crate::Event::Mcp {
         servers: names
             .into_iter()
             .map(|name| crate::McpServer {
@@ -322,5 +337,6 @@ pub(crate) fn launch_report(
             .collect(),
         launch: true,
         warning,
-    }
+    };
+    (report, deny)
 }

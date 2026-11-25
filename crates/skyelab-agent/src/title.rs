@@ -126,7 +126,11 @@ pub fn one_shot(
                 "--no-session-persistence",
                 "--permission-mode",
                 "dontAsk",
-            ]);
+            ])
+            .env(
+                crate::launch::NO_CLAUDEAI_MCP.0,
+                crate::launch::NO_CLAUDEAI_MCP.1,
+            );
         }
         Provider::Codex => {
             cmd.args([
