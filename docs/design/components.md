@@ -6,7 +6,7 @@ Each looks like its T3 counterpart ([t3-reference.md §6](t3-reference.md#6-prim
 view, built when the pointer rests). Colors come from the theme
 and geometry from `ui::Size` and the `ui` constants, so a redesign changes tokens, not call sites.
 
-**The gallery.** In a debug build, or with Developer mode on (Settings → General), open the palette and run **Open Ui Gallery** (`skyelab::OpenUiGallery`). It opens a
+**The gallery.** In a debug build, or with Developer mode on (Settings → General), open the palette and run **Open UI Gallery** (`skyelab::OpenUiGallery`). It opens a
 window showing every component, variant, size and state in the current theme and family. Redesign from there:
 change a token, rebuild, and check both appearances with `SKYELAB_VERIFY_THEME=light|dark`.
 

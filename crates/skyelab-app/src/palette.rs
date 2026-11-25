@@ -315,6 +315,7 @@ pub fn arrange(query: &str, entries: &[Entry], nested: usize, found: usize) -> V
         for name in ["Actions", "Threads", "Projects", "Scripts", "Tabs"] {
             let rows: Vec<usize> = match name {
                 "Threads" => std::mem::take(&mut recent),
+                "Actions" => suggested(top),
                 _ => (0..top.len())
                     .filter(|&i| group_of(&top[i].kind) == name)
                     .collect(),
@@ -340,6 +341,40 @@ pub fn arrange(query: &str, entries: &[Entry], nested: usize, found: usize) -> V
     groups
 }
 
+/// What an empty query offers, in T3's order (its root action items); every other action is a search away. A
+/// submenu row is matched by its title.
+const SUGGESTED: &[&str] = &[
+    "skyelab::NewThread",
+    "New thread in…",
+    "skyelab::OpenFilePicker",
+    "skyelab::SearchFiles",
+    "skyelab::AddProject",
+    "skyelab::OpenPullRequests",
+    "skyelab::OpenIssues",
+    "skyelab::OpenUsage",
+    "skyelab::OpenSettings",
+    "Change theme",
+];
+
+/// The empty query's Actions: the [`SUGGESTED`] ones in that order, or every action when none is suggested.
+fn suggested(top: &[Entry]) -> Vec<usize> {
+    let rank = |e: &Entry| match e.kind {
+        Kind::Action("skyelab::Submenu") => SUGGESTED.iter().position(|s| *s == e.shown().as_ref()),
+        Kind::Action(name) => SUGGESTED.iter().position(|s| *s == name),
+        _ => None,
+    };
+    let mut rows: Vec<(usize, usize)> = (0..top.len())
+        .filter_map(|i| Some((rank(&top[i])?, i)))
+        .collect();
+    if rows.is_empty() {
+        return (0..top.len())
+            .filter(|&i| group_of(&top[i].kind) == "Actions")
+            .collect();
+    }
+    rows.sort();
+    rows.into_iter().map(|(_, i)| i).collect()
+}
+
 const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::ToggleEnvironments", "Switch Machine"),
     ("skyelab::Stop", "Stop Agent"),
@@ -356,6 +391,12 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::ContinueInCursor", "Continue in Cursor"),
     ("skyelab::ContinueInAntigravity", "Continue in Antigravity"),
     ("skyelab::ToggleWorktree", "Toggle Thread Worktree"),
+    // The names the header buttons' tooltips use.
+    ("skyelab::ToggleBottomPanel", "Toggle Terminal"),
+    ("skyelab::ToggleRightPanel", "Toggle Tools Panel"),
+    ("skyelab::HideRightPanel", "Hide Tools Panel"),
+    ("skyelab::OpenThreadPr", "Open Thread Pull Request"),
+    ("skyelab::OpenUiGallery", "Open UI Gallery"),
     ("skyelab::OpenInEditor", "Open in Editor"),
     ("skyelab::OpenFilePicker", "Go to File"),
     ("skyelab::SearchFiles", "Search in Files"),
@@ -380,6 +421,7 @@ const HIDDEN: &[&str] = &[
     "skyelab::CancelDiscardWorktree",
     "skyelab::CancelEdit",
     "skyelab::OpenPickedInEditor",
+    "skyelab::OpenSurfaceTerminal",
 ];
 
 /// `skyelab::OpenSettings` → "Open Settings": the table, else the CamelCase name split into words.

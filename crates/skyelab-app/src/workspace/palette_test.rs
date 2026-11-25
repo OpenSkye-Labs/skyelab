@@ -269,3 +269,44 @@ fn thread_actions_are_not_offered_without_a_shown_thread(cx: &mut TestAppContext
         assert!(!names.contains(&gone), "{gone} listed with no thread open");
     }
 }
+
+#[gpui::test]
+fn toggle_archived_threads_shows_its_state_like_other_toggles(cx: &mut TestAppContext) {
+    setup(cx);
+    let (ws, cx) = open(test_backend(), cx);
+    let checked = |ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        entries(ws, cx)
+            .into_iter()
+            .find(|e| e.kind == Kind::Action("skyelab::ToggleArchivedThreads"))
+            .expect("listed")
+            .checked
+    };
+    assert_eq!(checked(&ws, cx), Some(false));
+    cx.dispatch_action(super::manage::ToggleArchivedThreads);
+    assert_eq!(checked(&ws, cx), Some(true), "ticked once the archived rows show");
+}
+
+#[gpui::test]
+fn the_surface_pickers_terminal_opens_the_drawer_and_puts_away_a_picker_only_panel(
+    cx: &mut TestAppContext,
+) {
+    cx.executor().allow_parking(); // a real shell PTY
+    setup(cx);
+    let (ws, cx) = open(test_backend(), cx);
+    let open_at = |at, ws: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        ws.read_with(cx, |ws, cx| ws.dock.read(cx).is_dock_open(at))
+    };
+    if !open_at(DockPlacement::Right, &ws, cx) {
+        ws.update_in(cx, |ws, window, cx| {
+            ws.toggle_right(&super::layout::ToggleRightPanel, window, cx)
+        });
+    }
+    assert_eq!(ws.read_with(cx, |ws, cx| ws.right_tab_count(cx)), 1, "only the picker");
+    cx.dispatch_action(super::surfaces::OpenSurfaceTerminal);
+    assert!(open_at(DockPlacement::Bottom, &ws, cx), "the terminal opens in the drawer");
+    assert_eq!(ws.read_with(cx, |ws, _| ws.terminals.len()), 1);
+    assert!(
+        !open_at(DockPlacement::Right, &ws, cx),
+        "the picker-only panel is put away, not left showing the picker"
+    );
+}

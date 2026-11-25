@@ -513,9 +513,19 @@ impl Workspace {
                     )
                 }
             }))
-            .on_action(cx.listener(|ws, _: &ToggleArchivedThreads, _, cx| {
+            .on_action(cx.listener(|ws, _: &ToggleArchivedThreads, window, cx| {
                 ws.show_archived = !ws.show_archived;
                 ws.refresh_sidebar(cx);
+                // The archived rows sit at the list's end, often out of view: say what changed.
+                let n = ws.listed_threads().1.len();
+                let text = match (n, ws.show_archived) {
+                    (0, _) => "No archived threads".to_owned(),
+                    (1, true) => "Showing 1 archived thread".to_owned(),
+                    (n, true) => format!("Showing {n} archived threads"),
+                    (_, false) => "Archived threads hidden".to_owned(),
+                };
+                let toast = Toast::new(text).key("archived-toggle");
+                crate::ui::toast::push(window, toast, cx);
             }))
     }
 }

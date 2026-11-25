@@ -148,7 +148,7 @@ impl Render for Welcome {
                         .child(shortcut("New thread", Box::new(super::NewThread)))
                         .child(shortcut("Toggle sidebar", Box::new(super::ToggleSidebar)))
                         .child(shortcut(
-                            "Toggle bottom panel",
+                            "Toggle terminal",
                             Box::new(super::ToggleBottomPanel),
                         ))
                         .child(shortcut("New terminal", Box::new(super::NewTerminal)))
