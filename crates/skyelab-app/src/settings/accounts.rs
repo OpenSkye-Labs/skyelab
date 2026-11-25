@@ -1,4 +1,4 @@
-//! Settings → Accounts: one card per account (provider mark in the account's color, its name, editable in place,
+//! Settings → Accounts: one card per account (the provider's logo with the account's color dot, its name, editable in place,
 //! and its config folder in small type), and "Add account" as a card that opens into a short form.
 
 use super::widgets::heading;
@@ -6,7 +6,7 @@ use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
-use gpui::AnyElement;
+use gpui::{AnyElement, px};
 use gpui_component::{Icon, h_flex, v_flex};
 
 /// An id made from a name: lowercase letters, digits and dashes ("Acme Team" → `acme-team`).
@@ -22,22 +22,33 @@ pub(super) fn slug(name: &str) -> String {
     out.trim_end_matches('-').to_owned()
 }
 
-/// The provider's mark: a 32 px tile tinted with the account's color.
-pub(crate) fn provider_mark(provider: Provider, color: gpui::Hsla) -> gpui::Div {
-    let icon = match provider {
-        Provider::Claude => Icon::new(SkyeIcon::Claude),
-        Provider::Codex => Icon::new(SkyeIcon::Codex),
-    };
+/// The provider's logo in its official colors on a neutral 32 px tile, with the account's color as a dot on the
+/// tile's corner: the color is never put on the logo (docs/design/third-party-marks.md).
+pub(crate) fn provider_mark(provider: Provider, color: gpui::Hsla, cx: &gpui::App) -> gpui::Div {
+    let theme = cx.theme();
     div()
+        .relative()
         .flex_shrink_0()
         .size_8()
         .flex()
         .items_center()
         .justify_center()
         .rounded(ui::RADIUS)
-        .bg(color.opacity(0.14))
-        .text_color(color)
-        .child(icon.size_4())
+        .bg(theme.secondary)
+        .border_1()
+        .border_color(theme.border)
+        .child(ui::provider_logo(provider, px(16.), cx))
+        .child(
+            div()
+                .absolute()
+                .right(px(-2.))
+                .bottom(px(-2.))
+                .size(px(10.))
+                .rounded_full()
+                .bg(color)
+                .border_2()
+                .border_color(theme.background),
+        )
 }
 
 impl Settings {
@@ -408,6 +419,7 @@ impl Settings {
                 } else {
                     theme.muted_foreground
                 },
+                cx,
             ))
             .child(super::widgets::label(p.label(), about, cx))
             .on_click(cx.listener(move |this, _, _, cx| {

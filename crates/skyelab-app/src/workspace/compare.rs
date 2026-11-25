@@ -198,7 +198,7 @@ impl Workspace {
             v.composer.compare = None;
             v.composer.pick = pick(model);
             v.composer.picked = true;
-            v.composer.picker_open = false;
+            v.close_picker(cx);
             v.wt.use_worktree = compare.worktrees;
             v.wt.pin = Some(pin.clone());
             v.branch_picker.update(cx, |b, _| b.base.clone_from(&base)); // every model from the same code

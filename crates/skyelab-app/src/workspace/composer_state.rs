@@ -75,7 +75,8 @@ pub(crate) struct Composer {
     /// Text selected in the timeline and where the mouse came up: the floating Quote button (`composer_quote.rs`).
     pub quote: Option<(gpui::Point<gpui::Pixels>, String)>,
     pub menu: Option<Menu>,
-    pub picker_open: bool,
+    /// The model picker, while open (`composer_picker_keys.rs`).
+    pub picker: Option<super::composer_picker_keys::PickerState>,
     pub pick: ModelChoice,
     /// "Send to several models": the ticked models (`compare.rs`).
     pub compare: Option<crate::workspace::compare::Compare>,
@@ -239,17 +240,6 @@ impl ThreadView {
         }));
     }
 
-    // The model picker.
-
-    pub(in crate::workspace) fn toggle_picker(&mut self, cx: &mut Context<Self>) {
-        self.composer.picker_open = !self.composer.picker_open;
-        self.composer.menu = None;
-        if self.composer.picker_open {
-            self.list_codex_models(cx);
-        }
-        cx.notify();
-    }
-
     // The `@` `/` `$` `#` menus.
 
     /// The prompt changed: open, narrow or close the menu its cursor's word asks for.
@@ -272,7 +262,7 @@ impl ThreadView {
             menu.query = t.query;
             return self.rank_menu(cx);
         }
-        self.composer.picker_open = false;
+        self.close_picker(cx);
         self.composer.menu = Some(Menu {
             kind: t.kind,
             start: t.start,

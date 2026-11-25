@@ -52,6 +52,10 @@ the `Kbd` constructors, plus its `Notification` and `push_notification`, so new 
   composer, the settings search, find-in-thread) keeps the bare `Input` with `appearance(false)`.
 - **`Pill`**: T3's badge and SkyeLab's chip, neutral or tinted with `color`, with an optional `icon`.
   **`AccountBadge`**, **`StatusDot`**, **`SectionHeader`**, **`EmptyState`**, **`KeyHint`** are in `ui/components.rs`.
+- **`provider_logo(provider, size, cx)`** (`ui/provider_logo.rs`): a provider's own logo file drawn as an image in
+  its official colors (OpenAI's black or white file by theme). Never draw a provider logo any other way, and never put
+  an account color on it. **`settings::provider_mark`** puts it on a neutral 32 px tile with the account's color as a
+  corner dot. Rules: [third-party-marks.md](third-party-marks.md).
 - **`CommandRow`** (`ui/command_row.rs`): a command palette row after T3's: icon, title with `strong` byte ranges
   (matched letters, a project name), an optional muted `subtitle`, then a toggle's tick (`checked`), the `shortcut` as
   plain text and a chevron for a `submenu` row. The list around it draws the hover and selected (accent) background.
