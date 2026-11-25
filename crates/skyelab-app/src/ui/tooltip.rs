@@ -12,6 +12,52 @@ use gpui_component::{ActiveTheme as _, h_flex};
 pub struct Tooltip {
     text: SharedString,
     action: Option<(Box<dyn Action>, Option<SharedString>)>,
+    /// A trigger under a dialog: drawn as nothing (see [`dialog_opened`]).
+    covered: Covered,
+}
+
+/// Dialogs opened so far, and where the pointer was at the last one.
+#[derive(Default)]
+struct Dialogs {
+    opened: u64,
+    at: gpui::Point<gpui::Pixels>,
+}
+
+impl gpui::Global for Dialogs {}
+
+#[derive(Default)]
+enum Covered {
+    #[default]
+    No,
+    /// Shown before dialog number `n` opened over it.
+    Before(u64),
+    Yes,
+}
+
+/// Called as a dialog opens. GPUI checks a tooltip's trigger by its bounds, not whether something covers it, so a
+/// tooltip shown before the dialog (or shown late, after a small move over the button that opened it) would stay
+/// drawn over the dialog. Tooltips built before it, or at the pointer that opened it, draw nothing while it's open.
+pub(super) fn dialog_opened(window: &Window, cx: &mut App) {
+    let d = cx.default_global::<Dialogs>();
+    d.opened += 1;
+    d.at = window.mouse_position();
+}
+
+/// What a tooltip built now must hide behind: the opener's spot right after a dialog opens.
+fn covered(window: &mut Window, cx: &mut App) -> Covered {
+    use gpui_component::WindowExt as _;
+    let (opened, at) = cx
+        .try_global::<Dialogs>()
+        .map_or((0, gpui::Point::default()), |d| (d.opened, d.at));
+    let dialog = window.has_active_dialog(cx);
+    // shortcut: "near the opener" is 32 px of the click; a dialog control right under the click loses its tooltip
+    // until the pointer moves off, which beats the opener's tooltip drawing over the dialog.
+    let near = (window.mouse_position() - at).magnitude() < 32.;
+    match (dialog, near) {
+        (true, true) => Covered::Yes,
+        (true, false) => Covered::No,
+        (false, _) => Covered::Before(opened),
+    }
 }
 
 impl Tooltip {
@@ -19,6 +65,7 @@ impl Tooltip {
         Self {
             text: text.into(),
             action: None,
+            covered: Covered::No,
         }
     }
 
@@ -28,7 +75,8 @@ impl Tooltip {
         self
     }
 
-    pub fn build(self, _: &mut Window, cx: &mut App) -> AnyView {
+    pub fn build(mut self, window: &mut Window, cx: &mut App) -> AnyView {
+        self.covered = covered(window, cx);
         cx.new(|_| self).into()
     }
 
@@ -39,8 +87,26 @@ impl Tooltip {
     }
 }
 
+impl Tooltip {
+    /// Under a dialog that opened over its trigger: drawn as nothing.
+    fn hidden(&self, window: &mut Window, cx: &mut App) -> bool {
+        use gpui_component::WindowExt as _;
+        match self.covered {
+            Covered::No => false,
+            Covered::Yes => window.has_active_dialog(cx),
+            Covered::Before(n) => {
+                window.has_active_dialog(cx)
+                    && cx.try_global::<Dialogs>().is_some_and(|d| d.opened > n)
+            }
+        }
+    }
+}
+
 impl Render for Tooltip {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.hidden(window, cx) {
+            return div();
+        }
         let key = self
             .action
             .as_ref()
@@ -65,5 +131,69 @@ impl Render for Tooltip {
                 .child(div().min_w_0().child(self.text.clone()))
                 .when_some(key, |this, key| this.child(key)),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Tooltip;
+    use gpui::{
+        AppContext as _, Context, IntoElement, Render, TestAppContext, Window, div, point, px,
+    };
+
+    struct Blank;
+    impl Render for Blank {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+        }
+    }
+
+    #[gpui::test]
+    fn a_tooltip_under_a_new_dialog_hides_and_one_inside_it_shows(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            crate::ui::install_theme(cx).expect("themes parse");
+        });
+        let window = cx.add_window(|window, cx| {
+            let view = cx.new(|_| Blank);
+            gpui_component::Root::new(view, window, cx)
+        });
+        let cx = gpui::VisualTestContext::from_window(window.into(), cx).into_mut();
+        cx.simulate_mouse_move(point(px(20.), px(20.)), None, gpui::Modifiers::none());
+        let built = |cx: &mut gpui::VisualTestContext| {
+            cx.update(|window, cx| {
+                let mut t = Tooltip::new("Merge or review…");
+                t.covered = super::covered(window, cx);
+                t.hidden(window, cx)
+            })
+        };
+        // Shown before any dialog: shows.
+        let before = cx.update(|window, cx| {
+            let mut t = Tooltip::new("Merge or review…");
+            t.covered = super::covered(window, cx);
+            t
+        });
+        assert!(!cx.update(|window, cx| before.hidden(window, cx)));
+        cx.update(|window, cx| crate::ui::open_dialog(window, cx, |d, _, _| d.title("PR")));
+        cx.run_until_parked();
+        assert!(
+            cx.update(|window, cx| before.hidden(window, cx)),
+            "built before the dialog: hidden while it's up"
+        );
+        assert!(built(cx), "built late at the opener's pointer: hidden");
+        cx.simulate_mouse_move(point(px(200.), px(200.)), None, gpui::Modifiers::none());
+        assert!(
+            !built(cx),
+            "a control elsewhere in the dialog keeps its tooltip"
+        );
+        cx.update(|window, cx| {
+            use gpui_component::WindowExt as _;
+            window.close_dialog(cx)
+        });
+        cx.run_until_parked();
+        assert!(
+            !cx.update(|window, cx| before.hidden(window, cx)),
+            "back once the dialog closes"
+        );
     }
 }
