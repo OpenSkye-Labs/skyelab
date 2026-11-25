@@ -1,5 +1,5 @@
-//! A usage limit shows as Limited in the sidebar (and once, as the timeline banner); a turn that succeeds
-//! afterwards clears it.
+//! A usage limit shows as Limited in the sidebar, as the timeline's card and the limit banner over the composer; a turn
+//! that succeeds afterwards clears it.
 
 use super::claude_folded_turns_test::{one_view, wait_until};
 use super::thread_model::Item;
@@ -24,10 +24,7 @@ fn a_limit_shows_until_a_turn_succeeds(cx: &mut TestAppContext) {
         Status::Limited
     );
     cx.run_until_parked();
-    assert!(
-        cx.debug_bounds("limited-banner").is_none(),
-        "told once, by the timeline banner"
-    );
+    assert!(cx.debug_bounds("limit-banner").is_some(), "the limit banner docks");
     // A turn that succeeds: ask, answer, result.
     one.view
         .update_in(cx, |v, window, cx| {
@@ -52,7 +49,7 @@ fn a_limit_shows_until_a_turn_succeeds(cx: &mut TestAppContext) {
         one.view.read_with(cx, |v, _| v.limited.is_none())
     });
     cx.run_until_parked();
-    assert!(cx.debug_bounds("limited-banner").is_none());
+    assert!(cx.debug_bounds("limit-banner").is_none(), "gone with the limit");
     assert_ne!(
         one.view.read_with(cx, |v, _| v.live_status()),
         Status::Limited

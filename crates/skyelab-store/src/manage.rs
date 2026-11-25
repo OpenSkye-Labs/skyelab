@@ -55,13 +55,23 @@ impl Store {
         self.mark_thread(id, PINNED, pinned)
     }
 
+    /// Archiving (or deleting) cancels a scheduled resume.
     pub fn set_thread_archived(&self, id: i64, archived: bool) -> Result<()> {
-        self.mark_thread(id, ARCHIVED, archived)
+        self.mark_thread(id, ARCHIVED, archived)?;
+        self.cancel_resume_if(id, archived)
     }
 
     /// Hides the thread until [`Self::purge_thread`] (or the next open) deletes it; `false` undoes that.
     pub fn set_thread_deleted(&self, id: i64, deleted: bool) -> Result<()> {
-        self.mark_thread(id, DELETED, deleted)
+        self.mark_thread(id, DELETED, deleted)?;
+        self.cancel_resume_if(id, deleted)
+    }
+
+    fn cancel_resume_if(&self, id: i64, hidden: bool) -> Result<()> {
+        if hidden {
+            self.set_limit_resume(id, None)?;
+        }
+        Ok(())
     }
 
     /// Puts the thread in a multi-model send's comparison group.

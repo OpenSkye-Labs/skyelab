@@ -6651,6 +6651,7 @@ dependencies = [
  "dirs 7.0.0",
  "grep-regex",
  "grep-searcher",
+ "iana-time-zone",
  "ignore",
  "nix",
  "psl",

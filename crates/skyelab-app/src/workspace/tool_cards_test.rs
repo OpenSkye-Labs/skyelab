@@ -227,9 +227,8 @@ fn small_helpers() {
     assert_eq!(file_link("mailto:x@y.z"), None);
     assert_eq!(file_link("javascript:alert(1)"), None);
     assert_eq!(file_link("#anchor"), None);
-    assert_eq!(
-        limited_text(Some(100 + 8040), 100),
-        "Usage limit reached. Limited until it resets in 2h 14m."
-    );
-    assert!(limited_text(None, 0).starts_with("Usage limit reached"));
+    let row = limited_text(Some(100 + 8040), 100);
+    assert!(row.starts_with("Usage limit reached. Retry after "), "{row}");
+    assert!(row.ends_with(&format!("({}).", skyelab_core::limit_reset::local_zone())), "{row}");
+    assert_eq!(limited_text(None, 0), "Usage limit reached.");
 }

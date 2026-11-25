@@ -6,6 +6,14 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Usage limit banner**, as in T3 Code: a limited thread docks **Usage limit reached · Resets tomorrow at 2:10 AM**
+  above the composer. **Resume at reset** continues the thread once at the reset (Continue where you left off., same
+  session, its own account), survives a restart, and is cancelled when you send first or archive the thread.
+  **Snooze until reset** snoozes it until then. The timeline's limit card is now a quiet history line in the same
+  words, "Usage limit reached. Retry after tomorrow at 2:10 AM (Asia/Manila)." (#19)
+
 ### Changed
 
 - **New threads start in Full access**, as in T3 Code: with no default set, nothing asks. To keep the old behavior,
