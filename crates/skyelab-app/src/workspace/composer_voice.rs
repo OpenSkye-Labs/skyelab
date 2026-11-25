@@ -374,7 +374,7 @@ impl ThreadView {
                     Button::new("voice-finish")
                         .primary()
                         .xsmall()
-                        .rounded(px(12.))
+                        .rounded(ui::RADIUS_LG)
                         .icon(Icon::new(SkyeIcon::Check))
                         .disabled(finishing)
                         .tooltip_with_action(

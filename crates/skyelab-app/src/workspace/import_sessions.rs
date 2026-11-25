@@ -12,7 +12,7 @@ use gpui::{
     Render, SharedString, StatefulInteractiveElement as _, Styled as _, WeakEntity, Window,
     actions, div, prelude::FluentBuilder as _,
 };
-use gpui_component::{ActiveTheme as _, WindowExt as _, dialog::DialogFooter, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, WindowExt as _, h_flex, v_flex};
 use skyelab_agent::import::{self, Entry, MAX_TRANSCRIPT_BYTES, Transcript};
 use skyelab_core::{Account, AccountsConfig};
 use skyelab_store::{NewThread, Project, Thread};
@@ -374,7 +374,7 @@ impl Workspace {
                 .title("Import sessions")
                 .child(picker.clone())
                 .footer(
-                    DialogFooter::new()
+                    ui::dialog_footer()
                         .child(ui::dialog_cancel("import-cancel"))
                         .child(
                             Button::new("import-go")

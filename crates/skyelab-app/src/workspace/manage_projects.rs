@@ -9,7 +9,6 @@ use crate::ui::TextField;
 use gpui::{AppContext as _, Context, Entity, ParentElement as _, Window};
 use gpui_component::{
     WindowExt as _,
-    dialog::DialogFooter,
     input::{InputEvent, InputState},
     v_flex,
 };
@@ -77,7 +76,7 @@ impl Workspace {
                         .title("Remove project?")
                         .child(text.clone())
                         .footer(
-                            DialogFooter::new()
+                            ui::dialog_footer()
                                 .child(ui::dialog_cancel("remove-project-cancel"))
                                 .child(
                                     Button::new("remove-project")
@@ -179,7 +178,7 @@ impl Workspace {
                 .title(title)
                 .child(v_flex().child(TextField::new(&field)))
                 .footer(
-                    DialogFooter::new()
+                    ui::dialog_footer()
                         .child(ui::dialog_cancel("rename-cancel"))
                         .child(
                             Button::new("rename-save")

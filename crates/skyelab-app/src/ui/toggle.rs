@@ -50,14 +50,17 @@ impl Toggle {
         let checked = self.checked;
         let interactive = !self.disabled;
         let theme = cx.theme();
-        let focus_bg = theme.accent;
+        let ring = theme.ring;
         gpui_base::Button::new(self.id)
             .role(role)
             .disabled(self.disabled)
             .flex_shrink_0()
             .justify_start()
             .gap_2()
+            .p(px(1.))
             .rounded(RADIUS_SM)
+            .border_1()
+            .border_color(gpui::transparent_black())
             .aria_toggled(if checked {
                 accesskit::Toggled::True
             } else {
@@ -71,7 +74,7 @@ impl Toggle {
                     // Like a button press: the field being typed in keeps focus.
                     .on_any_mouse_down(|_, window, _| window.prevent_default())
             })
-            .focus_visible(move |s| s.bg(focus_bg))
+            .focus_visible(move |s| s.border_color(ring))
             .when(self.disabled, |d| d.opacity(DISABLED_OPACITY))
             .child(control)
             .when_some(self.label, |d, l| {
@@ -130,26 +133,36 @@ pub struct Switch(Toggle);
 toggle_builders!(Switch);
 
 impl RenderOnce for Switch {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let theme = cx.theme();
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let (thumb, pad) = if self.0.small {
             (px(12.), px(1.))
         } else {
             (px(16.), px(1.))
         };
         let on = self.0.checked;
+        let track_w = thumb * 2. - px(2.);
+        let travel = track_w - pad * 2. - thumb;
+        // Retargetable spring for the thumb: 0 idle frames at rest, instant under Reduce Motion.
+        let offset = gpui_base::spring(
+            self.0.id.clone(),
+            if on { travel } else { px(0.) },
+            super::motion::SPRING_PX,
+            window,
+            cx,
+        );
+        let theme = cx.theme();
         let track = div()
             .flex()
             .items_center()
             .flex_shrink_0()
-            .w(thumb * 2. - px(2.))
+            .w(track_w)
             .h(thumb + pad * 2.)
             .p(pad)
             .rounded_full()
             .bg(if on { theme.primary } else { theme.input })
-            .when(on, |d| d.justify_end())
             .child(
                 div()
+                    .ml(offset)
                     .size(thumb)
                     .rounded_full()
                     .bg(if on {

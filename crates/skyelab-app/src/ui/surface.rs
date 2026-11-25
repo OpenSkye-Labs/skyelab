@@ -49,10 +49,15 @@ impl ParentElement for Card {
 impl RenderOnce for Card {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = cx.theme();
+        let border = if self.raised && theme.is_dark() {
+            theme.input
+        } else {
+            theme.border
+        };
         let mut el = v_flex()
             .rounded(RADIUS_LG)
             .border_1()
-            .border_color(theme.border)
+            .border_color(border)
             .bg(if self.raised {
                 theme.popover
             } else {

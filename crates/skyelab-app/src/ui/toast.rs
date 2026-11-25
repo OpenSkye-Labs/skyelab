@@ -6,10 +6,10 @@
 
 use super::{Button, HEADER_H, META, RADIUS_LG, SkyeIcon, icon_button, motion};
 use gpui::{
-    Animation, AnimationExt as _, App, AppContext as _, BoxShadow, Context, Entity, FontWeight,
-    Global, Hsla, InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Task, Window, WindowId, deferred, div, hsla,
-    point, prelude::FluentBuilder as _, px,
+    Animation, AnimationExt as _, App, AppContext as _, Context, Entity, FontWeight, Global, Hsla,
+    InteractiveElement as _, IntoElement, ParentElement as _, Pixels, Render, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Task, Window, WindowId, deferred, div,
+    prelude::FluentBuilder as _, px,
 };
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 use std::collections::HashMap;
@@ -171,8 +171,12 @@ impl ToastList {
 }
 
 impl Render for ToastList {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let list = cx.entity().downgrade();
+        let max_w = (window.viewport_size().width - px(32.))
+            .max(px(200.))
+            .min(px(WIDTH));
+        let dark = cx.theme().is_dark();
         v_flex().gap_2().children(self.shown.iter().rev().map(|s| {
             let id = s.id;
             let close: Handler = {
@@ -183,7 +187,7 @@ impl Render for ToastList {
             };
             let on_click = s.toast.on_click.clone();
             let hover = list.clone();
-            card(id, &s.toast, close.clone(), cx)
+            card_sized(id, &s.toast, max_w, close.clone(), cx)
                 .on_hover(move |on, _, cx| {
                     let _ = hover.update(cx, |l, _| {
                         if *on {
@@ -204,20 +208,13 @@ impl Render for ToastList {
                     Animation::new(motion::FADE).with_easing(motion::ease_out_quad),
                     // GPUI paints a shadow under the card with no group compositing, so a half-faded card shows
                     // it through: the shadow follows the cube of the fade (gpui-component does the same).
-                    |el, t| el.opacity(t).shadow(shadow(t * t * t)),
+                    move |el, t| {
+                        el.opacity(t)
+                            .shadow(motion::overlay_shadow(t * t * t, dark))
+                    },
                 )
         }))
     }
-}
-
-fn shadow(ink: f32) -> Vec<BoxShadow> {
-    vec![BoxShadow {
-        color: hsla(0., 0., 0., 0.25 * ink),
-        offset: point(px(0.), px(10.)),
-        blur_radius: px(24.),
-        spread_radius: px(-6.),
-        inset: false,
-    }]
 }
 
 fn tint(kind: Kind, cx: &App) -> Option<(SkyeIcon, Hsla)> {
@@ -231,17 +228,28 @@ fn tint(kind: Kind, cx: &App) -> Option<(SkyeIcon, Hsla)> {
     }
 }
 
-/// The toast's card: the kind's icon, title and message, the action, and a close button shown on hover. `close`
-/// removes it; the gallery passes a no-op.
+/// The toast's card: the kind's icon, title and message, the action, and a close button. `close` removes it; the
+/// gallery passes a no-op.
 pub fn card(id: u64, toast: &Toast, close: Handler, cx: &App) -> gpui::Stateful<gpui::Div> {
+    card_sized(id, toast, px(WIDTH), close, cx)
+}
+
+fn card_sized(
+    id: u64,
+    toast: &Toast,
+    width: Pixels,
+    close: Handler,
+    cx: &App,
+) -> gpui::Stateful<gpui::Div> {
     let theme = cx.theme();
+    let dark = theme.is_dark();
     let group = SharedString::from(format!("toast-{id}"));
     h_flex()
         .id(("toast", id))
         .debug_selector(move || format!("toast-{id}"))
         .group(group.clone())
         .occlude()
-        .w(px(WIDTH))
+        .w(width)
         .items_start()
         .gap_2p5()
         .pl_4()
@@ -249,10 +257,11 @@ pub fn card(id: u64, toast: &Toast, close: Handler, cx: &App) -> gpui::Stateful<
         .py_3()
         .rounded(RADIUS_LG)
         .border_1()
-        .border_color(theme.border)
+        // On true-black dark canvases a black drop shadow vanishes, so use the slightly stronger `input` hairline.
+        .border_color(if dark { theme.input } else { theme.border })
         .bg(theme.popover)
         .text_color(theme.popover_foreground)
-        .shadow(shadow(1.))
+        .shadow(motion::overlay_shadow(1., dark))
         .when_some(tint(toast.kind, cx), |el, (icon, color)| {
             el.child(
                 div()
@@ -292,15 +301,19 @@ pub fn card(id: u64, toast: &Toast, close: Handler, cx: &App) -> gpui::Stateful<
             )
         })
         .child(
-            div().invisible().group_hover(group, |s| s.visible()).child(
-                icon_button(("toast-close", id), SkyeIcon::X)
-                    .xsmall()
-                    .tooltip("Close")
-                    .on_click(move |_, window, cx| {
-                        cx.stop_propagation();
-                        close(window, cx);
-                    }),
-            ),
+            // Subtle at rest instead of `.invisible()`, so keyboard users can always tab to Close.
+            div()
+                .opacity(0.6)
+                .group_hover(group, |s| s.opacity(1.))
+                .child(
+                    icon_button(("toast-close", id), SkyeIcon::X)
+                        .xsmall()
+                        .tooltip("Close")
+                        .on_click(move |_, window, cx| {
+                            cx.stop_propagation();
+                            close(window, cx);
+                        }),
+                ),
         )
 }
 

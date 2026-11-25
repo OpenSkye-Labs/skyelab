@@ -9,9 +9,7 @@ use gpui::{
     AppContext as _, Context, Entity, IntoElement, Render, SharedString, WeakEntity, Window, div,
     prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, WindowExt as _, dialog::DialogFooter, input::InputState, v_flex,
-};
+use gpui_component::{ActiveTheme as _, WindowExt as _, input::InputState, v_flex};
 use serde_json::Value;
 use skyelab_agent::Mode;
 use skyelab_core::project_rules::{self as rules, Kind, Rule};
@@ -246,7 +244,7 @@ fn open(dialog: Entity<RuleDialog>, window: &mut Window, cx: &mut gpui::App) {
             .title("Allow for this project")
             .child(dialog.clone())
             .footer(
-                DialogFooter::new()
+                ui::dialog_footer()
                     .child(ui::dialog_cancel("project-rule-cancel"))
                     .child(
                         Button::new("project-rule-save")

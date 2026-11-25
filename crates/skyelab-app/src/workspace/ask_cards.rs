@@ -197,7 +197,7 @@ pub(super) fn render_questions<V: ItemsView>(
                             .when(!description.is_empty(), |d| {
                                 d.child(
                                     div()
-                                        .text_size(px(11.))
+                                        .text_size(ui::MICRO)
                                         .text_color(theme.muted_foreground)
                                         .child(description),
                                 )

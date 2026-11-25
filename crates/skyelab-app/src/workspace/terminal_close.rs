@@ -7,7 +7,7 @@ use super::terminal_panel::{CloseTerminal, TerminalPanel};
 use super::thread_extras::prefs;
 use crate::ui::Button;
 use gpui::{AppContext as _, Context, Entity, EntityId, SharedString, Window, prelude::*};
-use gpui_component::{WindowExt as _, dialog::DialogFooter, dock::DockPlacement};
+use gpui_component::{WindowExt as _, dock::DockPlacement};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -89,7 +89,7 @@ impl Workspace {
                 .title(title.clone())
                 .child(body.clone())
                 .footer(
-                    DialogFooter::new()
+                    crate::ui::dialog_footer()
                         .child(crate::ui::dialog_cancel("terminal-close-cancel"))
                         .child(
                             Button::new("terminal-close-confirm")

@@ -11,7 +11,7 @@ use gpui::{
     Action, AnyElement, AppContext as _, Context, InteractiveElement, IntoElement as _,
     ParentElement as _, SharedString, Window, actions, div,
 };
-use gpui_component::{WindowExt as _, dialog::DialogFooter};
+use gpui_component::WindowExt as _;
 use skyelab_agent::{handoff, timeline::Record};
 use skyelab_core::Provider;
 use skyelab_store::{NewThread, Thread};
@@ -182,7 +182,7 @@ fn ask_bind(
             .title(format!("Bind this folder to a {to} account"))
             .child(body.clone())
             .footer(
-                DialogFooter::new()
+                crate::ui::dialog_footer()
                     .child(crate::ui::dialog_cancel("handoff-cancel"))
                     .child(
                         Button::new("handoff-bind")

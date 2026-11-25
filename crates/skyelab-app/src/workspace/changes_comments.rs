@@ -394,8 +394,8 @@ impl ChangesView {
                     .child(
                         div()
                             .mr_auto()
-                            .text_size(px(11.))
-                            .text_color(theme.muted_foreground.opacity(0.7))
+                            .text_size(ui::MICRO)
+                            .text_color(theme.muted_foreground)
                             .child(format!("{key} Enter to comment")),
                     )
                     .child(

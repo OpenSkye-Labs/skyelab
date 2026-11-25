@@ -238,6 +238,7 @@ pub fn apply(cx: &mut App) {
     };
     let (light, dark) = (adjust(&light, &s, false), adjust(&dark, &s, true));
     COMPACT.store(s.compact, Ordering::Relaxed);
+    super::motion::apply_reduce_motion(cx);
     // Every family has them (`terminal_colors_test`); a broken file keeps the last family's.
     if let Some(colors) = ansi(f) {
         cx.set_global(colors);

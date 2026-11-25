@@ -10,8 +10,9 @@ and geometry from `ui::Size` and the `ui` constants, so a redesign changes token
 window showing every component, variant, size and state in the current theme and family. Redesign from there:
 change a token, rebuild, and check both appearances with `SKYELAB_VERIFY_THEME=light|dark`.
 
-`crates/skyelab-app/clippy.toml` bans gpui-component's `Button`, `ButtonVariant`, `Switch`, `Checkbox`, `Tooltip` and
-the `Kbd` constructors, plus its `Notification` and `push_notification`, so new code reaches for these.
+`crates/skyelab-app/clippy.toml` bans gpui-component's `Button`, `ButtonVariant`, `Switch`, `Checkbox`, `Tooltip`,
+`DialogFooter`, `Select`, and the `Kbd` constructors, plus its `Notification` and `push_notification`, so new code
+reaches for these.
 
 ## Sizes (`ui::Size`)
 
@@ -48,8 +49,8 @@ the `Kbd` constructors, plus its `Notification` and `push_notification`, so new 
   appearance) and tabs to switch between sections of a page. Wrap a segmented control in an `h_flex` inside a
   `v_flex`, or it stretches.
 - **`TextField`** (`ui/text_field.rs`): a single-line field with our chrome around gpui-component's `Input`
-  (`small`, `xsmall`, `prefix`, `suffix`, `cleanable`, `disabled`). An input that sits inside a chrome of its own (the
-  composer, the settings search, find-in-thread) keeps the bare `Input` with `appearance(false)`.
+  (`small`, `xsmall`, `prefix`, `suffix`, `cleanable`, `disabled`, `invalid`). An input that sits inside a chrome of
+  its own (the composer, the settings search, find-in-thread) keeps the bare `Input` with `appearance(false)`.
 - **`Pill`**: T3's badge and SkyeLab's chip, neutral or tinted with `color`, with an optional `icon`.
   **`AccountBadge`**, **`StatusDot`**, **`SectionHeader`**, **`EmptyState`**, **`KeyHint`** are in `ui/components.rs`.
 - **`provider_logo(provider, size, cx)`** (`ui/provider_logo.rs`): a provider's own logo file drawn as an image in

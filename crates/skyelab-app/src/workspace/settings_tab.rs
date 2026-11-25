@@ -1,6 +1,7 @@
 //! The Settings modal: opening and closing it, and what its events do (login terminals, saved accounts).
 
 use super::*;
+use gpui::AnimationExt as _;
 
 impl Workspace {
     /// ⌘, and every other "open settings" path: the modal, on the section it showed last.
@@ -109,6 +110,8 @@ impl Workspace {
         let settings = self.settings.clone().filter(|_| self.settings_open)?;
         let size = window.viewport_size();
         let theme = cx.theme();
+        let dark = theme.is_dark();
+        let border = if dark { theme.input } else { theme.border };
         Some(
             gpui::deferred(
                 div()
@@ -128,6 +131,12 @@ impl Workspace {
                             .on_mouse_down(
                                 gpui::MouseButton::Left,
                                 cx.listener(|this, _, window, cx| this.close_settings(window, cx)),
+                            )
+                            .with_animation(
+                                "settings-backdrop-in",
+                                gpui::Animation::new(crate::ui::motion::FADE_FAST)
+                                    .with_easing(crate::ui::motion::ease_out_quad),
+                                |el, t| el.opacity(t),
                             ),
                     )
                     .child(
@@ -136,11 +145,19 @@ impl Workspace {
                             .h((size.height - px(80.)).min(px(900.)))
                             .rounded(crate::ui::RADIUS_XL)
                             .border_1()
-                            .border_color(theme.border)
+                            .border_color(border)
                             .overflow_hidden()
-                            .shadow_2xl()
                             .occlude()
-                            .child(settings),
+                            .child(settings)
+                            .with_animation(
+                                "settings-modal-in",
+                                gpui::Animation::new(crate::ui::motion::FADE)
+                                    .with_easing(crate::ui::motion::ease_out_quad),
+                                move |el, t| {
+                                    el.opacity(t)
+                                        .shadow(crate::ui::motion::overlay_shadow(t * t * t, dark))
+                                },
+                            ),
                     ),
             )
             .with_priority(2),

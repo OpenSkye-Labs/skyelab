@@ -218,7 +218,7 @@ impl SearchPanel {
                                 .px_1p5()
                                 .rounded_full()
                                 .bg(theme.muted)
-                                .text_size(px(10.))
+                                .text_size(ui::MICRO)
                                 .text_color(theme.muted_foreground)
                                 .child(count.to_string()),
                         )
