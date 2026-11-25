@@ -34,7 +34,10 @@ fn a_token_in_the_cli_answer_reaches_neither_the_log_nor_the_error() {
 
     assert!(!format!("{err:#}").contains(TOKEN), "{err:#}");
     let log = serde_json::to_string(&debug::recent(100)).expect("log json");
-    assert!(log.contains("get_usage") || log.contains("claude -p"), "the spawn is logged: {log}");
+    assert!(log.contains("claude -p"), "the spawn is logged: {log}");
     assert!(!log.contains(TOKEN), "{log}");
-    assert!(!log.contains("cfg"), "nor the account's config dir (env): {log}");
+    assert!(
+        !log.contains("cfg"),
+        "nor the account's config dir (env): {log}"
+    );
 }
