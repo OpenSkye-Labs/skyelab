@@ -1,7 +1,7 @@
 #!/bin/sh
 # Stand-in for `claude` in tests: replays a recorded stream, reports its env and cwd, then echoes stdin lines.
 # A prompt with "permit" asks for permission (a can_use_tool control request) and reports the reply it gets as
-# `fake_answer`; "withdraw" asks and then withdraws the ask; "stderr-flood" writes 200 KiB and then END to stderr;
+# `fake_answer` ("permit-end" then ends the turn at once, as Claude does); "withdraw" asks and then withdraws the ask; "stderr-flood" writes 200 KiB and then END to stderr;
 # "crash" writes to stderr and exits 3; "stream" replays stream.jsonl (a recorded --include-partial-messages turn);
 # "question" asks an AskUserQuestion and reports the reply; "gone" answers like a --resume of a missing session.
 # The --mcp-config file it got is reported as `fake_mcp`.
@@ -21,6 +21,11 @@ ask() {
 while IFS= read -r line; do
   printf '%s\n' "$line"
   case "$line" in
+    *'"content":"'permit-end*)
+      ask perm-1
+      IFS= read -r reply
+      printf '{"type":"fake_answer","reply":%s}\n' "$reply"
+      printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"result":"done"}\n' ;;
     *'"content":"'permit*)
       ask perm-1
       IFS= read -r reply

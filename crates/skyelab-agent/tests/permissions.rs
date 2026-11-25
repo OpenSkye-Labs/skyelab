@@ -145,6 +145,30 @@ fn claude_allow_reaches_agent_and_waits() {
     );
 }
 
+/// Each answer the turn ends on (the agent reads it and ends at once) reaches the thread as given, before the turn's
+/// end: never withdrawn by that end first, which left the row without its decision or rule.
+#[test]
+fn an_answer_the_turn_ends_on_is_never_withdrawn() {
+    for i in 0..20 {
+        let (mut s, _tmp, id) = asked("permit-end please");
+        let rule = format!("rule {i}");
+        s.answer_by_rule(&id, rule.clone()).expect("answer");
+        let mut resolved = Vec::new();
+        loop {
+            match s
+                .events()
+                .recv_timeout(Duration::from_secs(60))
+                .expect("event within 60 s")
+            {
+                Event::PermissionResolved { decision, rule, .. } => resolved.push((decision, rule)),
+                Event::Result { .. } => break,
+                _ => {}
+            }
+        }
+        assert_eq!(resolved, [(Decision::AllowOnce, Some(rule))], "run {i}");
+    }
+}
+
 #[test]
 fn claude_deny_reaches_agent() {
     let (mut s, _tmp, id) = asked("permit please");

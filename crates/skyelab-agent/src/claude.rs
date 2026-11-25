@@ -47,8 +47,7 @@ pub(crate) fn asks(a: &Asks) -> std::sync::MutexGuard<'_, Book> {
 
 /// The `control_response` line answering ask `id` with `decision`, or `None` when `id` isn't open. The ask stays
 /// open until [`forget`]: the line may still fail to reach the agent.
-pub(crate) fn answer(open: &Asks, id: &str, decision: Decision) -> Option<Value> {
-    let book = asks(open);
+pub(crate) fn answer(book: &Book, id: &str, decision: Decision) -> Option<Value> {
     let ask = book.open.get(id)?;
     let response = match decision {
         Decision::AllowOnce => json!({ "behavior": "allow", "updatedInput": ask.input }),
@@ -67,8 +66,8 @@ pub(crate) fn answer(open: &Asks, id: &str, decision: Decision) -> Option<Value>
     }))
 }
 
-pub(crate) fn forget(open: &Asks, id: &str) {
-    asks(open).open.remove(id);
+pub(crate) fn forget(book: &mut Book, id: &str) {
+    book.open.remove(id);
 }
 
 /// What "Allow for this thread" adds: only Claude's suggested allow rules, kept to this process (never written to
@@ -248,8 +247,7 @@ fn claude_context_windows(v: &Value) -> Vec<Event> {
 /// The `control_response` line answering AskUserQuestion ask `id`: `answers` holds each question's picked labels,
 /// in question order. Claude reads them from `updatedInput.answers`, keyed by question text, labels joined by ", ".
 /// `None` when `id` isn't an open AskUserQuestion ask or the answer count doesn't match its questions.
-pub(crate) fn answer_questions(open: &Asks, id: &str, answers: &[Vec<String>]) -> Option<Value> {
-    let book = asks(open);
+pub(crate) fn answer_questions(book: &Book, id: &str, answers: &[Vec<String>]) -> Option<Value> {
     let ask = book.open.get(id).filter(|a| a.tool == QUESTION_TOOL)?;
     let questions = ask.input["questions"].as_array()?;
     if questions.len() != answers.len() {
@@ -353,7 +351,7 @@ mod tests {
             }
         );
         assert!(matches!(events[1], Event::Result { .. }));
-        assert!(answer(&open, "r1", Decision::AllowOnce).is_none());
+        assert!(answer(&asks(&open), "r1", Decision::AllowOnce).is_none());
         assert!(withdraw_all(&open).is_empty());
     }
 
@@ -369,7 +367,7 @@ mod tests {
         let wake = r#"{"type":"result","is_error":false,"duration_ms":1,"result":"wake","origin":{"kind":"task-notification"}}"#;
         parse(wake, &sent, &open);
         assert!(
-            answer(&open, &id, Decision::Deny).is_some(),
+            answer(&asks(&open), &id, Decision::Deny).is_some(),
             "background wake discarded foreground approval"
         );
     }

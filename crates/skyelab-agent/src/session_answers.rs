@@ -25,18 +25,12 @@ impl Session {
         let Some(state) = &self.codex else {
             bail!("only a Codex thread allows commands by their start");
         };
-        let (line, rule) = lock(state)
-            .allow_prefix(id, prefix)
-            .map_err(anyhow::Error::msg)?;
+        // One lock for all of it: see `settle`.
+        let mut codex = lock(state);
+        let (line, rule) = codex.allow_prefix(id, prefix).map_err(anyhow::Error::msg)?;
         self.queue(line)?;
-        lock(state).forget(id);
-        if let Some(tx) = self.events_tx.upgrade() {
-            let _ = tx.send(Event::PermissionResolved {
-                id: id.to_owned(),
-                decision: Decision::AllowThread,
-                rule: Some(rule),
-            });
-        }
+        codex.forget(id);
+        self.report(id, Decision::AllowThread, Some(rule));
         Ok(())
     }
 
@@ -44,19 +38,61 @@ impl Session {
         if decision == Decision::Withdrawn {
             bail!("an answer allows or denies");
         }
-        let line = match &self.codex {
-            Some(state) => lock(state).answer(id, decision),
-            None => claude::answer(&self.asks, id, decision).map(|v| v.to_string()),
-        };
-        let Some(line) = line else {
-            bail!("the agent is no longer waiting for that answer");
-        };
-        // Forgotten only once queued: a full queue leaves it open, to be answered again.
-        self.queue(line)?;
+        self.settle(
+            id,
+            (decision, rule),
+            |c| c.answer(id, decision),
+            |b| claude::answer(b, id, decision),
+            "the agent is no longer waiting for that answer",
+        )
+    }
+
+    /// Answers the AskUserQuestion ask `id` with each question's picked labels, in question order (a typed "Other"
+    /// answer is a label too). Then the session's events carry [`Event::PermissionResolved`] (allowed once). Fails,
+    /// sending nothing, when `id` isn't a waiting question or the count doesn't match its questions.
+    pub fn answer_questions(&mut self, id: &str, answers: &[Vec<String>]) -> Result<()> {
+        self.settle(
+            id,
+            (Decision::AllowOnce, None),
+            |c| c.answer_questions(id, answers),
+            |b| claude::answer_questions(b, id, answers),
+            "the agent is no longer waiting for these answers",
+        )
+    }
+
+    /// Queues the reply to open ask `id` (built by `codex` or `claude`), forgets the ask, and reports it resolved
+    /// with the decision and the rule that made it, all under the open asks' lock. The reader takes that lock to
+    /// withdraw every open ask when a turn ends, and the agent often ends the turn as soon as it reads the reply:
+    /// settled any later, the ask would be withdrawn first and its row would never show what was decided.
+    /// Fails, sending nothing, with `gone` when no reply can be built (the ask is no longer open). Forgotten only once
+    /// queued: a full queue leaves it open, to be answered again.
+    fn settle(
+        &self,
+        id: &str,
+        (decision, rule): (Decision, Option<String>),
+        codex: impl FnOnce(&mut codex::Codex) -> Option<String>,
+        claude: impl FnOnce(&claude::Book) -> Option<Value>,
+        gone: &'static str,
+    ) -> Result<()> {
         match &self.codex {
-            Some(state) => lock(state).forget(id),
-            None => claude::forget(&self.asks, id),
+            Some(state) => {
+                let mut c = lock(state);
+                self.queue(codex(&mut c).context(gone)?)?;
+                c.forget(id);
+                self.report(id, decision, rule);
+            }
+            None => {
+                let mut book = claude::asks(&self.asks);
+                self.queue(claude(&book).context(gone)?.to_string())?;
+                claude::forget(&mut book, id);
+                self.report(id, decision, rule);
+            }
         }
+        Ok(())
+    }
+
+    /// Tells the session's events that ask `id` was answered.
+    fn report(&self, id: &str, decision: Decision, rule: Option<String>) {
         if let Some(tx) = self.events_tx.upgrade() {
             let _ = tx.send(Event::PermissionResolved {
                 id: id.to_owned(),
@@ -64,32 +100,5 @@ impl Session {
                 rule,
             });
         }
-        Ok(())
-    }
-
-    /// Answers the AskUserQuestion ask `id` with each question's picked labels, in question order (a typed "Other"
-    /// answer is a label too). Then the session's events carry [`Event::PermissionResolved`] (allowed once). Fails,
-    /// sending nothing, when `id` isn't a waiting question or the count doesn't match its questions.
-    pub fn answer_questions(&mut self, id: &str, answers: &[Vec<String>]) -> Result<()> {
-        let line = match &self.codex {
-            Some(state) => lock(state).answer_questions(id, answers),
-            None => claude::answer_questions(&self.asks, id, answers).map(|v| v.to_string()),
-        };
-        let Some(line) = line else {
-            bail!("the agent is no longer waiting for these answers");
-        };
-        self.queue(line)?;
-        match &self.codex {
-            Some(state) => lock(state).forget(id),
-            None => claude::forget(&self.asks, id),
-        }
-        if let Some(tx) = self.events_tx.upgrade() {
-            let _ = tx.send(Event::PermissionResolved {
-                id: id.to_owned(),
-                decision: Decision::AllowOnce,
-                rule: None,
-            });
-        }
-        Ok(())
     }
 }
