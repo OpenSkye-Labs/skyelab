@@ -174,6 +174,7 @@ fn find_in_a_large_preview_is_quick(cx: &mut gpui::TestAppContext) {
     let took = started.elapsed();
     let n = p.read_with(cx, |p, _| p.find.matches.len());
     assert!(n > body.lines().count(), "{n} matches");
-    // A debug build on a loaded machine: a frame is 16 ms in release; leave room, but catch a per-line relayout.
-    assert!(took.as_millis() < 250, "a query took {took:?}");
+    // A debug build on a loaded machine (parallel gates hit 330 ms against 250): a per-line relayout of these ~27k
+    // lines takes seconds, so 1.5 s still catches it without flaking.
+    assert!(took.as_millis() < 1500, "a query took {took:?}");
 }

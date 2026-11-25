@@ -188,6 +188,12 @@ fn main() {
             cfg!(debug_assertions),
             "cursor-agent",
         )));
+        cx.set_global(workspace::AntigravityBin(
+            match std::env::var_os("SKYELAB_ANTIGRAVITY_BIN") {
+                Some(bin) if cfg!(debug_assertions) => bin.into(),
+                _ => skyelab_agent::antigravity::default_bin(),
+            },
+        ));
         if let Some(path) = &path {
             cx.set_global(workspace::AccountsFile(path.clone()));
         }

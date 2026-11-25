@@ -99,6 +99,7 @@ impl Workspace {
                 Provider::Claude => bins.claude.clone(),
                 Provider::Codex => bins.codex.clone(),
                 Provider::Cursor => bins.cursor.clone(),
+                Provider::Antigravity => bins.antigravity.clone(),
             };
             let store = self.backend.store.clone();
             let id = account.id.clone();

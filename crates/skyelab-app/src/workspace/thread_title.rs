@@ -10,12 +10,13 @@ use skyelab_agent::{Block, Event};
 use skyelab_core::{AccountsConfig, Provider};
 use std::path::PathBuf;
 
-/// The binaries a title call may run: `claude`, `codex`, and `cursor-agent` (or their fakes).
+/// The binaries a title call may run: `claude`, `codex`, `cursor-agent` and `agy` (or their fakes).
 #[derive(Clone)]
 pub(in crate::workspace) struct Bins {
     claude: PathBuf,
     codex: PathBuf,
     cursor: PathBuf,
+    antigravity: PathBuf,
 }
 
 impl Bins {
@@ -24,6 +25,7 @@ impl Bins {
             claude,
             codex: crate::workspace::github::codex_bin(cx),
             cursor: crate::workspace::github::cursor_bin(cx),
+            antigravity: crate::workspace::github::antigravity_bin(cx),
         }
     }
 
@@ -33,6 +35,7 @@ impl Bins {
             Provider::Claude => &self.claude,
             Provider::Codex => &self.codex,
             Provider::Cursor => &self.cursor,
+            Provider::Antigravity => &self.antigravity,
         }
     }
 }

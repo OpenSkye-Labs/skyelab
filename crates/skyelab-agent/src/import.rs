@@ -59,6 +59,7 @@ pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
         Provider::Claude => claude_files(home, folder),
         Provider::Codex => codex::files(home, folder),
         Provider::Cursor => return Vec::new(),
+        Provider::Antigravity => return Vec::new(),
     }
     .into_iter()
     .filter_map(|p| Some((regular_file(&p)?.modified().ok()?, p)))
@@ -67,7 +68,7 @@ pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
     files.sort_by_key(|f| std::cmp::Reverse(f.0));
     files.truncate(MAX_SESSIONS);
     let names = match provider {
-        Provider::Claude | Provider::Cursor => Default::default(),
+        Provider::Claude | Provider::Cursor | Provider::Antigravity => Default::default(),
         Provider::Codex => codex::names(home),
     };
     files
@@ -105,6 +106,7 @@ pub fn project_folders(provider: Provider, home: &Path) -> Vec<(PathBuf, usize, 
             .collect(),
         Provider::Codex => codex::all_files(home),
         Provider::Cursor => return Vec::new(),
+        Provider::Antigravity => return Vec::new(),
     };
     let mut files: Vec<(std::time::SystemTime, PathBuf)> = files
         .into_iter()
@@ -118,6 +120,7 @@ pub fn project_folders(provider: Provider, home: &Path) -> Vec<(PathBuf, usize, 
             Provider::Claude => claude_cwd(&path),
             Provider::Codex => codex::cwd_of(&path),
             Provider::Cursor => None,
+            Provider::Antigravity => None,
         };
         let Some(cwd) = cwd.filter(|c| plain_path(c)) else {
             continue;
@@ -211,6 +214,7 @@ fn read_file(provider: Provider, path: &Path, cap: u64) -> Option<Transcript> {
         Provider::Claude => claude(path, &mut lines)?,
         Provider::Codex => codex::parse(&mut lines)?,
         Provider::Cursor => return None,
+        Provider::Antigravity => return None,
     };
     (t.path, t.modified_ms, t.skipped, t.truncated) = (
         path.to_owned(),

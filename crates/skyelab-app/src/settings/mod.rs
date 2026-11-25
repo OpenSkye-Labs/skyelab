@@ -123,9 +123,10 @@ pub struct Settings {
     /// Account id chosen in the "Bind a folder to" menu; defaults to the first configured account.
     pub(super) binding_account: Option<SharedString>,
     pub section: Section,
-    /// Settings → Chat's Codex and Cursor model fields, and why the last Chat or Diffs save failed.
+    /// Settings → Chat's Codex, Cursor and Antigravity model fields, and why the last Chat or Diffs save failed.
     pub(super) codex_model_input: Entity<InputState>,
     pub(crate) cursor_model_input: Entity<InputState>,
+    pub(super) antigravity_model_input: Entity<InputState>,
     pub(super) threads_error: Option<String>,
     /// Settings → Chat → Visual replies' new-host field.
     pub(super) page_host_input: Entity<InputState>,
@@ -173,7 +174,7 @@ impl Settings {
         let id_input = input("work", window, cx);
         let label_input = input("Work", window, cx);
         let dir_input = input(
-            "Empty: ~/.claude-<id>, ~/.codex-<id> or ~/.cursor-<id>",
+            "Empty: ~/.claude-<id>, ~/.codex-<id>, ~/.cursor-<id> or ~/.antigravity-<id>",
             window,
             cx,
         );
@@ -192,6 +193,11 @@ impl Settings {
         let cursor_model_input = input("Not set", window, cx);
         cursor_model_input.update(cx, |i, cx| {
             i.set_value(prefs_now.cursor_model.unwrap_or_default(), window, cx)
+        });
+        let antigravity_model_input = input("Not set", window, cx);
+        let antigravity_model = crate::workspace::thread_extras::prefs::get(cx).antigravity_model;
+        antigravity_model_input.update(cx, |i, cx| {
+            i.set_value(antigravity_model.unwrap_or_default(), window, cx)
         });
         let page_host_input = input("cdn.example.com or *.example.com", window, cx);
         let ids = account_ids(&config);
@@ -250,6 +256,11 @@ impl Settings {
                     this.save_cursor_model(cx);
                 }
             }),
+            cx.subscribe(&antigravity_model_input, |this, _, e: &InputEvent, cx| {
+                if matches!(e, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                    this.save_antigravity_model(cx);
+                }
+            }),
         ];
         let locked = match (&path, error) {
             (None, _) => Some("no config directory on this OS, so nothing can be saved".into()),
@@ -280,6 +291,7 @@ impl Settings {
             test_input,
             codex_model_input,
             cursor_model_input,
+            antigravity_model_input,
             threads_error: None,
             page_host_input,
             scope: None,
@@ -492,6 +504,8 @@ mod visual_replies_test;
 #[cfg(all(test, unix))] // the fake gh is a shell script
 mod github_test;
 
+#[cfg(test)]
+mod antigravity_test;
 #[cfg(test)]
 #[path = "claude_login_test.rs"]
 mod claude_login_test;

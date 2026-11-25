@@ -253,6 +253,8 @@ fn needs_live_config<S: AsRef<OsStr>>(args: &[S]) -> bool {
             "symbolic-ref",
             "show-ref",
             "check-ref-format",
+            // No repo yet to freeze (the freeze's rev-parse fails outside one); the live path still overrides programs.
+            "init",
         ]
         .iter()
         .any(|live| s == *live)

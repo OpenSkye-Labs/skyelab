@@ -1,7 +1,7 @@
 # Third-party marks
 
-SkyeLab shows three provider logos so a person can tell at a glance which provider an account runs. They are the
-brands' own marks, in `crates/skyelab-app/icons/brand/`, and are drawn only through
+SkyeLab shows four provider logos so a person can tell at a glance which provider an account runs. Third-party marks
+are the brands' own files, in `crates/skyelab-app/icons/brand/`, and are drawn only through
 `ui::provider_logo` (and `settings::provider_mark`, which puts one on a tile).
 
 | File | Mark | Official color | Source |
@@ -11,6 +11,7 @@ brands' own marks, in `crates/skyelab-app/icons/brand/`, and are drawn only thro
 | `openai-white.svg` | OpenAI Blossom, white | `white` | same zip, `OAI_OpenAI-Blossom_White.svg` |
 | `cursor-black.svg` | Cursor Cube, dark | `#26251E` | Cursor brand kit (https://cursor.com/brand) |
 | `cursor-white.svg` | Cursor Cube, light | `#EDECEC` | Cursor brand kit (https://cursor.com/brand) |
+| `antigravity.svg` | Antigravity mark | `#4285F4`, one variant for both themes | Original geometric vector mark authored in-repo (not copied from any third-party app) |
 
 Which variant shows: the Claude Spark has one published color, so it shows in Clay on both themes. OpenAI publishes the
 Blossom in black and in white, and Cursor publishes its Cube in `#26251E` and `#EDECEC`; SkyeLab shows the dark mark on

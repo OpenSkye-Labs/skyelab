@@ -336,6 +336,11 @@ mod tests {
                 "CURSOR_API_KEY",
                 "CURSOR_AUTH_TOKEN",
                 "CURSOR_BACKEND_URL",
+                "GEMINI_HOME",
+                "GEMINI_API_KEY",
+                "GOOGLE_API_KEY",
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "AGY_ACP_FORCE_FILE_STORAGE",
                 "SSH_AUTH_SOCK",
             ] {
                 assert!(!ok(n, windows), "{n} windows={windows}");

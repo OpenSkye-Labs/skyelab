@@ -94,6 +94,7 @@ impl ThreadView {
             .unwrap_or_else(|| match self.composer_account().map(|a| a.provider) {
                 Some(Provider::Codex) => "Codex default".into(),
                 Some(Provider::Cursor) => "Cursor default".into(),
+                Some(Provider::Antigravity) => "Antigravity default".into(),
                 _ => "Claude default".into(),
             })
     }
@@ -139,7 +140,7 @@ impl ThreadView {
             return Vec::new();
         };
         let models: Vec<(String, String)> = match provider {
-            Provider::Codex | Provider::Cursor => self
+            Provider::Codex | Provider::Cursor | Provider::Antigravity => self
                 .listed()
                 .unwrap_or_default()
                 .iter()
@@ -164,16 +165,17 @@ impl ThreadView {
         }
     }
 
-    fn listed(&self) -> Option<&[ModelInfo]> {
+    pub(super) fn listed(&self) -> Option<&[ModelInfo]> {
         let list = match self.composer_account().map(|a| a.provider) {
             Some(Provider::Cursor) => self.composer.cursor_models.as_ref(),
+            Some(Provider::Antigravity) => self.composer.antigravity_models.as_ref(),
             _ => self.composer.codex_models.as_ref(),
         };
         Some(list?.as_ref().ok()?.as_slice())
     }
 
-    /// Reads the account's default model from its config dir (the model field only, off the UI thread). A Codex or
-    /// Cursor account that sets none lists its models, whose default entry names it.
+    /// Reads the account's default model from its config dir (the model field only, off the UI thread). A Codex,
+    /// Cursor or Antigravity account that sets none lists its models, whose default entry names it.
     pub(in crate::workspace) fn load_account_model(&mut self, cx: &mut Context<Self>) {
         let Some(account) = self.composer_account() else {
             return;
@@ -188,6 +190,7 @@ impl ThreadView {
                     match provider {
                         Provider::Codex => this.list_codex_models(cx),
                         Provider::Cursor => this.list_cursor_models(cx),
+                        Provider::Antigravity => this.list_antigravity_models(cx),
                         Provider::Claude => {}
                     }
                 }
@@ -265,6 +268,43 @@ impl ThreadView {
                     .is_some_and(|m| m.kind == MenuKind::Files)
                 {
                     this.load_menu_items(MenuKind::Files, cx); // the `@` menu's model rows
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Lists an Antigravity account's models once per tab (the picker and the chip both read them).
+    pub(in crate::workspace) fn list_antigravity_models(&mut self, cx: &mut Context<Self>) {
+        let agy = self
+            .composer_account()
+            .filter(|a| a.provider == Provider::Antigravity);
+        let (None, Some(account)) = (&self.composer.antigravity_models, agy) else {
+            return;
+        };
+        self.composer.antigravity_models = Some(Ok(Vec::new())); // loading
+        let (bin, config, cwd) = (
+            crate::workspace::github::antigravity_bin(cx),
+            self.config.clone(),
+            self.cwd.clone(),
+        );
+        let task = cx.background_spawn(async move {
+            skyelab_agent::list_antigravity_models(&bin, &config, &account, &cwd)
+                .map_err(|e| SharedString::from(format!("{e:#}")))
+        });
+        cx.spawn(async move |this, cx| {
+            let listed = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.composer.antigravity_models = Some(listed);
+                this.highlight_current(cx);
+                if this
+                    .composer
+                    .menu
+                    .as_ref()
+                    .is_some_and(|m| m.kind == MenuKind::Files)
+                {
+                    this.load_menu_items(MenuKind::Files, cx);
                 }
                 cx.notify();
             });

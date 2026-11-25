@@ -22,7 +22,7 @@ pub(in crate::workspace) fn effort_label(s: &str) -> String {
 }
 
 impl ThreadView {
-    /// Why the Codex or Cursor list is empty: still loading, or the error listing it gave.
+    /// Why a dynamically listed model list is empty: still loading, or the error listing it gave.
     fn picker_error(&self) -> Option<SharedString> {
         match self.composer_account().map(|a| a.provider) {
             Some(Provider::Codex) => match &self.composer.codex_models {
@@ -35,22 +35,27 @@ impl ThreadView {
                 Some(Err(e)) => Some(e.clone()),
                 _ => None,
             },
+            Some(Provider::Antigravity) => match &self.composer.antigravity_models {
+                Some(Ok(l)) if l.is_empty() => Some("Listing Antigravity's models…".into()),
+                Some(Err(e)) => Some(e.clone()),
+                _ => None,
+            },
             _ => None,
         }
     }
 
     /// The efforts the current pick takes, in order.
     fn picker_efforts(&self) -> Vec<String> {
-        match (
-            &self.composer.pick.model,
-            self.composer_account().map(|a| a.provider),
-        ) {
-            (Some(id), Some(Provider::Codex)) => self
-                .composer
-                .codex_models
-                .as_ref()
-                .and_then(|l| l.as_ref().ok())
+        let provider = self.composer_account().map(|a| a.provider);
+        match (&self.composer.pick.model, provider) {
+            (Some(id), Some(Provider::Codex | Provider::Antigravity)) => self
+                .listed()
                 .and_then(|l| l.iter().find(|m| m.id == *id))
+                .map(|m| m.efforts.clone())
+                .unwrap_or_default(),
+            (None, Some(Provider::Antigravity)) => self
+                .listed()
+                .and_then(|l| l.iter().find(|m| m.is_default).or_else(|| l.first()))
                 .map(|m| m.efforts.clone())
                 .unwrap_or_default(),
             // Codex's default and Cursor models show no effort column.

@@ -72,6 +72,7 @@ fn icon_for(entry: &Entry) -> SkyeIcon {
         // Provider logos draw only as images in their own colors, never as a palette glyph.
         ("Codex", SkyeIcon::Bot),
         ("Claude", SkyeIcon::Bot),
+        ("Antigravity", SkyeIcon::Bot),
         ("Thread", SkyeIcon::MessageCircle),
     ];
     BY_WORD

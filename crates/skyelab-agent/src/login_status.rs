@@ -19,13 +19,34 @@ pub enum Login {
 
 /// Asks `bin` (the account's agent CLI) whether `account` is signed in. Blocking: call it off the UI thread.
 pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
-    // Codex and Cursor refuse/empty a config dir that doesn't exist, and nobody has logged in to a folder that isn't there.
-    if matches!(account.provider, Provider::Codex | Provider::Cursor)
-        && !account.config_dir.is_dir()
+    // Codex, Cursor and Antigravity have no login in a config dir that doesn't exist yet.
+    if matches!(
+        account.provider,
+        Provider::Codex | Provider::Cursor | Provider::Antigravity
+    ) && !account.config_dir.is_dir()
     {
         return Ok(Login::SignedOut);
     }
     skyelab_core::login_shell::wait();
+    if account.provider == Provider::Antigravity {
+        let resolved = crate::launch::resolve_bin(bin)?;
+        let scratch = tempfile::tempdir()
+            .context("creating empty scratch dir for Antigravity sign-in check")?;
+        let mut cmd = Command::new(&resolved);
+        cmd.args(crate::antigravity::acp_args(&account.config_dir, false))
+            .env_clear()
+            .envs(skyelab_core::env::inherited_agent_env(false))
+            .envs(account.launch_env()?)
+            .envs(crate::antigravity::isolated_env());
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        return crate::acp_probe::check_login(
+            &mut cmd,
+            &crate::antigravity::config(),
+            scratch.path(),
+            Duration::from_secs(15),
+        );
+    }
     let resolved = if account.provider == Provider::Cursor {
         crate::cursor::resolve_cursor_bin(bin)?
     } else {
@@ -35,6 +56,7 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
         Provider::Claude => &["auth", "status"],
         Provider::Codex => &["login", "status"],
         Provider::Cursor => &["status"],
+        Provider::Antigravity => unreachable!(),
     };
     let mut cmd = Command::new(&resolved);
     cmd.args(args)
@@ -50,6 +72,7 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
         Provider::Claude => parse_claude(&stdout, &stderr),
         Provider::Codex => parse_codex(&format!("{stdout}\n{stderr}"), out.status.success()),
         Provider::Cursor => parse_cursor(&format!("{stdout}\n{stderr}"), out.status.success()),
+        Provider::Antigravity => unreachable!(),
     }
 }
 

@@ -62,6 +62,11 @@ const INDEX: &[(Section, &str, &str)] = &[
         "model effort opus sonnet haiku",
     ),
     (Section::Chat, "Codex model", "model effort reasoning"),
+    (
+        Section::Chat,
+        "Antigravity model",
+        "model effort thinking gemini",
+    ),
     (Section::Chat, "Generate thread titles", "title name"),
     (
         Section::Chat,
@@ -99,7 +104,7 @@ const INDEX: &[(Section, &str, &str)] = &[
     (
         Section::Accounts,
         "Accounts",
-        "claude codex login provider config folder",
+        "claude codex antigravity login provider config folder",
     ),
     (Section::Accounts, "Add account", "new account"),
     (Section::Usage, "Usage", "cost limits tokens"),

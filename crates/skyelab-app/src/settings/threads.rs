@@ -22,6 +22,8 @@ const MODES: [(Mode, &str); 4] = [
 ];
 /// Codex's reasoning efforts (its models list theirs; these are the common ones).
 const CODEX_EFFORTS: [&str; 4] = ["low", "medium", "high", "xhigh"];
+/// Antigravity's thinking efforts (models expose `thought_level` options; these are the common ones).
+const ANTIGRAVITY_EFFORTS: [&str; 3] = ["low", "medium", "high"];
 
 /// Settings → Diffs & pull requests' fetch intervals, in minutes.
 const FETCH_CHOICES: [(u32, &str); 5] = [
@@ -96,6 +98,24 @@ impl Settings {
         let model = (!typed.is_empty()).then_some(typed);
         if self.shown_field(ThreadField::CursorModel, cx) != model {
             self.set_shown_field(ThreadField::CursorModel, model, cx);
+        }
+    }
+
+    /// The Antigravity model field was left or confirmed: save it (empty is the account's default).
+    pub(super) fn save_antigravity_model(&mut self, cx: &mut Context<Self>) {
+        let typed = self
+            .antigravity_model_input
+            .read(cx)
+            .value()
+            .trim()
+            .to_string();
+        if !valid_name(&typed) {
+            self.threads_error = Some(format!("\"{typed}\" isn't a model name."));
+            return cx.notify();
+        }
+        let model = (!typed.is_empty()).then_some(typed);
+        if self.shown_field(ThreadField::AntigravityModel, cx) != model {
+            self.set_shown_field(ThreadField::AntigravityModel, model, cx);
         }
     }
 
@@ -187,6 +207,29 @@ impl Settings {
                 div()
                     .w(gpui::px(160.))
                     .child(TextField::new(&self.cursor_model_input).small()),
+                cx,
+            ),
+            setting(
+                false,
+                "Antigravity model",
+                if self.scope.is_some() {
+                    "An Antigravity model id (empty: inherit All projects'), and its thinking effort."
+                } else {
+                    "An Antigravity model id (empty: the account's default), and its thinking effort."
+                },
+                h_flex()
+                    .gap_2()
+                    .child(
+                        div()
+                            .w(gpui::px(160.))
+                            .child(TextField::new(&self.antigravity_model_input).small()),
+                    )
+                    .child(self.field_choice(
+                        "threads-antigravity-effort",
+                        ThreadField::AntigravityEffort,
+                        efforts(&ANTIGRAVITY_EFFORTS),
+                        cx,
+                    )),
                 cx,
             ),
         ];

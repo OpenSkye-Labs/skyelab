@@ -94,6 +94,7 @@ impl ThreadView {
             Provider::Claude => self.backend.claude_bin.clone(),
             Provider::Codex => crate::workspace::github::codex_bin(cx),
             Provider::Cursor => crate::workspace::github::cursor_bin(cx),
+            Provider::Antigravity => crate::workspace::github::antigravity_bin(cx),
         };
         let (store, config, cwd, project_id) = (
             self.backend.store.clone(),
