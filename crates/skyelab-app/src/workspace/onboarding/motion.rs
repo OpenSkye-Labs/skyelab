@@ -4,18 +4,18 @@
 //! so the hero's settle is scale and opacity only. Every animation is one-shot, so a settled page draws no frames, and
 //! GPUI draws each at its end state when `App::reduce_motion` is on. The progress dot of the current step widens.
 
-use crate::ui::motion::ease_out_quad;
+use crate::ui::motion::{FADE_OUT as SHARED_FADE_OUT, FOCAL_FADE, ease_out_quad};
 use gpui::{
     Animation, AnimationExt as _, ElementId, IntoElement, ParentElement as _, Pixels, Styled, px,
 };
 use std::time::Duration;
 
-/// The new page's fade in.
-const FADE_IN: Duration = Duration::from_millis(300);
+/// The new page's fade in (onboarding focal duration, from `ui::motion`).
+const FADE_IN: Duration = FOCAL_FADE;
 /// The old page's fade out; it is dropped once this is over.
-pub(super) const FADE_OUT: Duration = Duration::from_millis(150);
+pub(super) const FADE_OUT: Duration = SHARED_FADE_OUT;
 /// The hero tile's zoom from `ZOOM` to 1.
-const HERO: Duration = Duration::from_millis(300);
+const HERO: Duration = FOCAL_FADE;
 const ZOOM: f32 = 1.35;
 
 /// A page fading in where it stands. `id` must change with the page, so each change starts a new animation.

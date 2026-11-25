@@ -12,8 +12,8 @@ use super::remote_thread::{RemoteThreadEvent, RemoteThreadView};
 use crate::environment::{EnvEvent, RemoteEnv};
 use crate::ui::Button;
 use gpui::{
-    Action, App, AppContext as _, Context, Entity, InteractiveElement as _, IntoElement,
-    SharedString, Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
+    Action, AnimationExt as _, App, AppContext as _, Context, Entity, InteractiveElement as _,
+    IntoElement, SharedString, Stateful, Subscription, Task, Window, actions, div, prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, h_flex};
 use skyelab_client::{Options, is_magicdns_name};
@@ -241,7 +241,14 @@ impl Workspace {
                             .position(at)
                             .anchor(gpui::Anchor::BottomLeft)
                             .snap_to_window_with_margin(px(8.))
-                            .child(picker),
+                            .child(
+                                div().child(picker).with_animation(
+                                    "env-menu-in",
+                                    gpui::Animation::new(crate::ui::motion::FADE_FAST)
+                                        .with_easing(crate::ui::motion::ease_out_quad),
+                                    |el, t| el.opacity(t),
+                                ),
+                            ),
                     ),
             )
             .with_priority(2),

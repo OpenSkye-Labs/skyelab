@@ -202,7 +202,7 @@ fn preview(cx: &Context<Onboarding>) -> impl IntoElement {
                                 .mt_1()
                                 .px_1()
                                 .py_1()
-                                .rounded(px(4.))
+                                .rounded(ui::RADIUS_SM)
                                 .bg(theme.sidebar_accent)
                                 .child(bar(40., theme.foreground.opacity(0.7))),
                         )
@@ -221,7 +221,7 @@ fn preview(cx: &Context<Onboarding>) -> impl IntoElement {
                                 div()
                                     .px_2()
                                     .py_1p5()
-                                    .rounded(px(6.))
+                                    .rounded(ui::RADIUS_MD)
                                     .bg(theme.secondary)
                                     .child(bar(56., line)),
                             ),
@@ -238,7 +238,7 @@ fn preview(cx: &Context<Onboarding>) -> impl IntoElement {
                             h_flex()
                                 .h(px(28.))
                                 .px_2()
-                                .rounded(px(8.))
+                                .rounded(ui::RADIUS)
                                 .border_1()
                                 .border_color(theme.input)
                                 .bg(theme.popover)

@@ -88,10 +88,14 @@ impl RenderOnce for SegmentedControl {
         let theme = cx.theme();
         let c = self.0;
         let h = c.size.height() - px(4.);
-        let (lift, hover) = if theme.is_dark() {
-            (theme.input.opacity(0.72), theme.input.opacity(0.32))
+        let (lift, hover, ring) = if theme.is_dark() {
+            (
+                theme.input.opacity(0.72),
+                theme.input.opacity(0.32),
+                theme.ring,
+            )
         } else {
-            (theme.background, theme.background.opacity(0.55))
+            (theme.background, theme.background.opacity(0.55), theme.ring)
         };
         h_flex()
             .id(c.id)
@@ -119,6 +123,9 @@ impl RenderOnce for SegmentedControl {
                     .px(c.size.pad_x() - px(2.))
                     .justify_center()
                     .rounded(c.size.radius() - px(2.))
+                    .border_1()
+                    .border_color(gpui::transparent_black())
+                    .focus_visible(move |s| s.border_color(ring))
                     .text_size(c.size.text())
                     .font_weight(FontWeight::MEDIUM)
                     .cursor_pointer()
@@ -154,7 +161,7 @@ impl RenderOnce for Tabs {
             .children(c.items.into_iter().enumerate().map(|(ix, item)| {
                 let on = c.selected == Some(ix);
                 let f = c.on_click.clone();
-                let fg = theme.foreground;
+                let (fg, ring) = (theme.foreground, theme.ring);
                 // gpui-base's headless button: a tab stop that Space and Enter pick, a press that keeps focus put.
                 gpui_base::Button::new(ix)
                     .selected(on)
@@ -170,6 +177,7 @@ impl RenderOnce for Tabs {
                     } else {
                         gpui::transparent_black()
                     })
+                    .focus_visible(move |s| s.border_color(ring).text_color(fg))
                     .text_size(if c.size == Size::Xs {
                         META
                     } else {

@@ -307,7 +307,7 @@ impl ThreadView {
                             .when(!description.is_empty(), |d| {
                                 d.child(
                                     div()
-                                        .text_size(px(11.))
+                                        .text_size(ui::MICRO)
                                         .text_color(theme.muted_foreground)
                                         .child(description.clone()),
                                 )

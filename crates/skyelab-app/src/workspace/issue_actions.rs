@@ -13,9 +13,7 @@ use gpui::{
     prelude::*, px,
 };
 use gpui_component::{
-    ActiveTheme as _, Sizable as _, WindowExt as _,
-    dialog::DialogFooter,
-    h_flex,
+    ActiveTheme as _, Sizable as _, WindowExt as _, h_flex,
     input::{InputEvent, Textarea, TextareaState},
     v_flex,
 };
@@ -100,7 +98,7 @@ pub(crate) fn open(
             .w(px(480.))
             .title(title.clone())
             .child(view.clone())
-            .footer(DialogFooter::new().child(ui::dialog_cancel("issue-actions-cancel")))
+            .footer(ui::dialog_footer().child(ui::dialog_cancel("issue-actions-cancel")))
     });
     entity
 }

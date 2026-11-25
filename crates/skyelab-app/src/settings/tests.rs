@@ -63,12 +63,7 @@ fn add_account_bind_and_test_folder(cx: &mut TestAppContext) {
 
     // The picker needs a real OS dialog, so bind the way its callback does.
     view.update_in(cx, |v, window, cx| {
-        let account = v
-            .account_select
-            .read(cx)
-            .selected_value()
-            .cloned()
-            .expect("acme preselected");
+        let account = v.binding_account.clone().expect("acme preselected");
         let path = work.clone();
         v.apply(
             |c| c.add_binding(Binding::new(path, account.to_string())),
@@ -221,7 +216,6 @@ fn reconfirm_stale_binding(cx: &mut TestAppContext) {
 
 #[test]
 fn binding_picker_shows_labels_and_picks_ids() {
-    use gpui_component::select::SelectItem as _;
     let account = |id: &str, label: &str| Account {
         id: id.into(),
         label: label.into(),
@@ -242,7 +236,7 @@ fn binding_picker_shows_labels_and_picks_ids() {
     let choices = account_ids(&config);
     let shown: Vec<_> = choices
         .iter()
-        .map(|c| (c.title(), c.value().clone()))
+        .map(|c| (c.label.clone(), c.id.clone()))
         .collect();
     assert_eq!(
         shown,

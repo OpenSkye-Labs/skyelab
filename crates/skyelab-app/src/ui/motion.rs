@@ -3,6 +3,7 @@
 //! tabs, selection, hover and anything that goes away change at once. GPUI has no blur, so where Rex blurs we use
 //! opacity and size only. Reduce Motion ([`follow_reduce_motion`], read at launch and on every window activation) draws every end state.
 
+use gpui::{BoxShadow, hsla, point, px};
 use gpui_base::{Easing, Spring};
 use gpui_component::dialog::DialogEntrance;
 use gpui_component::theme::MotionTokens;
@@ -13,10 +14,14 @@ use std::time::Duration;
 pub const SPRING: Spring = Spring::new(Duration::from_millis(153));
 /// The same spring over pixels: stops within half a pixel instead of a fraction of one, so it stops asking for frames.
 pub const SPRING_PX: Spring = SPRING.with_epsilon(0.5);
-/// Rex's fade for something that appears (its toast, a new pane).
+/// Rex's fade for something that appears (its toast, a new pane, a floating overlay).
 pub const FADE: Duration = Duration::from_millis(150);
-/// A small appearance (a new row): Rex's fade there is shorter.
+/// A small appearance (a new row, compact popover): Rex's fade there is shorter.
 pub const FADE_FAST: Duration = Duration::from_millis(100);
+/// A focal entrance (onboarding step change and hero settle).
+pub const FOCAL_FADE: Duration = Duration::from_millis(300);
+/// A leaving crossfade copy; dropped once this finishes.
+pub const FADE_OUT: Duration = Duration::from_millis(150);
 /// A dialog fades in place over [`FADE`]; Rex has no in-window dialog that slides.
 pub const DIALOG: DialogEntrance = DialogEntrance::Fade;
 
@@ -39,17 +44,31 @@ pub fn spring_ease(t: f32) -> f32 {
     x(t) / x(1.)
 }
 
+/// A floating card/toast shadow scaled by `ink` (0..=1). GPUI has no group compositing, so fading cards pass `t * t * t`
+/// to prevent a half-faded card from showing its shadow through as a dark slab.
+pub fn overlay_shadow(ink: f32, dark: bool) -> Vec<BoxShadow> {
+    let alpha = if dark { 0.45 } else { 0.22 } * ink;
+    vec![BoxShadow {
+        color: hsla(0., 0., 0., alpha),
+        offset: point(px(0.), px(10.)),
+        blur_radius: px(24.),
+        spread_radius: px(-6.),
+        inset: false,
+    }]
+}
+
 /// Rex's list insertion: a row that really just appeared (a new thread or message, never one scrolled into view)
-/// fades in over [`FADE_FAST`] and grows from about 0.97 of its width. Only horizontal inset changes, so the row's
-/// height, and the list around it, never move. `id` must be unique to this appearance.
+/// fades in over [`FADE_FAST`] with a 4 px relative rise. Only a relative offset changes (never horizontal margin),
+/// so multi-line rows never re-wrap or shift list height mid-fade. `id` must be unique to this appearance.
 pub fn appear_row(row: gpui::AnyElement, id: impl Into<gpui::ElementId>) -> gpui::AnyElement {
     use gpui::{Animation, AnimationExt as _, IntoElement as _, ParentElement as _, Styled as _};
     gpui::div()
+        .relative()
         .child(row)
         .with_animation(
             id,
             Animation::new(FADE_FAST).with_easing(ease_out_quad),
-            |el, t| el.opacity(t).mx(gpui::px(4. * (1. - t))),
+            |el, t| el.opacity(t).top(px(4. * (1. - t))),
         )
         .into_any_element()
 }
@@ -86,29 +105,70 @@ pub fn tokens() -> MotionTokens {
     m
 }
 
-/// macOS Reduce Motion (System Settings → Accessibility → Display) into GPUI, so animations draw their end state.
-/// Reads it off the UI thread; called at launch and whenever a workspace window becomes active, so a change made in
-/// System Settings applies when the user comes back (GPUI has no notification for it). `set_reduce_motion` redraws
-/// only when the value changed. Elsewhere GPUI's default (motion on) stays.
+/// Last OS-level Reduce Motion reading, combined with Settings → Appearance → Motion by [`apply_reduce_motion`].
+#[derive(Default)]
+struct OsReduceMotion(bool);
+impl gpui::Global for OsReduceMotion {}
+
+/// Applies the effective Reduce Motion state (`Settings → Appearance → Motion == Reduced` OR the OS preference) to GPUI.
+pub fn apply_reduce_motion(cx: &mut gpui::App) {
+    let pref = super::themes::get(cx).motion == skyelab_core::MotionMode::Reduced;
+    let os = cx.try_global::<OsReduceMotion>().is_some_and(|r| r.0);
+    cx.set_reduce_motion(pref || os);
+}
+
+/// Parses `gsettings get org.gnome.desktop.interface enable-animations` output: `"false"` means Reduce Motion is on.
+pub(crate) fn linux_animations_disabled(stdout: &str) -> bool {
+    stdout.trim().eq_ignore_ascii_case("false")
+}
+
+/// Reads the OS Reduce Motion setting into GPUI (macOS `defaults read`, Linux `gsettings`), combined with Settings →
+/// Appearance → Motion. Runs off the UI thread at launch and on every workspace window activation so OS changes apply
+/// when returning from System Settings.
 pub fn follow_reduce_motion(cx: &mut gpui::App) {
-    // Tests set it themselves: the machine's setting must not leak in on a window activation.
-    if !cfg!(target_os = "macos") || cfg!(test) {
+    // Tests set reduce_motion explicitly: the host machine's setting must not leak in on a window activation.
+    if cfg!(test) {
         return;
     }
-    let read = gpui::AppContext::background_spawn(cx, async {
-        let mut cmd = std::process::Command::new("/usr/bin/defaults");
-        cmd.env_clear()
-            .envs(skyelab_core::env::inherited_agent_env(false))
-            .args(["read", "com.apple.universalaccess", "reduceMotion"]);
-        skyelab_core::process::output(&mut cmd, None)
-            .map(|o| {
-                skyelab_core::onboarding::reduce_motion_on(&String::from_utf8_lossy(&o.stdout))
-            })
-            .unwrap_or(false)
-    });
-    cx.spawn(async move |cx| {
-        let on = read.await;
-        cx.update(|cx| cx.set_reduce_motion(on));
-    })
-    .detach();
+    if cfg!(target_os = "macos") {
+        let read = gpui::AppContext::background_spawn(cx, async {
+            let mut cmd = std::process::Command::new("/usr/bin/defaults");
+            cmd.env_clear()
+                .envs(skyelab_core::env::inherited_agent_env(false))
+                .args(["read", "com.apple.universalaccess", "reduceMotion"]);
+            skyelab_core::process::output(&mut cmd, None)
+                .map(|o| {
+                    skyelab_core::onboarding::reduce_motion_on(&String::from_utf8_lossy(&o.stdout))
+                })
+                .unwrap_or(false)
+        });
+        cx.spawn(async move |cx| {
+            let on = read.await;
+            cx.update(|cx| {
+                cx.set_global(OsReduceMotion(on));
+                apply_reduce_motion(cx);
+            });
+        })
+        .detach();
+    } else if cfg!(target_os = "linux") {
+        let read = gpui::AppContext::background_spawn(cx, async {
+            let mut cmd = std::process::Command::new("gsettings");
+            cmd.env_clear()
+                .envs(skyelab_core::env::inherited_agent_env(false))
+                .args(["get", "org.gnome.desktop.interface", "enable-animations"]);
+            skyelab_core::process::output(&mut cmd, None)
+                .map(|o| linux_animations_disabled(&String::from_utf8_lossy(&o.stdout)))
+                .unwrap_or(false)
+        });
+        cx.spawn(async move |cx| {
+            let on = read.await;
+            cx.update(|cx| {
+                cx.set_global(OsReduceMotion(on));
+                apply_reduce_motion(cx);
+            });
+        })
+        .detach();
+    } else {
+        apply_reduce_motion(cx);
+    }
 }

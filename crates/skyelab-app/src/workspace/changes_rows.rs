@@ -202,8 +202,8 @@ impl ChangesView {
                 .items_center()
                 .px_3()
                 .font_family(theme.font_family.clone())
-                .text_size(px(11.))
-                .text_color(theme.muted_foreground.opacity(0.7))
+                .text_size(ui::MICRO)
+                .text_color(theme.muted_foreground)
                 .child(h.clone()),
             Some(Row::Placeholder(p)) => base
                 .px_2()

@@ -9,9 +9,8 @@ use gpui::{
     actions, div, prelude::*,
 };
 use gpui_component::{
-    ActiveTheme as _, IndexPath, Sizable as _,
+    ActiveTheme as _, Sizable as _,
     input::{Input, InputEvent, InputState},
-    select::{Select, SelectState},
 };
 use skyelab_core::{Account, AccountsConfig, Binding, Provider};
 use std::collections::HashMap;
@@ -86,23 +85,11 @@ pub fn init(cx: &mut App) {
     cx.bind_keys(bindings);
 }
 
-type AccountSelect = SelectState<Vec<AccountChoice>>;
-
 /// An account in the binding picker: shown by its label, picked by its id.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct AccountChoice {
-    id: SharedString,
-    label: SharedString,
-}
-
-impl gpui_component::select::SelectItem for AccountChoice {
-    type Value = SharedString;
-    fn title(&self) -> SharedString {
-        self.label.clone()
-    }
-    fn value(&self) -> &SharedString {
-        &self.id
-    }
+    pub(super) id: SharedString,
+    pub(super) label: SharedString,
 }
 
 pub struct Settings {
@@ -133,7 +120,8 @@ pub struct Settings {
     pub(super) test_result: Option<Option<Account>>,
     /// Stale bindings' paths and where each resolves now (`None`: can't be resolved).
     pub(super) stale: Vec<(PathBuf, Option<PathBuf>)>,
-    pub(super) account_select: Entity<AccountSelect>,
+    /// Account id chosen in the "Bind a folder to" menu; defaults to the first configured account.
+    pub(super) binding_account: Option<SharedString>,
     pub section: Section,
     /// Settings → Chat's Codex model field, and why its last Chat or Diffs save failed.
     pub(super) codex_model_input: Entity<InputState>,
@@ -198,8 +186,7 @@ impl Settings {
         });
         let page_host_input = input("cdn.example.com or *.example.com", window, cx);
         let ids = account_ids(&config);
-        let selected = (!ids.is_empty()).then(|| IndexPath::new(0));
-        let account_select = cx.new(|cx| SelectState::new(ids, selected, window, cx));
+        let binding_account = ids.first().map(|c| c.id.clone());
         let focus = cx.focus_handle();
         let login = crate::workspace::login_status::LoginStatus::shared(cx);
         let subs = vec![
@@ -288,7 +275,7 @@ impl Settings {
             gh_errors: HashMap::new(),
             _gh_check: None,
             test_result: None,
-            account_select,
+            binding_account,
             section: Section::default(),
             remote: None,
             machines: None,
@@ -309,20 +296,18 @@ impl Settings {
     pub fn set_config(
         &mut self,
         config: AccountsConfig,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.config = config;
         self.refresh_rules(cx);
         let ids = account_ids(&self.config);
-        self.account_select.update(cx, |s, cx| {
-            let keep = s.selected_value().cloned();
-            s.set_items(ids.clone(), window, cx);
-            let known = |id: &SharedString| ids.iter().any(|c| &c.id == id);
-            if let Some(id) = keep.filter(known).or(ids.first().map(|c| c.id.clone())) {
-                s.set_selected_value(&id, window, cx);
-            }
-        });
+        let known = |id: &SharedString| ids.iter().any(|c| &c.id == id);
+        self.binding_account = self
+            .binding_account
+            .take()
+            .filter(known)
+            .or_else(|| ids.first().map(|c| c.id.clone()));
         self.refresh_fs(cx);
         self.check_gh_logins(cx);
         cx.notify();
@@ -379,7 +364,7 @@ impl Settings {
     }
 
     fn bind_folder(&mut self, _: &BindFolder, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(account) = self.account_select.read(cx).selected_value().cloned() else {
+        let Some(account) = self.binding_account.clone() else {
             self.error = Some("add an account first, then pick it to bind a folder".into());
             cx.notify();
             return;

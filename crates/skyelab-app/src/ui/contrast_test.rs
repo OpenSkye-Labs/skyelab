@@ -17,6 +17,19 @@ fn luminance(c: Hsla) -> f32 {
     0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
 }
 
+fn composite(fg: Hsla, bg: Hsla) -> Hsla {
+    let f = Rgba::from(fg);
+    let b = Rgba::from(bg);
+    let a = f.a;
+    Rgba {
+        r: f.r * a + b.r * (1. - a),
+        g: f.g * a + b.g * (1. - a),
+        b: f.b * a + b.b * (1. - a),
+        a: 1.,
+    }
+    .into()
+}
+
 pub(super) fn ratio(a: Hsla, b: Hsla) -> f32 {
     let (x, y) = (luminance(a), luminance(b));
     (x.max(y) + 0.05) / (x.min(y) + 0.05)
@@ -71,7 +84,38 @@ fn every_theme_meets_body_text_contrast(cx: &mut TestAppContext) {
                         check(&format!("text on {surface}"), t.foreground, bg);
                         check(&format!("muted on {surface}"), t.muted_foreground, bg);
                     }
-                    check("button text", t.primary_foreground, t.primary);
+                    for (surface, fill) in [
+                        ("secondary", t.secondary),
+                        ("muted", t.muted),
+                        ("accent", t.accent),
+                    ] {
+                        let bg = composite(fill, t.background);
+                        check(&format!("muted on {surface}"), t.muted_foreground, bg);
+                    }
+                    check("primary button text", t.primary_foreground, t.primary);
+                    check("danger button text", t.danger_foreground, t.danger);
+                    check("success button text", t.success_foreground, t.success);
+                    check("warning button text", t.warning_foreground, t.warning);
+                    check("info button text", t.info_foreground, t.info);
+                    for (kind, color) in [
+                        ("danger", t.danger),
+                        ("success", t.success),
+                        ("warning", t.warning),
+                        ("info", t.info),
+                    ] {
+                        let ink = super::ink(t, color);
+                        check(&format!("{kind} ink on background"), ink, t.background);
+                        check(&format!("{kind} ink on popover"), ink, t.popover);
+                    }
+                    let warn_surface = composite(
+                        t.warning.opacity(if dark { 0.16 } else { 0.08 }),
+                        t.background,
+                    );
+                    check(
+                        "warning button text",
+                        super::ink(t, t.warning),
+                        warn_surface,
+                    );
                     check("link on background", t.link, t.background);
                 }
             }

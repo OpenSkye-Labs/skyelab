@@ -4,10 +4,10 @@
 use super::widgets::{heading, section, setting};
 use super::*;
 use crate::ui::SkyeIcon;
-use crate::ui::{self, themes};
-use gpui::Hsla;
+use crate::ui::{self, SegmentedControl, Size, themes};
+use gpui::{Hsla, accesskit};
 use gpui_component::{Icon, h_flex, try_parse_color, v_flex};
-use skyelab_core::{AppearanceSettings, ColorMode};
+use skyelab_core::{AppearanceSettings, ColorMode, MotionMode};
 
 /// A theme config color by its key, for the previews.
 fn color(
@@ -40,13 +40,9 @@ impl Settings {
         let mode = self.segmented(
             "mode",
             &[
-                (
-                    ColorMode::System,
-                    "System",
-                    Icon::new(crate::ui::SkyeIcon::Monitor),
-                ),
-                (ColorMode::Light, "Light", Icon::new(SkyeIcon::Sun)),
-                (ColorMode::Dark, "Dark", Icon::new(SkyeIcon::Moon)),
+                (ColorMode::System, "System", SkyeIcon::Monitor),
+                (ColorMode::Light, "Light", SkyeIcon::Sun),
+                (ColorMode::Dark, "Dark", SkyeIcon::Moon),
             ],
             s.mode,
             |s, m| s.mode = m,
@@ -55,11 +51,21 @@ impl Settings {
         let density = self.segmented(
             "density",
             &[
-                (false, "Comfortable", Icon::new(crate::ui::SkyeIcon::Rows3)),
-                (true, "Compact", Icon::new(SkyeIcon::Minus)),
+                (false, "Comfortable", SkyeIcon::Rows3),
+                (true, "Compact", SkyeIcon::Minus),
             ],
             s.compact,
             |s, c| s.compact = c,
+            cx,
+        );
+        let motion = self.segmented(
+            "motion",
+            &[
+                (MotionMode::System, "System", SkyeIcon::Monitor),
+                (MotionMode::Reduced, "Reduced", SkyeIcon::Minus),
+            ],
+            s.motion,
+            |s, m| s.motion = m,
             cx,
         );
         let display = [
@@ -78,6 +84,13 @@ impl Settings {
                 density,
                 cx,
             ),
+            setting(
+                false,
+                "Motion",
+                "Reduced turns off transitions and spinners across the app.",
+                motion,
+                cx,
+            ),
         ];
         let text = [
             setting(
@@ -86,6 +99,7 @@ impl Settings {
                 "The interface: sidebar, chat, menus and settings.",
                 self.stepper(
                     "ui-size",
+                    "text size",
                     s.ui_font_size,
                     AppearanceSettings::UI_SIZES,
                     |s, v| s.ui_font_size = v,
@@ -99,6 +113,7 @@ impl Settings {
                 "Code blocks, diffs and editors.",
                 self.stepper(
                     "code-size",
+                    "code text size",
                     s.code_font_size,
                     AppearanceSettings::CODE_SIZES,
                     |s, v| s.code_font_size = v,
@@ -117,7 +132,14 @@ impl Settings {
                         "Each theme has a light and a dark side; Mode picks which shows.",
                         cx,
                     ))
-                    .child(h_flex().items_start().gap_2().children(cards)),
+                    .child(
+                        h_flex()
+                            .id("theme-group")
+                            .role(accesskit::Role::RadioGroup)
+                            .items_start()
+                            .gap_2()
+                            .children(cards),
+                    ),
             )
             .child(section(
                 "Display",
@@ -140,7 +162,7 @@ impl Settings {
         f: &'static themes::Family,
         on: bool,
         cx: &mut Context<Self>,
-    ) -> gpui::Stateful<gpui::Div> {
+    ) -> gpui_base::Button {
         let theme = cx.theme();
         let side = if theme.is_dark() { "Dark" } else { "Light" };
         let registry = gpui_component::ThemeRegistry::global(cx);
@@ -157,11 +179,23 @@ impl Settings {
         let muted = pick(|c| c.muted_foreground.clone(), theme.muted_foreground);
         let primary = pick(|c| c.primary.clone(), theme.primary);
         let border = pick(|c| c.border.clone(), theme.border);
+        let ring = theme.ring;
+        let accent_hover = theme.accent;
         let bar = |w: f32, c: Hsla| div().h(gpui::px(4.)).w(gpui::px(w)).rounded_full().bg(c);
         let key = f.key;
-        v_flex()
-            .id(SharedString::from(format!("theme-{key}")))
+        gpui_base::Button::new(SharedString::from(format!("theme-{key}")))
             .debug_selector(move || format!("theme-{key}"))
+            .role(accesskit::Role::RadioButton)
+            .selected(on)
+            .aria_toggled(if on {
+                accesskit::Toggled::True
+            } else {
+                accesskit::Toggled::False
+            })
+            .accessibility_label(f.label)
+            .on_any_mouse_down(|_, window, _| window.prevent_default())
+            .flex_col()
+            .items_stretch()
             .flex_1()
             .min_w_0()
             .gap_2()
@@ -175,7 +209,8 @@ impl Settings {
             })
             .when(on, |d| d.bg(theme.primary.opacity(0.06)))
             .cursor_pointer()
-            .hover(|s| s.bg(theme.accent))
+            .hover(move |s| s.bg(accent_hover))
+            .focus_visible(move |s| s.border_2().border_color(ring))
             .child(
                 h_flex()
                     .h(gpui::px(88.))
@@ -212,7 +247,7 @@ impl Settings {
                                     div()
                                         .h(gpui::px(12.))
                                         .w(gpui::px(28.))
-                                        .rounded(gpui::px(4.))
+                                        .rounded(ui::RADIUS_SM)
                                         .bg(primary),
                                 ),
                             ),
@@ -252,7 +287,7 @@ impl Settings {
     }
 
     /// The accent swatches: the theme's own, then each preset; the picked one is ringed.
-    fn accents(&self, s: &AppearanceSettings, cx: &mut Context<Self>) -> gpui::Div {
+    fn accents(&self, s: &AppearanceSettings, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
         let theme = cx.theme();
         let dark = theme.is_dark();
         let own = (None, "Theme", themes::family(&s.theme).label);
@@ -264,104 +299,98 @@ impl Settings {
             )
         });
         let ring = theme.foreground;
+        let focus_ring = theme.ring;
         let current = s.accent.clone();
-        h_flex().gap_1p5().children(
-            std::iter::once(own)
-                .map(|(k, l, _)| (k, l, None))
-                .chain(presets.map(|(k, l, hex)| (k, l, try_parse_color(hex).ok())))
-                .map(|(key, label, fill)| {
-                    let on = current.as_deref() == key;
-                    let theme = cx.theme();
-                    // The theme's own accent (no preset): an outlined, lightly filled swatch, so it reads apart from the presets.
-                    let swatch = match fill {
-                        Some(c) => div().size_full().rounded_full().bg(c),
-                        None => div()
-                            .size_full()
-                            .rounded_full()
-                            .border_2()
-                            .border_color(theme.primary)
-                            .child(
-                                div()
-                                    .size_full()
-                                    .rounded_full()
-                                    .bg(theme.primary.opacity(0.35)),
-                            ),
-                    };
-                    div()
-                        .id(SharedString::from(format!(
+        h_flex()
+            .id("accent-group")
+            .role(accesskit::Role::RadioGroup)
+            .gap_1p5()
+            .children(
+                std::iter::once(own)
+                    .map(|(k, l, _)| (k, l, None))
+                    .chain(presets.map(|(k, l, hex)| (k, l, try_parse_color(hex).ok())))
+                    .map(|(key, label, fill)| {
+                        let on = current.as_deref() == key;
+                        let theme = cx.theme();
+                        // The theme's own accent (no preset): an outlined, lightly filled swatch, so it reads apart from the presets.
+                        let swatch = match fill {
+                            Some(c) => div().size_full().rounded_full().bg(c),
+                            None => div()
+                                .size_full()
+                                .rounded_full()
+                                .border_2()
+                                .border_color(theme.primary)
+                                .child(
+                                    div()
+                                        .size_full()
+                                        .rounded_full()
+                                        .bg(theme.primary.opacity(0.35)),
+                                ),
+                        };
+                        gpui_base::Button::new(SharedString::from(format!(
                             "accent-{}",
                             key.unwrap_or("theme")
                         )))
+                        .role(accesskit::Role::RadioButton)
+                        .selected(on)
+                        .aria_toggled(if on {
+                            accesskit::Toggled::True
+                        } else {
+                            accesskit::Toggled::False
+                        })
+                        .accessibility_label(format!("{label} accent"))
+                        .on_any_mouse_down(|_, window, _| window.prevent_default())
                         .size(gpui::px(24.))
                         .p(gpui::px(3.))
                         .rounded_full()
                         .border_1()
                         .border_color(if on { ring } else { gpui::transparent_black() })
+                        .focus_visible(move |s| s.border_2().border_color(focus_ring))
                         .cursor_pointer()
                         .child(swatch)
                         .tooltip(move |window, cx| crate::ui::Tooltip::new(label).build(window, cx))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             this.set_appearance(|s| s.accent = key.map(str::to_owned), cx)
                         }))
-                }),
-        )
+                    }),
+            )
     }
 
-    /// A segmented control (T3's toggle group): one choice of `options`, the picked one lifted.
+    /// A segmented control backed by [`ui::SegmentedControl`].
     fn segmented<T: Copy + PartialEq + 'static>(
         &self,
         id: &'static str,
-        options: &[(T, &'static str, Icon)],
+        options: &[(T, &'static str, SkyeIcon)],
         current: T,
         set: fn(&mut AppearanceSettings, T),
         cx: &mut Context<Self>,
-    ) -> gpui::Div {
-        let theme = cx.theme();
-        h_flex()
-            .p_0p5()
-            .gap_0p5()
-            .rounded(ui::RADIUS)
-            .bg(theme.secondary)
-            .children(options.iter().map(|(value, label, icon)| {
-                let (value, on) = (*value, *value == current);
-                let theme = cx.theme();
-                h_flex()
-                    .id(SharedString::from(format!("{id}-{label}")))
-                    .h_7()
-                    .px_2p5()
-                    .gap_1p5()
-                    .rounded(ui::RADIUS_MD)
-                    .text_size(ui::META)
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .cursor_pointer()
-                    .text_color(if on {
-                        theme.foreground
-                    } else {
-                        theme.muted_foreground
-                    })
-                    .when(on, |d| {
-                        d.bg(theme.background).border_1().border_color(theme.border)
-                    })
-                    .child(icon.clone().size_3p5())
-                    .child(*label)
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| {
-                            this.set_appearance(|s| set(s, value), cx)
-                        }),
-                    )
-            }))
+    ) -> SegmentedControl {
+        let values: Vec<T> = options.iter().map(|&(v, ..)| v).collect();
+        let selected = values.iter().position(|&v| v == current);
+        let mut seg = SegmentedControl::new(id)
+            .with_size(Size::Sm)
+            .selected(selected);
+        for &(_, label, icon) in options {
+            seg = seg.icon_item(icon, label);
+        }
+        seg.on_click(cx.listener(move |this, &ix: &usize, _, cx| {
+            if let Some(&value) = values.get(ix) {
+                this.set_appearance(|s| set(s, value), cx);
+            }
+        }))
     }
 
     /// − size + within `range`.
     fn stepper(
         &self,
         id: &'static str,
+        what: &'static str,
         value: u8,
         range: std::ops::RangeInclusive<u8>,
         set: fn(&mut AppearanceSettings, u8),
         cx: &mut Context<Self>,
     ) -> gpui::Div {
-        let step = |dir: i8, icon: SkyeIcon, cx: &mut Context<Self>| {
+        let step = |dir: i8, icon: SkyeIcon, tip: String, cx: &mut Context<Self>| {
             let next = value
                 .saturating_add_signed(dir)
                 .clamp(*range.start(), *range.end());
@@ -369,6 +398,7 @@ impl Settings {
                 .outline()
                 .small()
                 .icon(icon)
+                .tooltip(tip)
                 .disabled(next == value)
                 .on_click(
                     cx.listener(move |this, _, _, cx| this.set_appearance(|s| set(s, next), cx)),
@@ -376,7 +406,7 @@ impl Settings {
         };
         h_flex()
             .gap_2()
-            .child(step(-1, SkyeIcon::Minus, cx))
+            .child(step(-1, SkyeIcon::Minus, format!("Decrease {what}"), cx))
             .child(
                 div()
                     .w(gpui::px(44.))
@@ -385,6 +415,6 @@ impl Settings {
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .child(format!("{value} pt")),
             )
-            .child(step(1, SkyeIcon::Plus, cx))
+            .child(step(1, SkyeIcon::Plus, format!("Increase {what}"), cx))
     }
 }

@@ -120,4 +120,92 @@ fn shared_curves_match_rex() {
     assert_eq!(motion::ease_out_quad(0.), 0.);
     assert_eq!(motion::ease_out_quad(1.), 1.);
     assert!(motion::ease_out_quad(0.5) > 0.7);
+    assert!(motion::linux_animations_disabled("false\n"));
+    assert!(!motion::linux_animations_disabled("true\n"));
+}
+
+struct SwitchRig {
+    on: bool,
+    loading: bool,
+}
+
+impl gpui::Render for SwitchRig {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::ParentElement as _;
+        gpui::div()
+            .child(
+                super::Switch::new("motion-switch")
+                    .accessibility_label("Motion switch")
+                    .checked(self.on),
+            )
+            .child(
+                super::Button::new("motion-loading")
+                    .label("Working")
+                    .loading(self.loading),
+            )
+    }
+}
+
+/// Flipping a `Switch` rides `SPRING_PX` and then idles at 0 frames; under `reduce_motion` it snaps at once, and a
+/// loading `Button` stops spinning.
+#[gpui::test]
+fn switch_springs_and_respects_reduce_motion(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        gpui_component::init(cx);
+        super::install_theme(cx).expect("every theme file parses");
+        cx.set_reduce_motion(false);
+    });
+    let (view, cx) = cx.add_window_view(|_, _| SwitchRig {
+        on: false,
+        loading: false,
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        moving_for(cx),
+        std::time::Duration::ZERO,
+        "initial settled switch asks for no frames"
+    );
+
+    view.update(cx, |v, cx| {
+        v.on = true;
+        cx.notify();
+    });
+    cx.run_until_parked();
+    let travel = moving_for(cx);
+    assert!(
+        travel > std::time::Duration::ZERO && travel <= std::time::Duration::from_millis(350),
+        "switch thumb springs to rest, ran {travel:?}"
+    );
+    assert_eq!(
+        moving_for(cx),
+        std::time::Duration::ZERO,
+        "settled switch idles"
+    );
+
+    // Settings -> Appearance -> Motion: Reduced flips GPUI's reduce_motion on immediately.
+    cx.update(|_, cx| {
+        let s = skyelab_core::AppearanceSettings {
+            motion: skyelab_core::MotionMode::Reduced,
+            ..Default::default()
+        };
+        super::themes::set(s, cx).detach();
+        assert!(
+            cx.reduce_motion(),
+            "Reduced mode enables GPUI reduce_motion"
+        );
+    });
+    view.update(cx, |v, cx| {
+        v.on = false;
+        v.loading = true;
+        cx.notify();
+    });
+    cx.run_until_parked();
+    assert!(
+        moving_for(cx) <= std::time::Duration::from_millis(10),
+        "reduce_motion snaps switch and stops loading spinner"
+    );
 }

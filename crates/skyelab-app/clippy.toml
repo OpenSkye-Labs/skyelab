@@ -11,6 +11,8 @@ disallowed-types = [
     { path = "gpui_component::checkbox::Checkbox", reason = "use crate::ui::Checkbox" },
     { path = "gpui_component::tooltip::Tooltip", reason = "use crate::ui::Tooltip" },
     { path = "gpui_component::notification::Notification", reason = "use crate::ui::toast::Toast" },
+    { path = "gpui_component::dialog::DialogFooter", reason = "use crate::ui::dialog_footer" },
+    { path = "gpui_component::select::Select", reason = "use crate::ui::Button with .dropdown_caret(true).dropdown_menu(..)" },
 ]
 # ui::Kbd borrows gpui-component's platform spelling (`Kbd::format`), so only its constructors are banned.
 disallowed-methods = [
