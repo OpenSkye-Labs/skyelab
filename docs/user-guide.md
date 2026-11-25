@@ -131,7 +131,10 @@ right panel leaves it no room beside the conversation, it covers the chat and a 
 and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
 The page's top row shows where you are (project / thread) and its actions, and at its right end four buttons show
-and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag
+and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). These buttons work wherever the focus is, a terminal included.
+<kbd>⌘W</kbd> (<kbd>Ctrl+W</kbd> on Linux and Windows) closes the right panel's active tab, as in T3 Code; in a focused
+terminal it closes that terminal instead (<kbd>Ctrl+Shift+W</kbd> off macOS). It never closes the window: on macOS use
+File → Close Window or the window's close button. Drag
 a panel's edge to resize it. Drag the sidebar's edge almost to the window's left edge and it fades; let go there and
 it hides (anywhere else the drag only resizes it, down to its minimum width). A hidden sidebar comes back with
 <kbd>⌘B</kbd> at the width it had, or from the thin handle that shows when you point at the middle of the window's

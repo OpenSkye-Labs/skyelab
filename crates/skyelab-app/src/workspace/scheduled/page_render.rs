@@ -66,7 +66,7 @@ impl ScheduledPage {
                 .hover(|d| d.text_color(cx.theme().foreground))
                 .child(title)
                 .on_click(move |_, window, cx| {
-                    window.dispatch_action(Box::new(OpenThread { id: thread }), cx)
+                    crate::workspace::dispatch(Box::new(OpenThread { id: thread }), window, cx)
                 })
         });
         let armed = self.deleting == Some(id);

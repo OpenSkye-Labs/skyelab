@@ -51,20 +51,28 @@ fn init_keys(path: Option<std::path::PathBuf>, cx: &mut App) {
     app_menus(cx);
 }
 
-/// The macOS app menu (other OSes have no app menu bar): New Window, Check for Updates, Settings, Quit.
+/// The macOS menus (other OSes have no app menu bar): New Window, Check for Updates, Settings, Quit, and File's
+/// Close Window (T3's: no shortcut, ⌘W closes a tab).
 fn app_menus(cx: &mut App) {
     use gpui::{Menu, MenuItem};
-    cx.set_menus([Menu {
-        name: "SkyeLab".into(),
-        items: vec![
-            MenuItem::action("New Window", workspace::NewWindow),
-            MenuItem::action("Check for Updates…", updates::CheckForUpdates),
-            MenuItem::action("Settings…", workspace::OpenSettings),
-            MenuItem::separator(),
-            MenuItem::action("Quit SkyeLab", Quit),
-        ],
-        disabled: false,
-    }]);
+    cx.set_menus([
+        Menu {
+            name: "SkyeLab".into(),
+            items: vec![
+                MenuItem::action("New Window", workspace::NewWindow),
+                MenuItem::action("Check for Updates…", updates::CheckForUpdates),
+                MenuItem::action("Settings…", workspace::OpenSettings),
+                MenuItem::separator(),
+                MenuItem::action("Quit SkyeLab", Quit),
+            ],
+            disabled: false,
+        },
+        Menu {
+            name: "File".into(),
+            items: vec![MenuItem::action("Close Window", workspace::CloseWindow)],
+            disabled: false,
+        },
+    ]);
 }
 
 /// A second launch asked this copy to show itself: the first window comes forward, or one opens when none is left.

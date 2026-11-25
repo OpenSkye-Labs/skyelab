@@ -127,6 +127,8 @@ pub(super) fn footer(update: Option<gpui::AnyElement>) -> impl IntoElement {
                 .ghost()
                 .icon(Icon::new(SkyeIcon::RefreshCw))
                 .tooltip("Refresh")
-                .on_click(|_, window, cx| window.dispatch_action(Box::new(RefreshThreads), cx)),
+                .on_click(|_, window, cx| {
+                    crate::workspace::dispatch(Box::new(RefreshThreads), window, cx)
+                }),
         )
 }

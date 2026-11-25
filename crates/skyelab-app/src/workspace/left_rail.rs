@@ -74,7 +74,7 @@ fn rail_button(
             b.bg(theme.sidebar_accent)
                 .border_color(theme.sidebar_border.opacity(0.7))
         })
-        .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+        .on_click(move |_, window, cx| crate::workspace::dispatch(action.boxed_clone(), window, cx))
 }
 
 impl Workspace {

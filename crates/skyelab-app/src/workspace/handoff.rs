@@ -198,10 +198,11 @@ fn ask_bind(
                             .label("Open Settings")
                             .on_click(|_, window, cx| {
                                 window.close_dialog(cx);
-                                window.dispatch_action(
+                                crate::workspace::dispatch(
                                     Box::new(OpenSettingsSection {
                                         section: crate::settings::Section::Accounts,
                                     }),
+                                    window,
                                     cx,
                                 );
                             }),
@@ -239,7 +240,7 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         if let Some(t) = &self.thread {
-            window.dispatch_action(Box::new(HandOffThread { id: t.id, to }), cx);
+            crate::workspace::dispatch(Box::new(HandOffThread { id: t.id, to }), window, cx);
         }
     }
 

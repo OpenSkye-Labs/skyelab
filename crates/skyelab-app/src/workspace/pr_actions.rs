@@ -235,7 +235,11 @@ impl PrActions {
     pub(crate) fn view_diff(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let target = self.target.clone();
         window.close_dialog(cx);
-        window.dispatch_action(Box::new(super::changes::pr::OpenPrDiff { target }), cx);
+        crate::workspace::dispatch(
+            Box::new(super::changes::pr::OpenPrDiff { target }),
+            window,
+            cx,
+        );
     }
 
     fn run(&mut self, act: Act, window: &mut Window, cx: &mut Context<Self>) {

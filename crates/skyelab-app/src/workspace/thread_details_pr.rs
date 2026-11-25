@@ -103,7 +103,11 @@ impl ThreadView {
                 .child(chevron(SkyeIcon::ChevronRight, theme))
                 .on_click(|_, window, cx| {
                     let section = crate::settings::Section::SourceControl;
-                    window.dispatch_action(Box::new(OpenSettingsSection { section }), cx);
+                    crate::workspace::dispatch(
+                        Box::new(OpenSettingsSection { section }),
+                        window,
+                        cx,
+                    );
                 })
                 .into_any_element(),
             ),

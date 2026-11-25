@@ -266,7 +266,11 @@ impl Render for CompareView {
                                 .small()
                                 .label("Open")
                                 .on_click(move |_, window, cx| {
-                                    window.dispatch_action(Box::new(OpenThread { id }), cx)
+                                    crate::workspace::dispatch(
+                                        Box::new(OpenThread { id }),
+                                        window,
+                                        cx,
+                                    )
                                 })
                         }))
                         .children(c.id.map(|id| {
@@ -281,7 +285,11 @@ impl Render for CompareView {
                                     "Archive or leave the others"
                                 })
                                 .on_click(move |_, window, cx| {
-                                    window.dispatch_action(Box::new(KeepCompare { id }), cx)
+                                    crate::workspace::dispatch(
+                                        Box::new(KeepCompare { id }),
+                                        window,
+                                        cx,
+                                    )
                                 })
                         })),
                 )

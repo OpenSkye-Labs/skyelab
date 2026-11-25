@@ -4,6 +4,7 @@
 use super::sidebar::{Ask, RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, SidebarSection};
 use super::*;
 use crate::ui::SkyeIcon;
+use crate::workspace::dispatch;
 use gpui::AnyElement;
 use gpui_component::Colorize as _;
 use gpui_component::menu::{ContextMenuExt as _, DropdownMenu as _};
@@ -17,7 +18,7 @@ pub(super) fn section_button(s: &SidebarSection) -> Option<Button> {
             .xsmall()
             .icon(SkyeIcon::Plus)
             .label(label.clone())
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+            .on_click(move |_, window, cx| dispatch(action.boxed_clone(), window, cx))
     })
 }
 
@@ -188,7 +189,7 @@ fn thread_row(
         .gap_0p5()
         .when(marks.nested, |this| this.pl(gpui::px(26.))) // under its group's row, inside the list
         .font_weight(gpui::FontWeight::NORMAL)
-        .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+        .on_click(move |_, window, cx| dispatch(action.boxed_clone(), window, cx))
         .child(
             h_flex()
                 .h(gpui::px(20.))
@@ -309,8 +310,9 @@ fn group_badge(
         )
         .on_click(move |_, window, cx| {
             cx.stop_propagation();
-            window.dispatch_action(
+            dispatch(
                 Box::new(crate::workspace::compare::ToggleCompareGroup { group }),
+                window,
                 cx,
             )
         })
@@ -336,7 +338,7 @@ fn hover_actions(
         let host = host.clone();
         move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
             let host = host.clone();
-            window.dispatch_action(Box::new(ShelveThread { id, to, host }), cx)
+            dispatch(Box::new(ShelveThread { id, to, host }), window, cx)
         }
     };
     // gpui-component's Button lets a click bubble on to the row, which would open the thread too.
@@ -382,7 +384,7 @@ fn plain_row(
         .when(item.selected && is_project, |this| {
             this.font_weight(gpui::FontWeight::MEDIUM)
         })
-        .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+        .on_click(move |_, window, cx| dispatch(action.boxed_clone(), window, cx))
         .when(indent, |this| this.pl(gpui::px(THREAD_INDENT)))
         .when(is_project, |this| {
             this.child(ui::Monogram::new(&item.label))

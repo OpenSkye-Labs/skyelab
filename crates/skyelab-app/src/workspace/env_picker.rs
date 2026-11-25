@@ -100,7 +100,7 @@ impl EnvPicker {
         let typed = cx.new(|cx| InputState::new(window, cx).placeholder("machine.tailnet.ts.net"));
         let _typed = cx.subscribe_in(&typed, window, |_, _, e: &InputEvent, window, cx| {
             if let InputEvent::PressEnter { .. } = e {
-                window.dispatch_action(Box::new(ConnectTyped), cx);
+                crate::workspace::dispatch(Box::new(ConnectTyped), window, cx);
             }
         });
         Self {
@@ -299,7 +299,9 @@ impl Render for EnvPicker {
                 theme,
             )
             .tooltip(move |window, cx| Tooltip::new(tip.clone()).build(window, cx))
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+            .on_click(move |_, window, cx| {
+                crate::workspace::dispatch(action.boxed_clone(), window, cx)
+            })
             .child(
                 Icon::new(machine_icon(m.kind))
                     .size_3p5()
@@ -379,10 +381,11 @@ impl Render for EnvPicker {
                 ui::row("env-manage", false, theme)
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.close(window, cx);
-                        window.dispatch_action(
+                        crate::workspace::dispatch(
                             Box::new(super::keys::OpenSettingsSection {
                                 section: crate::settings::Section::Machines,
                             }),
+                            window,
                             cx,
                         )
                     }))

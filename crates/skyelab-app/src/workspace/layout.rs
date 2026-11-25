@@ -17,7 +17,7 @@ use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
 use std::time::Duration;
 
-actions!(skyelab, [ToggleRightPanel, ToggleThreadDetails]);
+actions!(skyelab, [ToggleRightPanel, ToggleThreadDetails, CloseTab]);
 
 pub(crate) const TOGGLE_RIGHT_KEY: &str = if super::MAC {
     "cmd-alt-r"
@@ -25,6 +25,8 @@ pub(crate) const TOGGLE_RIGHT_KEY: &str = if super::MAC {
     "ctrl-alt-r"
 };
 /// T3's thread details key.
+/// T3's mod+w closes the right panel's active tab, never the window; a focused terminal's own binding wins.
+pub(crate) const CLOSE_TAB_KEY: &str = if super::MAC { "cmd-w" } else { "ctrl-w" };
 pub(crate) const TOGGLE_DETAILS_KEY: &str = if super::MAC {
     "cmd-shift-b"
 } else {
@@ -37,18 +39,16 @@ const SAVE_AFTER: Duration = Duration::from_millis(600);
 
 pub(super) fn bind_keys(cx: &mut App) {
     super::thread::composer::bind_keys(cx); // the thread composer's keys too: one call site in workspace::init
-    cx.bind_keys([KeyBinding::new(
-        TOGGLE_RIGHT_KEY,
-        ToggleRightPanel,
-        Some(CONTEXT),
-    )]);
-    // Off macOS a ctrl- binding would steal the key from a focused shell.
+    cx.bind_keys([
+        KeyBinding::new(TOGGLE_RIGHT_KEY, ToggleRightPanel, Some(CONTEXT)),
+        KeyBinding::new(CLOSE_TAB_KEY, CloseTab, Some(CONTEXT)),
+    ]);
+    // Off macOS a ctrl- binding would steal the key from a focused shell (ctrl-w deletes a word).
     if !super::MAC {
-        cx.bind_keys([KeyBinding::new(
-            TOGGLE_RIGHT_KEY,
-            NoAction,
-            Some("Terminal"),
-        )]);
+        cx.bind_keys([
+            KeyBinding::new(TOGGLE_RIGHT_KEY, NoAction, Some("Terminal")),
+            KeyBinding::new(CLOSE_TAB_KEY, NoAction, Some("Terminal")),
+        ]);
     }
 }
 
@@ -105,12 +105,15 @@ fn dock_toggles(open: DockToggles) -> Vec<Button> {
                   action: &dyn gpui::Action| {
         let action = action.boxed_clone();
         Button::new(id)
+            .debug_selector(move || id.into())
             .ghost()
             .xsmall()
             .icon(icon)
             .toggled(on)
             .tooltip_with_action(tip, action.as_ref(), Some(CONTEXT))
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+            .on_click(move |_, window, cx| {
+                crate::workspace::dispatch(action.boxed_clone(), window, cx)
+            })
     };
     vec![
         toggle(
@@ -186,6 +189,22 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.toggle(DockPlacement::Right, window, cx);
+    }
+
+    /// Closes the right panel's active tab through the dock's `ClosePanel`, sent from that tab so a tab that asks
+    /// first (an unsaved Preview) still asks. Nothing happens while the right panel is closed, as in T3.
+    pub(super) fn close_tab(&mut self, _: &CloseTab, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((tab, _)) = self.dock_focus(DockPlacement::Right, window, cx) else {
+            return;
+        };
+        let dock = self.dock.clone();
+        // Deferred: closing a tab emits dock events this workspace handles.
+        window.defer(cx, move |window, cx| {
+            // The dock is locked (nothing is dragged around), and a locked tab group refuses every close.
+            dock.update(cx, |d, cx| d.set_locked(false, window, cx));
+            tab.dispatch_action(&gpui_component::dock::ClosePanel, window, cx);
+            dock.update(cx, |d, cx| d.set_locked(true, window, cx));
+        });
     }
 
     /// Opens or closes the floating thread details card (T3's ⌘⇧B). It stays open while you work, until toggled

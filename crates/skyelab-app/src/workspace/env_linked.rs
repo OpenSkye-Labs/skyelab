@@ -271,7 +271,7 @@ impl Workspace {
                 label,
                 kind,
                 std::rc::Rc::new(move |window, cx| {
-                    window.dispatch_action(action.boxed_clone(), cx)
+                    crate::workspace::dispatch(action.boxed_clone(), window, cx)
                 }),
             )
             .checked(checked)

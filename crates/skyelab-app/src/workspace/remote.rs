@@ -466,7 +466,9 @@ impl Workspace {
                         .child(div().size(px(6.)).rounded_full().bg(dot))
                         .child(label),
                 )
-                .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenRemote), cx)),
+                .on_click(|_, window, cx| {
+                    crate::workspace::dispatch(Box::new(OpenRemote), window, cx)
+                }),
         )
     }
 }
