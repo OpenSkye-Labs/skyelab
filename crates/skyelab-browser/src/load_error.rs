@@ -92,15 +92,13 @@ pub fn describe(domain: &str, code: isize, description: &str, url: &str) -> Opti
     })
 }
 
-/// The error page for a local http(s) address with nothing listening on its port (every address it names refused
-/// the connection), checked before loading it; `None` when something answers, it isn't local, or the check can't
-/// tell (a timeout), so the page engine loads it as usual.
-pub fn refused_local(url: &url::Url) -> Option<LoadError> {
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
+/// The loopback addresses a local http(s) URL names (no DNS lookup, no I/O), or `None` for any other URL: what
+/// [`refused_at`] checks before the URL loads.
+pub fn local_addrs(url: &url::Url) -> Option<Vec<std::net::SocketAddr>> {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
     if !matches!(url.scheme(), "http" | "https") {
         return None;
     }
-    // Loopback only, named without a DNS lookup: this runs on the UI thread.
     let ips: Vec<IpAddr> = match url.host()? {
         url::Host::Domain(d) if d == "localhost" || d.ends_with(".localhost") => {
             vec![Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()]
@@ -110,11 +108,19 @@ pub fn refused_local(url: &url::Url) -> Option<LoadError> {
         _ => return None,
     };
     let port = url.port_or_known_default()?;
-    // shortcut: a blocking connect on the UI thread; loopback answers at once (refused or accepted), and the cap
-    // bounds a firewall that drops it. Move it off the thread if a slow loopback ever shows up.
+    Some(
+        ips.into_iter()
+            .map(|ip| SocketAddr::new(ip, port))
+            .collect(),
+    )
+}
+
+/// The error page for `url` when every one of `addrs` refuses a connection (nothing listening); `None` when something
+/// answers or the check can't tell (a timeout). Blocks up to 250 ms per address: call it off the UI thread.
+pub fn refused_at(addrs: &[std::net::SocketAddr], url: &url::Url) -> Option<LoadError> {
     let limit = std::time::Duration::from_millis(250);
-    let all_refused = ips.into_iter().all(|ip| {
-        TcpStream::connect_timeout(&SocketAddr::new(ip, port), limit)
+    let all_refused = addrs.iter().all(|addr| {
+        std::net::TcpStream::connect_timeout(addr, limit)
             .is_err_and(|e| e.kind() == std::io::ErrorKind::ConnectionRefused)
     });
     if !all_refused {
@@ -123,6 +129,11 @@ pub fn refused_local(url: &url::Url) -> Option<LoadError> {
     let mut error = describe("NSURLErrorDomain", -1004, "", url.as_str())?;
     error.detail = "Connection refused".into();
     Some(error)
+}
+
+/// [`local_addrs`] then [`refused_at`], blocking: for tests and callers already off the UI thread.
+pub fn refused_local(url: &url::Url) -> Option<LoadError> {
+    refused_at(&local_addrs(url)?, url)
 }
 
 /// A link the engine can't open (`mailto:`, an app's scheme, a file type it can't show) fails like a load, but the
