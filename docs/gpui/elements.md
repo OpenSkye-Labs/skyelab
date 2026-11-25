@@ -54,6 +54,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   every frame, and both default to `selected`/`is_selected`. A trigger whose `selected` means something else (a
   filter that is on) overrides both with a field of its own (`ui::Button::menu_open`), or it reads as open for good.
   A button hides its tooltip while open: shown late, it covers the menu's first item.
+- GPUI checks a shown (or late-showing) tooltip against its trigger's bounds, not whether something now covers it, so
+  the tooltip of the button that opened a dialog stayed drawn over the dialog. `ui::open_dialog` records the opening
+  (`tooltip::dialog_opened`), and a `ui::Tooltip` built before it, or at the pointer that opened it, draws nothing
+  while the dialog is up. Open every dialog through `ui::open_dialog`.
 - A `PopupMenu` centers a left check on a multi-line item (an icon, a name and a description), so it sits beside
   the description; use `.check_side(Side::Right)`.
 - A `ThemeConfig` with no `highlight` keeps the code colors applied before it (gpui-component starts with its light

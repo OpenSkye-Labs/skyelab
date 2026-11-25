@@ -70,6 +70,8 @@ pub(crate) struct PrActions {
     pub(crate) delete_branch: bool,
     pub(crate) stage: Stage,
     pub(crate) busy: bool,
+    /// The running action is the merge: its button says so.
+    pub(crate) merging: bool,
     pub(crate) error: Option<SharedString>,
     pub(crate) body: Entity<InputState>,
     /// Line comments from the PR's diff tab, sent with the review.
@@ -149,6 +151,7 @@ pub(crate) fn open(
             delete_branch: false,
             stage: Stage::Idle,
             busy: false,
+            merging: false,
             error: None,
             body,
             comments: Vec::new(),
@@ -244,12 +247,14 @@ impl PrActions {
 
     fn run(&mut self, act: Act, window: &mut Window, cx: &mut Context<Self>) {
         (self.busy, self.error) = (true, None);
+        self.merging = matches!(act, Act::Merge(..));
         let (target, gh, file) = (
             self.target.clone(),
             self.gh.clone(),
             self.accounts_file.clone(),
         );
         let reviewed = matches!(act, Act::Review(..));
+        let number = self.target.number;
         let done = cx.background_spawn(async move {
             let config = super::accounts_now(file.as_deref(), &target.config);
             let gh_dir = account_gh_dir(&config, &target.dir, &target.account)?;
@@ -293,7 +298,15 @@ impl PrActions {
             });
             // Also when the dialog was cancelled while gh ran: the PR changed all the same.
             if ok {
-                let _ = cx.update(|window, cx| on_done(reviewed, window, cx));
+                let _ = cx.update(|window, cx| {
+                    let note = if reviewed {
+                        format!("Review sent on pull request #{number}")
+                    } else {
+                        format!("Merged pull request #{number}")
+                    };
+                    ui::toast::push(window, ui::toast::Toast::success(note), cx);
+                    on_done(reviewed, window, cx)
+                });
             }
         })
         .detach(); // gh is killed at its timeout; `this` is weak
@@ -350,6 +363,7 @@ impl PrActions {
             _ => None,
         };
         let label = match self.stage {
+            _ if self.busy && self.merging => "Merging…",
             Stage::Idle => Self::merge_label(self.method),
             Stage::Confirm => "Confirm merge",
             Stage::ConfirmFailing => "Merge anyway",

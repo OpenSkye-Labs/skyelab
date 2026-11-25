@@ -111,7 +111,7 @@ fn browser_button(id: SharedString, url: &str) -> AnyElement {
         .icon(SkyeIcon::ExternalLink)
         .tooltip("Open in browser")
         .on_click(move |_, _, cx| {
-            cx.stop_propagation(); // not the row's thread
+            cx.stop_propagation(); // not the row's own click
             if let Some(url) = browser_url(&url) {
                 cx.open_url(url);
             }
@@ -123,15 +123,11 @@ impl GhPage {
     fn pr_row(&self, project: i64, r: &Dated<PrRow>, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme();
         let pr = &r.row;
-        let state = if pr.draft {
-            PrState::Draft
-        } else {
-            PrState::Open
-        };
-        let (icon, color, label) = state_look(Some(state), theme);
+        let (icon, color, label) = state_look(Some(pr.state), theme);
         let mut signals = Vec::new();
-        if pr.draft {
-            signals.push(ui::Pill::new("Draft").into_any_element());
+        // Read again after a merge: say so on the row, not only in the glyph's tooltip.
+        if pr.state != PrState::Open {
+            signals.push(ui::Pill::new(label).into_any_element());
         }
         signals.extend(
             [checks_look(pr.checks, theme), review_look(pr.review, theme)]
@@ -141,31 +137,43 @@ impl GhPage {
         );
         let meta = vec![div().child(pr.author.clone()).into_any_element()];
         let (number, url) = (pr.number, pr.url.clone());
+        let done = pr.state.is_done();
         row(format!("pr-{project}-{number}").into(), theme)
             .child(glyph(icon, color, label))
             .child(lines(number, &pr.title, signals, meta, r.updated_ms, theme))
             .child(
+                Button::new(SharedString::from(format!("pr-review-{project}-{number}")))
+                    .ghost()
+                    .xsmall()
+                    .icon(SkyeIcon::Sparkles)
+                    .label("Review with agent")
+                    .tooltip("Start a thread that reviews this pull request")
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        cx.stop_propagation(); // not the row's open
+                        cx.emit(GhEvent::Review {
+                            project,
+                            number,
+                            url: url.clone(),
+                        })
+                    })),
+            )
+            // Nothing is left to merge on a merged or closed PR.
+            .children((!done).then(|| {
                 Button::new(SharedString::from(format!("pr-actions-{project}-{number}")))
                     .ghost()
                     .xsmall()
                     .icon(SkyeIcon::GitMerge)
                     .tooltip("Merge or review…")
                     .on_click(cx.listener(move |this, _, window, cx| {
-                        cx.stop_propagation(); // not the row's review thread
+                        cx.stop_propagation(); // not the row's open
                         this.open_pr_actions(project, number, window, cx);
-                    })),
-            )
+                    }))
+            }))
             .child(browser_button(
                 format!("pr-open-{project}-{number}").into(),
                 &pr.url,
             ))
-            .on_click(cx.listener(move |_, _, _, cx| {
-                cx.emit(GhEvent::Review {
-                    project,
-                    number,
-                    url: url.clone(),
-                })
-            }))
+            .on_click(cx.listener(move |this, _, _, cx| this.open_pr(project, number, cx)))
             .into_any_element()
     }
 
@@ -394,11 +402,40 @@ impl Render for GhPage {
             |this: &mut Self, f, cx| this.set_filter(f, cx),
             cx,
         );
-        let groups: Vec<AnyElement> = self
+        let folded: Vec<(i64, SharedString)> = self
+            .folded_off_github()
+            .iter()
+            .map(|s| (s.id, s.name.clone()))
+            .collect();
+        let mut groups: Vec<AnyElement> = self
             .shown()
             .into_iter()
+            .filter(|(s, _)| !folded.iter().any(|f| f.0 == s.id))
             .map(|(s, g)| self.group(s, g, cx))
             .collect();
+        if !folded.is_empty() {
+            let theme = cx.theme();
+            let projects = match folded.len() {
+                1 => "1 project has".to_owned(),
+                n => format!("{n} projects have"),
+            };
+            groups.push(
+                div()
+                    .id("gh-off-github")
+                    .px_2()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(format!(
+                        "{projects} no GitHub remote named origin: {}",
+                        folded
+                            .iter()
+                            .map(|f| f.1.as_ref())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))
+                    .into_any_element(),
+            );
+        }
         let theme = cx.theme();
         let label = self.label.clone().map(|l| {
             Button::new("gh-label-clear")

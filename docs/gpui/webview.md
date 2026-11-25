@@ -54,3 +54,9 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. The browser tab is `sk
   over) and WebKit's 102 (a download). `wkwebview_load_error` proves both, on a real page.
 - The error page is GPUI, so the page is hidden and its element not drawn while it shows: drawing the webview's element
   lays it out again and can put the native view back on top. The next commit (`Started`) clears it and shows the page.
+- Never give the first page to `WebViewBuilder::with_url`: that load starts inside `build`, before the failure proxy is
+  set, so a dead first address could fail unseen and stay blank. Build empty, then load through `BrowserView::load`.
+  A tab with no address draws **No page yet** in GPUI and keeps the native view hidden until a load is asked: ⌥⌘B's
+  empty tab read as a dead `localhost:3000` because that is the bar's placeholder. That also runs the local-port check (`load_error::refused_local`), which
+  shows **Nothing is running at …** before the engine is asked, so Linux and Windows get it too instead of their
+  engine's own page.

@@ -47,6 +47,14 @@ fn projects_without_a_github_origin_say_why(cx: &mut gpui::TestAppContext) {
         assert_eq!(listing("demo"), Listing::SignIn);
         assert_eq!(listing("lab"), Listing::NoGitHub(NoGitHub::OtherHost));
         assert_eq!(listing("local"), Listing::NoGitHub(NoGitHub::NoOrigin));
+        // demo is listed (sign in), so the two off GitHub fold into one line.
+        let folded: Vec<String> = page(&r, kind, cx).read_with(cx, |p, _| {
+            p.folded_off_github()
+                .iter()
+                .map(|s| s.name.to_string())
+                .collect()
+        });
+        assert_eq!(folded, ["lab", "local"]);
     }
     assert!(calls(&gh_b).is_empty(), "{:?}", calls(&gh_b));
 }
