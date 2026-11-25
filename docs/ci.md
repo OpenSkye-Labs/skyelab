@@ -1,17 +1,42 @@
 # CI
 
 `.github/workflows/ci.yml` runs the gate from CLAUDE.md on Ubuntu, macOS and Windows: `cargo fmt --check` (Ubuntu),
-then `clippy --workspace --all-targets -D warnings` and `cargo test --workspace --no-fail-fast` as separate jobs per
-OS. `--no-fail-fast` matters: without it cargo stops at the first failing test binary, and every binary after it
-never runs on that OS, so one run hides the next failure. `mobile.yml` builds the iOS simulator app and the Android
-release APK; `release.yml` packages tagged releases.
+then `clippy --workspace --all-targets -D warnings` and the tests as separate jobs per OS. Linux's tests run as three
+jobs (`--partition slice:N/3`), each building from the shared cache. `mobile.yml` builds the iOS simulator app and
+the Android release APK; `release.yml` packages tagged releases.
+
+## Tests run on cargo-nextest
+
+`cargo nextest run --workspace` (locally: `brew install cargo-nextest` or `cargo install cargo-nextest --locked`;
+CI: `taiki-e/install-action`, pinned by SHA), then `cargo test --workspace --doc`, since nextest skips doc tests.
+`.verify.conf` sets that as `/verify`'s test step. Config: `.config/nextest.toml`.
+
+- Every test runs in its own process and every test binary at once. `cargo test` ran the binaries one after another
+  and the app's ~900 tests in one process, so the whole suite waited on the slowest binary's slowest tests.
+  On one loaded M-series Mac (load average 80–280 from other sessions) the full suite went from 38 min to 2.5–3.5
+  min. Most tests wait on real processes, so the run uses ~2 cores on average.
+- Wall time is about the sum of test times over the thread count, plus whichever long test starts last. The long
+  tests outside the app's binary have `priority` in `.config/nextest.toml`, so they start first; give a new one
+  there when it shows up last in the run (`--profile ci`'s JUnit has each test's start and time).
+- `fail-fast = false` is `--no-fail-fast`: one run lists every failing test, not just the first binary's.
+- A test still running at 3 min (three 60 s slow periods) is killed and named `TIMEOUT`; a test's own waits are 60 s
+  (`test_wait::DEADLINE`), so it is hung. `SLOW` lines name each test past 60 s.
+- No retries. A test that must retry gets an override in `.config/nextest.toml` with the reason; none does yet.
+- Process isolation shows tests that passed only because an earlier test in the same process set some state up (a
+  `OnceLock`, a global): `the_scratch_index_keeps_the_index_mtime` passed only after `missing_git_binary_is_typed`
+  had cached "old git", until `git init` ran on live config. Run one test alone (`cargo nextest run <name>`) before
+  blaming the runner.
+- `harness = false` test binaries (the WKWebView tests in `skyelab-browser`) answer nextest's `--list --format terse`
+  themselves (`tests/support/mod.rs`): one test named after the binary.
+- `/verify` can't name nextest's failures, so `.agent/expected-red` doesn't apply; the gate fails closed and
+  nextest's `FAIL` lines name them. `--profile ci` also writes `target/nextest/ci/junit.xml`, with each test's time.
 
 Only macOS is tested locally. Check the others like this before merging something platform-sensitive:
 
 - **Windows:** `scripts/check-windows.sh` compiles clippy for every target (tests included), so `cfg` mistakes and
   dead code on Windows show up. Nothing here can run the tests.
 - **Linux:** Docker, if installed: an `ubuntu:24.04` container with the Linux packages from CLAUDE.md, rustup, and
-  `cargo test --workspace --no-fail-fast`. Give the VM 8 GB and build with `-j 3` (linking the app's test binary
+  `cargo nextest run --workspace`. Give the VM 8 GB and build with `-j 3` (linking the app's test binary
   in parallel runs out of memory).
 - **Android:** run the Gradle build with an empty `GRADLE_USER_HOME` (see below).
 
@@ -77,6 +102,8 @@ Only macOS is tested locally. Check the others like this before merging somethin
   `ps -A -o ppid=,stat=` while the suite runs.
 - Real file events (FSEvents) arrive late and in batches on a loaded runner: assert "a few", not an exact count,
   when the count is about coalescing (`skyelab-git/tests/watch.rs`).
+  Before counting, wait until a whole second passes with no report (`settle` there), not a fixed sleep: setup's
+  events arrived after the old 800 ms and counted as the next step's.
 - On GitHub's macos-26 image cargo was not in `~/.cargo/bin` when Xcode ran the "Build Rust" phase ("env: cargo:
   No such file or directory"), so the phase takes cargo from the PATH it inherits, `~/.cargo/bin` only as a
   fallback (`mobile/ios/build-rust.sh`).
@@ -97,15 +124,18 @@ Only macOS is tested locally. Check the others like this before merging somethin
   only `$ENV`, which the env allowlist drops) or `powershell.exe -NoProfile`. A crate whose tests open a default
   terminal turns the feature on in its dev-dependencies; `tests/no_user_rc.rs` proves no rc is read.
 
+- A test that unwatches and then expects silence makes a call first (`settled` in skyelab-client's tests): `unwatch`
+  is a queued command, and an event pushed right after it could reach the connection first.
 - A test that answers the agent and then waits for both the agent's reply and `PermissionResolved` must accept them
   in either order: the session sends the resolved event after the answer is queued, so a fast agent's reply can come
   first (`ask_user_question_answers_reach_the_agent` failed this way on Linux).
 
 **Timing and cache**
 
-- A cold build of the test targets takes ~15 min on Linux and Windows, and the app's unit tests ~13 min on
-  Linux (one binary, ~800 tests that wait on real processes) against ~1 min on Windows (the Unix-only fake-agent
-  tests don't run there). Jobs time out at 70 min (test; its test step at 55) and 30 min (clippy).
+- A cold build of the test targets takes ~15 min on Linux and Windows (a warm cache: 2–5 min). Under `cargo test`
+  the app's unit tests took ~10 min on Linux (one binary, ~900 tests that wait on real processes) against ~1 min on
+  Windows (the Unix-only fake-agent tests don't run there); hence Linux's three shards. Jobs time out at 70 min
+  (test; its test step at 55) and 30 min (clippy).
 - `Swatinem/rust-cache` saves only after a successful job by default. The test job had never passed, so it
   rebuilt from nothing every run; `cache-on-failure: true` keeps the build either way.
 
@@ -114,13 +144,16 @@ Only macOS is tested locally. Check the others like this before merging somethin
 - `gh run view --job <id> --log` can return only part of a long job log. In run 45459381411 it stopped halfway
   through the Linux tests, so the run looked hung. The full log comes from the API:
   `curl -sSL -H "Authorization: Bearer $(gh auth token)" https://api.github.com/repos/OpenSkye-Labs/skyelab/actions/jobs/<id>/logs`.
-  Search it for `FAILED`, `panicked` and `error: test failed`. The failure annotation's line number tells you how
+  Search it for `FAIL [`, `TIMEOUT`, `panicked` and `error: test run failed`. The failure annotation's line number tells you how
   long the full log is.
-- A real hang: the test step stops at 55 min, 15 before the job's 70, so the cache still saves. Every test that runs
-  past 60 s is named in the log ("has been running for over 60 seconds"). The hung test is a named one that never
-  prints `ok`.
+- A real hang: nextest kills the test at 3 min and names it `TIMEOUT`; the run goes on. `SLOW [> 60s]` lines name
+  every test past 60 s. The step's own 55 min limit (15 before the job's 70, so the cache still saves) is the
+  backstop.
 
 **Any loaded runner**
 
 - Tests that wait on real processes must hold at high load: see the rules under Testing in [gpui.md](gpui.md).
   A wait that times out at 60 s is usually a wait for a state that was skipped, not a slow machine.
+- A signal sent by spawning `kill` can be lost: a loaded machine can refuse the new process (EAGAIN), and the error
+  was ignored. `cursor_interrupt_ends_hanging_turn` then waited out its fake's 60 s turn at load 200. `interrupt_group` calls
+  `rustix::process::kill_process_group`. (`kill_group` still spawns `kill`, which `hardening.rs` spies on.)

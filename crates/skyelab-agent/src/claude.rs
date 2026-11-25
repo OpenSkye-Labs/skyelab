@@ -193,9 +193,17 @@ fn claude_mcp(init: &Value) -> Option<Event> {
         .as_array()?
         .iter()
         .filter_map(|s| {
+            let status = s["status"].as_str().unwrap_or("unknown");
+            // A claude.ai connector the account never connected: connected on claude.ai, not by `claude mcp login`.
+            let claudeai = s["source"] == "claudeai" || s["scope"] == "claudeai";
             Some(McpServer {
                 name: s["name"].as_str()?.to_owned(),
-                status: s["status"].as_str().unwrap_or("unknown").to_owned(),
+                status: if claudeai && status == "needs-auth" {
+                    "not-connected"
+                } else {
+                    status
+                }
+                .to_owned(),
                 error: s["error"].as_str().map(str::to_owned),
             })
         })

@@ -22,6 +22,7 @@ fn ending_an_old_watch_keeps_a_newer_one() {
     assert_eq!(seqs(&client, 1), [3], "the newer watch still delivers");
 
     client.unwatch(new);
+    settled(&client);
     daemon.push_event(append(&env, 1));
     quiet(&client, Duration::from_millis(300));
 }

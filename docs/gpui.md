@@ -101,12 +101,16 @@ See [gpui/webview.md](gpui/webview.md).
   wrapper's center (`ui/button_test.rs`).
 - `#[gpui::test]`'s teardown "quits" with `cx.update(|cx| cx.quit())`, which is `App::quit` on the test platform: a
   no-op. The app is never shut down, so no window drops, no `on_app_quit` hook runs, and nothing a view started ends
-  until the test binary exits (~200 fake agents by the end of the app suite). `workspace::init` calls
+  until the test's process exits (one test's under nextest; under `cargo test`, ~200 fake agents by the end of the
+  app suite). `workspace::init` calls
   `test_wait::shut_down_at_test_end`, which runs `App::shutdown` when the test's thread ends; a test that starts
   processes without `workspace::init` calls it itself.
 - `TestAppContext` runs `background_spawn` work one task at a time on the test dispatcher, so two blocking
   background jobs (two `gh` reads) never overlap there: a held one blocks the other. Stage a race by recording the
   newer side's result (`PrLanded::mark` in `pr_newest_test.rs`), not by holding a fake process.
+  The same goes for a fake that never answers a background probe: `fake-claude-delegate.sh` ignored the usage poll's
+  `get_usage`, so each account's poll held that one thread for `usage_limits`' 20 s deadline and every later read
+  queued behind it (a 47 s test, 4 s once the fake answered). A fake answers every request its CLI would.
 - Tests that wait on real processes or threads (a fake agent, gh, a shell, a daemon) must hold at load 30–40, where
   a process starts seconds late:
   - Wait for the exact thing you assert, with `crate::test_wait::wait_until` / `wait_ticking` (60 s by the clock).

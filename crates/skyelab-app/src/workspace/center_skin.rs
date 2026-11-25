@@ -327,6 +327,23 @@ impl TabGroupRenderer for CenterTabs {
         cx: &mut App,
     ) -> AnyElement {
         let bar = self.tabs.render_tab_bar(group, window, cx);
+        // Windows: the right dock's tab bar is the top row's end there, so it leaves the caption buttons room. Only the
+        // right dock holds the Surfaces panel.
+        let bar = if crate::ui::window_controls::drawn()
+            && group
+                .panels()
+                .iter()
+                .any(|p| p.panel_name(cx) == "Surfaces")
+        {
+            div()
+                .w_full()
+                .pr(crate::ui::window_controls::WINDOW_CONTROLS_W)
+                .bg(gpui_component::ActiveTheme::theme(cx).tokens.tab_bar)
+                .child(bar)
+                .into_any_element()
+        } else {
+            bar
+        };
         let Some(active) = group
             .active_panel()
             .cloned()

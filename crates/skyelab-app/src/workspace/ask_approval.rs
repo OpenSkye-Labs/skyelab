@@ -155,7 +155,7 @@ pub(super) fn render_approval<V: ItemsView>(
                     .xsmall()
                     .ghost()
                     .label("Interrupt")
-                    .tooltip("Stop this turn instead (⌘.)")
+                    .tooltip(format!("Stop this turn instead ({})", crate::ui::keys("⌘.")))
                     .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx))),
             )
             .into_any_element()

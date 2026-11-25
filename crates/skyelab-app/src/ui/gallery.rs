@@ -233,7 +233,10 @@ impl Render for UiGallery {
                     .w(px(300.))
                     .child(div().font_weight(FontWeight::MEDIUM).child("Card"))
                     .child(Divider::horizontal())
-                    .child(EmptyState::new("No threads yet").hint("Start one with ⌘N")),
+                    .child(
+                        EmptyState::new("No threads yet")
+                            .hint(format!("Start one with {}", super::keys("⌘N"))),
+                    ),
             )
             .child(
                 Card::new()

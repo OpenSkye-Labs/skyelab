@@ -453,3 +453,7 @@ mod resume_contexts;
 #[cfg(unix)] // the fake agent is a shell script
 #[path = "restart_session_test.rs"]
 mod restart_session;
+
+#[cfg(unix)] // the fake agent is a shell script
+#[path = "mcp_not_connected_test.rs"]
+mod mcp_not_connected;

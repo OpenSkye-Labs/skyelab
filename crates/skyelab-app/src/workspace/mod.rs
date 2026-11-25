@@ -165,6 +165,11 @@ pub use actions::*;
 /// The store is sync and not `Sync`; every use goes through a background task holding this lock.
 pub type SharedStore = Arc<Mutex<Store>>;
 
+/// The backend this machine's daemon serves, set once at launch; [`Workspace`]'s local source calls it.
+pub struct LocalBackend(pub Arc<dyn skyelab_daemon::Backend>);
+
+impl gpui::Global for LocalBackend {}
+
 pub(super) fn lock<T>(m: &Mutex<T>) -> anyhow::Result<std::sync::MutexGuard<'_, T>> {
     m.lock()
         .map_err(|_| anyhow::anyhow!("a background task panicked holding the lock"))
@@ -232,6 +237,8 @@ pub struct Workspace {
     settings: Option<Entity<Settings>>,
     pub(crate) settings_open: bool,
     backend: Backend,
+    /// This machine as an environment: the sidebar's projects and threads are read through it.
+    local: Arc<skyelab_env::LocalSource>,
     pub(crate) store_error: Option<SharedString>,
     /// Where scratch threads' per-account folders go (`<data dir>/skyelab/scratch`).
     scratch_root: Option<PathBuf>,
@@ -390,6 +397,18 @@ impl Workspace {
         let _details_obs = cx.observe(&details, |_, _, cx| cx.notify());
 
         crate::ui::set_accounts(cx, &config);
+        // Tests and windows without a launch-time daemon backend read their own store with no agents behind it.
+        let served = cx.try_global::<LocalBackend>().map_or_else(
+            || -> Arc<dyn skyelab_daemon::Backend> {
+                Arc::new(skyelab_daemon::StoreBackend::shared(
+                    backend.store.clone(),
+                    skyelab_daemon::NotWired,
+                    accounts_path.clone(),
+                ))
+            },
+            |b| b.0.clone(),
+        );
+        let local = Arc::new(skyelab_env::LocalSource::new(backend.store.clone(), served));
         let mut this = Self {
             _live: skyelab_core::debug::Live::new("windows"),
             debug_hud: crate::debug_mode::take_open_at_start()
@@ -428,6 +447,7 @@ impl Workspace {
             settings: None,
             settings_open: false,
             backend,
+            local,
             store_error: None,
             scratch_root: dirs::data_dir()
                 .map(|d| d.join(skyelab_core::instance::APP_DIR).join("scratch")),

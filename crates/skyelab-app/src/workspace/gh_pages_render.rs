@@ -447,6 +447,8 @@ impl Render for GhPage {
         let header = super::layout::page_header(window, cx)
             .child(
                 div()
+                    .id("page-title")
+                    .map(ui::drag_area)
                     .flex_1()
                     .text_size(ui::BODY)
                     .font_weight(FontWeight::MEDIUM)

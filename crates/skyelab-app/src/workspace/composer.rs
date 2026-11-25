@@ -380,17 +380,12 @@ impl ThreadView {
                 .icon(SkyeIcon::ArrowUp)
                 .rounded(round)
                 .tooltip({
-                    // The send key the Send shortcut setting gives an empty prompt.
-                    let key = if crate::workspace::thread_extras::prefs::get(cx)
-                        .send_shortcut
-                        .enter_sends("")
-                    {
-                        "↩"
-                    } else {
-                        "⌘↩"
-                    };
+                    let key = composer_keys::send_key(cx);
                     if running {
-                        format!("Queue for when the agent finishes ({key}). ⌘⇧↩ sends it now.")
+                        format!(
+                            "Queue for when the agent finishes ({key}). {} sends it now.",
+                            ui::keys("⌘⇧↩")
+                        )
                     } else {
                         format!("Send ({key})")
                     }

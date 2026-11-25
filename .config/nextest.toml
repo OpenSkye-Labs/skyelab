@@ -1,0 +1,24 @@
+# cargo-nextest: each test in a process of its own, every test binary at once (docs/ci.md).
+# Doc tests don't run here: `cargo test --workspace --doc` runs them.
+
+[profile.default]
+# Never retry globally: a test listed in an override below says why it retries.
+retries = 0
+# Like `cargo test --no-fail-fast`: one failure never hides the next.
+fail-fast = false
+# Waits in tests run 60 s by the clock (test_wait::DEADLINE), so a test still running at 3 min is hung: kill it
+# and name it, instead of letting it eat the job's time.
+slow-timeout = { period = "60s", terminate-after = 3 }
+failure-output = "immediate-final"
+
+[profile.ci]
+junit = { path = "junit.xml" }
+
+# The longest tests outside the app's binary (20–45 s each on a loaded Mac) sat in the last binaries in run order,
+# so they started last and ran on alone at the end. They start first instead.
+[[profile.default.overrides]]
+filter = """
+test(=tests::big_events::large_events_stream_without_a_reconnect_loop)
+| binary_id(skyelab-git::https_remote) | binary_id(skyelab-git::watch) | binary_id(skyelab-tailnet::cert)
+"""
+priority = 50
