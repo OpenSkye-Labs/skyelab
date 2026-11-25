@@ -333,9 +333,9 @@ impl Workspace {
             None => true,
             Some((q, hits)) => {
                 let title = t.title.to_lowercase();
-                skyelab_store::query_terms(q)
-                    .iter()
-                    .all(|w| title.contains(&w.to_lowercase()))
+                let terms = skyelab_store::query_terms(q);
+                // A query of only quotes has no terms and, like the store, matches nothing.
+                !terms.is_empty() && terms.iter().all(|w| title.contains(&w.to_lowercase()))
                     || hits.as_ref().is_some_and(|hits| hits.contains_key(&t.id))
             }
         };

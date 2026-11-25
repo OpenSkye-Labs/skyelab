@@ -10,8 +10,9 @@ thread to open, or a terminal, Changes or browser tab to go to. With nothing typ
 **Projects**, **Scripts** and **Tabs**, best match first, with the matched letters in bold. Threads of every project are
 also found by their messages: type a few words from a prompt or an answer and threads with one message holding every
 word, in any order, list after the rest, with their project's name and the matched line. Put words in double quotes
-(`"hungry lion"`) to find them only written together. A search needs one word of three letters or more to look in
-messages; shorter ones alone match titles only. Type a few letters in order (`os` finds
+(`"hungry lion"`) to find them only written together. Words under three letters
+are matched in the same message as the longer ones; a query of only short words (`go to`) looks for them written
+together. Type a few letters in order (`os` finds
 **Open Settings**), move with the arrow keys (they wrap around) or the mouse, press <kbd>Enter</kbd> to run it and
 <kbd>Esc</kbd> to close. Rows with a chevron open a page: **New thread in…** (pick a project), **Change theme**, and on
 another machine **Forwarded ports**. <kbd>Esc</kbd>, <kbd>Backspace</kbd> in an empty search, or the Back row above the

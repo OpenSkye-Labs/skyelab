@@ -112,7 +112,8 @@ fails, and find in thread (⌘F / Ctrl+F): [user-guide-timeline.md](user-guide-t
 ### Finding and managing threads
 
 - **Search.** The field at the top of the sidebar filters the listed threads by title and by what was
-  said in them (your prompts and the agent's answers, not tool output).
+  said in them (your prompts and the agent's answers, not tool output). Every word must match, in any order;
+  `"words in quotes"` must be written together. A row found by a message shows the matched line.
 - Generated titles, drafts, prompt history (<kbd>↑</kbd>), Settings → Chat and **Fork from here**:
   [user-guide-threads.md](user-guide-threads.md).
 - **Right-click a thread** to **Rename**, **Pin** (pinned threads list first, with a star), **Archive** or **Delete**

@@ -12,19 +12,35 @@ pub struct SearchHit {
     pub snippet: Option<String>,
 }
 
+/// The most terms a query keeps, and the most characters a term keeps: each term is one SQL condition, and SQLite
+/// refuses an expression over 1,000 deep or a LIKE pattern over 50,000 bytes (a pasted log would hit both).
+const MAX_TERMS: usize = 32;
+const MAX_TERM_CHARS: usize = 256;
+
 /// The query's terms: text inside double quotes is one term (an unclosed quote runs to the end), the rest is split
-/// on whitespace.
+/// on whitespace. Repeats are dropped, and only the first [`MAX_TERMS`], each cut to [`MAX_TERM_CHARS`], are kept.
 pub fn query_terms(query: &str) -> Vec<String> {
-    query
+    let mut terms: Vec<String> = Vec::new();
+    let parts = query
         .split('"')
         .enumerate()
         .flat_map(|(i, part)| match i % 2 {
             1 => vec![part.trim()],
             _ => part.split_whitespace().collect(),
-        })
-        .filter(|t| !t.is_empty())
-        .map(str::to_owned)
-        .collect()
+        });
+    for part in parts.filter(|t| !t.is_empty()) {
+        let term: String = part.chars().take(MAX_TERM_CHARS).collect();
+        if !terms
+            .iter()
+            .any(|t| t.to_lowercase() == term.to_lowercase())
+        {
+            terms.push(term);
+        }
+        if terms.len() == MAX_TERMS {
+            break;
+        }
+    }
+    terms
 }
 
 /// The trigram index needs three characters; shorter terms are checked as substrings instead.
@@ -70,11 +86,16 @@ impl Store {
             .collect::<Vec<_>>()
             .join(" AND ");
         // Each indexed term is a quoted FTS5 string, so its text is never read as syntax (NEAR, *, -, :, ^).
-        let phrases: Vec<String> = terms
+        let mut phrases: Vec<String> = terms
             .iter()
             .filter(|t| indexed(t))
             .map(|t| format!("\"{}\"", t.replace('"', "\"\"")))
             .collect();
+        // Only short words (`go to`, `PR #4`): the index can still find them written together.
+        let whole = terms.join(" ");
+        if phrases.is_empty() && indexed(&whole) {
+            phrases.push(format!("\"{}\"", whole.replace('"', "\"\"")));
+        }
         let (hits, hit_row) = if phrases.is_empty() {
             (String::new(), "NULL")
         } else {
@@ -201,6 +222,16 @@ mod tests {
         assert_eq!(query_terms("x \"open phrase"), ["x", "open phrase"]);
         assert_eq!(query_terms("\"\" \" \""), Vec::<String>::new());
         assert_eq!(query_terms("say\"hi\"now"), ["say", "hi", "now"]);
+        assert_eq!(query_terms("Foo foo FOO bar"), ["Foo", "bar"]);
+        let many = (0..100)
+            .map(|n| format!("w{n}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(query_terms(&many).len(), super::MAX_TERMS);
+        assert_eq!(
+            query_terms(&"é".repeat(1000))[0].chars().count(),
+            super::MAX_TERM_CHARS
+        );
     }
 
     #[test]
