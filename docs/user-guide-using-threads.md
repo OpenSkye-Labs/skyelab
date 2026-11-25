@@ -82,7 +82,8 @@ to a default account: no pick, no thread. Remove the project or its binding like
 
 The thread header is a breadcrumb (the project's name as the sidebar shows it / parent thread / title; hover it for
 the folder's path) with the provider (**Claude** or **Codex**) and
-the account it runs on. While a turn runs, **Working for 1m 12s** above the composer counts how long, and while the
+the account it runs on. While a turn runs, **Working for 1m 12s** above the composer counts how long (while a new agent starts,
+that line names its step, such as **Starting Claude…** or **Starting MCP servers (3)…**), and while the
 composer is empty, Send turns into **Interrupt**, which stops the current turn (it shows **Stopping…** until the turn
 ends; after 10 seconds without an answer it works again and **Force stop** appears). <kbd>⌘.</kbd> interrupts too.
 **Stop Agent** (command palette, or <kbd>⌥⌘.</kbd>) ends the agent; there is no Stop button. **Restart Agent Session**

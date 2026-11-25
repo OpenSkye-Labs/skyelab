@@ -57,12 +57,20 @@ fn real_rate_limit_lines_report_each_unified_window() {
 }
 
 #[test]
-fn hook_and_lifecycle_lines_are_dropped() {
-    for line in [
-        r#"{"type":"system","subtype":"hook_started","hook_id":"93365edd-95c0-41d0-9ade-6cbc9571aa70","hook_name":"SessionStart:startup","hook_event":"SessionStart","uuid":"14f0eb51-c63b-4090-bd32-575abc1e371e","session_id":"f4f7b4f2-50e3-4d5e-9f90-7f1cec0b44c0"}"#,
-        r#"{"type":"system","subtype":"hook_response","hook_id":"b8bfe2ae-5993-4c26-9ff8-45f4ef378bab","hook_name":"SessionStart:startup","hook_event":"SessionStart","output":"<hook output>\n","stdout":"<hook output>\n","stderr":"","exit_code":0,"outcome":"success","uuid":"3815e27e-5891-4e6a-a02e-7fd99894c811","session_id":"f4f7b4f2-50e3-4d5e-9f90-7f1cec0b44c0"}"#,
-        r#"{"type":"command_lifecycle","command_uuid":"68e55aff-1e72-4acb-b452-2406455dd460","state":"queued","uuid":"4e6f2338-f652-438e-9c2c-6f29f6ab917a","session_id":"f4f7b4f2-50e3-4d5e-9f90-7f1cec0b44c0"}"#,
-    ] {
-        assert_eq!(claude(line), Vec::new(), "{line}");
+fn hook_lines_name_the_hook_and_lifecycle_lines_are_dropped() {
+    let started = r#"{"type":"system","subtype":"hook_started","hook_id":"93365edd-95c0-41d0-9ade-6cbc9571aa70","hook_name":"SessionStart:startup","hook_event":"SessionStart","uuid":"14f0eb51-c63b-4090-bd32-575abc1e371e","session_id":"f4f7b4f2-50e3-4d5e-9f90-7f1cec0b44c0"}"#;
+    let done = r#"{"type":"system","subtype":"hook_response","hook_id":"93365edd-95c0-41d0-9ade-6cbc9571aa70","hook_name":"SessionStart:startup","hook_event":"SessionStart","output":"<hook output>\n","stdout":"<hook output>\n","stderr":"","exit_code":0,"outcome":"success","uuid":"3815e27e-5891-4e6a-a02e-7fd99894c811","session_id":"f4f7b4f2-50e3-4d5e-9f90-7f1cec0b44c0"}"#;
+    for (line, running) in [(started, true), (done, false)] {
+        assert_eq!(
+            claude(line),
+            vec![Event::Hook {
+                id: "93365edd-95c0-41d0-9ade-6cbc9571aa70".into(),
+                name: "SessionStart:startup".into(),
+                running,
+            }],
+            "{line}"
+        );
     }
+    let lifecycle = r#"{"type":"command_lifecycle","command_uuid":"68e55aff-1e72-4acb-b452-2406455dd460","state":"queued","uuid":"4e6f2338-f652-438e-9c2c-6f29f6ab917a","session_id":"f4f7b4f2-50e3-4d5e-9f90-7f1cec0b44c0"}"#;
+    assert_eq!(claude(lifecycle), Vec::new());
 }
