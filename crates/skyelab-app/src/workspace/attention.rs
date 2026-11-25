@@ -3,11 +3,11 @@
 
 use super::thread::ThreadView;
 use super::{OpenThread, Workspace, lock};
+use crate::ui::toast::Toast;
 use gpui::{
     Action, App, AppContext as _, Context, Entity, KeyBinding, KeyBindingContextPredicate,
-    NoAction, SharedString, Window, actions,
+    NoAction, Window, actions,
 };
-use gpui_component::notification::Notification;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -85,9 +85,6 @@ pub fn init(cx: &mut App) {
     cx.bind_keys(keys);
 }
 
-/// Tags a thread's notification, so a newer one for the same thread replaces it.
-struct ThreadNote;
-
 impl Workspace {
     /// The current thread page's thread only. Whether the user can see a thread (a Compare page shows several) is
     /// [`Self::shows_thread`].
@@ -145,7 +142,7 @@ impl Workspace {
         self.mark_unread(view, cx);
         self.rerun_search(cx); // the turn added message text the filter may match
         if thread.archived_at.is_none() {
-            let note = Notification::success(thread.title).title("Thread completed");
+            let note = Toast::success(thread.title).title("Thread completed");
             self.notify_attention(thread.id, note, window, cx);
         }
     }
@@ -164,7 +161,7 @@ impl Workspace {
         if here || self.seen_elsewhere(thread.id, cx) {
             return;
         }
-        let note = Notification::warning(thread.title).title("Approval needed");
+        let note = Toast::warning(thread.title).title("Approval needed");
         self.notify_attention(thread.id, note, window, cx);
     }
 
@@ -192,7 +189,7 @@ impl Workspace {
     pub(crate) fn notify_attention(
         &mut self,
         id: i64,
-        note: Notification,
+        note: Toast,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -200,17 +197,16 @@ impl Workspace {
         self.notices.push(format!("thread {id}").into());
         let ws = cx.entity().downgrade();
         let note = note
-            .id1::<ThreadNote>(SharedString::from(format!("thread-{id}")))
-            .on_click(move |_, window, cx| {
+            .key(format!("thread-{id}"))
+            .on_click(move |window, cx| {
                 window.activate_window();
                 let _ = ws.update(cx, |ws, cx| ws.open_thread(&OpenThread { id }, window, cx));
             });
-        let note = if window.is_window_active() {
-            note
+        if window.is_window_active() {
+            crate::ui::toast::push(window, note, cx);
         } else {
-            note.system()
-        };
-        super::manage::push_note(window, note, cx);
+            crate::ui::toast::push_system(window, note, cx);
+        }
     }
 
     /// Clears unread when the window comes back to a thread, and runs the sidebar's thread filter.
@@ -218,6 +214,7 @@ impl Workspace {
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             this.mark_seen(window, cx);
             if window.is_window_active() {
+                crate::ui::motion::follow_reduce_motion(cx);
                 // A thread shown here and there last took its prompt (and the focus) to the other window.
                 if window.focused(cx).is_none() {
                     this.apply_page(window, cx);
@@ -377,7 +374,7 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             if let Err(e) = task.await {
                 let _ = this.update_in(cx, |_, window, cx| {
-                    super::manage::push_note(window, Notification::error(format!("{e:#}")), cx)
+                    crate::ui::toast::push(window, Toast::error(format!("{e:#}")), cx)
                 });
             }
         })

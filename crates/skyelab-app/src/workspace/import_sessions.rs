@@ -416,11 +416,7 @@ impl Workspace {
                     let text = summary(&done);
                     #[cfg(test)]
                     ws.notices.push(text.clone().into());
-                    super::manage::push_note(
-                        window,
-                        gpui_component::notification::Notification::info(text),
-                        cx,
-                    );
+                    crate::ui::toast::push(window, crate::ui::toast::Toast::info(text), cx);
                 }
                 Err(e) => ws.say(format!("Couldn't import: {e:#}"), window, cx),
             });

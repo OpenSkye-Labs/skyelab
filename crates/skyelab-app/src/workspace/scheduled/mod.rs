@@ -333,11 +333,11 @@ fn start_run(
         }
         Err(Refused::Pause(why)) => {
             let _ = window.update(cx, |_, window, cx| {
-                let note = gpui_component::notification::Notification::warning(format!(
+                let note = crate::ui::toast::Toast::warning(format!(
                     "Scheduled task \"{}\" is paused: {why}",
                     task.title
                 ));
-                super::manage::push_note(window, note, cx);
+                crate::ui::toast::push(window, note, cx);
             });
             lock(&store).and_then(|s| {
                 s.set_scheduled_task_enabled(task.id, false)?;

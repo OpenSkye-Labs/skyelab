@@ -100,3 +100,24 @@ fn dialogs_fade_for_rex_duration_and_none_draws_at_once(cx: &mut TestAppContext)
         "no entrance, no frames"
     );
 }
+
+/// The one-shot spring follows Rex's sidebar spring (38 / 75 / 92 / 98 % at 33 / 67 / 100 / 133 ms), never overshoots
+/// and ends at 1; the shared ease-out quad starts fast and ends at 1.
+#[test]
+fn shared_curves_match_rex() {
+    let at = |ms: f32| motion::spring_ease(ms / motion::SETTLE.as_millis() as f32);
+    for (ms, want) in [(33., 0.38), (67., 0.75), (100., 0.92), (133., 0.98)] {
+        assert!((at(ms) - want).abs() < 0.03, "{ms} ms: {}", at(ms));
+    }
+    assert_eq!(motion::spring_ease(0.), 0.);
+    assert!((motion::spring_ease(1.) - 1.).abs() < 1e-6);
+    let mut last = 0.;
+    for i in 0..=100 {
+        let v = motion::spring_ease(i as f32 / 100.);
+        assert!(v >= last && v <= 1. + 1e-6, "monotone, no overshoot");
+        last = v;
+    }
+    assert_eq!(motion::ease_out_quad(0.), 0.);
+    assert_eq!(motion::ease_out_quad(1.), 1.);
+    assert!(motion::ease_out_quad(0.5) > 0.7);
+}

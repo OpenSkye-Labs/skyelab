@@ -108,6 +108,39 @@ const VARIANTS: [(Variant, &str); 6] = [
 
 const SIZES: [(Size, &str); 3] = [(Size::Xs, "xs"), (Size::Sm, "sm"), (Size::Md, "md")];
 
+/// Every toast kind as drawn, and a button that shows a live one (its fade in, its autohide).
+fn toasts(cx: &App) -> impl IntoElement {
+    use super::toast::{Handler, Toast, card};
+    let none: Handler = std::rc::Rc::new(|_, _| {});
+    let samples = [
+        Toast::new("Thread archived.").action("Undo", |_, _| {}),
+        Toast::info("Imported 3 sessions."),
+        Toast::success("Fix the flaky test").title("Thread completed"),
+        Toast::warning("Scheduled task \"Nightly\" is paused: no account."),
+        Toast::error("Couldn't start a scratch thread: no account bound."),
+    ];
+    v_flex()
+        .gap_2()
+        .items_start()
+        .children(
+            samples
+                .iter()
+                .enumerate()
+                .map(|(i, t)| card(1000 + i as u64, t, none.clone(), cx)),
+        )
+        .child(
+            Button::new("gallery-show-toast")
+                .label("Show toast")
+                .on_click(|_, window, cx| {
+                    super::toast::push(
+                        window,
+                        Toast::success("Debug state written.").title("Saved"),
+                        cx,
+                    )
+                }),
+        )
+}
+
 /// A titled block of the page.
 fn section(title: &'static str, body: impl IntoElement) -> impl IntoElement {
     v_flex()
@@ -293,7 +326,7 @@ fn command_rows(cx: &App) -> impl IntoElement {
 }
 
 impl Render for UiGallery {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("UiGallery");
         let loading = div()
             .id("g-loading-hover")
@@ -459,24 +492,29 @@ impl Render for UiGallery {
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(theme.foreground)
             .child("UI Gallery");
-        div().size_full().bg(theme.background).child(
-            v_flex()
-                .id("ui-gallery")
-                .size_full()
-                .overflow_y_scroll()
-                .pt(super::HEADER_H)
-                .px_6()
-                .pb_10()
-                .gap_6()
-                .text_color(theme.foreground)
-                .child(title)
-                .child(section("Buttons", buttons(loading, cx)))
-                .child(section("Badges, chips, keys", badges(cx)))
-                .child(section("Command palette rows", command_rows(cx)))
-                .child(section("Switch and checkbox", toggles))
-                .child(section("Segmented control and tabs", choices))
-                .child(section("Text field", fields))
-                .child(section("Card, divider, empty state", surfaces)),
-        )
+        div()
+            .size_full()
+            .bg(theme.background)
+            .child(
+                v_flex()
+                    .id("ui-gallery")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .pt(super::HEADER_H)
+                    .px_6()
+                    .pb_10()
+                    .gap_6()
+                    .text_color(theme.foreground)
+                    .child(title)
+                    .child(section("Buttons", buttons(loading, cx)))
+                    .child(section("Badges, chips, keys", badges(cx)))
+                    .child(section("Command palette rows", command_rows(cx)))
+                    .child(section("Switch and checkbox", toggles))
+                    .child(section("Segmented control and tabs", choices))
+                    .child(section("Text field", fields))
+                    .child(section("Card, divider, empty state", surfaces))
+                    .child(section("Toasts", toasts(cx))),
+            )
+            .children(super::toast::layer(window, cx))
     }
 }

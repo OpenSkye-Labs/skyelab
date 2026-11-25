@@ -4,8 +4,8 @@
 
 use super::Workspace;
 use super::thread::ThreadView;
+use crate::ui::toast::Toast;
 use gpui::{Action, AppContext as _, Context, Window, actions};
-use gpui_component::notification::Notification;
 
 actions!(skyelab, [NewScratchThread]);
 
@@ -125,8 +125,8 @@ impl Workspace {
     }
 
     fn scratch_failed(&mut self, why: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let note = Notification::error(format!("Couldn't start a scratch thread: {why}"));
-        super::manage::push_note(window, note, cx);
+        let note = Toast::error(format!("Couldn't start a scratch thread: {why}"));
+        crate::ui::toast::push(window, note, cx);
         cx.notify();
     }
 }

@@ -4,6 +4,7 @@
 //! so the hero's settle is scale and opacity only. Every animation is one-shot, so a settled page draws no frames, and
 //! GPUI draws each at its end state when `App::reduce_motion` is on. The progress dot of the current step widens.
 
+use crate::ui::motion::ease_out_quad;
 use gpui::{
     Animation, AnimationExt as _, ElementId, IntoElement, ParentElement as _, Pixels, Styled, px,
 };
@@ -17,12 +18,6 @@ pub(super) const FADE_OUT: Duration = Duration::from_millis(150);
 const HERO: Duration = Duration::from_millis(300);
 const ZOOM: f32 = 1.35;
 
-/// Rex's curve: the biggest change in the first frame, its speed then falling off evenly (an ease-out quad; a cubic
-/// front-loads too much next to Rex's frames).
-fn ease_out(t: f32) -> f32 {
-    1. - (1. - t).powi(2)
-}
-
 /// A page fading in where it stands. `id` must change with the page, so each change starts a new animation.
 pub(super) fn fade_in<E: IntoElement + Styled + 'static>(
     el: E,
@@ -30,7 +25,7 @@ pub(super) fn fade_in<E: IntoElement + Styled + 'static>(
 ) -> impl IntoElement {
     el.with_animation(
         id,
-        Animation::new(FADE_IN).with_easing(ease_out),
+        Animation::new(FADE_IN).with_easing(ease_out_quad),
         |el, t| el.opacity(t),
     )
 }
@@ -42,7 +37,7 @@ pub(super) fn fade_out<E: IntoElement + Styled + 'static>(
 ) -> impl IntoElement {
     el.with_animation(
         id,
-        Animation::new(FADE_OUT).with_easing(ease_out),
+        Animation::new(FADE_OUT).with_easing(ease_out_quad),
         |el, t| el.opacity(1. - t),
     )
 }
@@ -62,7 +57,7 @@ pub(super) fn hero<E: IntoElement + Styled + 'static>(
         gpui::div()
             .with_animation(
                 id,
-                Animation::new(HERO).with_easing(ease_out),
+                Animation::new(HERO).with_easing(ease_out_quad),
                 move |el, t| {
                     let edge = size * (ZOOM + (1. - ZOOM) * t);
                     el.flex_shrink_0().opacity(0.4 + 0.6 * t).child(draw(edge))
@@ -92,28 +87,4 @@ pub(super) fn dot<E: IntoElement + Styled + 'static>(
         Animation::new(duration).with_easing(spring),
         move |el, t| el.w(px(from + (to - from) * t)),
     )
-}
-
-/// macOS Reduce Motion (System Settings → Accessibility → Display) into GPUI, so animations draw their end state.
-/// Read once at launch, off the UI thread; elsewhere GPUI's default (motion on) stays.
-pub(crate) fn reduce_motion(cx: &mut gpui::App) {
-    if !cfg!(target_os = "macos") {
-        return;
-    }
-    let read = gpui::AppContext::background_spawn(cx, async {
-        let mut cmd = std::process::Command::new("/usr/bin/defaults");
-        cmd.env_clear()
-            .envs(skyelab_core::env::inherited_agent_env(false))
-            .args(["read", "com.apple.universalaccess", "reduceMotion"]);
-        skyelab_core::process::output(&mut cmd, None)
-            .map(|o| {
-                skyelab_core::onboarding::reduce_motion_on(&String::from_utf8_lossy(&o.stdout))
-            })
-            .unwrap_or(false)
-    });
-    cx.spawn(async move |cx| {
-        let on = read.await;
-        cx.update(|cx| cx.set_reduce_motion(on));
-    })
-    .detach();
 }

@@ -98,6 +98,7 @@ impl Render for Workspace {
             .children(self.env_menu(window, cx))
             .children(settings)
             .children(self.debug_overlay())
+            .children(crate::ui::toast::layer(window, cx))
             .children(frame_start.map(crate::debug_mode::frame_probe))
     }
 }

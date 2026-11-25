@@ -4,9 +4,9 @@
 
 use super::thread::RestartAgentSession;
 use super::{ThreadView, Workspace, github, worktree};
+use crate::ui::toast::Toast;
 use anyhow::Context as _;
 use gpui::{AppContext as _, Context, Entity, Window};
-use gpui_component::notification::Notification;
 
 impl Workspace {
     pub(super) fn mcp_sign_in(
@@ -96,15 +96,12 @@ impl Workspace {
                 #[cfg(test)]
                 _ws.notices.push(text.clone().into());
                 let view = view.downgrade();
-                let note = Notification::new().message(text).action(move |_, _, _| {
-                    let view = view.clone();
-                    crate::ui::notice_action("mcp-restart", "Restart", move |_, window, cx| {
-                        let _ = view.update(cx, |v, cx| {
-                            v.restart_session(&RestartAgentSession, window, cx)
-                        });
-                    })
+                let note = Toast::new(text).action("Restart", move |window, cx| {
+                    let _ = view.update(cx, |v, cx| {
+                        v.restart_session(&RestartAgentSession, window, cx)
+                    });
                 });
-                super::manage::push_note(window, note, cx);
+                crate::ui::toast::push(window, note, cx);
             });
         })
         .detach();

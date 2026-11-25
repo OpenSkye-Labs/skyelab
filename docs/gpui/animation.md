@@ -17,8 +17,11 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. Learned building onboa
 - A slide is `.relative()` plus `.left(px(..))` (or `.top`) inside the animator: an offset that doesn't move layout
   around it, so the page's height doesn't jump while it slides.
 - `App::reduce_motion` makes every `with_animation` draw its end state with no frames, but GPUI never reads the OS
-  setting. On macOS SkyeLab reads `defaults read com.apple.universalaccess reduceMotion` once at launch, off the UI
-  thread (`onboarding::motion::reduce_motion`, called from `main.rs`), and sets it.
+  setting and has no notification for it (desktop platforms emit no `on_app_lifecycle` events). On macOS SkyeLab
+  reads `defaults read com.apple.universalaccess reduceMotion` off the UI thread (`ui::motion::follow_reduce_motion`)
+  at launch and again on every workspace window activation, which is when a user comes back from System Settings.
+  `set_reduce_motion` redraws only when the value changed. It returns at once under `cfg(test)`, or a test's window
+  activation would pull the machine's setting in.
 - A width "morph" (the current progress dot) is the animator setting `.w(px(from + (to - from) * t))`, keyed by the
   step shown: the dot that grows and the one that shrinks each get one run per change.
 - A crossfade (Rex's step change, `onboarding/pages.rs::frame`) draws the old page a second time, `absolute().inset_0()`
@@ -49,11 +52,12 @@ things that switch, get selected or go away change at once.
 | Palette open / close / selection | none | 0 | — | palette `DialogEntrance::None` |
 | Sidebar hide | width collapse | ~250 ms to rest | critically damped spring, ω ≈ 41 rad/s (`Spring::new(153 ms)`) | every dock's close (`center_skin.rs`) |
 | Sidebar show | width; 83% on the first frame | ~200 ms tail | same spring | instant (base opens docks at once) |
-| Split / zoom / close pane | spring + ~100 ms fade, new pane scales up from ~0.88 | ~250 ms | same spring | deferred (terminal splits) |
+| Split pane | spring + ~100 ms fade, new pane scales up from ~0.88 | ~250 ms | same spring | new pane fades 100 ms and its frame shrinks from 0.88 on `spring_ease` (`terminal_split.rs::appear`); the old pane takes its new size at once |
+| Zoom / close pane | rect morph; closing pane shrinks + fades, sibling grows | 150–250 ms | same spring | deferred: SkyeLab has no per-pane zoom, and a close would need the closed pane's last bounds to draw a fading copy |
 | Tab new / switch / close, settings page, hover, focus | none | 0 | — | already instant |
-| Toast | fade in, no slide; leaves at once | 150 ms | ease-out quad | deferred: gpui-component slides 96 px / 400 ms |
-| New list row | fade + ~0.97 scale | 80–100 ms | — | deferred |
-| Menus, popovers | native (system) | — | — | deferred: gpui-component fades + slides 8 px / 150 ms |
+| Toast | fade in, no slide; leaves at once | 150 ms | ease-out quad | `ui::toast` (our own layer; gpui-component's is banned) |
+| New list row | fade + ~0.97 scale | 80–100 ms | — | `motion::appear_row` (new thread in the sidebar, new timeline rows) |
+| Menus, popovers | native (system) | — | — | already instant: gpui-component's `PopupMenu`, `DropdownMenu`, context menu, `Popover` and `HoverCard` have no motion. Only its `Select` / input completion / date picker list (`popover::dropdown_popup`) fades + slides 8 px over 150 ms, private constants, no option: SkyeLab has one `Select` (Settings → Bindings) |
 
 - Put the values into gpui-component's `Theme::motion` (`MotionTokens`) once at `install_theme`; `Theme::change` and
   a family switch keep the field (`motion_test.rs`), so its dialogs, dock tab bars and resize handles follow them.
@@ -71,3 +75,20 @@ things that switch, get selected or go away change at once.
   open size and pin it to the edge beside the center: the frame clips it, and a terminal inside never resizes.
 - Route every dialog through one helper (`ui::open_dialog`, which sets the entrance) and ban gpui-component's
   `WindowExt::open_dialog` in clippy's `disallowed-methods`: a per-dialog default would drift.
+- Toasts are SkyeLab's own (`ui/toast.rs`): one `ToastList` entity per window, kept in a global map by `WindowId`
+  (the window being updated is missing from `cx.windows()`, so keep it by id when pruning), drawn by the workspace's
+  render as a `deferred` layer with priority 100 (above gpui-component's dialogs at 10 + index). Clippy bans
+  `WindowExt::push_notification` and `notification::Notification`; `toast::push_system` is the one exception, an
+  OS-only notification for a window in the background, since gpui-component owns the app's one OS response handler.
+- A fade over something with a shadow ramps the shadow by t³: GPUI has no group compositing, so a half-faded card
+  shows its own shadow through as a dark slab.
+- One curve source: `motion::ease_out_quad` (a `fn(f32) -> f32` for `with_easing`) and `motion::spring_ease`, the
+  critically damped spring as a one-shot easing over `motion::SETTLE` (250 ms) for motion nothing retargets.
+- "Appear once" needs a marker outside element state. A row in a virtual `list` is a fresh element each time it
+  scrolls into view, and a terminal pane's element path changes when its parent splits, so keying `with_animation`
+  by row or pane alone would replay. Record what appeared and when (`Sidebar::appeared`, `ThreadView::appeared`,
+  `TerminalPanel::appearing`) and wrap only while that is recent (a timer clears the pane's). Rows give a late
+  first draw 3× the fade before they just show.
+- No transform, so a "grow" that must not reflow keeps the final layout and hides the difference: a new terminal pane
+  has its final size (the grid resizes once) and four background-colored bars of `relative()` width cover its edges
+  and shrink to 0; a new row grows by horizontal margin only, so its height and the list never move.
