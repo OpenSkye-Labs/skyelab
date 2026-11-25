@@ -129,7 +129,10 @@ and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
 The page's top row shows where you are (project / thread) and its actions, and at its right end four buttons show
 and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Drag
-a panel's edge to resize it.
+a panel's edge to resize it. Drag the sidebar's edge almost to the window's left edge and it fades; let go there and
+it hides (anywhere else the drag only resizes it, down to its minimum width). A hidden sidebar comes back with
+<kbd>⌘B</kbd> at the width it had, or from the thin handle that shows when you point at the middle of the window's
+left edge: click it, or drag it to the width you want.
 
 SkyeLab remembers the window's size and position, the right panel's width and whether it was open, and the page it
 showed, in `settings.toml`. The first launch opens the window over most of the screen; a saved position on a display that is
