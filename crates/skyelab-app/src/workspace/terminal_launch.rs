@@ -32,6 +32,7 @@ pub(super) fn terminal_env(
         ("CLAUDE_CONFIG_DIR", "claude"),
         ("CODEX_HOME", "codex"),
         ("CURSOR_CONFIG_DIR", "cursor"),
+        ("GEMINI_HOME", "antigravity"),
     ];
     if account.is_none() {
         homes.push(("GH_CONFIG_DIR", "gh"));

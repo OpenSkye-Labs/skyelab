@@ -37,11 +37,22 @@ pub(crate) fn cursor_bin(cx: &App) -> PathBuf {
         .map_or_else(|| "cursor-agent".into(), |g| g.0.clone())
 }
 
+/// The `agy` that Antigravity threads and logins run: `agy`, or in debug builds `SKYELAB_ANTIGRAVITY_BIN` (a fake).
+pub struct AntigravityBin(pub PathBuf);
+
+impl gpui::Global for AntigravityBin {}
+
+pub(crate) fn antigravity_bin(cx: &App) -> PathBuf {
+    cx.try_global::<AntigravityBin>()
+        .map_or_else(skyelab_agent::antigravity::default_bin, |g| g.0.clone())
+}
+
 /// What logs an account in to its agent CLI.
 pub(crate) fn login_args(provider: skyelab_core::Provider) -> &'static [&'static str] {
     match provider {
         skyelab_core::Provider::Claude => &["auth", "login"],
         skyelab_core::Provider::Codex | skyelab_core::Provider::Cursor => &["login"],
+        skyelab_core::Provider::Antigravity => &["acp", "--login"],
     }
 }
 
@@ -51,8 +62,9 @@ pub(crate) fn mcp_login_args(server: &str) -> [&str; 4] {
     ["mcp", "login", "--", server]
 }
 
-/// A terminal running `<bin> <args>` (`claude auth login`, `codex login`, `cursor-agent login`) with `account`'s
-/// launch env only, so the login lands in that account's config dir. The config dir is made (private) first.
+/// A terminal running `<bin> <args>` (`claude auth login`, `codex login`, `cursor-agent login`, `agy acp --login`)
+/// with `account`'s launch env only, so the login lands in that account's config dir. The config dir is made
+/// (private) first; Antigravity also adds keyring-isolation env and `--gemini-dir` / `--app-data-dir`.
 pub(crate) fn agent_login_options(
     bin: &Path,
     args: &[&str],
@@ -73,19 +85,29 @@ pub(crate) fn agent_login_options(
         env.insert(var.to_string(), utf8(&path)?);
     }
     let dir = &account.config_dir;
-    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-            .with_context(|| format!("making {} private", dir.display()))?;
-    }
+    let command_args = if account.provider == skyelab_core::Provider::Antigravity {
+        skyelab_agent::antigravity::ensure_profile_dirs(dir)?;
+        for (k, v) in skyelab_agent::antigravity::isolated_env() {
+            env.insert(k.to_string(), v.to_string());
+        }
+        if args == login_args(skyelab_core::Provider::Antigravity) {
+            skyelab_agent::antigravity::login_args(dir)?
+        } else {
+            args.iter().map(|a| (*a).to_string()).collect()
+        }
+    } else {
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+                .with_context(|| format!("making {} private", dir.display()))?;
+        }
+        args.iter().map(|a| (*a).to_string()).collect()
+    };
     Ok(SpawnOptions {
         cwd: dirs::home_dir().unwrap_or_else(|| dir.to_owned()),
-        command: Some((
-            utf8(&resolved_bin)?,
-            args.iter().map(|a| a.to_string()).collect(),
-        )),
+        command: Some((utf8(&resolved_bin)?, command_args)),
         env,
         cols: 80,
         lines: 24,

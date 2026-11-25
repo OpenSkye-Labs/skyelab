@@ -86,7 +86,10 @@ impl ThreadView {
                                             .ghost()
                                             .xsmall()
                                             .label("Steer")
-                                            .tooltip("Send into the current turn now (⌘⇧↩)")
+                                            .tooltip(format!(
+                                                "Send into the current turn now ({})",
+                                                ui::keys("⌘⇧↩")
+                                            ))
                                             .on_click(cx.listener(move |this, _, window, cx| {
                                                 this.steer_queued(id, window, cx)
                                             })),

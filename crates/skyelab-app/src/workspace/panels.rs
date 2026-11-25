@@ -94,6 +94,8 @@ impl Render for Welcome {
             let header = super::layout::page_header(window, cx)
                 .child(
                     div()
+                        .id("page-title")
+                        .map(ui::drag_area)
                         .flex_1()
                         .text_size(ui::META)
                         .text_color(theme.muted_foreground.opacity(0.5))
@@ -160,6 +162,8 @@ impl Render for Welcome {
         let header = super::layout::page_header(window, cx)
             .child(
                 div()
+                    .id("page-title")
+                    .map(ui::drag_area)
                     .flex_1()
                     .text_size(ui::META)
                     .text_color(theme.muted_foreground.opacity(0.5))

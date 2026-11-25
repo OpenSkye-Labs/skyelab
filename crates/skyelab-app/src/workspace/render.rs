@@ -85,10 +85,6 @@ impl Render for Workspace {
             .size_full()
             .bg(theme.background)
             .text_color(theme.foreground)
-            // Windows: the titlebar is transparent, so draw the window controls in theme colors.
-            .when(cfg!(target_os = "windows"), |el| {
-                el.child(gpui_component::TitleBar::new().child("SkyeLab"))
-            })
             .child(
                 gpui_component::h_flex()
                     .flex_1()
@@ -105,7 +101,9 @@ impl Render for Workspace {
                             .child(self.dock.clone())
                             .children(self.sidebar_restore_edge(cx))
                             .children(self.details_card(cx))
-                            .children(ring),
+                            .children(ring)
+                            // Windows: minimize, maximize and close over the top row's end (no separate title strip).
+                            .child(crate::ui::WindowControls),
                     ),
             )
             .child(self.render_status(cx))

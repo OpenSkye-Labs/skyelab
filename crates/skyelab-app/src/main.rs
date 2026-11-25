@@ -180,6 +180,12 @@ fn main() {
             cfg!(debug_assertions),
             "cursor-agent",
         )));
+        cx.set_global(workspace::AntigravityBin(
+            match std::env::var_os("SKYELAB_ANTIGRAVITY_BIN") {
+                Some(bin) if cfg!(debug_assertions) => bin.into(),
+                _ => skyelab_agent::antigravity::default_bin(),
+            },
+        ));
         if let Some(path) = &path {
             cx.set_global(workspace::AccountsFile(path.clone()));
         }
@@ -207,15 +213,16 @@ fn main() {
         let (agents, calls) = remote::UiAgents::new();
         let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
         let device_key = skyelab_client::LazyDeviceKey::new(device_key);
+        let served: Arc<dyn skyelab_daemon::Backend> = Arc::new(
+            skyelab_daemon::StoreBackend::shared(store.clone(), agents, path.clone()),
+        );
+        // This machine's own source calls the very backend the daemon serves, so it gets the same checks.
+        cx.set_global(workspace::LocalBackend(served.clone()));
         let host = remote::Host {
             settings_path: AppSettings::default_path(),
             tailnet: tailnet.clone(),
             config: skyelab_daemon::Config::default(),
-            backend: Arc::new(skyelab_daemon::StoreBackend::shared(
-                store.clone(),
-                agents,
-                path.clone(),
-            )),
+            backend: served,
             slot,
         };
         let remote = cx.new(|cx| remote::Remote::new(host, cx));

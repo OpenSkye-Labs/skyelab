@@ -1,0 +1,21 @@
+[package]
+name = "skyelab-env"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+skyelab-client.workspace = true
+skyelab-daemon.workspace = true
+skyelab-protocol.workspace = true
+skyelab-store.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+skyelab-client = { workspace = true, features = ["test-support"] }
+skyelab-daemon = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

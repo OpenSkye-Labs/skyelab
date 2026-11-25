@@ -203,6 +203,8 @@ impl Settings {
                     t.codex_model = fresh.codex_model.clone();
                     t.codex_effort = fresh.codex_effort.clone();
                     t.cursor_model = fresh.cursor_model.clone();
+                    t.antigravity_model = fresh.antigravity_model.clone();
+                    t.antigravity_effort = fresh.antigravity_effort.clone();
                     t.generate_titles = fresh.generate_titles;
                 },
                 cx,
@@ -236,6 +238,8 @@ impl Settings {
             self.codex_model_input
                 .update(cx, |i, cx| i.set_value("", window, cx));
             self.cursor_model_input
+                .update(cx, |i, cx| i.set_value("", window, cx));
+            self.antigravity_model_input
                 .update(cx, |i, cx| i.set_value("", window, cx));
         }
         cx.notify();

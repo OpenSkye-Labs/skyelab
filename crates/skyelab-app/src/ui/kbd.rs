@@ -103,3 +103,34 @@ impl RenderOnce for Kbd {
             .child(label)
     }
 }
+
+/// A shortcut written in macOS glyphs (`"⌘⇧↩"`), spelled for this platform: unchanged on macOS, `Ctrl+Shift+Enter`
+/// elsewhere. For tooltips and hints that name a key in running text.
+pub fn keys(mac: &str) -> String {
+    keys_on(mac, cfg!(target_os = "macos"))
+}
+
+fn keys_on(mac: &str, is_mac: bool) -> String {
+    if is_mac {
+        return mac.to_owned();
+    }
+    mac.chars()
+        .map(|c| match c {
+            '⌘' | '⌃' => "Ctrl".to_owned(),
+            '⇧' => "Shift".to_owned(),
+            '⌥' => "Alt".to_owned(),
+            '↩' => "Enter".to_owned(),
+            c => c.to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+#[cfg(test)]
+#[test]
+fn keys_are_spelled_per_platform() {
+    assert_eq!(keys_on("⌘⇧↩", true), "⌘⇧↩");
+    assert_eq!(keys_on("⌘⇧↩", false), "Ctrl+Shift+Enter");
+    assert_eq!(keys_on("⌘.", false), "Ctrl+.");
+    assert_eq!(keys_on("⌘N", false), "Ctrl+N");
+}

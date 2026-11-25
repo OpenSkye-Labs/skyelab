@@ -200,6 +200,11 @@ pub(super) fn badges(cx: &App) -> impl IntoElement {
         .child(provider_logo(skyelab_core::Provider::Claude, px(16.), cx))
         .child(provider_logo(skyelab_core::Provider::Codex, px(16.), cx))
         .child(provider_logo(skyelab_core::Provider::Cursor, px(16.), cx))
+        .child(provider_logo(
+            skyelab_core::Provider::Antigravity,
+            px(16.),
+            cx,
+        ))
         .child(crate::settings::provider_mark(
             skyelab_core::Provider::Claude,
             account_color_in(cx, "work"),
@@ -213,6 +218,11 @@ pub(super) fn badges(cx: &App) -> impl IntoElement {
         .child(crate::settings::provider_mark(
             skyelab_core::Provider::Cursor,
             account_color_in(cx, "cursor"),
+            cx,
+        ))
+        .child(crate::settings::provider_mark(
+            skyelab_core::Provider::Antigravity,
+            account_color_in(cx, "agy"),
             cx,
         ))
         .child(Kbd::new(

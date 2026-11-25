@@ -10,5 +10,6 @@ an account runs. They are trademarks of their owners. Rules and sources: [docs/d
 | `openai-white.svg` | OpenAI | same zip, `OAI_OpenAI-Blossom_White.svg` |
 | `cursor-black.svg` | Anysphere, Inc. (Cursor) | Cursor brand kit (https://cursor.com/brand), `#26251E` |
 | `cursor-white.svg` | Anysphere, Inc. (Cursor) | Cursor brand kit (https://cursor.com/brand), `#EDECEC` |
+| `antigravity.svg` | SkyeLab (original geometric mark for Antigravity) | Authored in-repo in `#4285F4` |
 
 Draw them only as images, never tinted (see the rules above).

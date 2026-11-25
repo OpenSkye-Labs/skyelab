@@ -234,6 +234,10 @@ fn codex_takes_no_pdf_and_defaults_stay_with_their_provider() {
     assert!(!fits(Provider::Codex, "opus"));
     assert!(fits(Provider::Codex, "gpt-5.5"));
     assert!(!fits(Provider::Claude, "gpt-5.5"));
+    assert!(
+        fits(Provider::Antigravity, "claude-sonnet-4-5"),
+        "Antigravity hosts Claude models too"
+    );
 }
 
 #[cfg(unix)]

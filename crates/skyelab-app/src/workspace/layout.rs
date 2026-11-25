@@ -84,13 +84,20 @@ pub(crate) fn docks_of(window: gpui::AnyWindowHandle, cx: &App) -> DockToggles {
 /// macOS the traffic lights sit over its start, so it leaves them room.
 pub(crate) fn page_header(window: &Window, cx: &App) -> Div {
     let open = docks(window, cx);
-    crate::ui::header(cx.theme()).when(super::MAC && !open.left, |h| {
-        h.pl(crate::ui::MAC_TOP_PAD + gpui::px(8.))
-    })
+    crate::ui::header(cx.theme())
+        .when(super::MAC && !open.left, |h| {
+            h.pl(crate::ui::MAC_TOP_PAD + gpui::px(8.))
+        })
+        // Windows: the caption buttons sit over the top row's end while nothing is docked right of the page.
+        .when(crate::ui::window_controls::drawn() && !open.right, |h| {
+            h.pr(crate::ui::window_controls::WINDOW_CONTROLS_W)
+        })
 }
 
 pub(crate) fn panel_toggles(window: &Window, cx: &App) -> impl IntoElement {
     h_flex()
+        .id("panel-toggles")
+        .map(crate::ui::no_drag)
         .flex_shrink_0()
         .gap_0p5()
         .children(dock_toggles(docks(window, cx)))

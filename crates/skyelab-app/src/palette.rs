@@ -354,6 +354,7 @@ const HUMAN_NAME_OVERRIDES: &[(&str, &str)] = &[
     ("skyelab::ContinueInCodex", "Continue in Codex"),
     ("skyelab::ContinueInClaude", "Continue in Claude"),
     ("skyelab::ContinueInCursor", "Continue in Cursor"),
+    ("skyelab::ContinueInAntigravity", "Continue in Antigravity"),
     ("skyelab::ToggleWorktree", "Toggle Thread Worktree"),
     ("skyelab::OpenInEditor", "Open in Editor"),
     ("skyelab::OpenFilePicker", "Go to File"),

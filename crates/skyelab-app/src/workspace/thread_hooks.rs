@@ -58,11 +58,14 @@ pub(in crate::workspace) struct Hook {
 }
 
 /// The working row for hook `name` that has run `ran_ms`, and the hint once it is slow.
-pub(super) fn hook_line(name: &str, ran_ms: i64) -> (String, Option<&'static str>) {
+pub(super) fn hook_line(name: &str, ran_ms: i64) -> (String, Option<String>) {
     let line = format!("Running hook {name}… {}", ui::elapsed(ran_ms));
-    let hint = (ran_ms >= SLOW_HOOK_MS).then_some(
-        "This hook comes from the account's own hooks config and is taking a while. Interrupt (⌘.) stops the turn.",
-    );
+    let hint = (ran_ms >= SLOW_HOOK_MS).then(|| {
+        format!(
+            "This hook comes from the account's own hooks config and is taking a while. Interrupt ({}) stops the turn.",
+            ui::keys("⌘.")
+        )
+    });
     (line, hint)
 }
 
@@ -87,7 +90,7 @@ impl ThreadView {
     }
 
     /// The working row's text while a hook runs (the newest one), with its hint.
-    pub(super) fn running_hook(&self) -> Option<(String, Option<&'static str>)> {
+    pub(super) fn running_hook(&self) -> Option<(String, Option<String>)> {
         let h = self.hooks.last()?;
         Some(hook_line(&h.name, ui::now_ms() - h.since_ms))
     }

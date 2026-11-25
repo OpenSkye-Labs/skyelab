@@ -35,6 +35,7 @@ impl Workspace {
             claude_bin: self.backend.claude_bin.clone(),
             codex_bin: github::codex_bin(cx),
             cursor_bin: github::cursor_bin(cx),
+            antigravity_bin: github::antigravity_bin(cx),
             gh_bin: github::gh_bin(cx),
         };
         if show {

@@ -41,7 +41,7 @@ impl Settings {
             .child(ui::grip_mark(gpui::px(28.), cx.theme().foreground))
             .child(widgets::label(
                 "Every folder on its own account",
-                "SkyeLab binds each folder to one Claude or Codex login and never starts an agent under another.",
+                "SkyeLab binds each folder to one Claude, Codex, or Antigravity login and never starts an agent under another.",
                 cx,
             ))
             .into_any_element();
