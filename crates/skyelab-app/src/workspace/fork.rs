@@ -115,11 +115,12 @@ impl Workspace {
         if !cx.default_global::<Forking>().0.insert(a.id) {
             return; // one already being made from this thread (in any window)
         }
-        let (store, config, id, turns) = (
+        let (store, config, id, turns, prefs) = (
             self.backend.store.clone(),
             self.accounts_job(cx),
             a.id,
             a.turns,
+            super::prefs::get(cx),
         );
         let task = cx.background_spawn(async move {
             let config = config();
@@ -139,7 +140,7 @@ impl Workspace {
             let kept = cut(&events, turns);
             let context = context_prompt(&src.title, kept);
             let pick = s.thread_model(id)?;
-            let fork = s.create_fork(
+            let mut fork = s.create_fork(
                 &NewThread {
                     project_id: project.id,
                     title: &src.title,
@@ -153,6 +154,7 @@ impl Workspace {
             )?;
             // Same account and provider, so the source's model and effort carry over (a handoff's don't).
             s.set_thread_model(fork.id, &pick)?;
+            set_new_mode(&s, &mut fork, &prefs, &project.path)?;
             Ok(fork)
         });
         cx.spawn_in(window, async move |this, cx| {
@@ -184,6 +186,19 @@ pub(in crate::workspace) fn start_folder(
     } else {
         project.to_path_buf()
     }
+}
+
+/// A fork or handoff is a new thread the user started: it takes their new-thread permission default for `project`.
+pub(in crate::workspace) fn set_new_mode(
+    s: &skyelab_store::Store,
+    fork: &mut skyelab_store::Thread,
+    prefs: &skyelab_core::ThreadSettings,
+    project: &std::path::Path,
+) -> anyhow::Result<()> {
+    fork.permission_mode = super::prefs::new_thread_mode(prefs, project)
+        .as_str()
+        .to_owned();
+    s.set_thread_permission_mode(fork.id, &fork.permission_mode)
 }
 
 /// "Forked from <title>" in the header, or "Continued from <title>" for a handoff to the other provider.

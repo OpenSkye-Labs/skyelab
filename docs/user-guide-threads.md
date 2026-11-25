@@ -39,7 +39,8 @@ A thread's own choice always wins. They live in three Settings sections:
   ([visual replies](user-guide-timeline.md)).
 - **Diffs & pull requests → Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
   ([how they work](user-guide-accounts.md)).
-- **Chat → Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.
+- **Chat → Default permissions**: Full access (the default), Ask, Plan or Accept edits. Pick Ask to have new threads
+  ask before anything their rules don't allow.
 - **Worktrees → New threads start in a worktree**: turns on **New worktree** under a new thread's composer.
 - **Diffs & pull requests → Fetch remote**: Off, or every 1, 5 (the default), 15 or 30 minutes. While a thread is shown, its folder fetches
   its branch's upstream in the background under the thread's account's own GitHub login (the same rules as Push:
@@ -59,7 +60,7 @@ worktree". Each row offers **Inherit: …**, which follows All projects (the Cod
 sidebar menu opens Chat with that project already picked.
 
 A new thread's model comes from, in order: the project's own default, the last model picked in that project, then
-All projects. Full access is still never a default, and the project's account is not a setting here: it always comes
+All projects. The project's account is not a setting here: it always comes
 from the folder's binding (**Accounts**). Per-project values are saved in `settings.toml` under
 `[threads.projects."<project folder>"]`, so moving the folder loses them, as it loses the binding.
 

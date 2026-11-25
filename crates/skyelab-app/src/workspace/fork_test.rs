@@ -66,6 +66,8 @@ fn fork_copies_history_and_starts_with_context(cx: &mut TestAppContext) {
         })
         .expect("row");
     assert_eq!(fork_row.account_id, "acme");
+    // A new thread the user started: the new-thread default (nothing set: Full access), not the store's Ask.
+    assert_eq!(fork_row.permission_mode, "bypass");
     assert_eq!(
         f.store
             .lock()

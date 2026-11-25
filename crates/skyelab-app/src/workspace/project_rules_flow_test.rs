@@ -56,7 +56,13 @@ fn save_rule(one: &One, account: &str, rule: &Rule) {
 
 fn send(one: &One, prompt: &str, cx: &mut VisualTestContext) {
     one.view
-        .update_in(cx, |v, window, cx| v.submit_remote(prompt, window, cx))
+        .update_in(cx, |v, window, cx| {
+            // A new thread's Full access would skip the ask these tests are about; Plan stays Plan.
+            if v.mode == Mode::Bypass {
+                v.mode = Mode::Default;
+            }
+            v.submit_remote(prompt, window, cx)
+        })
         .expect("sent");
 }
 

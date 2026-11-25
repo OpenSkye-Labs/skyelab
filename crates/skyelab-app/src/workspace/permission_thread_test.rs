@@ -52,6 +52,7 @@ fn answer_in_thread(decision: Decision, cx: &mut TestAppContext) -> serde_json::
     let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
     one.view
         .update_in(cx, |v, window, cx| {
+            v.mode = skyelab_agent::Mode::Default; // a new thread's Full access would skip the ask
             v.submit_remote("permit the deploy", window, cx)
         })
         .expect("started");
@@ -147,7 +148,10 @@ fn docked_diff<'a>(
 ) -> (One, &'a mut VisualTestContext, String) {
     let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
     one.view
-        .update_in(cx, |v, window, cx| v.submit_remote(prompt, window, cx))
+        .update_in(cx, |v, window, cx| {
+            v.mode = skyelab_agent::Mode::Default; // a new thread's Full access would skip the ask
+            v.submit_remote(prompt, window, cx)
+        })
         .expect("started");
     wait_until(cx, "the request in the thread", |cx| {
         approval_id(&one, cx).is_some()

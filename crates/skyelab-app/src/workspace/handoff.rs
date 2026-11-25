@@ -67,11 +67,12 @@ impl Workspace {
         if !cx.default_global::<HandingOff>().0.insert(a.id) {
             return;
         }
-        let (store, config, id, to) = (
+        let (store, config, id, to, prefs) = (
             self.backend.store.clone(),
             self.accounts_job(cx),
             a.id,
             a.to,
+            crate::workspace::thread_extras::prefs::get(cx),
         );
         let task = cx.background_spawn(async move {
             let config = config();
@@ -131,12 +132,14 @@ impl Workspace {
                 status: "stopped",
             };
             // No copied events: the other provider's rows would replay as this thread's own.
-            Ok(Outcome::Started(Box::new(s.create_fork(
-                &new,
-                id,
-                &context,
-                &[],
-            )?)))
+            let mut thread = s.create_fork(&new, id, &context, &[])?;
+            crate::workspace::thread_extras::fork::set_new_mode(
+                &s,
+                &mut thread,
+                &prefs,
+                &project.path,
+            )?;
+            Ok(Outcome::Started(Box::new(thread)))
         });
         cx.spawn_in(window, async move |this, cx| {
             let done = task.await;

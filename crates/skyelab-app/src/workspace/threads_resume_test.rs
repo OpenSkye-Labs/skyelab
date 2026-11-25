@@ -98,8 +98,17 @@ pub(in crate::workspace) fn rebind(f: &Fixture, to: Option<&str>) {
 fn reopened_thread_resumes_under_its_account(cx: &mut TestAppContext) {
     setup(cx);
     let f = fixture(true);
-    let (row, _ws, cx) = stopped_thread(&f, cx);
+    let (mut row, _ws, cx) = stopped_thread(&f, cx);
+    // A thread saved in Ask (as every thread before Full access became the default) resumes in Ask.
+    assert_eq!(row.permission_mode, "bypass", "new threads start in Full access");
+    f.store
+        .lock()
+        .expect("lock")
+        .set_thread_permission_mode(row.id, "default")
+        .expect("set");
+    row.permission_mode = "default".into();
     let view = reopen(&f, &row, cx);
+    view.read_with(cx, |t, _| assert_eq!(t.mode, skyelab_agent::Mode::Default));
     send_text(&view, "again", cx);
     wait_until(cx, "the resumed agent's env report", |_| {
         env_reports(&f.store, row.id).len() == 2
@@ -107,6 +116,7 @@ fn reopened_thread_resumes_under_its_account(cx: &mut TestAppContext) {
     let resumed = &env_reports(&f.store, row.id)[1];
     let args = resumed["args"].as_str().expect("args");
     assert!(args.contains("--resume fake-sess-1"), "{args}");
+    assert!(args.contains("--permission-mode default"), "{args}");
     assert_eq!(
         resumed["config_dir"],
         f.account_dir.to_str().expect("utf-8")

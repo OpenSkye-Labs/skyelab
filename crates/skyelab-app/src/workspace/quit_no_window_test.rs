@@ -18,7 +18,10 @@ fn quit_with_no_window_open_still_asks(cx: &mut TestAppContext) {
         .ws
         .read_with(vcx, |ws, _| ws.open_threads.last().cloned())
         .expect("a thread tab");
-    view.update_in(vcx, |v, window, cx| v.submit_remote("permit", window, cx))
+    view.update_in(vcx, |v, window, cx| {
+        v.mode = skyelab_agent::Mode::Default; // a new thread's Full access would skip the ask
+        v.submit_remote("permit", window, cx)
+    })
         .expect("sent");
     wait_until(vcx, "an approval", |cx| {
         cx.update(|_, cx| {

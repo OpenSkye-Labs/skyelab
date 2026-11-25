@@ -54,6 +54,19 @@ pub(crate) fn get(cx: &App) -> ThreadSettings {
     )
 }
 
+/// The permission mode a new thread in project folder `dir` starts in: the project's or the app's pick, else Full
+/// access (T3's default). An unknown value reads as Ask.
+pub(crate) fn new_thread_mode(
+    settings: &ThreadSettings,
+    dir: &std::path::Path,
+) -> skyelab_agent::Mode {
+    settings
+        .for_project(dir)
+        .permission_mode
+        .as_deref()
+        .map_or(skyelab_agent::Mode::Bypass, skyelab_agent::Mode::parse)
+}
+
 /// Applies `change` to the settings now, and to the file's `[threads]` as it is on disk, so an outside edit to
 /// another field (a project table edited by hand) survives the save.
 pub(crate) fn edit(

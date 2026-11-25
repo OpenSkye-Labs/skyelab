@@ -39,3 +39,20 @@ fn full_access_with_its_confirm_runs_in_full_access(cx: &mut TestAppContext) {
     wait_until(cx, "the run", |_| runs(&rig, t.id).len() == 1);
     assert_eq!(runs(&rig, t.id)[0].permission_mode, "bypass");
 }
+
+#[gpui::test]
+fn a_task_saved_in_ask_runs_in_ask_though_new_threads_default_to_full_access(
+    cx: &mut TestAppContext,
+) {
+    let rig = rig(true);
+    let t = task(&rig, "every 1h", NOW - 1);
+    assert_eq!(t.permission_mode, "default");
+    lock(&rig.f.store)
+        .expect("store")
+        .save_scheduled_task(&t)
+        .expect("save");
+    let (_ws, cx) = open(&rig, cx);
+    tick(cx);
+    wait_until(cx, "the run", |_| runs(&rig, t.id).len() == 1);
+    assert_eq!(runs(&rig, t.id)[0].permission_mode, "default");
+}
