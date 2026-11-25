@@ -19,14 +19,21 @@ pub enum Login {
 
 /// Asks `bin` (the account's agent CLI) whether `account` is signed in. Blocking: call it off the UI thread.
 pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
-    // Codex refuses a CODEX_HOME that doesn't exist, and nobody has logged in to a folder that isn't there.
-    if account.provider == Provider::Codex && !account.config_dir.is_dir() {
+    // Codex and Cursor refuse/empty a config dir that doesn't exist, and nobody has logged in to a folder that isn't there.
+    if matches!(account.provider, Provider::Codex | Provider::Cursor)
+        && !account.config_dir.is_dir()
+    {
         return Ok(Login::SignedOut);
     }
-    let resolved = crate::launch::resolve_bin(bin)?;
+    let resolved = if account.provider == Provider::Cursor {
+        crate::cursor::resolve_cursor_bin(bin)?
+    } else {
+        crate::launch::resolve_bin(bin)?
+    };
     let args: &[&str] = match account.provider {
         Provider::Claude => &["auth", "status"],
         Provider::Codex => &["login", "status"],
+        Provider::Cursor => &["status"],
     };
     let mut cmd = Command::new(&resolved);
     cmd.args(args)
@@ -41,6 +48,7 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
     match account.provider {
         Provider::Claude => parse_claude(&stdout, &stderr),
         Provider::Codex => parse_codex(&format!("{stdout}\n{stderr}"), out.status.success()),
+        Provider::Cursor => parse_cursor(&format!("{stdout}\n{stderr}"), out.status.success()),
     }
 }
 
@@ -97,6 +105,29 @@ fn parse_codex(text: &str, success: bool) -> Result<Login> {
         return Ok(Login::SignedOut);
     }
     bail!("codex login status: {line}")
+}
+
+/// `cursor-agent status` prints "Logged in as <email>" (exit 0) or "Not logged in" (exit 1).
+fn parse_cursor(text: &str, success: bool) -> Result<Login> {
+    let plain = crate::models::strip_ansi(text);
+    if plain.to_ascii_lowercase().contains("not logged in") {
+        return Ok(Login::SignedOut);
+    }
+    let line = plain
+        .lines()
+        .find(|l| l.to_ascii_lowercase().contains("logged in"))
+        .map_or_else(|| first_line(&plain, ""), str::to_owned);
+    if success {
+        let who = line
+            .split_once("Logged in as ")
+            .or_else(|| line.split_once("logged in as "))
+            .map(|(_, rest)| rest.trim())
+            .map(|rest| rest.split(" (").next().unwrap_or(rest).trim())
+            .map(|rest| rest.chars().filter(|c| !c.is_control()).collect::<String>())
+            .filter(|s| !s.is_empty());
+        return Ok(Login::SignedIn(who));
+    }
+    bail!("cursor-agent status: {line}")
 }
 
 fn first_line(a: &str, b: &str) -> String {

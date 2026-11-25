@@ -10,7 +10,11 @@ const DEADLINE: Duration = Duration::from_secs(5);
 /// The first line `bin --version` prints, found the way launches find it and run with the agent env allowlist
 /// only (no account's config dir: a version check needs no login). Killed after 5 s.
 pub fn agent_version(bin: &Path) -> Result<String> {
-    let bin = crate::launch::resolve_bin(bin)?;
+    let bin = if bin == Path::new("cursor-agent") {
+        crate::cursor::resolve_cursor_bin(bin)?
+    } else {
+        crate::launch::resolve_bin(bin)?
+    };
     let mut cmd = Command::new(&bin);
     cmd.arg("--version")
         .current_dir(std::env::temp_dir()) // never an untrusted project folder

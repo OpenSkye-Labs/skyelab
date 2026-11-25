@@ -74,6 +74,9 @@ impl Session {
         claude: impl FnOnce(&claude::Book) -> Option<Value>,
         gone: &'static str,
     ) -> Result<()> {
+        if self.cursor.is_some() {
+            bail!("{gone}");
+        }
         match &self.codex {
             Some(state) => {
                 let mut c = lock(state);

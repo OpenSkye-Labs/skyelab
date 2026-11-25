@@ -38,7 +38,11 @@ pub(crate) fn agent_command(
             dir.display()
         );
     }
-    let bin = resolve_bin(bin)?;
+    let bin = if account.provider == skyelab_core::Provider::Cursor {
+        crate::cursor::resolve_cursor_bin(bin)?
+    } else {
+        resolve_bin(bin)?
+    };
     let mut cmd = Command::new(&bin);
     // Never inherit the parent's account or credentials: start empty, add the allowlist, then the bound account,
     // and git's https credentials from that account's gh only (`git push` in the agent's own shell).
@@ -66,17 +70,40 @@ pub(crate) fn kill_group(pid: u32) {
     .and_then(|mut c| c.wait());
 }
 
+/// SIGINT to process group `pid` (for interrupting a one-turn-per-process agent like Cursor).
+#[cfg(unix)]
+pub(crate) fn interrupt_group(pid: u32) {
+    let kill = resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
+    let _ = skyelab_core::process::spawn(
+        Command::new(kill)
+            .args(["-INT", "--", &format!("-{pid}")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null()),
+    )
+    .and_then(|mut c| c.wait());
+}
+
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
 /// A bare name is looked up through the parent PATH's absolute entries only.
 pub fn resolve_bin(bin: &Path) -> Result<PathBuf> {
     if bin.is_absolute() {
         return Ok(bin.to_owned());
     }
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let dirs = skyelab_core::env::absolute_entries(&path);
+    resolve_bin_in(bin, &dirs)
+}
+
+/// Resolves `bin` against an explicit list of absolute PATH directories.
+pub(crate) fn resolve_bin_in(bin: &Path, path_dirs: &[PathBuf]) -> Result<PathBuf> {
+    if bin.is_absolute() {
+        return Ok(bin.to_owned());
+    }
     if bin.components().count() != 1 {
         bail!("{} must be an absolute path or a bare name", bin.display());
     }
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    skyelab_core::env::absolute_entries(&path)
+    path_dirs
         .iter()
         .flat_map(|dir| candidates(dir, bin))
         .find(|p| is_executable(p))
