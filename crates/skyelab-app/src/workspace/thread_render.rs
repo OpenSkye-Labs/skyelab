@@ -214,6 +214,7 @@ impl Render for ThreadView {
             .map(|r| self.render_refused(r, cx));
         self.sync_dock_placeholder(window, cx);
         let dock = self.render_dock(window, cx);
+        let limit = self.render_limit_banner(cx);
         let composer = self.render_composer(window, cx);
         let failure = self.render_failure(cx);
         let find = self.render_find(cx);
@@ -357,6 +358,7 @@ impl Render for ThreadView {
                         line(h.into(), ui::ink(theme, theme.warning)).debug_selector(|| "slow-hook".into())
                     }))
                     .children(strip)
+                    .children(limit)
                     .children(dock)
                     .child(composer),
             )

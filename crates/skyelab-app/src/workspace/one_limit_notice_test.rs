@@ -1,4 +1,5 @@
-//! A usage limit is told once, by the timeline's banner card (T3 does the same), never again over the composer.
+//! A usage limit is told by one card in the timeline, and by T3's limit banner docked over the composer (its reset and
+//! the Resume at reset and Snooze until reset actions).
 
 use super::claude_folded_turns_test::{one_view, wait_until};
 use super::thread_model::Item;
@@ -25,8 +26,7 @@ fn a_limit_is_told_once(cx: &mut TestAppContext) {
     });
     assert_eq!(banners, 1, "one banner card in the timeline");
     assert!(cx.debug_bounds("limit-row").is_some(), "the banner draws");
-    assert!(
-        cx.debug_bounds("limited-banner").is_none(),
-        "no second notice over the composer"
-    );
+    assert!(cx.debug_bounds("limit-banner").is_some(), "the docked banner");
+    assert!(cx.debug_bounds("limit-resume").is_some(), "Resume at reset");
+    assert!(cx.debug_bounds("limit-snooze").is_some(), "Snooze until reset");
 }

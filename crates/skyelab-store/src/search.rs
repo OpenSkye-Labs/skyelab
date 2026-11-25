@@ -111,6 +111,8 @@ impl Store {
                 "h.row",
             )
         };
+        // The hit row follows the thread's columns.
+        let hit_col = THREAD_COLS.split(", ").count();
         let cols = THREAD_COLS
             .split(", ")
             .map(|c| format!("t.{c}"))
@@ -127,7 +129,7 @@ impl Store {
             .conn
             .prepare(&sql)?
             .query_map(rusqlite::params_from_iter(args), |r| {
-                Ok((thread_from_row(r)?, r.get(25)?))
+                Ok((thread_from_row(r)?, r.get(hit_col)?))
             })?
             .collect::<rusqlite::Result<_>>()?;
         // Bodies are read for the listed hits only, after the limit.

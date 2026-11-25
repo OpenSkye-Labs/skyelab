@@ -85,6 +85,8 @@ pub struct ThreadView {
     /// `Some(resets_at)` while the account's usage limit holds the agent back.
     pub(super) limited: Option<Option<i64>>,
     pub(super) context: context_meter::Reading,
+    /// Redraws the limit banner (`limit_banner.rs`).
+    pub(super) limit_tick: Option<Task<()>>,
     /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
     pub(super) lists: window_owner::Lists,
     /// Rows a live record just added: from this index on, and when (Rex's list insertion fade). History loads
@@ -340,6 +342,7 @@ impl ThreadView {
             items: Default::default(),
             limited: None,
             context: Default::default(),
+            limit_tick: None,
             lists,
             appeared: None,
             expanded: HashSet::new(),
@@ -402,6 +405,7 @@ impl ThreadView {
         // A prompt with no turn running starts one (a steer or queued send joins it).
         if matches!(record, Record::Prompt(_) | Record::Steer(_)) {
             self.release.disarm();
+            self.sent_before_resume(cx);
         }
         if matches!(record, Record::Prompt(_)) && !self.turn_running() {
             self.turn_started_ms = Some(crate::ui::now_ms());
