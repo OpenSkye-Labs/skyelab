@@ -1,7 +1,7 @@
 //! What the composer's model chip names: the model that will run, never a bare "default" (T3's "Opus 5.5 High").
 
 use super::composer_menu::MenuKind;
-use super::composer_picker::title_case;
+use super::composer_picker::effort_label;
 use super::lock;
 use crate::workspace::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString};
@@ -15,7 +15,7 @@ impl ThreadView {
     pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
         self.composer.pick = pick.clone();
         self.composer.picked = true;
-        self.composer.picker_open = false;
+        self.close_picker(cx);
         let (store, thread, project) = (
             self.backend.store.clone(),
             self.thread.as_ref().map(|t| t.id),
@@ -60,7 +60,7 @@ impl ThreadView {
             None => (self.default_model_name(), true),
         };
         match &c.pick.effort {
-            Some(e) if !compact => (format!("{model} {}", title_case(e)), default),
+            Some(e) if !compact => (format!("{model} {}", effort_label(e)), default),
             _ => (model, default),
         }
     }
@@ -207,6 +207,7 @@ impl ThreadView {
             let listed = task.await;
             let _ = this.update(cx, |this, cx| {
                 this.composer.codex_models = Some(listed);
+                this.highlight_current(cx); // an open picker's rows just arrived
                 if this
                     .composer
                     .menu

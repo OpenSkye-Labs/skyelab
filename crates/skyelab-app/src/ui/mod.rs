@@ -393,6 +393,8 @@ pub fn short_path(path: &Path, home: Option<&Path>) -> String {
 
 mod icons;
 pub(crate) use icons::SkyeIcon;
+mod provider_logo;
+pub use provider_logo::provider_logo;
 
 const BRAND_MARK: &str = "icons/skyelab-mark.svg";
 
@@ -432,7 +434,7 @@ impl gpui::AssetSource for AppAssets {
         let bytes: &'static [u8] = match path {
             BRAND_MARK => include_bytes!("../../icons/mark.svg"),
             GRIP_MARK => include_bytes!("../../icons/grip.svg"),
-            _ => match icons::bytes(path) {
+            _ => match icons::bytes(path).or_else(|| provider_logo::bytes(path)) {
                 Some(bytes) => bytes,
                 None => return gpui_kit_assets::Assets.load(path),
             },
@@ -445,6 +447,7 @@ impl gpui::AssetSource for AppAssets {
         paths.extend(
             icons::PATHS
                 .iter()
+                .chain(provider_logo::PATHS)
                 .copied()
                 .chain([BRAND_MARK, GRIP_MARK])
                 .filter(|asset| asset.starts_with(path))

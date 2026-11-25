@@ -170,6 +170,7 @@ impl Settings {
                     .child(super::accounts::provider_mark(
                         a.provider,
                         ui::account_color_in(cx, &a.id),
+                        cx,
                     ))
                     .child(
                         v_flex()

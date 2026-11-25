@@ -38,7 +38,11 @@ fn valid_name(v: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || "-_.:[]/".contains(c))
 }
 
-fn title_case(s: &str) -> String {
+/// As the composer's picker names efforts (`composer_picker::effort_label`).
+fn effort_label(s: &str) -> String {
+    if s == "xhigh" {
+        return "Extra High".into();
+    }
     let mut c = s.chars();
     c.next()
         .map(|f| f.to_uppercase().chain(c).collect())
@@ -96,7 +100,10 @@ impl Settings {
                 .collect();
         let efforts = |list: &[&str]| -> Vec<(Option<String>, String)> {
             std::iter::once((None, "Default".to_owned()))
-                .chain(list.iter().map(|e| (Some((*e).to_owned()), title_case(e))))
+                .chain(
+                    list.iter()
+                        .map(|e| (Some((*e).to_owned()), effort_label(e))),
+                )
                 .collect()
         };
         let defaults = [

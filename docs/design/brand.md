@@ -20,7 +20,8 @@ for line controls and details. Keep Bean's cloud shape for SkyeLab actions and i
 thread, side chat, agents, and remote work.
 
 Use one `currentColor` for the entire glyph. Cutouts are transparent so the active theme and existing
-account and status tints carry through. Use generic shapes for provider glyphs. Check new assets at
+account and status tints carry through. Provider logos are the exception: they are the
+brands' own files, drawn as images in their official colors, never tinted (see [third-party-marks.md](third-party-marks.md)). Check new assets at
 14 and 16 px in both themes at 1× and 2×.
 
 ## Palette

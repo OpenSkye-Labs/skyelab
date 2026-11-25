@@ -67,8 +67,9 @@ fn icon_for(entry: &Entry) -> SkyeIcon {
         ("Keymap", SkyeIcon::Keyboard),
         ("Window", SkyeIcon::Monitor),
         ("Quit", SkyeIcon::X),
-        ("Codex", SkyeIcon::Codex),
-        ("Claude", SkyeIcon::Claude),
+        // Provider logos draw only as images in their own colors, never as a palette glyph.
+        ("Codex", SkyeIcon::Bot),
+        ("Claude", SkyeIcon::Bot),
         ("Thread", SkyeIcon::MessageCircle),
     ];
     BY_WORD
