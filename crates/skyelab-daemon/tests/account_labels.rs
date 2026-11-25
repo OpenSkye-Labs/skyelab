@@ -91,6 +91,8 @@ fn the_label_round_trips_and_older_peers_still_parse() {
         status: "idle".into(),
         pinned: false,
         preview: None,
+        settled_at: None,
+        snoozed_until: None,
         created_at: 0,
         updated_at: 0,
     };

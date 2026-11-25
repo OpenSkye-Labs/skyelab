@@ -6,7 +6,7 @@ use super::*;
 use gpui::{TestAppContext, VisualTestContext};
 
 fn shelve(id: i64, to: Shelf, cx: &mut VisualTestContext) {
-    cx.dispatch_action(ShelveThread { id, to });
+    cx.dispatch_action(ShelveThread { id, to, host: None });
     cx.run_until_parked();
 }
 
@@ -41,9 +41,7 @@ fn settle_moves_to_the_shelf_with_undo_and_unsettles(cx: &mut TestAppContext) {
     assert!(r.notices(cx).iter().any(|n| n == "Settled “alpha”"));
 
     // What the notice's Undo runs.
-    r.ws.update_in(cx, |ws, window, cx| {
-        ws.restore(a, (false, None), window, cx)
-    });
+    r.ws.update_in(cx, |ws, _, cx| ws.restore(a, (false, None), cx));
     cx.run_until_parked();
     assert_eq!(r.listed(cx), ["beta", "alpha"]);
     assert!(
@@ -121,6 +119,7 @@ fn snooze_hides_then_a_passed_one_is_woke_until_opened(cx: &mut TestAppContext) 
         side.read_with(cx, |s, _| {
             s.marks[&gpui::SharedString::from(format!("thread-{b}"))]
                 .shelf
+                .as_ref()
                 .is_some_and(|s| {
                     skyelab_core::snooze::is_woke(s.snoozed_until, crate::ui::now_ms())
                 })
@@ -189,7 +188,7 @@ fn shelves_beat_the_pin_and_undo_puts_a_thread_back_where_it_was(cx: &mut TestAp
     let was = r.ws.read_with(cx, |ws, _| ws.shelf_of(a));
     shelve(a, Shelf::Settle, cx);
     assert_eq!(shelf(&r, "Settled", cx), ["alpha"]);
-    r.ws.update_in(cx, |ws, window, cx| ws.restore(a, was, window, cx));
+    r.ws.update_in(cx, |ws, _, cx| ws.restore(a, was, cx));
     cx.run_until_parked();
     assert_eq!(shelf(&r, "Snoozed", cx), ["alpha"]);
     assert_eq!(r.row(a).expect("row").snoozed_until, Some(later));

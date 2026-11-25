@@ -450,6 +450,13 @@ fn dispatch(backend: &dyn Backend, call: Call) -> Result<Reply, RpcError> {
         } => backend
             .answer_questions(thread_id, &request_id, &answers)
             .map(|()| Reply::Ok),
+        Call::ShelveThread {
+            thread_id,
+            settled,
+            snoozed_until,
+        } => backend
+            .shelve_thread(thread_id, settled, snoozed_until)
+            .map(|()| Reply::Ok),
     }
 }
 

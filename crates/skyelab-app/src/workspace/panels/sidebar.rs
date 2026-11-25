@@ -83,7 +83,7 @@ impl Ask {
 #[derive(Default)]
 pub struct RowMarks {
     pub pinned: bool,
-    /// Local thread rows: settle and snooze from the row's hover buttons and menu.
+    /// Settle and snooze from the row's buttons and menu.
     pub shelf: Option<RowShelf>,
     /// A scheduled task started it (from the stored row): the "Scheduled" badge.
     pub scheduled: bool,
@@ -130,13 +130,14 @@ pub struct RowCard {
     pub updated_ms: i64,
 }
 
-/// Where a local thread row sits for settle and snooze.
-#[derive(Clone, Copy)]
+/// A thread row's shelf (`host`: another machine's).
+#[derive(Clone)]
 pub struct RowShelf {
     pub id: i64,
     pub settled: bool,
     /// Asleep while ahead, woke once passed (until opened).
     pub snoozed_until: Option<i64>,
+    pub host: Option<SharedString>,
 }
 
 /// T3's folded shelves at the bottom of the list ("Snoozed 2", "Settled 227"), before Archived.

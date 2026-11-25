@@ -39,6 +39,14 @@ pub enum RemoteCall {
         reply: Reply<()>,
         gate: CallGate,
     },
+    /// Settled, snoozed until a time, or neither (protocol 1.6).
+    Shelve {
+        thread_id: i64,
+        settled: bool,
+        snoozed_until: Option<i64>,
+        reply: Reply<()>,
+        gate: CallGate,
+    },
 }
 
 impl RemoteCall {
@@ -50,9 +58,8 @@ impl RemoteCall {
             RemoteCall::Send { reply, gate, .. }
             | RemoteCall::Interrupt { reply, gate, .. }
             | RemoteCall::Answer { reply, gate, .. }
-            | RemoteCall::Questions { reply, gate, .. } => {
-                reply.is_disconnected() || gate.cancelled()
-            }
+            | RemoteCall::Questions { reply, gate, .. }
+            | RemoteCall::Shelve { reply, gate, .. } => reply.is_disconnected() || gate.cancelled(),
         }
     }
 
@@ -63,7 +70,8 @@ impl RemoteCall {
             RemoteCall::Send { reply, .. }
             | RemoteCall::Interrupt { reply, .. }
             | RemoteCall::Answer { reply, .. }
-            | RemoteCall::Questions { reply, .. } => _ = reply.send(Err(error)),
+            | RemoteCall::Questions { reply, .. }
+            | RemoteCall::Shelve { reply, .. } => _ = reply.send(Err(error)),
         }
     }
 }
@@ -173,6 +181,21 @@ impl Agents for UiAgents {
             thread_id,
             request_id,
             answers,
+            reply,
+            gate,
+        })
+    }
+
+    fn shelve_thread(
+        &self,
+        thread_id: i64,
+        settled: bool,
+        snoozed_until: Option<i64>,
+    ) -> Result<(), RpcError> {
+        self.ask(|reply, gate| RemoteCall::Shelve {
+            thread_id,
+            settled,
+            snoozed_until,
             reply,
             gate,
         })

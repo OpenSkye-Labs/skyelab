@@ -241,6 +241,13 @@ impl Workspace {
                 reply,
                 ..
             } => self.remote_questions(thread_id, &request_id, answers, reply, cx),
+            RemoteCall::Shelve {
+                thread_id,
+                settled,
+                snoozed_until,
+                reply,
+                ..
+            } => self.remote_shelve(thread_id, settled, snoozed_until, reply, cx),
         }
     }
 
@@ -514,15 +521,5 @@ impl ThreadView {
 }
 
 #[cfg(test)]
-impl Workspace {
-    pub(crate) fn project_ids(&self) -> Vec<i64> {
-        self.projects.iter().map(|p| p.id).collect()
-    }
-
-    pub(crate) fn open_thread_ids(&self, cx: &gpui::App) -> Vec<i64> {
-        self.open_threads
-            .iter()
-            .filter_map(|t| t.read(cx).thread.as_ref().map(|t| t.id))
-            .collect()
-    }
-}
+#[path = "remote_testing.rs"]
+mod testing;

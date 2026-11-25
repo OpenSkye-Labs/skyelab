@@ -106,7 +106,14 @@ project, send follow-ups, interrupt, and answer a permission request the thread'
 ExitPlanMode request an allow approves the plan and moves the thread out of Plan, as Approve does there; the reply waits
 until the agent took it), and answer an AskUserQuestion (`answer_questions`, 1.4: one list of labels per question, sent
 as a Submit there; the agent refuses a count that doesn't match). Both go through `UiAgents` and its `CallGate` like
-every agent call. It can forward ports from this machine's loopback (below). It can't change a thread's permission mode, add projects,
+every agent call. It can settle, snooze and restore a thread (`shelve_thread`, 1.6: settled, snoozed until a time, or
+neither, never both; the whole state, so an undo is one call), which also goes through `UiAgents` and its `CallGate`:
+the window applies it with the same store write and row change as its own sidebar, then answers, so this machine's
+store stays the source of truth. A thread not listed here (or archived) is `NotFound`. `Thread.settled_at` and
+`Thread.snoozed_until` (1.6) carry the state to clients. A client never sends `shelve_thread` to a machine older than
+1.6: `Client::shelve_thread` fails it locally with "update SkyeLab on <machine>". While the machine is offline the
+window refuses the action with a note instead of queueing it: a queued shelf would land later on a thread that may have
+moved on, and the owning store must decide. It can forward ports from this machine's loopback (below). It can't change a thread's permission mode, add projects,
 change accounts or bindings, open terminals or run anything else. Remote calls run through the same `ThreadView` code a local prompt uses, so the account rules are
 identical: an unbound folder is refused with an error sent to the client (no fallback account, no thread row), and
 the account is recorded on the thread row. A remote-started thread appears in the local window's sidebar with an

@@ -23,6 +23,10 @@ pub trait Backend: Send + Sync + 'static {
     fn answer_questions(&self, _: i64, _: &str, _: &[Vec<String>]) -> Result<(), RpcError> {
         NotWired::err()
     }
+    /// Settled, snoozed until a time, or neither (never both: [`StoreBackend`] refuses that).
+    fn shelve_thread(&self, _: i64, _: bool, _: Option<i64>) -> Result<(), RpcError> {
+        NotWired::err()
+    }
 }
 
 /// Runs agents for remote requests. The daemon never launches anything itself. An implementation resolves the
@@ -38,6 +42,10 @@ pub trait Agents: Send + Sync + 'static {
     }
     /// Answers the AskUserQuestion `request_id` the thread's agent waits on: one list of labels per question.
     fn answer_questions(&self, _: i64, _: &str, _: &[Vec<String>]) -> Result<(), RpcError> {
+        NotWired::err()
+    }
+    /// Puts the thread on a shelf through the app, so its sidebar changes with its store.
+    fn shelve_thread(&self, _: i64, _: bool, _: Option<i64>) -> Result<(), RpcError> {
         NotWired::err()
     }
 }
@@ -164,6 +172,8 @@ impl<A: Agents> Backend for StoreBackend<A> {
                 pinned: t.pinned_at.is_some(),
                 // The store already cuts it to `PREVIEW_CHARS`.
                 preview: previews.remove(&t.id),
+                settled_at: t.settled_at,
+                snoozed_until: t.snoozed_until,
                 created_at: t.created_at,
                 updated_at: t.updated_at,
             })
@@ -214,6 +224,19 @@ impl<A: Agents> Backend for StoreBackend<A> {
         answers: &[Vec<String>],
     ) -> Result<(), RpcError> {
         self.agents.answer_questions(thread_id, request_id, answers)
+    }
+
+    fn shelve_thread(
+        &self,
+        thread_id: i64,
+        settled: bool,
+        snoozed_until: Option<i64>,
+    ) -> Result<(), RpcError> {
+        if settled && snoozed_until.is_some() {
+            let both = "a thread is settled or snoozed, not both";
+            return Err(RpcError::new(ErrorCode::BadRequest, both));
+        }
+        self.agents.shelve_thread(thread_id, settled, snoozed_until)
     }
 }
 

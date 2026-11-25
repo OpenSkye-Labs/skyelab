@@ -42,7 +42,7 @@ fn round_trip_hello() {
             capabilities: vec!["events".into()],
             device_key: Some("k".into()),
         },
-        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 5}, "capabilities": ["events"], "device_key": "k"}}),
+        json!({"id": 7, "method": "hello", "params": {"protocol": {"major": 1, "minor": 6}, "capabilities": ["events"], "device_key": "k"}}),
     );
 }
 
@@ -146,6 +146,8 @@ fn round_trip_every_reply() {
             status: "idle".into(),
             pinned: false,
             preview: None,
+            settled_at: None,
+            snoozed_until: None,
             created_at: 1,
             updated_at: 2,
         }]),
