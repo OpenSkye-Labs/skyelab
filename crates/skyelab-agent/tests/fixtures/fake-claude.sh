@@ -6,7 +6,7 @@
 # "question" asks an AskUserQuestion and reports the reply; "gone" answers like a --resume of a missing session.
 # The --mcp-config file it got is reported as `fake_mcp`.
 cat "$(dirname "$0")/session.jsonl"
-printf '{"type":"fake_env","config_dir":"%s","api_key":"%s","cwd":"%s","args":"%s","env_keys":"%s"}\n' "$CLAUDE_CONFIG_DIR" "$ANTHROPIC_API_KEY" "$(pwd -P)" "$*" "$(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort | tr '\n' ' ')"
+printf '{"type":"fake_env","config_dir":"%s","api_key":"%s","cwd":"%s","args":"%s","env_keys":"%s"}\n' "$CLAUDE_CONFIG_DIR" "$ANTHROPIC_API_KEY" "$(pwd -P)" "$(printf '%s' "$*" | sed 's/\\/\\\\/g; s/"/\\"/g')" "$(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort | tr '\n' ' ')"
 # The --mcp-config file it was given, on one line, as `fake_mcp` (tests read which servers reached it).
 prev=
 for a in "$@"; do

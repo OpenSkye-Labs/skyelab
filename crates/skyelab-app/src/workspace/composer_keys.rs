@@ -54,3 +54,15 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
     super::composer_voice::bind_keys(cx);
     super::composer_picker_keys::bind_keys(cx);
 }
+
+/// The send key the Send shortcut setting gives an empty prompt, spelled for this platform.
+pub(in crate::workspace) fn send_key(cx: &App) -> String {
+    if crate::workspace::thread_extras::prefs::get(cx)
+        .send_shortcut
+        .enter_sends("")
+    {
+        "↩".to_owned()
+    } else {
+        crate::ui::keys("⌘↩")
+    }
+}
