@@ -119,8 +119,9 @@ while IFS= read -r line; do
       # The usage poll: the account dir's fake-usage.json is the answer, else a signed-out one.
       usage='{"rate_limits_available":false,"rate_limits":null}'
       [ -f "$CLAUDE_CONFIG_DIR/fake-usage.json" ] && usage=$(tr -d '\n' < "$CLAUDE_CONFIG_DIR/fake-usage.json")
-      printf '{"type":"control_response","response":{"subtype":"success","request_id":"skyelab-usage","response":%s}}\n' "$usage"
-      echo "$CLAUDE_CONFIG_DIR" >> "$CLAUDE_CONFIG_DIR/fake-usage.calls" ;;
+      # Logged first: SkyeLab kills the CLI once it reads the answer.
+      echo "$CLAUDE_CONFIG_DIR" >> "$CLAUDE_CONFIG_DIR/fake-usage.calls"
+      printf '{"type":"control_response","response":{"subtype":"success","request_id":"skyelab-usage","response":%s}}\n' "$usage" ;;
     *'"content":"permit write'*)
       # A 2,000-line Write: the approval shows its first lines, not its JSON.
       body=$(awk 'BEGIN { for (i = 1; i <= 2000; i++) printf "fn line_%d() {}\\n", i }')

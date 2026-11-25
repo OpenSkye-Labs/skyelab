@@ -291,7 +291,7 @@ impl Render for UsagePage {
                         div()
                             .text_size(ui::BODY)
                             .text_color(theme.muted_foreground)
-                            .child("What this machine's agents reported, per account. SkyeLab asks no account."),
+                            .child("What this machine's agents reported, per account. Limits refresh from each account's own CLI while shown."),
                     ),
             )
             .child(toggles);
