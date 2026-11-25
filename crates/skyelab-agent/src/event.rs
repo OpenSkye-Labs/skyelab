@@ -113,8 +113,8 @@ pub enum Event {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         model: Option<String>,
     },
-    /// A hook the agent runs from the account's own config (Codex's `hook/started` / `hook/completed`), `name` its event
-    /// and status message. Shown while it runs, never stored, like [`Event::Delta`].
+    /// A hook the agent runs from the account's own config (Codex's `hook/started` / `hook/completed`, Claude's
+    /// `hook_started` / `hook_response`), `name` its event (Codex: and status message, Claude: and matcher). Shown while it runs, never stored, like [`Event::Delta`].
     Hook {
         id: String,
         name: String,
@@ -340,8 +340,15 @@ impl Event {
             }),
             (Some("system"), Some("thinking_tokens" | "status")) => return None,
             (Some("system"), Some("task_updated" | "background_tasks_changed")) => return None,
-            // Hook runs (their output is the account's own text) and prompt queue states: nothing shows them.
-            (Some("system"), Some("hook_started" | "hook_response")) => return None,
+            // A hook run shows while it runs, by name; its output (the account's own text) is never kept.
+            (Some("system"), Some(kind @ ("hook_started" | "hook_response"))) => {
+                v["hook_id"].as_str().map(|id| Event::Hook {
+                    id: id.to_owned(),
+                    name: v["hook_name"].as_str().unwrap_or("hook").to_owned(),
+                    running: kind == "hook_started",
+                })
+            }
+            // Prompt queue states: nothing shows them.
             (Some("command_lifecycle"), _) => return None,
             (
                 Some("system"),

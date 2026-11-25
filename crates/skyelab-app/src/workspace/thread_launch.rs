@@ -72,8 +72,16 @@ impl ThreadView {
             .filter(|t| t.agent_session_id.is_some())
             .map(|_| text.clone());
         self.starting = true;
+        self.startup = Some(crate::workspace::thread_hooks::Startup {
+            provider: account.provider,
+            resuming: self.resumed_prompt.is_some(),
+        });
+        // The last process's hooks and MCP servers aren't this one's.
+        self.hooks.clear();
+        self.details.mcp.clear();
         self.stop_requested = false;
         self.launches += 1;
+        self.tick_while_working(cx); // a rerun pushes no prompt, so nothing else restarts it
         let record = Record::Prompt(super::composer::shown_prompt(&text, &attachments));
         let pick = self.composer.pick.clone();
 

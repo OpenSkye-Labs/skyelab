@@ -1,4 +1,4 @@
-//! While Codex runs one of the account's hooks, the thread's working row names it; once it finishes the row is
+//! While the agent runs one of the account's hooks, the thread's working row names it; once it finishes the row is
 //! back to "Working for …" and the turn goes on. Hook lines are shown, never stored.
 
 use super::claude_folded_turns_test::{one_view, row, wait_until};
@@ -65,5 +65,40 @@ fn stopping_during_a_hook_clears_it(cx: &mut TestAppContext) {
     wait_until(cx, "the agent stopped with no hook left", |cx| {
         one.view
             .read_with(cx, |v, _| v.session.is_none() && v.hooks.is_empty())
+    });
+}
+
+/// Claude's SessionStart hook runs before its init line: the working row names the hook, the launch's startup step
+/// outlasts it, and the session's init ends the step.
+#[gpui::test]
+fn a_claude_start_hook_names_itself_and_init_ends_the_startup_step(cx: &mut TestAppContext) {
+    let bin = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh");
+    let (one, cx) = one_view(cx, Provider::Claude, bin, Some(".fake-start-hook"));
+    one.view
+        .update_in(cx, |v, window, cx| v.submit_remote("hello", window, cx))
+        .expect("started");
+    assert!(
+        one.view.read_with(cx, |v, _| v
+            .startup_line()
+            .is_some_and(|l| l.starts_with("Starting Claude… "))),
+        "named before the process runs"
+    );
+    wait_until(cx, "the hook in the working row", |cx| {
+        one.view.read_with(cx, |v, _| {
+            v.running_hook()
+                .is_some_and(|(line, _)| line.starts_with("Running hook SessionStart:startup…"))
+        })
+    });
+    assert!(
+        one.view.read_with(cx, |v, _| v.startup.is_some()),
+        "a hook isn't the session's start"
+    );
+    std::fs::write(one.dir.join(".fake-hook-done"), "").expect("go-ahead");
+    wait_until(cx, "the turn's result", |cx| {
+        row(&one, cx).is_some_and(|(status, n)| n == 1 && status == "idle")
+    });
+    one.view.read_with(cx, |v, _| {
+        assert!(v.running_hook().is_none(), "the hook finished");
+        assert!(v.startup_line().is_none(), "init ended the startup step");
     });
 }

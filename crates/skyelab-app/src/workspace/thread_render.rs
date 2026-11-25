@@ -28,11 +28,10 @@ pub(super) fn opens_in_browser(url: &str) -> bool {
 }
 
 impl ThreadView {
-    /// The line above the composer about the agent's process: starting, or ended with no session running.
+    /// The line above the composer about the agent's process: ended with no session running. Starting is named in
+    /// the working row (`startup_line`).
     pub(in crate::workspace) fn agent_note(&self, refused: bool) -> Option<&'static str> {
-        if self.starting {
-            Some("Starting the agent…")
-        } else if self.thread.is_none() || self.session.is_some() || refused {
+        if self.starting || self.thread.is_none() || self.session.is_some() || refused {
             None
         } else if self.read_only {
             Some("This thread has ended and has no agent session to continue. Start a new thread.")
@@ -223,13 +222,18 @@ impl Render for ThreadView {
         let timeline = self.quote_listeners(div(), cx);
         let theme = cx.theme();
         // T3's working row: how long the turn has run, ticking (`tick_while_working`).
-        // A running hook (Codex's account hooks) names itself instead, with a hint once it is slow.
+        // A running hook (the account's own hooks) names itself instead, with a hint once it is slow, and a launch
+        // that hasn't answered yet names its startup step.
         let (working, hook_hint) = match self.running_hook().filter(|_| self.turn_running()) {
             Some((line, hint)) => (Some(line), hint),
             None => (
-                self.turn_started_ms
-                    .filter(|_| self.turn_running())
-                    .map(|at| format!("Working for {}", ui::elapsed(ui::now_ms() - at))),
+                self.startup_line()
+                    .filter(|_| (self.starting || self.turn_running()) && self.is_live())
+                    .or_else(|| {
+                        self.turn_started_ms
+                            .filter(|_| self.turn_running())
+                            .map(|at| format!("Working for {}", ui::elapsed(ui::now_ms() - at)))
+                    }),
                 None,
             ),
         };

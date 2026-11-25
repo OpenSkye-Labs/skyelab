@@ -97,6 +97,8 @@ pub struct ThreadView {
     pub(super) _tick: Option<Task<()>>,
     /// Hooks the agent runs now, newest last.
     pub(super) hooks: Vec<super::thread_hooks::Hook>,
+    /// The launch that hasn't reported its session or output yet: the working row names its step.
+    pub(super) startup: Option<super::thread_hooks::Startup>,
     /// The prompt a resume launch sent, kept until its session answers: rerun in a new session if it was gone.
     pub(super) resumed_prompt: Option<String>,
     /// Images sent from this tab, by their message's shown text: in memory only, for the thumbnails and viewer.
@@ -342,6 +344,7 @@ impl ThreadView {
             turn_started_ms: None,
             _tick: None,
             hooks: Vec::new(),
+            startup: None,
             resumed_prompt: None,
             sent_images: Default::default(),
             rerun: None,
