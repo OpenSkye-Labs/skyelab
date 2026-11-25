@@ -23,8 +23,7 @@ pub fn resolve_cursor_bin(bin: &Path) -> Result<PathBuf> {
     if bin.is_absolute() {
         return Ok(bin.to_owned());
     }
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    let dirs = skyelab_core::env::absolute_entries(&path);
+    let dirs = skyelab_core::env::absolute_entries(&skyelab_core::env::parent_path());
     resolve_cursor_bin_in(bin, &dirs)
 }
 

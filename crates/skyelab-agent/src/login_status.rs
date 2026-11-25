@@ -25,6 +25,7 @@ pub fn login_status(bin: &Path, account: &Account) -> Result<Login> {
     {
         return Ok(Login::SignedOut);
     }
+    skyelab_core::login_shell::wait();
     let resolved = if account.provider == Provider::Cursor {
         crate::cursor::resolve_cursor_bin(bin)?
     } else {
