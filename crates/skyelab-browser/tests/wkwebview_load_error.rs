@@ -3,12 +3,18 @@
 //! clears it, which also proves the proxy still forwards wry's own delegate calls. User and private tabs both.
 //! macOS only (it needs a window server).
 
+mod support;
+
 #[cfg(not(target_os = "macos"))]
-fn main() {}
+fn main() {
+    support::listed();
+}
 
 #[cfg(target_os = "macos")]
 fn main() {
-    mac::run();
+    if !support::listed() {
+        mac::run();
+    }
 }
 
 #[cfg(target_os = "macos")]

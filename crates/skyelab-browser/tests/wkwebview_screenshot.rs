@@ -2,12 +2,18 @@
 //! colour, no wider than the cap. The page is served over http, since the agent path refuses `data:` pages.
 //! macOS only (it needs a window server); elsewhere it does nothing.
 
+mod support;
+
 #[cfg(not(target_os = "macos"))]
-fn main() {}
+fn main() {
+    support::listed();
+}
 
 #[cfg(target_os = "macos")]
 fn main() {
-    mac::run();
+    if !support::listed() {
+        mac::run();
+    }
 }
 
 #[cfg(target_os = "macos")]
