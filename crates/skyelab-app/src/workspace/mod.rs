@@ -246,6 +246,8 @@ pub struct Workspace {
     back: Vec<Page>,
     forward: Vec<Page>,
     changes_views: Vec<WeakEntity<changes::ChangesView>>,
+    /// Pull request diff tabs (`changes_pr.rs`): kept apart, since they read GitHub, not the folder.
+    pr_diffs: Vec<WeakEntity<changes::ChangesView>>,
     /// Side chat panes, kept when closed (their agents keep running).
     side_chats: Vec<Entity<side_chat::SideChatPanel>>,
     /// Each open thread view's subscriptions and the row state the sidebar last drew; dropped in `close_thread`.
@@ -321,10 +323,14 @@ impl Workspace {
 
         // gpui-component's skin, the center drawn uncached (`center_skin.rs`).
         let mut skins = None;
+        let workspace = cx.weak_entity();
         let dock = cx.new(|cx| {
             let s = DockSkin::new(cx);
-            let ours =
-                std::rc::Rc::new(center_skin::CenterSkin::new(s.clone(), center.entity_id()));
+            let ours = std::rc::Rc::new(center_skin::CenterSkin::new(
+                s.clone(),
+                center.entity_id(),
+                workspace.clone(),
+            ));
             skins = Some((s, ours.clone()));
             DockArea::new("workspace", None, window, cx).with_renderer(ours)
         });
@@ -426,6 +432,7 @@ impl Workspace {
             back: Vec::new(),
             forward: Vec::new(),
             changes_views: Vec::new(),
+            pr_diffs: Vec::new(),
             side_chats: Vec::new(),
             thread_subs: Default::default(),
             waiters: Default::default(),

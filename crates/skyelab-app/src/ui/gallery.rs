@@ -248,6 +248,27 @@ fn badges(cx: &App) -> impl IntoElement {
         )
         .child(AccountBadge::new("home", "Home"))
         .child(AccountBadge::unbound().chip())
+        // Provider logos: the brands' own files in their own colors; the account's color is the tile's dot.
+        .child(super::provider_logo(
+            skyelab_core::Provider::Claude,
+            px(16.),
+            cx,
+        ))
+        .child(super::provider_logo(
+            skyelab_core::Provider::Codex,
+            px(16.),
+            cx,
+        ))
+        .child(crate::settings::provider_mark(
+            skyelab_core::Provider::Claude,
+            super::account_color_in(cx, "work"),
+            cx,
+        ))
+        .child(crate::settings::provider_mark(
+            skyelab_core::Provider::Codex,
+            super::account_color_in(cx, "home"),
+            cx,
+        ))
         .child(Kbd::new(
             gpui::Keystroke::parse("cmd-k").expect("a plain key parses"),
         ))

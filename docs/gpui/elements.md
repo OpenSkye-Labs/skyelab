@@ -181,3 +181,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - **Dialogs need gpui-component's `Root` at the window's top**, tests included: `window.open_dialog` panics with
   "component window state is missing" otherwise. `one_view` (`claude_folded_turns_test.rs`) wraps its `ThreadView`
   in `Root` for that.
+- **`svg()` and `Icon` draw an SVG as a one-color mask in the text color; a multi-color or brand-colored SVG needs
+  `img(path)`.** `img` with an embedded path loads through the app's `AssetSource` and keeps the file's own fills. Provider
+  logos go through `ui::provider_logo` for that reason (docs/design/third-party-marks.md). Never `img()` an SVG from
+  outside the app's own assets (usvg follows `<image href>`).
+- **A popover's search field holds the focus after the popover is gone** unless closing hands it back: record where
+  the focus goes (the composer's prompt, not whatever had it, since a click on the trigger button may own it) and
+  restore it in a `cx.defer` only while the hidden field is still focused (`composer_picker_keys::close_picker`).
+- **Reset a list highlight on the field's `InputEvent::Change`, not on `cx.observe`**: an `InputState` notifies on focus
+  and on every cursor blink, so an observer resets the highlight all the time.

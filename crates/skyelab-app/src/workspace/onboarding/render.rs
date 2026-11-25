@@ -85,15 +85,21 @@ impl Onboarding {
                     Some(Ok(v)) => (theme.success, v.clone()),
                     Some(Err(_)) => (theme.warning, "not found in PATH".to_owned()),
                 };
+                // The providers' logos in their own colors; anything else a plain icon.
                 let icon = match i {
-                    0 => SkyeIcon::Claude,
-                    1 => SkyeIcon::Codex,
-                    _ => SkyeIcon::Github,
+                    0 => crate::ui::provider_logo(skyelab_core::Provider::Claude, px(16.), cx)
+                        .into_any_element(),
+                    1 => crate::ui::provider_logo(skyelab_core::Provider::Codex, px(16.), cx)
+                        .into_any_element(),
+                    _ => Icon::new(SkyeIcon::Github)
+                        .size_4()
+                        .text_color(theme.muted_foreground)
+                        .into_any_element(),
                 };
                 let name = a.name;
                 card(("setup-agent", i), false, cx)
                     .debug_selector(move || format!("setup-agent-{name}"))
-                    .child(Icon::new(icon).size_4().text_color(theme.muted_foreground))
+                    .child(icon)
                     .child(name_and_folder(a.name, text.into(), cx))
                     .when_some(a.update.clone(), |d, v| {
                         d.child(
@@ -171,7 +177,7 @@ impl Onboarding {
                     false,
                     cx,
                 )
-                .child(crate::settings::provider_mark(a.provider, color))
+                .child(crate::settings::provider_mark(a.provider, color, cx))
                 .child(name_and_folder(a.label.clone(), folder.into(), cx))
                 .child(self.login_badge(a, cx))
                 .into_any_element(),
@@ -208,7 +214,7 @@ impl Onboarding {
             let muted = cx.theme().muted_foreground;
             cards.push(
                 card(("setup-found", ix), true, cx)
-                    .child(crate::settings::provider_mark(f.found.provider, muted))
+                    .child(crate::settings::provider_mark(f.found.provider, muted, cx))
                     .child(name_and_folder(name, folder.into(), cx))
                     .child(
                         Button::new(("setup-add", ix))

@@ -8,8 +8,8 @@ use super::{AddProject, Workspace, github};
 use crate::palette::{Entry, Kind, PageSpec};
 use crate::ui::SkyeIcon;
 use gpui::{App, AppContext as _, Context, PathPromptOptions, WeakEntity, Window};
+use skyelab_core::AccountsConfig;
 use skyelab_core::add_project as paths;
-use skyelab_core::{AccountsConfig, Provider};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -316,10 +316,7 @@ pub(super) fn bind_page(
         .iter()
         .map(|a| {
             let (id, target) = (a.id.clone(), target.clone());
-            let icon = match a.provider {
-                Provider::Claude => SkyeIcon::Claude,
-                Provider::Codex => SkyeIcon::Codex,
-            };
+            let icon = SkyeIcon::UserCheck; // a palette glyph: provider logos are images only
             Entry::new(
                 format!("Bind to {}", a.label),
                 Kind::Action("skyelab::BindAccount"),

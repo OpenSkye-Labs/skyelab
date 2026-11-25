@@ -105,6 +105,8 @@ mod env_states_test;
 #[cfg(test)]
 mod dock_motion_test;
 #[cfg(test)]
+mod sidebar_drag_test;
+#[cfg(test)]
 mod env_switch_test;
 #[cfg(test)]
 mod env_whois_test;

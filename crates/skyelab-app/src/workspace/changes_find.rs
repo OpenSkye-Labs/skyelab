@@ -105,21 +105,24 @@ impl ChangesView {
                 )
                 .on_click(cx.listener(|this, _, _, cx| this.set_prefs(|p| p.wrap = !p.wrap, cx))),
             )
-            .child(
-                toggle(
-                    "diff-whitespace",
-                    SkyeIcon::Pilcrow,
-                    p.ignore_whitespace,
-                    if p.ignore_whitespace {
-                        "Show whitespace changes"
-                    } else {
-                        "Hide whitespace changes"
-                    },
+            // GitHub's diff can't hide whitespace: a PR tab has no such toggle.
+            .when(self.pr.is_none(), |d| {
+                d.child(
+                    toggle(
+                        "diff-whitespace",
+                        SkyeIcon::Pilcrow,
+                        p.ignore_whitespace,
+                        if p.ignore_whitespace {
+                            "Show whitespace changes"
+                        } else {
+                            "Hide whitespace changes"
+                        },
+                    )
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.set_prefs(|p| p.ignore_whitespace = !p.ignore_whitespace, cx)
+                    })),
                 )
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.set_prefs(|p| p.ignore_whitespace = !p.ignore_whitespace, cx)
-                })),
-            )
+            })
             .into_any_element()
     }
 

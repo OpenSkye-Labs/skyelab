@@ -15,7 +15,9 @@ impl Render for Workspace {
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::toggle_sidebar))
+            .on_drag_move(cx.listener(Self::restore_drag_move))
             .on_action(cx.listener(Self::open_compare))
+            .on_action(cx.listener(Self::open_pr_diff))
             .on_action(cx.listener(Self::toggle_compare_group))
             .on_action(cx.listener(Self::keep_compare))
             .on_action(cx.listener(Self::toggle_bottom))
@@ -91,6 +93,7 @@ impl Render for Workspace {
                     .min_h_0()
                     .relative()
                     .child(self.dock.clone())
+                    .children(self.sidebar_restore_edge(cx))
                     .children(self.details_card(cx))
                     .children(ring),
             )
