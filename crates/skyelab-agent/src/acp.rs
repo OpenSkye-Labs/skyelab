@@ -6,7 +6,7 @@
 //! `session/cancel`, `session/set_config_option`, `session/set_mode`, `session/update`, and
 //! `session/request_permission`).
 
-use crate::acp_asks::{Asks, cancelled_reply};
+use crate::acp_asks::Asks;
 pub(crate) use crate::acp_rpc::*;
 use crate::acp_updates::{ToolCallTracker, TurnBuffers, handle_update};
 use crate::{Attachment, Decision, Event, Mode, attach};
