@@ -203,7 +203,16 @@ dialog that acts on GitHub with the account the project's folder is bound to, ne
   it again to confirm. While the PR's checks are failing (or weren't read yet) it asks a third time, **Merge anyway**. The merge is pinned to
   the commit whose checks you saw: if someone pushed since, GitHub refuses it, and if that commit wasn't read the
   dialog asks you to refresh first. GitHub's own branch rules still apply: SkyeLab never merges as an admin.
-- **Review**: **Approve**, or write a comment and **Comment** or **Request changes** (both need text).
+- **Review**: **Approve**, or write a comment and **Comment** or **Request changes** (both need text, unless line
+  comments from the diff go along).
+- **View diff** opens the PR's diff in a tab of the right dock, with the same file tree, split/unified and find as the
+  Changes tab. It is read with `gh pr diff` under the same account, and the PR's head commit is read before and after,
+  so a push landing meanwhile shows an error instead of a mixed diff; **Refresh** reads it again. The diff is shown as
+  plain text only. Click a line number (or drag across several) to comment on those lines; comments stay pending on the
+  tab until **Submit review…** opens this dialog with them, and the verdict you pick there sends them all as one
+  GitHub review, placed on the commit the diff was read at. A review with line comments needs no summary. A line
+  GitHub doesn't count as part of the diff makes it refuse the whole review; its message shows in the dialog and the
+  comments stay pending.
 
 If GitHub refuses, its message shows in red and the dialog stays open. After an action the dialog closes and the PR is
 read again: the details card shows its new state, and the Pull requests page lists again.
