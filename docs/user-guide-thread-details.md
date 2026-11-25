@@ -33,6 +33,13 @@ bound account.
   **Connected**, **Starting**, **Failed** (hover for the error when the agent gave one), **Needs sign-in** or
   **Cancelled**. It shows once an agent has started; a new process (a resume, **Restart Agent Session**) starts the
   list over. See [Accounts](user-guide-accounts.md) for which servers load.
+  A server that **Needs sign-in** has a **Sign in** button. It opens a terminal tab, **Sign in: <server>**, that runs
+  the agent's own login for that one server (`claude mcp login <server>`, or `codex mcp login <server>` on a Codex
+  account) in the thread's folder, under the account that folder is bound to. SkyeLab refuses when the folder is no
+  longer bound to the thread's account. When the login finishes, a notice offers **Restart**: the running agent loaded
+  its servers when it started, so the new sign-in reaches it only in a new process (your next message resumes the
+  session there). Codex reports a missing sign-in as a failed start whose error says to run `codex mcp login`;
+  SkyeLab shows those as **Needs sign-in** too.
 - **Context:** how full the thread's context window is after the agent's newest model call: a bar, the percentage
   and the tokens against the window (**170k / 200k**). The window is the one the agent reports (Claude Code at the end
   of each turn, Codex with every reading), else the model's known window (200k for Claude, 1M for a `[1m]` model);

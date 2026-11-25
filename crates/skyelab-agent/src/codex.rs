@@ -403,3 +403,7 @@ mod allow_tests;
 
 #[path = "codex_asks.rs"]
 mod asks;
+
+#[cfg(test)]
+#[path = "codex_mcp_auth_test.rs"]
+mod mcp_auth_test;
