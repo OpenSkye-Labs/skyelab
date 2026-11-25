@@ -159,6 +159,11 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - `apply_config` swaps any theme color it can't parse for the default, with no error. Theme files use hex or a
   color name gpui-component knows (0.11 has no `zinc`, `slate` or `stone`); `themes_test::every_theme_color_parses`
   runs every value through `try_parse_color`.
+- A hex color loaded into a theme is stored as `Hsla`, and the round trip moves its contrast by a few hundredths
+  (`scripts/gen-themes.py` computed 4.50:1, `contrast_test` read 4.48). A generator aiming at a floor aims a little
+  over it (the script uses 4.6 for 4.5).
+- `gpui_base::Button` sets `line_height(relative(1.))` for its one-line label, and its children inherit it. A button
+  holding wrapping text (Appearance's theme cards) sets `line_height(gpui::phi())`, GPUI's default, on that text.
 - `on_focus_out` fires only in an active window (tests: `activate_window()`), and going inactive counts as one:
   check `window.is_window_active()` first.
 - A `v_flex` stretches its children across its width (align-items: stretch), so a segmented control or pill row
