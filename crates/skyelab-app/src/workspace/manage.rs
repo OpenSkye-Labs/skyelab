@@ -2,8 +2,8 @@
 //! rename and remove projects. Everything here is local: in remote mode the handlers do nothing.
 
 use super::{OpenThread, Workspace, lock};
+use crate::ui::toast::Toast;
 use gpui::{Action, AppContext as _, Context, SharedString, Window, actions};
-use gpui_component::{WindowExt as _, notification::Notification};
 use skyelab_store::Store;
 use std::time::Duration;
 
@@ -105,7 +105,7 @@ impl Workspace {
         let text = text.into();
         #[cfg(test)]
         self.notices.push(text.clone());
-        super::manage::push_note(window, Notification::warning(text), cx);
+        crate::ui::toast::push(window, Toast::warning(text), cx);
     }
 
     /// A notice with an Undo button that runs `undo` on this workspace.
@@ -120,16 +120,12 @@ impl Workspace {
         self.notices.push(text.clone().into());
         let ws = cx.entity().downgrade();
         let undo = std::rc::Rc::new(undo);
-        let note = Notification::new()
-            .message(text)
-            .action(move |_, _, cx| {
-                let (ws, undo) = (ws.clone(), undo.clone());
-                crate::ui::notice_action(cx, "undo", "Undo", move |_, window, cx| {
-                    let _ = ws.update(cx, |ws, cx| undo(ws, window, cx));
-                })
+        let note = Toast::new(text)
+            .action("Undo", move |window, cx| {
+                let _ = ws.update(cx, |ws, cx| undo(ws, window, cx));
             })
             .autohide(true);
-        super::manage::push_note(window, note, cx);
+        crate::ui::toast::push(window, note, cx);
     }
 
     /// The details card unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
@@ -521,13 +517,6 @@ impl Workspace {
                 ws.show_archived = !ws.show_archived;
                 ws.refresh_sidebar(cx);
             }))
-    }
-}
-
-/// Shows a toast. A window without gpui-component's `Root` (some tests) has nowhere to show one, so it is skipped.
-pub(super) fn push_note(window: &mut Window, note: Notification, cx: &mut gpui::App) {
-    if let Some(Some(_)) = window.root::<gpui_component::Root>() {
-        window.push_notification(note, cx);
     }
 }
 

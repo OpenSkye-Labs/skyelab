@@ -29,6 +29,9 @@ mod text_field;
 pub mod themes;
 #[cfg(test)]
 mod themes_test;
+pub mod toast;
+#[cfg(test)]
+mod toast_test;
 mod toggle;
 #[cfg(test)]
 mod toggle_test;
@@ -41,7 +44,7 @@ pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title,
 };
-pub use dialog::{dialog_cancel, dialog_footer, notice_action, open_dialog};
+pub use dialog::{dialog_cancel, dialog_footer, open_dialog};
 pub use kbd::Kbd;
 pub use surface::{Card, Divider};
 pub use text_field::TextField;

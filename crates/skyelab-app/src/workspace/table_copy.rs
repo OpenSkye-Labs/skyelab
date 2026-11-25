@@ -48,7 +48,7 @@ fn escape(s: &str) -> String {
 use crate::ui::Button;
 use gpui::{App, ClipboardItem, IntoElement, ParentElement as _, Styled as _, Window};
 use gpui_component::{
-    WindowExt as _, h_flex,
+    h_flex,
     menu::{DropdownMenu as _, PopupMenuItem},
 };
 use std::sync::Mutex;
@@ -78,8 +78,11 @@ pub(super) fn actions(t: &TableData, _: &mut Window, _: &mut App) -> gpui::AnyEl
                     .item(
                         PopupMenuItem::new("Copy as HTML").on_click(move |_, window, cx| {
                             if let Err(e) = copy_html(&html, &plain) {
-                                window.push_notification(
-                                    format!("Couldn't copy the table as HTML: {e}"),
+                                crate::ui::toast::push(
+                                    window,
+                                    crate::ui::toast::Toast::new(format!(
+                                        "Couldn't copy the table as HTML: {e}"
+                                    )),
                                     cx,
                                 );
                             }

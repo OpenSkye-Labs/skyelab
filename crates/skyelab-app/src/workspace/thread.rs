@@ -85,6 +85,9 @@ pub struct ThreadView {
     pub(super) context: context_meter::Reading,
     /// The timeline's list state, one per window that shows the thread (`window_owner::Lists`).
     pub(super) lists: window_owner::Lists,
+    /// Rows a live record just added: from this index on, and when (Rex's list insertion fade). History loads
+    /// and rows scrolled into view never set it.
+    pub(super) appeared: Option<(usize, std::time::Instant)>,
     expanded: HashSet<String>,
     /// Turn files, the find bar, a closed failure banner.
     pub(super) timeline: super::turn_files::Timeline,
@@ -336,6 +339,7 @@ impl ThreadView {
             limited: None,
             context: Default::default(),
             lists,
+            appeared: None,
             expanded: HashSet::new(),
             timeline: Default::default(),
             drafts: Default::default(),
@@ -419,6 +423,9 @@ impl ThreadView {
         }
         let old = self.items.len();
         if let Some(first) = apply(&mut self.items, record) {
+            if self.items.len() > old {
+                self.appeared = Some((old, std::time::Instant::now()));
+            }
             stamp_done(&mut self.items, crate::ui::now_ms());
             self.find_rows_changed();
             self.lists.splice(first..old, self.items.len() - first);

@@ -39,11 +39,15 @@ impl TerminalPanel {
         let (axis, children, sizes) = match node {
             PaneTree::Leaf(id) => {
                 let view = self.panes.iter().find(|p| p.view.entity_id() == *id);
-                return div()
+                let leaf = div()
                     .id(("pane", *id))
+                    .relative()
                     .size_full()
-                    .children(view.map(|p| p.view.clone()))
-                    .into_any_element();
+                    .children(view.map(|p| p.view.clone()));
+                if self.appearing != Some(*id) {
+                    return leaf.into_any_element();
+                }
+                return appear(leaf, *id, cx.theme().background);
             }
             PaneTree::Split {
                 axis,
@@ -109,6 +113,32 @@ impl TerminalPanel {
             .into_any_element()
     }
 }
+
+/// Rex's new pane: it fades in over [`motion::FADE_FAST`] and grows from [`APPEAR_FROM`] of its slot on the spring.
+/// The terminal grid never changes size mid-way: the pane has its final size from the first frame, and a frame in
+/// the terminal's background, [`APPEAR_FROM`] of the slot inside it, shrinks to nothing (GPUI has no transform).
+fn appear(leaf: gpui::Stateful<gpui::Div>, id: EntityId, background: gpui::Hsla) -> AnyElement {
+    use crate::ui::motion;
+    use gpui::{Animation, AnimationExt as _};
+    let fade_share = motion::FADE_FAST.as_secs_f32() / motion::SETTLE.as_secs_f32();
+    leaf.with_animation(
+        ("pane-appear", id),
+        Animation::new(motion::SETTLE),
+        move |el, t| {
+            let edge = (1. - motion::spring_ease(t)) * (1. - APPEAR_FROM) / 2.;
+            let bar = || div().absolute().bg(background);
+            el.opacity(motion::ease_out_quad((t / fade_share).min(1.)))
+                .child(bar().top_0().left_0().w_full().h(relative(edge)))
+                .child(bar().bottom_0().left_0().w_full().h(relative(edge)))
+                .child(bar().top_0().left_0().h_full().w(relative(edge)))
+                .child(bar().top_0().right_0().h_full().w(relative(edge)))
+        },
+    )
+    .into_any_element()
+}
+
+/// Rex's new pane starts at about 0.88 of its slot.
+const APPEAR_FROM: f32 = 0.88;
 
 /// A 1px line between two children, inside a strip a few pixels wide in the terminal's own background that takes
 /// the drag (an overhanging grab area would sit under the next pane, which is drawn later and wins the hit test).

@@ -205,6 +205,8 @@ pub struct Sidebar {
     /// A click happened and the pointer hasn't moved since: rows show no hover card, so a row the click left under
     /// a resting pointer (or one the list moved there) opens its card only after the pointer moves and rests again.
     cards_held: bool,
+    /// A new thread's row and when it appeared: it fades in once, keyed by its id (used once).
+    pub appeared: Option<(SharedString, std::time::Instant)>,
     /// The list's lines, rebuilt with the rows (`rows_changed`); only the visible ones are drawn.
     entries: Vec<Entry>,
     list: ListState,
@@ -272,6 +274,7 @@ impl Sidebar {
             scope: None,
             focus: cx.focus_handle(),
             cards_held: false,
+            appeared: None,
             entries: Vec::new(),
             list: ListState::new(0, ListAlignment::Top, gpui::px(200.)),
             #[cfg(test)]
@@ -390,7 +393,7 @@ impl Sidebar {
         now: i64,
         theme: &gpui_component::Theme,
     ) -> AnyElement {
-        sidebar_row(
+        let row = sidebar_row(
             item,
             self.marks.get(&item.id),
             &self.focus,
@@ -398,7 +401,13 @@ impl Sidebar {
             !self.cards_held,
             now,
             theme,
-        )
+        );
+        let since = self
+            .appeared
+            .as_ref()
+            .filter(|a| a.0 == item.id)
+            .map(|a| a.1);
+        ui::motion::appear_since(row, since, item.id.clone())
     }
 
     /// The archived threads' toggle row ("Archived 3").

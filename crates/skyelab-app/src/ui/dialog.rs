@@ -29,31 +29,6 @@ pub fn dialog_cancel(id: &'static str) -> Button {
         .on_click(|_, window, cx| window.close_dialog(cx))
 }
 
-/// A toast's action button (Undo, Restart): runs `on_click`, then dismisses the notice it sits on (gpui-component's
-/// action buttons don't). `note` is the notice's own context, the one `Notification::action` passes. gpui-component's
-/// `Notification::action` takes its own button type, so this is the one place SkyeLab still builds one, sized and
-/// labeled like ours.
-#[allow(clippy::disallowed_types)]
-pub fn notice_action(
-    note: &gpui::Context<gpui_component::notification::Notification>,
-    id: &'static str,
-    label: &'static str,
-    on_click: impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static,
-) -> gpui_component::button::Button {
-    use gpui::InteractiveElement as _;
-    use gpui_component::Sizable as _;
-    let note = note.entity().downgrade();
-    gpui_component::button::Button::new(id)
-        // gpui-component's `small` is 24 px, our `Xs`.
-        .small()
-        .label(label)
-        .debug_selector(move || id.into())
-        .on_click(move |event, window, cx| {
-            on_click(event, window, cx);
-            let _ = note.update(cx, |note, cx| note.dismiss(window, cx));
-        })
-}
-
 /// The footer row: buttons at the end, 8 px apart. Pass it to `Dialog::footer`, or end a custom dialog body with it.
 pub fn dialog_footer() -> Div {
     h_flex().w_full().justify_end().gap_2()

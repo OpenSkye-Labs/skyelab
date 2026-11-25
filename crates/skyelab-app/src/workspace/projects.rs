@@ -420,7 +420,12 @@ impl Workspace {
             // A reopened thread reports its start too: keep its one row where it is.
             match self.threads.iter_mut().find(|t| t.id == thread.id) {
                 Some(row) => *row = thread.clone(),
-                None => self.threads.insert(0, thread.clone()),
+                None => {
+                    self.threads.insert(0, thread.clone());
+                    let id = format!("thread-{}", thread.id).into();
+                    let now = std::time::Instant::now();
+                    self.sidebar.update(cx, |s, _| s.appeared = Some((id, now)));
+                }
             }
             self.rerun_search(cx);
             self.refresh_sidebar(cx);

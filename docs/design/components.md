@@ -11,7 +11,7 @@ window showing every component, variant, size and state in the current theme and
 change a token, rebuild, and check both appearances with `SKYELAB_VERIFY_THEME=light|dark`.
 
 `crates/skyelab-app/clippy.toml` bans gpui-component's `Button`, `ButtonVariant`, `Switch`, `Checkbox`, `Tooltip` and
-the `Kbd` constructors, so new code reaches for these.
+the `Kbd` constructors, plus its `Notification` and `push_notification`, so new code reaches for these.
 
 ## Sizes (`ui::Size`)
 
@@ -64,15 +64,18 @@ the `Kbd` constructors, so new code reaches for these.
   inside a row.
 - **Dialog shell** (`ui/dialog.rs`): the modal itself is gpui-component's `Dialog` (`window.open_dialog`: focus trap,
   Esc, the dimmed `overlay` backdrop). Fill it with a title, the body and `dialog_footer()` holding `dialog_cancel(id)`
-  and the action button. `notice_action` is a toast's action button. gpui-component's `Notification` takes only its own
-  button type, so this is the one place it is still built.
+  and the action button.
+- **`Toast`** (`ui/toast.rs`): `ui::toast::push(window, Toast::success(msg).title(..), cx)`. Kinds `new` (plain),
+  `info`, `success`, `warning`, `error`; `action(label, f)` adds one button (and stops autohide unless
+  `.autohide(true)`), `on_click`, and `key` (a newer toast with the same key replaces it). Fades in over 150 ms, leaves
+  at once, hides after 5 s unless hovered. `push_system` sends an OS notification for a background window.
 
 ## Still gpui-component
 
 - **The popup menu** (`DropdownMenu` / `PopupMenu`, `context_menu`): keyboard navigation, submenus and focus. It is
   colored by the theme's `popover`, `accent` and `border`.
 - **`Input` / `Textarea`**: text editing. GPUI has no text input of its own.
-- **`Dialog`**, **`Notification`** and **`HoverCard`**: layers inside `Root`.
+- **`Dialog`** and **`HoverCard`**: layers inside `Root`. (gpui-component's `Notification` is banned; see `Toast`.)
 - **The dock and its tab bars**, and **`TextView`** (markdown).
 - **The browser crate** (`skyelab-browser`) keeps gpui-component's buttons, since it can't depend on the app's `ui`.
 

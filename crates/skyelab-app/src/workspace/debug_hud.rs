@@ -2,7 +2,7 @@
 //! It exists only while shown; its one-second tick re-renders the window (a notify dirties every ancestor), so the
 //! overlay itself costs one frame a second.
 
-use super::{Workspace, manage::push_note};
+use super::Workspace;
 use crate::debug_mode;
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{
@@ -10,7 +10,7 @@ use gpui::{
     SharedString, StatefulInteractiveElement as _, Styled as _, Task, Window, actions, div,
     prelude::FluentBuilder as _, px,
 };
-use gpui_component::{ActiveTheme as _, h_flex, notification::Notification, v_flex};
+use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use skyelab_core::debug;
 use std::time::Duration;
 
@@ -110,11 +110,12 @@ impl Workspace {
             let note = match task.await {
                 Ok(path) => {
                     eprintln!("skyelab: debug state written to {}", path.display());
-                    Notification::success(format!("Debug state written to {}", path.display()))
+                    ui::toast::Toast::success(format!("Debug state written to {}", path.display()))
                 }
-                Err(e) => Notification::error(format!("Debug state not written: {e:#}")),
+                Err(e) => ui::toast::Toast::error(format!("Debug state not written: {e:#}")),
             };
-            cx.update(|window, cx| push_note(window, note, cx)).ok();
+            cx.update(|window, cx| ui::toast::push(window, note, cx))
+                .ok();
         })
         .detach();
     }

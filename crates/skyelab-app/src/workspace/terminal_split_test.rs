@@ -90,3 +90,28 @@ fn dragging_the_divider_resizes_the_panes(cx: &mut gpui::TestAppContext) {
         to
     );
 }
+
+/// Rex's split: the new pane animates only while it appears, then never again (no frames once it settled).
+#[gpui::test]
+fn a_new_pane_appears_once(cx: &mut gpui::TestAppContext) {
+    let f = fixture();
+    let (ws, _thread, cx) = open_thread(&f, cx);
+    cx.update(|_, cx| cx.set_reduce_motion(false));
+    cx.dispatch_action(NewTerminal);
+    wait_until(cx, "a terminal", |cx| {
+        ws.read_with(cx, |ws, _| ws.terminals.len() == 1)
+    });
+    let panel = ws.read_with(cx, |ws, _| ws.terminals[0].clone());
+    assert_eq!(panel.read_with(cx, |p, _| p.appearing), None, "a new tab's pane doesn't animate");
+    let first = panel.read_with(cx, |p, _| p.panes[0].view.clone());
+    first.update_in(cx, |v, window, cx| v.focus_handle(cx).focus(window, cx));
+    cx.simulate_keystrokes(SPLIT_TERMINAL_KEY);
+    wait_until(cx, "a second pane", |cx| {
+        panel.read_with(cx, |p, _| p.panes.len() == 2)
+    });
+    let new = panel.read_with(cx, |p, _| p.panes[1].id());
+    assert_eq!(panel.read_with(cx, |p, _| p.appearing), Some(new));
+    cx.executor().advance_clock(crate::ui::motion::SETTLE);
+    cx.run_until_parked();
+    assert_eq!(panel.read_with(cx, |p, _| p.appearing), None, "settled after the spring");
+}

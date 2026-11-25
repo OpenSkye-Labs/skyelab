@@ -11,7 +11,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   scrolls up, and starts again once they scroll back down; `scroll_to_end()` on your own send follows again.
 - Controls come from `crate::ui` ([docs/design/components.md](../design/components.md)): `Button`, `icon_button`,
   `Switch`, `Checkbox`, `SegmentedControl`, `Tabs`, `TextField`, `Kbd`, `Tooltip`, `Card`, `Divider`. Use gpui-component
-  for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Notification`, `Markdown`, the code
+  for what `ui` doesn't cover (`Input` editing, `List`, `Table`, `Dock`, `Dialog`, `Markdown`, the code
   editor). Only drop to raw `div()` for layout.
 - A `ui` component is a `#[derive(IntoElement)]` + `RenderOnce` builder: no entity, no `cx.notify()`, no state across
   frames. Hover and press are GPUI styles (`.hover(..)`, `.active(..)`, `.focus_visible(..)`), never a hovered flag in
@@ -138,13 +138,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   every view. A px size never scales.
 - Bake a theme choice into the `light_theme`/`dark_theme` configs, then `Theme::change` (refreshes every window).
   Fields written on `Theme` are lost at the next appearance flip (`ui::themes::apply`).
-- `window.open_dialog` panics without `Root` (test windows: `threads_test::add_rooted`), and so does
-  `window.push_notification`: a toast from code that test windows also run goes through `manage::push_note`, which
-  skips it when the window has no `Root`.
-- A `Notification::action` button does not dismiss its notice (only the close button and the notice's own `on_click`
-  do): build it with `crate::ui::notice_action(cx, ..)`, which dismisses after the action. A test that clicks a notice
-  opens the workspace in a `Root` (`open_thread_with(.., true, ..)`) and waits for the notice to stop sliding in,
-  calling `window.refresh()` each poll: debug bounds are the last drawn frame's, and clock ticks alone don't redraw.
+- `window.open_dialog` panics without `Root` (test windows: `threads_test::add_rooted`). Toasts are SkyeLab's own
+  (`ui::toast`) and need no `Root`; a toast's action button closes it after running, and its wrapper carries the
+  debug selector `toast-action`. Debug bounds are the last drawn frame's, and clock ticks alone don't redraw: call
+  `window.refresh()` before reading them after a toast appears.
 - A `Dialog` sits in `Root`'s layer, outside the workspace: actions dispatched inside it never reach the workspace.
   A modal that must reach it is a `deferred` layer in `Workspace::render` (`settings_tab::settings_modal`).
 - A `Dialog`'s `on_close` runs for Esc and the backdrop, not for `window.close_dialog`.

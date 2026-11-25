@@ -307,9 +307,11 @@ impl Workspace {
                         window,
                         |this, _, e: &EnvEvent, window, cx| match e {
                             EnvEvent::Untrusted => this.close_remote_tabs(window, cx),
-                            EnvEvent::Note(note) => {
-                                super::manage::push_note(window, note.to_string().into(), cx)
-                            }
+                            EnvEvent::Note(note) => crate::ui::toast::push(
+                                window,
+                                crate::ui::toast::Toast::new(note.to_string()),
+                                cx,
+                            ),
                             EnvEvent::Thread(_) => {}
                         },
                     ));

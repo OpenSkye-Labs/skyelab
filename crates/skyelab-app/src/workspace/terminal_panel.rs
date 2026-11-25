@@ -109,6 +109,10 @@ pub struct TerminalPanel {
     pub(super) renaming: Option<(Entity<InputState>, Subscription)>,
     /// Runs one command (a Log in): not saved, so a restart doesn't reopen it as a plain shell.
     pub one_shot: bool,
+    /// The pane a split just added, while it fades in and grows (Rex's split); `None` once it has settled, so a
+    /// pane redrawn elsewhere in the tree (its path changes on the next split) never animates again.
+    pub(super) appearing: Option<EntityId>,
+    _appear: Task<()>,
     _poll: Task<()>,
 }
 
@@ -145,6 +149,8 @@ impl TerminalPanel {
             docked: true,
             renaming: None,
             one_shot: false,
+            appearing: None,
+            _appear: Task::ready(()),
             _poll: Task::ready(()),
         };
         this.order();
@@ -222,6 +228,18 @@ impl TerminalPanel {
         self.panes.push(pane);
         self.order();
         self.active = self.index(id).unwrap_or(0);
+        if !cx.reduce_motion() {
+            self.appearing = Some(id);
+            self._appear = cx.spawn(async move |this, cx| {
+                cx.background_executor()
+                    .timer(crate::ui::motion::SETTLE)
+                    .await;
+                let _ = this.update(cx, |this, cx| {
+                    this.appearing = None;
+                    cx.notify();
+                });
+            });
+        }
         focus.focus(window, cx);
         cx.emit(TabEvent::Changed);
         cx.notify();

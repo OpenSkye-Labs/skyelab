@@ -51,7 +51,14 @@ impl Render for TimelineView {
             .child(
                 list(rows, move |ix, window, cx| {
                     thread
-                        .update(cx, |v, cx| render_item(v, ix, window, cx))
+                        .update(cx, |v, cx| {
+                            let row = render_item(v, ix, window, cx);
+                            // Rows a live record just added fade in once (Rex's list insertion).
+                            let since = v.appeared.filter(|a| ix >= a.0).map(|a| a.1);
+                            let key = super::thread_items::ItemsView::items(v).key(ix);
+                            let id = gpui::ElementId::NamedInteger("appear".into(), key);
+                            crate::ui::motion::appear_since(row, since, id)
+                        })
                         .unwrap_or_else(|_| div().into_any_element())
                 })
                 .flex_1()

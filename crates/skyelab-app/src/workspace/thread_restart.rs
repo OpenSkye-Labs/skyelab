@@ -16,9 +16,9 @@ impl ThreadView {
         use gpui_component::WindowExt as _;
         if self.starting {
             // The process starting now reads the account's config as it is: nothing to restart yet.
-            return super::super::manage::push_note(
+            return crate::ui::toast::push(
                 window,
-                gpui_component::notification::Notification::info(
+                crate::ui::toast::Toast::info(
                     "The agent is still starting, and it loads your MCP servers, skills and plugins as they are now.",
                 ),
                 cx,
@@ -56,9 +56,9 @@ impl ThreadView {
             self.stop_requested = true; // `ended` records it stopped, not exited
             self.kill(cx);
         }
-        super::super::manage::push_note(
+        crate::ui::toast::push(
             window,
-            gpui_component::notification::Notification::success(
+            crate::ui::toast::Toast::success(
                 "Your next message resumes this thread in a new agent process, with your MCP servers, skills and plugins as they are now.",
             )
             .title("Agent session restarted"),
