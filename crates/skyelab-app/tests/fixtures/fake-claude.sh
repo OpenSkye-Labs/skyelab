@@ -80,6 +80,17 @@ replay() {
     cat
   fi
 }
+# A .fake-hold-init file in the folder holds the start (before any line) until it is removed (at most 2 minutes).
+n=0
+while [ -f .fake-hold-init ] && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
+if [ -f .fake-start-hook ]; then
+  # A SessionStart hook ahead of init, held until the folder has a .fake-hook-done file (at most 2 minutes).
+  hook='"hook_id":"fake-hook-1","hook_name":"SessionStart:startup","hook_event":"SessionStart"'
+  printf '{"type":"system","subtype":"hook_started",%s}\n' "$hook"
+  n=0
+  while [ ! -f .fake-hook-done ] && [ $n -lt 1200 ]; do sleep 0.1; n=$((n + 1)); done
+  printf '{"type":"system","subtype":"hook_response",%s,"exit_code":0,"outcome":"success"}\n' "$hook"
+fi
 if [ -f .fake-agent-no-result ]; then
   # A turn that never ends (no result event), so tests can act mid-turn.
   grep -v '"type":"result"' "$(dirname "$0")/session.jsonl" | replay

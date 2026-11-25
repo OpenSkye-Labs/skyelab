@@ -108,6 +108,7 @@ impl ThreadView {
                     let record = Record::Agent(event);
                     let shown = this.update(cx, |this, cx| {
                         if !this.stop_requested && launch == this.launches {
+                            this.startup = None;
                             this.push(&record, cx)
                         }
                     });
@@ -130,6 +131,13 @@ impl ThreadView {
                 let left = save(&unsaved, &store, id, record.clone(), &turns, cx).await;
                 let shown = this.update(cx, |this, cx| {
                     this.saved(left, cx);
+                    // A stopped launch's late output says nothing of the one starting now.
+                    if launch == this.launches
+                        && let Record::Agent(e) = &record
+                        && crate::workspace::thread_hooks::ends_startup(e)
+                    {
+                        this.startup = None;
+                    }
                     if let (Record::Agent(Event::Init { session_id, .. }), Some(t)) =
                         (&record, &mut this.thread)
                     {
