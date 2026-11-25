@@ -184,9 +184,11 @@ impl ThreadView {
     fn render_question_dock(
         &mut self,
         a: &ApprovalItem,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        // The options scroll past a quarter of the window, so the chat above keeps its room (a plan's Approve).
+        let options_h = (window.viewport_size().height * 0.25).clamp(px(96.), px(320.));
         let qs = questions(&a.raw);
         let (step, n) = self.dock_step().unwrap_or((0, 1));
         let Some(q) = qs.get(step) else {
@@ -204,7 +206,10 @@ impl ThreadView {
             .get(&a.id)
             .and_then(|d| d.files.get(step).cloned())
             .unwrap_or_default();
-        let attach = super::ask_files::answer_files(&a.id, step, &files, cx).into_any_element();
+        // T3's compact panel: Attach sits in the header; the row of chips shows only once there are files.
+        let attach = (!files.is_empty())
+            .then(|| super::ask_files::answer_files(&a.id, step, &files, cx).into_any_element());
+        let attach_id = a.id.clone();
         let theme = cx.theme();
         let id = a.id.clone();
         let fold_id = a.id.clone();
@@ -254,6 +259,22 @@ impl ThreadView {
             .child(
                 div()
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .debug_selector(|| "question-attach".into())
+                    .child(
+                        icon_button(
+                            SharedString::from(format!("attach-{id}")),
+                            SkyeIcon::Paperclip,
+                        )
+                        .xsmall()
+                        .tooltip("Attach files")
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.attach_answer_files(&attach_id, step, cx)
+                        })),
+                    ),
+            )
+            .child(
+                div()
+                    .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .child(
                         icon_button(SharedString::from(format!("skip-{id}")), SkyeIcon::Close)
                             .xsmall()
@@ -273,7 +294,7 @@ impl ThreadView {
                     .debug_selector(move || format!("dock-option-{oi}"))
                     .items_start()
                     .gap_2p5()
-                    .py_1p5()
+                    .py_1()
                     .px_1p5()
                     .rounded(ui::RADIUS_MD)
                     .cursor_pointer()
@@ -293,13 +314,18 @@ impl ThreadView {
                             .items_center()
                             .child(option_mark(on, q.multi, theme)),
                     )
+                    // One line per option: the description follows the label, muted, and gives way first.
                     .child(
-                        v_flex()
+                        h_flex()
                             .flex_1()
                             .min_w_0()
-                            .gap_0p5()
+                            .h(px(20.))
+                            .gap_2()
                             .child(
                                 div()
+                                    .flex_shrink_0()
+                                    .max_w(gpui::relative(0.7))
+                                    .truncate()
                                     .text_size(ui::BODY)
                                     .font_weight(FontWeight::MEDIUM)
                                     .child(label.clone()),
@@ -307,7 +333,9 @@ impl ThreadView {
                             .when(!description.is_empty(), |d| {
                                 d.child(
                                     div()
-                                        .text_size(ui::MICRO)
+                                        .min_w_0()
+                                        .truncate()
+                                        .text_size(ui::META)
                                         .text_color(theme.muted_foreground)
                                         .child(description.clone()),
                                 )
@@ -363,11 +391,11 @@ impl ThreadView {
                 .child(
                     v_flex()
                         .id("ask-dock-options")
-                        .max_h(px(320.))
+                        .max_h(options_h)
                         .overflow_y_scroll()
                         .children(rows),
                 )
-                .child(attach)
+                .children(attach)
             })
             .into_any_element()
     }

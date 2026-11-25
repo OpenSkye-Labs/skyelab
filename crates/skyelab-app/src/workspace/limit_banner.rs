@@ -10,7 +10,7 @@ use super::{Workspace, lock};
 use crate::ui::toast::{self, Toast};
 use crate::ui::{self, Button, SkyeIcon};
 use gpui::{AnyElement, AppContext as _, Context, FontWeight, Window, div, prelude::*};
-use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex};
 use skyelab_core::{limit_reset, snooze};
 
 /// How often the banner's "Resets in 25 min" is read again.
@@ -67,21 +67,30 @@ impl ThreadView {
                 .debug_selector(|| "limit-banner".into())
                 .w_full()
                 .max_w(ui::CHAT_MAX_W)
-                .mb_2()
-                .px_4()
-                .py_2p5()
-                .gap_3()
+                // T3's composer banner: one line, so it never pushes the chat or a docked question up.
+                .mb_1p5()
+                .pl_3()
+                .pr_1p5()
+                .py_1()
+                .gap_2()
                 .rounded(ui::RADIUS_LG)
                 .bg(theme.warning.opacity(0.08))
                 .border_1()
                 .border_color(theme.warning.opacity(0.35))
-                .child(Icon::new(SkyeIcon::TriangleAlert).size_4().text_color(ink))
                 .child(
-                    v_flex()
+                    Icon::new(SkyeIcon::TriangleAlert)
+                        .size_3p5()
+                        .text_color(ink),
+                )
+                .child(
+                    h_flex()
                         .flex_1()
                         .min_w_0()
+                        .gap_2()
+                        .items_baseline()
                         .child(
                             div()
+                                .flex_shrink_0()
                                 .text_size(ui::BODY)
                                 .font_weight(FontWeight::MEDIUM)
                                 .child("Usage limit reached"),
@@ -89,6 +98,8 @@ impl ThreadView {
                         .child(
                             div()
                                 .debug_selector(|| "limit-banner-reset".into())
+                                .min_w_0()
+                                .truncate()
                                 .text_size(ui::META)
                                 .text_color(theme.muted_foreground)
                                 .child(detail),
@@ -97,7 +108,8 @@ impl ThreadView {
                 .when(actions, |el| {
                     el.child(
                         h_flex()
-                            .gap_1()
+                            .flex_shrink_0()
+                            .gap_0p5()
                             .child(
                                 div().debug_selector(|| "limit-resume".into()).child(
                                     Button::new("limit-resume")
