@@ -64,7 +64,7 @@ fn v5_database_upgrades_to_v7_and_keeps_rows() {
     assert_eq!((t.pinned_at, t.archived_at, t.unread), (None, None, false));
     // The old prompt was indexed by the migration's backfill.
     let found = store.search_threads("flamingo", None, 10).expect("search");
-    assert_eq!(found.iter().map(|t| t.id).collect::<Vec<_>>(), [1]);
+    assert_eq!(found.iter().map(|h| h.thread.id).collect::<Vec<_>>(), [1]);
     drop(store);
     assert_eq!(version(&path), 26, "and on through v26");
 }

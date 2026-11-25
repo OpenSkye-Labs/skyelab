@@ -19,6 +19,8 @@ pub use extras::{Draft, DraftRow, ProjectScript};
 mod images;
 mod import;
 mod manage;
+mod search;
+pub use search::{SearchHit, query_terms};
 mod model;
 pub mod project_rules;
 pub mod scheduled;

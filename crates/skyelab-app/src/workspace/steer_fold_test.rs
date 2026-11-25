@@ -78,5 +78,5 @@ fn search_finds_a_steer() {
     let (kind, payload) = Record::Steer("mind the zebra".into()).to_row();
     store.append_event(t.id, kind, &payload).expect("append");
     let found = store.search_threads("zebra", None, 10).expect("search");
-    assert_eq!(found.iter().map(|t| t.id).collect::<Vec<_>>(), vec![t.id]);
+    assert_eq!(found.iter().map(|h| h.thread.id).collect::<Vec<_>>(), vec![t.id]);
 }

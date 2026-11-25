@@ -64,6 +64,10 @@ impl Workspace {
         let home = dirs::home_dir();
         let shown = self.shown_thread(cx);
         let previews = &self.previews;
+        let matched = self
+            .thread_search
+            .as_ref()
+            .and_then(|(_, hits)| hits.as_ref());
         let mut marks = std::collections::HashMap::new();
         let mut item = |t: &Thread| {
             let id: SharedString = format!("thread-{}", t.id).into();
@@ -126,10 +130,10 @@ impl Workspace {
                     started_ms: state.started_ms.filter(|_| state.running()),
                     card: Some(std::rc::Rc::new(card)),
                     menu: super::manage::thread_menu(t),
-                    preview: previews
-                        .replies
-                        .get(&t.id)
-                        .map(|r| preview_text(r))
+                    // While searching, the matched line stands in for the last reply.
+                    preview: matched
+                        .and_then(|hits| hits.get(&t.id).cloned().flatten())
+                        .or_else(|| previews.replies.get(&t.id).map(|r| preview_text(r)))
                         .filter(|p| !p.is_empty())
                         .map(Into::into),
                     branch,
@@ -327,9 +331,12 @@ impl Workspace {
         // which reruns whenever the thread list reloads.
         let matches = |t: &&Thread| match &self.thread_search {
             None => true,
-            Some((q, ids)) => {
-                t.title.to_lowercase().contains(&q.to_lowercase())
-                    || ids.as_ref().is_some_and(|ids| ids.contains(&t.id))
+            Some((q, hits)) => {
+                let title = t.title.to_lowercase();
+                let terms = skyelab_store::query_terms(q);
+                // A query of only quotes has no terms and, like the store, matches nothing.
+                !terms.is_empty() && terms.iter().all(|w| title.contains(&w.to_lowercase()))
+                    || hits.as_ref().is_some_and(|hits| hits.contains_key(&t.id))
             }
         };
         let in_scope = |t: &&Thread| self.scope.is_empty() || self.scope.contains(&t.project_id);
@@ -378,48 +385,6 @@ impl Workspace {
             .iter()
             .map(|t| t.id)
             .collect()
-    }
-
-    /// The thread list changed (a load, a project switch, a finished turn): run the filter's search again.
-    pub(super) fn rerun_search(&mut self, cx: &mut Context<Self>) {
-        if let Some((q, _)) = &self.thread_search {
-            let q = SharedString::from(q.clone());
-            self.search_threads(q, cx);
-        }
-    }
-
-    /// The sidebar's filter changed: search titles and message text of every project's threads.
-    pub(super) fn search_threads(&mut self, query: SharedString, cx: &mut Context<Self>) {
-        let query = query.trim().to_owned();
-        if query.is_empty() {
-            self.thread_search = None;
-            self._search = None;
-            return self.refresh_sidebar(cx);
-        }
-        // Keep the last answer until the new one lands, so rows don't flicker on a rerun.
-        let kept = match self.thread_search.take() {
-            Some((q, ids)) if q == query => ids,
-            _ => None,
-        };
-        self.thread_search = Some((query.clone(), kept));
-        self.refresh_sidebar(cx);
-        let store = self.backend.store.clone();
-        let task =
-            cx.background_spawn(async move { lock(&store)?.search_threads(&query, None, 500) });
-        self._search = Some(cx.spawn(async move |this, cx| {
-            let found = task.await;
-            let _ = this.update(cx, |this, cx| {
-                match found {
-                    Ok(found) => {
-                        if let Some((_, ids)) = this.thread_search.as_mut() {
-                            *ids = Some(found.into_iter().map(|t| t.id).collect());
-                        }
-                    }
-                    Err(e) => this.store_error = Some(format!("{e:#}").into()),
-                }
-                this.refresh_sidebar(cx);
-            });
-        }));
     }
 }
 

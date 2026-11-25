@@ -22,7 +22,7 @@ fn ids(store: &Store, q: &str, project: Option<i64>) -> Vec<i64> {
         .search_threads(q, project, 50)
         .expect("search")
         .into_iter()
-        .map(|t| t.id)
+        .map(|h| h.thread.id)
         .collect();
     ids.sort();
     ids
