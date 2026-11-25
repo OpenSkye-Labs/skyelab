@@ -64,6 +64,7 @@ fn key(a: &Account) -> Key {
 pub struct Bins {
     pub claude: PathBuf,
     pub codex: PathBuf,
+    pub cursor: PathBuf,
     pub antigravity: PathBuf,
 }
 
@@ -114,6 +115,7 @@ impl LoginStatus {
         let bin = match a.provider {
             Provider::Claude => bins.claude.clone(),
             Provider::Codex => bins.codex.clone(),
+            Provider::Cursor => bins.cursor.clone(),
             Provider::Antigravity => bins.antigravity.clone(),
         };
         let account = a.clone();
@@ -144,12 +146,18 @@ impl LoginStatus {
 impl super::Workspace {
     pub(super) fn login_bins(&self, cx: &App) -> Bins {
         let codex = super::github::codex_bin(cx);
+        let cursor = super::github::cursor_bin(cx);
         let antigravity = super::github::antigravity_bin(cx);
-        // A test that set no fake Codex or Antigravity must never run the real one.
+        // A test that set no fake Codex, Cursor or Antigravity must never run the real CLI.
         #[cfg(test)]
         let codex = match cx.has_global::<super::github::CodexBin>() {
             true => codex,
             false => PathBuf::from("/nonexistent/codex"),
+        };
+        #[cfg(test)]
+        let cursor = match cx.has_global::<super::github::CursorBin>() {
+            true => cursor,
+            false => PathBuf::from("/nonexistent/cursor-agent"),
         };
         #[cfg(test)]
         let antigravity = match cx.has_global::<super::github::AntigravityBin>() {
@@ -159,6 +167,7 @@ impl super::Workspace {
         Bins {
             claude: self.backend.claude_bin.clone(),
             codex,
+            cursor,
             antigravity,
         }
     }

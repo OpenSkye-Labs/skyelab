@@ -218,6 +218,7 @@ pub struct ThreadSettings {
     pub claude_effort: Option<String>,
     pub codex_model: Option<String>,
     pub codex_effort: Option<String>,
+    pub cursor_model: Option<String>,
     pub antigravity_model: Option<String>,
     pub antigravity_effort: Option<String>,
     /// New threads start with "New worktree" on.
@@ -237,6 +238,7 @@ impl ThreadSettings {
         match provider {
             crate::Provider::Claude => (self.claude_model.clone(), self.claude_effort.clone()),
             crate::Provider::Codex => (self.codex_model.clone(), self.codex_effort.clone()),
+            crate::Provider::Cursor => (self.cursor_model.clone(), None),
             crate::Provider::Antigravity => (
                 self.antigravity_model.clone(),
                 self.antigravity_effort.clone(),
@@ -255,6 +257,7 @@ impl Default for ThreadSettings {
             claude_effort: None,
             codex_model: None,
             codex_effort: None,
+            cursor_model: None,
             antigravity_model: None,
             antigravity_effort: None,
             new_worktree: false,

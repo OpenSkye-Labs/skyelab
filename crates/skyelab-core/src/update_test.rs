@@ -77,14 +77,13 @@ fn each_agent_asks_its_own_npm_package() {
     use crate::update::agent_latest_url;
     assert!(
         agent_latest_url(crate::Provider::Claude)
-            .expect("claude url")
-            .ends_with("/@anthropic-ai/claude-code/latest")
+            .is_some_and(|u| u.ends_with("/@anthropic-ai/claude-code/latest"))
     );
     assert!(
         agent_latest_url(crate::Provider::Codex)
-            .expect("codex url")
-            .ends_with("/@openai/codex/latest")
+            .is_some_and(|u| u.ends_with("/@openai/codex/latest"))
     );
+    assert_eq!(agent_latest_url(crate::Provider::Cursor), None);
     assert_eq!(agent_latest_url(crate::Provider::Antigravity), None);
 }
 

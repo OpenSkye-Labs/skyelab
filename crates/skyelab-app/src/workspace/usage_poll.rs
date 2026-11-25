@@ -98,6 +98,7 @@ impl Workspace {
             let bin = match account.provider {
                 Provider::Claude => bins.claude.clone(),
                 Provider::Codex => bins.codex.clone(),
+                Provider::Cursor => bins.cursor.clone(),
                 Provider::Antigravity => bins.antigravity.clone(),
             };
             let store = self.backend.store.clone();

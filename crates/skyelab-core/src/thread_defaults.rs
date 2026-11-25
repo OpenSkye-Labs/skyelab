@@ -14,6 +14,7 @@ pub struct ThreadDefaults {
     pub claude_effort: Option<String>,
     pub codex_model: Option<String>,
     pub codex_effort: Option<String>,
+    pub cursor_model: Option<String>,
     pub antigravity_model: Option<String>,
     pub antigravity_effort: Option<String>,
     pub new_worktree: Option<bool>,
@@ -27,17 +28,19 @@ pub enum ThreadField {
     ClaudeEffort,
     CodexModel,
     CodexEffort,
+    CursorModel,
     AntigravityModel,
     AntigravityEffort,
 }
 
 impl ThreadField {
-    pub const ALL: [ThreadField; 7] = [
+    pub const ALL: [ThreadField; 8] = [
         ThreadField::PermissionMode,
         ThreadField::ClaudeModel,
         ThreadField::ClaudeEffort,
         ThreadField::CodexModel,
         ThreadField::CodexEffort,
+        ThreadField::CursorModel,
         ThreadField::AntigravityModel,
         ThreadField::AntigravityEffort,
     ];
@@ -54,6 +57,7 @@ impl ThreadDefaults {
             ThreadField::ClaudeEffort => &self.claude_effort,
             ThreadField::CodexModel => &self.codex_model,
             ThreadField::CodexEffort => &self.codex_effort,
+            ThreadField::CursorModel => &self.cursor_model,
             ThreadField::AntigravityModel => &self.antigravity_model,
             ThreadField::AntigravityEffort => &self.antigravity_effort,
         }
@@ -66,6 +70,7 @@ impl ThreadDefaults {
             ThreadField::ClaudeEffort => &mut self.claude_effort,
             ThreadField::CodexModel => &mut self.codex_model,
             ThreadField::CodexEffort => &mut self.codex_effort,
+            ThreadField::CursorModel => &mut self.cursor_model,
             ThreadField::AntigravityModel => &mut self.antigravity_model,
             ThreadField::AntigravityEffort => &mut self.antigravity_effort,
         }
@@ -80,6 +85,7 @@ impl ThreadSettings {
             ThreadField::ClaudeEffort => &self.claude_effort,
             ThreadField::CodexModel => &self.codex_model,
             ThreadField::CodexEffort => &self.codex_effort,
+            ThreadField::CursorModel => &self.cursor_model,
             ThreadField::AntigravityModel => &self.antigravity_model,
             ThreadField::AntigravityEffort => &self.antigravity_effort,
         }
@@ -92,6 +98,7 @@ impl ThreadSettings {
             ThreadField::ClaudeEffort => &mut self.claude_effort,
             ThreadField::CodexModel => &mut self.codex_model,
             ThreadField::CodexEffort => &mut self.codex_effort,
+            ThreadField::CursorModel => &mut self.cursor_model,
             ThreadField::AntigravityModel => &mut self.antigravity_model,
             ThreadField::AntigravityEffort => &mut self.antigravity_effort,
         } = value;
@@ -143,7 +150,11 @@ impl ThreadSettings {
             return thread_pick;
         }
         let base = if set(&last_pick) {
-            last_pick
+            if provider == Provider::Cursor {
+                (last_pick.0, None)
+            } else {
+                last_pick
+            }
         } else {
             self.model_for(provider)
         };
@@ -153,9 +164,17 @@ impl ThreadSettings {
         let (model, effort) = match provider {
             Provider::Claude => (&p.claude_model, &p.claude_effort),
             Provider::Codex => (&p.codex_model, &p.codex_effort),
+            Provider::Cursor => (&p.cursor_model, &None),
             Provider::Antigravity => (&p.antigravity_model, &p.antigravity_effort),
         };
-        (model.clone().or(base.0), effort.clone().or(base.1))
+        (
+            model.clone().or(base.0),
+            if provider == Provider::Cursor {
+                None
+            } else {
+                effort.clone().or(base.1)
+            },
+        )
     }
 }
 

@@ -65,7 +65,7 @@ thread (**#24**, its icon and color showing open, draft, merged or closed, plus 
 Beside the title is the thread's state (**Working 1m 12s**, counting up while the turn runs,
 **Approval** while the agent waits for a permission, **Input** for its question, **Plan ready** for a plan to approve, **Failed**, **Interrupted**, **Done** for a finished turn you
 haven't seen) or how long ago it last changed. In the thread itself the line above the composer says **Working for 1m 12s**. Until a newly launched agent
-reports its session, the line names the step it is on instead: **Starting Claude… 2s** (or Codex or Antigravity), **Resuming Claude
+reports its session, the line names the step it is on instead: **Starting Claude… 2s** (or Codex, Cursor or Antigravity), **Resuming Claude
 session… 2s** when it continues a stored session, and **Starting MCP servers (3)… 4s** while the agent still connects
 MCP servers (both at once on a resume). While the agent runs one of the account's own hooks (Codex's `hooks.json`, Claude's settings hooks such
 as SessionStart) it says **Running hook sessionStart (…)… 12s** instead, and after 30 seconds a hint says where the hook
@@ -160,8 +160,8 @@ shows every change at once. It reads that setting when it starts.
 **Settings → Usage** compares every account: its 5-hour and weekly limits, and what its turns cost and used today,
 in 7 and in 30 days, per account and per project, with a daily chart. Each limit bar says how old its reading is.
 Readings come from the agents during turns, and also, while Usage or the thread details card is open, from asking
-each account's own agent CLI every 5 minutes (`claude` or `codex`, with that account's config folder only; SkyeLab
-never reads a login token). An account with no limits to read (signed out, an API key) is asked once an hour. When
+each account's own agent CLI every 5 minutes (`claude` or `codex`, with that account's config folder only; Cursor
+doesn't expose rate-limit polling; SkyeLab never reads a login token). An account with no limits to read (signed out, an API key) is asked once an hour. When
 asking fails, the account says **Couldn't refresh limits** with the reason under its bars and keeps its last
 readings; SkyeLab asks again later, waiting longer after each failure (up to an hour). **Limited** still comes only
 from a turn the agent was refused in, or from Codex saying a limit was reached.

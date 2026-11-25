@@ -19,6 +19,7 @@ impl Settings {
             match a.provider {
                 Provider::Claude => "claude auth login with this account's CLAUDE_CONFIG_DIR",
                 Provider::Codex => "codex login with this account's CODEX_HOME",
+                Provider::Cursor => "cursor-agent login with this account's CURSOR_CONFIG_DIR",
                 Provider::Antigravity => "agy acp --login with this account's GEMINI_HOME",
             },
         );

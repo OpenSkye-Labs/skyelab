@@ -27,6 +27,10 @@ impl Settings {
         self.codex_model_input.update(cx, |i, cx| {
             i.set_value(codex.unwrap_or_default(), window, cx)
         });
+        let cursor = self.shown_field(ThreadField::CursorModel, cx);
+        self.cursor_model_input.update(cx, |i, cx| {
+            i.set_value(cursor.unwrap_or_default(), window, cx)
+        });
         let antigravity = self.shown_field(ThreadField::AntigravityModel, cx);
         self.antigravity_model_input.update(cx, |i, cx| {
             i.set_value(antigravity.unwrap_or_default(), window, cx)
@@ -257,6 +261,8 @@ impl Settings {
             cx,
         );
         self.codex_model_input
+            .update(cx, |i, cx| i.set_value("", window, cx));
+        self.cursor_model_input
             .update(cx, |i, cx| i.set_value("", window, cx));
         self.antigravity_model_input
             .update(cx, |i, cx| i.set_value("", window, cx));

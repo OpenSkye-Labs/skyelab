@@ -134,7 +134,7 @@ mod worktree;
 
 use crate::settings::{Settings, SettingsEvent};
 use center::{Center, Page};
-pub use github::{AntigravityBin, CodexBin, GhBin};
+pub use github::{AntigravityBin, CodexBin, CursorBin, GhBin};
 pub(crate) use github::{gh_bin, gh_login_options};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, SharedString, Subscription, Task, WeakEntity,

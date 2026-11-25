@@ -1,7 +1,7 @@
 # Third-party marks
 
-SkyeLab shows provider logos so a person can tell at a glance which provider an account runs. Third-party marks are the
-brands' own files, unedited, in `crates/skyelab-app/icons/brand/`, and are drawn only through
+SkyeLab shows four provider logos so a person can tell at a glance which provider an account runs. Third-party marks
+are the brands' own files, in `crates/skyelab-app/icons/brand/`, and are drawn only through
 `ui::provider_logo` (and `settings::provider_mark`, which puts one on a tile).
 
 | File | Mark | Official color | Source |
@@ -9,10 +9,13 @@ brands' own files, unedited, in `crates/skyelab-app/icons/brand/`, and are drawn
 | `claude.svg` | Claude Spark, by Anthropic | `#D97757` ("Clay"), one variant for both themes | Anthropic press kit, linked as "Download press kit" from https://www.anthropic.com/news (`/press-kit` → `Anthropic media resources/Anthropic logos/Claude logos/3 Claude Spark/SVG/Claude Spark - Clay.svg`) |
 | `openai-black.svg` | OpenAI Blossom, black | `black` | OpenAI's "Download logos" on https://openai.com/brand/ (https://cdn.openai.com/brand/openai-logos.zip → `OpenAI-logos/SVGs/OAI_OpenAI-Blossom_Black.svg`) |
 | `openai-white.svg` | OpenAI Blossom, white | `white` | same zip, `OAI_OpenAI-Blossom_White.svg` |
+| `cursor-black.svg` | Cursor Cube, dark | `#26251E` | Cursor brand kit (https://cursor.com/brand) |
+| `cursor-white.svg` | Cursor Cube, light | `#EDECEC` | Cursor brand kit (https://cursor.com/brand) |
 | `antigravity.svg` | Antigravity mark | `#4285F4`, one variant for both themes | Original geometric vector mark authored in-repo (not copied from any third-party app) |
 
 Which variant shows: the Claude Spark has one published color, so it shows in Clay on both themes. OpenAI publishes the
-Blossom in black and in white; SkyeLab shows the black file on light themes and the white file on dark themes. Neither
+Blossom in black and in white, and Cursor publishes its Cube in `#26251E` and `#EDECEC`; SkyeLab shows the dark mark on
+light themes and the light mark on dark themes. Neither
 brand page we could read states a light/dark rule in words (Anthropic's /brand page is gone); this pairing is the one
 that keeps each official file legible.
 
@@ -27,6 +30,6 @@ feature our Marks more prominently than your own company's name or marks"; we ho
 - Use a mark only to name its provider: account cards, the composer's model chip and picker, onboarding. Places that
   take a glyph (palette rows) use a generic icon instead.
 - Small sizes: 14–16 px. Keep a little space around the mark; don't put it on a busy background.
-- The marks are trademarks of Anthropic PBC and OpenAI. To update one, download it again from the source above, copy
+- The marks are trademarks of Anthropic PBC, OpenAI, and Anysphere, Inc. (Cursor). To update one, download it again from the source above, copy
   it unchanged, and update this table and `icons/brand/THIRD_PARTY.md`.
 - Don't copy any other app's logo or art (T3 Code's included).

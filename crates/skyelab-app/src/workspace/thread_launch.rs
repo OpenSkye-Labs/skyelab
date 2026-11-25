@@ -62,7 +62,7 @@ impl ThreadView {
     }
 
     /// Starts the agent; `again` reruns a prompt that is already shown and stored (no second prompt row).
-    fn start_agent(
+    pub(super) fn start_agent(
         &mut self,
         text: String,
         attachments: Vec<skyelab_agent::Attachment>,
@@ -93,6 +93,7 @@ impl ThreadView {
         let bin = match account.provider {
             Provider::Claude => self.backend.claude_bin.clone(),
             Provider::Codex => crate::workspace::github::codex_bin(cx),
+            Provider::Cursor => crate::workspace::github::cursor_bin(cx),
             Provider::Antigravity => crate::workspace::github::antigravity_bin(cx),
         };
         let (store, config, cwd, project_id) = (

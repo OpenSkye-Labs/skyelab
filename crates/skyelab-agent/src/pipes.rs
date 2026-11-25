@@ -1,7 +1,6 @@
 //! The threads around the agent's pipes: stdin's writer, stdout's event reader, stderr's tail keeper.
 
 use crate::{Event, MAX_LINE, STDERR_TAIL};
-use serde_json::Value;
 use std::io::{BufRead as _, BufReader, Read, Write as _};
 use std::process::ChildStdin;
 use std::sync::Mutex;
@@ -38,7 +37,7 @@ pub(crate) fn read_stderr(mut stderr: impl Read, tail: &Mutex<Vec<u8>>) {
 pub(crate) fn read_events(
     stdout: impl Read,
     tx: &flume::Sender<Event>,
-    mut parse: impl FnMut(&str) -> Vec<Event>,
+    mut parse: impl FnMut(&str, bool) -> Vec<Event>,
 ) {
     let mut stdout = BufReader::new(stdout);
     let mut buf = Vec::new();
@@ -55,14 +54,14 @@ pub(crate) fn read_events(
             while line.len() > MAX_LINE {
                 line.pop(); // a cut mid-character becomes a 3-byte U+FFFD
             }
-            vec![Event::Unknown(Value::String(line))]
+            parse(&line, true)
         } else {
             let line = String::from_utf8_lossy(&buf);
             if line.trim().is_empty() {
                 continue;
             }
             let _span = tracing::info_span!("agent.parse_line").entered();
-            parse(line.trim_end())
+            parse(line.trim_end(), false)
         };
         if event.into_iter().any(|e| tx.send(e).is_err()) {
             break;

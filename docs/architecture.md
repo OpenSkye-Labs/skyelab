@@ -2,7 +2,7 @@
 
 ## What we're building
 
-A native ADE: run Claude Code and OpenAI Codex agents in threads over your projects, with worktrees, diffs,
+A native ADE: run Claude Code, OpenAI Codex, and Cursor agents in threads over your projects, with worktrees, diffs,
 a terminal, a browser preview, a device hub and agent orchestration, the way T3 Code does
 ([pingdotgg/t3code](https://github.com/pingdotgg/t3code), MIT). It shares environments between your machines over Tailscale.
 
@@ -25,8 +25,9 @@ personal plan by mistake.
 - **Execution and credentials never leave the environment that runs them.** A client on your laptop driving your
   desktop's environment sends commands. The desktop's daemon launches the agent with the desktop's account dirs.
 - The desktop app embeds the daemon in-process for v1. It becomes a separate process only when remote access ships.
-- Agents: launch the `claude` CLI in stream-json mode, or `codex app-server`, with `launch_env(dir)` applied. That is
-  the only place `CLAUDE_CONFIG_DIR` / `CODEX_HOME` is set. The account's `provider` picks which.
+- Agents: launch the `claude` CLI in stream-json mode, `codex app-server`, or `cursor-agent -p` in stream-json mode,
+  with `launch_env(dir)` applied. That is the only place `CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `CURSOR_CONFIG_DIR` is
+  set. The account's `provider` picks which.
 
 ## Crates (add each only when its code exists)
 
@@ -34,7 +35,7 @@ personal plan by mistake.
 |---|---|
 | `skyelab-core` | accounts/bindings, app settings, domain types; no GPUI, no async runtime |
 | `skyelab-app` | GPUI desktop client (binary `skyelab`) |
-| `skyelab-agent` | launching Claude Code and Codex sessions under the bound account; one event stream for both; resume; SkyeLab's MCP server for orchestration |
+| `skyelab-agent` | launching Claude Code, Codex, and Cursor sessions under the bound account; one event stream for all; resume; SkyeLab's MCP server for orchestration |
 | `skyelab-store` | SQLite persistence: projects, threads, thread events (sync API, no GPUI) |
 | `skyelab-git` | worktrees, status, structured diff (shells out to `git`) |
 | `skyelab-terminal` | PTY + terminal grid model and GPUI view (alacritty_terminal) |

@@ -28,7 +28,7 @@ pub enum Limits {
 /// Asks `bin` (the account's agent CLI) for `account`'s usage windows. Blocking: call it off the UI thread. An error
 /// says only what went wrong in SkyeLab's words, never the CLI's text.
 pub fn usage_limits(bin: &Path, account: &Account) -> Result<Limits> {
-    if account.provider == Provider::Antigravity {
+    if matches!(account.provider, Provider::Cursor | Provider::Antigravity) {
         return Ok(Limits::Unavailable);
     }
     if account.provider == Provider::Codex && !account.config_dir.is_dir() {
@@ -64,6 +64,7 @@ pub fn usage_limits(bin: &Path, account: &Account) -> Result<Limits> {
                 json!({ "id": 2, "method": "account/rateLimits/read", "params": null }),
             ]
         }
+        Provider::Cursor => return Ok(Limits::Unavailable),
         Provider::Antigravity => unreachable!(),
     };
     cmd.current_dir(std::env::temp_dir()) // never an untrusted project folder
@@ -74,6 +75,7 @@ pub fn usage_limits(bin: &Path, account: &Account) -> Result<Limits> {
     match account.provider {
         Provider::Claude => parse_claude(&answer),
         Provider::Codex => parse_codex(&answer),
+        Provider::Cursor => Ok(Limits::Unavailable),
         Provider::Antigravity => unreachable!(),
     }
 }
@@ -129,6 +131,7 @@ fn is_answer(v: &Value, provider: Provider) -> bool {
             v["type"] == "control_response" && v["response"]["request_id"] == REQUEST_ID
         }
         Provider::Codex => v["id"] == 2,
+        Provider::Cursor => false,
         Provider::Antigravity => false,
     }
 }

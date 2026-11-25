@@ -1,7 +1,7 @@
-//! "Continue in Codex" / "Continue in Claude": a new thread in the same project under the folder's bound account of
-//! the other provider, linked to its source, whose first session starts with the source's portable transcript
-//! ([`skyelab_agent::handoff`]). A folder has one binding, so a handoff starts only once the folder is bound to an
-//! account of that provider; until then the user is asked to bind it. Never another account.
+//! "Continue in Codex" / "Continue in Claude" / "Continue in Cursor": a new thread in the same project under the
+//! folder's bound account of another provider, linked to its source, whose first session starts with the source's
+//! portable transcript ([`skyelab_agent::handoff`]). A folder has one binding, so a handoff starts only once the
+//! folder is bound to an account of that provider; until then the user is asked to bind it. Never another account.
 
 use crate::ui::Button;
 use crate::workspace::thread::ThreadView;
@@ -18,7 +18,12 @@ use skyelab_store::{NewThread, Thread};
 
 actions!(
     skyelab,
-    [ContinueInCodex, ContinueInClaude, ContinueInAntigravity]
+    [
+        ContinueInCodex,
+        ContinueInClaude,
+        ContinueInCursor,
+        ContinueInAntigravity
+    ]
 );
 
 /// Continues thread `id` in a new thread under the folder's `to` account.
@@ -29,13 +34,13 @@ pub struct HandOffThread {
     pub to: Provider,
 }
 
-/// The default other provider a thread that ran on `from` continues in.
-#[cfg(all(test, unix))]
-pub(in crate::workspace) fn other(from: Provider) -> Provider {
+/// The other providers a thread that ran on `from` can continue in.
+pub(in crate::workspace) fn others(from: Provider) -> Vec<Provider> {
     match from {
-        Provider::Claude => Provider::Codex,
-        Provider::Codex => Provider::Claude,
-        Provider::Antigravity => Provider::Claude,
+        Provider::Claude => vec![Provider::Codex, Provider::Cursor, Provider::Antigravity],
+        Provider::Codex => vec![Provider::Claude, Provider::Cursor, Provider::Antigravity],
+        Provider::Cursor => vec![Provider::Claude, Provider::Codex, Provider::Antigravity],
+        Provider::Antigravity => vec![Provider::Claude, Provider::Codex, Provider::Cursor],
     }
 }
 
@@ -223,25 +228,13 @@ impl ThreadView {
             .map(|a| a.provider)
     }
 
-    /// Every other provider this thread can continue in from this window (empty when remote or unbound).
+    /// The providers this thread can continue in from this window: the others, unless the window shows another
+    /// machine (the new thread couldn't open there).
     pub(in crate::workspace) fn handoff_targets(&self) -> Vec<Provider> {
-        let Some(from) = self.provider().filter(|_| !self.remote_window) else {
-            return Vec::new();
-        };
-        Provider::ALL.into_iter().filter(|&p| p != from).collect()
-    }
-
-    /// The primary provider this thread can continue in from this window: the folder's bound provider if it differs,
-    /// else [`other`], unless the window shows another machine.
-    #[cfg(all(test, unix))]
-    pub(in crate::workspace) fn handoff_to(&self) -> Option<Provider> {
-        let from = self.provider().filter(|_| !self.remote_window)?;
-        if let Some(bound) = self.folder_account.as_ref().map(|a| a.provider)
-            && bound != from
-        {
-            return Some(bound);
-        }
-        Some(other(from))
+        self.provider()
+            .filter(|_| !self.remote_window)
+            .map(others)
+            .unwrap_or_default()
     }
 
     /// Asks the workspace to continue this thread in `to`.
@@ -256,16 +249,17 @@ impl ThreadView {
         }
     }
 
-    /// Registers every other provider's "Continue in …", so the palette lists valid handoff targets only.
+    /// Registers only the other providers' "Continue in …", so the palette lists them.
     pub(in crate::workspace) fn handoff_actions<E: InteractiveElement>(
         &self,
         mut el: E,
         cx: &Context<Self>,
     ) -> E {
-        for target in self.handoff_targets() {
-            el = match target {
+        for to in self.handoff_targets() {
+            el = match to {
                 Provider::Codex => el.on_action(cx.listener(Self::continue_in_codex)),
                 Provider::Claude => el.on_action(cx.listener(Self::continue_in_claude)),
+                Provider::Cursor => el.on_action(cx.listener(Self::continue_in_cursor)),
                 Provider::Antigravity => el.on_action(cx.listener(Self::continue_in_antigravity)),
             };
         }
@@ -276,9 +270,7 @@ impl ThreadView {
     /// continue there with its history.
     pub(in crate::workspace) fn handoff_cta(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let to = self.folder_account.as_ref()?.provider;
-        if !self.handoff_targets().contains(&to) {
-            return None;
-        }
+        self.handoff_targets().contains(&to).then_some(())?;
         Some(
             div()
                 .debug_selector(|| "handoff-cta".into())
@@ -311,6 +303,15 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.hand_off(Provider::Claude, window, cx);
+    }
+
+    pub(in crate::workspace) fn continue_in_cursor(
+        &mut self,
+        _: &ContinueInCursor,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hand_off(Provider::Cursor, window, cx);
     }
 
     pub(in crate::workspace) fn continue_in_antigravity(

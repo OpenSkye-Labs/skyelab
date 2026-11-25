@@ -58,8 +58,9 @@ pub(crate) fn kind(word: &str, first: bool) -> Option<Kind> {
         return (!path.is_empty() && !path.contains(['@', '"'])).then_some(Kind::File);
     }
     if let Some((provider, id)) = word.strip_prefix("model:").and_then(|m| m.split_once('/')) {
-        return (matches!(provider, "claude" | "codex" | "antigravity") && !id.is_empty())
-            .then_some(Kind::Model);
+        return (matches!(provider, "claude" | "codex" | "cursor" | "antigravity")
+            && !id.is_empty())
+        .then_some(Kind::Model);
     }
     if let Some(n) = word.strip_prefix('$') {
         return name(n).then_some(Kind::Skill);
@@ -126,10 +127,12 @@ pub(in crate::workspace) fn sync(
     });
 }
 
-/// The provider a `model:<provider>/<id>` mention names (an unknown one reads as Claude; [`kind`] admits known ones).
+/// The provider a `model:<provider>/<id>` mention names (an unknown one reads as Claude).
 pub(in crate::workspace) fn provider_of(mention: &str) -> Provider {
     if mention.starts_with("model:codex/") {
         Provider::Codex
+    } else if mention.starts_with("model:cursor/") {
+        Provider::Cursor
     } else if mention.starts_with("model:antigravity/") {
         Provider::Antigravity
     } else {
@@ -150,7 +153,7 @@ pub(in crate::workspace) fn chip(ctx: &InlineTokenContext, cx: &App) -> AnyEleme
             let ink = match provider {
                 // Claude's orange, as T3 tints its model chips, mixed from the theme's own red and yellow.
                 Provider::Claude => ui::ink(theme, theme.red.blend(theme.yellow.opacity(0.4))),
-                Provider::Codex => theme.foreground,
+                Provider::Codex | Provider::Cursor => theme.foreground,
                 Provider::Antigravity => ui::ink(theme, theme.info),
             };
             (

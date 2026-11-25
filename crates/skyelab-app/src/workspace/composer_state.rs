@@ -7,10 +7,14 @@ use super::composer_stash::StashKey;
 use super::lock;
 use super::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString, Window, actions};
-use skyelab_agent::{Attachment, AttachmentKind, CLAUDE_MODELS, ModelInfo};
+use skyelab_agent::{Attachment, ModelInfo};
 use skyelab_core::{Account, Provider};
 use skyelab_store::ModelChoice;
 use std::sync::Arc;
+
+#[path = "composer_fit.rs"]
+mod composer_fit;
+pub(in crate::workspace) use composer_fit::{fits, unfit};
 
 actions!(
     skyelab,
@@ -86,6 +90,8 @@ pub(crate) struct Composer {
     pub picked: bool,
     /// Codex's models, once listed (or why they couldn't be).
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
+    /// Cursor's models, once listed (or why they couldn't be).
+    pub cursor_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// Antigravity's models, once listed (or why they couldn't be).
     pub antigravity_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// The model this thread's agent last reported running (its init line).
@@ -139,32 +145,6 @@ pub(in crate::workspace) fn shown_prompt(text: &str, attachments: &[Attachment])
     }
 }
 
-/// Why `account`'s agent can't take these files, if it can't: Codex and Antigravity read images and text, not PDFs.
-pub(in crate::workspace) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<String> {
-    let pdf = attachments.iter().find(|a| {
-        matches!(account.provider, Provider::Codex | Provider::Antigravity)
-            && a.kind == AttachmentKind::Pdf
-    })?;
-    Some(format!(
-        "{} can't read PDFs ({}). Remove it, or attach an image or a text file.",
-        account.provider.label(),
-        pdf.name
-    ))
-}
-
-/// A model pick `provider`'s CLI can take: Claude's aliases and `claude-…` ids for Claude, non-Claude ids for Codex,
-/// and anything except Claude Code bare aliases (`opus`, `sonnet`, `haiku`, `fable`) for Antigravity (which hosts
-/// both Gemini and Claude-named models). A project default saved under another provider is dropped, not sent.
-pub(in crate::workspace) fn fits(provider: Provider, model: &str) -> bool {
-    let claude_alias = CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model);
-    let claude = claude_alias || model.starts_with("claude");
-    match provider {
-        Provider::Claude => claude,
-        Provider::Codex => !claude,
-        Provider::Antigravity => !claude_alias,
-    }
-}
-
 impl ThreadView {
     /// The account the composer acts for: the thread's own, or for a new thread the folder's.
     pub(in crate::workspace) fn composer_account(&self) -> Option<Account> {
@@ -205,6 +185,9 @@ impl ThreadView {
                         && !fits(p, m)
                     {
                         pick = ModelChoice::default();
+                    }
+                    if provider == Some(Provider::Cursor) {
+                        pick.effort = None;
                     }
                     // A new thread: the project's own default, else its remembered pick, else Settings' default.
                     if let (None, Some(p)) = (&this.thread, provider) {
@@ -297,6 +280,7 @@ impl ThreadView {
         let contexts = (kind == MenuKind::Context).then(|| self.context_menu_items());
         if kind == MenuKind::Files {
             self.list_codex_models(cx); // the menu reloads when they land
+            self.list_cursor_models(cx);
             self.list_antigravity_models(cx);
         }
         let models = (kind == MenuKind::Files).then(|| self.mention_models());

@@ -46,6 +46,8 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
     let accounts = root.path().join("config/accounts.toml");
     let codex =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-agent/tests/fixtures/fake-codex.sh");
+    let cursor =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-agent/tests/fixtures/fake-cursor.sh");
     let antigravity = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../skyelab-agent/tests/fixtures/fake-antigravity.sh");
     let gh = Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-git/tests/fixtures/fake-gh.sh");
@@ -53,6 +55,7 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
         // A fresh install: never onboarded, nothing saved.
         super::onboarding::first_run::install(None, cx);
         cx.set_global(CodexBin(codex));
+        cx.set_global(CursorBin(cursor));
         cx.set_global(AntigravityBin(antigravity));
         cx.set_global(github::GhBin(gh));
     });
@@ -83,7 +86,7 @@ fn rig_with(cx: &mut TestAppContext, load_error: Option<String>) -> (Rig, &mut V
     let setup = ws.read_with(cx, |ws, cx| ws.welcome.read(cx).setup.clone());
     wait_until(cx, "detection", |cx| {
         setup.read_with(cx, |o, _| {
-            o.found.len() == 3 && o.agents.len() == 4 && o.agents.iter().all(|a| a.version.is_some())
+            o.found.len() == 3 && o.agents.len() == 5 && o.agents.iter().all(|a| a.version.is_some())
         })
     });
     let rig = Rig {
@@ -147,6 +150,7 @@ fn onboarding_shows_on_a_fresh_install_with_agents_and_found_dirs(cx: &mut TestA
             [
                 Some("2.1.0 (Claude Code)".into()),
                 Some("codex-cli 0.99.0".into()),
+                Some("cursor-agent 0.99.0".into()),
                 Some("1.5.17".into()),
                 Some("gh version 2.99.0 (fake)".into())
             ]
@@ -219,6 +223,7 @@ fn latest_versions(
                 Ok(match p {
                     skyelab_core::Provider::Claude => claude,
                     skyelab_core::Provider::Codex => codex,
+                    skyelab_core::Provider::Cursor => "",
                     skyelab_core::Provider::Antigravity => {
                         return Err(std::io::Error::new(
                             std::io::ErrorKind::Unsupported,
@@ -246,8 +251,8 @@ fn welcome_names_a_newer_agent_cli_release(cx: &mut TestAppContext) {
     let updates: Vec<_> = rig.setup.read_with(cx, |o, _| {
         o.agents.iter().map(|a| a.update.clone()).collect()
     });
-    // Claude Code 2.1.0 is behind 2.2.0; Codex 0.99.0 is current; Antigravity and gh are never checked.
-    assert_eq!(updates, [Some("2.2.0".to_owned()), None, None, None]);
+    // Claude Code 2.1.0 is behind 2.2.0; Codex 0.99.0 is current; Cursor, Antigravity and gh are never checked.
+    assert_eq!(updates, [Some("2.2.0".to_owned()), None, None, None, None]);
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
 }
 

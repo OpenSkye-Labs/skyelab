@@ -1,6 +1,6 @@
 //! The one rule for what a child process may inherit from SkyeLab's env: agents, project terminals and every
 //! git/gh call SkyeLab runs. Everything not listed (credentials, providers, base URLs, the parent's
-//! CLAUDE_CONFIG_DIR/CODEX_HOME/GH_* and GIT_*) is dropped; callers then add the bound account's env.
+//! CLAUDE_CONFIG_DIR/CODEX_HOME/CURSOR_CONFIG_DIR/GH_* and GIT_*) is dropped; callers then add the bound account's env.
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
@@ -316,6 +316,10 @@ mod tests {
                 "ANTHROPIC_BASE_URL",
                 "CLAUDE_CODE_USE_BEDROCK",
                 "CLAUDE_CODE_OAUTH_TOKEN",
+                "CURSOR_CONFIG_DIR",
+                "CURSOR_API_KEY",
+                "CURSOR_AUTH_TOKEN",
+                "CURSOR_BACKEND_URL",
                 "GEMINI_HOME",
                 "GEMINI_API_KEY",
                 "GOOGLE_API_KEY",

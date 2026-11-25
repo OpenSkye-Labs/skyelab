@@ -30,6 +30,11 @@ impl ThreadView {
                 Some(Err(e)) => Some(e.clone()),
                 _ => None,
             },
+            Some(Provider::Cursor) => match &self.composer.cursor_models {
+                Some(Ok(l)) if l.is_empty() => Some("Listing Cursor's models…".into()),
+                Some(Err(e)) => Some(e.clone()),
+                _ => None,
+            },
             Some(Provider::Antigravity) => match &self.composer.antigravity_models {
                 Some(Ok(l)) if l.is_empty() => Some("Listing Antigravity's models…".into()),
                 Some(Err(e)) => Some(e.clone()),
@@ -53,7 +58,8 @@ impl ThreadView {
                 .and_then(|l| l.iter().find(|m| m.is_default).or_else(|| l.first()))
                 .map(|m| m.efforts.clone())
                 .unwrap_or_default(),
-            (None, Some(Provider::Codex)) => Vec::new(),
+            // Codex's default and Cursor models show no effort column.
+            (None, Some(Provider::Codex)) | (_, Some(Provider::Cursor)) => Vec::new(),
             // Claude takes any effort on any model, the account's default too.
             _ => CLAUDE_EFFORTS.iter().map(|e| (*e).to_owned()).collect(),
         }

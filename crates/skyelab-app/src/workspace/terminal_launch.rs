@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// Env for a terminal in `dir`, on top of the inherited allowlist skyelab-terminal keeps: the bound account's dirs,
 /// and git's https credentials from its gh only (none at all without one). A provider home the account doesn't
 /// set, and every home plus `GH_CONFIG_DIR` in an unbound folder, is an empty private dir under `unbound`, one set
-/// per account, so `claude`, `codex` or `gh` there asks to log in instead of using the default account.
+/// per account, so `claude`, `codex`, `cursor-agent` or `gh` there asks to log in instead of using the default account.
 pub(super) fn terminal_env(
     config: &AccountsConfig,
     dir: &Path,
@@ -31,6 +31,7 @@ pub(super) fn terminal_env(
     let mut homes = vec![
         ("CLAUDE_CONFIG_DIR", "claude"),
         ("CODEX_HOME", "codex"),
+        ("CURSOR_CONFIG_DIR", "cursor"),
         ("GEMINI_HOME", "antigravity"),
     ];
     if account.is_none() {
