@@ -5,11 +5,12 @@
 
 use super::remote_thread::RemoteThreadView;
 use super::thread::ThreadView;
-use super::{GoBack, GoForward, OpenSettingsSection, OpenThread, Workspace};
+use super::{GoBack, GoForward, OpenBots, OpenHome, OpenSettingsSection, OpenThread, Workspace};
 use gpui::{
     AnyView, App, Context, Entity, FocusHandle, Focusable, IntoElement, MouseButton,
     NavigationDirection, WeakEntity, Window, div, prelude::*,
 };
+use gpui_component::dock::DockPlacement;
 
 /// What the center shows. Threads are weak, so history never keeps a closed view alive.
 #[derive(Clone, Debug, PartialEq)]
@@ -21,6 +22,8 @@ pub(crate) enum Page {
     Compare(i64),
     /// The Pull requests or Issues page.
     Github(super::gh_pages::Kind),
+    /// The Bots ("Coming soon") preview page.
+    Bots,
 }
 
 impl Page {
@@ -29,6 +32,7 @@ impl Page {
     pub(crate) fn key(&self, cx: &App) -> String {
         match self {
             Page::Github(kind) => format!("github:{}", kind.key()),
+            Page::Bots => "bots".into(),
             Page::Thread(view) => view
                 .upgrade()
                 .and_then(|v| {
@@ -124,7 +128,7 @@ impl Workspace {
 
     pub(super) fn alive(&self, page: &Page, cx: &App) -> bool {
         match page {
-            Page::Welcome => true,
+            Page::Welcome | Page::Bots => true,
             // Made on demand, so they can always show; but they list this machine's projects, never while another
             // machine is shown (Back, Forward, a restore).
             Page::Github(_) => !self.is_remote(),
@@ -165,6 +169,12 @@ impl Workspace {
         if !self.alive(&self.page, cx) {
             self.page = Page::Welcome;
         }
+        if matches!(
+            self.page,
+            Page::Thread(_) | Page::RemoteThread(_) | Page::Compare(_)
+        ) {
+            self.last_home = Some(self.page.clone());
+        }
         let shown = match &self.page {
             Page::Thread(view) => Some(view.entity_id()),
             _ => None,
@@ -177,6 +187,7 @@ impl Workspace {
                 self.welcome.read(cx).focus_handle(cx).focus(window, cx);
                 self.welcome.clone().into()
             }
+            Page::Bots => self.bots_page(window, cx).into(),
             Page::Github(kind) => self.gh_page(kind, window, cx).into(),
             Page::Thread(view) => {
                 let view = view.upgrade().expect("alive() checked it");
@@ -239,6 +250,46 @@ impl Workspace {
         self.refresh_sidebar(cx);
     }
 
+    pub(super) fn bots_page(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<super::bots_page::BotsPage> {
+        let page = self
+            .bots
+            .get_or_insert_with(|| cx.new(super::bots_page::BotsPage::new))
+            .clone();
+        page.read(cx).focus_handle(cx).focus(window, cx);
+        page
+    }
+
+    pub(super) fn open_bots(&mut self, _: &OpenBots, window: &mut Window, cx: &mut Context<Self>) {
+        self.show(Page::Bots, window, cx);
+    }
+
+    pub(super) fn open_home(&mut self, _: &OpenHome, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_settings(window, cx);
+        if !self.dock.read(cx).is_dock_open(DockPlacement::Left) {
+            self.toggle(DockPlacement::Left, window, cx);
+        }
+        if matches!(
+            self.page,
+            Page::Welcome | Page::Thread(_) | Page::RemoteThread(_) | Page::Compare(_)
+        ) {
+            return;
+        }
+        let target = self
+            .last_home
+            .clone()
+            .filter(|page| {
+                let remote_ok =
+                    !self.is_remote() || !matches!(page, Page::Thread(_) | Page::Compare(_));
+                remote_ok && self.alive(page, cx)
+            })
+            .unwrap_or(Page::Welcome);
+        self.show(target, window, cx);
+    }
+
     pub(super) fn open_settings_section(
         &mut self,
         a: &OpenSettingsSection,
@@ -251,6 +302,8 @@ impl Workspace {
     pub(super) fn restore_page(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(id) = key.strip_prefix("thread:").and_then(|id| id.parse().ok()) {
             self.open_thread(&OpenThread { id }, window, cx);
+        } else if key == "bots" {
+            self.show(Page::Bots, window, cx);
         } else if let Some(kind) = key
             .strip_prefix("github:")
             .and_then(super::gh_pages::Kind::parse)

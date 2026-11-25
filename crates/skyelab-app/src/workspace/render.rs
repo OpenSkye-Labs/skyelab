@@ -15,7 +15,8 @@ impl Render for Workspace {
             .key_context(CONTEXT)
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::toggle_sidebar))
-            .on_drag_move(cx.listener(Self::restore_drag_move))
+            .on_action(cx.listener(Self::open_home))
+            .on_action(cx.listener(Self::open_bots))
             .on_action(cx.listener(Self::open_compare))
             .on_action(cx.listener(Self::open_pr_diff))
             .on_action(cx.listener(Self::toggle_compare_group))
@@ -88,14 +89,23 @@ impl Render for Workspace {
                 el.child(gpui_component::TitleBar::new().child("SkyeLab"))
             })
             .child(
-                div()
+                gpui_component::h_flex()
                     .flex_1()
                     .min_h_0()
-                    .relative()
-                    .child(self.dock.clone())
-                    .children(self.sidebar_restore_edge(cx))
-                    .children(self.details_card(cx))
-                    .children(ring),
+                    .w_full()
+                    .child(self.render_rail(cx))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .relative()
+                            .on_drag_move(cx.listener(Self::restore_drag_move))
+                            .child(self.dock.clone())
+                            .children(self.sidebar_restore_edge(cx))
+                            .children(self.details_card(cx))
+                            .children(ring),
+                    ),
             )
             .child(self.render_status(cx))
             .children(self.env_menu(window, cx))
@@ -125,6 +135,7 @@ impl Workspace {
     /// it stays open while you work.
     pub(super) fn card_covers_chat(&self, window: &Window, cx: &App) -> bool {
         let center = window.viewport_size().width
+            - crate::ui::RAIL_W
             - self.dock_width(DockPlacement::Left, cx)
             - self.dock_width(DockPlacement::Right, cx);
         (center - crate::ui::CHAT_MAX_W) / 2. < px(CARD_W + CARD_GAP)

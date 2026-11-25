@@ -154,7 +154,15 @@ pub fn set_installer(installer: Option<Installer>, cx: &mut App) {
 pub fn agent_fetcher(fake: Option<String>, debug: bool) -> AgentFetch {
     match fake.filter(|_| debug) {
         Some(v) => Arc::new(move |_| Ok(v.clone())),
-        None => Arc::new(|p| skyelab_client::release::npm_latest(update::agent_latest_url(p))),
+        None => Arc::new(|p| {
+            let Some(url) = update::agent_latest_url(p) else {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("no npm feed for {}", p.label()),
+                ));
+            };
+            skyelab_client::release::npm_latest(url)
+        }),
     }
 }
 

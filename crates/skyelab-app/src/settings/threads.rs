@@ -86,6 +86,19 @@ impl Settings {
         }
     }
 
+    /// The Cursor model field was left or confirmed: save it (empty is the account's default).
+    pub(crate) fn save_cursor_model(&mut self, cx: &mut Context<Self>) {
+        let typed = self.cursor_model_input.read(cx).value().trim().to_string();
+        if !valid_name(&typed) {
+            self.threads_error = Some(format!("\"{typed}\" isn't a model name."));
+            return cx.notify();
+        }
+        let model = (!typed.is_empty()).then_some(typed);
+        if self.shown_field(ThreadField::CursorModel, cx) != model {
+            self.set_shown_field(ThreadField::CursorModel, model, cx);
+        }
+    }
+
     pub(super) fn render_chat(&self, cx: &mut Context<Self>) -> AnyElement {
         let t = prefs::get(cx);
         let modes = MODES
@@ -161,6 +174,19 @@ impl Settings {
                         efforts(&CODEX_EFFORTS),
                         cx,
                     )),
+                cx,
+            ),
+            setting(
+                false,
+                "Cursor model",
+                if self.scope.is_some() {
+                    "A Cursor model id (empty: inherit All projects')."
+                } else {
+                    "A Cursor model id (empty: the account's default)."
+                },
+                div()
+                    .w(gpui::px(160.))
+                    .child(TextField::new(&self.cursor_model_input).small()),
                 cx,
             ),
         ];

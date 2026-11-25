@@ -218,6 +218,7 @@ pub struct ThreadSettings {
     pub claude_effort: Option<String>,
     pub codex_model: Option<String>,
     pub codex_effort: Option<String>,
+    pub cursor_model: Option<String>,
     /// New threads start with "New worktree" on.
     pub new_worktree: bool,
     /// Minutes between background `git fetch`es of the shown thread's folder; 0 is off.
@@ -235,6 +236,7 @@ impl ThreadSettings {
         match provider {
             crate::Provider::Claude => (self.claude_model.clone(), self.claude_effort.clone()),
             crate::Provider::Codex => (self.codex_model.clone(), self.codex_effort.clone()),
+            crate::Provider::Cursor => (self.cursor_model.clone(), None),
         }
     }
 }
@@ -249,6 +251,7 @@ impl Default for ThreadSettings {
             claude_effort: None,
             codex_model: None,
             codex_effort: None,
+            cursor_model: None,
             new_worktree: false,
             fetch_minutes: 5,
             send_shortcut: SendShortcut::Enter,

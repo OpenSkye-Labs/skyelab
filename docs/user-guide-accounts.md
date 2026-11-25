@@ -4,8 +4,8 @@
 
 ## Accounts and bindings
 
-SkyeLab runs every agent on the account its folder is bound to: a Claude Code account or an OpenAI Codex account.
-A folder with no binding never runs an agent.
+SkyeLab runs every agent on the account its folder is bound to: a Claude Code account, an OpenAI Codex account, or a
+Cursor account. A folder with no binding never runs an agent.
 
 ### First-run onboarding
 
@@ -21,12 +21,15 @@ launch), they appear without moving.
    it too), and the choice is saved like Settings → Appearance.
 3. **Agents & accounts**:
 
-- **Agents** lists Claude Code, Codex and the GitHub CLI, found on your `PATH` the same way threads find them, with the
+- **Agents** lists Claude Code, Codex, Cursor and the GitHub CLI, found on your `PATH` the same way threads find them
+  (Cursor checks `cursor-agent`, then `agent`), with the
   version each reports. "Not found" means a thread can't start on that provider yet. While **Check for updates** is on, SkyeLab
-  also asks the npm registry for each CLI's latest release and shows **2.2.0 available** beside an older one. Update
+  also asks the npm registry for Claude Code and Codex's latest releases and shows **2.2.0 available** beside an older one. Update
   it the way you installed it; SkyeLab never installs anything.
-- **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex` and `~/.codex-*` folder that looks like a login
-  (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`).
+- **Accounts** offers each `~/.claude`, `~/.claude-*`, `~/.codex`, `~/.codex-*`, `~/.cursor` and `~/.cursor-*` folder
+  that looks like a login
+  (it holds `settings.json`, `.claude.json` or `projects/`; for Codex `config.toml`, `sessions/` or `history.jsonl`;
+  for Cursor `cli-config.json`, `chats/` or `mcp.json`).
   To find accounts SkyeLab only checks that those names exist; it never opens a login or token file. (Import
   projects, below, reads the session history of accounts you added.) Tick the
   ones you want, edit a label if you like, and click **Add account**. Nothing is saved before that click. Folders
@@ -45,10 +48,10 @@ launch), they appear without moving.
 
 ### Add an account
 
-1. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude** or **Codex**, give
-   it a name (`Work`; the id is made from it unless you type one), choose its config folder
-   (`/Users/you/.claude-work`, or **Choose…**; left empty it is `~/.claude-<id>`, or `~/.codex-<id>` for Codex), then
-   click **Add account**. Two accounts never share a config folder: adding or editing one onto a folder another
+1. Open Settings (<kbd>⌘,</kbd>) → **Accounts** and click the **Add account** card. Pick **Claude**, **Codex**, or
+   **Cursor**, give it a name (`Work`; the id is made from it unless you type one), choose its config folder
+   (`/Users/you/.claude-work`, or **Choose…**; left empty it is `~/.claude-<id>`, `~/.codex-<id>`, or `~/.cursor-<id>`),
+   then click **Add account**. Two accounts never share a config folder: adding or editing one onto a folder another
    account already uses is refused, since it would be one login under two names. Each account shows as a card: its provider
    mark in the account's color, its name (click it, or the pencil, to edit in place) and its config folder, with a
    copy button.
@@ -59,13 +62,16 @@ launch), they appear without moving.
 
 Each account card says whether that account is signed in: **Signed in as you@example.com**, **Not signed in** (and
 **Log in** turns blue), or **Sign-in unknown** when the CLI couldn't answer (hover it for why). SkyeLab asks the
-account's own CLI with only that account's folder (`claude auth status`, `codex login status`), never reads a token,
+account's own CLI with only that account's folder (`claude auth status`, `codex login status`, `cursor-agent status`), never reads a token,
 and asks again once a Log in terminal ends, or when Settings opens a minute or more later. A card with a GitHub folder
 also shows its GitHub login, as **Source control** does. The setup page shows the same on its account cards, with
 **Log in** on one that is signed out.
 
 For a Codex account the config folder is its `CODEX_HOME` (for example `/Users/you/.codex-work`). Its **Log in** runs
-`codex login` with `CODEX_HOME` set to that folder, created the same way. A config file written before Codex support has no
+`codex login` with `CODEX_HOME` set to that folder, created the same way. For a Cursor account the config folder is its
+`CURSOR_CONFIG_DIR` (for example `/Users/you/.cursor-work`), and **Log in** runs `cursor-agent login` with
+`CURSOR_CONFIG_DIR` set to that folder (note: on macOS, `cursor-agent` may still store or read OAuth credentials from
+the shared OS keychain; see [docs/cursor.md](cursor.md)). A config file written before Codex/Cursor support has no
 `provider` key; those accounts are Claude. An account's provider is fixed once added (its threads hold that provider's
 sessions); to switch, add a new account and re-bind the folder.
 

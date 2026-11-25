@@ -5,7 +5,9 @@
 use crate::workspace::env_harness::{
     FakeTailnet, RemoteSideExt as _, connect, remote_side, switch,
 };
-use crate::workspace::thread_extras::handoff::{ContinueInClaude, ContinueInCodex};
+use crate::workspace::thread_extras::handoff::{
+    ContinueInClaude, ContinueInCodex, ContinueInCursor,
+};
 use crate::workspace::threads_test::{
     fixture, open_workspace, project_thread, setup, type_and_send, wait_done,
 };
@@ -36,18 +38,19 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
         cx.update(|window, cx| {
             window.is_action_available(&ContinueInCodex, cx)
                 || window.is_action_available(&ContinueInClaude, cx)
+                || window.is_action_available(&ContinueInCursor, cx)
         })
     };
     assert_eq!(
-        src.read_with(cx, |t, _| t.handoff_to()),
-        Some(Provider::Codex)
+        src.read_with(cx, |t, _| t.handoff_targets()),
+        vec![Provider::Codex, Provider::Cursor]
     );
     assert!(offered(cx), "offered on this machine");
 
     connect(&ws, &remote, cx);
     assert_eq!(
-        src.read_with(cx, |t, _| t.handoff_to()),
-        None,
+        src.read_with(cx, |t, _| t.handoff_targets()),
+        Vec::<Provider>::new(),
         "hidden remotely"
     );
     assert!(!offered(cx), "no palette entry remotely");
@@ -55,8 +58,8 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
     switch(&ws, None, cx);
     cx.run_until_parked();
     assert_eq!(
-        src.read_with(cx, |t, _| t.handoff_to()),
-        Some(Provider::Codex),
+        src.read_with(cx, |t, _| t.handoff_targets()),
+        vec![Provider::Codex, Provider::Cursor],
         "back on this machine"
     );
 }

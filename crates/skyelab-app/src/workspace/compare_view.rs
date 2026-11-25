@@ -135,7 +135,7 @@ fn usd(v: f64) -> String {
 }
 
 impl Render for CompareView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let cols: Vec<Column> = (self.drawn.iter().zip(&self.columns))
             .filter(|(_, v)| v.upgrade().is_some())
             .map(|(c, _)| c.clone())
@@ -148,7 +148,7 @@ impl Render for CompareView {
             let sum: f64 = cols.iter().filter_map(|c| self.costs.get(&c.id?)).sum();
             format!("Total {} · {} models", usd(sum), cols.len())
         });
-        let header = ui::header(theme)
+        let header = super::layout::page_header(window, cx)
             .child(
                 div()
                     .text_size(ui::BODY)

@@ -116,7 +116,10 @@ impl Workspace {
             gpui::deferred(
                 div()
                     .absolute()
-                    .inset_0()
+                    .top_0()
+                    .bottom_0()
+                    .right_0()
+                    .left(crate::ui::RAIL_W)
                     .flex()
                     .items_center()
                     .justify_center()
@@ -141,7 +144,7 @@ impl Workspace {
                     )
                     .child(
                         div()
-                            .w((size.width - px(80.)).min(px(1180.)))
+                            .w((size.width - crate::ui::RAIL_W - px(80.)).min(px(1180.)))
                             .h((size.height - px(80.)).min(px(900.)))
                             .rounded(crate::ui::RADIUS_XL)
                             .border_1()
@@ -272,6 +275,7 @@ impl Workspace {
         let bin = match account.provider {
             skyelab_core::Provider::Claude => self.backend.claude_bin.clone(),
             skyelab_core::Provider::Codex => github::codex_bin(cx),
+            skyelab_core::Provider::Cursor => github::cursor_bin(cx),
         };
         let options =
             github::agent_login_options(&bin, github::login_args(account.provider), &account);

@@ -85,7 +85,7 @@ pub(crate) fn docks_of(window: gpui::AnyWindowHandle, cx: &App) -> DockToggles {
 pub(crate) fn page_header(window: &Window, cx: &App) -> Div {
     let open = docks(window, cx);
     crate::ui::header(cx.theme()).when(super::MAC && !open.left, |h| {
-        h.pl(crate::ui::TRAFFIC_LIGHTS_W)
+        h.pl(crate::ui::MAC_TOP_PAD + gpui::px(8.))
     })
 }
 
@@ -444,9 +444,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let x = e.event.position.x;
+        let x = (e.event.position.x - e.bounds.left()).max(Pixels::ZERO);
         let show = x >= RESTORE_AFTER;
-        let max = window.viewport_size().width
+        let max = e.bounds.size.width
             - self.dock_width(DockPlacement::Right, cx)
             - gpui_base::PANEL_MIN_SIZE;
         self.dock.update(cx, |dock, cx| {
