@@ -144,8 +144,8 @@ fn dock_toggles(open: DockToggles) -> Vec<Button> {
     ]
 }
 
-/// What the hidden sidebar's edge handle drags; it draws nothing.
-pub(super) struct RestoreSidebar;
+/// What the hidden sidebar's edge handle drags (the width it had, for a drag that ends hidden); it draws nothing.
+pub(super) struct RestoreSidebar(Pixels);
 
 impl Render for RestoreSidebar {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
@@ -371,6 +371,10 @@ impl Workspace {
         if self.dock.read(cx).is_dock_open(at) {
             self.dock_skin.start_close(at, cx);
         }
+        if at == DockPlacement::Left {
+            // A toggle mid-drag ends the edge drag: its release listener is gone with the open sidebar.
+            self.dock_skin.sidebar_drag.take();
+        }
         self.dock
             .update(cx, |dock, cx| dock.toggle_dock(at, window, cx));
     }
@@ -392,6 +396,11 @@ impl Workspace {
             return None;
         }
         let bar = cx.theme().border;
+        let width = self
+            .dock
+            .read(cx)
+            .dock_size(DockPlacement::Left)
+            .unwrap_or(gpui_base::PANEL_MIN_SIZE);
         Some(
             gpui::div()
                 .absolute()
@@ -418,13 +427,16 @@ impl Workspace {
                         .on_click(cx.listener(|this, _, window, cx| {
                             this.toggle(DockPlacement::Left, window, cx)
                         }))
-                        .on_drag(RestoreSidebar, |_, _, _, cx| cx.new(|_| RestoreSidebar)),
+                        .on_drag(RestoreSidebar(width), |d, _, _, cx| {
+                            let width = d.0;
+                            cx.new(|_| RestoreSidebar(width))
+                        }),
                 ),
         )
     }
 
     /// A drag from the restore handle: past [`RESTORE_AFTER`] the sidebar shows at the pointer's width (clamped
-    /// like a resize), back under it hides again; wherever it is on release stays. Instant, as T3's is mid-drag.
+    /// like a resize), back under it hides again at its old width; wherever it is on release stays. Instant, as T3's is mid-drag.
     pub(super) fn restore_drag_move(
         &mut self,
         e: &gpui::DragMoveEvent<RestoreSidebar>,
@@ -440,9 +452,9 @@ impl Workspace {
             if dock.is_dock_open(DockPlacement::Left) != show {
                 dock.toggle_dock(DockPlacement::Left, window, cx);
             }
-            if show {
-                dock.set_dock_size(DockPlacement::Left, x.min(max), window, cx);
-            }
+            // Hidden again: keep the width it had before the drag.
+            let width = if show { x.min(max) } else { e.drag(cx).0 };
+            dock.set_dock_size(DockPlacement::Left, width, window, cx);
         });
     }
 

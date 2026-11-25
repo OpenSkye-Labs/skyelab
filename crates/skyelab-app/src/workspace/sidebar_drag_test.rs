@@ -143,10 +143,47 @@ fn dragging_the_left_edge_brings_the_sidebar_back_at_the_pointer(cx: &mut TestAp
     cx.simulate_mouse_move(point(px(20.), y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert!(!sidebar(&r, cx).0, "back under 48 px it hides again");
+    assert_eq!(sidebar(&r, cx).1, px(256.), "hidden again at its old width");
     cx.simulate_mouse_move(point(px(320.), y), MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_up(point(px(320.), y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert_eq!(sidebar(&r, cx), (true, px(320.)), "the release keeps it");
+}
+
+#[gpui::test]
+fn a_restore_drag_released_hidden_keeps_the_old_width(cx: &mut TestAppContext) {
+    let (r, cx) = setup(cx);
+    hide(&r, cx);
+    let c = cx.debug_bounds("sidebar-restore").expect("handle").center();
+    cx.simulate_mouse_down(c, MouseButton::Left, Modifiers::none());
+    for x in [c.x.as_f32() + 1., 300., 20.] {
+        cx.simulate_mouse_move(point(px(x), c.y), MouseButton::Left, Modifiers::none());
+    }
+    cx.simulate_mouse_up(point(px(20.), c.y), MouseButton::Left, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(sidebar(&r, cx), (false, px(256.)));
+}
+
+/// ⌘B pressed mid-drag closes the sidebar, and with it the listener that ends the drag: the toggle ends it, so the
+/// sidebar never comes back faded or hides on a later, unrelated drag.
+#[gpui::test]
+fn a_toggle_mid_drag_ends_the_edge_drag(cx: &mut TestAppContext) {
+    let (r, cx) = setup(cx);
+    let x = handle_x(&r, cx);
+    down(x, cx);
+    drag(x + 1., cx);
+    drag(10., cx);
+    assert!(hide_pending(&r, cx));
+    hide(&r, cx);
+    up(10., cx);
+    r.ws.update_in(cx, |ws, window, cx| {
+        ws.toggle_sidebar(&super::ToggleSidebar, window, cx)
+    });
+    cx.run_until_parked();
+    assert!(sidebar(&r, cx).0);
+    assert!(!hide_pending(&r, cx), "nothing left armed");
+    let armed = r.ws.read_with(cx, |ws, _| ws.dock_skin.sidebar_drag.get().start);
+    assert_eq!(armed, None);
 }
 
 #[gpui::test]

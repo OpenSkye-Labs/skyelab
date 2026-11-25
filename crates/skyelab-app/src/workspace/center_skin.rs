@@ -95,13 +95,19 @@ impl CenterSkin {
             )
             .child(
                 canvas(
-                    |_, _, _| {},
-                    move |bounds: Bounds<Pixels>, _, window, _| {
+                    // Over base's handle, not blocking it: a press there counts only when nothing (a dialog, a
+                    // popover) covers the handle.
+                    |bounds: Bounds<Pixels>, window, _| {
+                        let strip = Bounds::from_corners(
+                            gpui::point(bounds.right() - HANDLE_W, bounds.top()),
+                            bounds.bottom_right(),
+                        );
+                        window.insert_hitbox(strip, gpui::HitboxBehavior::Normal)
+                    },
+                    move |bounds: Bounds<Pixels>, handle, window, _| {
                         let d = drag.clone();
-                        window.on_mouse_event(move |e: &MouseDownEvent, phase, _, _| {
-                            let on_handle = e.position.x <= bounds.right()
-                                && e.position.x >= bounds.right() - HANDLE_W
-                                && bounds.contains(&e.position);
+                        window.on_mouse_event(move |e: &MouseDownEvent, phase, window, _| {
+                            let on_handle = handle.is_hovered_at(e.position, window);
                             if phase.capture() && e.button == MouseButton::Left && on_handle {
                                 d.set(SidebarDrag {
                                     start: Some(width),
