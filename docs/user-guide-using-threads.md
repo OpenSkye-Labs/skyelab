@@ -4,7 +4,10 @@
 
 1. Click **Add** under Projects and pick a folder.
 2. Select the project and click **New** under Threads.
-3. Type a prompt and press <kbd>⌘↩</kbd> (or click **Send**).
+3. Type a prompt and press <kbd>↩</kbd> (or click **Send**). <kbd>⇧↩</kbd> starts a new line, and <kbd>⌘↩</kbd>
+   (<kbd>Ctrl+↩</kbd>) always sends. To make Enter add lines instead, change **Settings → Chat → Send shortcut**:
+   **⌘ + Enter for multiline prompts** (Enter sends a one-line prompt; once it has a line break, only ⌘↩ sends) or
+   **⌘ + Enter always**. While a `@`, `/` or `$` menu is open, Enter picks the highlighted item.
 
 **Scratch threads** are for quick questions outside any project. Run **New Scratch Thread** from the palette and pick
 an account. SkyeLab makes that account's scratch folder (`scratch/<account>` in its data folder) on first use, binds

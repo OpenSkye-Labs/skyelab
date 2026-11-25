@@ -6,6 +6,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
+#[path = "send_shortcut_test.rs"]
+mod send_shortcut_test;
+#[cfg(test)]
 #[path = "sidebar_views_test.rs"]
 mod sidebar_views_test;
 
@@ -207,6 +210,8 @@ pub struct ThreadSettings {
     pub new_worktree: bool,
     /// Minutes between background `git fetch`es of the shown thread's folder; 0 is off.
     pub fetch_minutes: u32,
+    /// Settings → Chat: when Enter in the composer sends the prompt (T3's send shortcut). App-wide only.
+    pub send_shortcut: SendShortcut,
     /// Project folder → its own new-thread defaults over these (Settings' "Applying settings for <project>").
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub projects: BTreeMap<PathBuf, crate::thread_defaults::ThreadDefaults>,
@@ -234,7 +239,32 @@ impl Default for ThreadSettings {
             codex_effort: None,
             new_worktree: false,
             fetch_minutes: 5,
+            send_shortcut: SendShortcut::Enter,
             projects: BTreeMap::new(),
+        }
+    }
+}
+
+/// When Enter in the composer sends (T3's values). Cmd/Ctrl-Enter always sends; Shift-Enter never does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SendShortcut {
+    /// Enter sends, Shift-Enter makes a new line.
+    #[default]
+    Enter,
+    /// Enter sends a one-line prompt; once the prompt has a line break, Enter adds lines and only Cmd/Ctrl-Enter sends.
+    ModEnterMultiline,
+    /// Enter always makes a new line; only Cmd/Ctrl-Enter sends.
+    ModEnter,
+}
+
+impl SendShortcut {
+    /// Whether a plain Enter (no Shift, no Cmd/Ctrl) sends `prompt` rather than adding a line.
+    pub fn enter_sends(self, prompt: &str) -> bool {
+        match self {
+            Self::Enter => true,
+            Self::ModEnterMultiline => !prompt.contains(['\n', '\r']),
+            Self::ModEnter => false,
         }
     }
 }

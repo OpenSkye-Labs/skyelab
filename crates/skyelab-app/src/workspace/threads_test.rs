@@ -144,10 +144,10 @@ pub(super) fn project_thread(
         .expect("new thread tab opened")
 }
 
-/// Types into the thread's prompt like a user and sends with cmd-enter (ctrl-enter off macOS).
+/// Types a two-line prompt into the thread like a user and sends with cmd-enter (ctrl-enter off macOS).
 pub(super) fn type_and_send(thread: &Entity<ThreadView>, cx: &mut VisualTestContext) {
     thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
-    cx.simulate_keystrokes("h i enter t h e r e");
+    cx.simulate_keystrokes("h i shift-enter t h e r e");
     cx.simulate_keystrokes(if cfg!(target_os = "macos") {
         "cmd-enter"
     } else {

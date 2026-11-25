@@ -72,17 +72,30 @@ impl RemoteThreadView {
         let prompt = cx.new(|cx| {
             TextareaState::new(window, cx)
                 .auto_grow(2, 10)
-                .placeholder("Ask the agent on the other machine… (⌘↩ to send)")
+                .placeholder("Ask the agent on the other machine…")
+                .submit_on_enter(
+                    crate::workspace::thread_extras::prefs::get(cx)
+                        .send_shortcut
+                        .enter_sends(""),
+                )
         });
         let subs = vec![
-            cx.subscribe_in(&prompt, window, |this, _, e: &InputEvent, window, cx| {
-                if let InputEvent::PressEnter {
-                    secondary: true, ..
-                } = e
-                {
-                    this.send(&SendRemotePrompt, window, cx);
-                }
-            }),
+            cx.subscribe_in(
+                &prompt,
+                window,
+                |this, prompt, e: &InputEvent, window, cx| {
+                    use crate::workspace::thread as tw;
+                    match e {
+                        InputEvent::Change | InputEvent::Focus => {
+                            tw::follow_send_shortcut(prompt, cx)
+                        }
+                        InputEvent::PressEnter { .. } if tw::enter_sends(e, prompt, cx) => {
+                            this.send(&SendRemotePrompt, window, cx)
+                        }
+                        _ => {}
+                    }
+                },
+            ),
             cx.subscribe(&env, |this, _, e: &EnvEvent, cx| match e {
                 EnvEvent::Thread(event) => this.on_event(event, cx),
                 EnvEvent::Untrusted | EnvEvent::Note(_) => {}
@@ -407,7 +420,13 @@ impl Render for RemoteThreadView {
                     .pb_3()
                     .gap_2()
                     .items_end()
-                    .child(div().flex_1().child(Textarea::new(&self.prompt)))
+                    .child(
+                        div()
+                            .flex_1()
+                            // A submitting Enter propagates out of the textarea; stop it before it is typed as a new line.
+                            .on_action(|_: &gpui_component::input::Enter, _, _| {})
+                            .child(Textarea::new(&self.prompt)),
+                    )
                     // Interrupt sits with the composer, as on a local thread; the header has no stop.
                     .when(self.thread_id.is_some(), |this| {
                         this.child(

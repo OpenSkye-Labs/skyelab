@@ -31,6 +31,8 @@ mod composer_paste_test;
 mod composer_picker;
 #[path = "composer_picker_keys.rs"]
 mod composer_picker_keys;
+#[path = "composer_popover.rs"]
+mod composer_popover;
 #[path = "composer_queue.rs"]
 mod composer_queue;
 #[cfg(test)]
@@ -72,6 +74,9 @@ mod prompt_stash_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "quote_selection_test.rs"]
 mod quote_selection_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+#[path = "send_shortcut_test.rs"]
+mod send_shortcut_test;
 #[cfg(test)]
 #[path = "side_commands_test.rs"]
 mod side_commands_test;
@@ -86,6 +91,7 @@ use crate::ui::SkyeIcon;
 use crate::workspace::*;
 use crate::workspace::{lock, thread, thread_worktree};
 pub(in crate::workspace) use composer_keys::bind_keys;
+pub(in crate::workspace) use composer_popover::{hint, popover};
 pub(in crate::workspace) use composer_state::{Composer, SteerPrompt, Submit, shown_prompt};
 
 use crate::ui;
@@ -167,6 +173,8 @@ impl ThreadView {
         let theme = cx.theme();
         let card = v_flex()
             .id("composer-card")
+            // A submitting Enter propagates out of the textarea; stopping it here keeps it from being typed as a new line.
+            .on_action(|_: &gpui_component::input::Enter, _, _| {})
             .relative()
             .w_full()
             .rounded(ui::RADIUS_XL)
@@ -365,10 +373,21 @@ impl ThreadView {
                 .medium()
                 .icon(SkyeIcon::Send)
                 .rounded(round)
-                .tooltip(if running {
-                    "Queue for when the agent finishes (⌘↩). ⌘⇧↩ sends it now."
-                } else {
-                    "Send (⌘↩)"
+                .tooltip({
+                    // The send key the Send shortcut setting gives an empty prompt.
+                    let key = if crate::workspace::thread_extras::prefs::get(cx)
+                        .send_shortcut
+                        .enter_sends("")
+                    {
+                        "↩"
+                    } else {
+                        "⌘↩"
+                    };
+                    if running {
+                        format!("Queue for when the agent finishes ({key}). ⌘⇧↩ sends it now.")
+                    } else {
+                        format!("Send ({key})")
+                    }
                 })
                 .disabled(self.read_only || self.starting)
                 .on_click(
@@ -471,29 +490,4 @@ impl ThreadView {
             .children(body)
             .into_any_element()
     }
-}
-
-/// A floating panel above the composer card, T3's popup surface.
-pub(in crate::workspace) fn popover(cx: &gpui::App) -> gpui::Div {
-    let theme = cx.theme();
-    v_flex()
-        .absolute()
-        .bottom_full()
-        .mb_2()
-        .p_1()
-        .rounded(ui::RADIUS_LG)
-        .border_1()
-        .border_color(theme.border)
-        .bg(theme.popover)
-        .shadow_md()
-}
-
-pub(in crate::workspace) fn hint(text: impl Into<SharedString>, cx: &gpui::App) -> AnyElement {
-    div()
-        .px_2()
-        .py_1()
-        .text_size(ui::META)
-        .text_color(cx.theme().muted_foreground)
-        .child(text.into())
-        .into_any_element()
 }

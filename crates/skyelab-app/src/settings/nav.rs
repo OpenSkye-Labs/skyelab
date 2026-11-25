@@ -65,6 +65,11 @@ const INDEX: &[(Section, &str, &str)] = &[
     (Section::Chat, "Generate thread titles", "title name"),
     (
         Section::Chat,
+        "Send shortcut",
+        "enter return newline new line multiline composer prompt cmd ctrl submit",
+    ),
+    (
+        Section::Chat,
         "Visual replies",
         "html render page chart cdn host allow script style font https",
     ),

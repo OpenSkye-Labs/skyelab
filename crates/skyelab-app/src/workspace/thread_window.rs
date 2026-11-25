@@ -2,8 +2,9 @@
 //! app-wide); the window that last showed it owns its prompt and its UI side effects.
 
 use super::{SendPrompt, ThreadView};
+use crate::workspace::thread_extras::prefs;
 use gpui::{
-    AnyElement, AnyWindowHandle, AppContext as _, Context, Entity, InteractiveElement as _,
+    AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, InteractiveElement as _,
     IntoElement as _, ListAlignment, ListState, MouseButton, ParentElement as _, Styled as _,
     Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
@@ -19,13 +20,45 @@ pub(super) fn new_prompt(
     cx: &mut Context<ThreadView>,
 ) -> Entity<TextareaState> {
     cx.new(|cx| {
+        let enter_sends = prefs::get(cx).send_shortcut.enter_sends("");
         TextareaState::new(window, cx)
             .auto_grow(2, 10)
             .placeholder(PLACEHOLDER)
+            .submit_on_enter(enter_sends)
     })
 }
 
-/// Send on secondary-Enter, and draft handling on every change; runs in `window`.
+/// Settings → Chat's send shortcut on `prompt` for its text now: with submit-on-enter the field leaves a plain Enter
+/// to us (no new line); Shift-Enter still adds one. Called on every change and focus, so a setting changed elsewhere
+/// applies by the next keystroke.
+pub(in crate::workspace) fn follow_send_shortcut(prompt: &Entity<TextareaState>, cx: &mut App) {
+    let shortcut = prefs::get(cx).send_shortcut;
+    prompt.update(cx, |p, cx| {
+        let sends = shortcut.enter_sends(&p.value());
+        p.set_submit_on_enter(sends, cx);
+    });
+}
+
+/// Whether `e` sends the prompt: Cmd/Ctrl-Enter always, a plain Enter when the send shortcut lets it. The field has
+/// already added the new line for an Enter that doesn't send, so its text then says "multiline".
+pub(in crate::workspace) fn enter_sends(
+    e: &InputEvent,
+    prompt: &Entity<TextareaState>,
+    cx: &App,
+) -> bool {
+    match e {
+        InputEvent::PressEnter { secondary, shift } => {
+            *secondary
+                || (!shift
+                    && prefs::get(cx)
+                        .send_shortcut
+                        .enter_sends(&prompt.read(cx).value()))
+        }
+        _ => false,
+    }
+}
+
+/// Send on Enter per the send shortcut, and draft handling on every change; runs in `window`.
 pub(super) fn prompt_subscription(
     prompt: &Entity<TextareaState>,
     window: &mut Window,
@@ -34,15 +67,19 @@ pub(super) fn prompt_subscription(
     cx.subscribe_in(
         prompt,
         window,
-        |this, _, e: &InputEvent, window, cx| match e {
-            InputEvent::PressEnter {
-                secondary: true, ..
-            } => this.send_prompt(&SendPrompt, window, cx),
+        |this, prompt, e: &InputEvent, window, cx| match e {
+            InputEvent::PressEnter { .. } => {
+                if enter_sends(e, prompt, cx) {
+                    this.send_prompt(&SendPrompt, window, cx);
+                }
+            }
             InputEvent::Change => {
+                follow_send_shortcut(prompt, cx);
                 this.prompt_changed(cx);
                 this.restore_draft(window, cx);
             }
-            _ => {}
+            InputEvent::Focus => follow_send_shortcut(prompt, cx),
+            InputEvent::Blur => {}
         },
     )
 }
