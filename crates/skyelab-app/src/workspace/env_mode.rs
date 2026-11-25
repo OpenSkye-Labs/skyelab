@@ -518,7 +518,11 @@ impl Workspace {
                         .child(SharedString::from(format!("Remote: {text}"))),
                 )
                 .on_click(|e, window, cx| {
-                    window.dispatch_action(Box::new(ShowEnvironments::at(e.position())), cx)
+                    crate::workspace::dispatch(
+                        Box::new(ShowEnvironments::at(e.position())),
+                        window,
+                        cx,
+                    )
                 }),
         )
     }

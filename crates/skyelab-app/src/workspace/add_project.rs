@@ -338,10 +338,11 @@ pub(super) fn bind_page(
             "Add account…",
             Kind::Action("skyelab::OpenSettingsSection"),
             Rc::new(|window, cx| {
-                window.dispatch_action(
+                crate::workspace::dispatch(
                     Box::new(super::OpenSettingsSection {
                         section: crate::settings::Section::Accounts,
                     }),
+                    window,
                     cx,
                 )
             }),

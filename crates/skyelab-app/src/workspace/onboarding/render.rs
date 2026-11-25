@@ -155,8 +155,9 @@ impl Onboarding {
                             .small()
                             .primary()
                             .on_click(move |_, window, cx| {
-                                window.dispatch_action(
+                                crate::workspace::dispatch(
                                     Box::new(super::super::LogInAccount { id: id.clone() }),
+                                    window,
                                     cx,
                                 )
                             }),
@@ -247,7 +248,7 @@ impl Onboarding {
                             .outline()
                             .small()
                             .label("Add in Settings")
-                            .on_click(|_, window, cx| window.dispatch_action(Box::new(super::super::OpenSettings), cx)),
+                            .on_click(|_, window, cx| crate::workspace::dispatch(Box::new(super::super::OpenSettings), window, cx)),
                     )
                     .into_any_element(),
             );
@@ -262,10 +263,11 @@ impl Onboarding {
                         .icon(Icon::new(SkyeIcon::Plus))
                         .label("Add account…")
                         .on_click(|_, window, cx| {
-                            window.dispatch_action(
+                            crate::workspace::dispatch(
                                 Box::new(super::super::OpenSettingsSection {
                                     section: crate::settings::Section::Accounts,
                                 }),
+                                window,
                                 cx,
                             )
                         }),

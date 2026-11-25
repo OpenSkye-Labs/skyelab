@@ -96,10 +96,10 @@ impl ThreadView {
                 )
                 .child(div().min_w_0().truncate().child(names.join(", ")))
                 .child(link("Details").on_click(|_, window, cx| {
-                    window.dispatch_action(Box::new(ToggleThreadDetails), cx)
+                    crate::workspace::dispatch(Box::new(ToggleThreadDetails), window, cx)
                 }))
                 .child(link("Stop").on_click(move |_, window, cx| {
-                    window.dispatch_action(Box::new(StopChildren { id }), cx)
+                    crate::workspace::dispatch(Box::new(StopChildren { id }), window, cx)
                 }))
                 .into_any_element(),
         )

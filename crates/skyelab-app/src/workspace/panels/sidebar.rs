@@ -7,6 +7,7 @@ use super::sidebar_views::views_button;
 use super::*;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
+use crate::workspace::dispatch;
 use gpui::{AnyElement, ListAlignment, ListOffset, ListState, Subscription, list};
 use gpui_component::input::{InputEvent, InputState};
 
@@ -424,7 +425,7 @@ impl Sidebar {
             .text_color(theme.muted_foreground)
             .on_click(move |_, window, cx| {
                 if let Some(t) = &toggle {
-                    window.dispatch_action(t.boxed_clone(), cx)
+                    dispatch(t.boxed_clone(), window, cx)
                 }
             })
             .child(
@@ -507,7 +508,7 @@ impl Render for Sidebar {
                                 .icon(SkyeIcon::NewThread)
                                 .tooltip("New thread")
                                 .on_click(|_, window, cx| {
-                                    window.dispatch_action(Box::new(super::super::NewThread), cx)
+                                    dispatch(Box::new(super::super::NewThread), window, cx)
                                 }),
                         ),
                 )

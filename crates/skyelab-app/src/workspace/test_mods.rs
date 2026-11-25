@@ -238,6 +238,8 @@ mod terminal_restore_test;
 #[cfg(test)]
 mod terminal_split_test;
 #[cfg(all(test, unix))]
+mod click_focus_test;
+#[cfg(all(test, unix))]
 mod terminal_title_test;
 #[cfg(test)]
 mod tests;

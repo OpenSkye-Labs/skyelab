@@ -26,7 +26,7 @@ impl ThreadView {
             prompt: self.prompt.read(cx).value().to_string(),
             project: self.project_id,
         };
-        window.dispatch_action(Box::new(action), cx);
+        crate::workspace::dispatch(Box::new(action), window, cx);
     }
 }
 

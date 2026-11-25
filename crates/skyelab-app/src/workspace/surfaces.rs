@@ -194,7 +194,7 @@ impl Render for SurfacesPanel {
                         row.cursor_pointer()
                             .hover(|s| s.bg(theme.accent.opacity(0.6)))
                             .on_click(move |_, window, cx| {
-                                window.dispatch_action(action.boxed_clone(), cx)
+                                crate::workspace::dispatch(action.boxed_clone(), window, cx)
                             })
                     } else {
                         row.opacity(0.5)

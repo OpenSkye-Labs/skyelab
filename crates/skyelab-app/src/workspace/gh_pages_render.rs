@@ -290,10 +290,11 @@ impl GhPage {
                             .small()
                             .label("Sign in to GitHub")
                             .on_click(|_, window, cx| {
-                                window.dispatch_action(
+                                crate::workspace::dispatch(
                                     Box::new(super::OpenSettingsSection {
                                         section: crate::settings::Section::Accounts,
                                     }),
+                                    window,
                                     cx,
                                 )
                             }),

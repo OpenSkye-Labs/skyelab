@@ -24,6 +24,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_bottom))
             .on_action(cx.listener(Self::toggle_right))
             .on_action(cx.listener(Self::toggle_details))
+            .on_action(cx.listener(Self::close_tab))
             .on_action(cx.listener(Self::open_in_editor_with))
             .on_action(cx.listener(Self::new_terminal))
             .on_action(cx.listener(Self::split_terminal))

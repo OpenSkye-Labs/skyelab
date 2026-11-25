@@ -133,8 +133,9 @@ impl ThreadView {
                         .on_click(on.click(|this, window, cx| {
                             this.details_home(cx);
                             // The confirm shows above the composer, where the card would cover it.
-                            window.dispatch_action(
+                            crate::workspace::dispatch(
                                 Box::new(super::super::layout::ToggleThreadDetails),
+                                window,
                                 cx,
                             );
                             this.discard_worktree(&DiscardWorktree, window, cx);
@@ -157,7 +158,7 @@ impl ThreadView {
             row("details-source", SkyeIcon::GitBranch, label, theme).on_click(on.click(
                 move |this, window, cx| {
                     this.details_home(cx);
-                    window.dispatch_action(Box::new(OpenThread { id }), cx);
+                    crate::workspace::dispatch(Box::new(OpenThread { id }), window, cx);
                 },
             ))
         });
@@ -443,7 +444,7 @@ impl ThreadView {
             )
             .on_click(on.click(move |this, window, cx| {
                 this.details_home(cx);
-                window.dispatch_action(Box::new(OpenThread { id }), cx);
+                crate::workspace::dispatch(Box::new(OpenThread { id }), window, cx);
             }))
             .into_any_element()
     }

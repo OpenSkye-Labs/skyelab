@@ -187,7 +187,7 @@ impl ThreadView {
                         "Opens a terminal that logs this account in, with its own config folder",
                     )
                     .on_click(move |_, window, cx| {
-                        window.dispatch_action(Box::new(LogInAccount { id: id.clone() }), cx);
+                        crate::workspace::dispatch(Box::new(LogInAccount { id: id.clone() }), window, cx);
                     }),
                 )
             }))
@@ -198,11 +198,11 @@ impl ThreadView {
                         .small()
                         .label("Open Settings")
                         .on_click(|_, window, cx| {
-                            window.dispatch_action(
+                            crate::workspace::dispatch(
                                 Box::new(OpenSettingsSection {
                                     section: crate::settings::Section::Accounts,
                                 }),
-                                cx,
+                                window, cx,
                             );
                         }),
                 )

@@ -252,7 +252,11 @@ impl ThreadView {
         row("details-open-in", SkyeIcon::SquareCode, open_in, theme)
             .on_click(on.click(|this, window, cx| {
                 this.details_home(cx);
-                window.dispatch_action(Box::new(super::super::attention::OpenInEditor), cx);
+                crate::workspace::dispatch(
+                    Box::new(super::super::attention::OpenInEditor),
+                    window,
+                    cx,
+                );
             }))
             .when(can_choose, |r| {
                 r.child(chevron_button(
@@ -290,10 +294,11 @@ impl ThreadView {
                 })
                 .on_click(on.click(move |this, window, cx| {
                     this.details_home(cx);
-                    window.dispatch_action(
+                    crate::workspace::dispatch(
                         Box::new(OpenInEditorWith {
                             editor: editor.clone(),
                         }),
+                        window,
                         cx,
                     );
                 }))

@@ -128,7 +128,9 @@ impl Render for Welcome {
                 .hover(|this| this.bg(theme.accent))
                 .on_click({
                     let action = action.boxed_clone();
-                    move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx)
+                    move |_, window, cx| {
+                        crate::workspace::dispatch(action.boxed_clone(), window, cx)
+                    }
                 })
                 .child(ui::KeyHint::new(label, action))
         };

@@ -101,7 +101,7 @@ impl Render for BotsPage {
                             .icon(SkyeIcon::Home)
                             .label("Back to Home")
                             .on_click(|_, window, cx| {
-                                window.dispatch_action(Box::new(OpenHome), cx)
+                                crate::workspace::dispatch(Box::new(OpenHome), window, cx)
                             }),
                     )
                     .child(
@@ -112,11 +112,11 @@ impl Render for BotsPage {
                             .icon(SkyeIcon::Clock)
                             .label("Open Scheduled tasks")
                             .on_click(|_, window, cx| {
-                                window.dispatch_action(
+                                crate::workspace::dispatch(
                                     Box::new(OpenSettingsSection {
                                         section: Section::Scheduled,
                                     }),
-                                    cx,
+                                    window, cx,
                                 )
                             }),
                     ),

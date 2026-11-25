@@ -181,7 +181,7 @@ impl ThreadView {
             return cx.notify();
         };
         let (id, host) = (t.id, None);
-        window.dispatch_action(Box::new(ShelveThread { id, to, host }), cx);
+        crate::workspace::dispatch(Box::new(ShelveThread { id, to, host }), window, cx);
         cx.notify();
     }
 

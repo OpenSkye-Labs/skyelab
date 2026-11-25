@@ -67,7 +67,11 @@ impl Render for RemotePanel {
                                 .ghost()
                                 .label("Disconnect")
                                 .on_click(move |_, window, cx| {
-                                    window.dispatch_action(Box::new(DisconnectPeer { id }), cx)
+                                    crate::workspace::dispatch(
+                                        Box::new(DisconnectPeer { id }),
+                                        window,
+                                        cx,
+                                    )
                                 }),
                         )
                         .into_any_element()
@@ -112,7 +116,7 @@ impl Render for RemotePanel {
                         .primary()
                         .label("Allow")
                         .on_click(move |_, window, cx| {
-                            window.dispatch_action(Box::new(allow.clone()), cx)
+                            crate::workspace::dispatch(Box::new(allow.clone()), window, cx)
                         }),
                     )
                     .child(
@@ -123,7 +127,7 @@ impl Render for RemotePanel {
                         .small()
                         .label("Deny")
                         .on_click(move |_, window, cx| {
-                            window.dispatch_action(Box::new(deny.clone()), cx)
+                            crate::workspace::dispatch(Box::new(deny.clone()), window, cx)
                         }),
                     )
                     .into_any_element()
@@ -170,7 +174,7 @@ impl Render for RemotePanel {
                             .ghost()
                             .label("Revoke")
                             .on_click(move |_, window, cx| {
-                                window.dispatch_action(Box::new(revoke.clone()), cx)
+                                crate::workspace::dispatch(Box::new(revoke.clone()), window, cx)
                             }),
                         )
                         .into_any_element()
@@ -240,7 +244,7 @@ impl Render for RemotePanel {
                                         .label(if remote.enabled { "On" } else { "Off" })
                                         .accessibility_label("Share this machine on my tailnet")
                                         .on_click(|_, window, cx| {
-                                            window.dispatch_action(Box::new(ToggleSharing), cx)
+                                            crate::workspace::dispatch(Box::new(ToggleSharing), window, cx)
                                         }),
                                 ),
                         ),
