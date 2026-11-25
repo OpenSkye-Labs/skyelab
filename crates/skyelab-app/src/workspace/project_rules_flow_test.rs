@@ -144,5 +144,7 @@ fn the_rule_that_covers_the_call_allows_it(cx: &mut TestAppContext) {
     // "make" covers "make deploy": proves the lookup itself runs, against the exact one that doesn't.
     send(&one, "permit the deploy", cx);
     wait_until(cx, "allowed by the broad rule", |cx| answers(&one, cx).len() == 1);
+    // The agent's reply can reach the thread before the row hears what answered it.
+    wait_until(cx, "the row to name the rule", |cx| approvals(&one, cx)[0].2.is_some());
     assert_eq!(approvals(&one, cx)[0].2.as_deref(), Some("Bash · starts with make"));
 }
