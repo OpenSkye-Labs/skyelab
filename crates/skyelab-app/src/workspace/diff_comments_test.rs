@@ -128,13 +128,36 @@ fn a_comment_maps_to_a_review_comment_by_side() {
         .iter()
         .map(|i| i.review_comment().unwrap())
         .collect();
+    // A context line takes the side the range ends on.
     assert_eq!(
         (r[0].path.as_str(), r[0].start, r[0].line, r[0].side),
-        ("src/a.rs", Some((10, Side::Right)), 11, Side::Left)
+        ("src/a.rs", Some((10, Side::Left)), 11, Side::Left)
     );
     assert_eq!(
         (r[1].start, r[1].line, r[1].side),
         (Some((11, Side::Left)), 11, Side::Left)
     );
     assert_eq!(r[1].body, "keep");
+    // Added to context ends on the new side; removed to added spans both, as GitHub allows.
+    c.add(&d, Scope::Working, 4, 5, "a").unwrap();
+    c.add(&d, Scope::Working, 3, 4, "b").unwrap();
+    let r: Vec<_> = c.items[2..].iter().map(|i| i.review_comment()).collect();
+    assert_eq!(
+        r[0].as_ref().map(|r| (r.start, r.line, r.side)),
+        Some((Some((11, Side::Right)), 12, Side::Right))
+    );
+    assert_eq!(
+        r[1].as_ref().map(|r| (r.start, r.line, r.side)),
+        Some((Some((11, Side::Left)), 11, Side::Right))
+    );
+}
+
+#[test]
+fn an_added_line_to_a_removed_one_is_not_a_review_comment() {
+    let mut d = diff();
+    // Swap rows 3 and 4 so the added line comes first.
+    d.rows.swap(3, 4);
+    let mut c = DiffComments::default();
+    c.add(&d, Scope::Working, 3, 4, "x").unwrap();
+    assert!(c.items[0].review_comment().is_none());
 }

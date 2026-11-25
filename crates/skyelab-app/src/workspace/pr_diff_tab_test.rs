@@ -81,6 +81,28 @@ fn view_diff_opens_the_prs_diff_and_line_comments_go_as_one_review(cx: &mut gpui
         Some(1)
     );
 
+    // Opened again from a caller that read a newer head: the tab keeps the head its comments' lines were read at
+    // until its own read lands.
+    let target = tab.read_with(cx, |t, _| t.pr.as_ref().expect("pr").target.clone());
+    let newer = Target {
+        head: Some("2".repeat(40)),
+        ..target
+    };
+    r.ws.update_in(cx, |ws, window, cx| {
+        ws.open_pr_diff(
+            &super::super::changes::pr::OpenPrDiff { target: newer },
+            window,
+            cx,
+        );
+        let head = tab.read(cx).pr.as_ref().and_then(|p| p.target.head.clone());
+        assert_eq!(head.as_deref(), Some(HEAD));
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        tab.read_with(cx, |t, _| t.pr.as_ref().map(|p| p.review.items.len())),
+        Some(1)
+    );
+
     // Submit review…: the dialog carries the comment; Comment with no summary posts one review.
     let review = tab
         .update_in(cx, |t, window, cx| t.submit_review(window, cx))

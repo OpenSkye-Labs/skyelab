@@ -188,3 +188,24 @@ fn a_failed_review_reports_ghs_error() {
         skyelab_git::submit_review(&gh, URL, HEAD, Verdict::Comment, "", &c).expect_err("fails");
     assert!(format!("{e}").contains("part of the diff"), "{e}");
 }
+
+#[test]
+fn the_fake_refuses_a_review_pinned_to_another_commit() {
+    let (_tmp, dir) = logged_in();
+    let bin = fake_gh();
+    let gh = GitHub {
+        gh: &bin,
+        config_dir: &dir,
+    };
+    let c = [ReviewComment {
+        path: "a".into(),
+        line: 1,
+        side: Side::Right,
+        start: None,
+        body: "x".into(),
+    }];
+    let other = "2".repeat(40);
+    let e =
+        skyelab_git::submit_review(&gh, URL, &other, Verdict::Comment, "", &c).expect_err("422");
+    assert!(format!("{e}").contains("422"), "{e}");
+}

@@ -5,7 +5,7 @@
 
 use super::ChangesView;
 use crate::workspace::Workspace;
-use crate::workspace::changes_model::{self, Scope};
+use crate::workspace::changes_model::{self, Row, Scope};
 use crate::workspace::diff_comments::DiffComments;
 use crate::workspace::pr_actions::{self, Target};
 use gpui::{Action, AppContext as _, Context, SharedString, Window};
@@ -79,8 +79,11 @@ impl ChangesView {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
                 let loaded = loaded.map(|(changes, head)| {
-                    if let Some(pr) = &mut this.pr {
-                        pr.target.head = head;
+                    if let Some(pr) = &mut this.pr
+                        && pr.target.head != head
+                    {
+                        // The checks the caller read were another commit's: a merge from here asks once more.
+                        (pr.target.head, pr.target.checks) = (head, None);
                     }
                     changes
                 });
@@ -97,25 +100,44 @@ impl ChangesView {
         cx: &mut Context<Self>,
     ) -> Option<gpui::Entity<pr_actions::PrActions>> {
         let pr = self.pr.as_ref()?;
-        let comments: Option<Vec<_>> = pr
-            .review
-            .items
-            .iter()
-            .filter(|c| c.scope == Scope::Working)
-            .map(|c| c.review_comment())
-            .collect();
-        let Some(comments) = comments else {
-            self.publish_note = Some("A comment's lines have no line number; delete it.".into());
+        let rows = self.changes.as_ref().map_or(&[][..], |c| &c.rows[..]);
+        let mut comments = Vec::new();
+        let mut sent = Vec::new();
+        let mut refused = None;
+        for c in pr.review.items.iter().filter(|c| c.scope == Scope::Working) {
+            // GitHub takes a range only inside one hunk.
+            let spans = rows
+                .get(c.rows.clone())
+                .is_some_and(|r| r.iter().any(|r| matches!(r, Row::Hunk(_))));
+            match c.review_comment().filter(|_| !spans) {
+                Some(rc) => {
+                    comments.push(rc);
+                    sent.push(c.id);
+                }
+                None => {
+                    refused = Some(format!(
+                        "GitHub can't take the comment on {}: keep a comment's lines inside one hunk, and don't \
+                         start it on an added line when it ends on a removed one.",
+                        c.label()
+                    ));
+                    break;
+                }
+            }
+        }
+        if let Some(why) = refused {
+            self.publish_note = Some(why.into());
             cx.notify();
             return None;
-        };
+        }
+        self.publish_note = None;
         let view = cx.weak_entity();
         let dialog = pr_actions::open(
             pr.target.clone(),
             move |reviewed, _, cx| {
                 _ = view.update(cx, |v, cx| {
+                    // Only what went to GitHub: comments added while gh ran stay pending.
                     if reviewed {
-                        v.update_review(cx, |r| r.clear(Scope::Working));
+                        v.update_review(cx, |r| r.items.retain(|c| !sent.contains(&c.id)));
                         v.comments_changed(cx);
                     }
                 })
@@ -150,7 +172,17 @@ impl Workspace {
             tab.update(cx, |c, cx| {
                 // The caller's account and binding are the ones checked now.
                 if let Some(p) = &mut c.pr {
-                    p.target = a.target.clone();
+                    // Pending comments were written for one account: another one doesn't post them.
+                    if p.target.account != a.target.account {
+                        p.review = DiffComments::default();
+                    }
+                    // Only a diff read here moves the head (and its checks): the comments' lines are that diff's.
+                    let (head, checks) = (p.target.head.take(), p.target.checks);
+                    p.target = Target {
+                        head,
+                        checks,
+                        ..a.target.clone()
+                    };
                 }
                 c.refresh(cx)
             });

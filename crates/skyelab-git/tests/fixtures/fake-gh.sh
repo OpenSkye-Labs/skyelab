@@ -20,7 +20,7 @@
 #   fake-gh.prdiff  one line per `pr diff` call (its args): it prints "$GH_CONFIG_DIR/fake-pr.diff" when it exists, else a
 #   one-file diff; a "fake-head-after-diff" file then becomes the head (a push landing mid-read)
 #   `api` calls log their args to fake-gh.actions and stdin to fake-gh.review-body (a review with line comments), and
-#   fail like `pr review` with "fake-action-fail"
+#   fail like `pr review` with "fake-action-fail", or when the JSON's commit_id isn't the head
 # `--version` needs no config dir (onboarding's agent list asks it with none).
 if [ "$1" = "--version" ]; then
   echo "gh version 2.99.0 (fake)"
@@ -98,6 +98,11 @@ case "$1 $2" in
   fi
   if [ -f "$dir/fake-action-fail" ]; then
     cat "$dir/fake-action-fail" >&2
+    exit 1
+  fi
+  # Like GitHub, a review pinned to another commit than the head is refused.
+  if ! grep -q "\"commit_id\":\"$head_sha\"" "$dir/fake-gh.review-body"; then
+    echo "gh: Unprocessable Entity (HTTP 422): commit_id is not the head" >&2
     exit 1
   fi
   echo '{"id":1,"state":"COMMENTED"}'

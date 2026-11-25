@@ -55,15 +55,23 @@ impl DiffComment {
 }
 
 impl DiffComment {
-    /// The comment as a line comment of a GitHub review: from its first line to its last, each on the old side when
-    /// it is a removed line and on the new side otherwise. `None` when a line has no number on its side.
+    /// The comment as a line comment of a GitHub review: from its first line to its last. A removed line is on the
+    /// old side, an added one on the new side, and a context line on the side the range ends on. `None` when GitHub
+    /// would refuse it: a line with no number on its side, or a range from an added line to a removed one.
     pub(crate) fn review_comment(&self) -> Option<skyelab_git::ReviewComment> {
         use skyelab_git::Side;
-        let at = |l: &Line| match l.kind {
-            LineKind::Removed => Some((l.old?, Side::Left)),
+        let last = self.lines.last()?;
+        let end_side = if last.kind == LineKind::Removed {
+            Side::Left
+        } else {
+            Side::Right
+        };
+        let at = |l: &Line| match (l.kind, end_side) {
+            (LineKind::Removed, _) | (LineKind::Context, Side::Left) => Some((l.old?, Side::Left)),
+            (LineKind::Added, Side::Left) => None,
             _ => Some((l.new?, Side::Right)),
         };
-        let (first, last) = (at(self.lines.first()?)?, at(self.lines.last()?)?);
+        let (first, last) = (at(self.lines.first()?)?, at(last)?);
         Some(skyelab_git::ReviewComment {
             path: self.path.to_string_lossy().into_owned(),
             line: last.0,

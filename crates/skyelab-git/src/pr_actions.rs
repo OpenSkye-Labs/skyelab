@@ -158,9 +158,9 @@ pub struct PrDiff {
     pub head: Option<String>,
 }
 
-/// Reads the PR's diff with `gh pr diff` (escape sequences neutralized, gh's default), between two `gh pr view` reads
-/// of its head: a head that moved meanwhile is an error, so comments are pinned to the commit the diff shows. The diff
-/// comes from other people: it is only parsed into text rows, capped like a local diff.
+/// Reads the PR's diff with `gh pr diff`, between two `gh pr view` reads of its head: a head that moved meanwhile is an
+/// error, so comments are pinned to the commit the diff shows. The diff comes from other people: it is only parsed
+/// into text rows, capped like a local diff, and drawn as GPUI text, never sent to a terminal.
 pub fn pr_diff(gh: &crate::GitHub, url: &str) -> Result<PrDiff> {
     let url = pr_link(url)?;
     let before = crate::pr_status(gh, url)?.head;
