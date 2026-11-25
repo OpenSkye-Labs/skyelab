@@ -62,13 +62,34 @@ pub enum IssueFilter {
     All,
 }
 
-/// `owner/repo` of the folder's `origin`, when it is a github.com https or ssh URL.
+/// Why a folder has no GitHub repo to list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum NoGitHub {
+    #[error("the project isn't a git repository")]
+    NotARepo,
+    #[error("the project has no origin remote")]
+    NoOrigin,
+    /// The URL itself is never shown: it may hold a token.
+    #[error("the project's origin remote isn't a github.com repository")]
+    OtherHost,
+}
+
+/// `owner/repo` of the folder's `origin`, when it is a github.com https or ssh URL; else [`Error::NoGitHub`].
 pub fn repo_slug(dir: &Path) -> Result<String> {
-    let root = repo_root(dir)?;
+    let no = |why| Error::NoGitHub(why);
+    let root = repo_root(dir).map_err(|e| match e {
+        Error::NotARepo(_) => no(NoGitHub::NotARepo),
+        e => e,
+    })?;
+    // Listed first, so a missing origin is told apart without reading git's (localized) stderr.
+    if !lossy(&git(&root, &["remote"])?)
+        .lines()
+        .any(|r| r == "origin")
+    {
+        return Err(no(NoGitHub::NoOrigin));
+    }
     let url = lossy(&git(&root, &["remote", "get-url", "origin"])?);
-    // The URL itself isn't shown: it may hold a token.
-    parse_repo_url(url.trim())
-        .ok_or_else(|| invalid("the project's origin remote isn't a github.com repository"))
+    parse_repo_url(url.trim()).ok_or(no(NoGitHub::OtherHost))
 }
 
 /// `owner/repo` from a github.com remote URL (https without credentials, `git@github.com:` or `ssh://git@github.com/`).

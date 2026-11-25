@@ -287,14 +287,19 @@ impl Codex {
                         input: t.input.saturating_sub(base.input),
                         output: t.output.saturating_sub(base.output),
                     }),
-                    result: turn["error"]["message"]
-                        .as_str()
-                        .map(str::to_owned)
-                        .or(if ok {
-                            text
-                        } else {
-                            turn["status"].as_str().map(str::to_owned)
-                        }),
+                    // A stop reads `interrupted` whatever error rode along with it.
+                    result: if turn["status"] == "interrupted" {
+                        Some("interrupted".to_owned())
+                    } else {
+                        turn["error"]["message"]
+                            .as_str()
+                            .map(str::to_owned)
+                            .or(if ok {
+                                text
+                            } else {
+                                turn["status"].as_str().map(str::to_owned)
+                            })
+                    },
                     turn_cost_usd: None,
                 };
                 self.end_turn();
@@ -408,3 +413,7 @@ mod asks;
 #[cfg(test)]
 #[path = "codex_mcp_auth_test.rs"]
 mod mcp_auth_test;
+
+#[cfg(test)]
+#[path = "codex_stop_test.rs"]
+mod stop_test;

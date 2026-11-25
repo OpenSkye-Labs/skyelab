@@ -4,8 +4,11 @@ Back to the [user guide](user-guide.md).
 
 **Open Pull Requests** and **Open Issues** in the command palette show one page each. Every project whose folder is
 bound to an account is listed under its name and account, read with that account's own `gh` login and never
-another's; the repo is the project's `origin` (a github.com https or ssh URL). An account with no GitHub login shows
-**Sign in to GitHub** and nothing is asked. Up to 50 open items per project are read, once per filter (**Mine**,
+another's; the repo is the project's `origin` (a github.com https or ssh URL). A project with no `origin` says
+**This project has no GitHub remote** (with the `git remote add origin …` line to fix it), one whose `origin` is on
+another host (GitLab, a self-hosted server) says **This project's remote isn't on GitHub**, and a folder that isn't a
+git repository says so; none of them asks `gh` anything. An account with no GitHub login, or whose `gh` login has
+lapsed, shows **Sign in to GitHub** and nothing is asked. Up to 50 open items per project are read, once per filter (**Mine**,
 **Review requested**, **All** for PRs; **Assigned to me**, **All** for issues) until you press refresh.
 
 - Click a PR to start a thread in its project with a review prompt; the PR is linked to the thread when you send it.

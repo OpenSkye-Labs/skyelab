@@ -362,15 +362,12 @@ fn render_row<V: ItemsView>(
             duration_ms,
             cost_usd,
             usage,
+            error,
             ..
         } => {
-            let verb = if *is_error {
-                "Failed after"
-            } else {
-                "Worked for"
-            };
+            let verb = skyelab_agent::timeline::cards::done_verb(*is_error, error.as_deref());
             let secs = *duration_ms as f64 / 1000.;
-            let color = if *is_error {
+            let color = if verb == "Failed after" {
                 ui::ink(theme, theme.danger)
             } else {
                 theme.muted_foreground
