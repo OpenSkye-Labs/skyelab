@@ -362,6 +362,7 @@ fn issue_thread_gets_a_bound_capped_chip_that_a_rebind_drops(cx: &mut gpui::Test
         assignees: vec![],
         updated_at: String::new(),
         body: "z".repeat(5000),
+        closed: false,
     };
     let project = r.project;
     p.update(cx, |_, cx| {

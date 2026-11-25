@@ -80,7 +80,7 @@ What's built today:
 - **Pull requests and issues.** **Open Pull Requests** / **Open Issues** (palette) list the open PRs and issues of
   every bound project, each read with its own account's GitHub login (mine, review requested, assigned, all). A PR
   starts a review thread with the PR linked; an issue starts a thread with the issue as a context chip. A PR can
-  be merged, or reviewed from its diff with line comments.
+  be merged or reviewed; an issue commented on, closed or reopened.
 - **Composer.** Attach images and files (paperclip, drag or paste), mention tracked files with `@`, run commands with
   `/` and skills with `$`, add another thread's gist or its pull request with `#` (same account only), and pick the model and effort and the permission mode per thread from two small chips. A message sent while the agent works queues
   until the turn ends; **Steer** sends it in now. The strip under it shows the machine, account, checkout, changed
