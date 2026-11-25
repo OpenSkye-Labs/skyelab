@@ -123,7 +123,7 @@ fn gutter_drag_comments_follow_reloads_and_send_as_one_chip(cx: &mut gpui::TestA
     assert!(view.read_with(cx, |v, _| v.draft.is_none()));
 
     // Send: one chip in the composer with the lines and the note; the diff's comments are gone.
-    view.update(cx, |v, cx| v.send_comments(cx));
+    view.update_in(cx, |v, w, cx| v.send_comments(w, cx));
     thread.read_with(cx, |t, _| {
         assert_eq!(t.composer.review.count(Scope::Working), 0);
         let [chip] = &t.composer.contexts[..] else {

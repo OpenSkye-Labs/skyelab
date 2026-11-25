@@ -8,6 +8,8 @@ mod comment_view_test;
 mod comments;
 #[path = "changes_find.rs"]
 mod find;
+#[path = "changes_pr.rs"]
+pub(super) mod pr;
 #[path = "changes_rows.rs"]
 mod rows;
 #[cfg(test)]
@@ -90,6 +92,8 @@ pub struct ChangesView {
     pub(super) draft: Option<comments::Draft>,
     /// Comments or a draft show, so rows are measured.
     pub(super) annotated: bool,
+    /// Set when this tab shows a pull request's diff (`changes_pr.rs`) instead of the folder's.
+    pub(super) pr: Option<pr::PrSource>,
     _load: Option<Task<()>>,
     /// Reloads when the folder changes on disk (`folder_watch`).
     _watch: Option<Task<()>>,
@@ -97,6 +101,21 @@ pub struct ChangesView {
 
 impl ChangesView {
     pub fn new(
+        dir: PathBuf,
+        base: Option<String>,
+        title: SharedString,
+        thread: Option<&Entity<ThreadView>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut this = Self::blank(dir, base, title, thread, window, cx);
+        this._watch = super::folder_watch::watch(&this.dir, cx, Self::reload_if_changed);
+        this.refresh(cx);
+        this
+    }
+
+    /// The tab before anything is read.
+    fn blank(
         dir: PathBuf,
         base: Option<String>,
         title: SharedString,
@@ -118,7 +137,7 @@ impl ChangesView {
                 .auto_grow(2, 6)
                 .placeholder("Pull request description (optional)")
         });
-        let mut this = Self {
+        Self {
             focus: cx.focus_handle(),
             dir,
             base,
@@ -149,16 +168,17 @@ impl ChangesView {
             drag: None,
             draft: None,
             annotated: false,
+            pr: None,
             _load: None,
             _watch: None,
-        };
-        this._watch = super::folder_watch::watch(&this.dir, cx, Self::reload_if_changed);
-        this.refresh(cx);
-        this
+        }
     }
 
     pub fn title(&self) -> SharedString {
-        format!("Changes · {}", self.title).into()
+        match &self.pr {
+            Some(pr) => pr.title(),
+            None => format!("Changes · {}", self.title).into(),
+        }
     }
 
     /// Re-reads status and diff off the UI thread. A newer refresh drops the older one.
@@ -173,6 +193,9 @@ impl ChangesView {
     }
 
     fn load(&mut self, skip_same: bool, cx: &mut Context<Self>) {
+        if self.pr.is_some() {
+            return self.load_pr(cx);
+        }
         let (dir, base, scope) = (self.dir.clone(), self.base.clone(), self.scope);
         let (key, ws) = (self.checkpoint_key(cx), self.prefs.ignore_whitespace);
         let task = cx.background_spawn(async move {
@@ -180,37 +203,46 @@ impl ChangesView {
         });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
-            let _ = this.update(cx, |this, cx| {
-                match loaded {
-                    // A reload that found what is shown (an edit to an ignored file, a watch firing twice) draws nothing.
-                    Ok(c)
-                        if skip_same
-                            && this.error.is_none()
-                            && this.reveal_after_load.is_none()
-                            && this.changes.as_ref() == Some(&c) =>
-                    {
-                        return;
-                    }
-                    Ok(c) => {
-                        // Ticks are for the working tree's commit: a turn's list must not clear them.
-                        if this.scope == Scope::Working {
-                            this.selected
-                                .retain(|p| c.files.iter().any(|f| &f.path == p));
-                        }
-                        this.reanchor_comments(&c, cx);
-                        this.set_loaded(c);
-                        if let Some(path) = this.reveal_after_load.take() {
-                            this.reveal(&path, cx);
-                        }
-                    }
-                    Err(e) => {
-                        this.reveal_after_load = None;
-                        this.error = Some(format!("{e:#}").into());
-                    }
-                }
-                cx.notify();
-            });
+            let _ = this.update(cx, |this, cx| this.loaded(loaded, skip_same, cx));
         }));
+    }
+
+    /// Shows what a read found, or its error.
+    pub(super) fn loaded(
+        &mut self,
+        loaded: anyhow::Result<Changes>,
+        skip_same: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let this = self;
+        match loaded {
+            // A reload that found what is shown (an edit to an ignored file, a watch firing twice) draws nothing.
+            Ok(c)
+                if skip_same
+                    && this.error.is_none()
+                    && this.reveal_after_load.is_none()
+                    && this.changes.as_ref() == Some(&c) =>
+            {
+                return;
+            }
+            Ok(c) => {
+                // Ticks are for the working tree's commit: a turn's list must not clear them.
+                if this.scope == Scope::Working {
+                    this.selected
+                        .retain(|p| c.files.iter().any(|f| &f.path == p));
+                }
+                this.reanchor_comments(&c, cx);
+                this.set_loaded(c);
+                if let Some(path) = this.reveal_after_load.take() {
+                    this.reveal(&path, cx);
+                }
+            }
+            Err(e) => {
+                this.reveal_after_load = None;
+                this.error = Some(format!("{e:#}").into());
+            }
+        }
+        cx.notify();
     }
 
     /// Scrolls the diff to `path` (absolute) when this tab lists it; `false` when it doesn't.
@@ -363,7 +395,10 @@ impl Render for ChangesView {
                             .truncate()
                             .text_size(ui::META)
                             .text_color(theme.muted_foreground)
-                            .child(ui::short_path(&self.dir, dirs::home_dir().as_deref())),
+                            .child(match &self.pr {
+                                Some(pr) => pr.repo(),
+                                None => ui::short_path(&self.dir, dirs::home_dir().as_deref()),
+                            }),
                     ),
             )
             .child(div().flex_none().child(toggles))
@@ -393,6 +428,7 @@ impl Render for ChangesView {
                 .child(
                     ui::EmptyState::new("Nothing to review")
                         .hint(match self.scope {
+                            _ if self.pr.is_some() => "This pull request changes no files.",
                             Scope::Turn(_) => "This turn changed no files.",
                             Scope::SinceStart => "No changes since the thread started.",
                             Scope::Working if self.base.is_some() => {
@@ -448,10 +484,10 @@ impl Render for ChangesView {
             .child(header)
             .children(self.render_scopes(cx))
             .children(self.render_rewind_confirm(cx))
-            .when(self.scope == Scope::Working, |v| {
+            .when(self.scope == Scope::Working && self.pr.is_none(), |v| {
                 v.child(self.render_publish(cx))
             })
-            .when(self.scope != Scope::Working, |v| {
+            .when(self.scope != Scope::Working || self.pr.is_some(), |v| {
                 v.children(self.publish_error.clone().map(|e| {
                     div()
                         .px_4()

@@ -113,3 +113,28 @@ fn comments_follow_their_lines_across_a_reload_and_drop_when_the_lines_are_gone(
     c.reanchor(&Changes::default(), Scope::SinceStart);
     assert_eq!(c.count(Scope::Working), 1);
 }
+
+#[test]
+fn a_comment_maps_to_a_review_comment_by_side() {
+    use skyelab_git::Side;
+    let d = diff();
+    let mut c = DiffComments::default();
+    // Rows 2..=3: a context line (new side) to a removed one (old side).
+    c.add(&d, Scope::Working, 2, 3, "why").unwrap();
+    // Row 3 alone: a removed line.
+    c.add(&d, Scope::Working, 3, 3, "keep").unwrap();
+    let r: Vec<_> = c
+        .items
+        .iter()
+        .map(|i| i.review_comment().unwrap())
+        .collect();
+    assert_eq!(
+        (r[0].path.as_str(), r[0].start, r[0].line, r[0].side),
+        ("src/a.rs", Some((10, Side::Right)), 11, Side::Left)
+    );
+    assert_eq!(
+        (r[1].start, r[1].line, r[1].side),
+        (Some((11, Side::Left)), 11, Side::Left)
+    );
+    assert_eq!(r[1].body, "keep");
+}

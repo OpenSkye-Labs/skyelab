@@ -43,17 +43,23 @@ impl Draft {
 }
 
 impl ChangesView {
-    /// The thread's comments; `None` when this tab has no thread to send them to.
-    pub(super) fn review<'a>(&self, cx: &'a App) -> Option<&'a DiffComments> {
+    /// The comments: a PR tab's own pending review, else the thread's; `None` when there is nowhere to send them.
+    pub(super) fn review<'a>(&'a self, cx: &'a App) -> Option<&'a DiffComments> {
+        if let Some(pr) = &self.pr {
+            return Some(&pr.review);
+        }
         let thread = self.thread.as_ref()?.upgrade()?;
         Some(&thread.read(cx).composer.review)
     }
 
-    fn update_review<R>(
-        &self,
+    pub(super) fn update_review<R>(
+        &mut self,
         cx: &mut Context<Self>,
         f: impl FnOnce(&mut DiffComments) -> R,
     ) -> Option<R> {
+        if let Some(pr) = &mut self.pr {
+            return Some(f(&mut pr.review));
+        }
         let thread = self.thread.as_ref()?.upgrade()?;
         Some(thread.update(cx, |t, _| f(&mut t.composer.review)))
     }
@@ -91,7 +97,7 @@ impl ChangesView {
 
     /// A press on unified row `row`'s gutter (`left`: the split view's old side) starts picking lines.
     pub(super) fn gutter_down(&mut self, row: usize, left: bool, cx: &mut Context<Self>) {
-        if self.thread.is_some() {
+        if self.commentable() {
             let (start, end) = (row, row);
             self.drag = Some(Drag { start, end, left });
             cx.notify();
@@ -191,8 +197,22 @@ impl ChangesView {
         self.comments_changed(cx);
     }
 
-    /// "Send N comments": this diff's comments go to the thread's composer as one chip, and leave the diff.
-    pub(in crate::workspace) fn send_comments(&mut self, cx: &mut Context<Self>) {
+    /// Lines can be commented: there is a thread to send the comments to, or a pull request to review.
+    fn commentable(&self) -> bool {
+        self.thread.is_some() || self.pr.is_some()
+    }
+
+    /// "Send N comments": this diff's comments go to the thread's composer as one chip, and leave the diff. On a PR
+    /// tab they go to GitHub as one review instead, through the PR actions dialog.
+    pub(in crate::workspace) fn send_comments(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.pr.is_some() {
+            self.submit_review(window, cx);
+            return;
+        }
         let Some(thread) = self.thread.as_ref().and_then(|t| t.upgrade()) else {
             return;
         };
@@ -251,7 +271,7 @@ impl ChangesView {
             .left_0()
             .h_full()
             .w(px(width))
-            .when(self.thread.is_some(), |d| {
+            .when(self.commentable(), |d| {
                 d.cursor_pointer()
                     .hover(move |s| s.bg(hover))
                     .on_mouse_down(
@@ -408,9 +428,12 @@ impl ChangesView {
             return None;
         }
         let theme = cx.theme();
-        let count = match n {
-            1 => "1 comment on this diff".to_owned(),
-            n => format!("{n} comments on this diff"),
+        let pr = self.pr.is_some();
+        let count = match (n, pr) {
+            (1, false) => "1 comment on this diff".to_owned(),
+            (n, false) => format!("{n} comments on this diff"),
+            (1, true) => "1 pending review comment".to_owned(),
+            (n, true) => format!("{n} pending review comments"),
         };
         let scope = self.scope;
         Some(
@@ -453,11 +476,14 @@ impl ChangesView {
                         Button::new("send-diff-comments")
                             .primary()
                             .xsmall()
-                            .label(match n {
-                                1 => "Send 1 comment".to_owned(),
-                                n => format!("Send {n} comments"),
+                            .label(match (n, pr) {
+                                (_, true) => "Submit review…".to_owned(),
+                                (1, false) => "Send 1 comment".to_owned(),
+                                (n, false) => format!("Send {n} comments"),
                             })
-                            .on_click(cx.listener(|this, _, _, cx| this.send_comments(cx))),
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.send_comments(window, cx)),
+                            ),
                     )
                 })
                 .into_any_element(),

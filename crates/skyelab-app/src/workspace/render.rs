@@ -16,6 +16,7 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::open_compare))
+            .on_action(cx.listener(Self::open_pr_diff))
             .on_action(cx.listener(Self::toggle_compare_group))
             .on_action(cx.listener(Self::keep_compare))
             .on_action(cx.listener(Self::toggle_bottom))
