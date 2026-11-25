@@ -14,6 +14,9 @@ impl Session {
     /// [`send_user_message`](Self::send_user_message) with files attached.
     pub fn send_message(&mut self, text: &str, attachments: &[Attachment]) -> Result<()> {
         attach::check_count(attachments)?;
+        if self.cursor.is_some() {
+            bail!("Cursor runs one turn per process; start a resumed turn for the next message");
+        }
         if let Some(state) = &self.codex {
             let lines = lock(state).prompt(text, attachments, false)?;
             return lines.into_iter().try_for_each(|l| self.queue(l));
@@ -26,6 +29,9 @@ impl Session {
     /// turn already; Codex gets `turn/steer` (or a new turn when none runs).
     pub fn steer(&mut self, text: &str, attachments: &[Attachment]) -> Result<()> {
         attach::check_count(attachments)?;
+        if self.cursor.is_some() {
+            bail!("Cursor can't steer a running turn; wait for it to finish or stop it");
+        }
         if let Some(state) = &self.codex {
             let lines = lock(state).prompt(text, attachments, true)?;
             return lines.into_iter().try_for_each(|l| self.queue(l));
@@ -34,12 +40,15 @@ impl Session {
     }
 
     /// Switches the model for the next turns. Claude takes `set_model` (its effort is fixed at launch, so `effort`
-    /// applies from the next start); Codex sends both with every turn.
+    /// applies from the next start); Codex sends both with every turn; Cursor applies it on the next turn.
     pub fn set_model(&mut self, model: Option<&str>, effort: Option<&str>) -> Result<()> {
         for v in [model, effort].into_iter().flatten() {
             if !models::valid_name(v) {
                 bail!("refusing model {v:?}");
             }
+        }
+        if self.cursor.is_some() {
+            return Ok(());
         }
         if let Some(state) = &self.codex {
             lock(state).pick = codex::Pick {

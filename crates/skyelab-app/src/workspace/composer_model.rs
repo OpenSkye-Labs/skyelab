@@ -93,6 +93,7 @@ impl ThreadView {
             })
             .unwrap_or_else(|| match self.composer_account().map(|a| a.provider) {
                 Some(Provider::Codex) => "Codex default".into(),
+                Some(Provider::Cursor) => "Cursor default".into(),
                 _ => "Claude default".into(),
             })
     }
@@ -138,7 +139,7 @@ impl ThreadView {
             return Vec::new();
         };
         let models: Vec<(String, String)> = match provider {
-            Provider::Codex => self
+            Provider::Codex | Provider::Cursor => self
                 .listed()
                 .unwrap_or_default()
                 .iter()
@@ -164,32 +165,70 @@ impl ThreadView {
     }
 
     fn listed(&self) -> Option<&[ModelInfo]> {
-        Some(
-            self.composer
-                .codex_models
-                .as_ref()?
-                .as_ref()
-                .ok()?
-                .as_slice(),
-        )
+        let list = match self.composer_account().map(|a| a.provider) {
+            Some(Provider::Cursor) => self.composer.cursor_models.as_ref(),
+            _ => self.composer.codex_models.as_ref(),
+        };
+        Some(list?.as_ref().ok()?.as_slice())
     }
 
-    /// Reads the account's default model from its config dir (the model field only, off the UI thread). A Codex
-    /// account that sets none lists its models, whose default entry names it.
+    /// Reads the account's default model from its config dir (the model field only, off the UI thread). A Codex or
+    /// Cursor account that sets none lists its models, whose default entry names it.
     pub(in crate::workspace) fn load_account_model(&mut self, cx: &mut Context<Self>) {
         let Some(account) = self.composer_account() else {
             return;
         };
-        let codex = account.provider == Provider::Codex;
+        let provider = account.provider;
         let task =
             cx.background_spawn(async move { skyelab_agent::account_default_model(&account) });
         cx.spawn(async move |this, cx| {
             let model = task.await;
             let _ = this.update(cx, |this, cx| {
-                if model.is_none() && codex {
-                    this.list_codex_models(cx);
+                if model.is_none() {
+                    match provider {
+                        Provider::Codex => this.list_codex_models(cx),
+                        Provider::Cursor => this.list_cursor_models(cx),
+                        Provider::Claude => {}
+                    }
                 }
                 this.composer.account_model = model;
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Lists a Cursor account's models once per tab (the picker and the chip both read them).
+    pub(in crate::workspace) fn list_cursor_models(&mut self, cx: &mut Context<Self>) {
+        let cursor = self
+            .composer_account()
+            .filter(|a| a.provider == Provider::Cursor);
+        let (None, Some(account)) = (&self.composer.cursor_models, cursor) else {
+            return;
+        };
+        self.composer.cursor_models = Some(Ok(Vec::new())); // loading
+        let (bin, config, cwd) = (
+            crate::workspace::github::cursor_bin(cx),
+            self.config.clone(),
+            self.cwd.clone(),
+        );
+        let task = cx.background_spawn(async move {
+            skyelab_agent::list_cursor_models(&bin, &config, &account, &cwd)
+                .map_err(|e| SharedString::from(format!("{e:#}")))
+        });
+        cx.spawn(async move |this, cx| {
+            let listed = task.await;
+            let _ = this.update(cx, |this, cx| {
+                this.composer.cursor_models = Some(listed);
+                this.highlight_current(cx);
+                if this
+                    .composer
+                    .menu
+                    .as_ref()
+                    .is_some_and(|m| m.kind == MenuKind::Files)
+                {
+                    this.load_menu_items(MenuKind::Files, cx);
+                }
                 cx.notify();
             });
         })

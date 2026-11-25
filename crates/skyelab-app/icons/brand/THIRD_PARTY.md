@@ -8,5 +8,7 @@ an account runs. They are trademarks of their owners. Rules and sources: [docs/d
 | `claude.svg` | Anthropic PBC | Anthropic press kit (https://www.anthropic.com/news → Download press kit), `Claude Spark - Clay.svg` |
 | `openai-black.svg` | OpenAI | https://cdn.openai.com/brand/openai-logos.zip (from https://openai.com/brand/), `OAI_OpenAI-Blossom_Black.svg` |
 | `openai-white.svg` | OpenAI | same zip, `OAI_OpenAI-Blossom_White.svg` |
+| `cursor-black.svg` | Anysphere, Inc. (Cursor) | Cursor brand kit (https://cursor.com/brand), `#26251E` |
+| `cursor-white.svg` | Anysphere, Inc. (Cursor) | Cursor brand kit (https://cursor.com/brand), `#EDECEC` |
 
 Draw them only as images, never tinted (see the rules above).

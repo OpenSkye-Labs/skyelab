@@ -27,6 +27,10 @@ impl Settings {
         self.codex_model_input.update(cx, |i, cx| {
             i.set_value(codex.unwrap_or_default(), window, cx)
         });
+        let cursor = self.shown_field(ThreadField::CursorModel, cx);
+        self.cursor_model_input.update(cx, |i, cx| {
+            i.set_value(cursor.unwrap_or_default(), window, cx)
+        });
         self.threads_error = None;
         cx.notify();
     }
@@ -253,6 +257,8 @@ impl Settings {
             cx,
         );
         self.codex_model_input
+            .update(cx, |i, cx| i.set_value("", window, cx));
+        self.cursor_model_input
             .update(cx, |i, cx| i.set_value("", window, cx));
     }
 }

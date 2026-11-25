@@ -224,7 +224,7 @@ pub(crate) fn command_items(
             insert: format!("/{name} "),
             ..Default::default()
         });
-    if provider == Provider::Codex {
+    if matches!(provider, Provider::Codex | Provider::Cursor) {
         return ours.collect();
     }
     let builtins = CLAUDE_BUILTINS.iter().map(|(name, about)| MenuItem {
@@ -297,7 +297,7 @@ pub(crate) fn skill_items(provider: Provider, account_dir: &Path) -> Vec<MenuIte
             let name = d.file_name()?.to_string_lossy().into_owned();
             let insert = match provider {
                 Provider::Claude => format!("/{name} "),
-                Provider::Codex => format!("${name} "),
+                Provider::Codex | Provider::Cursor => format!("${name} "),
             };
             Some(MenuItem {
                 label: format!("${name}"),

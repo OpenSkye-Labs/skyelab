@@ -270,6 +270,33 @@ impl ThreadView {
                 Err(why) => self.error = Some(why.into()),
             }
         }
+        // Cursor exits after each turn: if prompts were queued while it ran and the session is resumable, resume the next one.
+        if !self.stop_requested
+            && self.provider() == Some(skyelab_core::Provider::Cursor)
+            && !self.composer.queue.is_empty()
+            && self
+                .thread
+                .as_ref()
+                .is_some_and(|t| t.agent_session_id.is_some())
+        {
+            match self.send_account() {
+                Ok(account) => {
+                    if let Some(next) = self.composer.queue.pop() {
+                        let shown = super::composer::shown_prompt(&next.text, &next.attachments);
+                        self.keep_images(&shown, &next.attachments);
+                        self.push(&Record::Prompt(shown), cx);
+                        let resume = self.thread.clone();
+                        self.start_agent(next.text, next.attachments, account, resume, false, cx);
+                        self.in_background(cx, move || {
+                            drop(session);
+                            Ok(())
+                        });
+                        return;
+                    }
+                }
+                Err(why) => self.end_refused(why, cx),
+            }
+        }
         // Reaping the child waits, so it happens off the UI thread, after the status is written
         // (so a quick resume's "running" can't be overwritten by it).
         self.in_background(cx, move || {
