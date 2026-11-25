@@ -40,6 +40,7 @@ fn markers(provider: Provider) -> &'static [&'static str] {
     match provider {
         Provider::Claude => &["settings.json", ".claude.json", "projects"],
         Provider::Codex => &["config.toml", "sessions", "history.jsonl"],
+        Provider::Antigravity => &["antigravity-acp", "settings.json"],
     }
 }
 

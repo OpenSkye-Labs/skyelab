@@ -82,10 +82,13 @@ pub fn due(last_check: Option<u64>, now: u64) -> bool {
 /// Where to ask for an agent CLI's newest release: the npm registry's `latest` record of its package (T3 asks the
 /// package manager that installed it). shortcut: a native-installer channel can trail npm by a few days, so the
 /// notice may come early there; ask the installer when that matters.
-pub fn agent_latest_url(provider: crate::Provider) -> &'static str {
+pub fn agent_latest_url(provider: crate::Provider) -> Option<&'static str> {
     match provider {
-        crate::Provider::Claude => "https://registry.npmjs.org/@anthropic-ai/claude-code/latest",
-        crate::Provider::Codex => "https://registry.npmjs.org/@openai/codex/latest",
+        crate::Provider::Claude => {
+            Some("https://registry.npmjs.org/@anthropic-ai/claude-code/latest")
+        }
+        crate::Provider::Codex => Some("https://registry.npmjs.org/@openai/codex/latest"),
+        crate::Provider::Antigravity => None,
     }
 }
 

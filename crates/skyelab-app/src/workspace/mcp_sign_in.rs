@@ -49,6 +49,9 @@ impl Workspace {
             let bin = match account.provider {
                 skyelab_core::Provider::Claude => claude,
                 skyelab_core::Provider::Codex => codex,
+                skyelab_core::Provider::Antigravity => {
+                    anyhow::bail!("MCP sign-in is not supported for Antigravity accounts")
+                }
             };
             let mut options =
                 github::agent_login_options(&bin, &github::mcp_login_args(&name), &account)?;

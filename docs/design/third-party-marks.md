@@ -1,6 +1,6 @@
 # Third-party marks
 
-SkyeLab shows two provider logos so a person can tell at a glance which provider an account runs. They are the
+SkyeLab shows provider logos so a person can tell at a glance which provider an account runs. Third-party marks are the
 brands' own files, unedited, in `crates/skyelab-app/icons/brand/`, and are drawn only through
 `ui::provider_logo` (and `settings::provider_mark`, which puts one on a tile).
 
@@ -9,6 +9,7 @@ brands' own files, unedited, in `crates/skyelab-app/icons/brand/`, and are drawn
 | `claude.svg` | Claude Spark, by Anthropic | `#D97757` ("Clay"), one variant for both themes | Anthropic press kit, linked as "Download press kit" from https://www.anthropic.com/news (`/press-kit` → `Anthropic media resources/Anthropic logos/Claude logos/3 Claude Spark/SVG/Claude Spark - Clay.svg`) |
 | `openai-black.svg` | OpenAI Blossom, black | `black` | OpenAI's "Download logos" on https://openai.com/brand/ (https://cdn.openai.com/brand/openai-logos.zip → `OpenAI-logos/SVGs/OAI_OpenAI-Blossom_Black.svg`) |
 | `openai-white.svg` | OpenAI Blossom, white | `white` | same zip, `OAI_OpenAI-Blossom_White.svg` |
+| `antigravity.svg` | Antigravity mark | `#4285F4`, one variant for both themes | Original geometric vector mark authored in-repo (not copied from any third-party app) |
 
 Which variant shows: the Claude Spark has one published color, so it shows in Clay on both themes. OpenAI publishes the
 Blossom in black and in white; SkyeLab shows the black file on light themes and the white file on dark themes. Neither

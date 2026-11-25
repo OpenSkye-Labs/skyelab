@@ -16,7 +16,10 @@ use skyelab_agent::{handoff, timeline::Record};
 use skyelab_core::Provider;
 use skyelab_store::{NewThread, Thread};
 
-actions!(skyelab, [ContinueInCodex, ContinueInClaude]);
+actions!(
+    skyelab,
+    [ContinueInCodex, ContinueInClaude, ContinueInAntigravity]
+);
 
 /// Continues thread `id` in a new thread under the folder's `to` account.
 #[derive(Clone, Debug, PartialEq, Action)]
@@ -26,11 +29,13 @@ pub struct HandOffThread {
     pub to: Provider,
 }
 
-/// The provider a thread that ran on `from` continues in.
+/// The default other provider a thread that ran on `from` continues in.
+#[cfg(all(test, unix))]
 pub(in crate::workspace) fn other(from: Provider) -> Provider {
     match from {
         Provider::Claude => Provider::Codex,
         Provider::Codex => Provider::Claude,
+        Provider::Antigravity => Provider::Claude,
     }
 }
 
@@ -218,10 +223,25 @@ impl ThreadView {
             .map(|a| a.provider)
     }
 
-    /// The provider this thread can continue in from this window: the other one, unless the window shows another
-    /// machine (the new thread couldn't open there).
+    /// Every other provider this thread can continue in from this window (empty when remote or unbound).
+    pub(in crate::workspace) fn handoff_targets(&self) -> Vec<Provider> {
+        let Some(from) = self.provider().filter(|_| !self.remote_window) else {
+            return Vec::new();
+        };
+        Provider::ALL.into_iter().filter(|&p| p != from).collect()
+    }
+
+    /// The primary provider this thread can continue in from this window: the folder's bound provider if it differs,
+    /// else [`other`], unless the window shows another machine.
+    #[cfg(all(test, unix))]
     pub(in crate::workspace) fn handoff_to(&self) -> Option<Provider> {
-        self.provider().filter(|_| !self.remote_window).map(other)
+        let from = self.provider().filter(|_| !self.remote_window)?;
+        if let Some(bound) = self.folder_account.as_ref().map(|a| a.provider)
+            && bound != from
+        {
+            return Some(bound);
+        }
+        Some(other(from))
     }
 
     /// Asks the workspace to continue this thread in `to`.
@@ -236,24 +256,29 @@ impl ThreadView {
         }
     }
 
-    /// Registers only the other provider's "Continue in …", so the palette lists one.
+    /// Registers every other provider's "Continue in …", so the palette lists valid handoff targets only.
     pub(in crate::workspace) fn handoff_actions<E: InteractiveElement>(
         &self,
-        el: E,
+        mut el: E,
         cx: &Context<Self>,
     ) -> E {
-        match self.handoff_to() {
-            Some(Provider::Codex) => el.on_action(cx.listener(Self::continue_in_codex)),
-            Some(Provider::Claude) => el.on_action(cx.listener(Self::continue_in_claude)),
-            None => el,
+        for target in self.handoff_targets() {
+            el = match target {
+                Provider::Codex => el.on_action(cx.listener(Self::continue_in_codex)),
+                Provider::Claude => el.on_action(cx.listener(Self::continue_in_claude)),
+                Provider::Antigravity => el.on_action(cx.listener(Self::continue_in_antigravity)),
+            };
         }
+        el
     }
 
-    /// The "can't continue here" notice's button when the folder is now bound to the other provider: the thread can
+    /// The "can't continue here" notice's button when the folder is now bound to another provider: the thread can
     /// continue there with its history.
     pub(in crate::workspace) fn handoff_cta(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let to = self.folder_account.as_ref()?.provider;
-        self.handoff_to().filter(|t| *t == to)?;
+        if !self.handoff_targets().contains(&to) {
+            return None;
+        }
         Some(
             div()
                 .debug_selector(|| "handoff-cta".into())
@@ -286,5 +311,14 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.hand_off(Provider::Claude, window, cx);
+    }
+
+    pub(in crate::workspace) fn continue_in_antigravity(
+        &mut self,
+        _: &ContinueInAntigravity,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hand_off(Provider::Antigravity, window, cx);
     }
 }

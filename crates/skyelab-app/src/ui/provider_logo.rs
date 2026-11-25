@@ -9,14 +9,17 @@ const CLAUDE: &str = "brand/claude.svg";
 /// OpenAI publishes the Blossom in black and in white: black on light themes, white on dark ones.
 const OPENAI_BLACK: &str = "brand/openai-black.svg";
 const OPENAI_WHITE: &str = "brand/openai-white.svg";
+/// Antigravity provider mark in blue, legible on both light and dark themes.
+const ANTIGRAVITY: &str = "brand/antigravity.svg";
 
-pub(super) const PATHS: &[&str] = &[CLAUDE, OPENAI_BLACK, OPENAI_WHITE];
+pub(super) const PATHS: &[&str] = &[CLAUDE, OPENAI_BLACK, OPENAI_WHITE, ANTIGRAVITY];
 
 pub(super) fn bytes(path: &str) -> Option<&'static [u8]> {
     match path {
         CLAUDE => Some(include_bytes!("../../icons/brand/claude.svg")),
         OPENAI_BLACK => Some(include_bytes!("../../icons/brand/openai-black.svg")),
         OPENAI_WHITE => Some(include_bytes!("../../icons/brand/openai-white.svg")),
+        ANTIGRAVITY => Some(include_bytes!("../../icons/brand/antigravity.svg")),
         _ => None,
     }
 }
@@ -27,14 +30,15 @@ fn path(provider: Provider, dark: bool) -> &'static str {
         Provider::Claude => CLAUDE,
         Provider::Codex if dark => OPENAI_WHITE,
         Provider::Codex => OPENAI_BLACK,
+        Provider::Antigravity => ANTIGRAVITY,
     }
 }
 
 /// How much of its file's box each logo fills: OpenAI's file keeps its clear space inside (the Blossom spans 356 of
-/// 716 units), the Claude Spark fills its box.
+/// 716 units), the Claude Spark and Antigravity marks fill their boxes.
 fn fill(provider: Provider) -> f32 {
     match provider {
-        Provider::Claude => 1.,
+        Provider::Claude | Provider::Antigravity => 1.,
         Provider::Codex => 356. / 716.,
     }
 }
@@ -63,6 +67,7 @@ mod tests {
             (CLAUDE, "#D97757"),
             (OPENAI_BLACK, "black"),
             (OPENAI_WHITE, "white"),
+            (ANTIGRAVITY, "#4285F4"),
         ];
         for (path, fill) in official {
             let svg = std::str::from_utf8(bytes(path).expect("embedded")).expect("utf-8");
@@ -83,5 +88,7 @@ mod tests {
         assert_eq!(path(Provider::Codex, false), OPENAI_BLACK);
         assert_eq!(path(Provider::Claude, true), CLAUDE);
         assert_eq!(path(Provider::Claude, false), CLAUDE);
+        assert_eq!(path(Provider::Antigravity, true), ANTIGRAVITY);
+        assert_eq!(path(Provider::Antigravity, false), ANTIGRAVITY);
     }
 }

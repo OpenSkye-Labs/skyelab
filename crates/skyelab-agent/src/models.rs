@@ -106,6 +106,7 @@ pub fn account_default_model(account: &Account) -> Option<String> {
     let file = match account.provider {
         Provider::Claude => "settings.json",
         Provider::Codex => "config.toml",
+        Provider::Antigravity => return None,
     };
     let path = account.config_dir.join(file);
     // A regular file only: a FIFO or device there would block the read forever.
@@ -121,6 +122,7 @@ pub fn account_default_model(account: &Account) -> Option<String> {
     let only: OnlyModel = match account.provider {
         Provider::Claude => serde_json::from_str(&text).ok()?,
         Provider::Codex => toml::from_str(&text).ok()?,
+        Provider::Antigravity => return None,
     };
     only.model.filter(|m| valid_name(m))
 }
@@ -213,6 +215,26 @@ pub fn list_codex_models(
     #[cfg(not(unix))]
     let _ = pid;
     result
+}
+
+/// The models Antigravity offers `account`, from `agy acp`'s `session/new` `configOptions` (or legacy
+/// `models.availableModels`), run under the account's own `GEMINI_HOME` in `dir` (which must resolve to it).
+pub fn list_antigravity_models(
+    bin: &Path,
+    config: &AccountsConfig,
+    account: &Account,
+    dir: &Path,
+) -> Result<Vec<ModelInfo>> {
+    let (mut cmd, _, dir) = crate::launch::agent_command(bin, config, account, dir)?;
+    crate::antigravity::ensure_profile_dirs(&account.config_dir)?;
+    cmd.envs(crate::antigravity::isolated_env())
+        .args(crate::antigravity::acp_args(&account.config_dir, false));
+    crate::acp_probe::list_models(
+        &mut cmd,
+        &crate::antigravity::config(),
+        &dir,
+        Duration::from_secs(15),
+    )
 }
 
 /// `model/list`'s reply: `result.data[]` with `model`, `displayName`, `supportedReasoningEfforts[].reasoningEffort`

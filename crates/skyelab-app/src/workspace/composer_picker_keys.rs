@@ -73,6 +73,7 @@ impl ThreadView {
         }
         self.composer.menu = None;
         self.list_codex_models(cx);
+        self.list_antigravity_models(cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models…"));
         // Only a typed change: the field also notifies on focus and cursor blinks.
         let _search = cx.subscribe(&search, |this, _, e: &InputEvent, cx| {
@@ -142,11 +143,8 @@ impl ThreadView {
     /// The rows whose label or id contains `needle` (lowercase; empty: all).
     pub(in crate::workspace) fn picker_models(&self, needle: &str) -> Vec<PickerRow> {
         let models: Vec<PickerRow> = match self.composer_account().map(|a| a.provider) {
-            Some(Provider::Codex) => self
-                .composer
-                .codex_models
-                .as_ref()
-                .and_then(|l| l.as_ref().ok())
+            Some(Provider::Codex | Provider::Antigravity) => self
+                .listed()
                 .map(|l| {
                     l.iter()
                         .map(|m| (Some(m.id.clone()), m.label.clone()))
@@ -175,17 +173,17 @@ impl ThreadView {
 
     /// The choice a model row makes: that model, with the current effort when the model takes it.
     pub(in crate::workspace) fn model_choice(&self, id: Option<String>) -> ModelChoice {
-        let codex = self.composer_account().map(|a| a.provider) == Some(Provider::Codex);
-        let takes = |e: &String| match &id {
-            Some(id) if codex => self
-                .composer
-                .codex_models
-                .as_ref()
-                .and_then(|l| l.as_ref().ok())
+        let provider = self.composer_account().map(|a| a.provider);
+        let takes = |e: &String| match (&id, provider) {
+            (Some(id), Some(Provider::Codex | Provider::Antigravity)) => self
+                .listed()
                 .is_some_and(|l| l.iter().any(|m| m.id == *id && m.efforts.contains(e))),
-            Some(_) => skyelab_agent::CLAUDE_EFFORTS.contains(&e.as_str()),
-            // The account's default model: any Claude effort; Codex's default shows no effort choice.
-            None => !codex,
+            (None, Some(Provider::Antigravity)) => self
+                .listed()
+                .and_then(|l| l.iter().find(|m| m.is_default).or_else(|| l.first()))
+                .is_some_and(|m| m.efforts.contains(e)),
+            (None, Some(Provider::Codex)) => false,
+            _ => skyelab_agent::CLAUDE_EFFORTS.contains(&e.as_str()),
         };
         ModelChoice {
             effort: self.composer.pick.effort.clone().filter(takes),

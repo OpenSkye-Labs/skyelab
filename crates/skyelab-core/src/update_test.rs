@@ -76,9 +76,16 @@ fn version_in_finds_the_version_word_of_a_version_line() {
 fn each_agent_asks_its_own_npm_package() {
     use crate::update::agent_latest_url;
     assert!(
-        agent_latest_url(crate::Provider::Claude).ends_with("/@anthropic-ai/claude-code/latest")
+        agent_latest_url(crate::Provider::Claude)
+            .expect("claude url")
+            .ends_with("/@anthropic-ai/claude-code/latest")
     );
-    assert!(agent_latest_url(crate::Provider::Codex).ends_with("/@openai/codex/latest"));
+    assert!(
+        agent_latest_url(crate::Provider::Codex)
+            .expect("codex url")
+            .ends_with("/@openai/codex/latest")
+    );
+    assert_eq!(agent_latest_url(crate::Provider::Antigravity), None);
 }
 
 #[test]

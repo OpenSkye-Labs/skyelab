@@ -229,8 +229,8 @@ impl Settings {
             .gap_3()
             .child(heading(
                 "Accounts",
-                "One per Claude or Codex login. Each keeps its own config folder, so logins never mix, and every \
-                 folder runs on the account it is bound to.",
+                "One per Claude, Codex, or Antigravity login. Each keeps its own config folder, so logins never mix, \
+                 and every folder runs on the account it is bound to.",
                 cx,
             ))
             .child(v_flex().gap_2p5().children(cards).child(add))
@@ -266,7 +266,7 @@ impl Settings {
             )
             .child(super::widgets::label(
                 "Add account",
-                "Another Claude or Codex login, with its own config folder.",
+                "Another Claude, Codex, or Antigravity login, with its own config folder.",
                 cx,
             ))
             .on_click(cx.listener(|this, _, window, cx| {
@@ -400,6 +400,7 @@ impl Settings {
         let about = match p {
             Provider::Claude => "Claude Code (CLAUDE_CONFIG_DIR)",
             Provider::Codex => "Codex CLI (CODEX_HOME)",
+            Provider::Antigravity => "Antigravity CLI (GEMINI_HOME)",
         };
         h_flex()
             .id(SharedString::from(selector.clone()))

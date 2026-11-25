@@ -28,7 +28,11 @@ pub(super) fn terminal_env(
         None => Vec::new(),
     };
     let mut env = HashMap::new();
-    let mut homes = vec![("CLAUDE_CONFIG_DIR", "claude"), ("CODEX_HOME", "codex")];
+    let mut homes = vec![
+        ("CLAUDE_CONFIG_DIR", "claude"),
+        ("CODEX_HOME", "codex"),
+        ("GEMINI_HOME", "antigravity"),
+    ];
     if account.is_none() {
         homes.push(("GH_CONFIG_DIR", "gh"));
     }

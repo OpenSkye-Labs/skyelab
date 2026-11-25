@@ -131,7 +131,7 @@ impl Onboarding {
             ),
             Step::Agents => (
                 "Agents and accounts",
-                "Each Claude or Codex login keeps its own config folder. Add the ones you use.".into(),
+                "Each Claude, Codex, or Antigravity login keeps its own config folder. Add the ones you use.".into(),
             ),
             Step::Import => (
                 "Bring in your projects",

@@ -8,5 +8,6 @@ an account runs. They are trademarks of their owners. Rules and sources: [docs/d
 | `claude.svg` | Anthropic PBC | Anthropic press kit (https://www.anthropic.com/news → Download press kit), `Claude Spark - Clay.svg` |
 | `openai-black.svg` | OpenAI | https://cdn.openai.com/brand/openai-logos.zip (from https://openai.com/brand/), `OAI_OpenAI-Blossom_Black.svg` |
 | `openai-white.svg` | OpenAI | same zip, `OAI_OpenAI-Blossom_White.svg` |
+| `antigravity.svg` | SkyeLab (original geometric mark for Antigravity) | Authored in-repo in `#4285F4` |
 
 Draw them only as images, never tinted (see the rules above).

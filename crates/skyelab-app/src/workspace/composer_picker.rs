@@ -22,35 +22,40 @@ pub(in crate::workspace) fn effort_label(s: &str) -> String {
 }
 
 impl ThreadView {
-    /// Why the Codex list is empty: still loading, or the error listing it gave.
+    /// Why a dynamically listed model list is empty: still loading, or the error listing it gave.
     fn picker_error(&self) -> Option<SharedString> {
-        match (
-            self.composer_account().map(|a| a.provider),
-            &self.composer.codex_models,
-        ) {
-            (Some(Provider::Codex), Some(Ok(l))) if l.is_empty() => {
-                Some("Listing Codex's models…".into())
-            }
-            (Some(Provider::Codex), Some(Err(e))) => Some(e.clone()),
+        match self.composer_account().map(|a| a.provider) {
+            Some(Provider::Codex) => match &self.composer.codex_models {
+                Some(Ok(l)) if l.is_empty() => Some("Listing Codex's models…".into()),
+                Some(Err(e)) => Some(e.clone()),
+                _ => None,
+            },
+            Some(Provider::Antigravity) => match &self.composer.antigravity_models {
+                Some(Ok(l)) if l.is_empty() => Some("Listing Antigravity's models…".into()),
+                Some(Err(e)) => Some(e.clone()),
+                _ => None,
+            },
             _ => None,
         }
     }
 
     /// The efforts the current pick takes, in order.
     fn picker_efforts(&self) -> Vec<String> {
-        let codex = self.composer_account().map(|a| a.provider) == Some(Provider::Codex);
-        match (&self.composer.pick.model, codex) {
-            (Some(id), true) => self
-                .composer
-                .codex_models
-                .as_ref()
-                .and_then(|l| l.as_ref().ok())
+        let provider = self.composer_account().map(|a| a.provider);
+        match (&self.composer.pick.model, provider) {
+            (Some(id), Some(Provider::Codex | Provider::Antigravity)) => self
+                .listed()
                 .and_then(|l| l.iter().find(|m| m.id == *id))
                 .map(|m| m.efforts.clone())
                 .unwrap_or_default(),
-            // Claude takes any effort on any model, the account's default too; Codex's default shows none.
-            (_, false) => CLAUDE_EFFORTS.iter().map(|e| (*e).to_owned()).collect(),
-            (None, true) => Vec::new(),
+            (None, Some(Provider::Antigravity)) => self
+                .listed()
+                .and_then(|l| l.iter().find(|m| m.is_default).or_else(|| l.first()))
+                .map(|m| m.efforts.clone())
+                .unwrap_or_default(),
+            (None, Some(Provider::Codex)) => Vec::new(),
+            // Claude takes any effort on any model, the account's default too.
+            _ => CLAUDE_EFFORTS.iter().map(|e| (*e).to_owned()).collect(),
         }
     }
 

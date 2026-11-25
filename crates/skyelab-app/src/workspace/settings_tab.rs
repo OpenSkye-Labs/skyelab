@@ -272,6 +272,7 @@ impl Workspace {
         let bin = match account.provider {
             skyelab_core::Provider::Claude => self.backend.claude_bin.clone(),
             skyelab_core::Provider::Codex => github::codex_bin(cx),
+            skyelab_core::Provider::Antigravity => github::antigravity_bin(cx),
         };
         let options =
             github::agent_login_options(&bin, github::login_args(account.provider), &account);

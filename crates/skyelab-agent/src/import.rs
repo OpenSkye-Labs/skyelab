@@ -55,6 +55,7 @@ pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
     let mut files: Vec<(std::time::SystemTime, PathBuf)> = match provider {
         Provider::Claude => claude_files(home, folder),
         Provider::Codex => codex::files(home, folder),
+        Provider::Antigravity => return Vec::new(),
     }
     .into_iter()
     .filter_map(|p| Some((regular_file(&p)?.modified().ok()?, p)))
@@ -63,7 +64,7 @@ pub fn list(provider: Provider, home: &Path, folder: &Path) -> Vec<Transcript> {
     files.sort_by_key(|f| std::cmp::Reverse(f.0));
     files.truncate(MAX_SESSIONS);
     let names = match provider {
-        Provider::Claude => Default::default(),
+        Provider::Claude | Provider::Antigravity => Default::default(),
         Provider::Codex => codex::names(home),
     };
     files
@@ -100,6 +101,7 @@ pub fn project_folders(provider: Provider, home: &Path) -> Vec<(PathBuf, usize, 
             .filter(|p| p.extension().is_some_and(|e| e == "jsonl"))
             .collect(),
         Provider::Codex => codex::all_files(home),
+        Provider::Antigravity => return Vec::new(),
     };
     let mut files: Vec<(std::time::SystemTime, PathBuf)> = files
         .into_iter()
@@ -112,6 +114,7 @@ pub fn project_folders(provider: Provider, home: &Path) -> Vec<(PathBuf, usize, 
         let cwd = match provider {
             Provider::Claude => claude_cwd(&path),
             Provider::Codex => codex::cwd_of(&path),
+            Provider::Antigravity => None,
         };
         let Some(cwd) = cwd.filter(|c| plain_path(c)) else {
             continue;
@@ -201,6 +204,7 @@ fn read_file(provider: Provider, path: &Path, cap: u64) -> Option<Transcript> {
     let mut t = match provider {
         Provider::Claude => claude(path, &mut lines)?,
         Provider::Codex => codex::parse(&mut lines)?,
+        Provider::Antigravity => return None,
     };
     (t.path, t.modified_ms, t.skipped, t.truncated) = (
         path.to_owned(),

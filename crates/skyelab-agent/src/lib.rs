@@ -1,6 +1,12 @@
-//! Runs agent sessions (Claude Code, or Codex) under the account bound to their folder. No GPUI, no
-//! tokio: a std reader thread feeds a flume channel, which GPUI's executor can await.
+//! Runs agent sessions (Claude Code, Codex, or Antigravity via ACP) under the account bound to their folder.
+//! No GPUI, no tokio: a std reader thread feeds a flume channel, which GPUI's executor can await.
 
+mod acp;
+mod acp_asks;
+mod acp_probe;
+mod acp_rpc;
+mod acp_updates;
+pub mod antigravity;
 mod attach;
 mod claude;
 mod codex;
@@ -42,7 +48,8 @@ pub use event::{
     turn_cost,
 };
 pub use models::{
-    CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, account_default_model, list_codex_models, model_label,
+    CLAUDE_EFFORTS, CLAUDE_MODELS, ModelInfo, account_default_model, list_antigravity_models,
+    list_codex_models, model_label,
 };
 pub use permission::{Decision, Mode, summary};
 
@@ -73,6 +80,8 @@ pub struct Session {
     next_request: u64,
     /// Set for Codex: the protocol state the reader thread shares.
     codex: Option<Arc<Mutex<codex::Codex>>>,
+    /// Set for ACP providers (Antigravity): the protocol state the reader thread shares.
+    acp: Option<Arc<Mutex<acp::Acp>>>,
     sent: claude::Sent,
     asks: claude::Asks,
     /// The mode it started in: Claude takes Full access later only if it started with it.
@@ -110,13 +119,14 @@ pub struct Launch<'a> {
     pub mode: Mode,
 }
 
-/// Starts the account's agent (`claude` or `codex`) per `launch` and sends its prompt as the first turn.
+/// Starts the account's agent (`claude`, `codex`, or `agy`) per `launch` and sends its prompt as the first turn.
 pub fn start(config: &AccountsConfig, launch: &Launch) -> Result<Session> {
     let bin = match launch.account.provider {
-        Provider::Claude => "claude",
-        Provider::Codex => "codex",
+        Provider::Claude => std::path::PathBuf::from("claude"),
+        Provider::Codex => std::path::PathBuf::from("codex"),
+        Provider::Antigravity => antigravity::default_bin(),
     };
-    start_with_bin(Path::new(bin), config, launch)
+    start_with_bin(&bin, config, launch)
 }
 
 /// [`start`] with another binary in place of `claude` / `codex`, so tests can run a fake. `bin` is an
@@ -150,8 +160,14 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         }
     }
     attach::check_count(attachments)?;
-    if account.provider == Provider::Codex {
-        attach::codex_input(prompt, attachments)?; // refused before anything starts (a PDF)
+    match account.provider {
+        Provider::Claude => {}
+        Provider::Codex => {
+            attach::codex_input(prompt, attachments)?; // refused before anything starts (a PDF)
+        }
+        Provider::Antigravity => {
+            attach::acp_prompt_blocks(prompt, attachments)?; // refused before anything starts (a PDF)
+        }
     }
     let (mut cmd, bin, dir) = launch::agent_command(bin, config, account, dir)?;
     let dir = &dir;
@@ -160,17 +176,24 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         (account.provider == Provider::Claude).then_some(account.config_dir.as_path()),
         mcp_config,
     );
-    let codex = match account.provider {
+    // Ask ids carry this, so one stored by an earlier process never names an ask of this one.
+    let nonce = format!("{}-", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+    enum Driver {
+        Claude,
+        Codex(Arc<Mutex<codex::Codex>>, Vec<String>),
+        Acp(Arc<Mutex<acp::Acp>>, Vec<String>),
+    }
+    let driver = match account.provider {
         Provider::Claude => {
             claude_args(&mut cmd, mcp_config, resume, mode);
             cmd.args(model.into_iter().flat_map(|m| ["--model", m]))
                 .args(effort.into_iter().flat_map(|e| ["--effort", e]));
-            None
+            Driver::Claude
         }
         Provider::Codex => {
             cmd.args(codex::args(dir)?);
             let mcp = mcp_config.map(codex::mcp_servers).transpose()?;
-            Some(codex::Codex::new(
+            let (mut state, opening) = codex::Codex::new(
                 dir,
                 resume,
                 mcp,
@@ -179,7 +202,34 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
                     model: model.map(str::to_owned),
                     effort: effort.map(str::to_owned),
                 },
-            ))
+            );
+            state.nonce = nonce.clone();
+            Driver::Codex(Arc::new(Mutex::new(state)), opening)
+        }
+        Provider::Antigravity => {
+            antigravity::ensure_profile_dirs(&account.config_dir)?;
+            cmd.envs(antigravity::isolated_env())
+                .args(antigravity::acp_args(
+                    &account.config_dir,
+                    mode == Mode::Bypass,
+                ));
+            let mcp = mcp_config
+                .map(acp_probe::mcp_servers_from_grant)
+                .transpose()?
+                .unwrap_or_default();
+            let (state, opening) = acp::Acp::new(
+                antigravity::config(),
+                dir,
+                resume,
+                mcp,
+                mode,
+                acp::Pick {
+                    model: model.map(str::to_owned),
+                    effort: effort.map(str::to_owned),
+                },
+                nonce.clone(),
+            );
+            Driver::Acp(Arc::new(Mutex::new(state)), opening)
         }
     };
     cmd.current_dir(dir)
@@ -195,12 +245,14 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
     let (tx, events) = flume::unbounded();
     let _ = tx.send(report); // `events` is held below, so this can't fail
     let (stdin_tx, stdin_rx) = flume::bounded(STDIN_QUEUE);
-    // Ask ids carry this, so one stored by an earlier process never names an ask of this one.
-    let nonce = format!("{}-", &uuid::Uuid::new_v4().simple().to_string()[..8]);
-    let codex = codex.map(|(mut state, opening)| {
-        state.nonce = nonce.clone();
-        (Arc::new(Mutex::new(state)), opening)
-    });
+    let codex_handle = match &driver {
+        Driver::Codex(state, _) => Some(state.clone()),
+        _ => None,
+    };
+    let acp_handle = match &driver {
+        Driver::Acp(state, _) => Some(state.clone()),
+        _ => None,
+    };
     // Built before the threads spawn, so every error below still kills and reaps the child on drop.
     let mut session = Session {
         child,
@@ -208,7 +260,8 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         stdin: stdin_tx.clone(),
         events,
         next_request: 0,
-        codex: codex.as_ref().map(|(state, _)| state.clone()),
+        codex: codex_handle,
+        acp: acp_handle,
         sent: claude::Sent::default(),
         asks: claude::Book::new(nonce),
         launched: mode,
@@ -224,8 +277,8 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
         session.job = Some(job_for(&session.child).context("putting the agent in a Job Object")?);
     }
     // At stdout's end the agent is gone: nothing it still asks can be answered.
-    let (parse, eof): (Box<Parse>, Box<dyn FnOnce() -> Vec<Event> + Send>) = match codex {
-        None => {
+    let (parse, eof): (Box<Parse>, Box<dyn FnOnce() -> Vec<Event> + Send>) = match driver {
+        Driver::Claude => {
             let (sent, asks) = (session.sent.clone(), session.asks.clone());
             let open = asks.clone();
             (
@@ -233,7 +286,7 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
                 Box::new(move || claude::withdraw_all(&open)),
             )
         }
-        Some((state, opening)) => {
+        Driver::Codex(state, opening) => {
             for line in opening {
                 session.queue(line)?;
             }
@@ -249,6 +302,23 @@ pub fn start_with_bin(bin: &Path, config: &AccountsConfig, launch: &Launch) -> R
                 events
             });
             (parse, Box::new(move || lock(&open).withdraw_all()))
+        }
+        Driver::Acp(state, opening) => {
+            for line in opening {
+                session.queue(line)?;
+            }
+            let open = state.clone();
+            let parse = Box::new(move |line: &str| {
+                let Ok(v) = serde_json::from_str::<Value>(line) else {
+                    return vec![Event::Unknown(Value::String(line.to_owned()))];
+                };
+                let (events, replies) = lock_acp(&state).on_line(v);
+                for reply in replies {
+                    let _ = stdin_tx.try_send(reply);
+                }
+                events
+            });
+            (parse, Box::new(move || lock_acp(&open).withdraw_all()))
         }
     };
     std::thread::Builder::new()
@@ -289,6 +359,10 @@ type Parse = dyn FnMut(&str) -> Vec<Event> + Send;
 
 fn lock(state: &Mutex<codex::Codex>) -> std::sync::MutexGuard<'_, codex::Codex> {
     // A panic mid-update leaves plain data behind; the next line still gets handled.
+    state.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn lock_acp(state: &Mutex<acp::Acp>) -> std::sync::MutexGuard<'_, acp::Acp> {
     state.lock().unwrap_or_else(|e| e.into_inner())
 }
 
@@ -352,8 +426,9 @@ impl Session {
         &self.events
     }
 
-    /// Changes the running agent's permission mode: Claude's at once, Codex's from its next turn. Claude takes Full
-    /// access only if it started in it; otherwise this fails and it keeps its mode until it starts again.
+    /// Changes the running agent's permission mode: Claude's and ACP's at once, Codex's from its next turn. Claude
+    /// and Antigravity take Full access only if started in it; otherwise this fails and it keeps its mode until it
+    /// starts again.
     pub fn set_mode(&mut self, mode: Mode) -> Result<()> {
         if let Some(state) = &self.codex {
             lock(state).set_mode(mode);
@@ -363,6 +438,10 @@ impl Session {
             bail!(
                 "Full access applies when this agent starts again: stop it, then send a message to continue"
             );
+        }
+        if let Some(state) = &self.acp {
+            let lines = lock_acp(state).set_mode(mode);
+            return lines.into_iter().try_for_each(|l| self.queue(l));
         }
         self.next_request += 1;
         let request_id = format!("skyelab-{}", self.next_request);
@@ -383,6 +462,10 @@ impl Session {
     pub fn interrupt(&mut self) -> Result<()> {
         if let Some(state) = &self.codex {
             let lines = lock(state).interrupt();
+            return lines.into_iter().try_for_each(|l| self.queue(l));
+        }
+        if let Some(state) = &self.acp {
+            let lines = lock_acp(state).interrupt();
             return lines.into_iter().try_for_each(|l| self.queue(l));
         }
         self.next_request += 1;

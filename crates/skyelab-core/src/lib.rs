@@ -48,15 +48,17 @@ pub enum Provider {
     #[default]
     Claude,
     Codex,
+    Antigravity,
 }
 
 impl Provider {
-    pub const ALL: [Provider; 2] = [Provider::Claude, Provider::Codex];
+    pub const ALL: [Provider; 3] = [Provider::Claude, Provider::Codex, Provider::Antigravity];
 
     pub fn label(self) -> &'static str {
         match self {
             Provider::Claude => "Claude",
             Provider::Codex => "Codex",
+            Provider::Antigravity => "Antigravity",
         }
     }
 
@@ -65,6 +67,7 @@ impl Provider {
         match self {
             Provider::Claude => "CLAUDE_CONFIG_DIR",
             Provider::Codex => "CODEX_HOME",
+            Provider::Antigravity => "GEMINI_HOME",
         }
     }
 

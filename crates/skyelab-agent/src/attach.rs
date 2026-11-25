@@ -92,6 +92,25 @@ impl Attachment {
             ),
         })
     }
+
+    /// An ACP `session/prompt` content block. Images and text are supported; PDFs are refused.
+    pub(crate) fn acp_block(&self) -> Result<Value> {
+        Ok(match self.kind {
+            Kind::Image(mime_type) => json!({
+                "type": "image",
+                "data": self.base64(),
+                "mimeType": mime_type,
+            }),
+            Kind::Text => json!({
+                "type": "text",
+                "text": format!("<attached_file name={}>\n{}\n</attached_file>", json!(self.name), self.text()),
+            }),
+            Kind::Pdf => bail!(
+                "Antigravity can't read PDFs ({}); attach an image or a text file",
+                self.name
+            ),
+        })
+    }
 }
 
 /// An image or PDF, by its magic bytes (never by the name, which the user or a repo chose).
@@ -139,6 +158,18 @@ pub(crate) fn codex_input(text: &str, attachments: &[Attachment]) -> Result<Valu
         items.push(a.codex_item()?);
     }
     Ok(Value::Array(items))
+}
+
+/// ACP's `prompt`: the text block (when non-empty or no attachments), followed by each attachment block.
+pub(crate) fn acp_prompt_blocks(text: &str, attachments: &[Attachment]) -> Result<Value> {
+    let mut blocks = Vec::with_capacity(attachments.len() + 1);
+    if !text.is_empty() || attachments.is_empty() {
+        blocks.push(json!({ "type": "text", "text": text }));
+    }
+    for a in attachments {
+        blocks.push(a.acp_block()?);
+    }
+    Ok(Value::Array(blocks))
 }
 
 /// Refuses a prompt with more than [`MAX_ATTACHMENTS`] files.

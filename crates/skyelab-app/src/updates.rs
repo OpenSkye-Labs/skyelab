@@ -150,11 +150,17 @@ pub fn set_installer(installer: Option<Installer>, cx: &mut App) {
     }
 }
 
-/// The real agent fetch, or in debug builds `SKYELAB_AGENT_LATEST_FAKE=<version>` for both agents (no network).
+/// The real agent fetch, or in debug builds `SKYELAB_AGENT_LATEST_FAKE=<version>` for all agents (no network).
 pub fn agent_fetcher(fake: Option<String>, debug: bool) -> AgentFetch {
     match fake.filter(|_| debug) {
         Some(v) => Arc::new(move |_| Ok(v.clone())),
-        None => Arc::new(|p| skyelab_client::release::npm_latest(update::agent_latest_url(p))),
+        None => Arc::new(|p| match update::agent_latest_url(p) {
+            Some(url) => skyelab_client::release::npm_latest(url),
+            None => Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "no npm release",
+            )),
+        }),
     }
 }
 

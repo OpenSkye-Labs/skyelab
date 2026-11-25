@@ -88,6 +88,7 @@ pub struct Sync {
     pub load_error: Option<String>,
     pub claude_bin: PathBuf,
     pub codex_bin: PathBuf,
+    pub antigravity_bin: PathBuf,
     pub gh_bin: PathBuf,
 }
 
@@ -191,7 +192,7 @@ impl Onboarding {
         if opened {
             (self.step, self.from, self.leaving) = (Step::Welcome, Step::Welcome, None);
             self.import = Default::default();
-            self.detect(s.claude_bin, s.codex_bin, s.gh_bin, cx);
+            self.detect(s.claude_bin, s.codex_bin, s.antigravity_bin, s.gh_bin, cx);
         }
         if self.step == Step::Import {
             self.start_import_scan(cx);
@@ -199,8 +200,15 @@ impl Onboarding {
         cx.notify();
     }
 
-    fn detect(&mut self, claude: PathBuf, codex: PathBuf, gh: PathBuf, cx: &mut Context<Self>) {
-        self.agents = ["Claude Code", "Codex", "GitHub CLI"]
+    fn detect(
+        &mut self,
+        claude: PathBuf,
+        codex: PathBuf,
+        antigravity: PathBuf,
+        gh: PathBuf,
+        cx: &mut Context<Self>,
+    ) {
+        self.agents = ["Claude Code", "Codex", "Antigravity", "GitHub CLI"]
             .map(|name| Agent {
                 name,
                 version: None,
@@ -215,7 +223,7 @@ impl Onboarding {
                 .unwrap_or_default()
         });
         let versions = cx.background_spawn(async move {
-            [claude, codex, gh]
+            [claude, codex, antigravity, gh]
                 .map(|b| skyelab_agent::agent_version(&b).map_err(|e| format!("{e:#}")))
         });
         self._detect = Some(cx.spawn(async move |this, cx| {

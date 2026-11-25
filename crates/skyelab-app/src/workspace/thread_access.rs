@@ -11,8 +11,12 @@ impl ThreadView {
         let old = self.composer_account().map(|a| a.id);
         self.folder_account = self.config.resolve(&self.cwd).cloned();
         if self.composer_account().map(|a| a.id) != old {
-            // Another account now: its own default model and Codex list.
-            (self.composer.account_model, self.composer.codex_models) = (None, None);
+            // Another account now: its own default model and provider model lists.
+            (
+                self.composer.account_model,
+                self.composer.codex_models,
+                self.composer.antigravity_models,
+            ) = (None, None, None);
             self.load_account_model(cx);
         }
         self.resume_refused = None; // the next send checks the new bindings again
