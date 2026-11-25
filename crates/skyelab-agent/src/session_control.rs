@@ -1,6 +1,6 @@
 //! A running session's controls: its events, permission mode, interrupt, stderr tail and stdin queue.
 
-use crate::{Event, Mode, Session, launch, lock, lock_acp, lock_cursor};
+use crate::{Event, Mode, Session, lock, lock_acp, lock_cursor};
 use anyhow::{Result, bail};
 use serde_json::json;
 
@@ -57,7 +57,7 @@ impl Session {
             lock_cursor(state).interrupted = true;
             if self.status.is_none() {
                 #[cfg(unix)]
-                launch::interrupt_group(self.child.id());
+                crate::launch::interrupt_group(self.child.id());
                 #[cfg(not(unix))]
                 {
                     self.kill_group();
