@@ -6,7 +6,6 @@ use super::tests::{account, calls, gh_dir, page, settled, setup};
 use super::*;
 use skyelab_git::NoGitHub;
 
-#[cfg(unix)] // the fake gh is a shell script
 #[gpui::test]
 fn projects_without_a_github_origin_say_why(cx: &mut gpui::TestAppContext) {
     let (r, cx) = rig(cx);

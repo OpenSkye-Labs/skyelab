@@ -535,7 +535,7 @@ impl Workspace {
 #[cfg(test)]
 #[path = "gh_framing_test.rs"]
 mod framing_tests;
-#[cfg(test)]
+#[cfg(all(test, unix))] // the fake gh is a shell script
 #[path = "gh_no_remote_test.rs"]
 mod no_remote_tests;
 #[cfg(test)]
