@@ -87,6 +87,7 @@ impl Workspace {
         self.push_config(cx);
         self.sync_setup(cx);
         self.show(Page::Welcome, window, cx);
+        self.hide_docks_for_setup(window, cx);
     }
 
     fn setup_event(&mut self, e: &OnboardingEvent, cx: &mut Context<Self>) {

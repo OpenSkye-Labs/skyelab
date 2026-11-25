@@ -57,6 +57,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_thread))
             .on_action(cx.listener(Self::open_devices))
             .on_action(cx.listener(Self::hide_devices))
+            .on_action(cx.listener(Self::hide_right))
             .on_action(cx.listener(Self::open_remote))
             .on_action(cx.listener(Self::toggle_sharing))
             .on_action(cx.listener(Self::disconnect_peer))

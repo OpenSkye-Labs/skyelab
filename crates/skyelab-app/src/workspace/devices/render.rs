@@ -247,6 +247,15 @@ impl Render for DevicesPanel {
             .id("devices")
             .key_context(super::CONTEXT)
             .track_focus(&self.focus)
+            // Esc in the Open URL field closes that row; only Esc elsewhere hides the tab.
+            .on_action(cx.listener(|this, _: &super::HideDevices, window, cx| {
+                if this.url_for.take().is_some() {
+                    this.focus.focus(window, cx);
+                    cx.notify();
+                } else {
+                    cx.propagate();
+                }
+            }))
             .size_full()
             .overflow_y_scroll()
             .bg(theme.background)

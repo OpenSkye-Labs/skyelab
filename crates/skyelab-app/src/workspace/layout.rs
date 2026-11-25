@@ -17,7 +17,10 @@ use skyelab_core::{AppSettings, WindowLayout};
 use std::path::PathBuf;
 use std::time::Duration;
 
-actions!(skyelab, [ToggleRightPanel, ToggleThreadDetails]);
+actions!(
+    skyelab,
+    [ToggleRightPanel, ToggleThreadDetails, HideRightPanel]
+);
 
 pub(crate) const TOGGLE_RIGHT_KEY: &str = if super::MAC {
     "cmd-alt-r"
@@ -193,6 +196,19 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.toggle(DockPlacement::Right, window, cx);
+    }
+
+    /// Esc on a right-panel tab that has no Esc of its own (Open a surface): hide the panel, keys back to the window.
+    pub(super) fn hide_right(
+        &mut self,
+        _: &HideRightPanel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.dock.read(cx).is_dock_open(DockPlacement::Right) {
+            self.toggle(DockPlacement::Right, window, cx);
+            self.focus.focus(window, cx);
+        }
     }
 
     /// Opens or closes the floating thread details card (T3's ⌘⇧B). It stays open while you work, until toggled
@@ -393,6 +409,11 @@ impl Workspace {
     ) {
         if self.dock.read(cx).is_dock_open(at) {
             self.dock_skin.start_close(at, cx);
+            // A zoomed group in a closed dock draws nothing and has no Zoom Out: end the zoom first.
+            if self.dock.read(cx).is_zoomed() {
+                self.dock
+                    .update(cx, |dock, cx| dock.set_zoomed_out(window, cx));
+            }
         }
         if at == DockPlacement::Left {
             // A toggle mid-drag ends the edge drag: its release listener is gone with the open sidebar.
@@ -507,7 +528,8 @@ impl Workspace {
         let opening = !self.dock.read(cx).is_dock_open(DockPlacement::Bottom);
         self.toggle(DockPlacement::Bottom, window, cx);
         // T3's ⌘J opens a shell, not an empty drawer.
-        if opening && !self.terminals.iter().any(|t| t.read(cx).docked) {
+        let restoring = !self.terms.restoring.is_empty();
+        if opening && !restoring && !self.terminals.iter().any(|t| t.read(cx).docked) {
             self.new_terminal(&super::NewTerminal, window, cx);
         }
     }

@@ -310,3 +310,5 @@ mod dock_menu_test;
 mod terminal_controls_test;
 #[cfg(all(test, unix))]
 mod onboarding_docks_test;
+#[cfg(all(test, unix))]
+mod drawer_review_test;

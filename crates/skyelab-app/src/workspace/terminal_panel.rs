@@ -94,6 +94,8 @@ pub enum TabEvent {
     Split(Axis),
     /// The tab bar's New terminal.
     New,
+    /// The tab bar's Close terminal: the active pane, as its key closes the focused one.
+    CloseActive,
 }
 
 pub struct TerminalPanel {
@@ -111,7 +113,7 @@ pub struct TerminalPanel {
     pub docked: bool,
     /// The inline rename field while the title is being renamed.
     pub(super) renaming: Option<(Entity<InputState>, Subscription)>,
-    /// Tells this tab from the window's others with the same title: 1 for the first, then the lowest free number.
+    /// Tells this tab from the window's other unnamed tabs in its folder: 1 for the first, then the lowest free number.
     pub number: usize,
     /// Runs one command (a Log in): not saved, so a restart doesn't reopen it as a plain shell.
     pub one_shot: bool,

@@ -22,7 +22,7 @@ use std::time::Duration;
 
 actions!(skyelab, [HideDevices]);
 
-/// The Devices tab's key context: Esc there hides the tab (a text field in it keeps its own Esc).
+/// The Devices tab's key context: Esc there hides the tab, or closes its Open URL row first.
 pub(super) const CONTEXT: &str = "Devices";
 
 pub(super) fn bind_keys(cx: &mut App) {

@@ -180,10 +180,25 @@ impl Workspace {
                     this.split_pane(panel.clone(), at, *axis, window, cx)
                 }
                 TabEvent::New => this.new_terminal(&NewTerminal, window, cx),
+                TabEvent::CloseActive => {
+                    let p = panel.read(cx);
+                    if let Some(id) = p.panes.get(p.active).map(|p| p.view.entity_id()) {
+                        this.close_pane(panel.clone(), id, window, cx);
+                    }
+                }
             },
         )
         .detach();
-        let taken: Vec<usize> = self.terminals.iter().map(|t| t.read(cx).number).collect();
+        // Numbered among the unnamed tabs that started in the same folder (a named tab already reads differently).
+        let folder = |t: &TerminalPanel| t.panes.first().map(|p| p.cwd.clone());
+        let mine = folder(panel.read(cx));
+        let taken: Vec<usize> = self
+            .terminals
+            .iter()
+            .map(|t| t.read(cx))
+            .filter(|t| t.name.is_none() && folder(t) == mine)
+            .map(|t| t.number)
+            .collect();
         let number = (1..).find(|n| !taken.contains(n)).unwrap_or(1);
         panel.update(cx, |p, _| p.number = number);
         self.dock_terminal(&panel, window, cx);

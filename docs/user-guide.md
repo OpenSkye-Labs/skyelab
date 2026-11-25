@@ -116,8 +116,8 @@ and **Stop** stops them (a subagent stops with the turn that runs it). Tools ope
 thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
-focus, or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
-The expand button at the panel's top right fills the window with it; press it again to put it back. Every tab in the right panel and the terminal drawer also has **Zoom In** (and **Zoom Out**) in its **…** menu. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
+focus (<kbd>Esc</kbd> hides the panel), or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
+The expand button at the panel's top right fills the window with it; press it again to put it back. Every right-panel and terminal tab also has **Zoom In** / **Zoom Out** in its **…** menu. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
 back the tab you closed last in this window: a browser tab on its page, the file preview on its file, or a Changes
 tab while its thread is open. Terminals, side chats and agents' browser tabs don't come back.
 
@@ -131,7 +131,7 @@ right panel leaves it no room beside the conversation, it covers the chat and a 
 and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
 The page's top row shows where you are (project / thread) and its actions, and at its right end four buttons show
-and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Opening the terminal drawer with no terminal open starts a shell. The drawer's tab bar has **Split right** (<kbd>⌘D</kbd>), **Split down** (<kbd>⇧⌘D</kbd>) and **New terminal** (<kbd>⌥⌘T</kbd>) buttons, which act on the tab shown; each tab's **×** closes it. Two tabs in the same folder are numbered (`project`, `project 2`). Drag
+and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). Opening the terminal drawer with no terminal open starts a shell. The drawer's tab bar has **Split right** (<kbd>⌘D</kbd>), **Split down** (<kbd>⇧⌘D</kbd>), **New terminal** (<kbd>⌥⌘T</kbd>) and **Close terminal** (<kbd>⌘W</kbd>, the active pane) buttons for the tab shown; a tab's **×** closes it. Two unnamed tabs in the same folder are numbered (`project`, `project 2`). Drag
 a panel's edge to resize it. Drag the sidebar's edge almost to the window's left edge and it fades; let go there and
 it hides (anywhere else the drag only resizes it, down to its minimum width). A hidden sidebar comes back with
 <kbd>⌘B</kbd> at the width it had, or from the thin handle that shows when you point at the middle of the window's
@@ -228,7 +228,7 @@ Sharing this machine over Tailscale, device approval and the environment switche
 
 ## Device hub
 
-Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar, which shows pressed while the tab is on screen. The same key or button again, or <kbd>Esc</kbd> inside the tab, hides it. It
+Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar, pressed while the tab shows. The key or button again, or <kbd>Esc</kbd> in the tab, hides it. It
 lists your iOS Simulators (macOS with Xcode) and Android emulators and devices (needs the Android SDK: SkyeLab looks in
 `ANDROID_HOME`, `ANDROID_SDK_ROOT`, Android Studio's default folder, then `PATH`). **Boot** starts a device. A booted one has **Shutdown**,
 **Screenshot**, **Open URL…** and **Install app…**. **Refresh** reloads the list.

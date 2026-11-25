@@ -41,8 +41,8 @@ impl TerminalPanel {
             .into()
     }
 
-    /// The tab's title: its given name, else the focused pane's, numbered after the window's first tab (T3's
-    /// "Terminal 2"), so two shells in one folder read differently.
+    /// The tab's title: its given name, else the focused pane's, numbered after the first unnamed tab in its folder
+    /// (T3's "Terminal 2"), so two shells in one folder read differently.
     pub fn tab_label(&self) -> SharedString {
         self.name.clone().unwrap_or_else(|| {
             let pane = self.panes.get(self.active).or(self.panes.first());
@@ -147,8 +147,8 @@ impl TerminalPanel {
 }
 
 impl TerminalPanel {
-    /// T3's drawer controls (`ThreadTerminalDrawer.tsx`): Split right, Split down and New terminal, each naming its
-    /// key; the tab's own × closes it. They act on this tab, wherever focus is.
+    /// T3's drawer controls (`ThreadTerminalDrawer.tsx`): Split right, Split down, New terminal and Close terminal (the
+    /// active pane), each naming its key. They act on this tab, wherever focus is; the tab's × closes the whole tab.
     fn controls(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
         use super::terminal_panel::{SplitTerminal, SplitTerminalDown};
         use skyelab_core::terminal_layout::Axis;
@@ -190,6 +190,14 @@ impl TerminalPanel {
                 &super::NewTerminal,
                 super::CONTEXT,
                 || TabEvent::New,
+            ))
+            .child(button(
+                "terminal-close",
+                SkyeIcon::Delete,
+                "Close terminal",
+                &super::terminal_panel::CloseTerminal,
+                "Terminal",
+                || TabEvent::CloseActive,
             ))
     }
 }

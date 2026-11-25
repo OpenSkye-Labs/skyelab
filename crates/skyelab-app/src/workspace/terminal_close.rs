@@ -38,6 +38,17 @@ impl Workspace {
         }) else {
             return;
         };
+        self.close_pane(panel, id, window, cx);
+    }
+
+    /// Closes one pane of `panel` (after the confirm, if its shell is busy); the last pane takes the tab with it.
+    pub(super) fn close_pane(
+        &mut self,
+        panel: Entity<TerminalPanel>,
+        id: gpui::EntityId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let target = panel.clone();
         self.confirm_terminal_close(&panel, vec![id], window, cx, move |this, window, cx| {
             if !target.update(cx, |p, cx| p.remove_pane(id, window, cx)) {

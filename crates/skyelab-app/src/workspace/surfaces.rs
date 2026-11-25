@@ -30,6 +30,8 @@ pub(super) fn bind_keys(cx: &mut App) {
         KeyBinding::new("p", OpenThreadPr, c),
         KeyBinding::new("m", OpenDevices, c),
         KeyBinding::new("s", OpenSideChat, c),
+        // The picker is the right panel's way in: Esc puts it away, as on Devices.
+        KeyBinding::new("escape", super::layout::HideRightPanel, c),
     ]);
 }
 
