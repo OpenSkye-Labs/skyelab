@@ -108,6 +108,15 @@ impl Sidebar {
     }
 }
 
+#[cfg(test)]
+pub(crate) const FOOTER_BUTTON_IDS: &[&str] = &[
+    "sidebar-settings",
+    "sidebar-prs",
+    "sidebar-issues",
+    "sidebar-usage",
+    "sidebar-refresh",
+];
+
 /// The footer's icon row (T3's `SidebarChrome`): 32 px ghost icon buttons with tooltips.
 pub(super) fn footer() -> impl IntoElement {
     use crate::workspace::gh_pages::{OpenIssues, OpenPullRequests};

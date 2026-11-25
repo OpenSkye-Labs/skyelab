@@ -21,6 +21,8 @@ pub(crate) enum Page {
     Compare(i64),
     /// The Pull requests or Issues page.
     Github(super::gh_pages::Kind),
+    /// The Bots ("Coming soon") preview page.
+    Bots,
 }
 
 impl Page {
@@ -38,7 +40,9 @@ impl Page {
                         .map(|t| format!("thread:{}", t.id))
                 })
                 .unwrap_or_else(|| "welcome".into()),
-            Page::Welcome | Page::RemoteThread(_) | Page::Compare(_) => "welcome".into(),
+            Page::Welcome | Page::RemoteThread(_) | Page::Compare(_) | Page::Bots => {
+                "welcome".into()
+            }
         }
     }
 }
@@ -124,7 +128,7 @@ impl Workspace {
 
     pub(super) fn alive(&self, page: &Page, cx: &App) -> bool {
         match page {
-            Page::Welcome => true,
+            Page::Welcome | Page::Bots => true,
             // Made on demand, so they can always show; but they list this machine's projects, never while another
             // machine is shown (Back, Forward, a restore).
             Page::Github(_) => !self.is_remote(),
@@ -173,7 +177,7 @@ impl Workspace {
             .0
             .insert(window.window_handle().window_id(), shown);
         let view: AnyView = match self.page.clone() {
-            Page::Welcome => {
+            Page::Welcome | Page::Bots => {
                 self.welcome.read(cx).focus_handle(cx).focus(window, cx);
                 self.welcome.clone().into()
             }
