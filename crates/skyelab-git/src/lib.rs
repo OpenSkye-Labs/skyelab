@@ -468,6 +468,8 @@ fn lossy(bytes: &[u8]) -> String {
 }
 
 #[cfg(test)]
+mod frozen_link_test;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod whitespace_test;

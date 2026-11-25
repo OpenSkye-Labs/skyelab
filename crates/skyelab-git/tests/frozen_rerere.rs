@@ -1,6 +1,6 @@
 //! A frozen commit (hooks off) that ends a conflicted merge records git's rerere resolution in the repo's own
 //! `rr-cache`, not in the private common dir the frozen config lives in.
-#![cfg(unix)] // the private common dir links rr-cache with a symlink; Windows may refuse one
+//! Runs on Windows too, where the link is a dir symlink or, without Developer Mode, a junction.
 
 use std::path::Path;
 use std::process::Command;
@@ -26,6 +26,7 @@ fn a_frozen_merge_commit_keeps_its_rerere_record() {
         ("user.email", "t@example.com"),
         ("commit.gpgsign", "false"),
         ("rerere.enabled", "true"),
+        ("core.autocrlf", "false"), // Windows runners turn it on globally
     ] {
         assert!(git(&repo, &["config", k, v]));
     }

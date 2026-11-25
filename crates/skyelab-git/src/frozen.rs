@@ -256,17 +256,35 @@ fn write_common_dir(to: &Path, common: &Path, entries: &[Entry<'_>]) -> io::Resu
     }
     // rerere's records (data, no program): a commit ending a merge writes its resolution there, and one written to
     // the private dir would be lost. Linked only when there: git makes it at the conflicted merge, outside SkyeLab.
-    let rr_cache = common.join("rr-cache");
-    if rr_cache.is_dir() {
-        // Dropping the private dir removes the link, never what it points to (std's remove_dir_all).
-        #[cfg(unix)]
-        std::os::unix::fs::symlink(&rr_cache, to.join("rr-cache"))?;
-        // shortcut: Windows refuses a dir symlink without Developer Mode, so the record is lost there; a junction
-        // would fix that if anyone asks.
-        #[cfg(windows)]
-        let _ = std::os::windows::fs::symlink_dir(&rr_cache, to.join("rr-cache"));
+    link_rr_cache(&common.join("rr-cache"), &to.join("rr-cache"))
+}
+
+/// Links `link` to the repo's `rr_cache` when that is a real directory, never a link of its own, so the target stays
+/// inside the git dir. Dropping the private dir removes the link, never what it points to (std's `remove_dir_all`
+/// doesn't descend into a symlink or junction).
+pub(crate) fn link_rr_cache(rr_cache: &Path, link: &Path) -> io::Result<()> {
+    if !std::fs::symlink_metadata(rr_cache).is_ok_and(|m| m.is_dir()) {
+        return Ok(());
     }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(rr_cache, link)?;
+    #[cfg(windows)]
+    let _ = link_dir_or_junction(rr_cache, link, |t, l| {
+        std::os::windows::fs::symlink_dir(t, l)
+    });
     Ok(())
+}
+
+/// Without Developer Mode Windows refuses a dir symlink; a junction needs no privilege but an absolute local target
+/// (`rr_cache` is, from `--path-format=absolute`), so there a repo on a network share loses the record.
+/// `symlink` is a parameter so a test can refuse it.
+#[cfg(windows)]
+pub(crate) fn link_dir_or_junction(
+    target: &Path,
+    link: &Path,
+    symlink: fn(&Path, &Path) -> io::Result<()>,
+) -> io::Result<()> {
+    symlink(target, link).or_else(|_| junction::create(target, link))
 }
 
 /// `entries` as a config file, one section header per entry so multi-valued keys keep their order.

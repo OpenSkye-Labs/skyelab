@@ -59,6 +59,8 @@ futures = "0.3"
 rustix = { version = "1.1", features = ["process", "termios"] }
 # A terminal's foreground command and working folder (tab titles, the close check, restore).
 sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
+# A directory junction where Windows refuses a dir symlink (skyelab-git's frozen rr-cache link), a safe API.
+junction = "2.1.0"
 # Windows Job Objects (kill an agent with its whole process tree), a safe API.
 win32job = "2.1"
 # The MCP pipe's security descriptor (skyelab-pipe-sys), SO_EXCLUSIVEADDRUSE (skyelab-net-sys).
