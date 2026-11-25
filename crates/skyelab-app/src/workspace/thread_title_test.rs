@@ -18,6 +18,7 @@ pub(super) fn titles(on: bool, cx: &mut VisualTestContext) {
             },
             diff: Default::default(),
             terminal: Default::default(),
+            visual: Default::default(),
         })
     });
 }

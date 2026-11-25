@@ -33,6 +33,8 @@ earlier prompt aren't brought back.
 A thread's own choice always wins. They live in three Settings sections:
 
 - **Chat → Generate thread titles**: on by default.
+- **Chat → Visual replies**: the https hosts an agent's page may load scripts, styles and fonts from
+  ([visual replies](user-guide-timeline.md)).
 - **Diffs & pull requests → Generate commit messages and PRs**: on by default. Shows the Changes tab's sparkle buttons
   ([how they work](user-guide-accounts.md)).
 - **Chat → Default permissions**: Ask, Plan or Accept edits. Full access is never a default; pick it in a thread.

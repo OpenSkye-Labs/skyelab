@@ -6,22 +6,41 @@
 #[cfg(windows)]
 pub use win::{lock, snapshot};
 
-/// Whether the lock lets a request through: what has no network (`data:`, `blob:`, `about:`) and the `https:`
-/// loads the page's CSP allows (`skyelab_browser::page::CSP`). `resource` is the request's kind.
-pub fn lock_allows(uri: &str, resource: Resource) -> bool {
+/// Whether the lock lets a request through: what has no network (`data:`, `blob:`, `about:`), and a script, style
+/// sheet or font from `https://` one of `hosts` (the page CSP's list, `skyelab_browser::page::csp`; `*.name` is
+/// any subdomain of `name`). No image, media or other kind ever reaches the network. `resource` is the request's kind.
+pub fn lock_allows(uri: &str, resource: Resource, hosts: &[String]) -> bool {
     let scheme = uri.split_once(':').map(|(s, _)| s.to_ascii_lowercase());
     match scheme.as_deref() {
         Some("data" | "blob" | "about") => true,
-        Some("https") => matches!(
-            resource,
-            Resource::Script
-                | Resource::Stylesheet
-                | Resource::Image
-                | Resource::Font
-                | Resource::Media
-        ),
+        Some("https") => {
+            matches!(
+                resource,
+                Resource::Script | Resource::Stylesheet | Resource::Font
+            ) && https_host(uri).is_some_and(|host| {
+                hosts.iter().any(|h| match h.strip_prefix("*.") {
+                    Some(base) => host
+                        .strip_suffix(base)
+                        .is_some_and(|sub| sub.len() > 1 && sub.ends_with('.')),
+                    None => &host == h,
+                })
+            })
+        }
         _ => false,
     }
+}
+
+/// The lowercase host of an `https://` URI on the default port, `None` for anything unusual (credentials, another
+/// port, an IPv6 literal): a CSP `https://host` source matches none of those either.
+fn https_host(uri: &str) -> Option<String> {
+    let rest = uri
+        .get(..8)
+        .filter(|s| s.eq_ignore_ascii_case("https://"))
+        .map(|_| &uri[8..])?;
+    let authority = rest.split(['/', '?', '#', '\\']).next()?;
+    let host = authority.strip_suffix(":443").unwrap_or(authority);
+    (!host.is_empty() && !host.contains(['@', ':', '[', ']', '%']))
+        .then(|| host.to_ascii_lowercase())
 }
 
 /// The kinds of request the lock tells apart; every other kind is `Other`.
@@ -41,16 +60,46 @@ mod tests {
 
     #[test]
     fn lock_passes_only_what_the_csp_allows() {
-        assert!(lock_allows("data:text/html,hi", Resource::Other));
-        assert!(lock_allows("about:blank", Resource::Other));
-        assert!(lock_allows("blob:null/1", Resource::Image));
-        assert!(lock_allows("https://cdn.example/a.js", Resource::Script));
-        assert!(lock_allows("HTTPS://cdn.example/a.png", Resource::Image));
-        assert!(!lock_allows("https://example.com/", Resource::Other));
-        assert!(!lock_allows("http://127.0.0.1/img", Resource::Image));
-        assert!(!lock_allows("ws://127.0.0.1/ws", Resource::Other));
-        assert!(!lock_allows("file:///c:/x", Resource::Script));
-        assert!(!lock_allows("no-scheme", Resource::Image));
+        let hosts = ["cdn.example".to_owned(), "*.fonts.example".to_owned()];
+        let allows = |uri, resource| lock_allows(uri, resource, &hosts);
+        assert!(allows("data:text/html,hi", Resource::Other));
+        assert!(allows("about:blank", Resource::Other));
+        assert!(allows("blob:null/1", Resource::Image));
+        assert!(allows("https://cdn.example/a.js", Resource::Script));
+        assert!(allows(
+            "HTTPS://CDN.example:443/a.css",
+            Resource::Stylesheet
+        ));
+        assert!(allows("https://a.b.fonts.example/f.woff2", Resource::Font));
+        // Images and media load from data: and blob: only, even from an allowed host.
+        assert!(!allows("https://cdn.example/a.png", Resource::Image));
+        assert!(!allows("https://cdn.example/a.mp4", Resource::Media));
+        assert!(!allows("https://cdn.example/", Resource::Other));
+        // Hosts not on the list, and URLs that only look like them.
+        assert!(!allows("https://evil.example/a.js", Resource::Script));
+        assert!(!allows(
+            "https://cdn.example.evil.example/a.js",
+            Resource::Script
+        ));
+        assert!(!allows("https://xcdn.example/a.js", Resource::Script));
+        assert!(!allows("https://fonts.example/f.woff2", Resource::Font));
+        assert!(!allows("https://evilfonts.example/f.woff2", Resource::Font));
+        assert!(!allows(
+            "https://cdn.example@evil.example/a.js",
+            Resource::Script
+        ));
+        assert!(!allows("https://cdn.example:8443/a.js", Resource::Script));
+        assert!(!allows("https://[::1]/a.js", Resource::Script));
+        assert!(!allows("http://cdn.example/a.js", Resource::Script));
+        assert!(!allows("http://127.0.0.1/img", Resource::Image));
+        assert!(!allows("ws://127.0.0.1/ws", Resource::Other));
+        assert!(!allows("file:///c:/x", Resource::Script));
+        assert!(!allows("no-scheme", Resource::Image));
+        assert!(!lock_allows(
+            "https://cdn.example/a.js",
+            Resource::Script,
+            &[]
+        ));
     }
 }
 
@@ -81,7 +130,7 @@ mod win {
     /// [`lock_allows`] refuses is answered here with an empty 403, so it never reaches the network, and every new
     /// window is refused on the spot. Call it on the UI thread before the page loads, so its first request is
     /// already covered. WebView2 can't filter WebSockets; the CSP's `connect-src 'none'` stops those.
-    pub fn lock(webview: &ICoreWebView2) -> windows::core::Result<()> {
+    pub fn lock(webview: &ICoreWebView2, hosts: Vec<String>) -> windows::core::Result<()> {
         let env = webview.cast::<ICoreWebView2_2>()?;
         // SAFETY: `webview` is a live ICoreWebView2; Environment returns a new reference we own.
         let env = unsafe { env.Environment()? };
@@ -96,7 +145,7 @@ mod win {
                 args.ResourceContext(&mut context)?;
                 (take_pwstr(uri), context)
             };
-            if lock_allows(&uri, resource(context)) {
+            if lock_allows(&uri, resource(context), &hosts) {
                 return Ok(());
             }
             // SAFETY: `env` is the webview's live environment; no content stream and static strings. SetResponse

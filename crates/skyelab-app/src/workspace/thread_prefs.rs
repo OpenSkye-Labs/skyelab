@@ -1,7 +1,9 @@
 //! Settings → Threads: the defaults new threads start with, from `settings.toml`, shared app-wide.
 
 use gpui::{App, AppContext as _, Global, Task};
-use skyelab_core::{AppSettings, DiffSettings, TerminalSettings, ThreadSettings};
+use skyelab_core::{
+    AppSettings, DiffSettings, TerminalSettings, ThreadSettings, VisualReplySettings,
+};
 use std::path::PathBuf;
 
 /// The loaded Threads settings and the file they save to.
@@ -12,6 +14,8 @@ pub(crate) struct ThreadPrefs {
     pub diff: DiffSettings,
     /// Settings → General's terminal switch, saved under `[terminal]`.
     pub terminal: TerminalSettings,
+    /// Settings → Chat → Visual replies, saved under `[visual_replies]`.
+    pub visual: VisualReplySettings,
 }
 
 impl Global for ThreadPrefs {}
@@ -30,6 +34,7 @@ pub(crate) fn install(path: Option<PathBuf>, cx: &mut App) {
         settings: loaded.threads,
         diff: loaded.diff,
         terminal: loaded.terminal,
+        visual: loaded.visual_replies,
     });
 }
 
@@ -63,6 +68,9 @@ pub(crate) fn edit(
         settings: next,
         diff: get_diff(cx),
         terminal: get_terminal(cx),
+        visual: VisualReplySettings {
+            allowed_hosts: page_hosts(cx),
+        },
     });
     cx.background_spawn(async move {
         match path {
@@ -88,6 +96,9 @@ pub(crate) fn save_diff(diff: DiffSettings, cx: &mut App) -> Task<anyhow::Result
                 settings: get(cx),
                 diff,
                 terminal: get_terminal(cx),
+                visual: VisualReplySettings {
+                    allowed_hosts: page_hosts(cx),
+                },
             });
             return Task::ready(Ok(()));
         }
@@ -117,6 +128,34 @@ pub(crate) fn save_terminal(terminal: TerminalSettings, cx: &mut App) -> Task<an
     cx.background_spawn(async move {
         match path {
             Some(p) => AppSettings::update(&p, |s| s.terminal = terminal).map(drop),
+            None => Ok(()),
+        }
+    })
+}
+
+/// The hosts a visual reply's page may load scripts, styles and fonts from (the defaults with none installed). The
+/// page checks each again.
+pub(crate) fn page_hosts(cx: &App) -> Vec<String> {
+    cx.try_global::<ThreadPrefs>().map_or_else(
+        || VisualReplySettings::default().allowed_hosts,
+        |p| p.visual.allowed_hosts.clone(),
+    )
+}
+
+/// Uses `hosts` from now on (only a user's action calls this: Settings or a card's Allow) and saves it into the file
+/// as it is on disk. Every window redraws, so cards shot under the old list are shot again.
+pub(crate) fn save_page_hosts(hosts: Vec<String>, cx: &mut App) -> Task<anyhow::Result<()>> {
+    let path = path(cx);
+    if cx.try_global::<ThreadPrefs>().is_none() {
+        install(None, cx);
+    }
+    cx.global_mut::<ThreadPrefs>().visual.allowed_hosts = hosts.clone();
+    cx.refresh_windows();
+    cx.background_spawn(async move {
+        match path {
+            Some(p) => {
+                AppSettings::update(&p, |s| s.visual_replies.allowed_hosts = hosts).map(drop)
+            }
             None => Ok(()),
         }
     })

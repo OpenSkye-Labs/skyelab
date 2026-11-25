@@ -65,6 +65,11 @@ const INDEX: &[(Section, &str, &str)] = &[
     (Section::Chat, "Generate thread titles", "title name"),
     (
         Section::Chat,
+        "Visual replies",
+        "html render page chart cdn host allow script style font https",
+    ),
+    (
+        Section::Chat,
         "Permission rules",
         "allow for this project approval always command prefix path",
     ),

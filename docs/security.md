@@ -106,6 +106,21 @@
     the ask arrives: a process the agent already runs could still swap a folder for a symlink before the write.
   - An MCP rule names one tool. Codex's folder-wide write grants (`apply_patch`) and every other tool can't take one.
   Rules never answer in Plan mode or a side chat, and the thread row of an ask a rule answered names that rule.
+- **Visual replies load from your allowlist only.** An agent's `html_render` page runs under a CSP that our code puts
+  first in the document: scripts, styles and fonts from inline code and the `https://` hosts in Settings → Chat →
+  Visual replies only, images and media from `data:`/`blob:` only, and no fetch, XHR, WebSocket, frames, workers,
+  forms or `<base>`. So a page can't beacon to any host (`new Image().src`), time-probe local https ports, or send
+  GETs to https services on your network. A host is checked when added and again when a page uses the list
+  (`skyelab_core::page_hosts::parse_host`): https only, a name or `*.name`, never a path, port, IP address, a bare
+  `*`, a one-label name, a wildcard over a public suffix (`*.github.io`, `*.co.uk`), a local suffix (`localhost`,
+  `.local`, `.localdomain`, `.internal`, `.intranet`, `.corp`, `.private`, `.lan`, `.home`, `.home.arpa`, `.arpa`,
+  `.ts.net`, `.test`, `.invalid`, `.onion`) or a name service that resolves to the address it spells (`nip.io`,
+  `sslip.io`, `localtest.me`, `lvh.me`). On Windows the WebView2 lock follows the same list (403 for everything else, https images included)
+  and the page's browser process can't resolve local names or addresses. Only the user edits the list: a page
+  refused a host only reports it (that report is untrusted, so the card says the page "asked to load from" it; only
+  a host the validator takes is shown), and the card's Allow asks before it saves. The page can fake that report. Limits: an allowed CDN serves anyone's files, so a page can run any script
+  published there and load more from the same hosts, and the CDN sees every address the page asks for (data can ride
+  in a path). A public name whose DNS points at a local address is not caught on macOS and Linux.
 - **Private tabs stay private.** An agent's browser tab and a forwarded port's page have their own in-memory cookies
   and storage, and the tab itself records that (not whether a forward still exists). Duplicate tab on one (also
   after Take over or after the forward ends, and on any copy) opens another private, throwaway tab, never one on your

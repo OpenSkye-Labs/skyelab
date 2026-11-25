@@ -32,9 +32,11 @@ const LAYOUT_GUIDE: &str = "Frame width is the reply width (728px), on the threa
     an 8px html gutter. A box that needs its own background gets 16px padding and var(--radius) corners. Give charts \
     fixed pixel heights. Let content set the height: no vh units, no height:100% on html or body.";
 
-const PAGE_RULES: &str = "Self-contained: inline <style> and <script>. Scripts, styles, images and fonts may load \
-    from public https URLs (a CDN); fetch, XHR, WebSocket, frames, forms and http: are blocked, and links don't \
-    navigate.";
+const PAGE_RULES: &str = "Self-contained: inline <style> and <script>. Scripts, styles and fonts may load only \
+    from the hosts the user allows (by default https://cdnjs.cloudflare.com, https://cdn.jsdelivr.net and \
+    https://unpkg.com); images and media never load from the network, so inline them as data: URIs or build them \
+    in script (SVG, canvas, blob:). fetch, XHR, WebSocket, frames, forms and http: are blocked, and links don't \
+    navigate. A host the page was refused shows on its card, and only the user can allow it.";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HtmlTool {
