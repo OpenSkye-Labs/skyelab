@@ -15,7 +15,7 @@ fn typing_a_path_lists_completes_and_browses(cx: &mut TestAppContext) {
     assert!(s.rows.iter().any(|r| r.1 == "api" && r.2 == "~/code/api"), "{s:?}");
 
     // Tab completes the highlighted folder into the field.
-    keys("cmd-a backspace", cx);
+    keys("secondary-a backspace", cx);
     type_in("~/co", cx);
     assert_eq!(shown(cx).rows[0].1, "code");
     keys("tab", cx);

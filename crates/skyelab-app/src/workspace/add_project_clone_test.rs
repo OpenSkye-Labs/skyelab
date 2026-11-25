@@ -54,7 +54,7 @@ fn clone_asks_the_account_first_and_uses_its_gh(cx: &mut TestAppContext) {
         let s = shown(cx);
         assert_eq!(s.rows.len(), 1, "{s:?}");
         assert_eq!(s.rows[0].0, "Can't add", "{bad} refused with a reason");
-        cx.simulate_keystrokes("cmd-a backspace");
+        cx.simulate_keystrokes("secondary-a backspace");
     }
     type_in(&url, cx);
     choose("Clone into ~/code/widgets", cx);

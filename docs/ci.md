@@ -37,6 +37,11 @@ Only macOS is tested locally. Check the others like this before merging somethin
   `loadHTMLString` is). A navigation handler that allows only `about:blank` cancels the page's own load, and the
   page measures as an empty viewport (`wkwebview_page`: "height 80"). `page::Page` allows the first navigation,
   the string load, then only `about:blank`.
+- A WebView2 page locked by `WebResourceRequested` still opens bare TCP connections (no bytes sent): Chromium
+  preconnects outside that hook, and `<link rel=preconnect>` is outside CSP (`wkwebview_page`: "reached the local
+  server 2 times: (no request), (no request)"). The page's environment gets `--host-resolver-rules` mapping local
+  names and addresses to `^NOTFOUND` (`page::PAGE_BROWSER_ARGS`); `~NOTFOUND` is not the sentinel, it resolves as a
+  name. `--dns-prefetch-disable` no longer exists. Browser args are per environment, so the page has its own data folder.
 - Fakes that are shell scripts (`fake-claude.sh`, `fake-gh.sh`, …), `mkfifo`, symlinks and Unix permissions:
   `#[cfg(unix)]` on the test (or just that step), never on a test of a feature that also ships on Windows.
 

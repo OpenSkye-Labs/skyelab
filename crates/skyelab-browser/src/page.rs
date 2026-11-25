@@ -8,6 +8,8 @@
 //!   WebSocket, frames, workers, plugins, forms or `<base>`.
 //! - On Windows, `skyelab_webview2_sys::lock` enforces the same again under the CSP before the page loads: WebView2
 //!   answers every other request itself (a 403) and refuses new windows on the UI thread.
+//!   Its own browser process also fails to resolve local names and addresses, so preconnects and hints that
+//!   no lock or CSP sees open no socket to this machine or its networks.
 //! - Then T3's theme variables and base sheet, which the page may override.
 //! - [`shoot`] lays a page out hidden at a width, measures it and snapshots it; the timeline shows that image, so
 //!   no native view ever sits inside a scrolling list. The live page is only for the expand dialog.
@@ -27,6 +29,20 @@ pub const CSP: &str = "default-src 'none'; script-src 'unsafe-inline' 'unsafe-ev
     style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; \
     media-src data: blob: https:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; \
     object-src 'none'; manifest-src 'none'; form-action 'none'; base-uri 'none'";
+
+/// The page's WebView2 browser arguments: wry's defaults, plus every name and address on this machine or its networks
+/// failing to resolve. Chromium opens sockets the lock never sees (`<link rel=preconnect>` is outside CSP, and its
+/// speculative preconnects), and a bare socket is enough to probe a local port; a failed resolve opens none,
+/// whatever asked for it, IP literals included. Glob patterns, not CIDRs: `100.*` and `172.*` cover the tailnet's
+/// 100.64/10 and 172.16/12 with some public addresses beside them. Names that resolve to a local address in DNS
+/// still get through. The page's environment has a data folder of its own, so the user's tabs keep their own.
+#[cfg(windows)]
+const PAGE_BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
+    --host-resolver-rules=\"MAP localhost ^NOTFOUND, MAP *.localhost ^NOTFOUND, MAP *.local ^NOTFOUND, \
+    MAP *.internal ^NOTFOUND, MAP *.home.arpa ^NOTFOUND, MAP *.ts.net ^NOTFOUND, MAP 0.* ^NOTFOUND, \
+    MAP 10.* ^NOTFOUND, MAP 100.* ^NOTFOUND, MAP 127.* ^NOTFOUND, MAP 169.254.* ^NOTFOUND, MAP 172.* ^NOTFOUND, \
+    MAP 192.168.* ^NOTFOUND, MAP :: ^NOTFOUND, MAP ::1 ^NOTFOUND, MAP ::ffff:* ^NOTFOUND, MAP fc*:* ^NOTFOUND, \
+    MAP fd*:* ^NOTFOUND, MAP fe8*:* ^NOTFOUND, MAP fe9*:* ^NOTFOUND, MAP fea*:* ^NOTFOUND, MAP feb*:* ^NOTFOUND\"";
 
 /// T3's base sheet: an 8px gutter, theme background, text and font, focus rings inside the element.
 const BASE_CSS: &str = "html{box-sizing:border-box;padding:8px;background:var(--background);\
@@ -100,6 +116,11 @@ impl Page {
         let builder = builder
             .with_html(prepared)
             .with_new_window_req_handler(|_, _| wry::NewWindowResponse::Deny);
+        #[cfg(windows)]
+        let builder = {
+            use wry::WebViewBuilderExtWindows as _;
+            builder.with_additional_browser_args(PAGE_BROWSER_ARGS)
+        };
         let builder = builder
             .with_incognito(true)
             .with_devtools(false)

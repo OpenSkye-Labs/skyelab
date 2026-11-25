@@ -15,7 +15,7 @@ fn new_project_creates_a_repo_and_binds_the_pick(cx: &mut TestAppContext) {
     assert_eq!(s.rows.len(), 1);
     assert!(s.rows[0].1.contains("already has files"), "{s:?}");
 
-    cx.simulate_keystrokes("cmd-a backspace");
+    cx.simulate_keystrokes("secondary-a backspace");
     type_in("demo", cx);
     choose("Create ~/code/demo", cx);
     assert_eq!(shown(cx).page.as_deref(), Some("Which account does demo run on?"));
