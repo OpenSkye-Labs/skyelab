@@ -77,3 +77,20 @@ fn reduce_motion_closes_the_dock_at_once(cx: &mut TestAppContext) {
     assert_eq!(closing_width(cx), None, "no collapse with Reduce Motion");
     assert_eq!(pending_frames(cx), 0);
 }
+
+/// Base reads `closed_dock_extent` as the closed strip during a resize drag too, so an open dock must report base's
+/// own value there, never its open size.
+#[gpui::test]
+fn an_open_dock_reports_the_base_closed_extent(cx: &mut TestAppContext) {
+    use gpui_component::dock::DockAreaRenderer as _;
+    let (r, cx) = rig(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(false));
+    pending_frames(cx);
+    r.ws.read_with(cx, |ws, _| {
+        assert_eq!(
+            ws.dock_skin.closed_dock_extent(DockPlacement::Left),
+            ws.dock_skin.skin.closed_dock_extent(DockPlacement::Left),
+            "the open sidebar reports base's closed extent"
+        );
+    });
+}

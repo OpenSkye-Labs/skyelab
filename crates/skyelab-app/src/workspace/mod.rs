@@ -183,6 +183,8 @@ pub struct Workspace {
     /// This window, as the window registry (`windows`) knows it.
     window_handle: gpui::AnyWindowHandle,
     dock: Entity<DockArea>,
+    /// The dock area's skin: a toggle tells it a dock starts to close (`center_skin.rs`).
+    dock_skin: std::rc::Rc<center_skin::CenterSkin>,
     /// The folder the workspace is "in": the selected project, or home before one is picked.
     folder: PathBuf,
     folder_label: SharedString,
@@ -312,15 +314,15 @@ impl Workspace {
         let surfaces = cx.new(surfaces::SurfacesPanel::new);
 
         // gpui-component's skin, the center drawn uncached (`center_skin.rs`).
-        let mut skin = None;
+        let mut skins = None;
         let dock = cx.new(|cx| {
             let s = DockSkin::new(cx);
-            skin = Some(s.clone());
-            let center = center.entity_id();
-            DockArea::new("workspace", None, window, cx)
-                .with_renderer(std::rc::Rc::new(center_skin::CenterSkin::new(s, center)))
+            let ours =
+                std::rc::Rc::new(center_skin::CenterSkin::new(s.clone(), center.entity_id()));
+            skins = Some((s, ours.clone()));
+            DockArea::new("workspace", None, window, cx).with_renderer(ours)
         });
-        let skin = skin.expect("the dock area's constructor ran");
+        let (skin, dock_skin) = skins.expect("the dock area's constructor ran");
         skin.set_toggle_button_visible(false, cx);
         dock.update(cx, |dock, cx| {
             let tabs = |panel, cx: &App| DockLayout::tabs().panel_view(panel, cx);
@@ -370,6 +372,7 @@ impl Workspace {
             focus: cx.focus_handle(),
             window_handle: window.window_handle(),
             dock,
+            dock_skin,
             account: account_label(&config, &folder),
             account_id: config.resolve(&folder).map(|a| a.id.clone()),
             project_accounts: Default::default(),

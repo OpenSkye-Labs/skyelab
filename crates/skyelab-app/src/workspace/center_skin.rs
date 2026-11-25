@@ -5,8 +5,9 @@
 //! (`timeline_view.rs`), and the center's other pages are drawn cached by `Center` (docs/gpui/redraw.md).
 //!
 //! A dock that closes (the sidebar, the tools dock, the terminal) collapses on Rex's spring (`ui::motion::SPRING`)
-//! instead of vanishing: base asks [`DockAreaRenderer::closed_dock_extent`] how much of a closed dock to draw, and
-//! this skin answers with the spring's last value until it settles. Opening stays instant, as Rex's lands most of
+//! instead of vanishing: the toggle calls [`CenterSkin::start_close`], base asks
+//! [`DockAreaRenderer::closed_dock_extent`] how much of a closed dock to draw, and this skin answers with the
+//! spring's last value until it settles. A drag that closes a dock stays with the pointer. Opening stays instant, as Rex's lands most of
 //! the way on its first frame.
 
 use gpui::{
@@ -32,7 +33,8 @@ pub(super) struct CenterSkin {
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct Drawn {
-    /// `None` once a closed dock has settled at its closed extent.
+    /// Only while the dock closes: an open dock reports base's own closed extent, which base also reads as the
+    /// bottom dock's strip during a resize drag.
     extent: Option<Pixels>,
     open: Pixels,
 }
@@ -48,6 +50,17 @@ impl CenterSkin {
             skin,
             center,
             drawn: Default::default(),
+        }
+    }
+
+    /// A toggle is closing the dock at `at`: collapse it from its open size, unless motion is reduced.
+    pub fn start_close(&self, at: DockPlacement, cx: &App) {
+        if let Some(cell) = self.drawn(at) {
+            let mut drawn = cell.get();
+            if !cx.reduce_motion() && drawn.open > Pixels::ZERO {
+                drawn.extent = Some(drawn.open);
+                cell.set(drawn);
+            }
         }
     }
 
@@ -157,8 +170,7 @@ impl DockAreaRenderer for CenterSkin {
                 cx,
             );
             cell.set(Drawn {
-                // With Reduce Motion a close draws nothing from its first frame.
-                extent: (!cx.reduce_motion()).then_some(size),
+                extent: None,
                 open: size,
             });
             return self.skin.render_dock(dock, content, window, cx);

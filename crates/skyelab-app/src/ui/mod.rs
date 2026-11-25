@@ -61,6 +61,8 @@ pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
     let theme = gpui_component::Theme::global_mut(cx);
     theme.cursor_blink = CURSOR_BLINK;
     theme.motion = motion::tokens();
+    // Base's copy (plots, scrollbars) is derived from the theme: refresh it now, not at the next mode change.
+    gpui_component::Theme::sync_base(cx);
     Ok(())
 }
 

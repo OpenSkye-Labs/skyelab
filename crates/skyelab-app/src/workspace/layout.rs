@@ -356,6 +356,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.dock.read(cx).is_dock_open(at) {
+            self.dock_skin.start_close(at, cx);
+        }
         self.dock
             .update(cx, |dock, cx| dock.toggle_dock(at, window, cx));
     }
