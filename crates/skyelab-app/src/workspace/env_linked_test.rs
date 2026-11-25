@@ -357,3 +357,27 @@ fn leaving_machines_closes_every_connection(cx: &mut TestAppContext) {
         daemon.peers().is_empty()
     });
 }
+
+/// A linked machine's thread settled from This Mac's list (protocol 1.6): settled there, listed here under Settled.
+#[gpui::test]
+fn linked_thread_settles_on_its_machine(cx: &mut TestAppContext) {
+    let remote = remote_side(FakeTailnet::default());
+    let (ws, _local, cx) = local_workspace(Arc::default(), None, remote.options(), cx);
+    linked_and_listed(&ws, cx);
+    let a = super::thread_list::ShelveThread {
+        id: remote.thread_id,
+        to: super::thread_list::Shelf::Settle,
+        host: Some(NODE_NAME.into()),
+    };
+    ws.update_in(cx, |ws, window, cx| ws.shelve_thread(&a, window, cx));
+    wait_until(cx, "the Settled shelf", |cx| {
+        ws.read_with(cx, |ws, cx| {
+            let shelves = &ws.sidebar.read(cx).shelves;
+            shelves.len() == 1 && shelves[0].title == "Settled" && shelves[0].items[0].label == ROW
+        })
+    });
+    assert!(!raw_sidebar(&ws, cx).iter().any(|(_, r)| r.contains(&ROW.to_owned())));
+    let store = remote.store.lock().expect("store");
+    let t = store.thread(remote.thread_id).expect("read").expect("thread");
+    assert!(t.settled_at.is_some(), "settled on its machine");
+}

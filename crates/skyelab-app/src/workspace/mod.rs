@@ -90,6 +90,7 @@ mod ask_cards;
 mod ask_detail;
 mod ask_dock;
 mod ask_files;
+mod issue_actions;
 mod pr_actions;
 mod project_rules;
 mod project_rules_page;

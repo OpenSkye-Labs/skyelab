@@ -157,6 +157,7 @@ pub enum Ran {
     Interrupt(i64),
     Answer(i64, String, skyelab_protocol::PermissionAnswer),
     Questions(i64, String, Vec<Vec<String>>),
+    Shelve(i64, bool, Option<i64>),
 }
 
 /// The agent calls an [`Env`] saw. With `fail`, every call is still recorded, then fails like an unwired desktop.
@@ -232,6 +233,24 @@ impl Agents for RecordingAgents {
             answers.to_vec(),
         ))
     }
+    /// Writes the store as the app does, so a listing shows the shelf.
+    fn shelve_thread(
+        &self,
+        thread_id: i64,
+        settled: bool,
+        snoozed_until: Option<i64>,
+    ) -> Result<(), RpcError> {
+        self.record(Ran::Shelve(thread_id, settled, snoozed_until))?;
+        let store = self.store.lock().expect("store lock");
+        let written = if settled {
+            store.set_thread_settled(thread_id, true)
+        } else {
+            store
+                .set_thread_settled(thread_id, false)
+                .and_then(|()| store.set_thread_snoozed(thread_id, snoozed_until))
+        };
+        written.map_err(|e| RpcError::new(ErrorCode::NotFound, e.to_string()))
+    }
 }
 
 /// The store backend, except that the next `fail_lists` thread listings fail. Every call is logged in `asked`.
@@ -296,6 +315,15 @@ impl Backend for Flaky {
     ) -> Result<(), RpcError> {
         self.ask("answer_questions");
         self.inner.answer_questions(thread_id, request_id, answers)
+    }
+    fn shelve_thread(
+        &self,
+        thread_id: i64,
+        settled: bool,
+        snoozed_until: Option<i64>,
+    ) -> Result<(), RpcError> {
+        self.ask("shelve_thread");
+        self.inner.shelve_thread(thread_id, settled, snoozed_until)
     }
 }
 

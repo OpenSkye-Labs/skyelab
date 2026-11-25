@@ -11,7 +11,7 @@ use crate::remote::PR_VIEW_LIMIT;
 use crate::{Error, Result};
 
 /// A merge or review that hangs (a dead network) is killed after this long.
-const ACTION_LIMIT: Duration = Duration::from_secs(120);
+pub(crate) const ACTION_LIMIT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MergeMethod {

@@ -67,7 +67,11 @@ On a remote machine, the sidebar shows the same list as here: every project's th
 then **Today**, **Yesterday**, **Previous 7 days** and **Older**, each row with its project, the agent's last reply,
 its status and its account. Its projects follow; the selected one is where **New thread** starts. You can open threads,
 start new ones, send follow-ups and stop them, answer permission requests and questions, approve plans, and find in a
-thread with ⌘F (Ctrl+F). The thread filter, scope menu, unread and approval marks are local only, and a machine on an
+thread with ⌘F (Ctrl+F). Settle and snooze work on its threads too, from the row's hover buttons and right-click menu,
+with **Undo**: the thread is settled or snoozed on that machine, so its own sidebar shows it there as well, and the row
+moves to the **Settled** or **Snoozed** shelf here. While the machine is offline, the buttons say so and change
+nothing; try again once it is back. A machine on an older SkyeLab answers with a note to update SkyeLab there. The
+thread filter, scope menu, unread and approval marks are local only, and a machine on an
 older SkyeLab shows no pins or reply previews and can't take question answers. A screenshot the other machine's
 store didn't keep reads **Image (205 KB) not kept**, on the desktop and in the mobile app. The account shown is the one that machine resolved. Terminals and worktree controls are
 local only. A remote thread is shown as the page, like a local one. Switching back to this machine closes the remote
@@ -113,6 +117,8 @@ as `linked_environments` in `settings.toml` and connect again when SkyeLab start
 - Click a row to open the thread right here, as the page. You can send follow-ups, stop it, answer its permission
   requests and questions, as in the switcher. Its agent runs on that machine, on that machine's accounts; nothing
   here can change its accounts, bindings or projects.
+- Settle and snooze a linked thread from its row, as a thread of this machine. It changes on its own machine, and
+  the row moves to this list's **Settled** or **Snoozed** shelf, after this machine's own shelved threads.
 - A linked thread that finishes while you look elsewhere reads **Done** until you open it. That mark is kept while
   SkyeLab runs, not saved.
 - A linked machine that isn't connected shows one short row under **Linked machines**, such as

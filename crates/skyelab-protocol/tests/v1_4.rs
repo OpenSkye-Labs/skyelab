@@ -15,6 +15,8 @@ fn thread_pin_and_preview_round_trip() {
         status: "exited".into(),
         pinned: true,
         preview: Some("Done. **Tests pass.**".into()),
+        settled_at: None,
+        snoozed_until: None,
         created_at: 1,
         updated_at: 2,
     };

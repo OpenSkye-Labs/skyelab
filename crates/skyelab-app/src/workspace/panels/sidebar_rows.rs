@@ -39,7 +39,7 @@ pub(super) fn sidebar_row(
         plain_row(item, marks, indent, now, theme)
     };
     let card = marks.and_then(|m| m.card.clone()).filter(|_| cards);
-    let Some(menu) = marks.filter(|m| !m.menu.is_empty()) else {
+    let Some(menu) = marks.filter(|m| !m.menu.is_empty() || m.shelf.is_some()) else {
         return super::sidebar_card::with_card(&item.id, row, card);
     };
     let entries: Vec<(SharedString, Box<dyn Action>)> = menu
@@ -47,7 +47,7 @@ pub(super) fn sidebar_row(
         .iter()
         .map(|(l, a)| (l.clone(), a.boxed_clone()))
         .collect();
-    let (focus, shelf) = (focus.clone(), menu.shelf);
+    let (focus, shelf) = (focus.clone(), menu.shelf.clone());
     let row = row.context_menu(move |mut menu, window, cx| {
         menu = menu.action_context(focus.clone());
         for (label, action) in &entries {
@@ -75,7 +75,7 @@ fn thread_row(
     let marks = marks.unwrap_or(&empty);
     let (pinned, unread) = (marks.pinned, marks.unread);
     let project = item.project.clone().unwrap_or_default();
-    let snoozed = marks.shelf.and_then(|s| s.snoozed_until);
+    let snoozed = marks.shelf.as_ref().and_then(|s| s.snoozed_until);
     let running = matches!(
         item.status,
         Some(ui::Status::Starting | ui::Status::Running)
@@ -152,7 +152,7 @@ fn thread_row(
     let muted = theme.muted_foreground;
     let selector = format!("row-{}", item.id);
     let group = SharedString::from(format!("hover-{}", item.id));
-    let actions = marks.shelf.map(|s| hover_actions(s, now, theme));
+    let actions = marks.shelf.clone().map(|s| hover_actions(s, now, theme));
     let right = div()
         .relative()
         .text_size(ui::META)
@@ -323,7 +323,8 @@ fn hover_actions(
     theme: &gpui_component::Theme,
 ) -> gpui::Stateful<gpui::Div> {
     use super::super::thread_list::{Shelf, ShelveThread, snooze_menu};
-    let id = s.id;
+    let (id, host) = (s.id, s.host.clone());
+    let menu_host = host.clone();
     let button = |name: &str, icon: SkyeIcon, tip: &'static str| {
         Button::new(SharedString::from(format!("{name}-{id}")))
             .ghost()
@@ -332,8 +333,10 @@ fn hover_actions(
             .tooltip(tip)
     };
     let act = |to: Shelf| {
+        let host = host.clone();
         move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
-            window.dispatch_action(Box::new(ShelveThread { id, to }), cx)
+            let host = host.clone();
+            window.dispatch_action(Box::new(ShelveThread { id, to, host }), cx)
         }
     };
     // gpui-component's Button lets a click bubble on to the row, which would open the thread too.
@@ -353,7 +356,7 @@ fn hover_actions(
     }
     row.child(
         button("snooze", SkyeIcon::AlarmClock, "Snooze")
-            .dropdown_menu(move |menu, _, _| snooze_menu(menu, id)),
+            .dropdown_menu(move |menu, _, _| snooze_menu(menu, id, menu_host.clone())),
     )
     .child(button("settle", SkyeIcon::Check, "Settle").on_click(act(Shelf::Settle)))
 }

@@ -13,7 +13,7 @@ use skyelab_git::PrState;
 pub(super) const URL: &str = "https://github.com/acme/demo/pull/42";
 
 /// The rig's project as a github.com repo, its account (acme) logged in to a fake gh dir, accounts.toml saved.
-pub(super) fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
+pub(in crate::workspace) fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
     let dir = r.f.project_dir.clone();
     for args in [
         &["init", "-q"][..],
@@ -50,7 +50,7 @@ pub(super) fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
     gh_dir
 }
 
-pub(super) fn lines(path: &Path) -> Vec<String> {
+pub(in crate::workspace) fn lines(path: &Path) -> Vec<String> {
     std::fs::read_to_string(path)
         .map(|t| t.lines().map(str::to_owned).collect())
         .unwrap_or_default()

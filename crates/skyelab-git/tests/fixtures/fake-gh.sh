@@ -21,6 +21,10 @@
 #   one-file diff; a "fake-head-after-diff" file then becomes the head (a push landing mid-read)
 #   `api` calls log their args to fake-gh.actions and stdin to fake-gh.review-body (a review with line comments), and
 #   fail like `pr review` with "fake-action-fail", or when the JSON's commit_id isn't the head
+#   `issue comment` / `issue close` / `issue reopen` log their args to fake-gh.actions (comment stdin to
+#   fake-gh.review-body) and fail like `pr review` with "fake-action-fail"; close leaves "fake-issue-closed" and reopen
+#   removes it. `issue view` prints "$GH_CONFIG_DIR/fake-issue.json" when it exists, else the default list's issue 31 at
+#   the link it was given, CLOSED while "fake-issue-closed" exists (one line per call in fake-gh.issueview)
 # `--version` needs no config dir (onboarding's agent list asks it with none).
 if [ "$1" = "--version" ]; then
   echo "gh version 2.99.0 (fake)"
@@ -132,6 +136,35 @@ case "$1 $2" in
     : > "$dir/fake-merged"
   fi
   exit 0
+  ;;
+"issue comment" | "issue close" | "issue reopen")
+  echo "$*" >> "$dir/fake-gh.actions"
+  [ "$2" = comment ] && cat > "$dir/fake-gh.review-body"
+  if [ ! -f "$dir/fake-login" ]; then
+    echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+    exit 4
+  fi
+  if [ -f "$dir/fake-action-fail" ]; then
+    cat "$dir/fake-action-fail" >&2
+    exit 1
+  fi
+  [ "$2" = close ] && : > "$dir/fake-issue-closed"
+  [ "$2" = reopen ] && rm -f "$dir/fake-issue-closed"
+  exit 0
+  ;;
+"issue view")
+  echo "$*" >> "$dir/fake-gh.issueview"
+  if [ ! -f "$dir/fake-login" ]; then
+    echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+    exit 4
+  fi
+  if [ -f "$dir/fake-issue.json" ]; then
+    cat "$dir/fake-issue.json"
+  else
+    state=OPEN
+    [ -f "$dir/fake-issue-closed" ] && state=CLOSED
+    echo '{"number":'"${3##*/}"',"title":"Crash when the folder is renamed","url":"'"$3"'","author":{"login":"bob"},"labels":[{"name":"bug"}],"assignees":[{"login":"ada"}],"updatedAt":"2026-11-25T08:00:00Z","body":"Steps: rename the folder while a thread runs.","state":"'"$state"'"}'
+  fi
   ;;
 "repo view")
   echo "$*" >> "$dir/fake-gh.repoview"

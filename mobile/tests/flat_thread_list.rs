@@ -19,6 +19,8 @@ fn thread(id: i64, status: &str, pinned: bool, updated_at: i64) -> Thread {
         status: status.into(),
         pinned,
         preview: Some("## Done\nThe **tests** pass.".into()),
+        settled_at: None,
+        snoozed_until: None,
         created_at: 0,
         updated_at,
     }

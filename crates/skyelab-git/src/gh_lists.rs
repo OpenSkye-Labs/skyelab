@@ -45,6 +45,8 @@ pub struct IssueRow {
     pub updated_at: String,
     /// At most [`MAX_BODY`] characters.
     pub body: String,
+    /// gh said `CLOSED` (lists are of open issues; a row read again after Close can be closed).
+    pub closed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -81,7 +83,7 @@ pub fn parse_repo_url(url: &str) -> Option<String> {
     (valid_part(owner) && valid_part(name)).then(|| format!("{owner}/{name}"))
 }
 
-fn valid_part(s: &str) -> bool {
+pub(crate) fn valid_part(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= MAX_NAME
         && !s.starts_with('-')
@@ -252,6 +254,7 @@ pub fn parse_issue_list(json: &[u8]) -> Result<Vec<IssueRow>> {
                 assignees: names(v, "assignees", "login"),
                 updated_at: text(v, "updatedAt", 64),
                 body: text(v, "body", MAX_BODY),
+                closed: v["state"] == "CLOSED",
             })
         })
         .take(MAX_ROWS)

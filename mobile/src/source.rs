@@ -123,6 +123,8 @@ impl FakeSource {
                 ][id as usize % 2]
                     .into(),
             ),
+            settled_at: None,
+            snoozed_until: None,
             created_at: now - ago_h * 3_600_000,
             updated_at: now - ago_h * 3_600_000,
         };

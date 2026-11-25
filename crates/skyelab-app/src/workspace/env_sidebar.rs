@@ -15,8 +15,28 @@ use gpui::{Context, SharedString};
 use skyelab_client::Thread;
 use std::collections::HashMap;
 
-/// The remote sidebar's sections and each thread row's marks.
-pub(super) type RemoteSidebar = (Vec<SidebarSection>, HashMap<SharedString, RowMarks>);
+/// The remote sidebar's sections, each thread row's marks and the Snoozed and Settled shelves.
+pub(super) type RemoteSidebar = (
+    Vec<SidebarSection>,
+    HashMap<SharedString, RowMarks>,
+    Vec<super::panels::Shelf>,
+);
+
+/// Where another machine's thread row lists: 0 pinned, 1 working, 2 the rest, 3 snoozed, 4 settled. T3's order: only
+/// working beats a shelf, and a shelf beats the pin.
+pub(super) fn remote_slot(t: &Thread, working: bool, now: i64) -> usize {
+    if !working && skyelab_core::snooze::is_asleep(t.snoozed_until, now) {
+        3
+    } else if !working && t.settled_at.is_some() {
+        4
+    } else if t.pinned {
+        0
+    } else if working {
+        1
+    } else {
+        2
+    }
+}
 
 /// A thread's account as the row badge shows it: the remote's label, else its id. Only id and label are drawn; the
 /// folder is the other machine's, so none is given.
@@ -68,6 +88,12 @@ pub(super) fn remote_row(
             .filter(|p| !p.is_empty())
             .map(Into::into),
         card: Some(std::rc::Rc::new(card)),
+        shelf: Some(super::panels::RowShelf {
+            id: t.id,
+            settled: t.settled_at.is_some(),
+            snoozed_until: t.snoozed_until,
+            host: Some(env.host.clone().into()),
+        }),
         ..RowMarks::default()
     };
     let item = SidebarItem {
@@ -94,19 +120,27 @@ impl Workspace {
         let names: HashMap<i64, &skyelab_client::Project> =
             env.projects.iter().map(|p| (p.id, p)).collect();
         let mut marks = HashMap::new();
-        let (mut pinned, mut working, mut rest) = (Vec::new(), Vec::new(), Vec::new());
+        let now = crate::ui::now_ms();
+        let mut slots: [Vec<&Thread>; 5] = Default::default();
         for t in &env.threads {
-            let (item, m) = remote_row(env, &names, t, shown == Some(t.id));
-            marks.insert(item.id.clone(), m);
-            match (t.pinned, item.status) {
-                (true, _) => pinned.push(item),
-                (false, Some(Status::Starting | Status::Running)) => working.push(item),
-                _ => rest.push(item),
-            }
+            let working = matches!(Status::parse(&t.status), Status::Starting | Status::Running);
+            slots[remote_slot(t, working, now)].push(t);
         }
+        slots[3].sort_by_key(|t| t.snoozed_until);
+        slots[4].sort_by_key(|t| std::cmp::Reverse(t.settled_at));
+        let [pinned, working, rest, snoozed, settled] = slots.map(|ts| {
+            ts.into_iter()
+                .map(|t| {
+                    let (item, m) = remote_row(env, &names, t, shown == Some(t.id));
+                    marks.insert(item.id.clone(), m);
+                    item
+                })
+                .collect::<Vec<_>>()
+        });
+        let shelves = super::thread_list::shelves(snoozed, settled);
         let connected = env.state == ConnState::Connected;
         let mut sections = flat_sections(pinned, working, rest);
-        if sections.is_empty() && connected && !env.projects.is_empty() {
+        if sections.is_empty() && shelves.is_empty() && connected && !env.projects.is_empty() {
             sections.push(SidebarSection {
                 empty_title: match &env.error {
                     Some(e) => format!("Couldn't list threads: {e}").into(),
@@ -186,6 +220,6 @@ impl Workspace {
                 }],
             ));
         }
-        Some((sections, marks))
+        Some((sections, marks, shelves))
     }
 }

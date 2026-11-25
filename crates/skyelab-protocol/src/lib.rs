@@ -7,10 +7,13 @@
 use serde::{Deserialize, Serialize};
 
 /// Minor bumps only add optional fields, methods or error codes. A major bump breaks the wire format.
-pub const VERSION: Version = Version { major: 1, minor: 5 };
+pub const VERSION: Version = Version { major: 1, minor: 6 };
 
 /// The minor version that added port forwarding (`forward_port`, `stop_forward`, `open_tunnel`).
 pub const FORWARDS_SINCE_MINOR: u32 = 5;
+
+/// The minor version that added `shelve_thread` and the thread's settled and snoozed state.
+pub const SHELVES_SINCE_MINOR: u32 = 6;
 
 /// The hello capability a tunnel connection declares (1.5): it may only call `open_tunnel`, gets no pushed events,
 /// and isn't listed as a connected device.
@@ -183,6 +186,15 @@ pub enum Call {
         port: u16,
         token: String,
     },
+    /// Puts the thread on a shelf on the serving machine, whose store and sidebar change (1.6): settled, snoozed
+    /// until `snoozed_until` (Unix ms), or neither (back in the list). Both at once is a bad request: a thread is on
+    /// one shelf at a time. Setting the whole state, not a toggle, lets an undo put back exactly what was there.
+    ShelveThread {
+        thread_id: i64,
+        settled: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        snoozed_until: Option<i64>,
+    },
 }
 
 /// What a remote user may answer a permission request with (1.3).
@@ -234,7 +246,7 @@ pub enum Reply {
         token: String,
     },
     /// For calls with nothing to return (`send_message`, `interrupt`, `answer_permission`, `answer_questions`,
-    /// `stop_forward`, `open_tunnel`).
+    /// `stop_forward`, `open_tunnel`, `shelve_thread`).
     Ok,
 }
 
@@ -310,6 +322,12 @@ pub struct Thread {
     /// from an older server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview: Option<String>,
+    /// When it was settled on the serving machine (Unix ms, 1.6). `None` when it isn't, or from an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub settled_at: Option<i64>,
+    /// Snoozed until then (Unix ms, 1.6): hidden while ahead, woke once passed. `None` from an older server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snoozed_until: Option<i64>,
     /// Unix milliseconds.
     pub created_at: i64,
     pub updated_at: i64,
