@@ -141,7 +141,10 @@ fn a_v7_database_keeps_its_management_data_and_gains_scripts() {
     let a = store.thread(archived).expect("read").expect("kept");
     assert!(a.archived_at.is_some());
     let hits = store.search_threads("needle", None, 10).expect("search");
-    assert_eq!(hits.iter().map(|t| t.id).collect::<Vec<_>>(), [pinned]);
+    assert_eq!(
+        hits.iter().map(|h| h.thread.id).collect::<Vec<_>>(),
+        [pinned]
+    );
     let listed: Vec<i64> = store
         .list_threads(1)
         .expect("list")

@@ -24,11 +24,19 @@ pub(super) fn answer(method: &str, id: Value) -> String {
 
 /// One server's startup state as a report (`None` without a name).
 pub(super) fn mcp_status(p: &Value) -> Option<Event> {
+    let error = p["error"].as_str();
+    // Codex names an expired sign-in by its reason, but a missing one only in text that says to run `codex mcp login`.
+    let needs_auth = p["failureReason"] == "reauthenticationRequired"
+        || error.is_some_and(|e| e.contains("mcp login"));
+    let status = match p["status"].as_str() {
+        Some("failed") if needs_auth => "needs-auth",
+        s => s.unwrap_or("unknown"),
+    };
     Some(Event::Mcp {
         servers: vec![crate::McpServer {
             name: p["name"].as_str()?.to_owned(),
-            status: p["status"].as_str().unwrap_or("unknown").to_owned(),
-            error: p["error"].as_str().map(str::to_owned),
+            status: status.to_owned(),
+            error: error.map(str::to_owned),
         }],
         launch: false,
         warning: None,

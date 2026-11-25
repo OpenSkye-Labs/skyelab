@@ -5,12 +5,9 @@ use super::ChangesView;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
 use crate::workspace::changes_model::Row;
-use crate::workspace::thread_find::{CloseFind, Find, FindNext, FindPrevious, find_bar};
-use gpui::{AnyElement, App, AppContext as _, Context, KeyBinding, Window, actions, prelude::*};
-use gpui_component::{
-    Icon, h_flex,
-    input::{InputEvent, InputState},
-};
+use crate::workspace::thread_find::{CloseFind, Find, FindNext, FindPrevious, find_bar, open_bar};
+use gpui::{AnyElement, App, Context, KeyBinding, Window, actions, prelude::*};
+use gpui_component::{Icon, h_flex};
 use skyelab_core::DiffSettings;
 
 actions!(skyelab, [FindInChanges]);
@@ -136,29 +133,14 @@ impl ChangesView {
         if self.changes.as_ref().is_none_or(|c| c.rows.is_empty()) {
             return;
         }
-        let input = match &self.find.input {
-            Some(input) => input.clone(),
-            None => {
-                let input = cx.new(|cx| InputState::new(window, cx).placeholder("Find in diff"));
-                let sub =
-                    cx.subscribe_in(&input, window, |this, _, e: &InputEvent, _, cx| match e {
-                        InputEvent::Change => this.find_changed(cx),
-                        InputEvent::PressEnter { shift, .. } => this.find_step(!*shift, cx),
-                        _ => {}
-                    });
-                self.find = Find {
-                    input: Some(input.clone()),
-                    _sub: Some(sub),
-                    ..Find::default()
-                };
-                input
-            }
-        };
-        input.update(cx, |i, cx| {
-            i.focus(window, cx);
-            i.select_all(window, cx);
-        });
-        cx.notify();
+        open_bar(
+            &mut self.find,
+            "Find in diff",
+            window,
+            cx,
+            Self::find_changed,
+            Self::find_step,
+        );
     }
 
     pub(super) fn close_find(

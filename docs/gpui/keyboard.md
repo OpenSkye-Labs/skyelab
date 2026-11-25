@@ -50,3 +50,11 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   with `.capture_action::<gpui_base::actions::Cancel>` and `cx.stop_propagation()`: capture runs root-down before the
   widget's bubble handler (`palette_view.rs`). Don't call a widget's `set_query` inside your own view's `update` when its
   query callback updates that view: do it after the update (`show_page`).
+- A dock panel that wraps another view (a side chat around a `ThreadView`) must return that view's focus handle from
+  `Focusable`: F6 and the dock focus a panel by that handle, and a handle of the wrapper's own leaves the inner
+  view's key context (`Thread`) off the dispatch path, so mod+F, Esc and the rest do nothing (`side_chat.rs`). A click
+  on a dock tab focuses the tab button itself, not the panel: keys need a click inside the panel.
+- gpui-component's `EditorState::new` is `searchable(true)`: mod+F opens the library's own search panel. For our find
+  bar set `.searchable(false)` (the editor then propagates its `Search` action, and GPUI tries the next binding for the
+  key, ours in an outer context) and drive the editor's matcher with `set_search_query` / `next_search_match`, which
+  highlights only the visible matches (`files/preview.rs`).

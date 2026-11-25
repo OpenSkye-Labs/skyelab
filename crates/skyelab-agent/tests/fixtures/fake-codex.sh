@@ -15,7 +15,9 @@
 # (`name status [error...]`, like `docs failed no such command`).
 # model/list lists one model (gpt-fake, low/medium/high); turn/steer is accepted.
 # `login status` says "Logged in using ChatGPT" (exit 0) while CODEX_HOME has a fake-login file, else "Not logged in"
-# (exit 1), on stderr like codex; `login` writes that file.
+# (exit 1), on stderr like codex; `login` writes that file. `mcp login -- <name>` writes the name and its folder to
+# CODEX_HOME/fake-mcp-login and exits 0.
+[ "$1 $2 $3" = "mcp login --" ] && { echo "fake codex mcp login $4"; printf '%s\n%s\n' "$4" "$(pwd -P)" > "$CODEX_HOME/fake-mcp-login"; exit 0; }
 if [ "$1 $2" = "login status" ]; then
   if [ -f "$CODEX_HOME/fake-login" ]; then echo "Logged in using ChatGPT" >&2; exit 0; fi
   echo "Not logged in" >&2

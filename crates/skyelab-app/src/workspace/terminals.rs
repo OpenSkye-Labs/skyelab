@@ -94,7 +94,7 @@ impl Workspace {
         account: Option<skyelab_core::Account>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Entity<TerminalPanel>> {
         let title = match &account {
             Some(a) if !a.label.is_empty() => format!("Log in: {}", a.label),
             Some(a) => format!("Log in: {}", a.id),
@@ -109,7 +109,7 @@ impl Workspace {
             t.one_shot = true;
             cx.notify();
         });
-        Ok(())
+        Ok(tab)
     }
 
     /// A new tab from `options`; `account` is the one the shell's env was set up for, shown on its tab (`None`:

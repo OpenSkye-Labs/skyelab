@@ -125,5 +125,5 @@ fn migration_backfills_readings_from_stored_events() {
     s.append_event(t, "steer", "\"mind the zebra\"")
         .expect("append");
     let found = s.search_threads("zebra", None, 10).expect("search");
-    assert_eq!(found.iter().map(|f| f.id).collect::<Vec<_>>(), [t]);
+    assert_eq!(found.iter().map(|f| f.thread.id).collect::<Vec<_>>(), [t]);
 }

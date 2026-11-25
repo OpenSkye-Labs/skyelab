@@ -44,6 +44,7 @@ mod login_status_test;
 pub(crate) mod machines_page;
 mod manage;
 mod manage_projects;
+mod mcp_sign_in;
 mod mermaid;
 mod mermaid_block;
 pub(crate) mod onboarding;
@@ -102,6 +103,7 @@ mod thread_details;
 pub(crate) mod thread_extras;
 mod thread_items;
 mod thread_list;
+mod thread_search;
 mod timeline_list;
 use thread_list::{NewThreadIn, Previews, ToggleProjectScope};
 mod find_marks;
@@ -173,6 +175,9 @@ const CONTEXT: &str = "Workspace";
 
 pub use keys::init;
 pub(crate) use keys::*;
+
+/// Thread id → the matched line of its message (none for a title match).
+type SearchHits = std::collections::HashMap<i64, Option<String>>;
 
 pub struct Workspace {
     /// Debug mode's overlay, while shown (docs/debugging.md).
@@ -272,8 +277,9 @@ pub struct Workspace {
     /// A project whose removal waits for the user's OK (it has running agents).
     pending_removal: Option<i64>,
     _dialog_input: Option<Subscription>,
-    /// The sidebar's thread filter and, once the store answered, the threads whose title or messages match.
-    thread_search: Option<(String, Option<std::collections::HashSet<i64>>)>,
+    /// The sidebar's thread filter and, once the store answered, the threads whose title or messages match, each
+    /// with its matched line (none for a title match).
+    thread_search: Option<(String, Option<SearchHits>)>,
     _search: Option<Task<()>>,
     _attention: Vec<Subscription>,
     pr_watch: pr_watch::Watch,

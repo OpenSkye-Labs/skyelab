@@ -40,6 +40,8 @@ pub enum ThreadViewEvent {
         cwd: PathBuf,
         account_id: String,
     },
+    /// Sign in to this MCP server (a needs-auth row's Sign in): its login runs in a terminal, under the thread's account.
+    McpSignIn(String),
     /// A terminal in the thread's worktree, under the thread's account.
     OpenTerminal {
         cwd: PathBuf,
