@@ -121,7 +121,26 @@ impl Workspace {
                 out.push((Area::Timeline, timeline, inside));
             }
             None => {
-                let page = self.welcome.read(cx).focus_handle(cx);
+                let page = match &self.page {
+                    Page::Bots => self
+                        .bots
+                        .as_ref()
+                        .map(|b| b.read(cx).focus_handle(cx))
+                        .unwrap_or_else(|| self.center.read(cx).focus_handle(cx)),
+                    Page::Github(super::gh_pages::Kind::Prs) => self
+                        .gh_pages
+                        .prs
+                        .as_ref()
+                        .map(|p| p.read(cx).focus_handle(cx))
+                        .unwrap_or_else(|| self.center.read(cx).focus_handle(cx)),
+                    Page::Github(super::gh_pages::Kind::Issues) => self
+                        .gh_pages
+                        .issues
+                        .as_ref()
+                        .map(|p| p.read(cx).focus_handle(cx))
+                        .unwrap_or_else(|| self.center.read(cx).focus_handle(cx)),
+                    _ => self.welcome.read(cx).focus_handle(cx),
+                };
                 let inside = self
                     .center
                     .read(cx)

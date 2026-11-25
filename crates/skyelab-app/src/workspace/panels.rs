@@ -60,6 +60,8 @@ mod sidebar;
 mod sidebar_card;
 mod sidebar_rows;
 mod sidebar_views;
+#[cfg(test)]
+pub(crate) use sidebar::FOOTER_BUTTON_IDS;
 pub use sidebar::{
     ArchivedRows, Ask, RowAccount, RowCard, RowMarks, RowShelf, ScopeMenu, ScopeProject, Shelf,
     Sidebar, SidebarItem, SidebarSearch, SidebarSection,

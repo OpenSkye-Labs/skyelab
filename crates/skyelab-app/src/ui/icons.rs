@@ -84,6 +84,7 @@ icons! {
     GitPullRequestDraft => "git-pull-request-draft",
     Github => "github",
     Globe => "globe",
+    Home => "home",
     Image => "image",
     Info => "info",
     Keyboard => "keyboard",
