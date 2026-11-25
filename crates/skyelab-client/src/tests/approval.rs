@@ -110,3 +110,69 @@ fn the_device_key_file_is_made_once_private_and_reused() {
     std::fs::write(&path, "garbage").expect("write");
     assert!(crate::load_or_create_device_key(&path).is_err());
 }
+
+/// A key loader that counts its calls and fails while `fail` is set (a denied keychain prompt).
+fn counting_key(
+    fail: Arc<std::sync::atomic::AtomicBool>,
+) -> (crate::LazyDeviceKey, Arc<std::sync::atomic::AtomicUsize>) {
+    use std::sync::atomic::Ordering;
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = calls.clone();
+    let key = crate::LazyDeviceKey::new(move || {
+        counted.fetch_add(1, Ordering::SeqCst);
+        match fail.load(Ordering::SeqCst) {
+            true => Err("the prompt was denied".into()),
+            false => Ok(TEST_KEY.into()),
+        }
+    });
+    (key, calls)
+}
+
+#[test]
+fn the_device_key_loads_on_the_first_connection_once_and_never_before() {
+    use std::sync::atomic::Ordering;
+    let (key, calls) = counting_key(Arc::default());
+    let _copy = key.clone();
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "made and cloned, not loaded"
+    );
+    assert_eq!(key.peek(), None);
+
+    let env = Env::new();
+    let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
+    let mut opts = options(port(&daemon));
+    opts.device_key = Some(key.clone());
+    let first = Client::connect(HOST, opts.clone()).expect("client");
+    assert!(matches!(next(&first), Update::Connected(_)));
+    let second = Client::connect(HOST, opts).expect("client");
+    assert!(matches!(next(&second), Update::Connected(_)));
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "two clients, one load");
+    assert_eq!(
+        second.device_code(),
+        Some(device_code(&device_key_hash(TEST_KEY)))
+    );
+}
+
+#[test]
+fn a_denied_key_stops_that_client_with_why_and_the_next_one_asks_again() {
+    use std::sync::atomic::Ordering;
+    let fail = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let (key, calls) = counting_key(fail.clone());
+    let env = Env::new();
+    let daemon = start_daemon(Arc::new(FakeTailnet::default()), env.backend(), 0);
+    let mut opts = options(port(&daemon));
+    opts.device_key = Some(key);
+    let denied = Client::connect(HOST, opts.clone()).expect("client");
+    match next(&denied) {
+        Update::Fatal(e @ crate::Error::DeviceKey(_)) => {
+            assert!(e.to_string().contains("the prompt was denied"), "{e}")
+        }
+        other => panic!("expected the key's Fatal, got {other:?}"),
+    }
+    fail.store(false, Ordering::SeqCst);
+    let retried = Client::connect(HOST, opts).expect("client");
+    assert!(matches!(next(&retried), Update::Connected(_)));
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+}

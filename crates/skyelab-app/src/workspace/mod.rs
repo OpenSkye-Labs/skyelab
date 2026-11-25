@@ -128,6 +128,8 @@ mod timeline_view;
 mod tool_cards;
 mod turn_files;
 mod update_notice;
+#[cfg(test)]
+mod update_notice_test;
 mod windows;
 pub use windows::{
     NewWindow, WindowKit, open as open_window, restore_windows, set_hub, window_handles,

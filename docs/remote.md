@@ -73,6 +73,12 @@ can't read it:
   trusts only the program that made it, so an agent running `security find-generic-password` or reading files gets
   a system prompt, not the key. Debug builds use the file below, so a throwaway `HOME` never touches the login
   keychain.
+- **When it is read:** on the first connection to another machine (Connect, a linked machine, a machine opened at
+  launch), never at startup: an ad-hoc-signed build looks like a new app to macOS after every update, so the read
+  can prompt for the keychain password, and someone who never connects anywhere never sees that. It is read once,
+  on the connection's own thread (`skyelab_client::LazyDeviceKey`), and kept for the run. Denying the prompt stops
+  that connection with "couldn't read this device's key"; the app keeps working, and the next connection asks
+  again. Sharing this machine (the daemon, pairing a phone) never reads it: only clients send a key.
 - Windows, Linux: `<config dir>/skyelab/device-key`, mode 0600. That keeps other OS users out, but not another
   program of the same user: an agent on such a machine that reads the file and replays it passes. Their secret
   stores have no per-app access control either, so they wouldn't do better.

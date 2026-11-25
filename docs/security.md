@@ -157,7 +157,8 @@
 - **Tailnet trust.** Sharing listens only on this machine's tailnet addresses and serves only TLS 1.3 with the
   machine's own Tailscale certificate. Each connection must come from one of your own, untagged devices (checked
   with `tailscale whois`), and carry a device key you approved on this machine for that device (kept in the
-  macOS keychain by release builds on a Mac). Browser pages (any `Origin` header) are refused. A connected device can list and drive
+  macOS keychain by release builds on a Mac, and read only when this app first connects to another machine, never at
+  startup or for sharing). Browser pages (any `Origin` header) are refused. A connected device can list and drive
   threads, and forward ports from this machine's loopback (1024 and up, not SkyeLab's own port or a denylist of
   services such as Docker's API or debuggers), each tunnel through the same gate and only while that device's
   connection asked for it. It can't add projects, change accounts or bindings, or open terminals. The client checks the

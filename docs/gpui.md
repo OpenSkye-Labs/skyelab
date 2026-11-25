@@ -60,7 +60,8 @@ gpui-component moves to the official `gpui` crate; then we move with it.
 
 ## Elements
 
-See [gpui/elements.md](gpui/elements.md).
+See [gpui/elements.md](gpui/elements.md), and [gpui/fitting.md](gpui/fitting.md) for layout that depends on a
+container's width (measuring it, fitting a label, a popover trigger of our own).
 
 ## Redraw discipline
 

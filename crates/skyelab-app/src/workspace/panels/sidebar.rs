@@ -442,8 +442,9 @@ impl Sidebar {
 }
 
 impl Render for Sidebar {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("Sidebar");
+        let pill = super::super::update_notice::pill(cx.entity_id(), window, cx);
         let theme = cx.theme();
         let focus = self.focus.clone();
         v_flex()
@@ -519,8 +520,7 @@ impl Render for Sidebar {
                 .min_h_0()
                 .w_full(),
             )
-            .children(super::super::update_notice::notice(cx))
-            // T3's footer: Settings, Pull requests, Issues and Usage, and Refresh at the end.
-            .child(footer())
+            // T3's footer, with the update pill.
+            .child(footer(pill))
     }
 }

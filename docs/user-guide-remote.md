@@ -62,6 +62,9 @@ name**: type a name such as `desktop.example.ts.net` and click **Connect**. Only
 addresses or short names. The other machine must have sharing turned on. The first
 time, it must also allow this device: the status bar says **Waiting for approval** with this device's code; check
 that the other machine shows the same code, click **Allow** there, and this window connects within a few seconds.
+On a Mac, the first connection after an update may ask for your keychain password: SkyeLab reads this device's key
+from the keychain then, and only then (never at startup, and never just to share this machine). If you deny it, that
+connection stops and says so, and SkyeLab asks again the next time you connect.
 
 On a remote machine, the sidebar shows the same list as here: every project's threads under **Pinned**, **Working**,
 then **Today**, **Yesterday**, **Previous 7 days** and **Older**, each row with its project, the agent's last reply,

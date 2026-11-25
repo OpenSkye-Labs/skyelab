@@ -206,7 +206,7 @@ fn main() {
         let store = Arc::new(Mutex::new(store));
         let (agents, calls) = remote::UiAgents::new();
         let tailnet: skyelab_daemon::SharedTailnet = Arc::new(tailnet());
-        let device_key = device_key();
+        let device_key = skyelab_client::LazyDeviceKey::new(device_key);
         let host = remote::Host {
             settings_path: AppSettings::default_path(),
             tailnet: tailnet.clone(),
@@ -251,7 +251,7 @@ fn main() {
             setup: std::rc::Rc::new(move |ws, window, cx| {
                 ws.set_remote(remote.clone(), None, window, cx);
                 let mut options = environment::client_options(setup_tailnet.clone());
-                options.device_key = device_key.clone();
+                options.device_key = Some(device_key.clone());
                 let tailnet = setup_tailnet.clone();
                 ws.set_environments(tailnet, AppSettings::default_path(), options, window, cx);
                 // Every window saves its frame and page; all of them open at the next launch.
