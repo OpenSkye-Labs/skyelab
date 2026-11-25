@@ -178,3 +178,38 @@ fn an_older_save_finishing_last_never_wins() {
     let saved = skyelab_core::AppSettings::load(&path).expect("load");
     assert_eq!(saved.appearance.accent.as_deref(), Some("rose"));
 }
+
+/// gpui-component's `apply_config` drops a color it can't parse for its default (`unwrap_or`), so a typo or a color
+/// name it doesn't know (0.11 has no `zinc`) silently paints the wrong color. Parse each one the way it does.
+#[test]
+fn every_theme_color_parses() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("themes");
+    let mut bad = Vec::new();
+    let mut seen = 0;
+    for entry in std::fs::read_dir(&dir).expect("themes dir") {
+        let path = entry.expect("theme entry").path();
+        let file: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("read theme"))
+                .expect("theme json");
+        for theme in file["themes"].as_array().expect("themes list") {
+            let colors = theme["colors"].as_object().expect("colors");
+            for (key, value) in colors {
+                seen += 1;
+                let value = value.as_str().expect("color is a string");
+                if let Err(e) = gpui_component::try_parse_color(value) {
+                    bad.push(format!(
+                        "{} {}: {key} = {value} ({e})",
+                        path.display(),
+                        theme["name"]
+                    ));
+                }
+            }
+        }
+    }
+    assert!(seen > 100, "read only {seen} colors from {}", dir.display());
+    assert!(
+        bad.is_empty(),
+        "colors gpui-component can't parse:\n{}",
+        bad.join("\n")
+    );
+}
