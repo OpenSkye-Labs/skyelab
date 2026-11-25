@@ -24,7 +24,7 @@ pub(super) fn git_repo(dir: &Path, origin: &str) {
 }
 
 /// A gh config dir; logged in to github.com unless `hosts` says otherwise.
-fn gh_dir(root: &Path, name: &str, hosts: &str) -> PathBuf {
+pub(super) fn gh_dir(root: &Path, name: &str, hosts: &str) -> PathBuf {
     let dir = root.join(name);
     std::fs::create_dir_all(&dir).expect("mkdir");
     std::fs::write(dir.join("fake-login"), "octo").expect("login");
@@ -32,13 +32,13 @@ fn gh_dir(root: &Path, name: &str, hosts: &str) -> PathBuf {
     dir
 }
 
-fn calls(dir: &Path) -> Vec<String> {
+pub(super) fn calls(dir: &Path) -> Vec<String> {
     std::fs::read_to_string(dir.join("fake-gh.list"))
         .map(|t| t.lines().map(str::to_owned).collect())
         .unwrap_or_default()
 }
 
-fn account(id: &str, root: &Path, gh: Option<PathBuf>) -> Account {
+pub(super) fn account(id: &str, root: &Path, gh: Option<PathBuf>) -> Account {
     Account {
         id: id.into(),
         label: format!("{id} label"),

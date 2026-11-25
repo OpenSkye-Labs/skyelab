@@ -60,6 +60,8 @@ pub(crate) enum Listing {
     Unbound,
     /// The account has no GitHub login: gh was never run.
     SignIn,
+    /// The project has no github.com `origin` (or no git at all): gh was never run.
+    NoGitHub(skyelab_git::NoGitHub),
     Failed(SharedString),
     Prs(Arc<Vec<Dated<PrRow>>>),
     Issues(Arc<Vec<Dated<IssueRow>>>),
@@ -319,6 +321,12 @@ pub(crate) fn read_group(config: &AccountsConfig, dir: &Path, gh: &Path, filter:
     };
     let listing = (|| {
         let failed = |e: &dyn std::fmt::Display| Listing::Failed(e.to_string().into());
+        // The remote first: a project with nothing on GitHub needs no login.
+        let repo = match skyelab_git::repo_slug(dir) {
+            Ok(r) => r,
+            Err(skyelab_git::Error::NoGitHub(why)) => return Listing::NoGitHub(why),
+            Err(e) => return failed(&e),
+        };
         if account.gh_config_dir.is_none() {
             return Listing::SignIn;
         }
@@ -329,10 +337,6 @@ pub(crate) fn read_group(config: &AccountsConfig, dir: &Path, gh: &Path, filter:
         if !skyelab_git::gh_logged_in(&gh_dir) {
             return Listing::SignIn;
         }
-        let repo = match skyelab_git::repo_slug(dir) {
-            Ok(r) => r,
-            Err(e) => return failed(&e),
-        };
         let github = GitHub {
             gh,
             config_dir: &gh_dir,
@@ -531,6 +535,9 @@ impl Workspace {
 #[cfg(test)]
 #[path = "gh_framing_test.rs"]
 mod framing_tests;
+#[cfg(test)]
+#[path = "gh_no_remote_test.rs"]
+mod no_remote_tests;
 #[cfg(test)]
 #[path = "gh_pages_review_test.rs"]
 mod review_tests;

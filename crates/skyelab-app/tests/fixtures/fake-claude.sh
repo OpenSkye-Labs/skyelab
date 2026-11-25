@@ -20,6 +20,7 @@ fi
 # reports it as `fake_answer` and ends the turn ("permit write" asks a 2,000-line Write, "permit edit" an Edit and "permit multi" a two-edit MultiEdit
 # instead); one starting "crash" writes to stderr and exits 3, and one starting
 # "partial" streams half an answer first (text deltas, no final message), then exits 3 the same way.
+# "hang" runs until Stop, then ends as Claude Code ends an aborted turn ("hang fail": a real API error instead).
 # "turn" ends a plain turn ($0.0125, 1200 in, 80 out) with Claude's running totals.
 # "question" asks an AskUserQuestion and "plan" an ExitPlanMode, each reported like "permit". "timeline" streams a
 # turn with every rich row (thinking, text deltas, todos, an edit, bash output, usage), then a usage limit, a proposed
@@ -154,6 +155,15 @@ while IFS= read -r line; do
       IFS= read -r reply
       printf '{"type":"fake_answer","reply":%s}\n' "$reply"
       printf '{"type":"result","subtype":"success","is_error":false,"duration_ms":5,"total_cost_usd":0,"result":"done"}\n' ;;
+    *'"content":"hang'*)
+      # Runs until the next stdin line (Stop's interrupt), then ends the way Claude Code ends an aborted turn: an
+      # error result with terminal_reason aborted_*. "hang fail" ends in a real API error instead.
+      IFS= read -r reply
+      printf '%s\n' "$reply"
+      case "$line" in
+        *'"content":"hang fail'*) printf '{"type":"result","subtype":"error_during_execution","is_error":true,"duration_ms":4200,"result":"API Error: 500 overloaded","total_cost_usd":0}\n' ;;
+        *) printf '{"type":"result","subtype":"error_during_execution","is_error":true,"duration_ms":4200,"terminal_reason":"aborted_streaming","errors":["Error: Request was aborted."],"total_cost_usd":0}\n' ;;
+      esac ;;
     *'"content":"turn'*)
       total=$(awk "BEGIN{print $total + 0.0125}") in_total=$((in_total + 1200)) out_total=$((out_total + 80))
       printf '{"type":"assistant","message":{"id":"msg_t%s","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Turn done."}]},"session_id":"fake-sess-1"}\n' "$in_total"
