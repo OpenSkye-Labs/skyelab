@@ -24,3 +24,6 @@ mod changes_tree_test;
 
 #[path = "changes_whitespace_test.rs"]
 mod changes_whitespace_test;
+
+#[path = "changes_loading_test.rs"]
+mod changes_loading_test;
