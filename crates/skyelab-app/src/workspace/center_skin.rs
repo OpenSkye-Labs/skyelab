@@ -5,7 +5,8 @@
 //! (`timeline_view.rs`), and the center's other pages are drawn cached by `Center` (docs/gpui/redraw.md).
 
 use gpui::{
-    AnyElement, AnyView, App, Axis, Div, EntityId, Pixels, Stateful, Window, div, prelude::*,
+    AnyElement, AnyView, App, Axis, Div, EntityId, MouseButton, Pixels, Stateful, Window, div,
+    prelude::*,
 };
 use gpui_base::ResizeHandleContext;
 use gpui_base::dock::PanelView;
@@ -97,7 +98,32 @@ impl TabGroupRenderer for CenterTabs {
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
-        self.tabs.render_tab_bar(group, window, cx)
+        let bar = self.tabs.render_tab_bar(group, window, cx);
+        let Some(active) = group
+            .active_panel()
+            .cloned()
+            .filter(|_| !group.is_collapsed())
+        else {
+            return bar;
+        };
+        // A press on a tab focuses the tab, and gpui-base's `select_tab` moves focus into the panel only when the tab
+        // changes: a click on the tab already shown left the keys (mod+F, Esc) outside the panel. The bar's toolbar
+        // occludes, so its menu keeps the focus it takes.
+        let panels = group.panels().to_vec();
+        div()
+            .w_full()
+            .flex_shrink_0()
+            .child(bar)
+            .on_mouse_up(MouseButton::Left, move |_, window, cx| {
+                let held = panels.iter().any(|p| {
+                    let h = p.focus_handle(cx);
+                    h.is_focused(window) || h.contains_focused(window, cx)
+                });
+                if !held {
+                    active.focus_handle(cx).focus(window, cx);
+                }
+            })
+            .into_any_element()
     }
     fn render_active_panel(
         &self,
