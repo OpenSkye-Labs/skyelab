@@ -46,3 +46,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - An app-level action bound to a key (⌘Q's `cx.on_action`) runs inside the focused window's update, so that window
   can't be updated from the handler: open its dialog with `cx.defer`, and treat a `window.update` that fails there as
   "can't tell", not "no dialog" (`quit_guard::asking`). Tests send such actions with `TestAppContext::update`.
+- Windows chrome (`ui::window_controls`): no title strip. The caption buttons are drawn at the window's top-right over
+  the 52 px top row (as macOS puts its traffic lights in that row's start), and each top row that can sit under them
+  reserves `WINDOW_CONTROLS_W` (the page header while the right dock is closed, the right dock's tab bar). Mark only
+  empty top-row space as the caption (`ui::drag_area`): gpui-windows answers `HTCAPTION` for any point whose hit test
+  includes a Drag hitbox, a button inside it only `prevent_default`s its press (not `stop_propagation`), so the press
+  moves the window instead of clicking. A clickable child of a drag area goes in `ui::no_drag` (occludes it). Check the
+  layout on macOS with `SKYELAB_VERIFY_WINDOWS_CHROME=1` (debug builds; the buttons are drawn, inert).

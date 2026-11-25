@@ -460,10 +460,10 @@ impl Render for Sidebar {
             .size_full()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
-            // The window's top row (T3's: the brand only); on macOS the traffic lights sit at its start. Machines switch
-            // from the composer's machine chip.
+            // The window's top row (T3's: the brand only); macOS's traffic lights sit at its start, Windows drags by it.
             .child(
                 div()
+                    .map(ui::drag_area)
                     .px_2()
                     .min_h(ui::TOP_ROW_H)
                     .flex()
