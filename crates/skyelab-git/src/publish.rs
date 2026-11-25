@@ -338,7 +338,7 @@ fn resolve(bin: &Path) -> Result<PathBuf> {
             bin.display()
         )));
     }
-    let path = std::env::var_os("PATH").unwrap_or_default();
+    let path = skyelab_core::env::parent_path();
     let pathext = std::env::var("PATHEXT").ok();
     std::env::split_paths(&path)
         .filter(|d| d.is_absolute())

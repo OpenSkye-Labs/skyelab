@@ -419,7 +419,7 @@ pub(super) fn editor_command(argv: &[String], dir: &Path) -> anyhow::Result<std:
         })
         .env_clear()
         .envs(skyelab_core::env::terminal_vars(
-            std::env::vars_os(),
+            skyelab_core::env::parent_vars(),
             cfg!(windows),
         ))
         .stdin(std::process::Stdio::null())

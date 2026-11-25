@@ -43,19 +43,21 @@ pub(crate) fn agent_bin(
 
 /// This install's device key for connecting to other machines, which approve it. Release builds on macOS keep it
 /// in the keychain, where another program (an agent) can't read it without the user's yes. Debug builds and other
-/// OSes use a 0600 file in the config dir, so a throwaway `HOME` never touches the login keychain. `None` (logged)
-/// means other machines can't approve this one.
-pub(crate) fn device_key() -> Option<String> {
+/// OSes use a 0600 file in the config dir, so a throwaway `HOME` never touches the login keychain. Read through
+/// [`skyelab_client::LazyDeviceKey`] on the first connection to another machine, never at startup: the keychain
+/// may prompt, and a user who never connects anywhere should never see that.
+pub(crate) fn device_key() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     if !cfg!(debug_assertions) {
         return skyelab_client::keychain_device_key()
-            .map_err(|e| eprintln!("skyelab: no device key from the keychain: {e}"))
-            .ok();
+            .map_err(|e| format!("the keychain item dev.openskye.skyelab couldn't be read ({e})"));
     }
-    let path = dirs::config_dir()?.join(APP_DIR).join("device-key");
+    let path = dirs::config_dir()
+        .ok_or("no config folder")?
+        .join(APP_DIR)
+        .join("device-key");
     skyelab_client::load_or_create_device_key(&path)
-        .map_err(|e| eprintln!("skyelab: no device key in {}: {e}", path.display()))
-        .ok()
+        .map_err(|e| format!("{} couldn't be read ({e})", path.display()))
 }
 
 /// The OS Tailscale, keeping this node's TLS certificate in a private folder next to the store.

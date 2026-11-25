@@ -34,6 +34,7 @@ pub fn usage_limits(bin: &Path, account: &Account) -> Result<Limits> {
     if account.provider == Provider::Codex && !account.config_dir.is_dir() {
         return Ok(Limits::Unavailable);
     }
+    skyelab_core::login_shell::wait();
     let resolved = crate::launch::resolve_bin(bin)?;
     let mut cmd = Command::new(&resolved);
     let lines = match account.provider {

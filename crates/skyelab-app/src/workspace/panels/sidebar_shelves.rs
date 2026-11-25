@@ -111,14 +111,16 @@ impl Sidebar {
 #[cfg(test)]
 pub(crate) const FOOTER_BUTTON_IDS: &[&str] = &["sidebar-refresh"];
 
-/// The sidebar footer: keeps Refresh accessible while primary navigation lives in the left rail.
-pub(super) fn footer() -> impl IntoElement {
+/// The sidebar footer: keeps Refresh accessible while primary navigation lives in the left rail. The update pill
+/// (T3's `SidebarUpdateCapsule`), when there is one, takes the free space before Refresh.
+pub(super) fn footer(update: Option<gpui::AnyElement>) -> impl IntoElement {
     use crate::workspace::thread_list::RefreshThreads;
     h_flex()
         .flex_shrink_0()
         .px_2()
         .py_2()
-        .child(div().flex_1())
+        .gap_0p5()
+        .child(update.unwrap_or_else(|| div().flex_1().into_any_element()))
         .child(
             Button::new("sidebar-refresh")
                 .debug_selector(|| "sidebar-refresh".into())

@@ -26,6 +26,8 @@ use crate::{DisconnectKind, Error, Options, guard};
 pub(super) struct Target {
     pub(super) host: String,
     pub(super) options: Options,
+    /// `options.device_key`, already loaded.
+    pub(super) device_key: Option<String>,
     pub(super) tls: Arc<ClientConfig>,
     pub(super) allow_loopback: bool,
     pub(super) plaintext: bool,
@@ -118,7 +120,7 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
                 true => vec![skyelab_protocol::TUNNEL_CAPABILITY.into()],
                 false => vec![],
             },
-            device_key: cx.options.device_key.clone(),
+            device_key: cx.device_key.clone(),
         },
     };
     send_json(&mut ws, &hello).await.map_err(lost)?;
@@ -152,7 +154,7 @@ pub(super) async fn connect(cx: Target) -> Result<(Ws, Hello), End> {
                 if error.code == ErrorCode::NotApproved =>
             {
                 // The code is worked out here from our own key, so it is this device's whatever the server says.
-                let why = match cx.options.device_key.as_deref() {
+                let why = match cx.device_key.as_deref() {
                     Some(key) => format!(
                         "{host} hasn't approved this device yet: allow it in SkyeLab's Remote tab there (code {})",
                         crate::device_key::code(key)

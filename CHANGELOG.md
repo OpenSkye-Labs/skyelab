@@ -6,6 +6,23 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3]
+
+### Added
+
+- **Cursor** as a provider: the `cursor-agent` CLI, each account isolated in its own config folder, with the model
+  picker, hand-off and onboarding.
+- A slim **left rail**: Home, Bots (coming soon), Pull requests, Issues, Scheduled, Usage and Settings.
+- The sidebar's update notice is now a small pill; its actions open in a popover.
+
+### Fixed
+
+- **macOS:** opened from the Dock or Finder, SkyeLab now finds `claude`, `codex` and `gh` through your login shell's
+  PATH, so accounts show their real sign-in and agents start. A CLI that's missing says so (#20).
+- **macOS:** the keychain is read only when you first connect to another machine, not at every launch.
+- **Windows:** no console window opens beside SkyeLab (closing it used to close the app), and the tools it runs don't
+  flash windows.
+
 ## [0.1.2]
 
 ### Added
@@ -131,7 +148,8 @@ testing by hand.
 - **Debug mode** with an overlay, a redacted debug log, Perfetto traces and opt-in profilers.
 - Release packages: `.dmg` (macOS arm64), `-setup.exe` (Windows), `.deb` and `.AppImage` (Linux).
 
-[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/OpenSkye-Labs/skyelab/releases/tag/v0.1.0

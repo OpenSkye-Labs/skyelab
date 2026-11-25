@@ -90,8 +90,7 @@ pub fn resolve_bin(bin: &Path) -> Result<PathBuf> {
     if bin.is_absolute() {
         return Ok(bin.to_owned());
     }
-    let path = std::env::var_os("PATH").unwrap_or_default();
-    let dirs = skyelab_core::env::absolute_entries(&path);
+    let dirs = skyelab_core::env::absolute_entries(&skyelab_core::env::parent_path());
     resolve_bin_in(bin, &dirs)
 }
 
@@ -107,7 +106,15 @@ pub(crate) fn resolve_bin_in(bin: &Path, path_dirs: &[PathBuf]) -> Result<PathBu
         .iter()
         .flat_map(|dir| candidates(dir, bin))
         .find(|p| is_executable(p))
-        .ok_or_else(|| anyhow::anyhow!("{} not found in PATH", bin.display()))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "{} not found in PATH ({})",
+                bin.display(),
+                std::env::join_paths(path_dirs)
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            )
+        })
 }
 
 #[cfg(unix)]
@@ -151,6 +158,36 @@ fn is_executable(p: &Path) -> bool {
 mod tests {
     use super::pathext_candidates;
     use std::path::{Path, PathBuf};
+
+    /// A Dock-launched app finds a CLI that only the login shell's PATH has.
+    #[cfg(unix)]
+    #[test]
+    fn resolve_bin_finds_a_cli_only_on_the_captured_path() {
+        use std::ffi::OsString;
+        use std::os::unix::fs::PermissionsExt as _;
+        let home = tempfile::tempdir().expect("tempdir");
+        let bin = home.path().join(".local/bin");
+        std::fs::create_dir_all(&bin).expect("mkdir");
+        let claude = bin.join("claude-skyelab-test");
+        std::fs::write(&claude, "#!/bin/sh\n").expect("write");
+        std::fs::set_permissions(&claude, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        let name = Path::new("claude-skyelab-test");
+        let gui = OsString::from("/usr/bin:/bin");
+        let dirs = |p: &OsString| skyelab_core::env::absolute_entries(p);
+        let err = super::resolve_bin_in(name, &dirs(&gui)).expect_err("not on the GUI PATH");
+        assert!(err.to_string().contains("/usr/bin:/bin"), "{err}");
+        let captured = [(OsString::from("PATH"), bin.clone().into_os_string())];
+        let merged = skyelab_core::login_shell::merge([("PATH".into(), gui)], &captured, &[]);
+        let path = merged
+            .into_iter()
+            .find(|(k, _)| k == "PATH")
+            .expect("PATH")
+            .1;
+        assert_eq!(
+            super::resolve_bin_in(name, &dirs(&path)).expect("found"),
+            claude
+        );
+    }
 
     #[test]
     fn pathext_candidates_follow_pathext_and_skip_bare_names() {

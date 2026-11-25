@@ -22,8 +22,8 @@ pub struct Options {
     pub backoff_min: Duration,
     pub backoff_max: Duration,
     /// This install's device key, sent in hello; the machine dialled admits only keys approved there. `None`
-    /// can never be approved. Load it with [`load_or_create_device_key`] (or the keychain on macOS).
-    pub device_key: Option<String>,
+    /// can never be approved. Read once, on the client's own thread as it first connects (see [`LazyDeviceKey`]).
+    pub device_key: Option<crate::LazyDeviceKey>,
     /// Checks each dialled address with this machine's own Tailscale before TLS starts. `None` (mobile, where no
     /// local Tailscale CLI exists) trusts the node id the server sends in hello, which a machine that took over the
     /// name can fake.
@@ -82,7 +82,7 @@ impl Options {
     /// The defaults with this install's device key. A struct literal can't build `Options` where `test-support`
     /// adds its private fields, and assigning after `default()` trips clippy where it doesn't.
     pub fn with_device_key(mut self, key: String) -> Self {
-        self.device_key = Some(key);
+        self.device_key = Some(key.into());
         self
     }
 

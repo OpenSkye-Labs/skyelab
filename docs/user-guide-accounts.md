@@ -61,7 +61,10 @@ launch), they appear without moving.
    the token. Signing in from a shell works too: `CLAUDE_CONFIG_DIR=~/.claude-work claude auth login`.
 
 Each account card says whether that account is signed in: **Signed in as you@example.com**, **Not signed in** (and
-**Log in** turns blue), or **Sign-in unknown** when the CLI couldn't answer (hover it for why). SkyeLab asks the
+**Log in** turns blue), **claude not found** (or codex, cursor-agent) when the CLI isn't on the PATH SkyeLab searched
+(hover it for that PATH), or **Sign-in unknown** when the CLI couldn't answer (hover it for why). Opened from the Dock,
+Finder or a desktop launcher, SkyeLab reads PATH and a few setup variables from your login shell at startup (as a
+terminal would), so CLIs in `~/.local/bin`, Homebrew or npm folders are found. SkyeLab asks the
 account's own CLI with only that account's folder (`claude auth status`, `codex login status`, `cursor-agent status`), never reads a token,
 and asks again once a Log in terminal ends, or when Settings opens a minute or more later. A card with a GitHub folder
 also shows its GitHub login, as **Source control** does. The setup page shows the same on its account cards, with

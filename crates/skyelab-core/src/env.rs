@@ -176,7 +176,23 @@ pub fn terminal_vars(
 
 /// [`agent_vars`] of this process's env.
 pub fn inherited_agent_env(ssh: bool) -> Vec<(OsString, OsString)> {
-    agent_vars(std::env::vars_os(), cfg!(windows), ssh)
+    agent_vars(parent_vars(), cfg!(windows), ssh)
+}
+
+/// This process's env plus what the login shell gave a Dock-launched app (`login_shell`): read this, not
+/// `std::env::vars_os`, wherever a child's env or a bare program name is worked out.
+pub fn parent_vars() -> Vec<(OsString, OsString)> {
+    let (captured, fallback) = crate::login_shell::current();
+    crate::login_shell::merge(std::env::vars_os(), captured, &fallback)
+}
+
+/// The PATH of [`parent_vars`], to look a bare program name up in.
+pub fn parent_path() -> OsString {
+    parent_vars()
+        .into_iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("PATH"))
+        .map(|(_, v)| v)
+        .unwrap_or_default()
 }
 
 pub fn absolute_entries(path: &OsStr) -> Vec<PathBuf> {

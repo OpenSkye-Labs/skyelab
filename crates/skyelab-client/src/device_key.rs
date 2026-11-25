@@ -6,6 +6,7 @@
 
 use std::io::{self, Write as _};
 use std::path::Path;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use skyelab_protocol::{device_code, device_key_hash, is_device_key, new_device_key};
 
@@ -102,5 +103,63 @@ pub fn keychain_device_key_in(
             Ok(key)
         }
         Err(e) => Err(io::Error::other(e)),
+    }
+}
+
+type Loader = dyn Fn() -> Result<String, String> + Send + Sync;
+
+/// This install's device key, read on first use (the first connection to another machine), not at startup: on
+/// macOS the read can show a keychain prompt, which a user who never connects anywhere should never see. Clones
+/// share one key. A load that fails (the prompt denied) is not kept, so the next connection asks again.
+#[derive(Clone)]
+pub struct LazyDeviceKey {
+    key: Arc<Mutex<Option<String>>>,
+    load: Arc<Loader>,
+}
+
+impl LazyDeviceKey {
+    pub fn new(load: impl Fn() -> Result<String, String> + Send + Sync + 'static) -> Self {
+        Self {
+            key: Arc::default(),
+            load: Arc::new(load),
+        }
+    }
+
+    /// The key, loading it if no earlier call did. Blocks (the keychain prompt waits for the user), so never call
+    /// it on a UI thread. The lock is held while loading, so concurrent callers wait for one load.
+    pub fn get(&self) -> Result<String, String> {
+        let mut key = self.key.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(key) = &*key {
+            return Ok(key.clone());
+        }
+        let loaded = (self.load)()?;
+        *key = Some(loaded.clone());
+        Ok(loaded)
+    }
+
+    /// The key if it is already loaded; never loads (or waits on a load in progress).
+    pub fn peek(&self) -> Option<String> {
+        self.key.try_lock().ok().and_then(|k| k.clone())
+    }
+}
+
+impl From<String> for LazyDeviceKey {
+    fn from(key: String) -> Self {
+        let this = Self::new(|| Err("unreachable: the key is already loaded".into()));
+        *this.key.lock().unwrap_or_else(PoisonError::into_inner) = Some(key);
+        this
+    }
+}
+
+impl From<&str> for LazyDeviceKey {
+    fn from(key: &str) -> Self {
+        key.to_owned().into()
+    }
+}
+
+impl std::fmt::Debug for LazyDeviceKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never the key itself: Options are debug-printed.
+        f.write_str("LazyDeviceKey")
     }
 }

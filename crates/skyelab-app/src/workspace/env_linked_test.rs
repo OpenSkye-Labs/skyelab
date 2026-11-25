@@ -381,3 +381,22 @@ fn linked_thread_settles_on_its_machine(cx: &mut TestAppContext) {
     let t = store.thread(remote.thread_id).expect("read").expect("thread");
     assert!(t.settled_at.is_some(), "settled on its machine");
 }
+
+/// The device key (on macOS a keychain read that may prompt) loads on the first connection, never at startup.
+#[gpui::test]
+fn the_device_key_loads_on_first_remote_use_only(cx: &mut TestAppContext) {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let remote = remote_side(FakeTailnet::default());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counted = calls.clone();
+    let mut options = remote.options();
+    options.device_key = Some(skyelab_client::LazyDeviceKey::new(move || {
+        counted.fetch_add(1, Ordering::SeqCst);
+        Ok(skyelab_client::testing::DEVICE_KEY.into())
+    }));
+    let (ws, _local, cx) = local_workspace(Arc::default(), None, options, cx);
+    cx.run_until_parked();
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "started without remote use");
+    linked_and_listed(&ws, cx);
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "linked: loaded once");
+}

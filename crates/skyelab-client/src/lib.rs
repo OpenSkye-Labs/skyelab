@@ -33,7 +33,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 pub use conn::forward::Forward;
-pub use device_key::load_or_create_device_key;
+pub use device_key::{LazyDeviceKey, load_or_create_device_key};
 #[cfg(target_os = "macos")]
 pub use device_key::{keychain_device_key, keychain_device_key_in};
 pub use guard::is_tailnet_ip;
@@ -62,6 +62,10 @@ pub enum Error {
     UnexpectedReply,
     #[error("the client has stopped")]
     Stopped,
+    /// Fatal: this install's device key couldn't be read (on macOS, the keychain prompt was denied). A new client
+    /// tries again.
+    #[error("couldn't read this device's key, so no machine can approve it: {0}")]
+    DeviceKey(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,7 +157,7 @@ pub struct Client {
     updates: flume::Receiver<Update>,
     hello: Arc<Mutex<Option<Hello>>>,
     next_watch: AtomicU64,
-    device_code: Option<String>,
+    device_key: Option<LazyDeviceKey>,
     /// The MagicDNS name dialled, for errors that name the machine.
     host: String,
 }
@@ -186,7 +190,7 @@ impl Client {
         #[cfg(not(any(test, feature = "test-support")))]
         let roots = tls::webpki_roots();
         let tls = tls::config(roots)?;
-        let device_code = options.device_key.as_deref().map(device_key::code);
+        let device_key = options.device_key.clone();
         let (commands, commands_rx) = flume::unbounded();
         let (updates_tx, updates) = flume::unbounded();
         let hello = Arc::new(Mutex::new(None));
@@ -225,14 +229,19 @@ impl Client {
             updates,
             hello,
             next_watch: AtomicU64::new(1),
-            device_code,
+            device_key,
             host: name,
         })
     }
 
-    /// The code the machine dialled shows for this device's approval request. `None` without a key.
+    /// The code the machine dialled shows for this device's approval request. `None` without a key, or before the
+    /// first connection loaded it.
     pub fn device_code(&self) -> Option<String> {
-        self.device_code.clone()
+        self.device_key
+            .as_ref()?
+            .peek()
+            .as_deref()
+            .map(device_key::code)
     }
 
     /// Connection changes and watched threads' events, in order.
