@@ -54,6 +54,7 @@ mod sidebar;
 mod sidebar_card;
 mod sidebar_rows;
 mod sidebar_snooze;
+mod sidebar_undo;
 mod sidebar_views;
 #[cfg(test)]
 pub(crate) use sidebar::FOOTER_BUTTON_IDS;

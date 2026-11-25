@@ -66,6 +66,9 @@ pub(super) const UNDO_WINDOW: Duration = Duration::from_secs(8);
 /// A store job run off the UI thread.
 pub(super) type Job = Box<dyn FnOnce(&mut Store) -> anyhow::Result<()> + Send>;
 
+#[path = "manage_undo.rs"]
+mod undo;
+
 impl Workspace {
     /// Runs `job` on the store, then `then` on success; a failure shows as the store error.
     pub(super) fn store_then(
@@ -106,26 +109,6 @@ impl Workspace {
         #[cfg(test)]
         self.notices.push(text.clone());
         crate::ui::toast::push(window, Toast::warning(text), cx);
-    }
-
-    /// A notice with an Undo button that runs `undo` on this workspace.
-    pub(super) fn undo_notice(
-        &mut self,
-        text: String,
-        undo: impl Fn(&mut Self, &mut Window, &mut Context<Self>) + 'static,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        #[cfg(test)]
-        self.notices.push(text.clone().into());
-        let ws = cx.entity().downgrade();
-        let undo = std::rc::Rc::new(undo);
-        let note = Toast::new(text)
-            .action("Undo", move |window, cx| {
-                let _ = ws.update(cx, |ws, cx| undo(ws, window, cx));
-            })
-            .autohide(true);
-        crate::ui::toast::push(window, note, cx);
     }
 
     /// The details card unlinked `url` from thread `id`: the row's badge goes, and the notice can link it again.
@@ -333,7 +316,7 @@ impl Workspace {
                     ws.open_thread(&OpenThread { id }, window, cx);
                 }
                 if on {
-                    ws.undo_notice(
+                    ws.thread_undo_notice(
                         format!("Archived “{title}”"),
                         move |ws, window, cx| ws.undo_archive(id, shown, window, cx),
                         window,
@@ -384,7 +367,7 @@ impl Workspace {
             move |ws, window, cx| {
                 ws.threads.retain(|t| t.id != id);
                 ws.refresh_sidebar(cx);
-                ws.undo_notice(
+                ws.thread_undo_notice(
                     format!("Deleted “{title}”"),
                     move |ws, window, cx| ws.undo_delete(id, shown, window, cx),
                     window,
