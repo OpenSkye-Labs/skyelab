@@ -20,7 +20,8 @@ pub(super) use preview::PREVIEW_CONTEXT;
 
 use super::Workspace;
 use gpui::{AppContext as _, Context, Subscription, WeakEntity, Window, actions};
-use preview::{OpenInEditor, PreviewPanel};
+use preview::OpenInEditor;
+pub(super) use preview::PreviewPanel;
 use search::{PreviewAt, SearchPanel};
 use std::path::PathBuf;
 use std::rc::Rc;

@@ -47,6 +47,16 @@ pub fn questions(input: &serde_json::Value) -> Vec<Question> {
         .collect()
 }
 
+/// The verb a finished turn's divider starts with. The agent crate marks a turn the user stopped with the error text
+/// `interrupted` (both agents end it as an error), so it reads as stopped, not failed.
+pub fn done_verb(is_error: bool, error: Option<&str>) -> &'static str {
+    match (is_error, error.map(str::trim)) {
+        (false, _) => "Worked for",
+        (true, Some("interrupted")) => "Stopped after",
+        (true, _) => "Failed after",
+    }
+}
+
 /// The turn divider's text: "Worked for 4.2s · 12.3k in · 175 out · $0.0421".
 /// A turn that recorded nothing (an imported session's) reads "Worked", not "Worked for 0.0s".
 pub fn divider_text(verb: &str, secs: f64, usage: Option<Usage>, cost: f64) -> String {

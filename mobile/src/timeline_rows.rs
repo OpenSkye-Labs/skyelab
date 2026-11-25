@@ -3,7 +3,8 @@
 //! clipped, so a huge payload from the other machine can't stall a frame.
 
 use skyelab_agent::timeline::cards::{
-    LineKind, divider_text, edit_lines, exit_status, is_edit, is_shell, limited_text, plain_output,
+    LineKind, divider_text, done_verb, edit_lines, exit_status, is_edit, is_shell, limited_text,
+    plain_output,
 };
 use skyelab_agent::timeline::subagent::{SubagentItem, SubagentStatus};
 use skyelab_agent::timeline::{Item, ToolItem};
@@ -85,18 +86,16 @@ pub fn row_lines(item: &Item, open: bool) -> Vec<String> {
             error,
             ..
         } => {
-            let verb = if *is_error {
-                "Failed after"
-            } else {
-                "Worked for"
-            };
+            let verb = done_verb(*is_error, error.as_deref());
             let mut out = vec![divider_text(
                 verb,
                 *duration_ms as f64 / 1000.,
                 *usage,
                 *cost_usd,
             )];
-            out.extend(error.iter().flat_map(|e| head(e, OUTPUT_LINES)));
+            if verb == "Failed after" {
+                out.extend(error.iter().flat_map(|e| head(e, OUTPUT_LINES)));
+            }
             out
         }
         Item::Limit { resets_at } => vec![limited_text(*resets_at, now_secs())],

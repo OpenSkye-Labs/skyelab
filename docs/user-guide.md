@@ -52,7 +52,7 @@ The palette and the Welcome page show the keys in effect.
 
 ## Files
 
-**Go to File** (<kbd>⌘P</kbd>), **Search in Files** (<kbd>⇧⌘F</kbd>) and the read-only **Preview** tab: see
+**Go to File** (<kbd>⌘P</kbd>), **Search in Files** (<kbd>⇧⌘F</kbd>) and the **Preview** tab (which can also edit and save a text file): see
 [Files](user-guide-files.md).
 
 ## Layout

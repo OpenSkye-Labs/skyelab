@@ -300,6 +300,29 @@ impl GhPage {
                     )
                     .into_any_element(),
             ),
+            Listing::NoGitHub(why) => {
+                use skyelab_git::NoGitHub;
+                let (title, hint) = match why {
+                    NoGitHub::NotARepo => (
+                        "This project isn't a git repository",
+                        format!("Its {noun} would come from a github.com remote named origin."),
+                    ),
+                    NoGitHub::NoOrigin => (
+                        "This project has no GitHub remote",
+                        format!(
+                            "Add one named origin to list its {noun}: \
+                             git remote add origin https://github.com/OWNER/REPO.git"
+                        ),
+                    ),
+                    NoGitHub::OtherHost => (
+                        "This project's remote isn't on GitHub",
+                        format!(
+                            "Its origin points outside github.com, so there are no {noun} to list here."
+                        ),
+                    ),
+                };
+                rows.push(note(title.into(), hint.into()))
+            }
             Listing::Failed(why) => rows.push(note(format!("Couldn't list {noun}"), why.clone())),
             Listing::Prs(list) => {
                 count = Some(list.len());

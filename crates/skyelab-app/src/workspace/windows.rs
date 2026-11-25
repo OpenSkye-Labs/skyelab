@@ -310,10 +310,9 @@ impl Workspace {
                 view.update(cx, |v, cx| v.attach(window, cx));
             }
         }
-        // Off macOS closing the last window quits: it asks first like ⌘Q.
-        if !super::MAC {
-            window.on_window_should_close(cx, super::quit_guard::may_close);
-        }
+        // Unsaved Preview edits ask before the window closes; off macOS closing the last window quits, so it asks
+        // first like ⌘Q.
+        window.on_window_should_close(cx, super::quit_guard::may_close);
         if !std::mem::replace(&mut cx.default_global::<Windows>().watching, true) {
             cx.on_window_closed(|cx, id| window_closed(id, cx)).detach();
         }

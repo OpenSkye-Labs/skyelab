@@ -40,7 +40,9 @@ What a thread shows while its agent works, and the tools for reading it back. Ba
   and the expand button still opens the page.
 - A finished turn folds its work (tool calls, thinking, the text in between) under one line above the reply:
   **Worked for 4.2s · 12.3k in · 175 out · $0.0421 ›** (that turn's own tokens and cost). Click it to open or fold the work. A running turn shows
-  everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn.
+  everything; one that failed, or was stopped before it finished, isn't folded and keeps its line after the turn: a
+  stopped turn reads **Stopped after 12.4s** in grey, a failed one **Failed after 12.4s** in red. A turn you stopped
+  never shows the failure banner, even when the agent reports the stop as an error; an error that isn't a stop does.
 - When the account hits its usage limit, the sidebar shows **Limited** and a banner docks above the composer:
   **Usage limit reached · Resets tomorrow at 2:10 AM** (**Reset passed** once it has). The timeline keeps a quiet
   history line for it, in the same words and your local time zone: **Usage limit reached. Retry after tomorrow at

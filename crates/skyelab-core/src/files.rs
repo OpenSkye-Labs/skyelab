@@ -176,6 +176,10 @@ pub fn read_preview(root: &Path, path: &Path) -> Result<Preview> {
     Ok(String::from_utf8(bytes).map_or(Preview::Binary, Preview::Text))
 }
 
+#[path = "files_save.rs"]
+mod save;
+pub use save::{Saved, changed_on_disk, save_text};
+
 /// `C:\x` for Windows' canonical `\\?\C:\x`: agents record the plain form. Other paths (a UNC share, any Unix
 /// path) come back as they are. Git needs it too: `worktree add \\?\C:\…` fails to create the folder.
 pub fn without_verbatim(path: &Path) -> PathBuf {

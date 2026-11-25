@@ -36,8 +36,9 @@ pub use diff::{
     diff_stat, diff_trees, diff_with,
 };
 pub use gh_lists::{
-    IssueFilter, IssueRow, MAX_BODY, MAX_ROWS, PrFilter, PrRow, issue_list_args, list_issues,
-    list_prs, parse_issue_list, parse_pr_list, parse_repo_url, pr_list_args, repo_slug,
+    IssueFilter, IssueRow, MAX_BODY, MAX_ROWS, NoGitHub, PrFilter, PrRow, issue_list_args,
+    list_issues, list_prs, parse_issue_list, parse_pr_list, parse_repo_url, pr_list_args,
+    repo_slug,
 };
 pub use issue_actions::{
     COMMENT_POSTED, CloseReason, close_issue, comment_issue, issue_link, issue_view, reopen_issue,
@@ -79,6 +80,8 @@ pub enum Error {
     Git { args: String, stderr: String },
     #[error("running git: {0}")]
     Io(#[from] io::Error),
+    #[error("{0}")]
+    NoGitHub(NoGitHub),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
