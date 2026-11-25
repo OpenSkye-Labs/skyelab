@@ -7,6 +7,7 @@ use gpui::{Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, po
 use gpui_component::dock::DockPlacement;
 
 const Y: f32 = 300.;
+const RAIL: f32 = 48.;
 
 fn setup(cx: &mut TestAppContext) -> (Rig, &mut VisualTestContext) {
     let (r, cx) = rig(cx);
@@ -41,9 +42,9 @@ fn up(x: f32, cx: &mut VisualTestContext) {
     cx.run_until_parked();
 }
 
-/// The open sidebar's handle: its last 5 px.
+/// The open sidebar's handle: its last 5 px (offset past the left navigation rail).
 fn handle_x(r: &Rig, cx: &mut VisualTestContext) -> f32 {
-    f32::from(sidebar(r, cx).1) - 2.5
+    RAIL + f32::from(sidebar(r, cx).1) - 2.5
 }
 
 #[gpui::test]
@@ -53,14 +54,14 @@ fn dragging_past_the_threshold_hides_on_release_and_keeps_the_width(cx: &mut Tes
     let x = handle_x(&r, cx);
     down(x, cx);
     drag(x + 1., cx);
-    drag(200., cx);
-    drag(40., cx);
+    drag(RAIL + 200., cx);
+    drag(RAIL + 40., cx);
     assert_eq!(sidebar(&r, cx), (true, px(100.)), "clamped at the minimum");
     assert!(!hide_pending(&r, cx), "above the threshold it only resizes");
-    drag(10., cx);
+    drag(RAIL + 10., cx);
     assert!(hide_pending(&r, cx), "past the threshold the release will hide it");
     assert_eq!(sidebar(&r, cx), (true, px(100.)), "still clamped, no jitter");
-    up(10., cx);
+    up(RAIL + 10., cx);
     assert_eq!(
         sidebar(&r, cx),
         (false, px(256.)),
@@ -81,11 +82,11 @@ fn dragging_back_above_the_threshold_before_release_only_resizes(cx: &mut TestAp
     let x = handle_x(&r, cx);
     down(x, cx);
     drag(x - 1., cx);
-    drag(10., cx);
+    drag(RAIL + 10., cx);
     assert!(hide_pending(&r, cx));
-    drag(150., cx);
+    drag(RAIL + 150., cx);
     assert!(!hide_pending(&r, cx));
-    up(150., cx);
+    up(RAIL + 150., cx);
     assert_eq!(sidebar(&r, cx), (true, px(150.)));
 }
 
@@ -100,11 +101,11 @@ fn a_press_and_one_pixel_move_changes_nothing(cx: &mut TestAppContext) {
     assert!(open);
     assert!(w >= px(256.) && w <= px(257.), "at most the pixel moved: {w:?}");
     // A press elsewhere far left never arms the hide.
-    down(10., cx);
-    drag(11., cx);
-    drag(5., cx);
+    down(RAIL + 10., cx);
+    drag(RAIL + 11., cx);
+    drag(RAIL + 5., cx);
     assert!(!hide_pending(&r, cx));
-    up(5., cx);
+    up(RAIL + 5., cx);
     assert!(sidebar(&r, cx).0);
 }
 
@@ -120,7 +121,7 @@ fn restore_center(cx: &mut VisualTestContext) -> f32 {
     let b = cx
         .debug_bounds("sidebar-restore")
         .expect("a hidden sidebar draws the restore handle");
-    assert_eq!(f32::from(b.origin.x), 8.);
+    assert_eq!(f32::from(b.origin.x), RAIL + 8.);
     assert_eq!(f32::from(b.size.width), 16.);
     f32::from(b.center().x)
 }
@@ -134,18 +135,18 @@ fn dragging_the_left_edge_brings_the_sidebar_back_at_the_pointer(cx: &mut TestAp
     let y = cx.debug_bounds("sidebar-restore").expect("handle").center().y;
     cx.simulate_mouse_down(point(px(x), y), MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(point(px(x + 1.), y), MouseButton::Left, Modifiers::none());
-    cx.simulate_mouse_move(point(px(30.), y), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(RAIL + 30.), y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert!(!sidebar(&r, cx).0, "under 48 px it stays hidden");
-    cx.simulate_mouse_move(point(px(300.), y), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(RAIL + 300.), y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert_eq!(sidebar(&r, cx), (true, px(300.)), "shown at the pointer");
-    cx.simulate_mouse_move(point(px(20.), y), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(RAIL + 20.), y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert!(!sidebar(&r, cx).0, "back under 48 px it hides again");
     assert_eq!(sidebar(&r, cx).1, px(256.), "hidden again at its old width");
-    cx.simulate_mouse_move(point(px(320.), y), MouseButton::Left, Modifiers::none());
-    cx.simulate_mouse_up(point(px(320.), y), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(px(RAIL + 320.), y), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_up(point(px(RAIL + 320.), y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert_eq!(sidebar(&r, cx), (true, px(320.)), "the release keeps it");
 }
@@ -156,10 +157,10 @@ fn a_restore_drag_released_hidden_keeps_the_old_width(cx: &mut TestAppContext) {
     hide(&r, cx);
     let c = cx.debug_bounds("sidebar-restore").expect("handle").center();
     cx.simulate_mouse_down(c, MouseButton::Left, Modifiers::none());
-    for x in [c.x.as_f32() + 1., 300., 20.] {
+    for x in [c.x.as_f32() + 1., RAIL + 300., RAIL + 20.] {
         cx.simulate_mouse_move(point(px(x), c.y), MouseButton::Left, Modifiers::none());
     }
-    cx.simulate_mouse_up(point(px(20.), c.y), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_up(point(px(RAIL + 20.), c.y), MouseButton::Left, Modifiers::none());
     cx.run_until_parked();
     assert_eq!(sidebar(&r, cx), (false, px(256.)));
 }
@@ -172,10 +173,10 @@ fn a_toggle_mid_drag_ends_the_edge_drag(cx: &mut TestAppContext) {
     let x = handle_x(&r, cx);
     down(x, cx);
     drag(x + 1., cx);
-    drag(10., cx);
+    drag(RAIL + 10., cx);
     assert!(hide_pending(&r, cx));
     hide(&r, cx);
-    up(10., cx);
+    up(RAIL + 10., cx);
     r.ws.update_in(cx, |ws, window, cx| {
         ws.toggle_sidebar(&super::ToggleSidebar, window, cx)
     });

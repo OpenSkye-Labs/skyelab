@@ -470,7 +470,7 @@ impl Render for Sidebar {
                     .flex()
                     .flex_col()
                     .justify_center()
-                    .when(cfg!(target_os = "macos"), |d| d.pl(ui::TRAFFIC_LIGHTS_W))
+                    .when(cfg!(target_os = "macos"), |d| d.pl(ui::MAC_TOP_PAD))
                     .child(
                         h_flex()
                             .gap_1p5()

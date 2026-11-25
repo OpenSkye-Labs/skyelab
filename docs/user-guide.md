@@ -97,8 +97,11 @@ wakes it now. The row's right-click menu has the same entries, and the palette h
 Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
 snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
 
-The sidebar's bottom row: **Settings**, **Pull requests**, **Issues**, **Usage**, and at the right
-**Refresh**, which reloads the thread list.
+A slim rail on the far left of the window switches what the window shows: **Home** (your threads; it reopens the
+sidebar and the last thread you had open), **Bots** (coming soon), **Pull requests**, **Issues** and **Scheduled
+tasks** at the top, and **Usage** and **Settings** at the bottom. Usage shows a yellow dot when an account is at 75%
+of a usage window and a red one at 90% or when it is limited. The sidebar's bottom row keeps **Refresh**, which reloads
+the thread list.
 
 The center shows one page at a time: a thread, a new thread, Settings, or nothing open yet. Clicking a thread in the
 sidebar (or picking it in the palette) switches the page; there are no center tabs. The window follows the thread's
@@ -142,7 +145,7 @@ Several windows, and what quitting does while agents work: [user-guide-windows.m
 
 ## Settings and themes
 
-<kbd>⌘,</kbd> (or **Settings** in the sidebar footer, the status bar or the palette) opens Settings as a window-sized
+<kbd>⌘,</kbd> (or **Settings** in the left rail, the status bar or the palette) opens Settings as a window-sized
 dialog over the app; **Esc**, a click outside it or the **×** closes it, and it reopens on the section you left.
 Each window has its own. Type in **Search** at the top of its list (or press <kbd>/</kbd>) to find a setting by name.
 Sections with preferences have **Restore defaults** in the header.

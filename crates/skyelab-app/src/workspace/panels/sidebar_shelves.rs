@@ -109,59 +109,22 @@ impl Sidebar {
 }
 
 #[cfg(test)]
-pub(crate) const FOOTER_BUTTON_IDS: &[&str] = &[
-    "sidebar-settings",
-    "sidebar-prs",
-    "sidebar-issues",
-    "sidebar-usage",
-    "sidebar-refresh",
-];
+pub(crate) const FOOTER_BUTTON_IDS: &[&str] = &["sidebar-refresh"];
 
-/// The footer's icon row (T3's `SidebarChrome`): 32 px ghost icon buttons with tooltips.
+/// The sidebar footer: keeps Refresh accessible while primary navigation lives in the left rail.
 pub(super) fn footer() -> impl IntoElement {
-    use crate::workspace::gh_pages::{OpenIssues, OpenPullRequests};
     use crate::workspace::thread_list::RefreshThreads;
-    let button = |id: &'static str, icon: Icon, tip: &'static str, action: Box<dyn Action>| {
-        Button::new(id)
-            .ghost()
-            .icon(icon)
-            .tooltip(tip)
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-    };
     h_flex()
         .flex_shrink_0()
         .px_2()
         .py_2()
-        .gap_0p5()
-        .child(button(
-            "sidebar-settings",
-            Icon::new(SkyeIcon::Settings),
-            "Settings",
-            Box::new(crate::workspace::OpenSettings),
-        ))
-        .child(button(
-            "sidebar-prs",
-            Icon::new(SkyeIcon::GitPullRequest),
-            "Pull requests",
-            Box::new(OpenPullRequests),
-        ))
-        .child(button(
-            "sidebar-issues",
-            Icon::new(SkyeIcon::CircleDot),
-            "Issues",
-            Box::new(OpenIssues),
-        ))
-        .child(button(
-            "sidebar-usage",
-            Icon::new(SkyeIcon::ChartNoAxesColumn),
-            "Usage",
-            Box::new(crate::workspace::OpenUsage),
-        ))
         .child(div().flex_1())
-        .child(button(
-            "sidebar-refresh",
-            Icon::new(SkyeIcon::RefreshCw),
-            "Refresh",
-            Box::new(RefreshThreads),
-        ))
+        .child(
+            Button::new("sidebar-refresh")
+                .debug_selector(|| "sidebar-refresh".into())
+                .ghost()
+                .icon(Icon::new(SkyeIcon::RefreshCw))
+                .tooltip("Refresh")
+                .on_click(|_, window, cx| window.dispatch_action(Box::new(RefreshThreads), cx)),
+        )
 }

@@ -1,6 +1,7 @@
 //! The main window: sidebar, the center's one page, bottom terminals and a status bar, on gpui-component's dock.
 
 mod attention;
+mod bots_page;
 mod branch_picker;
 mod browser_agent;
 mod browser_tabs;
@@ -218,6 +219,7 @@ pub struct Workspace {
     _window_bounds: Option<Subscription>,
     _dock_events: Subscription,
     _details_events: Subscription,
+    _details_obs: Subscription,
     terminals: Vec<Entity<TerminalPanel>>,
     terms: terminal_close::Terms,
     browsers: Vec<WeakEntity<BrowserPanel>>,
@@ -247,7 +249,9 @@ pub struct Workspace {
     open_threads: Vec<Entity<ThreadView>>,
     center: Entity<Center>,
     welcome: Entity<Welcome>,
+    bots: Option<Entity<bots_page::BotsPage>>,
     page: Page,
+    last_home: Option<Page>,
     setup: setup_flow::SetupFlow,
     back: Vec<Page>,
     forward: Vec<Page>,
@@ -381,6 +385,7 @@ impl Workspace {
                 this.details_outside(e.0, window, cx)
             },
         );
+        let _details_obs = cx.observe(&details, |_, _, cx| cx.notify());
 
         crate::ui::set_accounts(cx, &config);
         let mut this = Self {
@@ -412,6 +417,7 @@ impl Workspace {
             _window_bounds: None,
             _dock_events,
             _details_events,
+            _details_obs,
             terminals: Vec::new(),
             terms: Default::default(),
             browsers: Vec::new(),
@@ -434,7 +440,9 @@ impl Workspace {
             open_threads: Vec::new(),
             center,
             welcome,
+            bots: None,
             page: Page::Welcome,
+            last_home: None,
             setup: Default::default(),
             back: Vec::new(),
             forward: Vec::new(),
