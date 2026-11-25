@@ -19,6 +19,9 @@ use std::time::{Duration, Instant};
 
 /// Starts `cmd` while no other child of this process is being started (see the module docs).
 pub fn spawn(cmd: &mut Command) -> io::Result<Owned> {
+    // SkyeLab is a GUI app on Windows, so a console child (git, gh, an agent) would otherwise open its own window.
+    #[cfg(windows)]
+    std::os::windows::process::CommandExt::creation_flags(cmd, 0x0800_0000); // CREATE_NO_WINDOW
     let started = exclusive(|| cmd.spawn());
     crate::debug::record_spawn(cmd, &started);
     started.map(|child| Owned(Some(child)))

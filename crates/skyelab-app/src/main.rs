@@ -1,3 +1,6 @@
+// Release builds on Windows are GUI apps: no console window opens beside SkyeLab. Debug builds keep it for logs.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod debug_mode;
 mod debug_renders;
 mod environment;
