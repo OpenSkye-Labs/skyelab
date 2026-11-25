@@ -3,7 +3,7 @@
 
 use super::github::mcp_login_args;
 use super::thread::ThreadViewEvent;
-use super::worktree_thread_test::{fixture, open_thread, send, wait_until};
+use super::worktree_thread_test::{fixture, open_thread, open_thread_with, send, wait_until};
 use crate::test_wait::wait_ticking;
 use gpui::{Entity, VisualTestContext};
 
@@ -85,7 +85,8 @@ fn sign_in_refuses_a_folder_bound_elsewhere(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 fn sign_in_offers_restart_after_the_terminal_exits(cx: &mut gpui::TestAppContext) {
     let f = fixture();
-    let (ws, thread, cx) = open_thread(&f, cx);
+    // In a Root, so the notice is really shown and its Restart can be clicked.
+    let (ws, thread, cx) = open_thread_with(&f, true, cx);
     stored_then_sign_in(&thread, "linear", cx);
     // The exit watch polls on the executor's clock.
     wait_ticking(cx, "the restart offer", |cx| {
@@ -95,4 +96,17 @@ fn sign_in_offers_restart_after_the_terminal_exits(cx: &mut gpui::TestAppContext
                 .any(|n| n.contains("linear") && n.contains("Restart"))
         })
     });
+    let notes = |cx: &mut VisualTestContext| cx.update(|window, cx| crate::ui::toast::shown(window, cx));
+    // The toast fades in place: the button is where it lands from the first frame.
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let at = cx.debug_bounds("toast-action").expect("the Restart button drawn").center();
+    let offer = notes(cx).first().cloned().expect("the restart offer");
+    assert!(thread.read_with(cx, |t, _| t.session.is_some()));
+    cx.simulate_click(at, gpui::Modifiers::none());
+    wait_until(cx, "the agent to end", |cx| {
+        thread.read_with(cx, |t, _| t.session.is_none())
+    });
+    // The toast leaves at once (Rex).
+    assert!(!notes(cx).contains(&offer), "the offer is gone");
 }

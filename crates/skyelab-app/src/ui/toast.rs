@@ -279,14 +279,16 @@ pub fn card(id: u64, toast: &Toast, close: Handler, cx: &App) -> gpui::Stateful<
         .when_some(toast.action.clone(), |el, (label, f)| {
             let close = close.clone();
             el.child(
-                Button::new(("toast-action", id))
-                    .xsmall()
-                    .label(label)
-                    .on_click(move |_, window, cx| {
-                        cx.stop_propagation();
-                        close(window, cx);
-                        f(window, cx);
-                    }),
+                div().debug_selector(|| "toast-action".into()).child(
+                    Button::new(("toast-action", id))
+                        .xsmall()
+                        .label(label)
+                        .on_click(move |_, window, cx| {
+                            cx.stop_propagation();
+                            close(window, cx);
+                            f(window, cx);
+                        }),
+                ),
             )
         })
         .child(
