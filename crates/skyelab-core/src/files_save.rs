@@ -15,6 +15,36 @@ pub enum Saved {
     Changed,
 }
 
+/// The file `path` of `root` no longer holds exactly `base` (or is gone, or isn't a file): the Preview tab's
+/// "Changed on disk" check.
+pub fn changed_on_disk(root: &Path, path: &Path, base: &str) -> bool {
+    let Some(full) = inside(root, path) else {
+        return true;
+    };
+    let mut open = std::fs::OpenOptions::new();
+    open.read(true);
+    // A FIFO put where the file was would block the open until a writer comes.
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::custom_flags(
+        &mut open,
+        rustix::fs::OFlags::NONBLOCK.bits() as i32,
+    );
+    let Ok(file) = open.open(full) else {
+        return true;
+    };
+    !file.metadata().is_ok_and(|m| m.is_file()) || !holds(file, base.as_bytes()).unwrap_or(false)
+}
+
+/// `file` holds exactly `base`, read no further than one byte past it (an agent can swap in a huge file).
+fn holds(file: std::fs::File, base: &[u8]) -> std::io::Result<bool> {
+    let mut now = Vec::with_capacity(base.len() + 1);
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(file, base.len() as u64 + 1),
+        &mut now,
+    )?;
+    Ok(now == base)
+}
+
 const NOT_INSIDE: &str = "Not a file in this thread's folder.";
 
 /// Writes `text` over the file `path` of `root` (relative, or absolute under it), through a temp file and a rename,
@@ -30,11 +60,11 @@ pub fn save_text(root: &Path, path: &Path, text: &str, base: Option<&str>) -> Re
 
 #[cfg(unix)]
 mod imp {
-    use super::{NOT_INSIDE, Saved};
+    use super::{NOT_INSIDE, Saved, holds};
     use anyhow::{Context as _, Result, bail};
     use rustix::fd::OwnedFd;
     use rustix::fs::{AtFlags, Mode, OFlags};
-    use std::io::{Read as _, Write as _};
+    use std::io::Write as _;
     use std::path::{Component, Path};
 
     const DIR: OFlags = OFlags::DIRECTORY
@@ -65,7 +95,8 @@ mod imp {
         let file = rustix::fs::openat(
             &dir,
             name,
-            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            // NONBLOCK: a FIFO there would block the open; fstat below refuses it.
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
             Mode::empty(),
         )
         .context(NOT_INSIDE)?;
@@ -73,20 +104,22 @@ mod imp {
         if !rustix::fs::FileType::from_raw_mode(stat.st_mode).is_file() {
             bail!("Not a file.");
         }
-        if let Some(base) = base {
-            let mut now = Vec::new();
-            std::fs::File::from(file)
-                .read_to_end(&mut now)
-                .context("Can't read this file.")?;
-            if now != base {
-                return Ok(Saved::Changed);
-            }
+        if let Some(base) = base
+            && !holds(std::fs::File::from(file), base).context("Can't read this file.")?
+        {
+            return Ok(Saved::Changed);
         }
         let (tmp, fd) = create_temp(&dir, name)?;
         let written = (|| {
             let mut out = std::fs::File::from(fd);
             out.write_all(bytes)?;
-            rustix::fs::fchmod(&out, Mode::from_raw_mode(stat.st_mode & 0o7777))?;
+            // The file's group too; when it can't be kept, its group bits go rather than apply to another group.
+            let mut mode = stat.st_mode & 0o7777;
+            let gid = rustix::fs::Gid::from_raw(stat.st_gid);
+            if rustix::fs::fchown(&out, None, Some(gid)).is_err() {
+                mode &= !0o070;
+            }
+            rustix::fs::fchmod(&out, Mode::from_raw_mode(mode))?;
             out.sync_all()?;
             rustix::fs::renameat(&dir, &tmp, &dir, name)?;
             std::io::Result::Ok(())
@@ -137,7 +170,11 @@ mod imp {
             bail!("Not a file.");
         }
         if let Some(base) = base
-            && std::fs::read(&full).context("Can't read this file.")? != base
+            && !super::holds(
+                std::fs::File::open(&full).context("Can't read this file.")?,
+                base,
+            )
+            .context("Can't read this file.")?
         {
             return Ok(Saved::Changed);
         }
@@ -178,4 +215,44 @@ fn the_write_itself_refuses_links_swapped_in_after_the_check() {
         1,
         "no temp file made outside"
     );
+}
+
+/// The changed check reads one byte past the text it compares against, never the whole file.
+#[cfg(all(test, unix))]
+#[test]
+fn the_base_compare_stops_one_byte_past_the_base() {
+    let endless = std::fs::File::open("/dev/zero").expect("/dev/zero");
+    assert!(
+        !holds(endless, b"\0\0\0").expect("read"),
+        "longer than the base"
+    );
+}
+
+/// A save keeps the file's group (here a group of the user's other than the one new files get) with its mode.
+#[cfg(all(test, unix))]
+#[test]
+fn a_save_keeps_the_file_group() {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let file = tmp.path().join("a.txt");
+    std::fs::write(&file, "old").expect("write");
+    let own = std::fs::metadata(&file).expect("stat").gid();
+    let out =
+        crate::process::output(std::process::Command::new("id").arg("-G"), None).expect("id -G");
+    let Some(other) = String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .filter_map(|g| g.parse::<u32>().ok())
+        .find(|g| *g != own)
+    else {
+        return; // the user has one group: nothing else to keep
+    };
+    let chgrp = std::process::Command::new("chgrp")
+        .arg(other.to_string())
+        .arg(&file)
+        .status();
+    assert!(chgrp.expect("chgrp").success(), "chgrp {other}");
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o664)).expect("chmod");
+    save_text(tmp.path(), Path::new("a.txt"), "new", Some("old")).expect("save");
+    let m = std::fs::metadata(&file).expect("stat");
+    assert_eq!((m.gid(), m.permissions().mode() & 0o777), (other, 0o664));
 }

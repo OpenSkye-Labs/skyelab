@@ -214,11 +214,10 @@ impl PreviewPanel {
         }
         let (root, path) = (self.root.clone(), self.path.clone());
         let read = cx.background_spawn(async move {
-            let full = skyelab_core::files::inside(&root, &path)?;
-            Some(std::fs::read(full).ok()? != base.as_bytes())
+            skyelab_core::files::changed_on_disk(&root, &path, &base)
         });
         self.edit.checking = Some(cx.spawn(async move |this, cx| {
-            let changed = read.await.unwrap_or(true); // gone counts as changed
+            let changed = read.await;
             let _ = this.update(cx, |this, cx| {
                 this.edit.checking = None;
                 let banner = changed.then_some(Banner::Changed);

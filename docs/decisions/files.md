@@ -17,6 +17,9 @@ Each entry is dated; newest at the bottom.
     (`tests/save_tmp_symlink_escape.rs`). Limits: the root folder itself is opened by path; on Windows the save goes by
     path (a random, exclusive temp file, the folder check again right before the rename), so a folder swapped for a
     junction in that gap could still redirect it. A crash mid-save can leave a `.<name>.<random>.tmp` next to the file.
+    The file is opened non-blocking and must be a regular file, so a FIFO the agent puts there fails the save (and
+    the changed check) at once instead of hanging it; the compare reads at most one byte past the loaded text. A save
+    keeps the file's mode and group; when the group can't be kept, its group permission bits are dropped.
   - **The agent edits the same file:** a save compares the file on disk with the text it loaded and writes nothing
     when they differ; the folder watch (the one the Changes tab uses) also re-reads the file while the tab is open.
     Either way the tab says the file changed on disk and offers Reload (drop the edits, show the disk) or Overwrite
