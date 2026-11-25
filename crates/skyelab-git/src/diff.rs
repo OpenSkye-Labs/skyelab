@@ -170,7 +170,7 @@ fn run_revs(path: &Path, flags: &[&str], revs: &[&str]) -> Result<Vec<FileDiff>>
     Ok(parse(&out))
 }
 
-fn parse(out: &[u8]) -> Vec<FileDiff> {
+pub(crate) fn parse(out: &[u8]) -> Vec<FileDiff> {
     let mut files: Vec<FileDiff> = Vec::new();
     // Header lines (---, rename from, …) only count before a file's first hunk: inside one,
     // "--- x" is a removed line whose text starts with "-- ".

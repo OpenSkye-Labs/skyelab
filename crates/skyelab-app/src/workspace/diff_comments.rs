@@ -54,6 +54,34 @@ impl DiffComment {
     }
 }
 
+impl DiffComment {
+    /// The comment as a line comment of a GitHub review: from its first line to its last. A removed line is on the
+    /// old side, an added one on the new side, and a context line on the side the range ends on. `None` when GitHub
+    /// would refuse it: a line with no number on its side, or a range from an added line to a removed one.
+    pub(crate) fn review_comment(&self) -> Option<skyelab_git::ReviewComment> {
+        use skyelab_git::Side;
+        let last = self.lines.last()?;
+        let end_side = if last.kind == LineKind::Removed {
+            Side::Left
+        } else {
+            Side::Right
+        };
+        let at = |l: &Line| match (l.kind, end_side) {
+            (LineKind::Removed, _) | (LineKind::Context, Side::Left) => Some((l.old?, Side::Left)),
+            (LineKind::Added, Side::Left) => None,
+            _ => Some((l.new?, Side::Right)),
+        };
+        let (first, last) = (at(self.lines.first()?)?, at(last)?);
+        Some(skyelab_git::ReviewComment {
+            path: self.path.to_string_lossy().into_owned(),
+            line: last.0,
+            side: last.1,
+            start: Some(first),
+            body: self.note.clone(),
+        })
+    }
+}
+
 /// A comment's excerpt shows at most this many lines in the chip, so its note always fits.
 const MAX_EXCERPT: usize = 30;
 
