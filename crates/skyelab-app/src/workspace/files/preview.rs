@@ -182,6 +182,9 @@ impl PreviewPanel {
 
     /// The next (or previous) match, wrapping around.
     fn find_step(&mut self, forward: bool, cx: &mut Context<Self>) {
+        if self.find.input.is_none() {
+            return; // no bar, no search to step through
+        }
         self.editor.update(cx, |e, cx| match forward {
             true => e.next_search_match(cx),
             false => e.previous_search_match(cx),

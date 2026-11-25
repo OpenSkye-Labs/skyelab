@@ -33,7 +33,7 @@ fn find_in_a_side_chat(cx: &mut gpui::TestAppContext) {
     wait_until(cx, "its answer", |cx| {
         side.read_with(cx, |v, _| v.last_answer().is_some() && !v.turn_running())
     });
-    // The dock focuses the pane itself when its tab is clicked: mod+F must reach the chat in it from there too.
+    // F6 and the dock focus the pane by its own handle: mod+F must reach the chat in it from there too.
     let pane = ws.read_with(cx, |ws, _| ws.side_chats[0].clone());
     pane.update_in(cx, |p, window, cx| p.focus_handle(cx).focus(window, cx));
     cx.run_until_parked();

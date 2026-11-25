@@ -222,7 +222,7 @@ impl Panel for SideChatPanel {
 }
 
 impl Focusable for SideChatPanel {
-    /// The chat's own: the dock focuses it when the tab is clicked, so the thread's keys (mod+F, Esc) work from there.
+    /// The chat's own: F6 and the dock focus a panel by this handle, so the thread's keys (mod+F, Esc) work from there.
     fn focus_handle(&self, cx: &App) -> FocusHandle {
         self.view.read(cx).focus_handle(cx)
     }
