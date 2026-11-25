@@ -1,9 +1,13 @@
 //! The Preview tab: one file of the thread's folder, read-only. Text shows in gpui-component's code editor (line
 //! numbers, syntect highlighting) at the asked line; images draw as images; binary and huge files get a note.
+//! mod+F finds in the text with the thread's find bar; the editor's own matcher counts and highlights the matches.
 
 use crate::ui;
 use crate::ui::Button;
 use crate::ui::SkyeIcon;
+use crate::workspace::thread_find::{
+    CloseFind, Find, FindInThread, FindNext, FindPrevious, find_bar, open_bar,
+};
 use anyhow::Context as _;
 use gpui::{
     App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, ObjectFit,
@@ -20,12 +24,18 @@ use skyelab_core::files::Preview;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[cfg(all(test, unix))] // the workspace fixture runs the fake agent, a shell script
+#[path = "../preview_find_test.rs"]
+mod find_test;
 #[cfg(test)]
 #[path = "../preview_image_cache_test.rs"]
 mod image_cache_test;
 #[cfg(test)]
 #[path = "../preview_image_test.rs"]
 mod image_test;
+
+/// The key context of a focused preview: mod+F there opens its find bar.
+pub(in crate::workspace) const PREVIEW_CONTEXT: &str = "FilePreview";
 
 /// The preview's header asked to open its file in the user's editor.
 pub(in crate::workspace) struct OpenInEditor {
@@ -48,6 +58,8 @@ pub(in crate::workspace) struct PreviewPanel {
     pub(in crate::workspace) path: PathBuf,
     body: Body,
     pub(in crate::workspace) editor: Entity<EditorState>,
+    /// The find bar, while open. `matches` holds each match's byte offset; the editor keeps the current one.
+    find: Find,
     _load: Option<Task<()>>,
 }
 
@@ -58,7 +70,9 @@ impl PreviewPanel {
             root: PathBuf::new(),
             path: PathBuf::new(),
             body: Body::Loading,
-            editor: cx.new(|cx| EditorState::new(window, cx)),
+            // Not its own search panel (a library default): mod+F goes on to the thread's find bar.
+            editor: cx.new(|cx| EditorState::new(window, cx).searchable(false)),
+            find: Find::default(),
             _load: None,
         }
     }
@@ -78,6 +92,7 @@ impl PreviewPanel {
         }
         self.root = root.clone();
         self.path = path.clone();
+        self.end_find(cx);
         let read = cx.background_spawn(async move {
             let preview = skyelab_core::files::read_preview(&root, &path)?;
             let image = match &preview {
@@ -126,6 +141,82 @@ impl PreviewPanel {
             Err(e) => Body::Note(format!("{e:#}").into()),
         };
         cx.notify();
+    }
+
+    /// mod+F: the find bar over the text (none for an image or a note), its query selected.
+    fn find_in_file(&mut self, _: &FindInThread, window: &mut Window, cx: &mut Context<Self>) {
+        if !matches!(self.body, Body::Text) {
+            return;
+        }
+        open_bar(
+            &mut self.find,
+            "Find in file",
+            window,
+            cx,
+            Self::find_changed,
+            Self::find_step,
+        );
+    }
+
+    /// A new query: the editor counts and highlights it, and shows the match nearest the view.
+    fn find_changed(&mut self, cx: &mut Context<Self>) {
+        let Some(input) = &self.find.input else {
+            return;
+        };
+        let query = input.read(cx).value().to_string();
+        if query == self.find.query {
+            return; // Enter reports a change too, with the same text: it keeps the place
+        }
+        self.editor.update(cx, |e, cx| {
+            // shortcut: the editor folds ASCII case only (the thread's find folds all of Unicode); match it here if
+            // non-ASCII code needs it.
+            e.set_search_query(query.trim(), true, cx);
+            // Back and forth lands on the match the query started at, and scrolls to it.
+            if e.previous_search_match(cx).is_some() {
+                e.next_search_match(cx);
+            }
+        });
+        self.find.query = query;
+        self.sync_find(cx);
+    }
+
+    /// The next (or previous) match, wrapping around.
+    fn find_step(&mut self, forward: bool, cx: &mut Context<Self>) {
+        self.editor.update(cx, |e, cx| match forward {
+            true => e.next_search_match(cx),
+            false => e.previous_search_match(cx),
+        });
+        self.sync_find(cx);
+    }
+
+    /// The bar's count from the editor's matcher.
+    fn sync_find(&mut self, cx: &mut Context<Self>) {
+        let m = &self.editor.read(cx).search_session().matcher;
+        self.find.matches = m.matched_ranges().iter().map(|r| r.start).collect();
+        self.find.active = m.current_match_index();
+        cx.notify();
+    }
+
+    /// Closes the bar and the editor's highlights.
+    fn end_find(&mut self, cx: &mut Context<Self>) {
+        if self.find.input.take().is_some() {
+            self.find = Find::default();
+            self.editor.update(cx, |e, cx| e.close_search(cx));
+        }
+    }
+
+    fn close_find(&mut self, _: &CloseFind, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_find(cx);
+        self.editor.update(cx, |e, cx| e.focus(window, cx));
+        cx.notify();
+    }
+
+    fn find_next(&mut self, _: &FindNext, _: &mut Window, cx: &mut Context<Self>) {
+        self.find_step(true, cx);
+    }
+
+    fn find_previous(&mut self, _: &FindPrevious, _: &mut Window, cx: &mut Context<Self>) {
+        self.find_step(false, cx);
     }
 
     fn name(&self) -> SharedString {
@@ -227,6 +318,12 @@ impl Focusable for PreviewPanel {
 impl Render for PreviewPanel {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("PreviewPanel");
+        let find = find_bar(
+            &self.find,
+            cx,
+            |this, forward, cx| this.find_step(forward, cx),
+            |this, window, cx| this.close_find(&CloseFind, window, cx),
+        );
         let theme = cx.theme();
         let shown = self.path.strip_prefix(&self.root).unwrap_or(&self.path);
         let dir = shown
@@ -308,10 +405,16 @@ impl Render for PreviewPanel {
         };
         v_flex()
             .id("file-preview")
+            .key_context(PREVIEW_CONTEXT)
             .track_focus(&self.focus)
+            .on_action(cx.listener(Self::find_in_file))
+            .on_action(cx.listener(Self::find_next))
+            .on_action(cx.listener(Self::find_previous))
+            .on_action(cx.listener(Self::close_find))
             .size_full()
             .bg(theme.background)
             .child(header)
+            .children(find)
             .child(div().flex_1().min_h_0().child(body))
     }
 }
