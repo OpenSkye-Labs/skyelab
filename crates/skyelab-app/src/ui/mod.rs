@@ -17,6 +17,9 @@ pub mod gallery;
 #[cfg(test)]
 mod gallery_test;
 mod kbd;
+pub mod motion;
+#[cfg(test)]
+mod motion_test;
 mod surface;
 #[cfg(test)]
 mod terminal_colors_test;
@@ -38,7 +41,7 @@ pub use components::{
     AccountBadge, EmptyState, KeyHint, Monogram, Pill, SectionHeader, StatusDot, group, group_row,
     header, mono, page_title, row, row_surface, section_title,
 };
-pub use dialog::{dialog_cancel, dialog_footer, notice_action};
+pub use dialog::{dialog_cancel, dialog_footer, notice_action, open_dialog};
 pub use kbd::Kbd;
 pub use surface::{Card, Divider};
 pub use text_field::TextField;
@@ -55,7 +58,11 @@ use std::path::Path;
 pub fn install_theme(cx: &mut gpui::App) -> anyhow::Result<()> {
     themes::register(cx)?;
     themes::apply(cx);
-    gpui_component::Theme::global_mut(cx).cursor_blink = CURSOR_BLINK;
+    let theme = gpui_component::Theme::global_mut(cx);
+    theme.cursor_blink = CURSOR_BLINK;
+    theme.motion = motion::tokens();
+    // Base's copy (plots, scrollbars) is derived from the theme: refresh it now, not at the next mode change.
+    gpui_component::Theme::sync_base(cx);
     Ok(())
 }
 

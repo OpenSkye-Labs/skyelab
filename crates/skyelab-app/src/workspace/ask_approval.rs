@@ -13,7 +13,7 @@ use gpui::{
     AnyElement, App, Context, FontWeight, IntoElement, SharedString, Window, div, prelude::*, px,
 };
 use gpui_component::diff::{Diff, DiffFile, DiffState};
-use gpui_component::{ActiveTheme as _, Icon, WindowExt as _, h_flex, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
 use skyelab_agent::Decision;
 
 /// How tall an approval's diff or JSON gets before it scrolls (T3's `max-h-40`), so the answers stay in view.
@@ -377,7 +377,7 @@ fn view_all(title: String, patch: &str, window: &mut Window, cx: &mut App) {
         ))),
     };
     let height = window.viewport_size().height * 0.7;
-    window.open_dialog(cx, move |dialog, _, _| {
+    crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         let body = match &body {
             Ok(state) => Diff::new(state)
                 .soft_wrap(true)

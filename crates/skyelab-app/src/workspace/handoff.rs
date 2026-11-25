@@ -176,7 +176,7 @@ fn ask_bind(
          one for you. Bind the folder to a {to} account in Settings → Accounts, then choose Continue in {to} again. \
          Threads of the other provider here can't send while it is bound to {to}."
     );
-    window.open_dialog(cx, move |dialog, _, _| {
+    crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         dialog
             .w(gpui::px(440.))
             .title(format!("Bind this folder to a {to} account"))

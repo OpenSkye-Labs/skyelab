@@ -366,7 +366,7 @@ impl Workspace {
         {
             self.import_picker = Some(picker.downgrade());
         }
-        window.open_dialog(cx, move |dialog, _, cx| {
+        crate::ui::open_dialog(window, cx, move |dialog, _, cx| {
             let n = picker.read(cx).picked().len();
             let go = picker.downgrade();
             dialog

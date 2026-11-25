@@ -43,7 +43,7 @@ pub(super) fn blocked_row<V: ItemsView>(
 
 /// Asks before `host` joins Settings → Chat → Visual replies; only Allow here saves it.
 fn confirm_allow(host: String, window: &mut Window, cx: &mut App) {
-    window.open_dialog(cx, move |dialog, _, _| {
+    crate::ui::open_dialog(window, cx, move |dialog, _, _| {
         let host = host.clone();
         dialog
             .w(px(440.))

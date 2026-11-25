@@ -70,7 +70,7 @@ impl Workspace {
                      Files on disk are not touched.",
                     project.name
                 );
-                window.open_dialog(cx, move |dialog, _, _| {
+                crate::ui::open_dialog(window, cx, move |dialog, _, _| {
                     let ws = ws.clone();
                     dialog
                         .w(gpui::px(420.))
@@ -172,7 +172,7 @@ impl Workspace {
             },
         ));
         let field = input.clone();
-        window.open_dialog(cx, move |dialog, _, _| {
+        crate::ui::open_dialog(window, cx, move |dialog, _, _| {
             let submit = submit.clone();
             dialog
                 .w(gpui::px(420.))

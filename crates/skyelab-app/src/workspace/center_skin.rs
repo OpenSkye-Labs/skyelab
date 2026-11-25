@@ -3,6 +3,12 @@
 //! `window.refreshing`). The composer's text area is a view, so each caret blink dirtied its panel and rebuilt every
 //! timeline row. Uncached, these panels cache what they need themselves: a thread page's timeline is a cached view
 //! (`timeline_view.rs`), and the center's other pages are drawn cached by `Center` (docs/gpui/redraw.md).
+//!
+//! A dock that closes (the sidebar, the tools dock, the terminal) collapses on Rex's spring (`ui::motion::SPRING`)
+//! instead of vanishing: the toggle calls [`CenterSkin::start_close`], base asks
+//! [`DockAreaRenderer::closed_dock_extent`] how much of a closed dock to draw, and this skin answers with the
+//! spring's last value until it settles. A drag that closes a dock stays with the pointer. Opening stays instant, as Rex's lands most of
+//! the way on its first frame.
 
 use gpui::{
     AnyElement, AnyView, App, Axis, Div, EntityId, Pixels, Stateful, Window, div, prelude::*,
@@ -13,6 +19,7 @@ use gpui_component::dock::{
     DockAreaRenderer, DockContext, DockPlacement, DockSkin, DropIndicator, NodeId, PanelState,
     TabGroupContext, TabGroupRenderer,
 };
+use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -20,6 +27,94 @@ use std::sync::Arc;
 pub(super) struct CenterSkin {
     pub skin: Rc<DockSkin>,
     pub center: EntityId,
+    /// Left, right, bottom: the extent each dock was last drawn at, and its size when last open.
+    pub drawn: [Cell<Drawn>; 3],
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct Drawn {
+    /// Only while the dock closes: an open dock reports base's own closed extent, which base also reads as the
+    /// bottom dock's strip during a resize drag.
+    extent: Option<Pixels>,
+    open: Pixels,
+}
+
+/// The spring's key: one per dock.
+fn extent_id(at: DockPlacement) -> gpui::ElementId {
+    gpui::ElementId::NamedInteger("dock-extent".into(), at as u64)
+}
+
+impl CenterSkin {
+    pub fn new(skin: Rc<DockSkin>, center: EntityId) -> Self {
+        Self {
+            skin,
+            center,
+            drawn: Default::default(),
+        }
+    }
+
+    /// A toggle is closing the dock at `at`: collapse it from its open size, unless motion is reduced.
+    pub fn start_close(&self, at: DockPlacement, cx: &App) {
+        if let Some(cell) = self.drawn(at) {
+            let mut drawn = cell.get();
+            if !cx.reduce_motion() && drawn.open > Pixels::ZERO {
+                drawn.extent = Some(drawn.open);
+                cell.set(drawn);
+            }
+        }
+    }
+
+    fn drawn(&self, at: DockPlacement) -> Option<&Cell<Drawn>> {
+        match at {
+            DockPlacement::Left => Some(&self.drawn[0]),
+            DockPlacement::Right => Some(&self.drawn[1]),
+            DockPlacement::Bottom => Some(&self.drawn[2]),
+            DockPlacement::Center => None,
+        }
+    }
+
+    /// A closing dock: its content held at the size it had open, pinned to the edge beside the center and clipped
+    /// by base's frame, so it slides out without laying out (or resizing a terminal) on every frame.
+    fn render_closing(
+        &self,
+        at: DockPlacement,
+        cell: &Cell<Drawn>,
+        content: AnyElement,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> AnyElement {
+        let mut drawn = cell.get();
+        let closed = self.skin.closed_dock_extent(at);
+        let now = gpui_base::spring(
+            extent_id(at),
+            closed,
+            crate::ui::motion::SPRING_PX,
+            window,
+            cx,
+        );
+        drawn.extent = (now > closed).then_some(now);
+        if drawn.extent.is_none() {
+            // Base sized this frame from the last value; one more frame draws the closed extent.
+            window.request_animation_frame();
+        }
+        cell.set(drawn);
+        let open = drawn.open;
+        div()
+            .debug_selector(move || format!("dock-closing-{}", at as u8))
+            .size_full()
+            .relative()
+            .child(
+                div()
+                    .absolute()
+                    .map(|d| match at {
+                        DockPlacement::Left => d.top_0().bottom_0().right_0().w(open),
+                        DockPlacement::Right => d.top_0().bottom_0().left_0().w(open),
+                        _ => d.left_0().right_0().top_0().h(open),
+                    })
+                    .child(content),
+            )
+            .into_any_element()
+    }
 }
 
 impl DockAreaRenderer for CenterSkin {
@@ -47,7 +142,10 @@ impl DockAreaRenderer for CenterSkin {
         self.skin.render_split_handle(handle, window, cx)
     }
     fn closed_dock_extent(&self, placement: DockPlacement) -> Pixels {
-        self.skin.closed_dock_extent(placement)
+        let closed = self.skin.closed_dock_extent(placement);
+        self.drawn(placement)
+            .and_then(|d| d.get().extent)
+            .map_or(closed, |e| e.max(closed))
     }
     fn render_dock(
         &self,
@@ -56,6 +154,30 @@ impl DockAreaRenderer for CenterSkin {
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
+        let at = dock.placement();
+        let Some(cell) = self.drawn(at) else {
+            return self.skin.render_dock(dock, content, window, cx);
+        };
+        if dock.is_open() {
+            let size = dock.size();
+            // The spring sits on the open size (no travel while open, so a resize drag never lags), and a close
+            // starts from it.
+            gpui_base::spring(
+                extent_id(at),
+                size,
+                crate::ui::motion::SPRING_PX.with_travel(false),
+                window,
+                cx,
+            );
+            cell.set(Drawn {
+                extent: None,
+                open: size,
+            });
+            return self.skin.render_dock(dock, content, window, cx);
+        }
+        if cell.get().extent.is_some() {
+            return self.render_closing(at, cell, content, window, cx);
+        }
         self.skin.render_dock(dock, content, window, cx)
     }
     fn build_placeholder(

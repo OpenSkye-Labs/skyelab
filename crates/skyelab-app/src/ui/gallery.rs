@@ -77,7 +77,7 @@ impl UiGallery {
     }
 
     fn open_dialog(window: &mut Window, cx: &mut App) {
-        window.open_dialog(cx, |dialog, _, _| {
+        crate::ui::open_dialog(window, cx, |dialog, _, _| {
             dialog
                 .w(px(420.))
                 .title("Discard changes?")

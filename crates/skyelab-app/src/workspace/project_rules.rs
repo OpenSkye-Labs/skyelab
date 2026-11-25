@@ -240,7 +240,7 @@ impl RuleDialog {
 }
 
 fn open(dialog: Entity<RuleDialog>, window: &mut Window, cx: &mut gpui::App) {
-    window.open_dialog(cx, move |d, _, _| {
+    crate::ui::open_dialog(window, cx, move |d, _, _| {
         let save = dialog.clone();
         d.w(px(500.))
             .title("Allow for this project")

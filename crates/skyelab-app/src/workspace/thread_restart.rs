@@ -28,7 +28,7 @@ impl ThreadView {
             return self.restart_now(window, cx);
         }
         let view = cx.entity().downgrade();
-        window.open_dialog(cx, move |dialog, _, _| {
+        crate::ui::open_dialog(window, cx, move |dialog, _, _| {
             let view = view.clone();
             dialog
                 .w(gpui::px(420.))
