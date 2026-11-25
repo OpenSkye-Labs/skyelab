@@ -8,7 +8,7 @@ use gpui::{
     App, AppContext as _, Context, Entity, FocusHandle, Focusable, SharedString, Subscription,
     Window,
 };
-use gpui_component::input::{InputState, TextareaState};
+use gpui_component::input::{InputEvent, InputState, TextareaState};
 use skyelab_agent::Mode;
 use skyelab_core::AccountsConfig;
 use skyelab_store::Project;
@@ -39,6 +39,8 @@ pub(crate) struct Editor {
     pub value: Entity<InputState>,
     pub model: Entity<InputState>,
     pub error: Option<SharedString>,
+    /// Typing in any field clears `error`: it was about what was there before.
+    _edits: Vec<Subscription>,
 }
 
 pub(crate) struct ScheduledPage {
@@ -143,13 +145,31 @@ impl ScheduledPage {
             state.set_value(prompt, window, cx);
             state
         });
+        let title = input(&draft.title, "e.g. Morning triage", window, cx);
+        let value = input(&draft.value, draft.kind.hint(), window, cx);
+        let model = input(&draft.model, "Agent default", window, cx);
+        let clear = |this: &mut Self, e: &InputEvent, cx: &mut Context<Self>| {
+            if matches!(e, InputEvent::Change)
+                && let Some(editor) = this.editor.as_mut()
+                && editor.error.take().is_some()
+            {
+                cx.notify();
+            }
+        };
+        let _edits = vec![
+            cx.subscribe(&title, move |this, _, e, cx| clear(this, e, cx)),
+            cx.subscribe(&prompt, move |this, _, e, cx| clear(this, e, cx)),
+            cx.subscribe(&value, move |this, _, e, cx| clear(this, e, cx)),
+            cx.subscribe(&model, move |this, _, e, cx| clear(this, e, cx)),
+        ];
         self.editor = Some(Editor {
-            title: input(&draft.title, "e.g. Morning triage", window, cx),
+            title,
             prompt,
-            value: input(&draft.value, draft.kind.hint(), window, cx),
-            model: input(&draft.model, "Agent default", window, cx),
+            value,
+            model,
             draft,
             error: None,
+            _edits,
         });
         cx.notify();
     }
@@ -200,6 +220,7 @@ impl ScheduledPage {
     pub(crate) fn update_draft(&mut self, change: impl FnOnce(&mut Draft), cx: &mut Context<Self>) {
         if let Some(e) = &mut self.editor {
             change(&mut e.draft);
+            e.error = None;
             cx.notify();
         }
     }

@@ -48,7 +48,6 @@ fn rail_draws_items_and_tracks_active_destination(cx: &mut TestAppContext) {
     assert_eq!(rail.size.width, px(48.), "rail is 48 px wide");
     for sel in [
         "rail-home",
-        "rail-bots",
         "rail-prs",
         "rail-issues",
         "rail-scheduled",
@@ -57,6 +56,8 @@ fn rail_draws_items_and_tracks_active_destination(cx: &mut TestAppContext) {
     ] {
         assert!(cx.debug_bounds(sel).is_some(), "{sel} button is drawn");
     }
+    // Bots isn't built yet: no rail slot for a "Coming soon" page.
+    assert!(cx.debug_bounds("rail-bots").is_none());
 
     let active = |cx: &mut gpui::VisualTestContext| r.ws.read_with(cx, |ws, cx| ws.rail_active(cx));
     assert_eq!(active(cx), RailItem::Home, "Welcome highlights Home");
@@ -240,11 +241,8 @@ fn bots_page_supports_history_restore_palette_and_quick_actions(cx: &mut TestApp
         );
     });
 
-    // Clicking rail-bots while Settings is open closes Settings and keeps Bots visible.
-    let bots_btn = cx
-        .debug_bounds("rail-bots")
-        .expect("rail-bots drawn while Settings open");
-    cx.simulate_click(bots_btn.center(), Modifiers::none());
+    // Opening Bots while Settings is open closes Settings and shows Bots.
+    cx.dispatch_action(OpenBots);
     cx.run_until_parked();
     r.ws.read_with(cx, |ws, _| {
         assert!(!ws.settings_open);
@@ -337,4 +335,23 @@ fn usage_dot_reflects_account_limits_and_sidebar_footer_has_no_duplicates(cx: &m
         cx.debug_bounds("rail-usage-dot").is_some(),
         "usage dot appears when an account is rate-limited"
     );
+}
+
+/// Scheduled, Usage and Settings open the Settings modal; clicking the highlighted one again closes it, as a page
+/// toggle would.
+#[gpui::test]
+fn a_second_rail_click_closes_settings(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    cx.simulate_resize(size(px(1200.), px(800.)));
+    cx.run_until_parked();
+    for id in ["rail-settings", "rail-scheduled", "rail-usage"] {
+        let at = cx.debug_bounds(id).expect("drawn").center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        assert!(r.ws.read_with(cx, |ws, _| ws.settings_open), "{id} opens Settings");
+        let at = cx.debug_bounds(id).expect("drawn over Settings").center();
+        cx.simulate_click(at, Modifiers::none());
+        cx.run_until_parked();
+        assert!(!r.ws.read_with(cx, |ws, _| ws.settings_open), "{id} again closes it");
+    }
 }
