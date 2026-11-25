@@ -10,7 +10,7 @@ Cursor account. A folder with no binding never runs an agent.
 ### First-run onboarding
 
 On a fresh install (no accounts or no projects), onboarding opens in place of the Welcome page, one page per step,
-with progress dots on top. **Return** or **Space** goes to the next page and **Esc** to the one before, while no field
+with progress dots on top. Opening it hides the terminal drawer and the right panel, so nothing covers it. **Return** or **Space** goes to the next page and **Esc** to the one before, while no field
 or button has the keyboard; **Back** and **Skip** do the same with the mouse. **Skip** or **Start building** on the last
 page saves `onboarded = true` in `settings.toml`, so it never opens by itself again. Run **Open Onboarding** from the
 command palette to go through it again. Pages slide in and lists fade up; with macOS **Reduce motion** on (read at
