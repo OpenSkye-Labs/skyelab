@@ -148,8 +148,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `terminal.ansi`) lives in the same file and SkyeLab reads it itself (`ui::themes::ansi`) into a global.
 - To show a theme that isn't applied (onboarding's theme tiles, `ui::themes::swatch`), clone `Theme::global` and
   `apply_config` the registry's `ThemeConfig` on it, then read the colors. Don't parse the config's strings yourself:
-  a key the theme leaves out has no string, and gpui-component 0.11 knows no `zinc` scale, so `skyelab.json`'s
-  `zinc-900` fails to parse (and silently falls back to the default color when applied, too).
+  a key the theme leaves out has no string, and the accent preset is baked in by `themes::adjust`.
+- `apply_config` swaps any theme color it can't parse for the default, with no error. Theme files use hex or a
+  color name gpui-component knows (0.11 has no `zinc`, `slate` or `stone`); `themes_test::every_theme_color_parses`
+  runs every value through `try_parse_color`.
 - `on_focus_out` fires only in an active window (tests: `activate_window()`), and going inactive counts as one:
   check `window.is_window_active()` first.
 - A `v_flex` stretches its children across its width (align-items: stretch), so a segmented control or pill row
