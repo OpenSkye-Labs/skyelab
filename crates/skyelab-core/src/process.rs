@@ -174,6 +174,19 @@ impl Captured {
         })
     }
 
+    /// Like [`output`](Self::output), reading at most `max_bytes` from each of stdout and stderr so a verbose
+    /// subprocess cannot allocate unbounded memory.
+    pub fn output_capped(self, status: ExitStatus, max_bytes: usize) -> io::Result<Output> {
+        if let Some(started) = self.debug {
+            started.exited(status);
+        }
+        Ok(Output {
+            status,
+            stdout: read_capped(self.stdout, max_bytes)?,
+            stderr: read_capped(self.stderr, max_bytes)?,
+        })
+    }
+
     pub fn wait(mut self) -> io::Result<Output> {
         let status = self.child.wait()?;
         self.output(status)
@@ -184,6 +197,13 @@ fn read_all(mut file: File) -> io::Result<Vec<u8>> {
     file.seek(SeekFrom::Start(0))?;
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
+    Ok(buf)
+}
+
+fn read_capped(mut file: File, max_bytes: usize) -> io::Result<Vec<u8>> {
+    file.seek(SeekFrom::Start(0))?;
+    let mut buf = Vec::new();
+    file.take(max_bytes as u64).read_to_end(&mut buf)?;
     Ok(buf)
 }
 
