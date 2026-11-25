@@ -6,6 +6,8 @@ use gpui::SharedString;
 /// A failed load the pane shows in place of the page.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoadError {
+    /// "This site can't be reached", or "Nothing is running at localhost:3000" for a local address that refused.
+    pub title: SharedString,
     /// The address that failed; what Retry loads again. Empty when the engine didn't name it.
     pub url: String,
     /// `localhost:3000`, or the whole URL when it has no host.
@@ -63,16 +65,21 @@ pub fn describe(domain: &str, code: isize, description: &str, url: &str) -> Opti
             url::Host::Ipv4(ip) => ip.is_loopback() || ip.is_unspecified(),
             url::Host::Ipv6(ip) => ip.is_loopback() || ip.is_unspecified(),
         });
+    let refused_here = local && code == -1004;
     let hint = match (local, code) {
-        (true, -1004) => Some(format!(
-            "Nothing is answering on {host}. Is the dev server running?"
-        )),
+        (true, -1004) => Some("Start your dev server, then press Retry.".to_owned()),
         (false, -1003 | -1009 | -1005 | -1001) => {
             Some("Check your connection, proxy and firewall.".to_owned())
         }
         _ => None,
     };
     Some(LoadError {
+        title: if refused_here {
+            format!("Nothing is running at {host}")
+        } else {
+            "This site can't be reached".to_owned()
+        }
+        .into(),
         url: url.to_owned(),
         host: host.into(),
         reason: reason.to_owned().into(),
@@ -83,6 +90,39 @@ pub fn describe(domain: &str, code: isize, description: &str, url: &str) -> Opti
         }
         .into(),
     })
+}
+
+/// The error page for a local http(s) address with nothing listening on its port (every address it names refused
+/// the connection), checked before loading it; `None` when something answers, it isn't local, or the check can't
+/// tell (a timeout), so the page engine loads it as usual.
+pub fn refused_local(url: &url::Url) -> Option<LoadError> {
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream};
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    // Loopback only, named without a DNS lookup: this runs on the UI thread.
+    let ips: Vec<IpAddr> = match url.host()? {
+        url::Host::Domain(d) if d == "localhost" || d.ends_with(".localhost") => {
+            vec![Ipv4Addr::LOCALHOST.into(), Ipv6Addr::LOCALHOST.into()]
+        }
+        url::Host::Ipv4(ip) if ip.is_loopback() => vec![ip.into()],
+        url::Host::Ipv6(ip) if ip.is_loopback() => vec![ip.into()],
+        _ => return None,
+    };
+    let port = url.port_or_known_default()?;
+    // shortcut: a blocking connect on the UI thread; loopback answers at once (refused or accepted), and the cap
+    // bounds a firewall that drops it. Move it off the thread if a slow loopback ever shows up.
+    let limit = std::time::Duration::from_millis(250);
+    let all_refused = ips.into_iter().all(|ip| {
+        TcpStream::connect_timeout(&SocketAddr::new(ip, port), limit)
+            .is_err_and(|e| e.kind() == std::io::ErrorKind::ConnectionRefused)
+    });
+    if !all_refused {
+        return None;
+    }
+    let mut error = describe("NSURLErrorDomain", -1004, "", url.as_str())?;
+    error.detail = "Connection refused".into();
+    Some(error)
 }
 
 /// A link the engine can't open (`mailto:`, an app's scheme, a file type it can't show) fails like a load, but the
@@ -96,7 +136,7 @@ pub fn keeps_page(domain: &str, code: isize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{describe, keeps_page};
+    use super::{describe, keeps_page, refused_local};
 
     #[test]
     fn refused_localhost_says_no_dev_server() {
@@ -113,6 +153,7 @@ mod tests {
             e.hint.as_deref().is_some_and(|h| h.contains("dev server")),
             "{e:?}"
         );
+        assert_eq!(e.title, "Nothing is running at localhost:3000");
         assert!(e.detail.contains("-1004"), "{e:?}");
         assert_eq!(e.url, "http://localhost:3000/", "Retry loads it again");
         for url in [
@@ -144,6 +185,7 @@ mod tests {
         let refused = describe("NSURLErrorDomain", -1004, "", "https://example.com:8443/")
             .expect("a failure");
         assert_eq!(refused.hint, None, "no dev server hint off this machine");
+        assert_eq!(refused.title, "This site can't be reached");
         let tls = describe(
             "NSURLErrorDomain",
             -1202,
@@ -167,6 +209,34 @@ mod tests {
         );
         assert!(keeps_page("WebKitErrorDomain", 101) && keeps_page("NSURLErrorDomain", -1002));
         assert!(!keeps_page("NSURLErrorDomain", -1004));
+    }
+
+    #[test]
+    fn a_local_port_with_no_listener_is_refused_before_loading() {
+        // A port that was just free: bound, then let go.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|l| l.local_addr())
+            .expect("a free port")
+            .port();
+        for url in [
+            format!("http://localhost:{port}/"),
+            format!("http://127.0.0.1:{port}/x"),
+        ] {
+            let e = refused_local(&url::Url::parse(&url).expect("url")).expect("refused");
+            assert_eq!(e.title, format!("Nothing is running at {}", e.host));
+            assert_eq!(e.url, url, "Retry loads it again");
+        }
+        // Something listening: loaded as usual.
+        let live = std::net::TcpListener::bind("127.0.0.1:0").expect("listen");
+        let url = format!(
+            "http://127.0.0.1:{}/",
+            live.local_addr().expect("addr").port()
+        );
+        assert_eq!(refused_local(&url::Url::parse(&url).expect("url")), None);
+        // Not local, or not http: never probed.
+        for url in ["https://example.com:1/", "file:///tmp/x.html"] {
+            assert_eq!(refused_local(&url::Url::parse(url).expect("url")), None);
+        }
     }
 
     #[test]

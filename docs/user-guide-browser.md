@@ -19,12 +19,15 @@ the tab):
   zoom, and, in development builds, **Open DevTools**, which opens the page's inspector in a window of its own.
   The page hides while that menu is open, because it would otherwise draw over the menu.
 
-A page that doesn't load (nothing answering on the address, a name that doesn't resolve, a certificate that isn't
-trusted) shows **This site can't be reached** with the address, the reason, the engine's error code and **Retry**. For
-a `localhost` address it also says that no dev server seems to be running: start it, then press **Retry** (or ↻).
+A new tab with no address shows **No page yet** with **Open localhost:3000**, rather than a blank pane.
+A local address (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`) with nothing listening on its port shows
+**Nothing is running at localhost:3000** with **Retry**, on every OS, instead of a blank pane: SkyeLab checks the port
+before loading it. Start your dev server, then press **Retry** (or ↻). Any other page that doesn't load (a name that
+doesn't resolve, a certificate that isn't trusted) shows **This site can't be reached** with the address, the reason,
+the engine's error code and **Retry**.
 **←** goes back to the page you were on. A link the page engine can't open (`mailto:`, another app's link) leaves the
 page as it was. The same error shows in an agent's tab, and the agent's `browser_navigate` answers with the reason
-instead of waiting. On Linux and Windows the page engine shows its own error page instead.
+instead of waiting. On Linux and Windows the page engine shows its own error page for those other failures.
 
 Right-clicking inside the page shows the page engine's own menu, not SkyeLab's. After you click into the page, the
 shortcuts may reach the page instead: click the address bar first, or use the **⋯** menu.
