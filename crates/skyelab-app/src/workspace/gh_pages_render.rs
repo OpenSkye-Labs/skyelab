@@ -222,12 +222,13 @@ impl GhPage {
             .collect();
         let (account, row_data) = (account.to_owned(), issue.clone());
         let number = issue.number;
+        let state = if issue.closed {
+            glyph(SkyeIcon::CircleCheck, theme.muted_foreground, "Closed")
+        } else {
+            glyph(SkyeIcon::CircleDot, ui::ink(theme, theme.success), "Open")
+        };
         row(format!("issue-{project}-{number}").into(), theme)
-            .child(glyph(
-                SkyeIcon::CircleDot,
-                ui::ink(theme, theme.success),
-                "Open",
-            ))
+            .child(state)
             .child(lines(
                 number,
                 &issue.title,
@@ -236,6 +237,19 @@ impl GhPage {
                 r.updated_ms,
                 theme,
             ))
+            .child(
+                Button::new(SharedString::from(format!(
+                    "issue-actions-{project}-{number}"
+                )))
+                .ghost()
+                .xsmall()
+                .icon(SkyeIcon::MessageCircle)
+                .tooltip("Comment, close or reopen…")
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    cx.stop_propagation(); // not the row's thread
+                    this.open_issue_actions(project, number, window, cx);
+                })),
+            )
             .child(browser_button(
                 format!("issue-open-{project}-{number}").into(),
                 &issue.url,

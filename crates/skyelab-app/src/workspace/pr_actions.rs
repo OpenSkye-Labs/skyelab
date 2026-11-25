@@ -494,4 +494,4 @@ impl Render for PrActions {
 mod diff_tab_tests;
 #[cfg(all(test, unix))] // the fake gh is a shell script
 #[path = "pr_actions_test.rs"]
-mod tests;
+pub(super) mod tests;

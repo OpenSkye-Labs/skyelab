@@ -10,6 +10,7 @@ mod commit;
 mod diff;
 mod frozen;
 mod gh_lists;
+mod issue_actions;
 mod pr_actions;
 mod publish;
 mod remote;
@@ -37,6 +38,9 @@ pub use diff::{
 pub use gh_lists::{
     IssueFilter, IssueRow, MAX_BODY, MAX_ROWS, PrFilter, PrRow, issue_list_args, list_issues,
     list_prs, parse_issue_list, parse_pr_list, parse_repo_url, pr_list_args, repo_slug,
+};
+pub use issue_actions::{
+    CloseReason, close_issue, comment_issue, issue_link, issue_view, reopen_issue,
 };
 pub use pr_actions::{
     MergeMethod, PrDiff, ReviewComment, Side, Verdict, merge_methods, merge_pr, pr_diff, review_pr,

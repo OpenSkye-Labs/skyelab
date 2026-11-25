@@ -107,7 +107,7 @@ pub struct GhPage {
     pub(crate) groups: HashMap<(i64, Filter), Group>,
     /// Issues only: the label the list is narrowed to.
     pub(crate) label: Option<SharedString>,
-    inputs: Option<Inputs>,
+    pub(crate) inputs: Option<Inputs>,
     /// The latest read of each key; an older one landing late is dropped.
     pending: HashMap<(i64, Filter), u64>,
     next_read: u64,
@@ -296,7 +296,7 @@ impl GhPage {
     }
 }
 
-fn dated<T>(rows: Vec<T>, updated: impl Fn(&T) -> &str) -> Arc<Vec<Dated<T>>> {
+pub(crate) fn dated<T>(rows: Vec<T>, updated: impl Fn(&T) -> &str) -> Arc<Vec<Dated<T>>> {
     let ms = |s: &str| chrono::DateTime::parse_from_rfc3339(s).map_or(0, |d| d.timestamp_millis());
     Arc::new(
         rows.into_iter()
@@ -372,7 +372,7 @@ pub(crate) fn review_prompt(number: u64, url: &str) -> String {
 #[derive(Default)]
 pub(crate) struct Pages {
     pub(super) prs: Option<Entity<GhPage>>,
-    issues: Option<Entity<GhPage>>,
+    pub(super) issues: Option<Entity<GhPage>>,
     _subs: Vec<Subscription>,
 }
 

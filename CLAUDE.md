@@ -67,6 +67,7 @@ a prompt starting `usage` reports 5h and weekly rate limits, one starting `hook`
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
   and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed (after the seconds in `fake-view-delay`, when that file is there); `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there;
 `pr merge` / `pr review` (the PR actions dialog) log their args to `fake-gh.actions` and the review text to `fake-gh.review-body`, fail with the text of a `fake-action-fail` file when there is one,
+`issue comment|close|reopen` log the same; `issue view` says CLOSED while close's `fake-issue-closed` exists,
 and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is that dir's `fake-head` (else 40 `1`s), reported as `headRefOid` by the default `pr view` / `pr list`, and `pr merge` fails unless `--match-head-commit` matches it; `repo view` (the allowed merge methods) answers with `fake-repo.json`, else all three). Never verify against the real `gh`.
   Push, Pull and Fetch talk only https through the account's gh: test them against the fake https remote,
   `cargo run -p skyelab-git --example fake_https_remote -- <folder>` (serves the bare repos in `<folder>`, e.g.
