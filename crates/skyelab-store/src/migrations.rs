@@ -379,6 +379,10 @@ ALTER TABLE threads ADD COLUMN scroll_mark TEXT;
 ",
     // Version 26: "Allow for this project" rules, per project and account.
     crate::project_rules::MIGRATION_V26,
+    // Version 27: T3's "Resume at reset": when a usage-limited thread continues by itself (ms; NULL: not scheduled).
+    "
+ALTER TABLE threads ADD COLUMN limit_resume_at INTEGER;
+",
 ];
 
 // After the macros: the migration builds its trigger with `turn_cost!` and `fork_copy!`.

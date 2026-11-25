@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 #[path = "project_name.rs"]
 mod project_name;
-use project_name::name_project;
+pub(in crate::workspace) use project_name::name_project;
 
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
@@ -331,6 +331,7 @@ impl Workspace {
                     }
                 }
                 ThreadViewEvent::UsageReported => this.refresh_usage(cx),
+                ThreadViewEvent::LimitResume(at) => this.limit_resume_changed(view, *at, cx),
                 ThreadViewEvent::ScriptsChanged => this.load_scripts(cx),
                 _ if !view.read(cx).owned_by(window) => {}
                 ThreadViewEvent::Side(ask) => this.side_chat(view, ask.clone(), window, cx),

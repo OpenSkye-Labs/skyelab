@@ -86,9 +86,9 @@ Claude Code와 Codex 에이전트를 실행하고, 에이전트가 바꾼 내용
 
 | 플랫폼 | 파일 |
 |---|---|
-| macOS 14+ (Apple silicon) | `SkyeLab_0.1.1_aarch64.dmg`: 열고 SkyeLab을 Applications로 드래그합니다. |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) 또는 `skyelab_0.1.1_x86_64.AppImage` (`chmod +x` 후 실행) |
+| macOS 14+ (Apple silicon) | `SkyeLab_<version>_aarch64.dmg`: 열고 SkyeLab을 Applications로 드래그합니다. |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) 또는 `skyelab_<version>_x86_64.AppImage` (`chmod +x` 후 실행) |
 
 **macOS에서 처음 열 때.** 릴리스 빌드는 아직 공증(notarize)되지 않아서 Gatekeeper가 첫 실행을 막습니다. SkyeLab을
 한 번 연 다음, System Settings → Privacy & Security로 가서 **Open Anyway**를 클릭하세요. Windows SmartScreen도

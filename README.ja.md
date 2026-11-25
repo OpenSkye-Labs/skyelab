@@ -90,9 +90,9 @@ Claude Code と Codex のエージェントをスレッドとして動かし、�
 
 | プラットフォーム | ファイル |
 |---|---|
-| macOS 14+（Apple シリコン） | `SkyeLab_0.1.1_aarch64.dmg`：開いて SkyeLab を「アプリケーション」にドラッグします。 |
-| Windows（x64） | `skyelab_0.1.1_x64-setup.exe` |
-| Linux（x86_64） | `skyelab_0.1.1_amd64.deb`（`sudo apt install ./skyelab_0.1.1_amd64.deb`）または `skyelab_0.1.1_x86_64.AppImage`（`chmod +x` してから実行） |
+| macOS 14+（Apple シリコン） | `SkyeLab_<version>_aarch64.dmg`：開いて SkyeLab を「アプリケーション」にドラッグします。 |
+| Windows（x64） | `skyelab_<version>_x64-setup.exe` |
+| Linux（x86_64） | `skyelab_<version>_amd64.deb`（`sudo apt install ./skyelab_<version>_amd64.deb`）または `skyelab_<version>_x86_64.AppImage`（`chmod +x` してから実行） |
 
 **macOS での初回起動。** リリースビルドはまだ公証を受けていないため、Gatekeeper が初回の起動をブロックします。
 SkyeLab を一度開いてから、「システム設定」→「プライバシーとセキュリティ」で **Open Anyway**（このまま開く）を

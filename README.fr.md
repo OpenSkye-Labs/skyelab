@@ -93,9 +93,9 @@ Téléchargez la dernière version depuis la [page des releases](https://github.
 
 | Plateforme | Fichier |
 |---|---|
-| macOS 14+ (Apple silicon) | `SkyeLab_0.1.1_aarch64.dmg` : ouvrez-le et faites glisser SkyeLab dans Applications. |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) ou `skyelab_0.1.1_x86_64.AppImage` (`chmod +x`, puis lancez-le) |
+| macOS 14+ (Apple silicon) | `SkyeLab_<version>_aarch64.dmg` : ouvrez-le et faites glisser SkyeLab dans Applications. |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) ou `skyelab_<version>_x86_64.AppImage` (`chmod +x`, puis lancez-le) |
 
 **Premier lancement sur macOS.** Les versions publiées ne sont pas encore notarisées, donc Gatekeeper bloque le
 premier lancement. Ouvrez SkyeLab une fois, puis allez dans Réglages Système → Confidentialité et sécurité et cliquez

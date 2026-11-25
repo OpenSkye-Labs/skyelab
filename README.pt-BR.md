@@ -87,9 +87,9 @@ Baixe a versão mais recente na [página de releases](https://github.com/OpenSky
 
 | Plataforma | Arquivo |
 |---|---|
-| macOS 14+ (Apple silicon) | `SkyeLab_0.1.1_aarch64.dmg`: abra e arraste o SkyeLab para Applications. |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) ou `skyelab_0.1.1_x86_64.AppImage` (`chmod +x` e depois execute) |
+| macOS 14+ (Apple silicon) | `SkyeLab_<version>_aarch64.dmg`: abra e arraste o SkyeLab para Applications. |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) ou `skyelab_<version>_x86_64.AppImage` (`chmod +x` e depois execute) |
 
 **Primeira abertura no macOS.** As versões ainda não são notarizadas, então o Gatekeeper bloqueia a primeira abertura.
 Abra o SkyeLab uma vez, depois vá em System Settings → Privacy & Security e clique em **Open Anyway**. O Windows

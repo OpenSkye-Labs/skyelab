@@ -400,6 +400,8 @@ pub(super) struct Previews {
     _load: Option<gpui::Task<()>>,
     /// The next snooze to wake (ms since the epoch) and the timer that redraws then.
     pub wake: Option<(i64, gpui::Task<()>)>,
+    /// The next scheduled limit resume (ms since the epoch) and the timer that sends it (`limit_banner.rs`).
+    pub limit_resume: Option<(i64, gpui::Task<()>)>,
 }
 
 /// A titled section with no empty state and no button.

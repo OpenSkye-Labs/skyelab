@@ -201,6 +201,7 @@ mod tests {
             scheduled_task_id: None,
             settled_at: None,
             snoozed_until: None,
+            limit_resume_at: None,
         }
     }
 

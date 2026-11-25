@@ -90,9 +90,9 @@ Claude Code и Codex в тредах поверх своих проектов, �
 
 | Платформа | Файл |
 |---|---|
-| macOS 14+ (Apple silicon) | `SkyeLab_0.1.1_aarch64.dmg`: откройте его и перетащите SkyeLab в «Программы». |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) или `skyelab_0.1.1_x86_64.AppImage` (`chmod +x`, затем запустите) |
+| macOS 14+ (Apple silicon) | `SkyeLab_<version>_aarch64.dmg`: откройте его и перетащите SkyeLab в «Программы». |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) или `skyelab_<version>_x86_64.AppImage` (`chmod +x`, затем запустите) |
 
 **Первый запуск на macOS.** Релизные сборки пока не нотаризованы, поэтому Gatekeeper блокирует первый запуск.
 Откройте SkyeLab один раз, затем перейдите в Системные настройки → Конфиденциальность и безопасность и нажмите

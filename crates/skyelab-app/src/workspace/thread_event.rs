@@ -10,6 +10,8 @@ pub enum ThreadViewEvent {
     TurnDone,
     /// The thread got a generated title (already stored).
     Retitled(String),
+    /// The limit banner scheduled (`Some`, ms since the epoch, stored) or cancelled the thread's resume at the reset.
+    LimitResume(Option<i64>),
     /// The agent reported its account's usage limits (stored): the details card reads them again.
     UsageReported,
     OpenChanges,

@@ -28,6 +28,11 @@ impl ThreadView {
         let shown = super::composer::shown_prompt(&text, &attachments);
         self.keep_images(&shown, &attachments);
         self.push(&Record::Prompt(shown), cx);
+        // The prompt just cancelled any resume scheduled for a usage limit's reset (`push`).
+        let resume = resume.map(|t| Thread {
+            limit_resume_at: None,
+            ..t
+        });
         self.start_agent(text, attachments, account, resume, false, cx);
     }
 

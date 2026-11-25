@@ -4,7 +4,7 @@ use super::super::thread::ThreadView;
 use gpui::{App, Entity};
 
 /// Gives `view` its project's stored name, when it differs.
-pub(super) fn name_project(
+pub(in crate::workspace) fn name_project(
     projects: &[skyelab_store::Project],
     view: &Entity<ThreadView>,
     cx: &mut App,
