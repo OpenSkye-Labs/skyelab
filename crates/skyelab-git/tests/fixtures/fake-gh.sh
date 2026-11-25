@@ -17,6 +17,10 @@
 # "$GH_CONFIG_DIR/fake-repo.json" when it exists, else a repo allowing every merge method.
 # The PR's head commit is the content of "$GH_CONFIG_DIR/fake-head", else 40 1s; the default `pr view` and `pr list`
 # answers report it as headRefOid, and `pr merge` fails unless its --match-head-commit is that sha.
+#   fake-gh.prdiff  one line per `pr diff` call (its args): it prints "$GH_CONFIG_DIR/fake-pr.diff" when it exists, else a
+#   one-file diff; a "fake-head-after-diff" file then becomes the head (a push landing mid-read)
+#   `api` calls log their args to fake-gh.actions and stdin to fake-gh.review-body (a review with line comments), and
+#   fail like `pr review` with "fake-action-fail"
 # `--version` needs no config dir (onboarding's agent list asks it with none).
 if [ "$1" = "--version" ]; then
   echo "gh version 2.99.0 (fake)"
@@ -70,6 +74,33 @@ case "$1 $2" in
   else
     echo '[{"number":31,"title":"Crash when the folder is renamed","url":"https://github.com/acme/demo/issues/31","author":{"login":"bob"},"labels":[{"name":"bug"}],"assignees":[{"login":"ada"}],"updatedAt":"2026-11-23T08:00:00Z","body":"Steps: rename the folder while a thread runs."}]'
   fi
+  ;;
+"pr diff")
+  echo "$*" >> "$dir/fake-gh.prdiff"
+  if [ ! -f "$dir/fake-login" ]; then
+    echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+    exit 4
+  fi
+  if [ -f "$dir/fake-pr.diff" ]; then
+    cat "$dir/fake-pr.diff"
+  else
+    printf 'diff --git a/src/lib.rs b/src/lib.rs\nindex 1111111..2222222 100644\n--- a/src/lib.rs\n+++ b/src/lib.rs\n@@ -1,3 +1,4 @@\n pub fn answer() -> u32 {\n-    41\n+    // The answer.\n+    42\n }\n'
+  fi
+  [ -f "$dir/fake-head-after-diff" ] && mv "$dir/fake-head-after-diff" "$dir/fake-head"
+  exit 0
+  ;;
+"api --method")
+  echo "$*" >> "$dir/fake-gh.actions"
+  cat > "$dir/fake-gh.review-body"
+  if [ ! -f "$dir/fake-login" ]; then
+    echo "To get started with GitHub CLI, please run:  gh auth login" >&2
+    exit 4
+  fi
+  if [ -f "$dir/fake-action-fail" ]; then
+    cat "$dir/fake-action-fail" >&2
+    exit 1
+  fi
+  echo '{"id":1,"state":"COMMENTED"}'
   ;;
 "pr merge" | "pr review")
   echo "$*" >> "$dir/fake-gh.actions"
