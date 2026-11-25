@@ -118,17 +118,13 @@ fn skyelab_theme_installs_for_both_modes(cx: &mut TestAppContext) {
     });
     assert_eq!(light.light_theme.name, "SkyeLab Light");
     assert_eq!(dark.dark_theme.name, "SkyeLab Dark");
-    // T3's canvas: near-white in light, true black in dark.
+    // Porcelain by day, midnight slate by night.
     assert!(
-        light.background.l > 0.98,
+        light.background.l > 0.96,
         "light canvas {:?}",
         light.background
     );
-    assert!(
-        dark.background.l < 0.01,
-        "dark canvas {:?}",
-        dark.background
-    );
+    assert!(dark.background.l < 0.1, "dark canvas {:?}", dark.background);
     assert_ne!(
         light.sidebar, light.background,
         "the sidebar is one step off the canvas"

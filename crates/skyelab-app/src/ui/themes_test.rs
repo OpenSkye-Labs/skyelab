@@ -1,6 +1,6 @@
 //! Theme families load, and switching one changes the live theme, fonts and density.
 
-use super::themes::{self, ACCENTS, FAMILIES};
+use super::themes::{self, ACCENTS, FAMILIES, ratio};
 use gpui::{TestAppContext, px};
 use gpui_component::{ActiveTheme as _, Theme, ThemeMode};
 use skyelab_core::{AppearanceSettings, ColorMode};
@@ -21,16 +21,21 @@ fn every_family_has_a_light_and_a_dark_swatch(cx: &mut TestAppContext) {
             let light =
                 themes::swatch(f.key, false, cx).unwrap_or_else(|| panic!("{} light", f.key));
             let dark = themes::swatch(f.key, true, cx).unwrap_or_else(|| panic!("{} dark", f.key));
+            // Light: a bright canvas under darker text; dark: the reverse. Readable either way.
+            let (lc, lt) = (light[0].to_rgb(), light[1].to_rgb());
+            let (dc, dt) = (dark[0].to_rgb(), dark[1].to_rgb());
             assert!(
-                light[0].l > 0.8 && light[1].l < 0.3,
+                lc.r + lc.g + lc.b > 2.2 && lc.r + lc.g + lc.b > lt.r + lt.g + lt.b,
                 "{} light: {light:?}",
                 f.key
             );
             assert!(
-                dark[0].l < 0.2 && dark[1].l > 0.7,
+                dc.r + dc.g + dc.b < 0.8 && dc.r + dc.g + dc.b < dt.r + dt.g + dt.b,
                 "{} dark: {dark:?}",
                 f.key
             );
+            assert!(ratio(light[1], light[0]) >= 4.5, "{} light text", f.key);
+            assert!(ratio(dark[1], dark[0]) >= 4.5, "{} dark text", f.key);
         }
     });
 }

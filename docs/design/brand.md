@@ -37,21 +37,35 @@ The native glyph inherits the T3-grounded [UI theme](t3-reference.md). Account a
 
 ## Themes
 
-Settings → Appearance switches between five theme families, each with a light and a dark side
-(`crates/skyelab-app/themes/*.json`, gpui-component's theme format):
+Settings → Appearance switches between fourteen theme families, each with a light and a dark side
+(`crates/skyelab-app/themes/*.json`, gpui-component's theme format; hex colors only, since gpui-component drops names it
+can't parse). SkyeLab's own:
 
 | Theme | Light | Dark | Accent |
 | --- | --- | --- | --- |
-| SkyeLab (default) | zinc `#fcfcfc` | true black `#000000` | blue `#1b4ed8` / `#346bf1` |
+| SkyeLab (default) | porcelain `#fbfaf8`, ink `#16181d` | midnight slate `#111318` | blue `#3358d4` / `#4c6fe0` |
+| Classic | zinc `#fcfcfc` | true black `#000000` | blue `#1b4ed8` / `#346bf1` |
 | Skye | cool white `#f7f9fc` | Midnight `#101420`, the launcher tile | sky `#1d5fd6` / `#5b9bff` |
 | Graphite | stone `#f5f5f4` | `#1c1c1e` | teal `#0f766e` / `#2dd4bf` |
 | Dawn | paper `#fbf7f1` | ember `#1a1411` | coral `#c2410c` / `#fb8a4a` |
 | Grove | `#f6f8f5` | `#0f1512` | leaf `#15803d` / `#4ade80` |
 
+The default borrows the launcher's materials: Porcelain's warm ivory for the light canvas, the slate-midnight tile
+(cooled toward neutral so it reads as a canvas, not a color) for the dark one, and one calm blue for focus and action.
+Classic is the zinc and true-black theme SkyeLab shipped first. Settings saved before the change say `skyelab` whether
+the user picked it or never touched the setting, so everyone on that key gets the new default; Classic is one click
+away.
+
+Eight more are ports of well-loved editor palettes: Catppuccin, Rosé Pine, Tokyo Night, Kanagawa, Everforest, Gruvbox,
+Nord and Flexoki ([NOTICE.md](../../NOTICE.md) has sources and licenses). `scripts/gen-themes.py` writes these and the
+default from a few source colors per side, derives every other key, and nudges any color under the contrast floor.
+
 Skye carries the brand: the dark side is the launcher tile's Midnight, so the app and its icon match. An accent preset
 (blue, violet, teal, green, amber, rose) overrides any theme's own. Every theme, mode and accent keeps body text and
 button text at 4.5:1 or better against its surfaces; `ui/contrast_test.rs` fails the build otherwise. Status colors
-(success, warning, danger) and account colors stay the same hues in every theme so their meaning never changes.
+(success, warning, danger) stay green, amber and red in SkyeLab's own families; a port uses its palette's nearest
+hues (Rosé Pine, which has no green, marks success in pine teal), and the diff's `+` and `-` carry the meaning too.
+Account colors stay the same in every theme.
 
 ## Usage
 

@@ -44,7 +44,7 @@ impl Onboarding {
                     .on_click(cx.listener(move |this, _, _, cx| this.pick_mode(ix, cx))),
             );
         }
-        let mut families = h_flex().gap_3();
+        let mut families = h_flex().flex_wrap().gap_3();
         let mut about = "";
         for (i, f) in ui::themes::FAMILIES.iter().enumerate() {
             let on = current.theme == f.key;

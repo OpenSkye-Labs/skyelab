@@ -12,6 +12,13 @@ All notable changes to SkyeLab are listed here. The format follows
   pick **Ask** in **Settings → Chat → Default permissions**, which now also offers Full access. Defaults you picked
   and existing threads keep their mode. Forks, hand-offs and threads started from another machine follow the new
   default; threads an agent starts stay in Ask (Plan in a Plan project), scheduled tasks keep their own confirm.
+- **A new default theme.** SkyeLab's theme is now porcelain and ink by day and midnight slate by night, with one calm
+  blue. Anyone on the default gets it; the old one stays as **Classic** in Settings → Appearance.
+
+### Added
+
+- **Eight more themes**, light and dark: Catppuccin, Rosé Pine, Tokyo Night, Kanagawa, Everforest, Gruvbox, Nord and
+  Flexoki. Credits and licenses are in [NOTICE.md](NOTICE.md).
 
 ## [0.1.1]
 

@@ -9,6 +9,9 @@ use gpui::{Hsla, accesskit};
 use gpui_component::{Icon, h_flex, try_parse_color, v_flex};
 use skyelab_core::{AppearanceSettings, ColorMode, MotionMode};
 
+/// One theme card in the wrapping grid.
+const THEME_CARD_W: f32 = 148.;
+
 /// A theme config color by its key, for the previews.
 fn color(
     config: &gpui_component::ThemeConfig,
@@ -136,6 +139,7 @@ impl Settings {
                         h_flex()
                             .id("theme-group")
                             .role(accesskit::Role::RadioGroup)
+                            .flex_wrap()
                             .items_start()
                             .gap_2()
                             .children(cards),
@@ -196,8 +200,8 @@ impl Settings {
             .on_any_mouse_down(|_, window, _| window.prevent_default())
             .flex_col()
             .items_stretch()
-            .flex_1()
-            .min_w_0()
+            // A fixed width so the families wrap into rows instead of squeezing into one.
+            .w(gpui::px(THEME_CARD_W))
             .gap_2()
             .p_1p5()
             .rounded(ui::RADIUS_LG)
@@ -255,6 +259,8 @@ impl Settings {
             )
             .child(
                 v_flex()
+                    // gpui_base::Button sets a line height of 1 for one-line labels; the name and blurb wrap.
+                    .line_height(gpui::phi())
                     .px_1()
                     .pb_0p5()
                     .child(
