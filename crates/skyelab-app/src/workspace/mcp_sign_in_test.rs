@@ -3,9 +3,10 @@
 
 use super::github::mcp_login_args;
 use super::thread::ThreadViewEvent;
-use super::worktree_thread_test::{fixture, open_thread, send, wait_until};
+use super::worktree_thread_test::{fixture, open_thread, open_thread_with, send, wait_until};
 use crate::test_wait::wait_ticking;
 use gpui::{Entity, VisualTestContext};
+use gpui_component::WindowExt as _;
 
 #[test]
 fn mcp_login_args_name_the_server_after_dashdash() {
@@ -85,7 +86,8 @@ fn sign_in_refuses_a_folder_bound_elsewhere(cx: &mut gpui::TestAppContext) {
 #[gpui::test]
 fn sign_in_offers_restart_after_the_terminal_exits(cx: &mut gpui::TestAppContext) {
     let f = fixture();
-    let (ws, thread, cx) = open_thread(&f, cx);
+    // In a Root, so the notice is really shown and its Restart can be clicked.
+    let (ws, thread, cx) = open_thread_with(&f, true, cx);
     stored_then_sign_in(&thread, "linear", cx);
     // The exit watch polls on the executor's clock.
     wait_ticking(cx, "the restart offer", |cx| {
@@ -95,4 +97,22 @@ fn sign_in_offers_restart_after_the_terminal_exits(cx: &mut gpui::TestAppContext
                 .any(|n| n.contains("linear") && n.contains("Restart"))
         })
     });
+    let notes = |cx: &mut VisualTestContext| cx.update(|window, cx| window.notifications(cx));
+    // The notice slides in: click once it has stopped moving (a redraw each poll, so the bounds are this frame's).
+    let mut last = None;
+    wait_ticking(cx, "the notice in place", |cx| {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let now = cx.debug_bounds("mcp-restart");
+        now.is_some() && std::mem::replace(&mut last, now) == now
+    });
+    let offer = notes(cx).first().cloned().expect("the restart offer");
+    assert!(thread.read_with(cx, |t, _| t.session.is_some()));
+    let at = last.expect("drawn").center();
+    cx.simulate_click(at, gpui::Modifiers::none());
+    wait_until(cx, "the agent to end", |cx| {
+        thread.read_with(cx, |t, _| t.session.is_none())
+    });
+    // The notice closes with a short animation on the executor's clock.
+    wait_ticking(cx, "the offer gone", |cx| !notes(cx).contains(&offer));
 }
