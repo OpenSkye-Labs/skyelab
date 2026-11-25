@@ -68,7 +68,7 @@ What's built today:
   state, checks and review) and editor, the thread's context window (also in the composer footer as **42% context**,
   with a `/compact` hint from 80%), plus every account's latest usage reading. Dialogs dim the window behind them.
 - **Usage.** Settings → Usage compares every account: limit readings, and cost and tokens for today, 7 and 30 days,
-  per account and per project, with a daily chart, from what the agents reported (no account is asked).
+  per account and per project, with a daily chart; while shown, limits refresh from each account's own CLI.
 - **Scheduled tasks.** Settings → Scheduled tasks saves a prompt that starts a new thread in a project every N
   minutes or hours, daily or on weekdays at a time, or on a cron expression, while SkyeLab runs. Each run uses the
   folder's bound account as resolved then; a rebound or unbound folder pauses the task instead. **Schedule this

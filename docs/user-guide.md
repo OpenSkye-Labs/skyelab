@@ -156,6 +156,15 @@ Motion is brief and mostly instant: the palette opens and closes at once, dialog
 you hide slides shut. With **Reduce motion** on in macOS (System Settings → Accessibility → Display), SkyeLab
 shows every change at once. It reads that setting when it starts.
 
+**Settings → Usage** compares every account: its 5-hour and weekly limits, and what its turns cost and used today,
+in 7 and in 30 days, per account and per project, with a daily chart. Each limit bar says how old its reading is.
+Readings come from the agents during turns, and also, while Usage or the thread details card is open, from asking
+each account's own agent CLI every 5 minutes (`claude` or `codex`, with that account's config folder only; SkyeLab
+never reads a login token). An account with no limits to read (signed out, an API key) is asked once an hour. When
+asking fails, the account says **Couldn't refresh limits** with the reason under its bars and keeps its last
+readings; SkyeLab asks again later, waiting longer after each failure (up to an hour). **Limited** still comes only
+from a turn the agent was refused in, or from Codex saying a limit was reached.
+
 **Settings → General → Advanced → Developer mode** is for people working on SkyeLab itself: a **Debug** chip in the
 status bar, an overlay with frame times and live counts, and a debug log of network calls and child processes (no
 prompts or secrets). [debugging.md](debugging.md) explains it.
