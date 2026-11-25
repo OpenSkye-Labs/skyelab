@@ -206,7 +206,7 @@ impl GhPage {
         let page = cx.weak_entity();
         Some(super::pr_actions::open(
             target,
-            move |_, cx| {
+            move |_, _, cx| {
                 _ = page.update(cx, |p, cx| {
                     // The PR changed: every filter's cached list may hold it.
                     p.groups.retain(|key, _| key.1 == p.filter);
