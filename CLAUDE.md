@@ -35,9 +35,9 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `/loop-plan` → `/loop-build` → `/verify` → `/loop-review`. Plans live in `.agent/plans/`.
 - UI changes are checked in the running app with `/loop-verify-ui` (native window), not just by compiling.
   Run the app with a throwaway `HOME` (so your real `accounts.toml` is untouched) and `SKYELAB_VERIFY_TOPMOST=1`
-  (debug builds: windows open above others, so nothing needs moving). Add `SKYELAB_VERIFY_THEME=dark` or `light` to capture
-  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `SKYELAB_DEBUG_RENDERS=1` prints each view's renders per second to stderr. `alleo-native-window` can't see those
-  topmost windows. Find the window id (CGWindowList, layer > 0, owner PID = yours: other sessions' are topmost too) and capture only that window with `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
+  (debug builds open above other windows). Add `SKYELAB_VERIFY_THEME=dark` or `light` to capture
+  a theme without touching the system appearance; the window opens at the frame saved in the throwaway HOME's settings.toml. `SKYELAB_DEBUG_RENDERS=1` prints each view's renders per second to stderr. Read and click the window by name with `agent-desktop`
+  (`list-windows`, then `snapshot --window-id <id> -i`, `click @ref`). Find the window id (CGWindowList, layer > 0, your PID: others' are topmost too) and capture only that window with `screencapture -x -o -l <id> out.png`. Never capture the whole screen.
   Input can't reach a topmost window, so drive it with `SKYELAB_VERIFY_ACTIONS=skyelab::NewTerminal,skyelab::OpenSettings`
   (entries run two seconds apart, so pages load and tabs draw in between; `keys:h i cmd-enter` types into the focused element, `click:x;y` clicks at a window point (`hover:x;y` only moves the mouse there, `wait` sends nothing for one more gap),
   at the window screenshot's own x and y at 1x (no title-bar offset: the window has no separate title strip); `drag:x;y;x2;y2` drags,
