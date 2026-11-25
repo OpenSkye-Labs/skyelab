@@ -10,10 +10,10 @@ use super::*;
 use gpui::VisualTestContext;
 use skyelab_git::PrState;
 
-const URL: &str = "https://github.com/acme/demo/pull/42";
+pub(super) const URL: &str = "https://github.com/acme/demo/pull/42";
 
 /// The rig's project as a github.com repo, its account (acme) logged in to a fake gh dir, accounts.toml saved.
-fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
+pub(super) fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
     let dir = r.f.project_dir.clone();
     for args in [
         &["init", "-q"][..],
@@ -50,7 +50,7 @@ fn github(r: &Rig, cx: &mut VisualTestContext) -> PathBuf {
     gh_dir
 }
 
-fn lines(path: &Path) -> Vec<String> {
+pub(super) fn lines(path: &Path) -> Vec<String> {
     std::fs::read_to_string(path)
         .map(|t| t.lines().map(str::to_owned).collect())
         .unwrap_or_default()
@@ -61,7 +61,7 @@ fn status(id: i64, cx: &mut VisualTestContext) -> Option<PrView> {
 }
 
 /// A thread with `URL` linked, read once, opened; its PR actions dialog opened from the details card.
-fn thread_dialog(r: &Rig, cx: &mut VisualTestContext) -> (i64, Entity<PrActions>) {
+pub(super) fn thread_dialog(r: &Rig, cx: &mut VisualTestContext) -> (i64, Entity<PrActions>) {
     let id = r.thread("Has a PR", cx);
     r.f.store
         .lock()
@@ -84,7 +84,7 @@ fn thread_dialog(r: &Rig, cx: &mut VisualTestContext) -> (i64, Entity<PrActions>
     (id, dialog)
 }
 
-fn dialog_open(cx: &mut VisualTestContext) -> bool {
+pub(super) fn dialog_open(cx: &mut VisualTestContext) -> bool {
     cx.update(|window, cx| window.has_active_dialog(cx))
 }
 

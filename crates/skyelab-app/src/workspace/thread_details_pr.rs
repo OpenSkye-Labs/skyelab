@@ -189,7 +189,7 @@ impl ThreadView {
         let view = cx.weak_entity();
         Some(super::super::pr_actions::open(
             target,
-            move |_, cx| _ = view.update(cx, |_, cx| cx.emit(ThreadViewEvent::PrActed)),
+            move |_, _, cx| _ = view.update(cx, |_, cx| cx.emit(ThreadViewEvent::PrActed)),
             window,
             cx,
         ))

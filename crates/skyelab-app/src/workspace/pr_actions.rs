@@ -22,12 +22,12 @@ use gpui_component::{
     v_flex,
 };
 use skyelab_core::AccountsConfig;
-use skyelab_git::{Checks, GitHub, MergeMethod, Verdict};
+use skyelab_git::{Checks, GitHub, MergeMethod, ReviewComment, Verdict};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 /// The PR and who acts on it.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Target {
     /// A canonical GitHub PR link.
     pub url: String,
@@ -43,8 +43,8 @@ pub(crate) struct Target {
     pub config: AccountsConfig,
 }
 
-/// What runs after an action succeeds (the caller reads the PR again).
-type OnDone = Rc<dyn Fn(&mut Window, &mut App)>;
+/// What runs after an action succeeds (the caller reads the PR again); `true` after a review.
+type OnDone = Rc<dyn Fn(bool, &mut Window, &mut App)>;
 
 /// Where the merge button is: each click moves it one step, the last one merges.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,7 +58,8 @@ pub(crate) enum Stage {
 enum Act {
     /// The head commit to pin, the method, and whether to delete the branch.
     Merge(String, MergeMethod, bool),
-    Review(Verdict, String),
+    /// The verdict, the summary and the line comments (none: `gh pr review`).
+    Review(Verdict, String, Vec<ReviewComment>),
 }
 
 pub(crate) struct PrActions {
@@ -73,6 +74,10 @@ pub(crate) struct PrActions {
     pub(crate) busy: bool,
     pub(crate) error: Option<SharedString>,
     pub(crate) body: Entity<InputState>,
+    /// Line comments from the PR's diff tab, sent with the review.
+    pub(crate) comments: Vec<ReviewComment>,
+    /// Opened from the PR's diff tab: no "View diff".
+    pub(crate) from_diff: bool,
     on_done: OnDone,
     _read: Task<()>,
 }
@@ -95,7 +100,7 @@ pub(super) fn account_gh_dir(
 /// Opens the dialog for `target`; `on_done` runs after an action succeeds (the dialog is closed by then).
 pub(crate) fn open(
     target: Target,
-    on_done: impl Fn(&mut Window, &mut App) + 'static,
+    on_done: impl Fn(bool, &mut Window, &mut App) + 'static,
     window: &mut Window,
     cx: &mut App,
 ) -> Entity<PrActions> {
@@ -148,6 +153,8 @@ pub(crate) fn open(
             busy: false,
             error: None,
             body,
+            comments: Vec::new(),
+            from_diff: false,
             on_done: Rc::new(on_done),
             _read: read,
         }
@@ -211,10 +218,26 @@ impl PrActions {
 
     pub(crate) fn review(&mut self, verdict: Verdict, window: &mut Window, cx: &mut Context<Self>) {
         let body = self.body.read(cx).value().trim().to_owned();
-        if self.busy || (verdict != Verdict::Approve && body.is_empty()) {
+        if self.busy || !self.can_review(verdict, &body) {
             return;
         }
-        self.run(Act::Review(verdict, body), window, cx);
+        self.run(
+            Act::Review(verdict, body, self.comments.clone()),
+            window,
+            cx,
+        );
+    }
+
+    /// T3's rule: anything but Approve needs a summary or at least one line comment.
+    fn can_review(&self, verdict: Verdict, body: &str) -> bool {
+        verdict == Verdict::Approve || !body.trim().is_empty() || !self.comments.is_empty()
+    }
+
+    /// "View diff": the PR's diff tab, through the workspace (the dialog closes first, so the action reaches it).
+    pub(crate) fn view_diff(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let target = self.target.clone();
+        window.close_dialog(cx);
+        window.dispatch_action(Box::new(super::changes::pr::OpenPrDiff { target }), cx);
     }
 
     fn run(&mut self, act: Act, window: &mut Window, cx: &mut Context<Self>) {
@@ -224,6 +247,7 @@ impl PrActions {
             self.gh.clone(),
             self.accounts_file.clone(),
         );
+        let reviewed = matches!(act, Act::Review(..));
         let done = cx.background_spawn(async move {
             let config = super::accounts_now(file.as_deref(), &target.config);
             let gh_dir = account_gh_dir(&config, &target.dir, &target.account)?;
@@ -235,8 +259,20 @@ impl PrActions {
                 Act::Merge(head, method, delete) => {
                     skyelab_git::merge_pr(&github, &target.url, &head, method, delete)?
                 }
-                Act::Review(verdict, body) => {
+                Act::Review(verdict, body, comments) if comments.is_empty() => {
                     skyelab_git::review_pr(&github, &target.url, verdict, &body)?
+                }
+                Act::Review(verdict, body, comments) => {
+                    // Pinned to the commit the diff tab read: GitHub places each comment on that commit's lines.
+                    let head = target.head.as_deref().unwrap_or_default();
+                    skyelab_git::submit_review(
+                        &github,
+                        &target.url,
+                        head,
+                        verdict,
+                        &body,
+                        &comments,
+                    )?
                 }
             }
             anyhow::Ok(())
@@ -255,7 +291,7 @@ impl PrActions {
             });
             // Also when the dialog was cancelled while gh ran: the PR changed all the same.
             if ok {
-                let _ = cx.update(|window, cx| on_done(window, cx));
+                let _ = cx.update(|window, cx| on_done(reviewed, window, cx));
             }
         })
         .detach(); // gh is killed at its timeout; `this` is weak
@@ -362,17 +398,27 @@ impl PrActions {
 
     fn render_review(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let empty = self.body.read(cx).value().trim().is_empty();
+        let body = self.body.read(cx).value().to_string();
         let verdict = |id: &'static str, label: &'static str, v: Verdict| {
             Button::new(id)
                 .small()
                 .label(label)
-                .disabled(self.busy || (v != Verdict::Approve && empty))
+                .disabled(self.busy || !self.can_review(v, &body))
                 .on_click(cx.listener(move |this, _, window, cx| this.review(v, window, cx)))
         };
         v_flex()
             .gap_2()
             .child(section("Review", theme))
+            .children((!self.comments.is_empty()).then(|| {
+                div()
+                    .id("pr-review-line-comments")
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child(match self.comments.len() {
+                        1 => "1 line comment goes with this review.".to_owned(),
+                        n => format!("{n} line comments go with this review."),
+                    })
+            }))
             .child(TextField::new(&self.body).small().disabled(self.busy))
             .child(
                 h_flex()
@@ -420,9 +466,22 @@ impl Render for PrActions {
                 .child(e)
         });
         let link = ui::mono(link, theme).text_size(ui::META);
+        let view_diff = (!self.from_diff).then(|| {
+            Button::new("pr-view-diff")
+                .ghost()
+                .xsmall()
+                .icon(SkyeIcon::FileDiff)
+                .label("View diff")
+                .on_click(cx.listener(|this, _, window, cx| this.view_diff(window, cx)))
+        });
         v_flex()
             .gap_4()
-            .child(link)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(div().flex_1().min_w_0().truncate().child(link))
+                    .children(view_diff),
+            )
             .child(self.render_merge(cx))
             .child(div().h(px(1.)).bg(cx.theme().border))
             .child(self.render_review(cx))
@@ -430,6 +489,9 @@ impl Render for PrActions {
     }
 }
 
+#[cfg(all(test, unix))]
+#[path = "pr_diff_tab_test.rs"]
+mod diff_tab_tests;
 #[cfg(all(test, unix))] // the fake gh is a shell script
 #[path = "pr_actions_test.rs"]
 mod tests;
