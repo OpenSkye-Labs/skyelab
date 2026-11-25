@@ -216,6 +216,7 @@ impl Workspace {
     pub(super) fn set_details_open(&mut self, open: bool, cx: &mut Context<Self>) {
         if self.details_open != open {
             self.details_open = open;
+            self.poll_usage(cx);
             // The toggles are drawn by the page header, a view of their own.
             self.sync_toggles(cx);
             self.center.update(cx, |_, cx| cx.notify());

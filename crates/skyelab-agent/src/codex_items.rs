@@ -92,7 +92,7 @@ pub(super) fn plan(p: &Value) -> Option<Event> {
 /// reached, or a window is used up; it resets when the latest used-up window does. (Recorded transcripts only show
 /// windows under 100%, so "reached" is unconfirmed.) Model-specific limits (a `limitId` other than `codex`) are left
 /// out entirely, like T3's `codexUsageLimits`: they describe one model, not whether the account is limited.
-pub(super) fn rate_limit(r: &Value) -> Vec<Event> {
+pub(crate) fn rate_limit(r: &Value) -> Vec<Event> {
     if r["limitId"].as_str().is_some_and(|id| id != "codex") {
         return Vec::new();
     }

@@ -18,6 +18,7 @@ pub mod thread_list;
 pub mod timeline;
 mod title;
 pub mod turn_result;
+mod usage_limits;
 mod version;
 pub use git_text::{
     MAX_SUBJECT, clean_commit_message, clean_pr, commit_prompt, generate_commit_message,
@@ -27,6 +28,7 @@ pub use launch::resolve_bin;
 pub use login_status::{Login, login_status};
 use pipes::{read_events, read_stderr, write_lines};
 pub use title::{clean_title, generate_title, one_shot, title_prompt};
+pub use usage_limits::{Limits, usage_limits};
 pub use version::agent_version;
 #[cfg(any(unix, windows))]
 pub mod mcp;

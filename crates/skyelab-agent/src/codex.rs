@@ -13,7 +13,8 @@ mod items;
 #[cfg(test)]
 use config::main_repo;
 pub(crate) use config::{args, mcp_servers, policy};
-use items::{NOISE, answer, completed, delta, failed, file_changes, plan, rate_limit, started};
+pub(crate) use items::rate_limit;
+use items::{NOISE, answer, completed, delta, failed, file_changes, plan, started};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;

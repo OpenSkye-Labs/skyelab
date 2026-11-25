@@ -336,12 +336,13 @@ impl Workspace {
     /// Every account's newest usage readings, read off the UI thread; a newer read replaces an older one.
     pub(super) fn refresh_usage(&mut self, cx: &mut Context<Self>) {
         let (store, accounts) = (self.backend.store.clone(), self.config.accounts.clone());
+        let errors = self.usage_poll.errors();
         let task = cx.background_spawn(async move {
             let store = super::lock(&store)?;
             anyhow::Ok(
                 accounts
                     .iter()
-                    .map(|a| super::details_panel::account_usage(&store, a))
+                    .map(|a| super::details_panel::account_usage(&store, a, &errors))
                     .collect::<Vec<_>>(),
             )
         });

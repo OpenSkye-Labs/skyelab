@@ -1,6 +1,7 @@
 //! Settings → Usage (T3's Usage page): every account side by side, from what this machine stored. Each account's
 //! newest limit readings, and what its turns cost and used today, in 7 and in 30 days, per account and per project,
-//! with a daily chart. Nothing asks an account: the numbers are the agents' own reports (Result and RateLimit events).
+//! with a daily chart. Spend is the agents' own reports (Result events); limits are their RateLimit events plus what
+//! the usage poll (`usage_poll.rs`) asks each account's CLI while this page or the details card is shown.
 
 use super::details_panel::{AccountUsage, account_usage};
 use gpui::{App, AppContext as _, Context, FocusHandle, Focusable, Task};
@@ -168,6 +169,7 @@ impl UsagePage {
         &mut self,
         store: Arc<Mutex<skyelab_store::Store>>,
         config: &AccountsConfig,
+        errors: HashMap<String, String>,
         cx: &mut Context<Self>,
     ) {
         let accounts = config.accounts.clone();
@@ -180,7 +182,10 @@ impl UsagePage {
                 .map(|p| (p.id, p.name))
                 .collect();
             anyhow::Ok(UsageData {
-                accounts: accounts.iter().map(|a| account_usage(&s, a)).collect(),
+                accounts: accounts
+                    .iter()
+                    .map(|a| account_usage(&s, a, &errors))
+                    .collect(),
                 rows: s.usage_days(since)?,
                 projects,
             })

@@ -104,3 +104,30 @@ Each entry is dated; newest at the bottom.
   account's MCP servers, skills and plugins again. It counts as an ended agent everywhere else too: an orchestrating
   parent's `send_message` and a remote send are refused, as after Stop. While the agent is still starting there is
   nothing to restart (it already reads the config as it is). (2026-11-24)
+- **Usage limits are asked of the account's CLI, never read with its token.** Between turns the Usage page and the
+  details card showed only what agents reported mid-turn. T3 refreshes limits on its provider health probe (every 5
+  minutes by default): for Claude, the Agent SDK's `get_usage` control request (`usage_EXPERIMENTAL_…` in the SDK)
+  to a short-lived CLI; for Codex, the app-server's `account/rateLimits/read`. Its direct calls to
+  `api.anthropic.com/api/oauth/usage` and `chatgpt.com/backend-api/wham/usage` happen only through an opt-in
+  CLIProxyAPI hub that holds the tokens itself. SkyeLab does the CLI path. Reading the token ourselves was rejected: on
+  macOS Claude Code's login is in a keychain item that the `claude` binary created, so another app reading it prompts
+  the user; the endpoint is undocumented; and SkyeLab would then hold a credential. Instead,
+  `skyelab_agent::usage_limits` starts the account's own CLI like `login_status` does (`env_clear`, the agent
+  allowlist, the account's `launch_env` only, the temp dir as cwd, so never another account's or the app user's
+  login): `claude -p --input-format stream-json --output-format stream-json --verbose --setting-sources ""
+  --strict-mcp-config` sent `{"subtype":"get_usage","skip_behaviors":true}` (no hooks, MCP servers or session file;
+  checked on 2.1.332, which answers without `initialize`), or `codex app-server` sent `initialize`, `initialized`
+  and `account/rateLimits/read` (stdin stays open: on EOF Codex exits without answering; checked on 0.172.0). The
+  CLI makes the HTTP call with its own login, so SkyeLab adds no HTTP client and no credential handling. Each call has
+  a 20 s deadline; the child is killed after it. Polling (`workspace/usage_poll.rs`) runs only while Settings → Usage
+  or the details card is shown, on a local workspace: each account every 5 minutes, an hour when it has no limits to
+  read (signed out, an API key, `rate_limits_available: false`, Codex's "authentication required"), and after a
+  failure (a timeout, an error answer, or Claude's empty `rate_limits`, which is how its own read failing or being
+  rate limited shows) doubling from 5 minutes up to an hour. Only numbers are stored: `RateLimit` events (window,
+  used 0–1, reset time) written to `usage_readings` with `Store::record_usage`, so the page and card read them as
+  before and the passive source stays. A Claude poll writes no limited summary (overage isn't in the answer), so
+  "Limited" still comes from a turn; Codex's summary comes from its own `rateLimitReachedType`. A failed refresh shows
+  on the Usage page as "Couldn't refresh limits: <reason>" in SkyeLab's own words, never the CLI's text, and the last
+  readings stay with their age. The debug log gets the spawn's program and redacted args only, as for every child.
+  Risk: `get_usage` is marked experimental in the SDK; if a CLI drops it, the poll fails visibly and the passive
+  readings still show. (2026-11-25)

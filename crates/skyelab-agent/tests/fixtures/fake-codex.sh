@@ -2,7 +2,7 @@
 # `--version` prints a fixed version (the Welcome page's agent list).
 [ "$1" = --version ] && { echo 'codex-cli 0.99.0'; exit 0; }
 # Stand-in for `codex app-server` (tests and SKYELAB_CODEX_BIN). Speaks just enough of the app-server
-# protocol: answers initialize, thread/start and thread/resume, replays codex-turn.jsonl for each
+# protocol: answers account/rateLimits/read from CODEX_HOME's fake-usage.json (else signed out), initialize, thread/start and thread/resume, replays codex-turn.jsonl for each
 # turn/start, and ends a turn as interrupted on turn/interrupt. Every line it reads comes back as a
 # `fake/request` notification, and thread/start/resume also report the env and args as `fake/env`.
 # A folder with a .fake-codex-refuse-open file gets its thread/start refused after a 1 s pause.
@@ -57,6 +57,13 @@ while IFS= read -r line; do
   id=$(printf '%s' "$line" | sed -n 's/^{"id":\([0-9]*\),.*/\1/p')
   case "$line" in
     *'"method":"initialize"'*) printf '{"id":%s,"result":{"userAgent":"fake-codex/0"}}\n' "$id" ;;
+    *'"method":"account/rateLimits/read"'*)
+      # The usage poll: CODEX_HOME's fake-usage.json is the result, else Codex's signed-out refusal.
+      if [ -f "$CODEX_HOME/fake-usage.json" ]; then
+        printf '{"id":%s,"result":%s}\n' "$id" "$(tr -d '\n' < "$CODEX_HOME/fake-usage.json")"
+      else
+        printf '{"id":%s,"error":{"code":-32600,"message":"codex account authentication required to read rate limits"}}\n' "$id"
+      fi ;;
     *'"method":"model/list"'*)
       printf '{"id":%s,"result":{"data":[{"model":"gpt-fake","displayName":"GPT Fake","isDefault":true,"defaultReasoningEffort":"medium","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"},{"reasoningEffort":"high"}]}],"nextCursor":null}}\n' "$id" ;;
     *'"method":"turn/steer"'*) printf '{"id":%s,"result":{"turnId":"turn_hang"}}\n' "$id" ;;
