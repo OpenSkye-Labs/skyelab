@@ -86,10 +86,17 @@ fn ask(cmd: &mut Command, lines: &[Value], provider: Provider) -> Result<Value> 
         (Some(i), Some(o)) => (i, o),
         _ => bail!("the agent CLI has no pipes"),
     };
-    for line in lines {
-        writeln!(stdin, "{line}").context("writing to the agent CLI")?;
+    let input: String = lines.iter().map(|l| format!("{l}\n")).collect();
+    if let Err(e) = stdin
+        .write_all(input.as_bytes())
+        .and_then(|()| stdin.flush())
+    {
+        // A CLI that quit before reading its input is the same case as one that quit without answering.
+        if e.kind() == std::io::ErrorKind::BrokenPipe {
+            bail!("the agent CLI exited without answering");
+        }
+        return Err(e).context("writing to the agent CLI");
     }
-    stdin.flush().context("writing to the agent CLI")?;
     let (tx, rx) = flume::bounded(1);
     // Ends at EOF, once the child exits or is killed.
     std::thread::spawn(move || {
