@@ -8725,6 +8725,7 @@ dependencies = [
  "rustix",
  "rustix-openpty",
  "skyelab-core",
+ "skyelab-terminal",
  "sysinfo 0.40.4",
  "tempfile",
 ]

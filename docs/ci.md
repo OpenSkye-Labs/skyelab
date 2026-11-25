@@ -91,6 +91,12 @@ Only macOS is tested locally. Check the others like this before merging somethin
 
 **All platforms**
 
+- Tests never run the developer's shell setup. A terminal with no command runs `$SHELL -l` for users, which sources
+  ~/.zshrc and friends (on one Mac that started `op daemon` on every test run). `skyelab-terminal`'s `test-support`
+  feature, on only through dev-dependencies (its own and `skyelab-app`'s), swaps in `/bin/sh` without `-l` (reads
+  only `$ENV`, which the env allowlist drops) or `powershell.exe -NoProfile`. A crate whose tests open a default
+  terminal turns the feature on in its dev-dependencies; `tests/no_user_rc.rs` proves no rc is read.
+
 - A test that answers the agent and then waits for both the agent's reply and `PermissionResolved` must accept them
   in either order: the session sends the resolved event after the answer is queued, so a fast agent's reply can come
   first (`ask_user_question_answers_reach_the_agent` failed this way on Linux).

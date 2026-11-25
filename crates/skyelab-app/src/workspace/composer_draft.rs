@@ -143,8 +143,7 @@ impl ThreadView {
                     .collect();
                 this.composer.extras.saved_files = this.file_marks();
                 this.composer.extras.saved_text = draft.text.clone();
-                this.prompt
-                    .update(cx, |p, cx| p.set_value(draft.text, window, cx));
+                this.set_prompt(draft.text, window, cx);
                 cx.notify();
             });
         })
@@ -234,8 +233,7 @@ impl ThreadView {
     ) {
         let text = entry.as_ref().map(|(_, t)| t.clone()).unwrap_or_default();
         self.composer.extras.history = entry;
-        self.prompt
-            .update(cx, |p, cx| p.set_value(text, window, cx));
+        self.set_prompt(text, window, cx);
         cx.notify();
     }
 

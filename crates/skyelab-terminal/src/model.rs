@@ -378,10 +378,7 @@ fn launch(
 ) -> (String, Vec<String>, HashMap<String, String>) {
     env.entry("TERM".into()).or_insert("xterm-256color".into());
     env.entry("COLORTERM".into()).or_insert("truecolor".into());
-    let (program, args) = command.unwrap_or_else(|| {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell().into());
-        (shell, login_args())
-    });
+    let (program, args) = command.unwrap_or_else(default_command);
     let unset: Vec<String> = parent
         .iter()
         // Windows names are case-insensitive, so `Gh_Config_Dir` in the parent is the caller's `GH_CONFIG_DIR`.
@@ -411,6 +408,29 @@ fn launch(
     ("/usr/bin/env".to_string(), wrapped, env)
 }
 
+/// The shell a terminal runs when the caller names no command.
+#[cfg(not(feature = "test-support"))]
+fn default_command() -> (String, Vec<String>) {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| default_shell().into());
+    (shell, login_args())
+}
+
+/// Tests (feature `test-support`) get a shell that reads no startup file, so a run never executes the developer's
+/// own rc (it can start daemons or touch credentials). `sh` without `-l` reads only `$ENV`, which [`launch`] drops;
+/// PowerShell's profile is skipped by `-NoProfile`.
+#[cfg(feature = "test-support")]
+fn default_command() -> (String, Vec<String>) {
+    if cfg!(windows) {
+        (
+            "powershell.exe".into(),
+            vec!["-NoLogo".into(), "-NoProfile".into()],
+        )
+    } else {
+        ("/bin/sh".into(), vec![])
+    }
+}
+
+#[cfg(not(feature = "test-support"))]
 fn default_shell() -> &'static str {
     if cfg!(windows) {
         "powershell.exe"
@@ -419,6 +439,7 @@ fn default_shell() -> &'static str {
     }
 }
 
+#[cfg(not(feature = "test-support"))]
 fn login_args() -> Vec<String> {
     if cfg!(windows) {
         vec![]
