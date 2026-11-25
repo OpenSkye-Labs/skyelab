@@ -76,7 +76,7 @@ impl ThreadView {
                     Some((None, self.render_actions(on, cx))),
                     titled(lineage),
                     titled(self.render_side_chats(on, cx)),
-                    titled(self.render_mcp(cx)),
+                    titled(self.render_mcp(on, cx)),
                     self.render_context_row(cx).map(|row| (None, row)),
                     Some((None, usage)),
                     self.render_pr(on, cx)
@@ -151,8 +151,8 @@ impl ThreadView {
     }
 
     /// "MCP servers": each server of the latest agent process and its state ("Stopped" once it ended), the failure as a
-    /// tooltip. None until an agent reported some.
-    fn render_mcp(&self, cx: &App) -> Option<(SharedString, AnyElement)> {
+    /// tooltip, and Sign in on one that needs it. None until an agent reported some.
+    fn render_mcp(&self, on: &On, cx: &App) -> Option<(SharedString, AnyElement)> {
         if self.details.mcp.is_empty() {
             return None;
         }
@@ -182,6 +182,21 @@ impl ThreadView {
                     .text_color(theme.muted_foreground)
                     .child(state.to_owned()),
             )
+            .when(s.status == "needs-auth", |r| {
+                let server = s.name.clone();
+                r.child(
+                    Button::new(("details-mcp-sign-in", i))
+                        .ghost()
+                        .xsmall()
+                        .label("Sign in")
+                        .tooltip("Sign in to this server in a terminal, under the thread's account")
+                        .on_click(on.click(move |_, _, cx| {
+                            cx.emit(super::super::thread::ThreadViewEvent::McpSignIn(
+                                server.clone(),
+                            ))
+                        })),
+                )
+            })
             .when_some(s.error.clone(), |r, error| {
                 r.tooltip(move |window, cx| {
                     crate::ui::Tooltip::new(error.clone()).build(window, cx)

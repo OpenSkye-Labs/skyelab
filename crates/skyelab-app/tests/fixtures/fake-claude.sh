@@ -4,6 +4,8 @@
 # `auth login` signs the account in: it writes fake-login (fake@example.com) in its config dir. `auth status` answers
 # like Claude Code's pretty-printed JSON: signed in, as fake-login's content, while that file is there.
 [ "$1 $2" = "auth login" ] && { echo "fake claude auth login for $CLAUDE_CONFIG_DIR"; mkdir -p "$CLAUDE_CONFIG_DIR" && echo fake@example.com > "$CLAUDE_CONFIG_DIR/fake-login"; exit 0; }
+# `mcp login -- <name>` writes the name and its folder to fake-mcp-login in its config dir and exits 0.
+[ "$1 $2 $3" = "mcp login --" ] && { echo "fake claude mcp login $4 for $CLAUDE_CONFIG_DIR"; mkdir -p "$CLAUDE_CONFIG_DIR" && printf '%s\n%s\n' "$4" "$(pwd -P)" > "$CLAUDE_CONFIG_DIR/fake-mcp-login"; exit 0; }
 if [ "$1 $2" = "auth status" ]; then
   if [ -f "$CLAUDE_CONFIG_DIR/fake-login" ]; then
     printf '{\n  "loggedIn": true,\n  "authMethod": "claude.ai",\n  "email": "%s"\n}\n' "$(cat "$CLAUDE_CONFIG_DIR/fake-login")"

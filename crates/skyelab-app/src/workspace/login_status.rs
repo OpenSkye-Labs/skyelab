@@ -171,17 +171,7 @@ impl super::Workspace {
         let bins = self.login_bins(cx);
         let tab = tab.downgrade();
         cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor().timer(Duration::from_secs(1)).await;
-                let running = tab.read_with(cx, |t, cx| {
-                    t.panes
-                        .iter()
-                        .any(|p| p.view.read(cx).terminal().exit_status().is_none())
-                });
-                if !running.unwrap_or(false) {
-                    break;
-                }
-            }
+            until_exited(&tab, cx).await;
             cx.update(|cx| {
                 LoginStatus::shared(cx).update(cx, |l, cx| l.check(&account, &bins, cx));
             });
@@ -192,5 +182,27 @@ impl super::Workspace {
             });
         })
         .detach();
+    }
+}
+
+/// Waits (polling each second) until every pane of `tab` has exited, or the tab is gone; `Some(true)` when every
+/// pane exited with success.
+pub(super) async fn until_exited(
+    tab: &gpui::WeakEntity<super::terminal_panel::TerminalPanel>,
+    cx: &mut gpui::AsyncApp,
+) -> Option<bool> {
+    loop {
+        cx.background_executor().timer(Duration::from_secs(1)).await;
+        let exits = tab
+            .read_with(cx, |t, cx| {
+                t.panes
+                    .iter()
+                    .map(|p| p.view.read(cx).terminal().exit_status())
+                    .collect::<Option<Vec<_>>>()
+            })
+            .ok()?;
+        if let Some(exits) = exits {
+            return Some(exits.iter().all(|e| e.success()));
+        }
     }
 }

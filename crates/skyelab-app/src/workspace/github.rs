@@ -34,6 +34,12 @@ pub(crate) fn login_args(provider: skyelab_core::Provider) -> &'static [&'static
     }
 }
 
+/// What signs an account in to one of its MCP servers: `claude mcp login` and `codex mcp login` alike. `--` keeps a
+/// server named like a flag from being read as one.
+pub(crate) fn mcp_login_args(server: &str) -> [&str; 4] {
+    ["mcp", "login", "--", server]
+}
+
 /// A terminal running `<bin> <args>` (`claude auth login`, `codex login`) with `account`'s launch env only, so the
 /// login lands in that account's config dir. Codex refuses a `CODEX_HOME` that doesn't exist, so the dir is made
 /// (private) first.

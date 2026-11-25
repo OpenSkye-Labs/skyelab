@@ -377,6 +377,9 @@ impl Workspace {
                         },
                     );
                 }
+                ThreadViewEvent::McpSignIn(server) => {
+                    this.mcp_sign_in(view.clone(), server.clone(), window, cx)
+                }
                 ThreadViewEvent::RunScript(script) => {
                     let v = view.read(cx);
                     let account = v.thread.as_ref().map(|t| t.account_id.clone());

@@ -44,6 +44,7 @@ mod login_status_test;
 pub(crate) mod machines_page;
 mod manage;
 mod manage_projects;
+mod mcp_sign_in;
 mod mermaid;
 mod mermaid_block;
 pub(crate) mod onboarding;
