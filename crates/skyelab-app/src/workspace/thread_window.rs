@@ -245,7 +245,8 @@ impl ThreadView {
         self.remote_window = super::super::env_mode::shows_remote(cx, self.window);
         self.composer.dock_placeholder = None; // the new prompt starts with the default one
         self.lists.add(self.window);
-        let (text, disabled) = (self.prompt.read(cx).value(), self.read_only);
+        // `content`: the chips move with the text.
+        let (text, disabled) = (self.prompt.read(cx).content(), self.read_only);
         let prompt = new_prompt(window, cx);
         prompt.update(cx, |p, cx| {
             p.set_value(text, window, cx);

@@ -481,7 +481,7 @@ impl Workspace {
                 let text = review_prompt(*number, &link);
                 view.update(cx, |v, cx| {
                     v.composer.extras.pending_pr = Some(link);
-                    v.prompt.update(cx, |p, cx| p.set_value(text, window, cx));
+                    v.set_prompt(text, window, cx);
                     cx.notify();
                 });
             }

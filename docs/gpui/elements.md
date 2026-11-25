@@ -41,6 +41,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   screenshot, not only by reading the layout.
 - `Textarea::on_paste` sees the `ClipboardItem` before the text goes in; returning `true` keeps it out (long pastes
   become attachments that way).
+- Something inline in a text field that must act as one unit (the composer's mention chips) is a gpui-base inline token:
+  `InputContent::with_token` over the text's own bytes, `set_tokens` / `set_value(content)`, drawn by
+  `Textarea::token(..)`. The engine already steps the caret over it, expands edits to the whole token, keeps it in
+  undo, copies its text and refuses to change tokens mid IME composition, so no overlay or custom text element.
+  `set_value` drops the tokens and emits no `Change`: re-mark them after it (`ThreadView::set_prompt`), and move a
+  field's text with `content()`, not `value()` (`composer_mentions.rs`).
 - `ListState::reset_with_uniform_height` gives every item the same height, so a row that grows (a comment under a
   diff line) is clipped. Use the measured `reset` while any row is taller, and lay the list out again (keeping the top
   row) whenever that set changes (`ChangesView::comments_changed`).

@@ -485,8 +485,7 @@ impl ThreadView {
         self.submit_external(window, cx);
         // It clears the prompt exactly when it took the text.
         let taken = self.prompt.read(cx).value().is_empty();
-        self.prompt
-            .update(cx, |p, cx| p.set_value(draft, window, cx));
+        self.set_prompt(draft, window, cx);
         if taken {
             return Ok(());
         }

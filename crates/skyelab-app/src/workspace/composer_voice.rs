@@ -225,6 +225,7 @@ impl ThreadView {
             p.set_value(edit.text, window, cx);
             p.set_selected_range(edit.cursor..edit.cursor, cx);
         });
+        self.sync_chips(cx);
         cx.notify(); // the draft saves on notify; Send's look follows the text
     }
 
