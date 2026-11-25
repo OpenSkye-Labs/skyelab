@@ -56,8 +56,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   query callback updates that view: do it after the update (`show_page`).
 - A dock panel that wraps another view (a side chat around a `ThreadView`) must return that view's focus handle from
   `Focusable`: F6 and the dock focus a panel by that handle, and a handle of the wrapper's own leaves the inner
-  view's key context (`Thread`) off the dispatch path, so mod+F, Esc and the rest do nothing (`side_chat.rs`). A click
-  on a dock tab focuses the tab button itself, not the panel: keys need a click inside the panel.
+  view's key context (`Thread`) off the dispatch path, so mod+F, Esc and the rest do nothing (`side_chat.rs`).
+- A press on a dock tab focuses the tab button (gpui-base's `Tab` focuses itself on mouse-down), and `select_tab`
+  moves focus into the panel only when the tab changes: a click on the tab already shown left mod+F and Esc dead. The
+  tab bar wrapper in `center_skin.rs` focuses the group's shown panel on mouse-up when no panel of the group holds
+  focus. Its toolbar occludes, so a menu opened there keeps its focus. Test a tab click with `debug_bounds("dock-tab-N")`
+  (the right dock draws last, so its tabs own those selectors).
 - gpui-component's `EditorState::new` is `searchable(true)`: mod+F opens the library's own search panel. For our find
   bar set `.searchable(false)` (the editor then propagates its `Search` action, and GPUI tries the next binding for the
   key, ours in an outer context) and drive the editor's matcher with `set_search_query` / `next_search_match`, which

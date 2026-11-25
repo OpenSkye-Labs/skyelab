@@ -96,9 +96,9 @@ impl Workspace {
                 #[cfg(test)]
                 _ws.notices.push(text.clone().into());
                 let view = view.downgrade();
-                let note = Notification::new().message(text).action(move |_, _, _| {
+                let note = Notification::new().message(text).action(move |_, _, cx| {
                     let view = view.clone();
-                    crate::ui::notice_action("mcp-restart", "Restart", move |_, window, cx| {
+                    crate::ui::notice_action(cx, "mcp-restart", "Restart", move |_, window, cx| {
                         let _ = view.update(cx, |v, cx| {
                             v.restart_session(&RestartAgentSession, window, cx)
                         });
