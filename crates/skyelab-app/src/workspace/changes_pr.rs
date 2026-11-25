@@ -35,7 +35,7 @@ impl PrSource {
     }
 
     /// `owner/repo` of the PR's link.
-    pub(super) fn repo(&self) -> String {
+    fn repo(&self) -> String {
         let path = self.target.url.trim_start_matches("https://github.com/");
         path.split('/').take(2).collect::<Vec<_>>().join("/")
     }

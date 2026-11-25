@@ -290,13 +290,11 @@ impl ChangesView {
                         let (row_ix, path) = (f.first_row, f.path.clone());
                         let ticked = self.selected.contains(&f.path);
                         let active = self.active_file.as_ref() == Some(&f.path);
-                        // Ticks pick files to commit: only the working tree commits.
-                        let tick =
-                            (self.scope == super::changes_model::Scope::Working).then(|| {
-                                Checkbox::new(SharedString::from(format!(
-                                    "pick-{}",
-                                    f.path.display()
-                                )))
+                        // Ticks pick files to commit: only the working tree commits, never a PR's diff.
+                        let commits =
+                            self.scope == super::changes_model::Scope::Working && self.pr.is_none();
+                        let tick = commits.then(|| {
+                            Checkbox::new(SharedString::from(format!("pick-{}", f.path.display())))
                                 .xsmall()
                                 .checked(ticked)
                                 .on_click(cx.listener({
@@ -308,7 +306,7 @@ impl ChangesView {
                                         cx.notify();
                                     }
                                 }))
-                            });
+                        });
                         row.when(active, |d| d.bg(theme.accent))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.scroll_to_row(row_ix);

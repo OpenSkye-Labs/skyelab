@@ -395,9 +395,9 @@ impl Render for ChangesView {
                             .truncate()
                             .text_size(ui::META)
                             .text_color(theme.muted_foreground)
-                            .child(match &self.pr {
-                                Some(pr) => pr.repo(),
-                                None => ui::short_path(&self.dir, dirs::home_dir().as_deref()),
+                            // A PR's title already names its repo.
+                            .when(self.pr.is_none(), |d| {
+                                d.child(ui::short_path(&self.dir, dirs::home_dir().as_deref()))
                             }),
                     ),
             )
