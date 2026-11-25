@@ -9,9 +9,13 @@
 //! [`DockAreaRenderer::closed_dock_extent`] how much of a closed dock to draw, and this skin answers with the
 //! spring's last value until it settles. A drag that closes a dock stays with the pointer. Opening stays instant, as Rex's lands most of
 //! the way on its first frame.
+//!
+//! The sidebar's edge also hides it (T3's rail): base clamps the drag at the minimum width, and past
+//! [`HIDE_BELOW`] the sidebar fades; releasing there hides it through the toggle (`Workspace::hide_sidebar_from_drag`).
 
 use gpui::{
-    AnyElement, AnyView, App, Axis, Div, EntityId, Pixels, Stateful, Window, div, prelude::*,
+    AnyElement, AnyView, App, Axis, Bounds, Div, EntityId, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, Pixels, Stateful, WeakEntity, Window, canvas, div, prelude::*,
 };
 use gpui_base::ResizeHandleContext;
 use gpui_base::dock::PanelView;
@@ -23,12 +27,26 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+/// T3 hides its sidebar once the pointer is under a quarter of the minimum width (`SIDEBAR_COLLAPSE_DRAG_RATIO`).
+pub(super) const HIDE_BELOW: Pixels = gpui::px(25.); // a quarter of gpui-base's PANEL_MIN_SIZE (100 px)
+/// The dock's resize handle: its hit area hugs the trailing edge this deep (gpui-base's `HANDLE_SIZE` + padding).
+const HANDLE_W: Pixels = gpui::px(5.);
+
+/// A drag of the sidebar's edge: the width it had when pressed, and whether a release now hides it.
+#[derive(Clone, Copy, Default)]
+pub(super) struct SidebarDrag {
+    pub start: Option<Pixels>,
+    pub hide: bool,
+}
+
 /// [`DockSkin`] with the panel `center` and every side chat panel drawn uncached.
 pub(super) struct CenterSkin {
     pub skin: Rc<DockSkin>,
     pub center: EntityId,
     /// Left, right, bottom: the extent each dock was last drawn at, and its size when last open.
     pub drawn: [Cell<Drawn>; 3],
+    pub sidebar_drag: Rc<Cell<SidebarDrag>>,
+    workspace: WeakEntity<super::Workspace>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -45,12 +63,91 @@ fn extent_id(at: DockPlacement) -> gpui::ElementId {
 }
 
 impl CenterSkin {
-    pub fn new(skin: Rc<DockSkin>, center: EntityId) -> Self {
+    pub fn new(
+        skin: Rc<DockSkin>,
+        center: EntityId,
+        workspace: WeakEntity<super::Workspace>,
+    ) -> Self {
         Self {
             skin,
             center,
             drawn: Default::default(),
+            sidebar_drag: Default::default(),
+            workspace,
         }
+    }
+
+    /// The open sidebar, watching its edge drag: window listeners (capture phase, so the handle's own
+    /// `stop_propagation` can't hide them) arm on a press on the handle and hide on a release past [`HIDE_BELOW`]
+    /// that ends a drag (GPUI clears the active drag after the release's listeners).
+    fn track_sidebar_drag(&self, width: Pixels, content: AnyElement) -> AnyElement {
+        let drag = self.sidebar_drag.clone();
+        let workspace = self.workspace.clone();
+        let hide = drag.get().hide;
+        div()
+            .size_full()
+            .relative()
+            .child(
+                div()
+                    .size_full()
+                    .when(hide, |d| d.opacity(0.35))
+                    .child(content),
+            )
+            .child(
+                canvas(
+                    |_, _, _| {},
+                    move |bounds: Bounds<Pixels>, _, window, _| {
+                        let d = drag.clone();
+                        window.on_mouse_event(move |e: &MouseDownEvent, phase, _, _| {
+                            let on_handle = e.position.x <= bounds.right()
+                                && e.position.x >= bounds.right() - HANDLE_W
+                                && bounds.contains(&e.position);
+                            if phase.capture() && e.button == MouseButton::Left && on_handle {
+                                d.set(SidebarDrag {
+                                    start: Some(width),
+                                    hide: false,
+                                });
+                            }
+                        });
+                        let d = drag.clone();
+                        window.on_mouse_event(move |e: &MouseMoveEvent, phase, window, _| {
+                            let mut now = d.get();
+                            let pressed = e.pressed_button == Some(MouseButton::Left);
+                            if !phase.capture() || now.start.is_none() || !pressed {
+                                return;
+                            }
+                            let hide = e.position.x - bounds.left() < HIDE_BELOW;
+                            if hide != now.hide {
+                                now.hide = hide;
+                                d.set(now);
+                                window.refresh();
+                            }
+                        });
+                        let d = drag;
+                        let workspace = workspace.clone();
+                        window.on_mouse_event(move |_: &MouseUpEvent, phase, window, cx| {
+                            if !phase.capture() {
+                                return;
+                            }
+                            let SidebarDrag { start, hide } = d.take();
+                            // Only a real drag of the handle: a press with no drag (under a dialog, say) never hides.
+                            if let (Some(width), true, true) = (start, hide, cx.has_active_drag()) {
+                                let workspace = workspace.clone();
+                                // After base's own release handler, which settles the drag.
+                                window.defer(cx, move |window, cx| {
+                                    _ = workspace.update(cx, |ws, cx| {
+                                        ws.hide_sidebar_from_drag(width, window, cx)
+                                    });
+                                });
+                            }
+                        });
+                    },
+                )
+                // `inset_0`: an absolute box with no offsets keeps its place in the flow, below the content.
+                .absolute()
+                .inset_0(),
+            )
+            .into_any_element()
     }
 
     /// A toggle is closing the dock at `at`: collapse it from its open size, unless motion is reduced.
@@ -173,7 +270,11 @@ impl DockAreaRenderer for CenterSkin {
                 extent: None,
                 open: size,
             });
-            return self.skin.render_dock(dock, content, window, cx);
+            let docked = self.skin.render_dock(dock, content, window, cx);
+            if at == DockPlacement::Left {
+                return self.track_sidebar_drag(size, docked);
+            }
+            return docked;
         }
         if cell.get().extent.is_some() {
             return self.render_closing(at, cell, content, window, cx);

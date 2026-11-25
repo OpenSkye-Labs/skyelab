@@ -144,6 +144,18 @@ fn dock_toggles(open: DockToggles) -> Vec<Button> {
     ]
 }
 
+/// What the hidden sidebar's edge handle drags; it draws nothing.
+pub(super) struct RestoreSidebar;
+
+impl Render for RestoreSidebar {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        gpui::Empty
+    }
+}
+
+/// T3's restore handle shows the sidebar once a drag from it is this far from the window's edge.
+pub(super) const RESTORE_AFTER: Pixels = px(48.);
+
 /// Where the layout is saved, this window's current layout, and the pending debounced save.
 #[derive(Default)]
 pub(super) struct LayoutStore {
@@ -370,6 +382,85 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.toggle(DockPlacement::Left, window, cx);
+    }
+
+    /// T3's restore handle: with the sidebar hidden, a 16x64 px strip 8 px in from the window's left edge, centred
+    /// down it, that shows a bar on hover. A click shows the sidebar at its last width; a drag shows it at the
+    /// pointer ([`Self::restore_drag_move`]).
+    pub(super) fn sidebar_restore_edge(&self, cx: &Context<Self>) -> Option<impl IntoElement> {
+        if self.dock.read(cx).is_dock_open(DockPlacement::Left) {
+            return None;
+        }
+        let bar = cx.theme().border;
+        Some(
+            gpui::div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(px(8.))
+                .flex()
+                .items_center()
+                .child(
+                    gpui::div()
+                        .id("sidebar-restore")
+                        .group("sidebar-restore")
+                        .debug_selector(|| "sidebar-restore".into())
+                        .w(px(16.))
+                        .h(px(64.))
+                        .cursor(gpui::CursorStyle::ResizeRight)
+                        .child(
+                            gpui::div()
+                                .w(px(8.))
+                                .h_full()
+                                .rounded_md()
+                                .group_hover("sidebar-restore", |s| s.bg(bar)),
+                        )
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.toggle(DockPlacement::Left, window, cx)
+                        }))
+                        .on_drag(RestoreSidebar, |_, _, _, cx| cx.new(|_| RestoreSidebar)),
+                ),
+        )
+    }
+
+    /// A drag from the restore handle: past [`RESTORE_AFTER`] the sidebar shows at the pointer's width (clamped
+    /// like a resize), back under it hides again; wherever it is on release stays. Instant, as T3's is mid-drag.
+    pub(super) fn restore_drag_move(
+        &mut self,
+        e: &gpui::DragMoveEvent<RestoreSidebar>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let x = e.event.position.x;
+        let show = x >= RESTORE_AFTER;
+        let max = window.viewport_size().width
+            - self.dock_width(DockPlacement::Right, cx)
+            - gpui_base::PANEL_MIN_SIZE;
+        self.dock.update(cx, |dock, cx| {
+            if dock.is_dock_open(DockPlacement::Left) != show {
+                dock.toggle_dock(DockPlacement::Left, window, cx);
+            }
+            if show {
+                dock.set_dock_size(DockPlacement::Left, x.min(max), window, cx);
+            }
+        });
+    }
+
+    /// A drag of the sidebar's edge was released past `center_skin::HIDE_BELOW`: hide it the way the toggle does,
+    /// and keep the width it had before the drag (base clamped it to the minimum), so it comes back at that width.
+    pub(super) fn hide_sidebar_from_drag(
+        &mut self,
+        width: Pixels,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.dock.read(cx).is_dock_open(DockPlacement::Left) {
+            return;
+        }
+        self.toggle(DockPlacement::Left, window, cx);
+        self.dock.update(cx, |dock, cx| {
+            dock.set_dock_size(DockPlacement::Left, width, window, cx)
+        });
     }
 
     pub(super) fn toggle_bottom(

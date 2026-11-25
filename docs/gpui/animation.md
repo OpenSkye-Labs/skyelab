@@ -71,3 +71,14 @@ things that switch, get selected or go away change at once.
   open size and pin it to the edge beside the center: the frame clips it, and a terminal inside never resizes.
 - Route every dialog through one helper (`ui::open_dialog`, which sets the entrance) and ban gpui-component's
   `WindowExt::open_dialog` in clippy's `disallowed-methods`: a per-dialog default would drift.
+- A drag that base owns (a dock's resize handle, whose state is crate-private in gpui-component) can still be watched
+  from the skin: paint a `canvas` over the dock that registers **capture-phase** window mouse listeners (the handle
+  calls `stop_propagation` in bubble), arm on a press inside the handle's hit area (5 px at the edge), and act on the
+  release only if `cx.has_active_drag()` (still set during the release's listeners), so a press with no drag (one
+  under a dialog) never counts. Don't require the drag on moves: GPUI starts it a move late, so a quick flick lands
+  before it. Act through `window.defer`, after base's own mouse-up settles the drag (`center_skin.rs::track_sidebar_drag`).
+  The canvas needs `.absolute().inset_0()`: an absolute box with no offsets stays at its flow position (below the
+  content), so its bounds were off the dock and every press missed.
+- A drag whose source disappears mid-drag (the hidden sidebar's restore handle, gone once the sidebar shows) keeps
+  working if the `on_drag_move::<T>` listener sits on an element that stays drawn, such as the workspace root: it
+  fires on every move while a `T` is dragged, wherever the pointer is.
