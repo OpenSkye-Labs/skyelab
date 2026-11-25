@@ -27,7 +27,7 @@ fn search_leaves_side_chats_out() {
         .search_threads("zebra", None, 10)
         .expect("search")
         .into_iter()
-        .map(|t| t.id)
+        .map(|h| h.thread.id)
         .collect();
     assert_eq!(found, vec![parent.id], "side chat {} in search", side.id);
 }

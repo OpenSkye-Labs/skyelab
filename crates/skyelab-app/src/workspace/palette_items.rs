@@ -73,7 +73,7 @@ impl Workspace {
                     .await
                     .unwrap_or_default()
                     .into_iter()
-                    .map(|t| {
+                    .map(|skyelab_store::SearchHit { thread: t, snippet }| {
                         let other = names
                             .get(&t.project_id)
                             .filter(|_| Some(t.project_id) != current);
@@ -85,8 +85,14 @@ impl Workspace {
                             dispatch(label, Kind::Thread, Box::new(OpenThread { id: t.id }))
                                 .title(t.title.clone())
                                 .recency(t.updated_at);
-                        match other {
-                            Some(name) => entry.subtitle(name.clone()),
+                        // The matched line, after the project's name when it is another project's thread.
+                        let subtitle = match (other, snippet) {
+                            (Some(name), Some(s)) => Some(format!("{name} · {s}")),
+                            (Some(name), None) => Some(name.clone()),
+                            (None, s) => s,
+                        };
+                        match subtitle {
+                            Some(s) => entry.subtitle(s),
                             None => entry,
                         }
                     })

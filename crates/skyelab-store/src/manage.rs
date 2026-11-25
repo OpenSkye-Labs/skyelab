@@ -1,4 +1,4 @@
-//! Pin, archive, unread, undoable delete, project removal, and thread search (schema v7).
+//! Pin, archive, unread, undoable delete and project removal (schema v7).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -176,49 +176,5 @@ impl Store {
                 |r| r.get(0),
             )
             .optional()?)
-    }
-
-    /// Threads whose title or message text (prompts, assistant text) contains `query`, most recently updated
-    /// first, in `project` or in every project. Deleted threads and removed projects are left out. Under three
-    /// characters only titles are searched: the trigram index needs three.
-    #[cfg_attr(feature = "hotpath", hotpath::measure)]
-    #[tracing::instrument(name = "store.search_threads", skip_all)]
-    pub fn search_threads(
-        &self,
-        query: &str,
-        project: Option<i64>,
-        limit: usize,
-    ) -> Result<Vec<Thread>> {
-        let query = query.trim();
-        if query.is_empty() {
-            return Ok(Vec::new());
-        }
-        let like = format!(
-            "%{}%",
-            query
-                .replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_")
-        );
-        // A quoted FTS5 phrase: the query's text, never its syntax.
-        let phrase =
-            (query.chars().count() >= 3).then(|| format!("\"{}\"", query.replace('"', "\"\"")));
-        let cols = THREAD_COLS
-            .split(", ")
-            .map(|c| format!("t.{c}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let sql = format!(
-            "SELECT {cols} FROM threads t JOIN projects p ON p.id = t.project_id
-             WHERE t.deleted_at IS NULL AND t.side_of IS NULL AND p.removed_at IS NULL
-               AND (?2 IS NULL OR t.project_id = ?2)
-               AND (t.title LIKE ?1 ESCAPE '\\'
-                    OR (?3 IS NOT NULL AND t.id IN (SELECT thread_id FROM event_text WHERE event_text MATCH ?3)))
-             ORDER BY t.updated_at DESC, t.id DESC LIMIT ?4"
-        );
-        let mut stmt = self.conn.prepare(&sql)?;
-        let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-        let rows = stmt.query_map(params![like, project, phrase, limit], thread_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 }
