@@ -17,6 +17,8 @@ actions!(
         GoBack,
         GoForward,
         OpenOnboarding,
-        OpenUsage
+        OpenUsage,
+        OpenHome,
+        OpenBots
     ]
 );

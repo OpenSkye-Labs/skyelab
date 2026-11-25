@@ -46,3 +46,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - An app-level action bound to a key (⌘Q's `cx.on_action`) runs inside the focused window's update, so that window
   can't be updated from the handler: open its dialog with `cx.defer`, and treat a `window.update` that fails there as
   "can't tell", not "no dialog" (`quit_guard::asking`). Tests send such actions with `TestAppContext::update`.
+- A full-height element left of the dock (the left rail) shifts every window-x the dock's children see: compute drag
+  positions from the dock container's `e.bounds.left()`, not the viewport, and start overlays that must leave the rail
+  clickable (the Settings modal) at `left(RAIL_W)`, not `inset_0()`. On macOS the traffic lights reach past the 48 px
+  rail, so the rail's top `TOP_ROW_H` band has no border or icons and matches the surface beside it.

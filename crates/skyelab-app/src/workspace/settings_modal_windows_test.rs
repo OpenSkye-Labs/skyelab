@@ -38,9 +38,12 @@ fn escape_and_backdrop_close_and_the_section_is_remembered(cx: &mut TestAppConte
         "reopens on the last section"
     );
 
-    // The backdrop: below the title band, outside the modal's 40 px margin.
+    // The backdrop: right of the left rail, below the title band, outside the modal's 40 px margin.
     let size = cx.update(|window, _| window.viewport_size());
-    cx.simulate_click(point(px(12.), size.height - px(12.)), Modifiers::none());
+    cx.simulate_click(
+        point(crate::ui::RAIL_W + px(12.), size.height - px(12.)),
+        Modifiers::none(),
+    );
     cx.run_until_parked();
     assert_eq!(open(&ws, cx), (false, false), "a backdrop click closes it");
 
