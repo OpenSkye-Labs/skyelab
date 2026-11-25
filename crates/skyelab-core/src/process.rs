@@ -89,7 +89,42 @@ fn reap_in_background(mut child: Child) {
 pub fn exclusive<T>(start: impl FnOnce() -> T) -> T {
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
     let _held = ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner);
+    #[cfg(unix)]
+    let _clear = ClearSignalMask::new();
     start()
+}
+
+/// Unblocks every signal on this thread until dropped, then puts its mask back. std's spawn copies the calling
+/// thread's mask into the child, and GPUI's background threads block SIGCHLD among others: a child that waits for
+/// its own children through SIGCHLD (Codex's tokio, for its hooks) then never sees one exit and hangs.
+#[cfg(unix)]
+struct ClearSignalMask(Option<nix::sys::signal::SigSet>);
+
+#[cfg(unix)]
+impl ClearSignalMask {
+    fn new() -> Self {
+        use nix::sys::signal::{SigSet, SigmaskHow, pthread_sigmask};
+        let mut old = SigSet::empty();
+        let cleared = pthread_sigmask(
+            SigmaskHow::SIG_SETMASK,
+            Some(&SigSet::empty()),
+            Some(&mut old),
+        );
+        Self(cleared.ok().map(|()| old))
+    }
+}
+
+#[cfg(unix)]
+impl Drop for ClearSignalMask {
+    fn drop(&mut self) {
+        if let Some(old) = &self.0 {
+            let _ = nix::sys::signal::pthread_sigmask(
+                nix::sys::signal::SigmaskHow::SIG_SETMASK,
+                Some(old),
+                None,
+            );
+        }
+    }
 }
 
 /// A spawned child whose stdout and stderr go to temp files.
