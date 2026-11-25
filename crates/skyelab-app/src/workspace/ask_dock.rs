@@ -386,7 +386,7 @@ impl ThreadView {
                 .primary()
                 .small()
                 .label(label)
-                .tooltip(format!("{label} (⌘↩)"))
+                .tooltip(format!("{label} ({})", crate::ui::keys("⌘↩")))
                 .on_click(cx.listener(|this, _, window, cx| this.advance_question(window, cx)))
                 .into_any_element(),
         )

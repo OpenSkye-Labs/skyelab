@@ -361,6 +361,9 @@ fn interrupt<V: ItemsView>(id: &str, cx: &mut Context<V>) -> Button {
         .xsmall()
         .ghost()
         .label("Interrupt")
-        .tooltip("Stop this turn instead (⌘.)")
+        .tooltip(format!(
+            "Stop this turn instead ({})",
+            crate::ui::keys("⌘.")
+        ))
         .on_click(cx.listener(|this, _, window, cx| this.interrupt_turn(window, cx)))
 }
