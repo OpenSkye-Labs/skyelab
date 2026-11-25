@@ -12,6 +12,29 @@ fn setup(cx: &mut TestAppContext) {
     });
 }
 
+/// Onboarding's theme tiles paint each family from its swatch: a light canvas in Light, a dark one in Dark.
+#[gpui::test]
+fn every_family_has_a_light_and_a_dark_swatch(cx: &mut TestAppContext) {
+    setup(cx);
+    cx.update(|cx| {
+        for f in &FAMILIES {
+            let light =
+                themes::swatch(f.key, false, cx).unwrap_or_else(|| panic!("{} light", f.key));
+            let dark = themes::swatch(f.key, true, cx).unwrap_or_else(|| panic!("{} dark", f.key));
+            assert!(
+                light[0].l > 0.8 && light[1].l < 0.3,
+                "{} light: {light:?}",
+                f.key
+            );
+            assert!(
+                dark[0].l < 0.2 && dark[1].l > 0.7,
+                "{} dark: {dark:?}",
+                f.key
+            );
+        }
+    });
+}
+
 #[gpui::test]
 fn every_family_registers_light_and_dark(cx: &mut TestAppContext) {
     setup(cx);

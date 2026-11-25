@@ -324,3 +324,17 @@ pub(crate) fn adjust(base: &ThemeConfig, s: &AppearanceSettings, dark: bool) -> 
     }
     c
 }
+
+/// A family's canvas, text and accent in light or dark, resolved the way the live theme resolves them (`None` before
+/// [`super::install_theme`]): the onboarding's theme tiles paint each family with it.
+pub fn swatch(key: &str, dark: bool, cx: &App) -> Option<[Hsla; 3]> {
+    let f = FAMILIES.iter().find(|f| f.key == key)?;
+    let name = format!("{} {}", f.label, if dark { "Dark" } else { "Light" });
+    let config = ThemeRegistry::global(cx)
+        .themes()
+        .get(name.as_str())?
+        .clone();
+    let mut theme = Theme::global(cx).clone();
+    theme.apply_config(&config);
+    Some([theme.background, theme.foreground, theme.primary])
+}

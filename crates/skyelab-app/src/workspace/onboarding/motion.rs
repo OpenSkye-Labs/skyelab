@@ -1,52 +1,72 @@
-//! Onboarding's motion: a page slides in from the side it came from and fades up, its
-//! rows enter one after another, and the progress dot of the current step widens. Every animation is one-shot, so
-//! a settled page draws no frames, and GPUI draws each at its end state when `App::reduce_motion` is on.
+//! Onboarding's motion, after Rex's: a step change is a crossfade in place (the new page fades in while the old one
+//! fades out over the same spot, no slide), and the step's hero tile zooms in from 1.35x. Measured from Rex at 60 fps:
+//! most of the change lands in the first ~120 ms, all of it by ~300 ms, on an ease-out curve. GPUI has no element blur,
+//! so the hero's settle is scale and opacity only. Every animation is one-shot, so a settled page draws no frames, and
+//! GPUI draws each at its end state when `App::reduce_motion` is on. The progress dot of the current step widens.
 
-use gpui::{Animation, AnimationExt as _, ElementId, IntoElement, Styled, ease_out_quint, px};
+use gpui::{
+    Animation, AnimationExt as _, ElementId, IntoElement, ParentElement as _, Pixels, Styled, px,
+};
 use std::time::Duration;
 
-/// A page's slide and fade.
-pub(super) const PAGE: Duration = Duration::from_millis(220);
-/// Each row starts this much after the one above it.
-const STAGGER_MS: u64 = 35;
-/// One row's own entrance.
-const ROW_MS: u64 = 200;
-/// The most rows that wait their turn; later ones enter with the last of them.
-const MAX_STAGGER: usize = 8;
-/// How far a page slides, in px.
-const SLIDE: f32 = 28.;
+/// The new page's fade in.
+const FADE_IN: Duration = Duration::from_millis(300);
+/// The old page's fade out; it is dropped once this is over.
+pub(super) const FADE_OUT: Duration = Duration::from_millis(150);
+/// The hero tile's zoom from `ZOOM` to 1.
+const HERO: Duration = Duration::from_millis(300);
+const ZOOM: f32 = 1.35;
 
-/// A page entering from the right (`forward`) or the left. `id` must change with the page, so each change starts a
-/// new animation.
-pub(super) fn page<E: IntoElement + Styled + 'static>(
+/// Rex's curve: the biggest change in the first frame, its speed then falling off evenly (an ease-out quad; a cubic
+/// front-loads too much next to Rex's frames).
+fn ease_out(t: f32) -> f32 {
+    1. - (1. - t).powi(2)
+}
+
+/// A page fading in where it stands. `id` must change with the page, so each change starts a new animation.
+pub(super) fn fade_in<E: IntoElement + Styled + 'static>(
     el: E,
     id: impl Into<ElementId>,
-    forward: bool,
 ) -> impl IntoElement {
-    let from = if forward { SLIDE } else { -SLIDE };
     el.with_animation(
         id,
-        Animation::new(PAGE).with_easing(ease_out_quint()),
-        move |el, t| el.opacity(t).left(px(from * (1. - t))),
+        Animation::new(FADE_IN).with_easing(ease_out),
+        |el, t| el.opacity(t),
     )
 }
 
-/// Row `i` of a list fading up after the rows above it.
-pub(super) fn row<E: IntoElement + Styled + 'static>(
+/// The page that was there fading out over the new one.
+pub(super) fn fade_out<E: IntoElement + Styled + 'static>(
     el: E,
     id: impl Into<ElementId>,
-    i: usize,
 ) -> impl IntoElement {
-    let delay = (i.min(MAX_STAGGER) as u64) * STAGGER_MS;
-    let total = delay + ROW_MS;
-    let start = delay as f32 / total as f32;
-    let ease = ease_out_quint();
     el.with_animation(
         id,
-        Animation::new(Duration::from_millis(total))
-            .with_easing(move |t| ease(((t - start) / (1. - start)).clamp(0., 1.))),
-        |el, t| el.opacity(t).top(px(6. * (1. - t))),
+        Animation::new(FADE_OUT).with_easing(ease_out),
+        |el, t| el.opacity(1. - t),
     )
+}
+
+/// The hero tile settling from `ZOOM` times its size to `size`: `draw` builds the tile at a given edge length (its
+/// glyph scales with it), inside a box that keeps `size`, so nothing around it moves.
+pub(super) fn hero<E: IntoElement + Styled + 'static>(
+    id: impl Into<ElementId>,
+    size: Pixels,
+    draw: impl Fn(Pixels) -> E + 'static,
+) -> impl IntoElement {
+    gpui::div()
+        .size(size)
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(gpui::div().with_animation(
+            id,
+            Animation::new(HERO).with_easing(ease_out),
+            move |el, t| {
+                let edge = size * (ZOOM + (1. - ZOOM) * t);
+                el.flex_shrink_0().opacity(0.4 + 0.6 * t).child(draw(edge))
+            },
+        ))
 }
 
 /// A progress dot springing from `from` to `to` px wide.

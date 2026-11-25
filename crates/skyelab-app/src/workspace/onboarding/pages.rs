@@ -1,20 +1,24 @@
-//! Onboarding's frame and the pages that need no detection: progress dots and Skip on top, one page in the middle,
-//! Back and the next action at the bottom (one page per step); Welcome, Theme with a live miniature of the
-//! app, and Done.
+//! Onboarding's frame and the pages that need no detection, laid out after Rex's: progress dots on top, then one
+//! centered column per step (hero tile, bold title, muted line, one rounded panel holding the step's controls, a
+//! round Back and a pill Continue, and a text link: Skip, or Back on Done). A step change crossfades the old column
+//! out over the new one. Welcome and Done live here; Theme is in `theme.rs`.
 
-use super::{Onboarding, OnboardingNext, Step, motion};
+use super::{Onboarding, Step, motion};
 use crate::ui;
-use crate::ui::{Button, Kbd, SegmentedControl, SkyeIcon};
+use crate::ui::{Button, Card, Divider, Kbd, SkyeIcon};
 use gpui::{
-    AnyElement, Context, Div, FontWeight, ParentElement as _, SharedString, Window, div,
-    prelude::*, px,
+    AnyElement, Context, Div, FontWeight, Hsla, ParentElement as _, Pixels, SharedString, Window,
+    div, linear_color_stop, linear_gradient, prelude::*, px,
 };
 use gpui_component::{ActiveTheme as _, Icon, h_flex, v_flex};
-use skyelab_core::ColorMode;
 
 /// Width of a dot, and of the current step's.
 const DOT: f32 = 6.;
 const DOT_ON: f32 = 22.;
+/// The hero tile's edge.
+const HERO: f32 = 72.;
+/// The column's width.
+const COLUMN: f32 = 600.;
 
 impl Onboarding {
     /// The row of progress dots: the current step's is wide, and morphs as the step changes.
@@ -45,43 +49,28 @@ impl Onboarding {
             }))
     }
 
-    /// The whole page: dots and Skip, the step's page sliding in, Back and the next action.
-    pub(super) fn frame(
-        &mut self,
-        page: AnyElement,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Div {
-        let theme = cx.theme();
+    /// The whole page: the dots, then the step's column fading in, over the old one fading out after a change. The
+    /// old column sits under a layer that takes the mouse, so a click during the fade never reaches it.
+    pub(super) fn frame(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let step = self.step;
-        let enter = Kbd::for_action_in(&OnboardingNext, &self.focus, window);
-        let next = self.next_label();
-        let forward = self.forward;
+        let page = self.column(step, window, cx);
+        let leaving = self.leaving.map(|s| (s, self.column(s, window, cx)));
+        let centered = || {
+            v_flex()
+                .w_full()
+                .items_center()
+                .justify_center()
+                .px_6()
+                .py_8()
+        };
         v_flex()
             .size_full()
             .child(
                 h_flex()
                     .h(ui::HEADER_H)
-                    .px_5()
-                    .justify_between()
-                    .child(div().w(px(120.)))
-                    .child(self.dots(cx))
-                    .child(
-                        h_flex()
-                            .w(px(120.))
-                            .justify_end()
-                            .when(step != Step::Done, |d| {
-                                d.child(
-                                    div().debug_selector(|| "onboarding-skip".into()).child(
-                                        Button::new("onboarding-skip")
-                                            .ghost()
-                                            .small()
-                                            .label("Skip")
-                                            .on_click(cx.listener(|this, _, _, cx| this.skip(cx))),
-                                    ),
-                                )
-                            }),
-                    ),
+                    .flex_shrink_0()
+                    .justify_center()
+                    .child(self.dots(cx)),
             )
             .child(
                 div()
@@ -91,267 +80,225 @@ impl Onboarding {
                     .overflow_y_scroll()
                     .child(
                         div()
+                            .relative()
                             .w_full()
-                            .max_w(px(640.))
-                            .mx_auto()
-                            .px_6()
-                            .pt_8()
-                            .pb_8()
-                            .child(motion::page(
-                                div().relative().child(page),
+                            .min_h_full()
+                            .flex()
+                            .flex_col()
+                            .children(leaving.map(|(s, old)| {
+                                motion::fade_out(
+                                    centered()
+                                        .absolute()
+                                        .inset_0()
+                                        .debug_selector(|| "onboarding-leaving".into())
+                                        .child(old),
+                                    ("onboarding-leaving", s as usize),
+                                )
+                            }))
+                            .children(self.leaving.map(|_| div().absolute().inset_0().occlude()))
+                            .child(motion::fade_in(
+                                centered()
+                                    .flex_1()
+                                    .debug_selector(|| "onboarding-page".into())
+                                    .child(page),
                                 ("onboarding-page", step as usize),
-                                forward,
                             )),
-                    ),
-            )
-            .children(self.error.clone().map(|e| {
-                div()
-                    .w_full()
-                    .max_w(px(640.))
-                    .mx_auto()
-                    .px_6()
-                    .pb_2()
-                    .text_size(ui::META)
-                    .text_color(ui::ink(theme, theme.danger))
-                    .child(e)
-            }))
-            .child(
-                h_flex()
-                    .w_full()
-                    .max_w(px(640.))
-                    .mx_auto()
-                    .px_6()
-                    .pb_6()
-                    .pt_3()
-                    .gap_3()
-                    .child(
-                        div()
-                            .debug_selector(|| "onboarding-back".into())
-                            .when(step == Step::Welcome, |d| d.invisible())
-                            .child(
-                                Button::new("onboarding-back")
-                                    .ghost()
-                                    .label("Back")
-                                    .icon(SkyeIcon::ChevronLeft)
-                                    .disabled(step == Step::Welcome)
-                                    .on_click(cx.listener(|this, _, _, cx| this.back(cx))),
-                            ),
-                    )
-                    .child(div().flex_1())
-                    .child(
-                        h_flex()
-                            .gap_1p5()
-                            .text_size(ui::META)
-                            .text_color(theme.muted_foreground)
-                            .children(enter.map(|k| k.with_label("Return")))
-                            .child("to continue"),
-                    )
-                    .child(
-                        div().debug_selector(|| "onboarding-next".into()).child(
-                            Button::new("onboarding-next")
-                                .primary()
-                                .label(next)
-                                .on_click(cx.listener(|this, _, _, cx| this.next(cx))),
-                        ),
                     ),
             )
     }
 
-    /// A page's heading: a title and one muted line.
-    pub(super) fn heading(title: &'static str, about: &'static str, cx: &Context<Self>) -> Div {
+    /// One step's column: hero, title and line, the panel, then the actions.
+    fn column(&self, step: Step, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let (title, about): (&'static str, SharedString) = match step {
+            Step::Welcome => (
+                "Welcome to SkyeLab",
+                "Every folder runs on the account it is bound to, and nothing ever falls back to another."
+                    .into(),
+            ),
+            Step::Theme => (
+                "Make it yours",
+                "Pick a theme. The whole app changes as you click.".into(),
+            ),
+            Step::Agents => (
+                "Agents and accounts",
+                "Each Claude or Codex login keeps its own config folder. Add the ones you use.".into(),
+            ),
+            Step::Import => (
+                "Bring in your projects",
+                "Folders your agents worked in. Each runs on the account shown; change it before importing."
+                    .into(),
+            ),
+            Step::Done => ("You're set", self.ready_line().into()),
+        };
+        let body = match step {
+            Step::Welcome => self.welcome_page(cx).into_any_element(),
+            Step::Theme => self.theme_page(cx).into_any_element(),
+            Step::Agents => self.agents_page(cx).into_any_element(),
+            Step::Import => self.import_page(cx).into_any_element(),
+            Step::Done => self.done_page(window, cx).into_any_element(),
+        };
+        let theme = cx.theme();
         v_flex()
-            .gap_1p5()
-            .mb_6()
+            .w_full()
+            .max_w(px(COLUMN))
+            .items_center()
+            .child(hero(step, cx))
             .child(
                 div()
-                    .text_size(px(24.))
-                    .font_weight(FontWeight::SEMIBOLD)
+                    .mt_5()
+                    .text_size(px(26.))
+                    .font_weight(FontWeight::BOLD)
+                    .text_center()
                     .child(title),
             )
             .child(
                 div()
-                    .text_size(ui::BODY)
-                    .text_color(cx.theme().muted_foreground)
+                    .mt_2()
+                    .text_size(ui::SECTION)
+                    .text_color(theme.muted_foreground)
+                    .text_center()
                     .child(about),
             )
+            .child(Card::new().mt_6().w_full().child(body))
+            .children(self.error.clone().map(|e| {
+                div()
+                    .mt_3()
+                    .w_full()
+                    .text_size(ui::META)
+                    .text_color(ui::ink(theme, theme.danger))
+                    .child(e)
+            }))
+            .child(self.actions(step, cx))
+            .into_any_element()
+    }
+
+    /// The round Back and the pill next action, then a text link: Skip, or on Done the way back.
+    fn actions(&self, step: Step, cx: &mut Context<Self>) -> Div {
+        let back = Button::new("onboarding-back")
+            .secondary()
+            .square()
+            .rounded_full()
+            .icon(SkyeIcon::ChevronLeft)
+            .tooltip("Back")
+            .on_click(cx.listener(|this, _, _, cx| this.back(cx)));
+        let link = match step {
+            Step::Done => div().debug_selector(|| "onboarding-back".into()).child(
+                Button::new("onboarding-back-link")
+                    .ghost()
+                    .small()
+                    .icon(SkyeIcon::ChevronLeft)
+                    .label("Return to projects")
+                    .on_click(cx.listener(|this, _, _, cx| this.back(cx))),
+            ),
+            _ => div().debug_selector(|| "onboarding-skip".into()).child(
+                Button::new("onboarding-skip")
+                    .ghost()
+                    .small()
+                    .label(if step == Step::Welcome {
+                        "Skip for now"
+                    } else {
+                        "Skip setup"
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| this.skip(cx))),
+            ),
+        };
+        v_flex()
+            .mt_6()
+            .items_center()
+            .gap_3()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .when(!matches!(step, Step::Welcome | Step::Done), |d| {
+                        d.child(
+                            div()
+                                .debug_selector(|| "onboarding-back".into())
+                                .child(back),
+                        )
+                    })
+                    .child(
+                        div().debug_selector(|| "onboarding-next".into()).child(
+                            Button::new("onboarding-next")
+                                .secondary()
+                                .rounded_full()
+                                .px_4()
+                                .label(self.next_label(step))
+                                .when(step != Step::Done, |b| b.icon_end(SkyeIcon::ArrowRight))
+                                .on_click(cx.listener(|this, _, _, cx| this.next(cx))),
+                        ),
+                    ),
+            )
+            .child(link)
     }
 
     pub(super) fn welcome_page(&self, cx: &mut Context<Self>) -> Div {
         let theme = cx.theme();
         v_flex()
-            .pt_10()
-            .gap_6()
-            .child(
-                div()
-                    .size(px(64.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(ui::RADIUS_XL)
-                    .bg(theme.secondary)
-                    .child(ui::grip_mark(px(40.), theme.foreground)),
-            )
-            .child(
-                v_flex()
-                    .gap_2()
-                    .child(div().text_size(px(30.)).font_weight(FontWeight::SEMIBOLD).child("Welcome to SkyeLab"))
-                    .child(div().text_size(ui::SECTION).text_color(theme.muted_foreground).child(
-                        "Every folder runs on the account it is bound to, and nothing ever falls back to another.",
-                    )),
-            )
+            .items_center()
+            .gap_4()
+            .py_2()
             .child(self.idea(cx))
             .child(
                 div()
                     .text_size(ui::BODY)
                     .text_color(theme.muted_foreground)
+                    .text_center()
                     .child("A few steps: pick a look, check your agents and accounts, and bring in your projects."),
             )
     }
 
-    pub(super) fn theme_page(&self, cx: &mut Context<Self>) -> Div {
-        let current = ui::themes::get(cx);
-        let mut list = v_flex().gap_1p5();
-        for (i, f) in ui::themes::FAMILIES.iter().enumerate() {
-            let on = current.theme == f.key;
-            let theme = cx.theme();
-            let key = f.key;
-            list = list.child(motion::row(
-                h_flex()
-                    .relative()
-                    .id(("onboarding-family", i))
-                    .debug_selector(move || format!("onboarding-family-{key}"))
-                    .px_3()
-                    .py_2p5()
-                    .gap_3()
-                    .rounded(ui::RADIUS)
-                    .border_1()
-                    .border_color(if on { theme.ring } else { theme.border })
-                    .bg(if on { theme.accent } else { theme.background })
-                    .cursor_pointer()
-                    .hover(|s| s.bg(theme.accent))
-                    .on_click(cx.listener(move |this, _, _, cx| this.pick_family(key, cx)))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .child(
-                                div()
-                                    .text_size(ui::BODY)
-                                    .font_weight(FontWeight::MEDIUM)
-                                    .child(f.label),
-                            )
-                            .child(
-                                div()
-                                    .text_size(ui::META)
-                                    .text_color(theme.muted_foreground)
-                                    .child(f.about),
-                            ),
-                    )
-                    .when(on, |d| {
-                        d.child(
-                            Icon::new(SkyeIcon::Check)
-                                .size_4()
-                                .text_color(theme.foreground),
-                        )
-                    }),
-                ("onboarding-family-row", i),
-                i,
-            ));
-        }
-        let mode = match current.mode {
-            ColorMode::System => 0,
-            ColorMode::Light => 1,
-            ColorMode::Dark => 2,
-        };
-        v_flex()
-            .child(Self::heading(
-                "Make it yours",
-                "Pick a theme. The whole app changes as you click.",
-                cx,
-            ))
-            .child(
-                h_flex()
-                    .items_start()
-                    .gap_6()
-                    .child(
-                        v_flex().flex_1().gap_4().child(list).child(
-                            h_flex().child(
-                                div().debug_selector(|| "onboarding-mode".into()).child(
-                                    SegmentedControl::new("onboarding-mode")
-                                        .icon_item(SkyeIcon::Monitor, "System")
-                                        .icon_item(SkyeIcon::Sun, "Light")
-                                        .icon_item(SkyeIcon::Moon, "Dark")
-                                        .selected(Some(mode))
-                                        .on_click(cx.listener(|this, ix: &usize, _, cx| {
-                                            this.pick_mode(*ix, cx)
-                                        })),
-                                ),
-                            ),
-                        ),
-                    )
-                    .child(preview(cx)),
-            )
+    /// The line under Done's title: what is ready.
+    fn ready_line(&self) -> String {
+        let accounts = self.config.accounts.len();
+        let projects = self.projects.len();
+        format!(
+            "{accounts} account{} and {projects} project{} ready. Here is how to get going.",
+            if accounts == 1 { "" } else { "s" },
+            if projects == 1 { "" } else { "s" }
+        )
     }
 
     pub(super) fn done_page(&self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let theme = cx.theme();
-        let tip = |i: usize, key: Option<Kbd>, text: &'static str| {
-            motion::row(
-                h_flex()
-                    .relative()
-                    .gap_3()
-                    .h(px(36.))
-                    // A fixed key column, so the lines start together with or without a key.
-                    .child(h_flex().w(px(56.)).children(key))
-                    .child(div().text_size(ui::BODY).child(text)),
-                ("onboarding-tip", i),
-                i,
-            )
-        };
-        let accounts = self.config.accounts.len();
-        let projects = self.projects.len();
-        v_flex()
-            .pt_6()
-            .child(Self::heading("You're set", "Here is how to get going.", cx))
-            .child(
-                div()
-                    .mb_4()
-                    .text_size(ui::BODY)
-                    .text_color(theme.muted_foreground)
-                    .child(format!(
-                        "{accounts} account{} and {projects} project{} ready.",
-                        if accounts == 1 { "" } else { "s" },
-                        if projects == 1 { "" } else { "s" }
-                    )),
-            )
-            .child(tip(
-                0,
+        let tips = [
+            (
                 Kbd::for_action(
                     &crate::palette::OpenCommandPalette,
                     Some("Workspace"),
                     window,
                 ),
                 "Find any action, project or thread",
-            ))
-            .child(tip(
-                1,
+            ),
+            (
                 Kbd::for_action(&super::super::NewThread, Some("Workspace"), window),
                 "Start a thread in the current project",
-            ))
-            .child(tip(
-                2,
+            ),
+            (
                 None,
                 "Add project in the palette adds a folder, a new repo or a clone",
-            ))
-            .child(tip(
-                3,
-                None,
-                "Open Onboarding in the palette brings this back",
-            ))
+            ),
+            (None, "Open Onboarding in the palette brings this back"),
+        ];
+        let mut list = v_flex();
+        for (i, (key, text)) in tips.into_iter().enumerate() {
+            if i > 0 {
+                list = list.child(Divider::horizontal());
+            }
+            list = list.child(
+                h_flex()
+                    .h(px(40.))
+                    .gap_3()
+                    .justify_between()
+                    .child(div().text_size(ui::BODY).child(text))
+                    .child(h_flex().flex_shrink_0().children(key)),
+            );
+        }
+        list.text_color(theme.foreground)
     }
 
-    /// What Next says on this step.
-    fn next_label(&self) -> SharedString {
-        match self.step {
+    /// What Next says on `step`.
+    fn next_label(&self, step: Step) -> SharedString {
+        match step {
             Step::Welcome => "Get started".into(),
             Step::Theme | Step::Agents => "Continue".into(),
             Step::Import => match self.picked().len() {
@@ -364,83 +311,57 @@ impl Onboarding {
     }
 }
 
-/// A miniature of the app in the theme now applied: sidebar with a selected row, a thread, the composer.
-fn preview(cx: &Context<Onboarding>) -> impl IntoElement {
+/// A small muted heading inside the panel.
+pub(super) fn caption(text: &'static str, cx: &gpui::App) -> Div {
+    div()
+        .text_size(ui::META)
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(cx.theme().muted_foreground)
+        .child(text)
+}
+
+/// The step's hero: an app-icon-style tile with the step's glyph, zooming in as the step appears.
+fn hero(step: Step, cx: &gpui::App) -> impl IntoElement {
     let theme = cx.theme();
-    let bar = |w: f32, color: gpui::Hsla| div().h(px(6.)).w(px(w)).rounded_full().bg(color);
-    let line = theme.muted_foreground.opacity(0.5);
-    v_flex()
-        .debug_selector(|| "onboarding-preview".into())
-        .flex_shrink_0()
-        .w(px(240.))
-        .h(px(176.))
-        .rounded(ui::RADIUS_LG)
-        .border_1()
-        .border_color(theme.border)
-        .bg(theme.background)
-        .overflow_hidden()
-        .child(
-            h_flex()
-                .size_full()
-                .child(
-                    v_flex()
-                        .w(px(72.))
-                        .h_full()
-                        .p_2()
-                        .gap_1p5()
-                        .bg(theme.sidebar)
-                        .border_r_1()
-                        .border_color(theme.sidebar_border)
-                        .child(bar(36., theme.foreground.opacity(0.6)))
-                        .child(
-                            div()
-                                .mt_1()
-                                .px_1()
-                                .py_1()
-                                .rounded(px(4.))
-                                .bg(theme.sidebar_accent)
-                                .child(bar(40., theme.foreground.opacity(0.7))),
-                        )
-                        .child(div().px_1().child(bar(34., line)))
-                        .child(div().px_1().child(bar(44., line))),
-                )
-                .child(
-                    v_flex()
-                        .flex_1()
-                        .h_full()
-                        .p_3()
-                        .gap_2()
-                        .child(bar(70., theme.foreground.opacity(0.7)))
-                        .child(
-                            h_flex().justify_end().child(
-                                div()
-                                    .px_2()
-                                    .py_1p5()
-                                    .rounded(px(6.))
-                                    .bg(theme.secondary)
-                                    .child(bar(56., line)),
-                            ),
-                        )
-                        .child(
-                            v_flex()
-                                .gap_1()
-                                .child(bar(110., line))
-                                .child(bar(90., line))
-                                .child(bar(100., line)),
-                        )
-                        .child(div().flex_1())
-                        .child(
-                            h_flex()
-                                .h(px(28.))
-                                .px_2()
-                                .rounded(px(8.))
-                                .border_1()
-                                .border_color(theme.input)
-                                .bg(theme.popover)
-                                .child(bar(60., line))
-                                .child(div().flex_1())
-                                .child(div().size(px(14.)).rounded_full().bg(theme.primary)),
-                        ),
-                ),
-        )
+    let (bg, fg) = (theme.primary, theme.primary_foreground);
+    let shade = |by: f32| Hsla {
+        l: (bg.l + by).clamp(0., 1.),
+        ..bg
+    };
+    let (top, bottom) = (shade(0.08), shade(-0.06));
+    let border = theme.foreground.opacity(0.08);
+    motion::hero(
+        ("onboarding-hero", step as usize),
+        px(HERO),
+        move |edge: Pixels| {
+            let glyph = edge * 0.5;
+            div()
+                .debug_selector(|| "onboarding-hero".into())
+                .size(edge)
+                .flex()
+                .items_center()
+                .justify_center()
+                .rounded(edge * 0.26)
+                .border_1()
+                .border_color(border)
+                .bg(linear_gradient(
+                    180.,
+                    linear_color_stop(top, 0.),
+                    linear_color_stop(bottom, 1.),
+                ))
+                .shadow_lg()
+                .child(match step {
+                    Step::Welcome => ui::grip_mark(glyph, fg).into_any_element(),
+                    _ => Icon::new(match step {
+                        Step::Theme => SkyeIcon::Palette,
+                        Step::Agents => SkyeIcon::Bot,
+                        Step::Import => SkyeIcon::FolderOpen,
+                        _ => SkyeIcon::Sparkles,
+                    })
+                    .size(glyph)
+                    .text_color(fg)
+                    .into_any_element(),
+                })
+        },
+    )
 }
