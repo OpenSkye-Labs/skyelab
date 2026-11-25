@@ -1,6 +1,5 @@
 //! The sidebar's saved views button (see `saved_views.rs`).
 
-use super::sidebar::ScopeMenu;
 use super::*;
 use crate::ui::SkyeIcon;
 use gpui_component::menu::DropdownMenu as _;
@@ -43,4 +42,25 @@ pub(super) fn views_button(scope: ScopeMenu, focus: &FocusHandle) -> impl IntoEl
             }
             menu
         })
+}
+
+/// The project scope filter: which projects' threads the list shows, and each project's menu.
+#[derive(Clone, Default)]
+pub struct ScopeMenu {
+    pub projects: Vec<ScopeProject>,
+    /// The saved views by name, and whether the sidebar shows that one now.
+    pub views: Vec<(SharedString, bool)>,
+}
+
+#[derive(Clone)]
+pub struct ScopeProject {
+    pub id: i64,
+    pub name: SharedString,
+    pub checked: bool,
+}
+
+impl ScopeMenu {
+    pub(super) fn filtered(&self) -> bool {
+        self.projects.iter().any(|p| p.checked)
+    }
 }

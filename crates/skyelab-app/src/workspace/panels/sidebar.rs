@@ -164,26 +164,8 @@ pub struct ArchivedRows {
     pub toggle: Box<dyn Action>,
 }
 
-/// The project scope filter: which projects' threads the list shows, and each project's menu.
-#[derive(Clone, Default)]
-pub struct ScopeMenu {
-    pub projects: Vec<ScopeProject>,
-    /// The saved views by name, and whether the sidebar shows that one now.
-    pub views: Vec<(SharedString, bool)>,
-}
-
-#[derive(Clone)]
-pub struct ScopeProject {
-    pub id: i64,
-    pub name: SharedString,
-    pub checked: bool,
-}
-
-impl ScopeMenu {
-    pub(super) fn filtered(&self) -> bool {
-        self.projects.iter().any(|p| p.checked)
-    }
-}
+pub(in crate::workspace) use super::sidebar_snooze::SnoozeMenu;
+pub use super::sidebar_views::{ScopeMenu, ScopeProject};
 
 /// The thread filter's text changed.
 pub struct SidebarSearch(pub SharedString);
@@ -221,6 +203,8 @@ pub struct Sidebar {
     _updates: Subscription,
     /// Redraws each second while a row shows a working timer.
     _tick: Option<gpui::Task<()>>,
+    /// A row's snooze menu, drawn by the sidebar above its list: a popover inside a list row never paints.
+    pub(in crate::workspace) snooze: SnoozeMenu,
 }
 
 /// One line of the sidebar's list: section `s`'s header, its row `i` or its empty state, the archived toggle and
@@ -264,6 +248,7 @@ impl Sidebar {
                 cx.emit(SidebarSearch(text));
             }
         });
+        let focus = cx.focus_handle();
         let mut this = Self {
             sections,
             marks: Default::default(),
@@ -275,7 +260,7 @@ impl Sidebar {
             search,
             searchable: false,
             scope: None,
-            focus: cx.focus_handle(),
+            focus: focus.clone(),
             cards_held: false,
             appeared: None,
             entries: Vec::new(),
@@ -285,6 +270,7 @@ impl Sidebar {
             _search,
             _updates: cx.observe_global::<crate::updates::Updates>(|_, cx| cx.notify()),
             _tick: None,
+            snooze: SnoozeMenu::new(&focus, cx),
         };
         this.rows_changed(cx);
         this
@@ -399,9 +385,9 @@ impl Sidebar {
         let row = sidebar_row(
             item,
             self.marks.get(&item.id),
-            &self.focus,
             indent,
             !self.cards_held,
+            &self.snooze,
             now,
             theme,
         );
@@ -522,5 +508,6 @@ impl Render for Sidebar {
             )
             // T3's footer, with the update pill.
             .child(footer(pill))
+            .children(self.snooze.render())
     }
 }
