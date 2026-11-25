@@ -24,7 +24,13 @@ objc2-app-kit.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Tests: a terminal with no command runs a shell that reads no startup file (never the developer's rc). Only
+# dev-dependencies turn it on, so `cargo build`/`cargo run` keep the user's login shell. Never in a shipped build.
+test-support = []
+
 [dev-dependencies]
+skyelab-terminal = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-component = { workspace = true, features = ["test-support"] }
