@@ -40,6 +40,7 @@ impl Workspace {
         if show {
             self.refresh_logins(cx);
         }
+        let appears = show && !self.welcome.read(cx).show_setup;
         self.welcome.update(cx, |w, cx| {
             w.setup.update(cx, |o, cx| o.sync(show, sync, cx));
             if w.show_setup != show {
@@ -47,6 +48,24 @@ impl Workspace {
                 cx.notify();
             }
         });
+        if appears {
+            // The terminal drawer cut the card off and hid Continue: setup gets the whole page.
+            let (handle, this) = (self.window_handle, cx.entity().downgrade());
+            cx.defer(move |cx| {
+                let _ = handle.update(cx, |_, window, cx| {
+                    let _ = this.update(cx, |this, cx| this.hide_docks_for_setup(window, cx));
+                });
+            });
+        }
+    }
+
+    /// Hides the terminal drawer and the right panel, which would cover or squeeze onboarding.
+    fn hide_docks_for_setup(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for at in [DockPlacement::Bottom, DockPlacement::Right] {
+            if self.dock.read(cx).is_dock_open(at) {
+                self.toggle(at, window, cx);
+            }
+        }
     }
 
     pub(super) fn open_onboarding(

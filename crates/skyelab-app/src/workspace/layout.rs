@@ -256,6 +256,21 @@ impl Workspace {
         });
     }
 
+    /// Whether `panel` is the tab on screen in the dock at `at`: the dock is open and the panel is its group's shown tab.
+    pub(super) fn dock_shows(
+        &self,
+        at: DockPlacement,
+        panel: gpui_component::dock::PanelId,
+        cx: &App,
+    ) -> bool {
+        let dock = self.dock.read(cx);
+        let Some(tree) = dock.layout(at).filter(|_| dock.is_dock_open(at)) else {
+            return false;
+        };
+        let node = tree.find_panel_node(panel).and_then(|n| tree.find_node(n));
+        matches!(node.map(|n| n.kind()), Some(gpui_component::dock::PaneRef::Tabs { panels, active_ix }) if panels.get(active_ix) == Some(&panel))
+    }
+
     /// A dock changed: refresh the toggles, and save the layout once things settle.
     pub(super) fn dock_changed(
         &mut self,
@@ -482,6 +497,11 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let opening = !self.dock.read(cx).is_dock_open(DockPlacement::Bottom);
         self.toggle(DockPlacement::Bottom, window, cx);
+        // T3's ⌘J opens a shell, not an empty drawer.
+        if opening && !self.terminals.iter().any(|t| t.read(cx).docked) {
+            self.new_terminal(&super::NewTerminal, window, cx);
+        }
     }
 }

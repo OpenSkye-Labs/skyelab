@@ -11,7 +11,7 @@ use gpui::{
 };
 use gpui_component::{
     ActiveTheme as _, Icon, Sizable as _,
-    dock::{BasePanel, Panel, PanelControl, PanelEvent},
+    dock::{BasePanel, Panel, PanelEvent},
     h_flex,
     input::{InputEvent, InputState},
 };
@@ -41,11 +41,16 @@ impl TerminalPanel {
             .into()
     }
 
-    /// The tab's title: its given name, else the focused pane's.
+    /// The tab's title: its given name, else the focused pane's, numbered after the window's first tab (T3's
+    /// "Terminal 2"), so two shells in one folder read differently.
     pub fn tab_label(&self) -> SharedString {
         self.name.clone().unwrap_or_else(|| {
             let pane = self.panes.get(self.active).or(self.panes.first());
-            pane.map_or_else(|| "Terminal".into(), |p| self.pane_title(p))
+            let title = pane.map_or_else(|| "Terminal".into(), |p| self.pane_title(p));
+            match self.number {
+                0 | 1 => title,
+                n => format!("{title} {n}").into(),
+            }
         })
     }
 
@@ -141,6 +146,54 @@ impl TerminalPanel {
     }
 }
 
+impl TerminalPanel {
+    /// T3's drawer controls (`ThreadTerminalDrawer.tsx`): Split right, Split down and New terminal, each naming its
+    /// key; the tab's own × closes it. They act on this tab, wherever focus is.
+    fn controls(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        use super::terminal_panel::{SplitTerminal, SplitTerminalDown};
+        use skyelab_core::terminal_layout::Axis;
+        let button = |id: &'static str,
+                      icon: SkyeIcon,
+                      tip: &'static str,
+                      action: &dyn gpui::Action,
+                      context: &'static str,
+                      event: fn() -> TabEvent| {
+            div().debug_selector(move || id.into()).child(
+                ui::icon_button(id, icon)
+                    .xsmall()
+                    .tooltip_with_action(tip, action, Some(context))
+                    .on_click(cx.listener(move |_, _, _, cx| cx.emit(event()))),
+            )
+        };
+        h_flex()
+            .gap_0p5()
+            .child(button(
+                "terminal-split-right",
+                SkyeIcon::Columns2,
+                "Split right",
+                &SplitTerminal,
+                "Terminal",
+                || TabEvent::Split(Axis::Row),
+            ))
+            .child(button(
+                "terminal-split-down",
+                SkyeIcon::Rows2,
+                "Split down",
+                &SplitTerminalDown,
+                "Terminal",
+                || TabEvent::Split(Axis::Column),
+            ))
+            .child(button(
+                "terminal-new",
+                SkyeIcon::Plus,
+                "New terminal",
+                &super::NewTerminal,
+                super::CONTEXT,
+                || TabEvent::New,
+            ))
+    }
+}
+
 impl EventEmitter<PanelEvent> for TerminalPanel {}
 
 impl BasePanel for TerminalPanel {
@@ -151,16 +204,13 @@ impl BasePanel for TerminalPanel {
     fn closable(&self, _: &App) -> bool {
         false
     }
-    fn zoomable(&self, _: &App) -> bool {
-        false
-    }
 }
 
 impl Panel for TerminalPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.tab(cx)
     }
-    fn zoom_control(&self, _: &App) -> Option<PanelControl> {
-        None
+    fn title_suffix(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
+        Some(self.controls(cx))
     }
 }

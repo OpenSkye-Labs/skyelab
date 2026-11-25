@@ -8,10 +8,10 @@ pub(super) use source::{DeviceSource, HubSource};
 use super::{OpenDevices, Workspace};
 use gpui::{
     App, BackgroundExecutor, Context, Entity, EventEmitter, FocusHandle, Focusable, Image,
-    ImageFormat, PathPromptOptions, Subscription, Task, Window, prelude::*,
+    ImageFormat, KeyBinding, PathPromptOptions, Subscription, Task, Window, actions, prelude::*,
 };
 use gpui_component::{
-    dock::{BasePanel, Panel, PanelEvent},
+    dock::{BasePanel, DockPlacement, Panel, PanelEvent},
     input::{InputEvent, InputState},
 };
 use skyelab_devices::{Device, DeviceState, Error, Listing, Platform};
@@ -19,6 +19,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
+
+actions!(skyelab, [HideDevices]);
+
+/// The Devices tab's key context: Esc there hides the tab (a text field in it keeps its own Esc).
+pub(super) const CONTEXT: &str = "Devices";
+
+pub(super) fn bind_keys(cx: &mut App) {
+    cx.bind_keys([KeyBinding::new("escape", HideDevices, Some(CONTEXT))]);
+}
 
 /// How often the list refreshes while the tab is on screen.
 pub(super) const POLL: Duration = Duration::from_secs(3);
@@ -417,33 +426,54 @@ impl BasePanel for DevicesPanel {
     fn panel_name(&self) -> &'static str {
         "Devices"
     }
-    fn zoomable(&self, _: &App) -> bool {
-        false
-    }
 }
 
 impl Panel for DevicesPanel {
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         "Devices"
     }
-    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
-        None
-    }
 }
 
 impl Workspace {
+    /// Toggles Devices, as T3's panel openers do: shown, it hides the right panel; else it opens (or selects) the
+    /// tab and focuses it.
     pub(super) fn open_devices(
         &mut self,
         _: &OpenDevices,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.devices_shown(cx) {
+            self.hide_devices(&HideDevices, window, cx);
+            return;
+        }
         let open = self.devices.as_ref().and_then(|p| p.upgrade()).is_some();
         let panel = self.devices_panel(window, cx);
         if open {
             self.show_right_panel(panel.entity_id().into(), window, cx);
         }
         panel.read(cx).focus_handle(cx).focus(window, cx);
+    }
+
+    /// Whether the Devices tab is on screen: the status bar's button shows it pressed.
+    pub(super) fn devices_shown(&self, cx: &App) -> bool {
+        self.devices
+            .as_ref()
+            .and_then(|p| p.upgrade())
+            .is_some_and(|p| self.dock_shows(DockPlacement::Right, p.entity_id().into(), cx))
+    }
+
+    /// Hides the right panel while it shows Devices; the tab stays for the next open.
+    pub(super) fn hide_devices(
+        &mut self,
+        _: &HideDevices,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.devices_shown(cx) {
+            self.toggle(DockPlacement::Right, window, cx);
+            self.focus.focus(window, cx);
+        }
     }
 
     /// The Devices tab, added to the right dock if it isn't open.

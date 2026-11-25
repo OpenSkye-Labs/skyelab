@@ -59,7 +59,12 @@ impl Workspace {
                     .ghost()
                     .xsmall()
                     .label("Devices")
-                    .tooltip("iOS Simulators and Android emulators")
+                    .toggled(self.devices_shown(cx))
+                    .tooltip_with_action(
+                        "iOS Simulators and Android emulators",
+                        &OpenDevices,
+                        Some(super::CONTEXT),
+                    )
                     .on_click(|_, window, cx| window.dispatch_action(Box::new(OpenDevices), cx)),
             )
             .right(

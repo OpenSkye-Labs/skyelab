@@ -103,6 +103,7 @@ pub fn init(cx: &mut App) {
     changes::bind_keys(cx);
     terminal_panel::bind_keys(cx);
     terminal_tab::bind_keys(cx);
+    devices::bind_keys(cx);
     attention::init(cx);
     crate::palette::init(cx);
 }

@@ -245,6 +245,7 @@ impl Render for DevicesPanel {
             .on_click(cx.listener(|this, _, _, cx| this.refresh(cx)));
         div()
             .id("devices")
+            .key_context(super::CONTEXT)
             .track_focus(&self.focus)
             .size_full()
             .overflow_y_scroll()

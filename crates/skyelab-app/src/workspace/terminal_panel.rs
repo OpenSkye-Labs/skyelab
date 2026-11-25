@@ -90,6 +90,10 @@ pub enum TabEvent {
     Changed,
     /// The tab's × was pressed: close the whole tab (after the confirm, if a shell is busy).
     Close,
+    /// The tab bar's Split right (`Row`) or Split down (`Column`): split the tab's active pane.
+    Split(Axis),
+    /// The tab bar's New terminal.
+    New,
 }
 
 pub struct TerminalPanel {
@@ -107,6 +111,8 @@ pub struct TerminalPanel {
     pub docked: bool,
     /// The inline rename field while the title is being renamed.
     pub(super) renaming: Option<(Entity<InputState>, Subscription)>,
+    /// Tells this tab from the window's others with the same title: 1 for the first, then the lowest free number.
+    pub number: usize,
     /// Runs one command (a Log in): not saved, so a restart doesn't reopen it as a plain shell.
     pub one_shot: bool,
     /// The pane a split just added, while it fades in and grows (Rex's split); `None` once it has settled, so a
@@ -148,6 +154,7 @@ impl TerminalPanel {
             owner,
             docked: true,
             renaming: None,
+            number: 1,
             one_shot: false,
             appearing: None,
             _appear: Task::ready(()),

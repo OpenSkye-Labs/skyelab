@@ -326,7 +326,18 @@ impl TabGroupRenderer for CenterTabs {
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
-        let bar = self.tabs.render_tab_bar(group, window, cx);
+        let mut bar = self.tabs.render_tab_bar(group, window, cx);
+        // A zoomed group fills the window, so on macOS its bar starts under the traffic lights: leave them room.
+        if super::MAC && group.is_zoomed() {
+            bar = div()
+                .w_full()
+                .flex()
+                .pl(crate::ui::MAC_TOP_PAD + gpui::px(8.))
+                .bg(gpui_component::ActiveTheme::theme(cx).tab_bar)
+                .debug_selector(|| "zoomed-tab-bar".into())
+                .child(div().flex_1().min_w_0().child(bar))
+                .into_any_element();
+        }
         let Some(active) = group
             .active_panel()
             .cloned()
