@@ -76,18 +76,16 @@ pub(crate) fn kill_group(pid: u32) {
     .and_then(|mut c| c.wait());
 }
 
-/// SIGINT to process group `pid` (for interrupting a one-turn-per-process agent like Cursor).
+/// SIGINT to process group `pid` (for interrupting a one-turn-per-process agent like Cursor). A syscall, not a
+/// spawned `kill`: a loaded machine can refuse a new process (EAGAIN), and the interrupt was lost.
 #[cfg(unix)]
 pub(crate) fn interrupt_group(pid: u32) {
-    let kill = resolve_bin(Path::new("kill")).unwrap_or_else(|_| "/bin/kill".into());
-    let _ = skyelab_core::process::spawn(
-        Command::new(kill)
-            .args(["-INT", "--", &format!("-{pid}")])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null()),
-    )
-    .and_then(|mut c| c.wait());
+    if let Some(pid) = i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+    {
+        let _ = rustix::process::kill_process_group(pid, rustix::process::Signal::INT);
+    }
 }
 
 /// Turns `bin` into an absolute path before the child's cwd (an untrusted project) can matter.
