@@ -7,12 +7,15 @@ bound to an account is listed under its name and account, read with that account
 another's; the repo is the project's `origin` (a github.com https or ssh URL). A project with no `origin` says
 **This project has no GitHub remote** (with the `git remote add origin …` line to fix it), one whose `origin` is on
 another host (GitLab, a self-hosted server) says **This project's remote isn't on GitHub**, and a folder that isn't a
-git repository says so; none of them asks `gh` anything. An account with no GitHub login, or whose `gh` login has
+git repository says so; none of them asks `gh` anything. When another project is listed too, these fold into one
+line under the lists (**2 projects have no GitHub remote named origin: …**) so they don't bury it. An account with no GitHub login, or whose `gh` login has
 lapsed, shows **Sign in to GitHub** and nothing is asked. Up to 50 open items per project are read, once per filter (**Mine**,
 **Review requested**, **All** for PRs; **Assigned to me**, **All** for issues) until you press refresh.
 
-- Click a PR to start a thread in its project with a review prompt; the PR is linked to the thread when you send it.
-  The arrow icon opens the PR in your browser, and the merge icon opens **Pull request actions** (below).
+- Click a PR to open it: its diff opens in a tab of the right dock (see **View diff** below). **Review with agent** on
+  the row starts a thread in its project with a review prompt instead; the PR is linked to the thread when you send it.
+  The arrow icon opens the PR in your browser, and the merge icon opens **Pull request actions** (below). A merged or
+  closed PR has no merge icon.
 - Click an issue to start a thread with the issue (title, link, labels, the start of its text) as a context chip.
   Click a label to show only that label's issues; click it again (or the **Label** button) to show all. The speech
   bubble icon opens **Issue actions** (below).
@@ -53,5 +56,8 @@ dialog that acts on GitHub with the account the project's folder is bound to, ne
   GitHub doesn't count as part of the diff makes it refuse the whole review; its message shows in the dialog and the
   comments stay pending.
 
-If GitHub refuses, its message shows in red and the dialog stays open. After an action the dialog closes and the PR is
-read again: the details card shows its new state, and the Pull requests page lists again.
+While the merge runs its button reads **Merging…**. If GitHub refuses, its message shows in red and the dialog stays
+open. After an action the dialog closes, a notice says **Merged pull request #12** (or **Review sent on pull request
+#12**), and only that PR is read again: the details card shows its new state, and on the Pull requests page its row
+shows **Merged** (it stays listed until you press refresh). A tooltip that was showing when the dialog opened is
+hidden while the dialog is up.

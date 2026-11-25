@@ -1,8 +1,9 @@
 //! The Pull requests and Issues pages (T3's `PullRequestsPage.tsx`, `IssuesPage.tsx`): every bound project's open
 //! PRs or issues, each read with its own account's `gh` after Push's checks (the folder still bound to that account,
 //! the account's GitHub login), never with another account's. Reads run off the UI thread, one after another, and
-//! are cached per project and filter until Refresh. A row starts a thread in its project: a PR review (the prompt
-//! filled, the PR linked once it sends) or an issue as a context chip.
+//! are cached per project and filter until Refresh. A PR row's title opens the PR's diff tab, and its "Review with
+//! agent" starts a review thread (the prompt filled, the PR linked once it sends); an issue row starts a thread with
+//! the issue as a context chip.
 
 use super::thread::ThreadView;
 use super::thread::composer::composer_context::ChipKind;
@@ -90,6 +91,8 @@ pub(crate) struct Inputs {
 }
 
 pub(crate) enum GhEvent {
+    /// Show this PR (its diff tab).
+    OpenPr(super::pr_actions::Target),
     Review {
         project: i64,
         number: u64,
@@ -179,47 +182,6 @@ impl GhPage {
         cx.notify();
     }
 
-    /// The merge and review dialog for PR `number` of `project`'s shown list, acting with the group's account; the
-    /// lists are read again after an action.
-    pub(crate) fn open_pr_actions(
-        &mut self,
-        project: i64,
-        number: u64,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<Entity<super::pr_actions::PrActions>> {
-        let source = self.sources.iter().find(|s| s.id == project)?;
-        let group = self.groups.get(&(project, self.filter))?;
-        let Listing::Prs(list) = &group.listing else {
-            return None;
-        };
-        let pr = &list.iter().find(|r| r.row.number == number)?.row;
-        // gh's JSON is untrusted: only a canonical PR link is acted on.
-        let url = skyelab_core::github_pr_url(&pr.url)?;
-        let target = super::pr_actions::Target {
-            url,
-            number,
-            checks: Some(pr.checks),
-            head: pr.head.clone(),
-            dir: source.path.clone(),
-            account: group.account.as_ref()?.0.clone(),
-            config: self.inputs.as_ref()?.config.clone(),
-        };
-        let page = cx.weak_entity();
-        Some(super::pr_actions::open(
-            target,
-            move |_, _, cx| {
-                _ = page.update(cx, |p, cx| {
-                    // The PR changed: every filter's cached list may hold it.
-                    p.groups.retain(|key, _| key.1 == p.filter);
-                    p.refresh(cx)
-                })
-            },
-            window,
-            cx,
-        ))
-    }
-
     /// `list` narrowed to the picked label, if any.
     pub(crate) fn issues_shown<'a>(&self, list: &'a [Dated<IssueRow>]) -> Vec<&'a Dated<IssueRow>> {
         let label = self.label.as_ref().map(|l| l.as_ref());
@@ -234,6 +196,21 @@ impl GhPage {
             .iter()
             .filter_map(|s| Some((s, self.groups.get(&(s.id, self.filter))?)))
             .filter(|(_, g)| g.listing != Listing::Unbound)
+            .collect()
+    }
+
+    /// The shown projects with nothing on GitHub, when some other project is listed too: they fold into one line under
+    /// the lists instead of an empty state each, which buried the one real list.
+    pub(crate) fn folded_off_github(&self) -> Vec<&Source> {
+        let shown = self.shown();
+        let off = |g: &Group| matches!(g.listing, Listing::NoGitHub(_));
+        if shown.iter().all(|(_, g)| off(g)) {
+            return Vec::new();
+        }
+        shown
+            .into_iter()
+            .filter(|(_, g)| off(g))
+            .map(|(s, _)| s)
             .collect()
     }
 
@@ -470,6 +447,12 @@ impl Workspace {
 
     fn gh_event(&mut self, e: &GhEvent, window: &mut Window, cx: &mut Context<Self>) {
         match e {
+            GhEvent::OpenPr(target) => {
+                let open = super::changes::pr::OpenPrDiff {
+                    target: target.clone(),
+                };
+                self.open_pr_diff(&open, window, cx);
+            }
             GhEvent::Review {
                 project,
                 number,
@@ -531,6 +514,9 @@ impl Workspace {
             .filter(|v| v.read(cx).thread.is_none() && v.read(cx).project_id == project)
     }
 }
+
+#[path = "gh_pages_pr.rs"]
+mod pr;
 
 #[cfg(test)]
 #[path = "gh_framing_test.rs"]

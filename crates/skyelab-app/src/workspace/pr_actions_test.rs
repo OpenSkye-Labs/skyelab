@@ -278,12 +278,12 @@ fn a_folder_bound_to_another_account_is_refused_before_gh_runs(cx: &mut gpui::Te
     assert!(dialog_open(cx));
 }
 
-#[gpui::test]
-fn a_pull_requests_page_row_acts_with_its_groups_account_and_lists_again(
-    cx: &mut gpui::TestAppContext,
-) {
-    let (r, cx) = rig(cx);
-    let gh = github(&r, cx);
+/// The Pull requests page, opened and listed (one `pr list` call).
+fn listed_page(
+    r: &Rig,
+    gh: &Path,
+    cx: &mut VisualTestContext,
+) -> Entity<super::super::gh_pages::GhPage> {
     r.ws.update_in(cx, |ws, window, cx| {
         ws.open_pull_requests(&super::super::gh_pages::OpenPullRequests, window, cx)
     });
@@ -299,25 +299,122 @@ fn a_pull_requests_page_row_acts_with_its_groups_account_and_lists_again(
     };
     wait_until(cx, "listed", listed);
     assert_eq!(lines(&gh.join("fake-gh.list")).len(), 1);
+    assert_eq!(page.read_with(cx, |p, _| p.kind), Kind::Prs);
+    page
+}
+
+/// Row `number`'s state in the page's shown list.
+fn row_state(
+    page: &Entity<super::super::gh_pages::GhPage>,
+    number: u64,
+    cx: &mut VisualTestContext,
+) -> Option<PrState> {
+    page.read_with(cx, |p, _| {
+        p.shown().iter().find_map(|(_, g)| match &g.listing {
+            Listing::Prs(l) => l
+                .iter()
+                .find(|r| r.row.number == number)
+                .map(|r| r.row.state),
+            _ => None,
+        })
+    })
+}
+
+#[gpui::test]
+fn a_pull_requests_page_row_acts_with_its_groups_account_and_reads_that_pr_again(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    let page = listed_page(&r, &gh, cx);
     let project = r.project;
     let dialog = page
         .update_in(cx, |p, window, cx| {
             p.open_pr_actions(project, 12, window, cx)
         })
         .expect("row 12 is listed");
-    assert_eq!(page.read_with(cx, |p, _| p.kind), Kind::Prs);
     wait_until(cx, "methods", |cx| {
         dialog.read_with(cx, |d, _| d.methods.is_some())
     });
     dialog.update_in(cx, |d, window, cx| d.review(Verdict::Approve, window, cx));
-    wait_until(cx, "listed again", |_| {
-        lines(&gh.join("fake-gh.list")).len() == 2
+    wait_until(cx, "read again", |_| {
+        !lines(&gh.join("fake-gh.prview")).is_empty()
     });
     assert_eq!(
         lines(&gh.join("fake-gh.actions")),
         ["pr review https://github.com/acme/demo/pull/12 --approve --body-file -"]
     );
     assert!(!dialog_open(cx));
+    assert_eq!(
+        lines(&gh.join("fake-gh.list")).len(),
+        1,
+        "only the PR is read again: the lists don't flash Loading"
+    );
+}
+
+#[gpui::test]
+fn merging_from_the_page_shows_progress_then_says_merged_on_a_toast_and_the_row(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    let page = listed_page(&r, &gh, cx);
+    assert_eq!(row_state(&page, 12, cx), Some(PrState::Open));
+    let project = r.project;
+    let dialog = page
+        .update_in(cx, |p, window, cx| {
+            p.open_pr_actions(project, 12, window, cx)
+        })
+        .expect("row 12 is listed");
+    wait_until(cx, "methods", |cx| {
+        dialog.read_with(cx, |d, _| d.methods.is_some())
+    });
+    dialog.update_in(cx, |d, window, cx| d.press_merge(window, cx));
+    assert_eq!(dialog.read_with(cx, |d, _| d.stage), Stage::Confirm);
+    dialog.update_in(cx, |d, window, cx| d.press_merge(window, cx));
+    assert!(
+        dialog.read_with(cx, |d, _| d.busy && d.merging),
+        "the button says Merging… while gh runs"
+    );
+    wait_until(cx, "the row reads merged", |cx| {
+        row_state(&page, 12, cx) == Some(PrState::Merged)
+    });
+    assert!(!dialog_open(cx));
+    let toasts = cx.update(|window, cx| crate::ui::toast::shown(window, cx));
+    assert!(
+        toasts.iter().any(|t| t == "Merged pull request #12"),
+        "{toasts:?}"
+    );
+    assert_eq!(lines(&gh.join("fake-gh.list")).len(), 1, "no relist");
+    assert_eq!(
+        row_state(&page, 15, cx),
+        Some(PrState::Draft),
+        "the other row is as listed"
+    );
+}
+
+#[gpui::test]
+fn a_rows_title_opens_the_prs_diff_tab_not_a_thread(cx: &mut gpui::TestAppContext) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    let page = listed_page(&r, &gh, cx);
+    let threads_before = r.ws.read_with(cx, |ws, _| ws.current_thread().is_some());
+    let project = r.project;
+    page.update(cx, |p, cx| p.open_pr(project, 12, cx));
+    cx.run_until_parked();
+    let open: Vec<String> = r.ws.read_with(cx, |ws, cx| {
+        ws.pr_diffs
+            .iter()
+            .filter_map(|c| c.upgrade())
+            .filter_map(|c| c.read(cx).pr.as_ref().map(|p| p.target.url.clone()))
+            .collect()
+    });
+    assert_eq!(open, ["https://github.com/acme/demo/pull/12"]);
+    assert_eq!(
+        r.ws.read_with(cx, |ws, _| ws.current_thread().is_some()),
+        threads_before,
+        "no review thread was started"
+    );
 }
 
 #[gpui::test]
