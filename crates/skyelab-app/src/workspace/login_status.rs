@@ -17,8 +17,10 @@ pub enum Status {
     Checking,
     SignedIn(Option<String>),
     SignedOut,
-    /// The CLI couldn't answer (not installed, an old version, a broken config).
+    /// The CLI couldn't answer (an old version, a broken config).
     Unknown(String),
+    /// The CLI (its name) isn't in the PATH searched (the second field).
+    NotFound(String, String),
 }
 
 impl Status {
@@ -44,6 +46,11 @@ impl Status {
                 "Sign-in unknown".into(),
                 theme.muted_foreground,
                 Some(e.clone().into()),
+            ),
+            Some(Self::NotFound(bin, path)) => (
+                format!("{bin} not found").into(),
+                ink(theme.warning),
+                Some(format!("Searched PATH: {path}").into()),
             ),
             Some(Self::Checking) | None => {
                 ("Checking sign-in…".into(), theme.muted_foreground, None)
@@ -118,9 +125,23 @@ impl LoginStatus {
         };
         let account = a.clone();
         let asked = cx.background_spawn(async move {
+            // After login_status, which waits for the login shell's PATH.
+            let found = |bin: &std::path::Path| match account.provider {
+                Provider::Cursor => skyelab_agent::resolve_cursor_bin(bin).is_ok(),
+                _ => skyelab_agent::resolve_bin(bin).is_ok(),
+            };
             match skyelab_agent::login_status(&bin, &account) {
                 Ok(Login::SignedIn(who)) => Status::SignedIn(who),
                 Ok(Login::SignedOut) => Status::SignedOut,
+                Err(_) if !found(&bin) => Status::NotFound(
+                    bin.file_name()
+                        .unwrap_or(bin.as_os_str())
+                        .to_string_lossy()
+                        .into_owned(),
+                    skyelab_core::env::parent_path()
+                        .to_string_lossy()
+                        .into_owned(),
+                ),
                 Err(e) => Status::Unknown(format!("{e:#}")),
             }
         });

@@ -133,7 +133,7 @@ impl DeviceHub {
             "HOME"
         };
         Self::discover_with(
-            env::var_os("PATH").as_deref(),
+            Some(skyelab_core::env::parent_path().as_os_str()),
             env::var_os("ANDROID_HOME").as_deref(),
             env::var_os("ANDROID_SDK_ROOT").as_deref(),
             env::var_os(user_dir).as_deref(),

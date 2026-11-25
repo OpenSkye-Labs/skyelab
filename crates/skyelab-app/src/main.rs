@@ -130,6 +130,8 @@ fn main() {
         Some(skyelab_core::instance::Claim::First(i)) => Some(i),
         None => None,
     };
+    // Before any child starts: a Dock launch has only the system PATH.
+    skyelab_core::login_shell::start();
     let path = AccountsConfig::default_path();
     seed_dev_accounts(path.as_deref());
     let (config, error) = load_accounts(path.as_deref());

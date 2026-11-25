@@ -7,7 +7,8 @@
   or `CODEX_HOME` for the bound account. Nothing that could pick another account, provider or API base URL
   (`ANTHROPIC_*`, `CLAUDE_CODE_*`, `OPENAI_*`, `CODEX_*`, `GH_TOKEN`, `AWS_*`, the parent's own homes) is inherited.
   Project terminals and every git/gh call SkyeLab runs use the same list (terminals add shell vars such as
-  `EDITOR`, `PAGER` and `SSH_AUTH_SOCK`). An agent's own `git push` asks only the account's `gh` for https
+  `EDITOR`, `PAGER` and `SSH_AUTH_SOCK`). A release build outside a terminal adds its login shell's PATH and a few
+  allowed vars (`skyelab_core::login_shell`), never an account's dirs. An agent's own `git push` asks only the account's `gh` for https
   credentials, and gets no ssh-agent unless the account sets `ssh_agent = true`.
 - **Project settings don't load.** Agents run with `--setting-sources user --strict-mcp-config`, so a cloned repo's
   `.claude/settings*.json` and `.mcp.json` can't redirect credentials or run hooks. The MCP servers you added to the
