@@ -326,6 +326,11 @@ fn main() {
             cfg!(debug_assertions),
             "codex",
         )));
+        cx.set_global(workspace::CursorBin(agent_bin(
+            std::env::var_os("SKYELAB_CURSOR_BIN"),
+            cfg!(debug_assertions),
+            "cursor-agent",
+        )));
         if let Some(path) = &path {
             cx.set_global(workspace::AccountsFile(path.clone()));
         }

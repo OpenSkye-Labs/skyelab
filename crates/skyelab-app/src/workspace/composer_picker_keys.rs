@@ -73,6 +73,7 @@ impl ThreadView {
         }
         self.composer.menu = None;
         self.list_codex_models(cx);
+        self.list_cursor_models(cx);
         let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search models…"));
         // Only a typed change: the field also notifies on focus and cursor blinks.
         let _search = cx.subscribe(&search, |this, _, e: &InputEvent, cx| {
@@ -153,6 +154,17 @@ impl ThreadView {
                         .collect()
                 })
                 .unwrap_or_default(),
+            Some(Provider::Cursor) => self
+                .composer
+                .cursor_models
+                .as_ref()
+                .and_then(|l| l.as_ref().ok())
+                .map(|l| {
+                    l.iter()
+                        .map(|m| (Some(m.id.clone()), m.label.clone()))
+                        .collect()
+                })
+                .unwrap_or_default(),
             _ => CLAUDE_MODELS
                 .iter()
                 .map(|(id, label)| (Some((*id).to_owned()), (*label).to_owned()))
@@ -175,17 +187,18 @@ impl ThreadView {
 
     /// The choice a model row makes: that model, with the current effort when the model takes it.
     pub(in crate::workspace) fn model_choice(&self, id: Option<String>) -> ModelChoice {
-        let codex = self.composer_account().map(|a| a.provider) == Some(Provider::Codex);
-        let takes = |e: &String| match &id {
-            Some(id) if codex => self
+        let provider = self.composer_account().map(|a| a.provider);
+        let takes = |e: &String| match (&id, provider) {
+            (Some(id), Some(Provider::Codex)) => self
                 .composer
                 .codex_models
                 .as_ref()
                 .and_then(|l| l.as_ref().ok())
                 .is_some_and(|l| l.iter().any(|m| m.id == *id && m.efforts.contains(e))),
-            Some(_) => skyelab_agent::CLAUDE_EFFORTS.contains(&e.as_str()),
-            // The account's default model: any Claude effort; Codex's default shows no effort choice.
-            None => !codex,
+            (None, Some(Provider::Codex)) | (_, Some(Provider::Cursor)) => false,
+            (Some(_), _) => skyelab_agent::CLAUDE_EFFORTS.contains(&e.as_str()),
+            // The account's default model: any Claude effort.
+            (None, _) => true,
         };
         ModelChoice {
             effort: self.composer.pick.effort.clone().filter(takes),

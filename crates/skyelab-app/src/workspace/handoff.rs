@@ -1,7 +1,7 @@
-//! "Continue in Codex" / "Continue in Claude": a new thread in the same project under the folder's bound account of
-//! the other provider, linked to its source, whose first session starts with the source's portable transcript
-//! ([`skyelab_agent::handoff`]). A folder has one binding, so a handoff starts only once the folder is bound to an
-//! account of that provider; until then the user is asked to bind it. Never another account.
+//! "Continue in Codex" / "Continue in Claude" / "Continue in Cursor": a new thread in the same project under the
+//! folder's bound account of another provider, linked to its source, whose first session starts with the source's
+//! portable transcript ([`skyelab_agent::handoff`]). A folder has one binding, so a handoff starts only once the
+//! folder is bound to an account of that provider; until then the user is asked to bind it. Never another account.
 
 use crate::ui::Button;
 use crate::workspace::thread::ThreadView;
@@ -16,7 +16,10 @@ use skyelab_agent::{handoff, timeline::Record};
 use skyelab_core::Provider;
 use skyelab_store::{NewThread, Thread};
 
-actions!(skyelab, [ContinueInCodex, ContinueInClaude]);
+actions!(
+    skyelab,
+    [ContinueInCodex, ContinueInClaude, ContinueInCursor]
+);
 
 /// Continues thread `id` in a new thread under the folder's `to` account.
 #[derive(Clone, Debug, PartialEq, Action)]
@@ -26,11 +29,12 @@ pub struct HandOffThread {
     pub to: Provider,
 }
 
-/// The provider a thread that ran on `from` continues in.
-pub(in crate::workspace) fn other(from: Provider) -> Provider {
+/// The other providers a thread that ran on `from` can continue in.
+pub(in crate::workspace) fn others(from: Provider) -> Vec<Provider> {
     match from {
-        Provider::Claude => Provider::Codex,
-        Provider::Codex => Provider::Claude,
+        Provider::Claude => vec![Provider::Codex, Provider::Cursor],
+        Provider::Codex => vec![Provider::Claude, Provider::Cursor],
+        Provider::Cursor => vec![Provider::Claude, Provider::Codex],
     }
 }
 
@@ -218,10 +222,13 @@ impl ThreadView {
             .map(|a| a.provider)
     }
 
-    /// The provider this thread can continue in from this window: the other one, unless the window shows another
+    /// The providers this thread can continue in from this window: the others, unless the window shows another
     /// machine (the new thread couldn't open there).
-    pub(in crate::workspace) fn handoff_to(&self) -> Option<Provider> {
-        self.provider().filter(|_| !self.remote_window).map(other)
+    pub(in crate::workspace) fn handoff_targets(&self) -> Vec<Provider> {
+        self.provider()
+            .filter(|_| !self.remote_window)
+            .map(others)
+            .unwrap_or_default()
     }
 
     /// Asks the workspace to continue this thread in `to`.
@@ -236,24 +243,27 @@ impl ThreadView {
         }
     }
 
-    /// Registers only the other provider's "Continue in …", so the palette lists one.
+    /// Registers only the other providers' "Continue in …", so the palette lists them.
     pub(in crate::workspace) fn handoff_actions<E: InteractiveElement>(
         &self,
-        el: E,
+        mut el: E,
         cx: &Context<Self>,
     ) -> E {
-        match self.handoff_to() {
-            Some(Provider::Codex) => el.on_action(cx.listener(Self::continue_in_codex)),
-            Some(Provider::Claude) => el.on_action(cx.listener(Self::continue_in_claude)),
-            None => el,
+        for to in self.handoff_targets() {
+            el = match to {
+                Provider::Codex => el.on_action(cx.listener(Self::continue_in_codex)),
+                Provider::Claude => el.on_action(cx.listener(Self::continue_in_claude)),
+                Provider::Cursor => el.on_action(cx.listener(Self::continue_in_cursor)),
+            };
         }
+        el
     }
 
-    /// The "can't continue here" notice's button when the folder is now bound to the other provider: the thread can
+    /// The "can't continue here" notice's button when the folder is now bound to another provider: the thread can
     /// continue there with its history.
     pub(in crate::workspace) fn handoff_cta(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let to = self.folder_account.as_ref()?.provider;
-        self.handoff_to().filter(|t| *t == to)?;
+        self.handoff_targets().contains(&to).then_some(())?;
         Some(
             div()
                 .debug_selector(|| "handoff-cta".into())
@@ -286,5 +296,14 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.hand_off(Provider::Claude, window, cx);
+    }
+
+    pub(in crate::workspace) fn continue_in_cursor(
+        &mut self,
+        _: &ContinueInCursor,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hand_off(Provider::Cursor, window, cx);
     }
 }

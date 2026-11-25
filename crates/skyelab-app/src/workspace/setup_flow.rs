@@ -34,6 +34,7 @@ impl Workspace {
             load_error: self.load_error.clone(),
             claude_bin: self.backend.claude_bin.clone(),
             codex_bin: github::codex_bin(cx),
+            cursor_bin: github::cursor_bin(cx),
             gh_bin: github::gh_bin(cx),
         };
         if show {

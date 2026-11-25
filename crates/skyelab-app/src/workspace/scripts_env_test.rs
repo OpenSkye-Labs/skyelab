@@ -32,6 +32,7 @@ fn a_script_terminal_gets_only_the_bound_accounts_env() {
         let known = [
             "CLAUDE_CONFIG_DIR",
             "CODEX_HOME",
+            "CURSOR_CONFIG_DIR",
             "GIT_CONFIG_COUNT",
             "SKYELAB_PROJECT_ROOT",
         ]
