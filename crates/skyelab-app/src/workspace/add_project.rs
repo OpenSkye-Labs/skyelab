@@ -316,7 +316,7 @@ pub(super) fn bind_page(
         .iter()
         .map(|a| {
             let (id, target) = (a.id.clone(), target.clone());
-            let icon = crate::settings::provider_icon(a.provider);
+            let icon = SkyeIcon::UserCheck; // a palette glyph: provider logos are images only
             Entry::new(
                 format!("Bind to {}", a.label),
                 Kind::Action("skyelab::BindAccount"),

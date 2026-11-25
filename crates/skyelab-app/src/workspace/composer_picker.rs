@@ -10,8 +10,11 @@ use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, v_flex};
 use skyelab_agent::CLAUDE_EFFORTS;
 use skyelab_core::Provider;
 
-/// "high" → "High".
-pub(in crate::workspace) fn title_case(s: &str) -> String {
+/// An effort as T3 names it: "high" → "High", "xhigh" → "Extra High".
+pub(in crate::workspace) fn effort_label(s: &str) -> String {
+    if s == "xhigh" {
+        return "Extra High".into();
+    }
     let mut c = s.chars();
     c.next()
         .map(|f| f.to_uppercase().chain(c).collect())
@@ -85,7 +88,7 @@ impl ThreadView {
                         "{}: this folder's account",
                         a.label
                     )))
-                    .child(crate::settings::provider_mark(a.provider, color))
+                    .child(crate::settings::provider_mark(a.provider, color, cx))
             }));
         let model_rows = rows.iter().enumerate().map(|(i, (id, label))| {
             let on = pick.model == *id;
@@ -102,11 +105,7 @@ impl ThreadView {
                 .text_size(ui::BODY)
                 .when(i == hi, |this| this.bg(theme.accent))
                 .hover(|this| this.bg(theme.accent))
-                .child(
-                    Icon::new(crate::settings::provider_icon(provider))
-                        .size_4()
-                        .text_color(theme.muted_foreground),
-                )
+                .child(ui::provider_logo(provider, px(16.), cx))
                 .child(div().min_w_0().truncate().child(label.clone()))
                 .when(on, |this| this.child(Icon::new(SkyeIcon::Check).xsmall()))
                 .child(div().flex_1())
@@ -141,7 +140,7 @@ impl ThreadView {
                 .chain(efforts.into_iter().map(Some))
                 .map(|e| {
                     let on = pick.effort == e;
-                    let label = e.as_deref().map_or("Default".into(), title_case);
+                    let label = e.as_deref().map_or("Default".into(), effort_label);
                     h_flex()
                         .id(SharedString::from(format!(
                             "pick-effort-{}",
@@ -183,26 +182,25 @@ impl ThreadView {
                 )
                 .children(rows)
         });
-        // A draft can go to several models at once (T3's multiple-model send); a thread with a row can't.
-        let several = (self.thread.is_none()
-            && rows.iter().filter(|(id, _)| id.is_some()).count() > 1)
-            .then(|| {
-                h_flex()
-                    .id("compare-start")
-                    .h(px(28.))
-                    .px_2()
-                    .gap_2()
-                    .rounded(ui::RADIUS_SM)
-                    .text_size(ui::BODY)
-                    .hover(|this| this.bg(theme.accent))
-                    .child(
-                        Icon::new(SkyeIcon::Columns2)
-                            .xsmall()
-                            .text_color(theme.muted_foreground),
-                    )
-                    .child("Send to several models…")
-                    .on_click(cx.listener(|this, _, _, cx| this.start_compare(cx)))
-            });
+        // A draft can go to several models at once (T3's multiple-model send); a thread with a row can't. Counted
+        // unfiltered (the default row plus 2 or more models), so a search doesn't hide it.
+        let several = (self.thread.is_none() && self.picker_models("").len() > 2).then(|| {
+            h_flex()
+                .id("compare-start")
+                .h(px(28.))
+                .px_2()
+                .gap_2()
+                .rounded(ui::RADIUS_SM)
+                .text_size(ui::BODY)
+                .hover(|this| this.bg(theme.accent))
+                .child(
+                    Icon::new(SkyeIcon::Columns2)
+                        .xsmall()
+                        .text_color(theme.muted_foreground),
+                )
+                .child("Send to several models…")
+                .on_click(cx.listener(|this, _, _, cx| this.start_compare(cx)))
+        });
         let note = self.session.is_some().then(|| {
             hint(
                 "A new effort applies when the agent starts again; a new model, from the next message.",

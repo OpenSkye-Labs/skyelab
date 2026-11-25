@@ -83,21 +83,30 @@ impl ThreadView {
                 cx.notify();
             }
         });
+        // Back to the prompt on close, as in T3: the chip click may have taken the focus, or nothing had it.
+        let prompt = self.prompt.read(cx).focus_handle(cx);
+        search.update(cx, |s, cx| s.focus(window, cx));
+        self.composer.picker = Some(PickerState {
+            search,
+            hi: 0,
+            back: Some((window.window_handle(), prompt)),
+            _search,
+        });
+        self.highlight_current(cx);
+        cx.notify();
+    }
+
+    /// Puts the highlight on the current pick, so Enter keeps it. Run again when Codex's list lands, as it may
+    /// arrive after the picker opened.
+    pub(in crate::workspace) fn highlight_current(&mut self, cx: &mut Context<Self>) {
         let current = self.composer.pick.model.clone();
         let hi = self
             .picker_rows(cx)
             .iter()
-            .position(|(id, _)| *id == current)
-            .unwrap_or(0);
-        let back = window.focused(cx).map(|h| (window.window_handle(), h));
-        search.update(cx, |s, cx| s.focus(window, cx));
-        self.composer.picker = Some(PickerState {
-            search,
-            hi,
-            back,
-            _search,
-        });
-        cx.notify();
+            .position(|(id, _)| *id == current);
+        if let (Some(p), Some(hi)) = (self.composer.picker.as_mut(), hi) {
+            p.hi = hi;
+        }
     }
 
     /// Closes the picker; the focus its search held goes back where it was.
@@ -127,6 +136,11 @@ impl ThreadView {
             .as_ref()
             .map(|p| p.search.read(cx).value().trim().to_lowercase())
             .unwrap_or_default();
+        self.picker_models(&needle)
+    }
+
+    /// The rows whose label or id contains `needle` (lowercase; empty: all).
+    pub(in crate::workspace) fn picker_models(&self, needle: &str) -> Vec<PickerRow> {
         let models: Vec<PickerRow> = match self.composer_account().map(|a| a.provider) {
             Some(Provider::Codex) => self
                 .composer
@@ -151,10 +165,10 @@ impl ThreadView {
         std::iter::once(default)
             .chain(models)
             .filter(|(id, label)| {
-                label.to_lowercase().contains(&needle)
+                label.to_lowercase().contains(needle)
                     || id
                         .as_deref()
-                        .is_some_and(|id| id.to_lowercase().contains(&needle))
+                        .is_some_and(|id| id.to_lowercase().contains(needle))
             })
             .collect()
     }
@@ -190,9 +204,6 @@ impl ThreadView {
     }
 
     fn move_picker(&mut self, by: isize, cx: &mut Context<Self>) {
-        if self.composer.compare.is_some() {
-            return; // ticking several models is by click
-        }
         let n = self.picker_rows(cx).len() as isize;
         if let Some(p) = self.composer.picker.as_mut().filter(|_| n > 0) {
             p.hi = (p.hi as isize + by).rem_euclid(n) as usize;
@@ -201,9 +212,6 @@ impl ThreadView {
     }
 
     fn pick_row(&mut self, index: usize, cx: &mut Context<Self>) {
-        if self.composer.compare.is_some() {
-            return;
-        }
         if let Some((id, _)) = self.picker_rows(cx).into_iter().nth(index) {
             let choice = self.model_choice(id);
             self.pick_model(choice, cx);
@@ -216,6 +224,9 @@ impl ThreadView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.composer.compare.is_some() {
+            return cx.propagate(); // ticking several models is by click; ⌘N jumps threads as usual
+        }
         self.move_picker(-1, cx);
     }
 
@@ -225,6 +236,9 @@ impl ThreadView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.composer.compare.is_some() {
+            return cx.propagate(); // ticking several models is by click; ⌘N jumps threads as usual
+        }
         self.move_picker(1, cx);
     }
 
@@ -234,6 +248,9 @@ impl ThreadView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.composer.compare.is_some() {
+            return cx.propagate(); // ticking several models is by click; ⌘N jumps threads as usual
+        }
         if let Some(hi) = self.composer.picker.as_ref().map(|p| p.hi) {
             self.pick_row(hi, cx);
         }
@@ -254,6 +271,9 @@ impl ThreadView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.composer.compare.is_some() {
+            return cx.propagate(); // ticking several models is by click; ⌘N jumps threads as usual
+        }
         self.pick_row(a.index, cx);
     }
 }

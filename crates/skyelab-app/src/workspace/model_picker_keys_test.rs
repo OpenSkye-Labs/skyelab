@@ -96,3 +96,41 @@ fn picker_keys_search_pick_and_close(cx: &mut TestAppContext) {
         (Some("opus".into()), Some("high".into()))
     );
 }
+
+fn wait_listed(view: &Entity<ThreadView>, cx: &mut VisualTestContext) {
+    super::claude_folded_turns_test::wait_until(cx, "Codex's model list", |cx| {
+        view.read_with(
+            cx,
+            |v, _| matches!(&v.composer.codex_models, Some(Ok(l)) if !l.is_empty()),
+        )
+    });
+}
+
+/// A Codex picker opened before its model list arrives still highlights the current pick once it does, so Enter
+/// keeps it rather than switching to the account default.
+#[gpui::test]
+fn codex_picker_highlights_the_current_pick_once_listed(cx: &mut TestAppContext) {
+    let bin =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-agent/tests/fixtures/fake-codex.sh");
+    let (one, cx) = one_view(cx, Provider::Codex, bin, None);
+    let view = one.view.clone();
+    wait_listed(&view, cx);
+    // An account whose config.toml sets a model lists nothing until the picker opens.
+    view.update(cx, |v, _| {
+        v.composer.codex_models = None;
+        v.composer.pick.model = Some("gpt-fake".into());
+    });
+    view.update_in(cx, |v, window, cx| v.toggle_picker(window, cx));
+    wait_listed(&view, cx);
+    let rows: Vec<Option<String>> = view.read_with(cx, |v, cx| {
+        v.picker_rows(cx).into_iter().map(|(id, _)| id).collect()
+    });
+    assert_eq!(rows, [None, Some("gpt-fake".to_owned())]);
+    assert_eq!(
+        view.read_with(cx, |v, _| v.composer.picker.as_ref().map(|p| p.hi)),
+        Some(1)
+    );
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(picked(&view, cx).0.as_deref(), Some("gpt-fake"));
+}

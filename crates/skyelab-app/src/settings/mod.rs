@@ -466,7 +466,7 @@ impl Focusable for Settings {
 mod about;
 mod accounts;
 mod accounts_card;
-pub(crate) use accounts::{provider_icon, provider_mark};
+pub(crate) use accounts::provider_mark;
 mod appearance;
 mod bindings;
 mod general;

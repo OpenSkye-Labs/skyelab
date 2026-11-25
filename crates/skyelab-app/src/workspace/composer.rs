@@ -262,10 +262,17 @@ impl ThreadView {
                 Button::new("model-picker")
                     .ghost()
                     .small()
-                    .icon(self.composer_account().map_or(SkyeIcon::Model, |a| {
-                        crate::settings::provider_icon(a.provider)
-                    }))
-                    .label(chip)
+                    // The provider's logo is an image in its own colors, so it goes in as a child, not a tinted icon.
+                    .map(|b| match self.composer_account() {
+                        Some(a) => b.child(ui::provider_logo(a.provider, px(14.), cx)).child(
+                            div()
+                                .min_w_0()
+                                .text_ellipsis()
+                                .overflow_hidden()
+                                .child(chip),
+                        ),
+                        None => b.icon(SkyeIcon::Model).label(chip),
+                    })
                     .dropdown_caret(true)
                     .tooltip(if account_default {
                         "Account default model"

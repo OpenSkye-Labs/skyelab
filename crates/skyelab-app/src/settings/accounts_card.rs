@@ -40,7 +40,7 @@ impl Settings {
             .child(
                 h_flex()
                     .gap_3()
-                    .child(provider_mark(a.provider, color))
+                    .child(provider_mark(a.provider, color, cx))
                     .child(
                         v_flex()
                             .flex_1()
