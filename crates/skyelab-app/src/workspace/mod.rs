@@ -321,10 +321,14 @@ impl Workspace {
 
         // gpui-component's skin, the center drawn uncached (`center_skin.rs`).
         let mut skins = None;
+        let workspace = cx.weak_entity();
         let dock = cx.new(|cx| {
             let s = DockSkin::new(cx);
-            let ours =
-                std::rc::Rc::new(center_skin::CenterSkin::new(s.clone(), center.entity_id()));
+            let ours = std::rc::Rc::new(center_skin::CenterSkin::new(
+                s.clone(),
+                center.entity_id(),
+                workspace.clone(),
+            ));
             skins = Some((s, ours.clone()));
             DockArea::new("workspace", None, window, cx).with_renderer(ours)
         });
