@@ -9,6 +9,9 @@ use gpui::Hsla;
 use gpui_component::{Icon, h_flex, try_parse_color, v_flex};
 use skyelab_core::{AppearanceSettings, ColorMode};
 
+/// One theme card in the wrapping grid.
+const THEME_CARD_W: f32 = 148.;
+
 /// A theme config color by its key, for the previews.
 fn color(
     config: &gpui_component::ThemeConfig,
@@ -117,7 +120,7 @@ impl Settings {
                         "Each theme has a light and a dark side; Mode picks which shows.",
                         cx,
                     ))
-                    .child(h_flex().items_start().gap_2().children(cards)),
+                    .child(h_flex().flex_wrap().items_start().gap_2().children(cards)),
             )
             .child(section(
                 "Display",
@@ -162,8 +165,8 @@ impl Settings {
         v_flex()
             .id(SharedString::from(format!("theme-{key}")))
             .debug_selector(move || format!("theme-{key}"))
-            .flex_1()
-            .min_w_0()
+            // A fixed width so the families wrap into rows instead of squeezing into one.
+            .w(gpui::px(THEME_CARD_W))
             .gap_2()
             .p_1p5()
             .rounded(ui::RADIUS_LG)

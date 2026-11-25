@@ -144,8 +144,9 @@ dialog over the app; **Esc**, a click outside it or the **×** closes it, and it
 Each window has its own. Type in **Search** at the top of its list (or press <kbd>/</kbd>) to find a setting by name.
 Sections with preferences have **Restore defaults** in the header.
 
-**Settings → Appearance** picks a theme (**SkyeLab**, **Skye**, **Graphite**, **Dawn** or **Grove**; each has a light
-and a dark side), the **Mode** (System, Light or Dark), an **Accent color**, **Density** (Compact tightens rows) and
+**Settings → Appearance** picks a theme (each has a light and a dark side): **SkyeLab** (the default), **Classic** (SkyeLab's
+original zinc and true black), **Skye**, **Graphite**, **Dawn**, **Grove**, and ports of **Catppuccin**, **Rosé Pine**,
+**Tokyo Night**, **Kanagawa**, **Everforest**, **Gruvbox**, **Nord** and **Flexoki**, the **Mode** (System, Light or Dark), an **Accent color**, **Density** (Compact tightens rows) and
 the **Text size** and **Code text size**. Changes apply at once in every window and are saved under `[appearance]` in
 `settings.toml`. The palette has the same choices under **Change theme**.
 

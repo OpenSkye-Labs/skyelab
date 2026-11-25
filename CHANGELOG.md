@@ -6,6 +6,16 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **A new default theme.** SkyeLab's theme is now porcelain and ink by day and midnight slate by night, with one calm
+  blue. Anyone on the default gets it; the old one stays as **Classic** in Settings → Appearance.
+
+### Added
+
+- **Eight more themes**, light and dark: Catppuccin, Rosé Pine, Tokyo Night, Kanagawa, Everforest, Gruvbox, Nord and
+  Flexoki. Credits and licenses are in [NOTICE.md](NOTICE.md).
+
 ## [0.1.1]
 
 The first published build. 0.1.0 was tagged but never published; everything below is on top of it.

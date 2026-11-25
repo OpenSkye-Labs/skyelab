@@ -2,7 +2,9 @@
 //! presets, density and text sizes, applied live to every window and saved under `[appearance]` in settings.toml.
 
 use gpui::{App, AppContext as _, Global, Hsla, Task};
-use gpui_component::{Colorize as _, Theme, ThemeConfig, ThemeMode, ThemeRegistry};
+use gpui_component::{
+    Colorize as _, Theme, ThemeConfig, ThemeMode, ThemeRegistry, try_parse_color,
+};
 use skyelab_core::{AppSettings, AppearanceSettings, ColorMode};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -18,12 +20,18 @@ pub struct Family {
     json: &'static str,
 }
 
-pub const FAMILIES: [Family; 5] = [
+pub const FAMILIES: [Family; 14] = [
     Family {
         key: "skyelab",
         label: "SkyeLab",
-        about: "Quiet zinc by day, true black by night.",
+        about: "Porcelain by day, midnight slate by night.",
         json: include_str!("../../themes/skyelab.json"),
+    },
+    Family {
+        key: "classic",
+        label: "Classic",
+        about: "The first SkyeLab: zinc and true black.",
+        json: include_str!("../../themes/classic.json"),
     },
     Family {
         key: "skye",
@@ -48,6 +56,54 @@ pub const FAMILIES: [Family; 5] = [
         label: "Grove",
         about: "Quiet greens for long sessions.",
         json: include_str!("../../themes/grove.json"),
+    },
+    Family {
+        key: "catppuccin",
+        label: "Catppuccin",
+        about: "Soft pastels: Latte by day, Mocha by night.",
+        json: include_str!("../../themes/catppuccin.json"),
+    },
+    Family {
+        key: "rose-pine",
+        label: "Rosé Pine",
+        about: "Muted rose and pine on dusky violet.",
+        json: include_str!("../../themes/rose-pine.json"),
+    },
+    Family {
+        key: "tokyo-night",
+        label: "Tokyo Night",
+        about: "Neon blues over a deep night sky.",
+        json: include_str!("../../themes/tokyo-night.json"),
+    },
+    Family {
+        key: "kanagawa",
+        label: "Kanagawa",
+        about: "Ink and woodblock tones after Hokusai.",
+        json: include_str!("../../themes/kanagawa.json"),
+    },
+    Family {
+        key: "everforest",
+        label: "Everforest",
+        about: "Warm, low-glare forest greens.",
+        json: include_str!("../../themes/everforest.json"),
+    },
+    Family {
+        key: "gruvbox",
+        label: "Gruvbox",
+        about: "Retro warm browns with bright accents.",
+        json: include_str!("../../themes/gruvbox.json"),
+    },
+    Family {
+        key: "nord",
+        label: "Nord",
+        about: "Arctic frost blues on polar night.",
+        json: include_str!("../../themes/nord.json"),
+    },
+    Family {
+        key: "flexoki",
+        label: "Flexoki",
+        about: "Ink on paper, tuned for reading.",
+        json: include_str!("../../themes/flexoki.json"),
     },
 ];
 
@@ -316,11 +372,47 @@ pub(crate) fn adjust(base: &ThemeConfig, s: &AppearanceSettings, dark: bool) -> 
         k.primary_foreground = Some(text.into());
         k.sidebar_primary = Some(fill.into());
         k.sidebar_primary_foreground = Some(text.into());
-        k.ring = Some(fill.into());
-        k.link = Some(if dark { a.dark_link } else { fill }.into());
+        // A preset is tuned for neutral canvases; a tinted one (Nord's slate, Gruvbox's cream) can sink it.
+        let surfaces: Vec<Hsla> = [&k.background, &k.sidebar, &k.popover]
+            .into_iter()
+            .filter_map(|c| try_parse_color(c.as_deref()?).ok())
+            .collect();
+        let link = parse_hex(if dark { a.dark_link } else { fill }).unwrap_or(color);
+        k.ring = Some(readable(color, &surfaces, 3.0, dark).to_hex().into());
+        k.link = Some(readable(link, &surfaces, 4.5, dark).to_hex().into());
         k.list_active = Some(format!("{fill}{}", if dark { "26" } else { "1a" }).into());
         k.list_active_border = Some(fill.into());
         k.selection = Some(format!("{fill}{}", if dark { "4d" } else { "33" }).into());
+    }
+    c
+}
+
+/// WCAG relative luminance.
+fn luminance(c: Hsla) -> f32 {
+    let c = gpui::Rgba::from(c);
+    let f = |v: f32| {
+        if v <= 0.039_28 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
+}
+
+/// WCAG contrast ratio between two opaque colors.
+pub(crate) fn ratio(a: Hsla, b: Hsla) -> f32 {
+    let (x, y) = (luminance(a), luminance(b));
+    (x.max(y) + 0.05) / (x.min(y) + 0.05)
+}
+
+/// `c`, lightened (dark themes) or darkened (light) until it reaches `min`:1 on every surface.
+fn readable(mut c: Hsla, on: &[Hsla], min: f32, dark: bool) -> Hsla {
+    for _ in 0..50 {
+        if on.iter().all(|&b| ratio(c, b) >= min) {
+            break;
+        }
+        c.l = (c.l + if dark { 0.02 } else { -0.02 }).clamp(0., 1.);
     }
     c
 }
