@@ -18,5 +18,8 @@ and the search never follows a symlink. They aren't available while the window s
   as images (an SVG shows as its text, since drawing one can load files from elsewhere); a binary file or a file over
   2 MB (images: 16 MB) shows a note instead. The button at the top right opens the file in your editor. One Preview
   tab is reused for each file you open. Click an image to view it large (zoom, <kbd>Esc</kbd> closes).
+  <kbd>⌘F</kbd> in a text preview opens the find bar over the file: it counts the matches (**2/7**, ignoring case),
+  marks them in the text, and <kbd>↩</kbd> / <kbd>⇧↩</kbd> go to the next and previous one, wrapping around.
+  <kbd>Esc</kbd> closes it.
 
 File paths in the agent's replies open in the Preview tab too; see [What the timeline shows](user-guide-using-threads.md#what-the-timeline-shows).

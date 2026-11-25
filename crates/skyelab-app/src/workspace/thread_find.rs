@@ -30,11 +30,13 @@ pub(super) const FIND_KEY: &str = if cfg!(target_os = "macos") {
     "ctrl-f"
 };
 
-/// Binds mod+F in a thread and Esc in its find bar. Call once at startup.
+/// Binds mod+F in a thread and a file preview, and Esc in the find bar. Call once at startup.
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new(FIND_KEY, FindInThread, Some(CONTEXT)),
         KeyBinding::new(FIND_KEY, FindInThread, Some(super::remote_thread::CONTEXT)),
+        // A file preview's editor takes mod+F first (its own search), and passes it on: it isn't searchable.
+        KeyBinding::new(FIND_KEY, FindInThread, Some(super::files::PREVIEW_CONTEXT)),
         KeyBinding::new("escape", CloseFind, Some(FIND_CONTEXT)),
     ]);
 }
@@ -145,29 +147,14 @@ pub(super) trait FindHost: ItemsView {
         if self.items().is_empty() {
             return; // nothing to find, and the bar only draws over a timeline
         }
-        let input = match &self.find().input {
-            Some(input) => input.clone(),
-            None => {
-                let input = cx.new(|cx| InputState::new(window, cx).placeholder("Find in thread"));
-                let sub =
-                    cx.subscribe_in(&input, window, |this, _, e: &InputEvent, _, cx| match e {
-                        InputEvent::Change => this.find_query_changed(cx),
-                        InputEvent::PressEnter { shift, .. } => this.find_step(!*shift, cx),
-                        _ => {}
-                    });
-                *self.find_mut() = Find {
-                    input: Some(input.clone()),
-                    _sub: Some(sub),
-                    ..Find::default()
-                };
-                input
-            }
-        };
-        input.update(cx, |i, cx| {
-            i.focus(window, cx);
-            i.select_all(window, cx);
-        });
-        cx.notify();
+        open_bar(
+            self.find_mut(),
+            "Find in thread",
+            window,
+            cx,
+            Self::find_query_changed,
+            Self::find_step,
+        );
     }
 
     fn close_find(&mut self, _: &CloseFind, window: &mut Window, cx: &mut Context<Self>) {
@@ -273,6 +260,44 @@ pub(super) trait FindHost: ItemsView {
             |this, window, cx| this.close_find(&CloseFind, window, cx),
         )
     }
+}
+
+/// Opens `find`'s bar (or focuses it again), its query selected. The field reports each edit to `changed` and Enter /
+/// Shift-Enter to `step` (forward or back). The thread, the Changes tab and the file preview open theirs with it.
+pub(super) fn open_bar<V: 'static>(
+    find: &mut Find,
+    placeholder: &'static str,
+    window: &mut Window,
+    cx: &mut Context<V>,
+    changed: fn(&mut V, &mut Context<V>),
+    step: fn(&mut V, bool, &mut Context<V>),
+) {
+    let input = match &find.input {
+        Some(input) => input.clone(),
+        None => {
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
+            let sub = cx.subscribe_in(
+                &input,
+                window,
+                move |this, _, e: &InputEvent, _, cx| match e {
+                    InputEvent::Change => changed(this, cx),
+                    InputEvent::PressEnter { shift, .. } => step(this, !*shift, cx),
+                    _ => {}
+                },
+            );
+            *find = Find {
+                input: Some(input.clone()),
+                _sub: Some(sub),
+                ..Find::default()
+            };
+            input
+        }
+    };
+    input.update(cx, |i, cx| {
+        i.focus(window, cx);
+        i.select_all(window, cx);
+    });
+    cx.notify();
 }
 
 /// A find bar for a view's top right (T3: 12 px in, popover surface): the query field, the "i/n" count, step

@@ -26,6 +26,9 @@ input, the right panel and the terminal (with no thread open, the page takes the
 are skipped and it wraps around. The area you land on gets a ring until your next click. **Esc** outside a text field
 goes back to the message input; in a terminal, Esc stays the shell's. F6 doesn't reach into a browser tab's page.
 
+**⌘F** (Ctrl+F) finds in whatever has the keyboard: a thread or a side chat, the Changes diff, a file preview or a
+browser tab. **Enter** / **Shift+Enter** step through the matches and **Esc** closes the bar.
+
 **Settings → Keybindings** lists every action with the keys that run it now (search by name or key), and
 **Open keybindings file** opens `keybindings.toml` in SkyeLab's config folder (`~/Library/Application Support/skyelab`
 on macOS, `~/.config/skyelab` on Linux), creating it with a commented example. Each rule names a key, an action and,

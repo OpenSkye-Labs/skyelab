@@ -16,6 +16,7 @@ mod search;
 
 pub(super) use links::{lexically_inside, link_line, linkify};
 pub(super) use picker::bind_keys;
+pub(super) use preview::PREVIEW_CONTEXT;
 
 use super::Workspace;
 use gpui::{AppContext as _, Context, Subscription, WeakEntity, Window, actions};

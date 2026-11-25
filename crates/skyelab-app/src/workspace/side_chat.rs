@@ -32,6 +32,9 @@ mod blink_test;
 #[path = "side_chat_close_test.rs"]
 mod close_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
+#[path = "side_chat_find_test.rs"]
+mod find_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
 #[path = "side_chat_new_test.rs"]
 mod new_test;
 #[cfg(all(test, unix))] // the fake agent is a shell script
@@ -169,7 +172,6 @@ impl ThreadView {
 
 /// A side chat in the right dock: "Bring back" and the chat itself without its page header (the dock tab is its title).
 pub struct SideChatPanel {
-    focus: FocusHandle,
     pub(super) id: i64,
     /// The parent thread's row.
     parent_id: i64,
@@ -220,8 +222,9 @@ impl Panel for SideChatPanel {
 }
 
 impl Focusable for SideChatPanel {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus.clone()
+    /// The chat's own: F6 and the dock focus a panel by this handle, so the thread's keys (mod+F, Esc) work from there.
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.view.read(cx).focus_handle(cx)
     }
 }
 
@@ -255,7 +258,6 @@ impl Render for SideChatPanel {
             );
         v_flex()
             .id(("side-chat", self.id as u64))
-            .track_focus(&self.focus)
             .size_full()
             .bg(theme.background)
             .child(header)
@@ -386,8 +388,7 @@ impl Workspace {
                     let root = view.read(cx).cwd.clone();
                     ws.open_preview(root, path.clone(), line, window, cx)
                 });
-                let panel = cx.new(|cx| SideChatPanel {
-                    focus: cx.focus_handle(),
+                let panel = cx.new(|_| SideChatPanel {
                     id,
                     parent_id,
                     parent: parent.downgrade(),

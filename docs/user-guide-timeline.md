@@ -87,3 +87,4 @@ type, ignoring case, in prompts, replies, thinking, tool calls and their output,
 goes to the next match and **Shift+Enter** to the previous one, wrapping around; the timeline scrolls to it, and a
 folded turn or a closed tool row opens when the match is inside it. In your messages and the agent's replies the
 matched words are marked, the current one more strongly; other rows with a match (tool calls, thinking) are tinted. **Esc** or **×** closes the bar and returns to the prompt.
+A side chat has its own: press **⌘F** in it to find in the side chat, not the thread beside it.
