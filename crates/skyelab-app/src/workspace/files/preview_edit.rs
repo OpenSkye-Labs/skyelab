@@ -362,7 +362,7 @@ impl PreviewPanel {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))] // its tests run the fake agent, a shell script
 impl PreviewPanel {
     /// The question's answer, as its buttons give it (tests): `Some(true)` Save, `Some(false)` Discard, `None` Cancel.
     pub(in crate::workspace) fn answer_leave(

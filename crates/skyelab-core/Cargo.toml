@@ -23,6 +23,10 @@ grep-regex.workspace = true
 croner.workspace = true
 ring.workspace = true
 
+# The Preview tab's save opens each folder without following links (`files_save.rs`).
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+
 [dev-dependencies]
 chrono-tz.workspace = true
 

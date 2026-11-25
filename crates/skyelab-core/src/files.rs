@@ -176,33 +176,9 @@ pub fn read_preview(root: &Path, path: &Path) -> Result<Preview> {
     Ok(String::from_utf8(bytes).map_or(Preview::Binary, Preview::Text))
 }
 
-/// What [`save_text`] did.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Saved {
-    Written,
-    /// The file on disk is no longer what was loaded (an agent or git wrote it): nothing was written.
-    Changed,
-}
-
-/// The Preview tab's save: writes `text` over the file `path` of `root` (relative, or absolute under it), through a
-/// temp file and a rename, keeping its permissions. Refused unless it resolves to an existing file inside `root`
-/// ([`inside`]: `..`, foreign roots and symlinks pointing out are refused). With `base` (the text loaded), a file
-/// that no longer holds exactly that is left alone and [`Saved::Changed`] comes back; `None` overwrites.
-pub fn save_text(root: &Path, path: &Path, text: &str, base: Option<&str>) -> Result<Saved> {
-    let full = inside(root, path).context("Not a file in this thread's folder.")?;
-    if !std::fs::metadata(&full).is_ok_and(|m| m.is_file()) {
-        bail!("Not a file.");
-    }
-    if let Some(base) = base
-        && std::fs::read(&full).context("Can't read this file.")? != base.as_bytes()
-    {
-        return Ok(Saved::Changed);
-    }
-    // shortcut: an agent swapping a parent folder for a symlink between the check above and the rename could
-    // redirect the write; closing that needs openat-style writes relative to an opened folder handle.
-    crate::write_atomic::write_atomic_at(&full, text.as_bytes())?;
-    Ok(Saved::Written)
-}
+#[path = "files_save.rs"]
+mod save;
+pub use save::{Saved, save_text};
 
 /// `C:\x` for Windows' canonical `\\?\C:\x`: agents record the plain form. Other paths (a UNC share, any Unix
 /// path) come back as they are. Git needs it too: `worktree add \\?\C:\…` fails to create the folder.

@@ -8588,6 +8588,7 @@ dependencies = [
  "ignore",
  "psl",
  "ring",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",
