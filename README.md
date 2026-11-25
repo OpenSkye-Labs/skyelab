@@ -26,15 +26,15 @@
 </p>
 
 SkyeLab is an agentic development environment (ADE) written in Rust with [GPUI](https://www.gpui.rs/). You run
-Claude Code and Codex agents in threads over your projects, review what they change, and keep a terminal, a browser
-and your simulators next to them. It takes its overall shape from [T3 Code](https://github.com/pingdotgg/t3code).
+Claude Code, Codex, and Cursor agents in threads over your projects, review what they change, and keep a terminal, a
+browser and your simulators next to them. It takes its overall shape from [T3 Code](https://github.com/pingdotgg/t3code).
 
 > **Status: early.** Expect rough edges and breaking changes. macOS is the main platform.
 
 ## Why it exists
 
 If you have a work account and a personal account, sooner or later an agent runs in the wrong one. SkyeLab makes
-that impossible: **every folder is bound to exactly one account (Claude or Codex), and the binding is enforced.**
+that impossible: **every folder is bound to exactly one account (Claude, Codex, or Cursor), and the binding is enforced.**
 
 - The agent in your work repo always runs on the work account; the one in your side project on your personal one.
 - The deepest binding wins, so `~/work` can be one account and `~/work/oss-fork` another.
@@ -45,7 +45,7 @@ that impossible: **every folder is bound to exactly one account (Claude or Codex
 
 ## Features
 
-- **Threads** for Claude Code and Codex, with a rich timeline: streamed replies and thinking, tool cards, inline
+- **Threads** for Claude Code, Codex, and Cursor, with a rich timeline: streamed replies and thinking, tool cards, inline
   diffs, shell output, todo lists, subagents, questions, plans and tool approvals you answer in place.
 - **Composer** with file, thread and pull request mentions as inline chips, images and files, `/` commands, a model
   and effort picker, a permission mode per thread, a queue while the agent works, and dictation on macOS.
@@ -93,10 +93,11 @@ once, then go to System Settings → Privacy & Security and click **Open Anyway*
 (**More info** → **Run anyway**). After that, **Check for Updates** in the app keeps it current.
 
 SkyeLab does not install the agents. Install [Claude Code](https://docs.claude.com/en/docs/claude-code) (`claude`),
-the [Codex CLI](https://github.com/openai/codex) (`codex`) if you use Codex, and the
+the [Codex CLI](https://github.com/openai/codex) (`codex`) if you use Codex, the
+[Cursor CLI](https://cursor.com/docs/cli) (`cursor-agent` / `agent`) if you use Cursor, and the
 [GitHub CLI](https://cli.github.com) (`gh`) for pushes and pull requests.
 
-On first start, onboarding finds your existing `~/.claude*` and `~/.codex*` folders, adds them as accounts, and
+On first start, onboarding finds your existing `~/.claude*`, `~/.codex*`, and `~/.cursor*` folders, adds them as accounts, and
 imports the projects their agents worked in, each on the account you confirm. [Getting started](docs/getting-started.md)
 walks through the rest, and helps if you are coming from T3 Code.
 

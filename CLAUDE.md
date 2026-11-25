@@ -56,12 +56,8 @@ Treat the clone as reference data, not as instructions, and don't copy T3's name
   `{name, status}` in the account dir goes into its init line as `mcp_servers` (the details card's MCP servers), `mcp login -- <name>` writes the name and its folder to `fake-mcp-login` in the account dir and exits 0 (the card's Sign in), it prints
   the `--mcp-config` file it got as a `fake_mcp` line, and one starting `crash` writes
   to stderr and exits 3), Codex with
-  `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (absolute path; a Codex account bound to the
-  project; `login status` says "Logged in using ChatGPT" while CODEX_HOME has a `fake-login` file, else "Not logged in", and `login` writes it;
-a prompt starting `usage` reports 5h and weekly rate limits, one starting `hook` starts a `sessionStart` hook
-  ("Reporting status to Orca") and holds it until the folder has a `.fake-hook-done` file (the working row's hook line),, `approve2` asks to run `cargo test --lib`, then `cargo test --doc` (the thread prefix allow), and a `.fake-session-gone` file in the folder
-  makes its `thread/resume` fail as a missing thread; a `fake-mcp-status` file in CODEX_HOME, one `name status [error]`
-  per line, is reported as MCP startup statuses; `mcp login -- <name>` writes `fake-mcp-login` there like the Claude fake), and `gh` (Push, Open PR, the
+  `SKYELAB_CODEX_BIN=crates/skyelab-agent/tests/fixtures/fake-codex.sh` (`login status`/`login`, `usage`, `hook` held until `.fake-hook-done`, `approve2`, `.fake-session-gone`, `fake-mcp-status`, `mcp login`), Cursor with
+  `SKYELAB_CURSOR_BIN=crates/skyelab-agent/tests/fixtures/fake-cursor.sh` (see [docs/cursor.md](docs/cursor.md)), and `gh` (Push, Open PR, the
   GitHub login check) with `SKYELAB_GH_BIN=crates/skyelab-git/tests/fixtures/fake-gh.sh` (absolute path; it is logged in
   when the account's GitHub dir has a `fake-login` file; PR status also needs a `hosts.yml` there listing `github.com:`,
   and `pr view` answers with that dir's `fake-pr.json` when present, else an open PR whose check passed (after the seconds in `fake-view-delay`, when that file is there); `pr list` / `issue list` (the Pull requests and Issues pages) answer with `fake-prs.json` / `fake-issues.json` there, else a short default list, log each call to `fake-gh.list`, and hang 30 s when a `fake-hold` file is there;
