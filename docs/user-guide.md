@@ -8,8 +8,10 @@ Press <kbd>⌘K</kbd> or <kbd>⇧⌘P</kbd> to find anything: an action (with it
 thread to open, or a terminal, Changes or browser tab to go to. With nothing typed it lists **Actions** and your
 **Recent threads** (the twelve used last). Typing searches everything, grouped under **Actions**, **Threads**,
 **Projects**, **Scripts** and **Tabs**, best match first, with the matched letters in bold. Threads of every project are
-also found by their messages: type a few words from a prompt or an answer (three letters or more) and matching
-threads list after the rest, with their project's name. Type a few letters in order (`os` finds
+also found by their messages: type a few words from a prompt or an answer and threads with one message holding every
+word, in any order, list after the rest, with their project's name and the matched line. Put words in double quotes
+(`"hungry lion"`) to find them only written together. A search needs one word of three letters or more to look in
+messages; shorter ones alone match titles only. Type a few letters in order (`os` finds
 **Open Settings**), move with the arrow keys (they wrap around) or the mouse, press <kbd>Enter</kbd> to run it and
 <kbd>Esc</kbd> to close. Rows with a chevron open a page: **New thread in…** (pick a project), **Change theme**, and on
 another machine **Forwarded ports**. <kbd>Esc</kbd>, <kbd>Backspace</kbd> in an empty search, or the Back row above the
@@ -64,7 +66,8 @@ hint says where the hook comes from and that Interrupt stops the turn. Hold the 
 holds cards back until the pointer moves again): the project's name and folder, the worktree and branch, the pull request (click to open it), the account with its provider, the bound folder
 that picks that account, and when the thread was created and last updated.
 
-Above the list are the search field, saved views (the bookmark button), the project filter (the folder button) and
+Above the list are the search field (it finds threads by title or message text the same way as the palette, and a
+row found by a message shows the matched line under its title), saved views (the bookmark button), the project filter (the folder button) and
 **New thread** (**+**). The project
 filter narrows the list to the projects you tick (**All projects** clears it); it also holds **Manage projects** and
 **Add project**. **New thread** starts in the one project the list is narrowed to, or in your only project; otherwise
