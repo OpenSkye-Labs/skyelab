@@ -127,6 +127,21 @@ A hand-written binding in the throwaway `accounts.toml` needs `resolved = "<same
 - Say how you checked the change, and add a screenshot for UI changes (light and dark).
 - Never commit secrets, real account folders, real machine names or personal paths.
 
+## Translated READMEs
+
+`README.md` (English) is the source of truth. The translations sit next to it as `README.<lang>.md` (`zh-CN`,
+`zh-TW`, `ja`, `ko`, `es`, `pt-BR`, `de`, `fr`, `ru`).
+
+- When you change `README.md`, update the translations you can, or say in the pull request which ones are behind.
+  An outdated translation is fine for a while; a wrong one is not.
+- Translate faithfully. Keep code, commands, paths, file names, key names and product names (SkyeLab, Claude Code,
+  Codex, GPUI, Tailscale) as they are, and keep the same images and links.
+- Each translation starts with the language switcher and a note naming the date it was last synced with the
+  English README. Update that date when you sync it.
+- To add a language, copy the closest translation, translate it, and add the language to the switcher line at the
+  top of every README (including this list).
+- Keep each README under the repo's 5,000-token file limit (about 20 KB); the pre-commit hook checks it.
+
 ## Questions
 
 Ask in [GitHub Discussions](https://github.com/OpenSkye-Labs/skyelab/discussions) or open an issue. Report security
