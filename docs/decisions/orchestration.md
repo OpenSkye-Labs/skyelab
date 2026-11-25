@@ -5,7 +5,8 @@ the bottom.
 
 - **Orchestration tools are ours, over a private socket (a named pipe on Windows).** No `rmcp` (four JSON-RPC
   methods are enough). Agents get `--mcp-config <grant file> --allowedTools mcp__skyelab`, and `--strict-mcp-config` keeps
-  every other server out. Starts and sends run on the UI thread through `ThreadView`, which re-checks the account rule
+  every other server out (since 2026-11-26 the account's own servers and claude.ai connectors load too, see
+  [agents.md](agents.md); only `mcp__skyelab` is pre-allowed). Starts and sends run on the UI thread through `ThreadView`, which re-checks the account rule
   with the config the launch uses. (2026-11-23)
 - **MCP socket path:** `<data dir>/skyelab/run/<pid>/mcp.sock` can exceed sun_path (104 bytes on macOS) with a long
   HOME. Then the socket goes in a fresh dir under the temp dir (else `/tmp`), created exclusively with mode 0700 and

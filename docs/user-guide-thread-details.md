@@ -30,8 +30,10 @@ bound account.
 - **Lineage · N running:** the thread this one was forked or continued from (**Forked from** / **Continued from**), then the threads this thread's agent delegated that are working now, with how long they have
   run. **Previous agents** lists the rest with how they ended. Click one to open it.
 - **MCP servers:** the servers the thread's latest agent process was given and what it reported for each:
-  **Connected**, **Starting**, **Failed** (hover for the error when the agent gave one), **Needs sign-in** or
-  **Cancelled**. It shows once an agent has started; a new process (a resume, **Restart Agent Session**) starts the
+  **Connected**, **Starting**, **Failed** (hover for the error when the agent gave one), **Needs sign-in**,
+  **Not connected** or **Cancelled**. A Claude thread lists its account's claude.ai connectors too (named like
+  `claude.ai Slack`); one you never connected on claude.ai reads **Not connected**, in muted text, with no Sign in
+  button: connect it in your claude.ai connector settings, then restart the agent session. It shows once an agent has started; a new process (a resume, **Restart Agent Session**) starts the
   list over. See [Accounts](user-guide-accounts.md) for which servers load.
   A server that **Needs sign-in** has a **Sign in** button. It opens a terminal tab, **Sign in: <server>**, that runs
   the agent's own login for that one server (`claude mcp login <server>`, or `codex mcp login <server>` on a Codex
