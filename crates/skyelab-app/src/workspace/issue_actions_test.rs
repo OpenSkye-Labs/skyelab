@@ -7,6 +7,7 @@ use super::super::pr_actions::tests::{github, lines};
 use super::super::threads_test::wait_until;
 use super::*;
 use gpui::VisualTestContext;
+use std::path::Path;
 
 const URL: &str = "https://github.com/acme/demo/issues/31";
 
@@ -123,4 +124,64 @@ fn gh_errors_stay_in_the_dialog_and_a_rebind_is_refused_before_gh(cx: &mut gpui:
         })
     });
     assert_eq!(lines(&gh.join("fake-gh.actions")).len(), before);
+}
+
+#[gpui::test]
+fn a_close_that_fails_after_its_comment_clears_the_box_so_a_retry_posts_it_once(
+    cx: &mut gpui::TestAppContext,
+) {
+    let (r, cx) = rig(cx);
+    let gh = github(&r, cx);
+    // A gh that refuses `issue close` while `close-fails` exists, and is the fake gh otherwise.
+    let fake =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../skyelab-git/tests/fixtures/fake-gh.sh");
+    let wrapper = gh.join("gh-close-fails.sh");
+    std::fs::write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\n[ \"$2\" = close ] && [ -f \"$GH_CONFIG_DIR/close-fails\" ] && {{ echo 'closing refused' >&2; exit 1; }}\nexec '{}' \"$@\"\n",
+            fake.display()
+        ),
+    )
+    .expect("write");
+    let ok = std::process::Command::new("chmod")
+        .arg("+x")
+        .arg(&wrapper)
+        .status()
+        .expect("chmod")
+        .success();
+    assert!(ok);
+    std::fs::write(gh.join("close-fails"), "").expect("write");
+    r.ws.update(cx, |_, cx| cx.set_global(super::super::GhBin(wrapper)));
+    let page = issues_page(&r, cx);
+    let d = dialog(&r, &page, cx);
+    type_body(&d, "  indented\n", cx);
+    d.update_in(cx, |d, window, cx| {
+        d.act(Act::Close(CloseReason::Completed), window, cx)
+    });
+    wait_until(cx, "error", |cx| d.read_with(cx, |d, _| d.error.is_some()));
+    let error = d.read_with(cx, |d, _| d.error.clone()).expect("error");
+    assert!(
+        error.contains("comment was posted") && error.contains("closing refused"),
+        "{error}"
+    );
+    assert!(d.read_with(cx, |d, cx| d.body.read(cx).value().is_empty()));
+    // Sent as typed.
+    assert_eq!(
+        std::fs::read_to_string(gh.join("fake-gh.review-body")).expect("body"),
+        "  indented\n"
+    );
+
+    std::fs::remove_file(gh.join("close-fails")).expect("rm");
+    d.update_in(cx, |d, window, cx| {
+        d.act(Act::Close(CloseReason::Completed), window, cx)
+    });
+    wait_until(cx, "row closed", |cx| row_closed(&page, cx) == Some(true));
+    assert_eq!(
+        lines(&gh.join("fake-gh.actions")),
+        [
+            format!("issue comment {URL} --body-file -"),
+            format!("issue close {URL} --reason completed"),
+        ]
+    );
 }

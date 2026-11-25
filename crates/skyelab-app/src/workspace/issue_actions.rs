@@ -107,8 +107,9 @@ pub(crate) fn open(
 
 impl IssueActions {
     pub(crate) fn act(&mut self, act: Act, window: &mut Window, cx: &mut Context<Self>) {
-        let body = self.body.read(cx).value().trim().to_owned();
-        if self.busy || (act == Act::Comment && body.is_empty()) {
+        // Sent as typed (an indented code block keeps its indent); blank means no comment.
+        let body = self.body.read(cx).value().to_string();
+        if self.busy || (act == Act::Comment && body.trim().is_empty()) {
             return;
         }
         (self.busy, self.error) = (true, None);
@@ -140,7 +141,14 @@ impl IssueActions {
             let _ = this.update_in(cx, |this, window, cx| {
                 this.busy = false;
                 match done {
-                    Err(e) => this.error = Some(format!("{e:#}").into()),
+                    Err(e) => {
+                        let e = format!("{e:#}");
+                        // Posted already: a retry only closes or reopens.
+                        if e.starts_with(skyelab_git::COMMENT_POSTED) {
+                            this.body.update(cx, |b, cx| b.set_value("", window, cx));
+                        }
+                        this.error = Some(e.into());
+                    }
                     Ok(()) => window.close_dialog(cx),
                 }
                 cx.notify();
@@ -287,6 +295,7 @@ impl GhPage {
             return;
         };
         let (gh, file) = (inputs.gh.clone(), inputs.accounts_file.clone());
+        let account = target.account.clone();
         let read = cx.background_spawn(async move {
             let config = super::accounts_now(file.as_deref(), &target.config);
             let gh_dir = account_gh_dir(&config, &target.dir, &target.account)?;
@@ -305,7 +314,8 @@ impl GhPage {
                 };
                 let fresh = super::gh_pages::dated(vec![row], |r| &r.updated_at);
                 for (key, group) in &mut this.groups {
-                    if key.0 != project {
+                    // A list read by another account since (a rebind) keeps its own rows.
+                    if key.0 != project || group.account.as_ref().map(|a| &a.0) != Some(&account) {
                         continue;
                     }
                     if let Listing::Issues(list) = &mut group.listing

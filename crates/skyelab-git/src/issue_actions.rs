@@ -9,6 +9,9 @@ use crate::publish::{MAX_MESSAGE, checked_within, gh_command, invalid};
 use crate::remote::PR_VIEW_LIMIT;
 use crate::{Error, Result};
 
+/// Starts the error of a close or reopen that failed after its comment was posted: a retry must not post it again.
+pub const COMMENT_POSTED: &str = "the comment was posted";
+
 /// Why an issue is closed (`gh issue close --reason`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CloseReason {
@@ -84,9 +87,7 @@ fn change_state(gh: &crate::GitHub, url: &str, comment: &str, args: &[&str]) -> 
     let what = format!("gh issue {}", args[0]);
     let cmd = gh_command(gh, gh.config_dir, &full)?;
     match checked_within(cmd, &what, None, Some(ACTION_LIMIT)) {
-        Err(e) if commented => Err(invalid(format!(
-            "the comment was posted, but {what} failed: {e}"
-        ))),
+        Err(e) if commented => Err(invalid(format!("{COMMENT_POSTED}, but {what} failed: {e}"))),
         r => r.map(drop),
     }
 }
@@ -122,7 +123,8 @@ pub fn issue_view(gh: &crate::GitHub, url: &str) -> Result<IssueRow> {
     parse_issue_list(&list)?
         .into_iter()
         .next()
-        .filter(|row| row.url == url)
+        // The link is canonical, so its last part is the number.
+        .filter(|row| row.url == url && url.ends_with(&format!("/{}", row.number)))
         .ok_or_else(|| Error::Gh {
             args: "issue view".into(),
             stderr: "gh answered about another issue".into(),
