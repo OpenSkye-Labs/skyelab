@@ -23,6 +23,9 @@ grep-regex.workspace = true
 croner.workspace = true
 ring.workspace = true
 
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
 [dev-dependencies]
 chrono-tz.workspace = true
 

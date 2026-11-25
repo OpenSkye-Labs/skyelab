@@ -57,6 +57,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 futures = "0.3"
 # waitid(WNOWAIT): see an agent exit before reaping it, while its group id is still its own.
 rustix = { version = "1.1", features = ["process", "termios"] }
+# A safe pthread_sigmask: children must not inherit a GPUI worker thread's blocked signals (skyelab_core::process).
+nix = { version = "0.32", default-features = false, features = ["signal"] }
 # A terminal's foreground command and working folder (tab titles, the close check, restore).
 sysinfo = { version = "0.40.4", default-features = false, features = ["system"] }
 # A directory junction where Windows refuses a dir symlink (skyelab-git's frozen rr-cache link), a safe API.

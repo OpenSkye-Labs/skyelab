@@ -27,3 +27,11 @@ Part of [decisions.md](../decisions.md). OS support and process plumbing. Each e
   shim starts before the job assignment (microseconds after spawn) is outside the job; a tab folder WebView2 still
   holds when the tab closes stays in the temp dir (a registry policy that pins the folder isn't checked either).
   (2026-11-23)
+- **Children start with an empty signal mask.** std's spawn (posix_spawn and fork paths alike) copies the calling
+  thread's signal mask into the child, and GPUI's background threads (libdispatch workers on macOS) block SIGCHLD and
+  most other signals. Codex 0.172 started that way never saw its hook processes exit: a zombie hook, `hook/started`
+  with no `hook/completed`, and the turn waited forever (3 of 3 turns in real run 4; clearing the mask made the same
+  turn reach its approval in 9 s). `skyelab_core::process::exclusive`, which every spawn goes through (the PTY
+  included), clears the calling thread's mask for the spawn and puts it back after, with nix's safe
+  `pthread_sigmask`. Ignored signals are not reset: SkyeLab ignores none, and a launcher that does (`nohup`, a
+  shell's `&`) passes them on as before. Test: `crates/skyelab-core/tests/child_sigmask.rs`. (2026-11-25)
