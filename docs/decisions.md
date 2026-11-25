@@ -9,3 +9,4 @@ bottom. Add a new decision to the file it belongs to.
 - [Git and GitHub](decisions/git.md): Git and gh calls, pushes, commits, checkpoints, scripts.
 - [Orchestration](decisions/orchestration.md): SkyeLab's own MCP tools and their transport.
 - [Platform](decisions/platform.md): OS support and process plumbing.
+- [Files](decisions/files.md): The thread folder's files: the picker, search and the editable Preview tab.

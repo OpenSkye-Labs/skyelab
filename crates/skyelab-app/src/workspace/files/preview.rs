@@ -1,5 +1,6 @@
-//! The Preview tab: one file of the thread's folder, read-only. Text shows in gpui-component's code editor (line
-//! numbers, syntect highlighting) at the asked line; images draw as images; binary and huge files get a note.
+//! The Preview tab: one file of the thread's folder. Text shows in gpui-component's code editor (line numbers, syntect
+//! highlighting) at the asked line, read-only until Edit is on (`preview_edit`); images draw as images; binary and huge
+//! files get a note.
 //! mod+F finds in the text with the thread's find bar; the editor's own matcher counts and highlights the matches.
 
 use crate::ui;
@@ -24,6 +25,13 @@ use skyelab_core::files::Preview;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+#[path = "preview_edit.rs"]
+mod edit;
+pub(in crate::workspace) use edit::{SAVE_KEY, SaveFile};
+
+#[cfg(all(test, unix))] // the workspace fixture runs the fake agent, a shell script
+#[path = "../preview_edit_test.rs"]
+mod edit_test;
 #[cfg(all(test, unix))] // the workspace fixture runs the fake agent, a shell script
 #[path = "../preview_find_test.rs"]
 mod find_test;
@@ -60,24 +68,30 @@ pub(in crate::workspace) struct PreviewPanel {
     pub(in crate::workspace) editor: Entity<EditorState>,
     /// The find bar, while open. `matches` holds each match's byte offset; the editor keeps the current one.
     find: Find,
+    edit: edit::Edit,
     _load: Option<Task<()>>,
 }
 
 impl PreviewPanel {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        // Not its own search panel (a library default): mod+F goes on to the thread's find bar.
+        let editor = cx.new(|cx| EditorState::new(window, cx).searchable(false));
+        let mut edit = edit::Edit::default();
+        edit.sub = Some(cx.subscribe(&editor, |this, _, e, cx| this.editor_event(e, cx)));
         Self {
             focus: cx.focus_handle(),
             root: PathBuf::new(),
             path: PathBuf::new(),
             body: Body::Loading,
-            // Not its own search panel (a library default): mod+F goes on to the thread's find bar.
-            editor: cx.new(|cx| EditorState::new(window, cx).searchable(false)),
+            editor,
             find: Find::default(),
+            edit,
             _load: None,
         }
     }
 
     /// Shows `path` of `root`, scrolled to `line` (1-based) when it is text. A newer call drops the older read.
+    /// Unsaved edits of the file shown are asked about first (Save / Discard / Cancel).
     pub fn show(
         &mut self,
         root: PathBuf,
@@ -86,10 +100,24 @@ impl PreviewPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.edit.dirty {
+            return self.leave(
+                Box::new(move |this, window, cx| this.show(root, path, line, window, cx)),
+                window,
+                cx,
+            );
+        }
         // GPUI keeps every decoded image until told: the one this replaces goes.
         if let Body::Image(old) = std::mem::replace(&mut self.body, Body::Loading) {
             old.remove_asset(cx);
         }
+        if self.root != root || self.edit.watch.is_none() {
+            self.edit.watch = super::super::folder_watch::watch(&root, cx, Self::disk_changed);
+        }
+        if self.path != path {
+            self.edit.on = false; // another file opens read-only
+        }
+        self.edit.base = None;
         self.root = root.clone();
         self.path = path.clone();
         self.end_find(cx);
@@ -122,10 +150,11 @@ impl PreviewPanel {
                 let row = line.map_or(0, |l| l.saturating_sub(1));
                 self.editor.update(cx, |e, cx| {
                     e.set_highlighter(lang, cx);
-                    e.set_value(text, window, cx);
+                    e.set_value(text.clone(), window, cx);
                     // Moves the caret there and scrolls it into view (and focuses the preview).
                     e.set_cursor_position(Position::new(row, 0), window, cx);
                 });
+                self.text_loaded(text, cx);
                 Body::Text
             }
             Ok((Preview::Binary | Preview::Image(_), _)) => {
@@ -222,7 +251,15 @@ impl PreviewPanel {
         self.find_step(false, cx);
     }
 
-    fn name(&self) -> SharedString {
+    /// The name, with a dot while edits are unsaved.
+    fn title_text(&self) -> SharedString {
+        match self.edit.dirty {
+            true => format!("{} •", self.name()).into(),
+            false => self.name(),
+        }
+    }
+
+    pub(in crate::workspace) fn name(&self) -> SharedString {
         self.path.file_name().map_or_else(
             || "Preview".into(),
             |n| n.to_string_lossy().into_owned().into(),
@@ -291,6 +328,10 @@ impl BasePanel for PreviewPanel {
     fn zoomable(&self, _: &App) -> bool {
         false
     }
+    /// Not while edits are unsaved: no ×, and the tab's Close asks first (`close_panel`).
+    fn closable(&self, _: &App) -> bool {
+        !self.edit.dirty
+    }
     fn on_removed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.path.as_os_str().is_empty() {
             let (root, path) = (self.root.clone(), self.path.clone());
@@ -305,7 +346,7 @@ impl BasePanel for PreviewPanel {
 
 impl Panel for PreviewPanel {
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        self.name()
+        self.title_text()
     }
     fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
         None
@@ -344,7 +385,7 @@ impl Render for PreviewPanel {
             .child(
                 div()
                     .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(self.name()),
+                    .child(self.title_text()),
             )
             .child(
                 div()
@@ -354,6 +395,17 @@ impl Render for PreviewPanel {
                     .text_color(theme.muted_foreground)
                     .child(dir),
             )
+            .when(self.can_edit(), |row| {
+                row.child(
+                    Button::new("preview-edit")
+                        .ghost()
+                        .xsmall()
+                        .icon(SkyeIcon::PenLine)
+                        .selected(self.edit.on)
+                        .tooltip(if self.edit.on { "Stop editing" } else { "Edit" })
+                        .on_click(cx.listener(|this, _, window, cx| this.toggle_edit(window, cx))),
+                )
+            })
             .child(
                 Button::new("preview-open-editor")
                     .ghost()
@@ -400,7 +452,7 @@ impl Render for PreviewPanel {
                     .into_any_element()
             }
             Body::Text => Editor::new(&self.editor)
-                .readonly(true)
+                .readonly(!self.edit.on)
                 .bordered(false)
                 .appearance(false)
                 .h_full()
@@ -414,9 +466,13 @@ impl Render for PreviewPanel {
             .on_action(cx.listener(Self::find_next))
             .on_action(cx.listener(Self::find_previous))
             .on_action(cx.listener(Self::close_find))
+            .on_action(cx.listener(Self::save_file))
+            .on_action(cx.listener(Self::escape))
+            .on_action(cx.listener(Self::close_panel))
             .size_full()
             .bg(theme.background)
             .child(header)
+            .children(self.banner(cx))
             .children(find)
             .child(div().flex_1().min_h_0().child(body))
     }

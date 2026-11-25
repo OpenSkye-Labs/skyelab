@@ -110,8 +110,8 @@ What's built today:
   switches project, opens a thread (also found by its messages, in any project) or goes to a terminal, Changes or
   browser tab.
 - **Files.** <kbd>⌘P</kbd> finds a file in the thread's folder, <kbd>⇧⌘F</kbd> searches file contents in a right-panel tab,
-  and a read-only Preview tab shows a file with syntax highlighting (or an image). File paths in the agent's replies
-  open there at their line. Nothing outside the thread's folder is read.
+  and a Preview tab shows a file with syntax highlighting (or an image) and edits text. File paths in the agent's replies
+  open there at their line. Nothing outside the thread's folder is touched.
 - **Branches, checkpoints and scripts.** A branch picker in the thread details card (switch, create, and stash or carry
   changes), a base branch for new worktrees, a checkpoint per agent turn with "Turn N" diffs and "Rewind to before
   turn N", and per-project scripts (run from the card or the palette) with setup scripts for new worktrees.

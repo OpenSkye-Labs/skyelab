@@ -1,0 +1,23 @@
+# Decisions: Files
+
+Part of [decisions.md](../decisions.md). The thread folder's files: Go to File, Search in Files and the Preview tab.
+Each entry is dated; newest at the bottom.
+
+- **The Preview tab edits (2026-11-25):** the Preview tab was read-only on purpose; it now edits text files after its
+  Edit toggle, saved with mod+S, the way T3 Code's file panel edits. Why: fixing a typo or a line an agent wrote
+  shouldn't need a trip to another editor, and T3 has it. Scope: only text previews (not images, binary files, files
+  over 2 MB or the notes shown instead), and read-only until Edit is on, so a stray key in a preview never edits.
+  - **Folder boundary:** a save resolves the real path (symlinks, `..`) with `files::inside` and refuses anything not
+    an existing file inside the thread's folder, so a symlink pointing out is refused, never followed, and nothing new
+    is created. It writes through a temp file next to the file and a rename (`write_atomic_at`, which doesn't resolve
+    the path again, so a symlink planted after the check is replaced, not followed) and keeps the file's permissions.
+    Limit: an agent swapping a parent folder for a symlink between the check and the rename could redirect the write;
+    closing that needs writes relative to an opened folder handle.
+  - **The agent edits the same file:** a save compares the file on disk with the text it loaded and writes nothing
+    when they differ; the folder watch (the one the Changes tab uses) also re-reads the file while the tab is open.
+    Either way the tab says the file changed on disk and offers Reload (drop the edits, show the disk) or Overwrite
+    (write the edits anyway). Edits are never merged. One save runs at a time, so a quick second mod+S can't report
+    its own first write as a change.
+  - **Losing edits:** Esc, Edit off, opening another file in the tab, the tab's Close and closing the window ask Save,
+    Discard or Cancel first (the tab's × hides while edits are unsaved), and the quit guard lists the file. Edits live
+    only in the editor: there is no draft file, so a crash loses them.

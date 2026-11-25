@@ -66,3 +66,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   bar set `.searchable(false)` (the editor then propagates its `Search` action, and GPUI tries the next binding for the
   key, ours in an outer context) and drive the editor's matcher with `set_search_query` / `next_search_match`, which
   highlights only the visible matches (`files/preview.rs`).
+- A gpui-component input's Esc is its `Escape` action, which propagates when the input has nothing to close. A
+  parent's `on_action(Escape)` (the Preview leaving edit mode) then also gets the Esc pressed in a child input such as
+  a find bar, before that bar's own outer-context binding: check for the child (find bar open) and `cx.propagate()`
+  (`files/preview_edit.rs`).
+- To ask before a dock tab closes, return `closable() == false` while it must not close (the tab hides its ×) and
+  handle `dock::ClosePanel` (the tab menu's Close) on the panel: ask, then dispatch `ClosePanel` again once it may
+  close. There is no close-request hook in gpui-component's dock.
