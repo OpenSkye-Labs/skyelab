@@ -1,6 +1,7 @@
 //! Quitting while work is in flight: ⌘Q, the Quit menu and (off macOS) closing the last window ask first when a
 //! thread or side chat is working or waiting on the user, a thread holds diff comments or context chips not sent yet
-//! (kept in memory only), or a terminal runs a command, since quitting stops or drops them all. A second
+//! (kept in memory only), a Preview tab holds unsaved edits, or a terminal runs a command, since quitting stops or
+//! drops them all. Closing a window whose Preview tab holds unsaved edits asks Save / Discard / Cancel first. A second
 //! ⌘Q while the dialog is open quits; "Don't ask again" (Settings → General) quits at once from then on.
 
 use super::panels::Ask;
@@ -61,6 +62,8 @@ pub(crate) enum Blocker {
     Waiting(Ask),
     /// Diff comments (saved or being written) or context chips not sent yet: memory only, so a quit drops them.
     Unsent,
+    /// A Preview tab's unsaved edits.
+    Unsaved,
     Terminal,
 }
 
@@ -117,6 +120,11 @@ pub(crate) fn blockers(cx: &App) -> Vec<(SharedString, Blocker)> {
         }
     }
     for ws in &workspaces {
+        if let Some(p) = ws.read(cx).files.preview.as_ref().and_then(|p| p.upgrade())
+            && p.read(cx).unsaved()
+        {
+            out.push((p.read(cx).name(), Blocker::Unsaved));
+        }
         for panel in &ws.read(cx).terminals {
             let p = panel.read(cx);
             let ids: Vec<_> = p.panes.iter().map(|p| p.view.entity_id()).collect();
@@ -132,6 +140,7 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
     let working = count(|b| *b == Blocker::Working);
     let waiting = count(|b| matches!(b, Blocker::Waiting(_)));
     let unsent = count(|b| *b == Blocker::Unsent);
+    let unsaved = count(|b| *b == Blocker::Unsaved);
     let terminals = count(|b| *b == Blocker::Terminal);
     let plural = |n: usize, one: &str, many: &str| {
         if n == 1 {
@@ -158,6 +167,13 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
             "threads have unsent comments or context",
         ));
     }
+    if unsaved > 0 {
+        parts.push(plural(
+            unsaved,
+            "file has unsaved edits",
+            "files have unsaved edits",
+        ));
+    }
     if terminals > 0 {
         parts.push(plural(
             terminals,
@@ -174,7 +190,7 @@ pub(crate) fn question(items: &[(SharedString, Blocker)]) -> (SharedString, Shar
         "Quit SkyeLab?".into(),
         format!(
             "{list}. Quitting {} {}.",
-            if unsent == items.len() {
+            if unsent + unsaved == items.len() {
                 "loses"
             } else {
                 "stops"
@@ -191,6 +207,7 @@ fn label(b: Blocker) -> &'static str {
         Blocker::Working => "Working",
         Blocker::Waiting(ask) => ask.label(),
         Blocker::Unsent => "Not sent",
+        Blocker::Unsaved => "Unsaved",
         Blocker::Terminal => "Terminal",
     }
 }
@@ -231,6 +248,16 @@ pub fn request_quit(cx: &mut App) {
 /// Off macOS, closing the last window quits: it asks the same way and keeps the window while the dialog is open.
 pub(super) fn may_close(window: &mut Window, cx: &mut App) -> bool {
     let handle = window.window_handle();
+    if let Some(preview) = unsaved_preview(handle, cx) {
+        // Saved or dropped, the window closes; Cancel keeps it.
+        preview.update(cx, |p, cx| {
+            p.leave(Box::new(|_, window, _| window.remove_window()), window, cx)
+        });
+        return false;
+    }
+    if super::MAC {
+        return true; // macOS keeps running with no window
+    }
     let last = window_handles(cx).iter().all(|w| *w == handle);
     if !last || asking(cx) || !asks(cx) {
         return true;
@@ -241,6 +268,20 @@ pub(super) fn may_close(window: &mut Window, cx: &mut App) -> bool {
     }
     open(items, window, cx);
     false
+}
+
+/// The Preview tab of the workspace in window `handle`, when it holds unsaved edits.
+fn unsaved_preview(
+    handle: AnyWindowHandle,
+    cx: &App,
+) -> Option<gpui::Entity<super::files::PreviewPanel>> {
+    let reg = cx.try_global::<Windows>()?;
+    reg.workspaces.iter().find_map(|r| {
+        let ws = r.workspace.upgrade()?;
+        let ws = ws.read(cx);
+        let p = ws.files.preview.as_ref()?.upgrade()?;
+        (ws.window_handle == handle && p.read(cx).unsaved()).then_some(p)
+    })
 }
 
 /// The quit dialog is open now.

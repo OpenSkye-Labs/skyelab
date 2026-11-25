@@ -23,8 +23,10 @@ grep-regex.workspace = true
 croner.workspace = true
 ring.workspace = true
 
+# `nix`: safe pthread_sigmask for child spawns; `rustix`: folder-bounded Preview save (`files_save.rs`).
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true
+rustix.workspace = true
 
 [dev-dependencies]
 chrono-tz.workspace = true

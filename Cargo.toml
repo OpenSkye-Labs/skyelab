@@ -56,7 +56,7 @@ rustix-openpty = "0.2"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent"] }
 futures = "0.3"
 # waitid(WNOWAIT): see an agent exit before reaping it, while its group id is still its own.
-rustix = { version = "1.1", features = ["process", "termios"] }
+rustix = { version = "1.1", features = ["fs", "process", "termios"] }
 # A safe pthread_sigmask: children must not inherit a GPUI worker thread's blocked signals (skyelab_core::process).
 nix = { version = "0.32", default-features = false, features = ["signal"] }
 # A terminal's foreground command and working folder (tab titles, the close check, restore).

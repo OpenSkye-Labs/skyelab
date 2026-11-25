@@ -32,7 +32,14 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
     } else {
         "ctrl-enter"
     };
-    cx.bind_keys([KeyBinding::new(key, OpenPickedInEditor, Some(CONTEXT))]);
+    cx.bind_keys([
+        KeyBinding::new(key, OpenPickedInEditor, Some(CONTEXT)),
+        KeyBinding::new(
+            super::preview::SAVE_KEY,
+            super::preview::SaveFile,
+            Some(super::preview::PREVIEW_CONTEXT),
+        ),
+    ]);
 }
 
 /// Runs a pick: the path (relative to the root) and whether it goes to the editor.
