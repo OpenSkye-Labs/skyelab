@@ -93,6 +93,8 @@ impl Onboarding {
                         .into_any_element(),
                     2 => crate::ui::provider_logo(skyelab_core::Provider::Cursor, px(16.), cx)
                         .into_any_element(),
+                    3 => crate::ui::provider_logo(skyelab_core::Provider::Antigravity, px(16.), cx)
+                        .into_any_element(),
                     _ => Icon::new(SkyeIcon::Github)
                         .size_4()
                         .text_color(theme.muted_foreground)
@@ -237,7 +239,7 @@ impl Onboarding {
                     .child(Icon::new(SkyeIcon::CircleUser).size_4().text_color(cx.theme().muted_foreground))
                     .child(name_and_folder(
                         "No config folders found",
-                        "No Claude Code, Codex or Cursor config folder in your home folder. Add one by hand.".into(),
+                        "No Claude Code, Codex, Cursor or Antigravity config folder in your home folder. Add one by hand.".into(),
                         cx,
                     ))
                     .child(

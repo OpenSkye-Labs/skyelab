@@ -298,5 +298,7 @@ mod add_project_overlap_test;
 #[cfg(all(test, unix))]
 mod mcp_sign_in_test;
 
+#[cfg(all(test, unix))] // the fake antigravity is a shell script
+mod antigravity_thread_test;
 #[cfg(all(test, unix))] // the fake cursor is a shell script
 mod cursor_thread_test;

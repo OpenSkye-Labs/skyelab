@@ -16,7 +16,8 @@ impl ThreadView {
                 self.composer.account_model,
                 self.composer.codex_models,
                 self.composer.cursor_models,
-            ) = (None, None, None);
+                self.composer.antigravity_models,
+            ) = (None, None, None, None);
             self.load_account_model(cx);
         }
         self.resume_refused = None; // the next send checks the new bindings again

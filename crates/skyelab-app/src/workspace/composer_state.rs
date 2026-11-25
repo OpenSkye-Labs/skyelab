@@ -7,10 +7,14 @@ use super::composer_stash::StashKey;
 use super::lock;
 use super::thread::ThreadView;
 use gpui::{AppContext as _, Context, SharedString, Window, actions};
-use skyelab_agent::{Attachment, AttachmentKind, CLAUDE_MODELS, ModelInfo};
+use skyelab_agent::{Attachment, ModelInfo};
 use skyelab_core::{Account, Provider};
 use skyelab_store::ModelChoice;
 use std::sync::Arc;
+
+#[path = "composer_fit.rs"]
+mod composer_fit;
+pub(in crate::workspace) use composer_fit::{fits, unfit};
 
 actions!(
     skyelab,
@@ -88,6 +92,8 @@ pub(crate) struct Composer {
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// Cursor's models, once listed (or why they couldn't be).
     pub cursor_models: Option<Result<Vec<ModelInfo>, SharedString>>,
+    /// Antigravity's models, once listed (or why they couldn't be).
+    pub antigravity_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// The model this thread's agent last reported running (its init line).
     pub reported_model: Option<String>,
     /// The pick the run that reported it had (`None` inside: the account's default); `None`: replayed, unknown.
@@ -136,47 +142,6 @@ pub(in crate::workspace) fn shown_prompt(text: &str, attachments: &[Attachment])
         files
     } else {
         format!("{text}\n\n{files}")
-    }
-}
-
-/// Why `account`'s agent can't take these files, if it can't: Codex reads images and text, not PDFs;
-/// Cursor CLI reads text attachments only.
-pub(in crate::workspace) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<String> {
-    match account.provider {
-        Provider::Claude => None,
-        Provider::Codex => {
-            let pdf = attachments.iter().find(|a| a.kind == AttachmentKind::Pdf)?;
-            Some(format!(
-                "Codex can't read PDFs ({}). Remove it, or attach an image or a text file.",
-                pdf.name
-            ))
-        }
-        Provider::Cursor => {
-            let bad = attachments
-                .iter()
-                .find(|a| matches!(a.kind, AttachmentKind::Pdf | AttachmentKind::Image(_)))?;
-            let what = match bad.kind {
-                AttachmentKind::Pdf => "PDFs",
-                AttachmentKind::Image(_) => "images",
-                AttachmentKind::Text => return None,
-            };
-            Some(format!(
-                "Cursor can't read {what} ({}). Remove it, or attach a text file.",
-                bad.name
-            ))
-        }
-    }
-}
-
-/// A model pick `provider`'s CLI can take: Claude's aliases and `claude-…` ids for Claude, non-Claude ids for Codex,
-/// and any non-empty non-Claude-alias model id for Cursor (which runs full model ids like `claude-4-sonnet`, `composer-1`, `auto`).
-pub(in crate::workspace) fn fits(provider: Provider, model: &str) -> bool {
-    let claude_alias = CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model);
-    let claude = claude_alias || model.starts_with("claude");
-    match provider {
-        Provider::Claude => claude,
-        Provider::Codex => !claude,
-        Provider::Cursor => !model.is_empty() && !claude_alias,
     }
 }
 
@@ -316,6 +281,7 @@ impl ThreadView {
         if kind == MenuKind::Files {
             self.list_codex_models(cx); // the menu reloads when they land
             self.list_cursor_models(cx);
+            self.list_antigravity_models(cx);
         }
         let models = (kind == MenuKind::Files).then(|| self.mention_models());
         let side_commands = !self.is_side_chat();

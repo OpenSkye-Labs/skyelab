@@ -12,6 +12,8 @@ const OPENAI_WHITE: &str = "brand/openai-white.svg";
 /// Cursor publishes its cube mark in dark (#26251E) on light themes and light (#EDECEC) on dark ones.
 const CURSOR_BLACK: &str = "brand/cursor-black.svg";
 const CURSOR_WHITE: &str = "brand/cursor-white.svg";
+/// Antigravity provider mark in blue, legible on both light and dark themes.
+const ANTIGRAVITY: &str = "brand/antigravity.svg";
 
 pub(super) const PATHS: &[&str] = &[
     CLAUDE,
@@ -19,6 +21,7 @@ pub(super) const PATHS: &[&str] = &[
     OPENAI_WHITE,
     CURSOR_BLACK,
     CURSOR_WHITE,
+    ANTIGRAVITY,
 ];
 
 pub(super) fn bytes(path: &str) -> Option<&'static [u8]> {
@@ -28,6 +31,7 @@ pub(super) fn bytes(path: &str) -> Option<&'static [u8]> {
         OPENAI_WHITE => Some(include_bytes!("../../icons/brand/openai-white.svg")),
         CURSOR_BLACK => Some(include_bytes!("../../icons/brand/cursor-black.svg")),
         CURSOR_WHITE => Some(include_bytes!("../../icons/brand/cursor-white.svg")),
+        ANTIGRAVITY => Some(include_bytes!("../../icons/brand/antigravity.svg")),
         _ => None,
     }
 }
@@ -40,14 +44,15 @@ fn path(provider: Provider, dark: bool) -> &'static str {
         Provider::Codex => OPENAI_BLACK,
         Provider::Cursor if dark => CURSOR_WHITE,
         Provider::Cursor => CURSOR_BLACK,
+        Provider::Antigravity => ANTIGRAVITY,
     }
 }
 
 /// How much of its file's box each logo fills: OpenAI's file keeps its clear space inside (the Blossom spans 356 of
-/// 716 units); Claude's Spark and Cursor's Cube fill their boxes.
+/// 716 units); Claude's Spark, Cursor's Cube and the Antigravity mark fill their boxes.
 fn fill(provider: Provider) -> f32 {
     match provider {
-        Provider::Claude | Provider::Cursor => 1.,
+        Provider::Claude | Provider::Cursor | Provider::Antigravity => 1.,
         Provider::Codex => 356. / 716.,
     }
 }
@@ -78,6 +83,7 @@ mod tests {
             (OPENAI_WHITE, "white"),
             (CURSOR_BLACK, "#26251E"),
             (CURSOR_WHITE, "#EDECEC"),
+            (ANTIGRAVITY, "#4285F4"),
         ];
         for (path, fill) in official {
             let svg = std::str::from_utf8(bytes(path).expect("embedded")).expect("utf-8");
@@ -100,5 +106,7 @@ mod tests {
         assert_eq!(path(Provider::Cursor, false), CURSOR_BLACK);
         assert_eq!(path(Provider::Claude, true), CLAUDE);
         assert_eq!(path(Provider::Claude, false), CLAUDE);
+        assert_eq!(path(Provider::Antigravity, true), ANTIGRAVITY);
+        assert_eq!(path(Provider::Antigravity, false), ANTIGRAVITY);
     }
 }

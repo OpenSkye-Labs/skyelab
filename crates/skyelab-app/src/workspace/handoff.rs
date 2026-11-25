@@ -18,7 +18,12 @@ use skyelab_store::{NewThread, Thread};
 
 actions!(
     skyelab,
-    [ContinueInCodex, ContinueInClaude, ContinueInCursor]
+    [
+        ContinueInCodex,
+        ContinueInClaude,
+        ContinueInCursor,
+        ContinueInAntigravity
+    ]
 );
 
 /// Continues thread `id` in a new thread under the folder's `to` account.
@@ -32,9 +37,10 @@ pub struct HandOffThread {
 /// The other providers a thread that ran on `from` can continue in.
 pub(in crate::workspace) fn others(from: Provider) -> Vec<Provider> {
     match from {
-        Provider::Claude => vec![Provider::Codex, Provider::Cursor],
-        Provider::Codex => vec![Provider::Claude, Provider::Cursor],
-        Provider::Cursor => vec![Provider::Claude, Provider::Codex],
+        Provider::Claude => vec![Provider::Codex, Provider::Cursor, Provider::Antigravity],
+        Provider::Codex => vec![Provider::Claude, Provider::Cursor, Provider::Antigravity],
+        Provider::Cursor => vec![Provider::Claude, Provider::Codex, Provider::Antigravity],
+        Provider::Antigravity => vec![Provider::Claude, Provider::Codex, Provider::Cursor],
     }
 }
 
@@ -254,6 +260,7 @@ impl ThreadView {
                 Provider::Codex => el.on_action(cx.listener(Self::continue_in_codex)),
                 Provider::Claude => el.on_action(cx.listener(Self::continue_in_claude)),
                 Provider::Cursor => el.on_action(cx.listener(Self::continue_in_cursor)),
+                Provider::Antigravity => el.on_action(cx.listener(Self::continue_in_antigravity)),
             };
         }
         el
@@ -305,5 +312,14 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         self.hand_off(Provider::Cursor, window, cx);
+    }
+
+    pub(in crate::workspace) fn continue_in_antigravity(
+        &mut self,
+        _: &ContinueInAntigravity,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.hand_off(Provider::Antigravity, window, cx);
     }
 }

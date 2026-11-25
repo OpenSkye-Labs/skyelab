@@ -84,6 +84,7 @@ fn each_agent_asks_its_own_npm_package() {
             .is_some_and(|u| u.ends_with("/@openai/codex/latest"))
     );
     assert_eq!(agent_latest_url(crate::Provider::Cursor), None);
+    assert_eq!(agent_latest_url(crate::Provider::Antigravity), None);
 }
 
 #[test]

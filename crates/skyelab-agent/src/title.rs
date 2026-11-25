@@ -108,6 +108,19 @@ pub fn one_shot(
     what: &str,
 ) -> Result<String> {
     let (mut cmd, _, dir) = crate::launch::agent_command(bin, config, account, dir)?;
+    if account.provider == Provider::Antigravity {
+        crate::antigravity::ensure_profile_dirs(&account.config_dir)?;
+        cmd.envs(crate::antigravity::isolated_env())
+            .args(crate::antigravity::acp_args(&account.config_dir, false));
+        return crate::acp_probe::one_shot(
+            &mut cmd,
+            &crate::antigravity::config(),
+            prompt,
+            DEADLINE,
+            MAX_OUTPUT,
+        )
+        .with_context(|| format!("the {what} call failed"));
+    }
     let out_file = tempfile::NamedTempFile::new().context("creating the answer's output file")?;
     match account.provider {
         Provider::Claude => {
@@ -150,6 +163,7 @@ pub fn one_shot(
         Provider::Cursor => {
             cmd.args(["-p", "--output-format", "text", "--mode", "ask"]);
         }
+        Provider::Antigravity => unreachable!(),
     }
     cmd.current_dir(&dir);
     let mut run = skyelab_core::process::Captured::spawn(&mut cmd, Some(prompt.as_bytes()))
@@ -182,6 +196,7 @@ pub fn one_shot(
     let mut text = match account.provider {
         Provider::Claude | Provider::Cursor => output.stdout,
         Provider::Codex => std::fs::read(out_file.path()).context("reading Codex's answer")?,
+        Provider::Antigravity => unreachable!(),
     };
     text.truncate(MAX_OUTPUT);
     Ok(String::from_utf8_lossy(&text).into_owned())

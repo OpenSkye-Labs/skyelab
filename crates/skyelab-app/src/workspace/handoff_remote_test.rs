@@ -43,7 +43,7 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
     };
     assert_eq!(
         src.read_with(cx, |t, _| t.handoff_targets()),
-        vec![Provider::Codex, Provider::Cursor]
+        vec![Provider::Codex, Provider::Cursor, Provider::Antigravity]
     );
     assert!(offered(cx), "offered on this machine");
 
@@ -59,7 +59,7 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(
         src.read_with(cx, |t, _| t.handoff_targets()),
-        vec![Provider::Codex, Provider::Cursor],
+        vec![Provider::Codex, Provider::Cursor, Provider::Antigravity],
         "back on this machine"
     );
 }

@@ -150,7 +150,7 @@ pub fn set_installer(installer: Option<Installer>, cx: &mut App) {
     }
 }
 
-/// The real agent fetch, or in debug builds `SKYELAB_AGENT_LATEST_FAKE=<version>` for both agents (no network).
+/// The real agent fetch, or in debug builds `SKYELAB_AGENT_LATEST_FAKE=<version>` for all agents (no network).
 pub fn agent_fetcher(fake: Option<String>, debug: bool) -> AgentFetch {
     match fake.filter(|_| debug) {
         Some(v) => Arc::new(move |_| Ok(v.clone())),

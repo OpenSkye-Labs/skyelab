@@ -89,6 +89,7 @@ pub fn agent_latest_url(provider: crate::Provider) -> Option<&'static str> {
         }
         crate::Provider::Codex => Some("https://registry.npmjs.org/@openai/codex/latest"),
         crate::Provider::Cursor => None,
+        crate::Provider::Antigravity => None,
     }
 }
 
