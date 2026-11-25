@@ -45,16 +45,25 @@ pub struct AccountUsage {
     pub limited: Option<Option<i64>>,
     /// When that newest reading was stored (ms), which ages out a "Limited" that names no reset.
     pub limited_ms: Option<i64>,
+    /// Why the last time SkyeLab asked the account's CLI for its limits failed (the usage poll), if it did.
+    pub refresh_error: Option<String>,
 }
 
 /// `account`'s newest stored readings, kept per window by the store as its threads' agents report them
 /// (Claude's `rate_limit_event`, Codex's `account/rateLimits/updated`). Only what was reported: nothing is asked of
 /// the account, and a store error reads as no data.
-pub fn account_usage(store: &Store, account: &Account) -> AccountUsage {
-    usage_from(
-        &store.usage_readings(&account.id).unwrap_or_default(),
-        account,
-    )
+pub fn account_usage(
+    store: &Store,
+    account: &Account,
+    errors: &std::collections::HashMap<String, String>,
+) -> AccountUsage {
+    AccountUsage {
+        refresh_error: errors.get(&account.id).cloned(),
+        ..usage_from(
+            &store.usage_readings(&account.id).unwrap_or_default(),
+            account,
+        )
+    }
 }
 
 pub(super) fn usage_from(readings: &[UsageReading], account: &Account) -> AccountUsage {
@@ -94,6 +103,7 @@ pub(super) fn usage_from(readings: &[UsageReading], account: &Account) -> Accoun
         windows,
         limited,
         limited_ms,
+        refresh_error: None,
     }
 }
 

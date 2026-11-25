@@ -140,7 +140,7 @@ impl LoginStatus {
 }
 
 impl super::Workspace {
-    fn login_bins(&self, cx: &App) -> Bins {
+    pub(super) fn login_bins(&self, cx: &App) -> Bins {
         let codex = super::github::codex_bin(cx);
         // A test that set no fake Codex must never run the real one.
         #[cfg(test)]

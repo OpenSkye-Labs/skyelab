@@ -27,6 +27,8 @@ fi
 # the way a signed-out Claude Code does. "context" ends a turn whose last call held 170k tokens of a 200k window
 # (85%: the meter warns and hints /compact). `auth login` prints which config dir it logs in to and exits 0. With a .fake-session-gone file in the folder, a --resume start fails the way
 # Claude Code does for a session it doesn't have; a fresh start then reports session fake-sess-new.
+# A `get_usage` control request (the usage poll) answers with the account dir's fake-usage.json (else signed out) and
+# appends the dir to fake-usage.calls there.
 # A title call (`-p ... --no-session-persistence`) appends its config dir, args (one per line) and stdin to
 # .fake-title-call in its folder and answers "Fake title from <config dir name>"; a commit message prompt gets
 # "feat(fake): commit from <config dir name>" plus a body, a pull request prompt a title and a body that says
@@ -113,6 +115,13 @@ total=0.0421 in_total=0 out_total=0
 while IFS= read -r line; do
   printf '%s\n' "$line"
   case "$line" in
+    *'"subtype":"get_usage"'*)
+      # The usage poll: the account dir's fake-usage.json is the answer, else a signed-out one.
+      usage='{"rate_limits_available":false,"rate_limits":null}'
+      [ -f "$CLAUDE_CONFIG_DIR/fake-usage.json" ] && usage=$(tr -d '\n' < "$CLAUDE_CONFIG_DIR/fake-usage.json")
+      # Logged first: SkyeLab kills the CLI once it reads the answer.
+      echo "$CLAUDE_CONFIG_DIR" >> "$CLAUDE_CONFIG_DIR/fake-usage.calls"
+      printf '{"type":"control_response","response":{"subtype":"success","request_id":"skyelab-usage","response":%s}}\n' "$usage" ;;
     *'"content":"permit write'*)
       # A 2,000-line Write: the approval shows its first lines, not its JSON.
       body=$(awk 'BEGIN { for (i = 1; i <= 2000; i++) printf "fn line_%d() {}\\n", i }')
