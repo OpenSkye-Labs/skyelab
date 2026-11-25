@@ -84,9 +84,9 @@ Download the latest build from the [releases page](https://github.com/OpenSkye-L
 
 | Platform | File |
 |---|---|
-| macOS 14+ (Apple silicon) | `SkyeLab_0.1.1_aarch64.dmg`: open it and drag SkyeLab to Applications. |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) or `skyelab_0.1.1_x86_64.AppImage` (`chmod +x`, then run it) |
+| macOS 14+ (Apple silicon) | `SkyeLab_<version>_aarch64.dmg`: open it and drag SkyeLab to Applications. |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) or `skyelab_<version>_x86_64.AppImage` (`chmod +x`, then run it) |
 
 **First open on macOS.** Release builds are not notarized yet, so Gatekeeper blocks the first open. Open SkyeLab
 once, then go to System Settings → Privacy & Security and click **Open Anyway**. Windows SmartScreen may ask too

@@ -84,9 +84,9 @@ Claude Code 和 Codex 代理，檢閱它們做出的變更，並把終端機、�
 
 | 平台 | 檔案 |
 |---|---|
-| macOS 14+（Apple 晶片） | `SkyeLab_0.1.1_aarch64.dmg`：開啟後把 SkyeLab 拖到「應用程式」資料夾。 |
-| Windows（x64） | `skyelab_0.1.1_x64-setup.exe` |
-| Linux（x86_64） | `skyelab_0.1.1_amd64.deb`（`sudo apt install ./skyelab_0.1.1_amd64.deb`）或 `skyelab_0.1.1_x86_64.AppImage`（先 `chmod +x`，再執行） |
+| macOS 14+（Apple 晶片） | `SkyeLab_<version>_aarch64.dmg`：開啟後把 SkyeLab 拖到「應用程式」資料夾。 |
+| Windows（x64） | `skyelab_<version>_x64-setup.exe` |
+| Linux（x86_64） | `skyelab_<version>_amd64.deb`（`sudo apt install ./skyelab_<version>_amd64.deb`）或 `skyelab_<version>_x86_64.AppImage`（先 `chmod +x`，再執行） |
 
 **在 macOS 上首次開啟。** 發行版本目前尚未經過公證，所以 Gatekeeper 會阻擋首次開啟。先開啟一次 SkyeLab，
 然後前往「系統設定」→「隱私權與安全性」，按一下 **Open Anyway**（強制打開）。Windows SmartScreen 也可能會詢問

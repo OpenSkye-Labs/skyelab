@@ -87,9 +87,9 @@ Descarga la última versión desde la [página de versiones](https://github.com/
 
 | Plataforma | Archivo |
 |---|---|
-| macOS 14+ (Apple silicon) | `SkyeLab_0.1.1_aarch64.dmg`: ábrelo y arrastra SkyeLab a Applications. |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) o `skyelab_0.1.1_x86_64.AppImage` (`chmod +x` y luego ejecútalo) |
+| macOS 14+ (Apple silicon) | `SkyeLab_<version>_aarch64.dmg`: ábrelo y arrastra SkyeLab a Applications. |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) o `skyelab_<version>_x86_64.AppImage` (`chmod +x` y luego ejecútalo) |
 
 **Primera apertura en macOS.** Las versiones aún no están notarizadas, así que Gatekeeper bloquea la primera apertura.
 Abre SkyeLab una vez, luego ve a System Settings → Privacy & Security y haz clic en **Open Anyway**. Windows SmartScreen

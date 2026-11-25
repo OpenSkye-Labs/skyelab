@@ -6,8 +6,24 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.2]
+
 ### Added
 
+- **Composer**: Enter sends by default (Settings → Chat → Composer → Send shortcut: Enter, ⌘Enter for multiline, or
+  ⌘Enter always); `@` file, model, `$` skill and `/` command mentions show as inline chips (#17); a T3-style model
+  and effort picker.
+- **Usage limits per account**, read from the account's own CLI, and the thread's working row names the agent's
+  startup step (starting, resuming, MCP servers, hooks).
+- **MCP sign-in**: a server that needs auth gets a **Sign in** button, run under the folder's account.
+- **GitHub**: open a PR's diff in a Changes tab and post line comments as one review; comment on, close or reopen
+  issues.
+- **Editable file preview** with a safe save, and a ⌘F find bar in previews and side chats.
+- **Thread search** matches every word in any order, keeps quoted phrases exact and shows the matched line.
+- Drag the sidebar edge to hide it; settle, snooze and wake another machine's threads.
+- **Motion** after Rex: one spring for docks and the sidebar, dialogs that fade in place, SkyeLab's own toasts,
+  new rows that fade in once, and Reduce Motion followed when a window comes forward.
+- A new README with a banner, fresh screenshots and nine translations.
 - **Usage limit banner**, as in T3 Code: a limited thread docks **Usage limit reached · Resets tomorrow at 2:10 AM**
   above the composer. **Resume at reset** continues the thread once at the reset (Continue where you left off., same
   session, its own account), survives a restart, and is cancelled when you send first or archive the thread.
@@ -27,6 +43,14 @@ All notable changes to SkyeLab are listed here. The format follows
 
 - **Eight more themes**, light and dark: Catppuccin, Rosé Pine, Tokyo Night, Kanagawa, Everforest, Gruvbox, Nord and
   Flexoki. Credits and licenses are in [NOTICE.md](NOTICE.md).
+- WCAG contrast, consistency and accessibility fixes across the UI (#18); SkyeLab Light's colors no longer fall back
+  to defaults; a stopped turn reads Stopped, not Failed.
+
+### Fixed
+
+- An Allow or Deny could show as Withdrawn when the agent ended its turn right on the answer.
+- Codex hooks could hang: child processes now start with an empty signal mask.
+- Windows: git's recorded conflict resolutions work without Developer Mode.
 
 ## [0.1.1]
 
@@ -107,6 +131,7 @@ testing by hand.
 - **Debug mode** with an overlay, a redacted debug log, Perfetto traces and opt-in profilers.
 - Release packages: `.dmg` (macOS arm64), `-setup.exe` (Windows), `.deb` and `.AppImage` (Linux).
 
-[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/OpenSkye-Labs/skyelab/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/OpenSkye-Labs/skyelab/releases/tag/v0.1.0

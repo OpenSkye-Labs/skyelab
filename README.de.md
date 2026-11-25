@@ -91,9 +91,9 @@ Lade den neuesten Build von der [Releases-Seite](https://github.com/OpenSkye-Lab
 
 | Plattform | Datei |
 |---|---|
-| macOS 14+ (Apple Silicon) | `SkyeLab_0.1.1_aarch64.dmg`: öffnen und SkyeLab in den Programme-Ordner ziehen. |
-| Windows (x64) | `skyelab_0.1.1_x64-setup.exe` |
-| Linux (x86_64) | `skyelab_0.1.1_amd64.deb` (`sudo apt install ./skyelab_0.1.1_amd64.deb`) oder `skyelab_0.1.1_x86_64.AppImage` (`chmod +x`, dann ausführen) |
+| macOS 14+ (Apple Silicon) | `SkyeLab_<version>_aarch64.dmg`: öffnen und SkyeLab in den Programme-Ordner ziehen. |
+| Windows (x64) | `skyelab_<version>_x64-setup.exe` |
+| Linux (x86_64) | `skyelab_<version>_amd64.deb` (`sudo apt install ./skyelab_<version>_amd64.deb`) oder `skyelab_<version>_x86_64.AppImage` (`chmod +x`, dann ausführen) |
 
 **Erster Start unter macOS.** Release-Builds sind noch nicht notarisiert, deshalb blockiert Gatekeeper den ersten
 Start. Öffne SkyeLab einmal, geh dann zu Systemeinstellungen → Datenschutz & Sicherheit und klicke auf **Open Anyway**.
