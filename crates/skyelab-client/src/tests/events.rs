@@ -58,6 +58,7 @@ fn watch_from_a_seq_and_unwatch() {
     let watch = client.watch(env.thread_id, 3);
     assert_eq!(seqs(&client, 2), [4, 5]);
     client.unwatch(watch);
+    settled(&client);
     daemon.push_event(append(&env, 1));
     quiet(&client, Duration::from_millis(300));
 }

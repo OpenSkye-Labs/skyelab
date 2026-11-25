@@ -1,12 +1,18 @@
 //! A private tab's page in a real WKWebView: navigations to `file:` and to custom app schemes are refused, a
 //! download saves nothing, and a script's popup reaches nothing. macOS only (it needs a window server).
 
+mod support;
+
 #[cfg(not(target_os = "macos"))]
-fn main() {}
+fn main() {
+    support::listed();
+}
 
 #[cfg(target_os = "macos")]
 fn main() {
-    mac::run();
+    if !support::listed() {
+        mac::run();
+    }
 }
 
 #[cfg(target_os = "macos")]

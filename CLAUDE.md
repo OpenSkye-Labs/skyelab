@@ -96,7 +96,7 @@ and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is th
 - Mutation probes (break the code to prove a test catches it): undo them by re-applying the edit or from a copy, never
   with `git checkout`/`git restore` on the file, which also wipes your other uncommitted edits there.
 - Done means `/verify` passes. That is `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
-  and `cargo test --workspace`.
+  and `cargo nextest run --workspace` plus `cargo test --workspace --doc` ([docs/ci.md](docs/ci.md)).
 - Commit small, on a branch, conventional-ish messages (`feat(core): …`). Don't push to `main` directly once CI exists.
 
 ## Rust rules
@@ -142,7 +142,7 @@ and a merge that succeeds makes `pr view` answer MERGED; the PR's head sha is th
 
 ```sh
 cargo run -p skyelab-app          # the desktop app (binary: skyelab)
-cargo test --workspace
+cargo nextest run --workspace     # tests; doc tests: cargo test --workspace --doc
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
