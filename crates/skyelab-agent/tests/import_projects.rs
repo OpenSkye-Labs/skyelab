@@ -24,7 +24,12 @@ fn codex_session(home: &Path, name: &str, cwd: &Path) {
 fn lists_folders_with_counts_from_both_providers() {
     let tmp = tempfile::tempdir().expect("tmp");
     let (claude, codex) = (tmp.path().join("claude"), tmp.path().join("codex"));
-    let (app, api) = (Path::new("/work/app"), Path::new("/work/api"));
+    // Absolute on every platform: `/work/app` has no drive on Windows and would be left out as relative.
+    let (app, api) = (
+        tmp.path().join("work").join("app"),
+        tmp.path().join("work").join("api"),
+    );
+    let (app, api) = (app.as_path(), api.as_path());
     claude_session(&claude, "-work-app", "s1", app);
     claude_session(&claude, "-work-app", "s2", app);
     claude_session(&claude, "-work-api", "s3", api);
