@@ -39,6 +39,7 @@ fn only_known_keys(env: &HashMap<String, String>) {
         let known = [
             "CLAUDE_CONFIG_DIR",
             "CODEX_HOME",
+            "CURSOR_CONFIG_DIR",
             "GH_CONFIG_DIR",
             "GIT_CONFIG_COUNT",
         ]
@@ -143,6 +144,7 @@ fn unbound_terminal_points_every_home_at_an_empty_private_dir() {
     for (var, sub) in [
         ("CLAUDE_CONFIG_DIR", "claude"),
         ("CODEX_HOME", "codex"),
+        ("CURSOR_CONFIG_DIR", "cursor"),
         ("GH_CONFIG_DIR", "gh"),
     ] {
         assert_eq!(

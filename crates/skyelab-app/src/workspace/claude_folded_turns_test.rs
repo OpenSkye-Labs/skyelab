@@ -49,6 +49,7 @@ pub(super) fn one_view<'a>(
         skyelab_terminal::init(cx);
         init(cx);
         cx.set_global(CodexBin(bin.clone()));
+        cx.set_global(CursorBin(bin.clone()));
     });
     let home = tempfile::tempdir().expect("tempdir");
     let root = std::fs::canonicalize(home.path()).expect("canonicalize");

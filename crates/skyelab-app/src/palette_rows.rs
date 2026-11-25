@@ -25,6 +25,8 @@ fn icon_for(entry: &Entry) -> SkyeIcon {
         ("NewThread", SkyeIcon::NewThread),
         ("NewScratch", SkyeIcon::NewThread),
         ("NewSideChat", SkyeIcon::MessagesSquare),
+        ("Home", SkyeIcon::Home),
+        ("Bots", SkyeIcon::Bot),
         ("Settings", SkyeIcon::Settings),
         ("Theme", SkyeIcon::Palette),
         ("Script", SkyeIcon::Play),

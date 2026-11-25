@@ -152,6 +152,8 @@ use super::super::thread_list::SETTLED_PAGE;
 
 #[path = "sidebar_shelves.rs"]
 mod shelves;
+#[cfg(test)]
+pub(crate) use shelves::FOOTER_BUTTON_IDS;
 use shelves::footer;
 
 /// The selected project's archived threads, listed apart under a toggle row.
@@ -460,7 +462,7 @@ impl Render for Sidebar {
             .size_full()
             .bg(theme.sidebar)
             .text_color(theme.sidebar_foreground)
-            // The window's top row (T3's: the brand only); macOS's traffic lights sit at its start, Windows drags by it.
+            // Top row: brand mark and name; macOS traffic lights sit at the left.
             .child(
                 div()
                     .map(ui::drag_area)
@@ -469,7 +471,7 @@ impl Render for Sidebar {
                     .flex()
                     .flex_col()
                     .justify_center()
-                    .when(cfg!(target_os = "macos"), |d| d.pl(ui::TRAFFIC_LIGHTS_W))
+                    .when(cfg!(target_os = "macos"), |d| d.pl(ui::MAC_TOP_PAD))
                     .child(
                         h_flex()
                             .gap_1p5()

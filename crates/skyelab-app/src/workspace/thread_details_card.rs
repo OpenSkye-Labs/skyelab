@@ -222,12 +222,12 @@ impl ThreadView {
                 this.scripts.update(cx, |m, cx| m.set_open(true, cx));
                 cx.notify();
             }));
-        let to = self.handoff_to();
+        let targets = self.handoff_targets();
         v_flex()
             .child(scripts)
-            .children(to.map(|to| {
+            .children(targets.into_iter().map(|to| {
                 row(
-                    "details-handoff",
+                    SharedString::from(format!("details-handoff-{}", to.label().to_lowercase())),
                     SkyeIcon::ArrowRight,
                     super::super::thread_extras::handoff::label(to),
                     theme,

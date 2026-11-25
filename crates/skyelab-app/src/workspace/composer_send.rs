@@ -78,6 +78,10 @@ impl ThreadView {
             Ok(account) => account,
             Err(why) => return self.end_refused(why, cx), // the queue stays as it is
         };
+        // Cursor runs one turn per process; `ended()` drains queued prompts by resuming cleanly.
+        if account.provider == skyelab_core::Provider::Cursor {
+            return;
+        }
         if let Some(next) = self.composer.queue.pop()
             && !self.follow_up(
                 next.text.clone(),
@@ -129,6 +133,12 @@ impl ThreadView {
             Ok(account) => account,
             Err(why) => return self.end_refused(why, cx),
         };
+        if account.provider == skyelab_core::Provider::Cursor {
+            self.composer.notice =
+                Some("Cursor can't steer a running turn; it will send when this turn ends.".into());
+            cx.notify();
+            return;
+        }
         let Some(text) = self
             .composer
             .queue
@@ -302,6 +312,29 @@ impl ThreadView {
             how = super::composer_state::Submit::Steer;
         }
         if self.session.is_some() {
+            // Cursor runs one turn per process and cannot accept mid-turn steers or stdin follow-ups:
+            // queue any non-steer send (including during the post-Result/pre-EOF window) so `ended()` resumes with it.
+            if account.provider == skyelab_core::Provider::Cursor {
+                if how == super::composer_state::Submit::Steer {
+                    self.composer.notice = Some(
+                        "Cursor can't steer a running turn; send normally to queue it for the next turn."
+                            .into(),
+                    );
+                    cx.notify();
+                    return;
+                }
+                let text = self.take_contexts(text, external);
+                if external {
+                    self.composer.queue.push(text, Vec::new());
+                    self.prompt.update(cx, |p, cx| p.set_value("", window, cx));
+                    if let Some(reply) = self.on_sent.take() {
+                        let _ = reply.send(Ok(()));
+                    }
+                    cx.notify();
+                    return;
+                }
+                return self.queue_prompt(text, window, cx);
+            }
             let mode = self.send_mode(how, &text);
             let contexts = self.composer.contexts.clone();
             let text = self.take_contexts(text, external);

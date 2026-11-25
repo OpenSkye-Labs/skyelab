@@ -53,3 +53,7 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   includes a Drag hitbox, a button inside it only `prevent_default`s its press (not `stop_propagation`), so the press
   moves the window instead of clicking. A clickable child of a drag area goes in `ui::no_drag` (occludes it). Check the
   layout on macOS with `SKYELAB_VERIFY_WINDOWS_CHROME=1` (debug builds; the buttons are drawn, inert).
+- A full-height element left of the dock (the left rail) shifts every window-x the dock's children see: compute drag
+  positions from the dock container's `e.bounds.left()`, not the viewport, and start overlays that must leave the rail
+  clickable (the Settings modal) at `left(RAIL_W)`, not `inset_0()`. On macOS the traffic lights reach past the 48 px
+  rail, so the rail's top `TOP_ROW_H` band has no border or icons and matches the surface beside it.
