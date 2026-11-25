@@ -112,8 +112,9 @@ scripts, delegated agents, pull request and editor, and every account's usage. D
 
 ### Permissions, questions and plans
 
-The composer's permission chip (**Ask ⌄**) picks what the agent may do without asking (**Full access** confirms
-first). Approvals and the agent's questions dock on top of the composer; plans show as cards in the thread. Each mode, and how answering works:
+The composer's permission chip (**Full access ⌄** on a new thread, the default) picks what the agent may do without
+asking (switching to **Full access** from another mode confirms first; Settings → Chat → Default permissions sets
+what new threads start in). Approvals and the agent's questions dock on top of the composer; plans show as cards in the thread. Each mode, and how answering works:
 [user-guide-permissions.md](user-guide-permissions.md).
 
 ### What the timeline shows

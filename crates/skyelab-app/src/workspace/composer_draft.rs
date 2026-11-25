@@ -8,7 +8,7 @@ use crate::workspace::{SharedStore, lock};
 use gpui::{
     App, AppContext as _, Context, Focusable as _, KeyBinding, SharedString, Window, actions,
 };
-use skyelab_agent::{Attachment, Mode};
+use skyelab_agent::Attachment;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -90,13 +90,9 @@ impl ThreadView {
     ) {
         if self.thread.is_none() {
             // A new thread's cwd is its project's folder, the key of that project's own defaults.
-            let prefs = crate::workspace::thread_extras::prefs::get(cx).for_project(&self.cwd);
-            // Full access is never a default: it is confirmed per thread.
-            self.mode = match Mode::parse(prefs.permission_mode.as_deref().unwrap_or_default()) {
-                Mode::Bypass => Mode::Default,
-                m => m,
-            };
-            self.wt.use_worktree = prefs.new_worktree;
+            let prefs = crate::workspace::thread_extras::prefs::get(cx);
+            self.mode = crate::workspace::thread_extras::prefs::new_thread_mode(&prefs, &self.cwd);
+            self.wt.use_worktree = prefs.for_project(&self.cwd).new_worktree;
         }
         // The text and files change in many places (typing, sending, a refused send put back): one check after any
         // change saves them.

@@ -2,15 +2,23 @@
 
 ## Permissions
 
-In the composer, the chip next to the paperclip (**Ask ⌄**) picks what the thread's agent may do without asking. Its
-menu lists the four modes with what each allows; **Full access** shows in the warning color:
+In the composer, the chip next to the paperclip (**Full access ⌄** on a new thread) picks what the thread's agent may
+do without asking. Its menu lists the four modes with what each allows; **Full access** shows in the warning color:
 
-- **Ask** (the default): it asks before anything its own rules don't already allow.
+- **Ask**: it asks before anything its own rules don't already allow.
 - **Plan**: it reads and plans only, with no edits or commands (for Codex, a read-only sandbox).
 - **Accept edits**: file edits in the folder go ahead; anything else asks. (For Codex this is the same as Ask: its
   sandbox already lets it edit in the folder without asking.)
-- **Full access**: nothing asks. SkyeLab asks you to confirm first. A Codex agent also leaves its sandbox, so it can
-  write outside the folder and use the network.
+- **Full access** (the default for a new thread, as in T3 Code): nothing asks. A Codex agent also leaves its sandbox,
+  so it can write outside the folder and use the network. Switching a thread to it from another mode asks you to
+  confirm first.
+
+**To make Ask the default**, open **Settings → Chat → Default permissions** and pick **Ask** (for all projects, or
+for one in **Applying settings for**). A default you picked, and the mode each existing thread saved, never change.
+Some threads keep their own rule: a side chat is always Plan; a scheduled task uses the mode saved on it (Full access
+needs the task's own confirm); a thread an agent starts with `start_thread` starts in Ask (Plan when that project's
+default is Plan), never Full access. A fork, a hand-off and a thread started from your phone or another machine start
+in your new-thread default.
 
 The mode is saved with the thread and used every time its agent starts or resumes. Changing it while the agent runs
 applies at once for Claude and from the next turn for Codex. Claude takes Full access only when it starts: switching a
@@ -54,7 +62,7 @@ the same card and can answer it.
 in this project, under the account the folder is bound to, is allowed without asking, and its row says **Allowed by
 project rule** and which one. A call that asks to leave the sandbox is never allowed by a rule. Rules live in SkyeLab, per project and per account: never in the repo, never in the
 account's Claude or Codex settings, and SkyeLab still ignores a repo's own `.claude/settings*.json`. They don't apply
-in Plan mode or in a side chat, and Full access is still picked (and confirmed) separately.
+in Plan mode or in a side chat. In Full access nothing asks, so rules don't come into it.
 
 To see, edit or remove them, open **Settings → Chat** and pick the project in **Applying settings for**: its
 **Permission rules** list the bound account's rules, each with **Edit** (the pattern, checked like a new rule) and

@@ -89,6 +89,10 @@ fn hand_off_and_send(
         })
         .expect("row");
     assert_eq!(row.account_id, account, "under the folder's bound account");
+    assert_eq!(
+        row.permission_mode, "bypass",
+        "the new-thread default, not the store's Ask"
+    );
     let context = f
         .store
         .lock()

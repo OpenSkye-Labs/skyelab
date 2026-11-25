@@ -86,7 +86,7 @@ impl Settings {
         };
         let pick: Pick = Rc::new(move |this, v, cx| this.set_shown_field(f, v, cx));
         if self.scope.is_none() {
-            // Unset shows (and checks) the first option, as the agent treats it: Ask for the permission mode.
+            // Unset shows (and checks) the first option, as the agent treats it: Full access for the permission mode.
             let current = Some(app.field(f).clone())
                 .filter(|v| v.is_some() || options.iter().any(|(o, _)| o.is_none()))
                 .unwrap_or_else(|| options.first().and_then(|(o, _)| o.clone()));

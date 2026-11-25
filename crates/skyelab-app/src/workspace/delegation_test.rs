@@ -252,6 +252,10 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
     assert_eq!(child[0].parent_thread_id, Some(parent_id));
     assert_eq!(child[0].title, "write the docs");
     assert!(text.contains(&child[0].id.to_string()), "{text}");
+    // Nothing set, so the user's own thread is in Full access; the agent-started child still runs in Ask.
+    let parent_row = store.lock().expect("lock").thread(parent_id).expect("read");
+    assert_eq!(parent_row.expect("row").permission_mode, "bypass");
+    assert_eq!(child[0].permission_mode, "default");
 
     // The parent can read and wait on its child.
     send(
@@ -351,6 +355,47 @@ fn delegation_runs_under_the_target_account_and_refuses_other_accounts(cx: &mut 
             "parent lists its child"
         );
     });
+
+    // A stricter project default wins: a child in a Plan project starts in Plan.
+    let dir = store
+        .lock()
+        .expect("lock")
+        .project(rig.work_b)
+        .expect("read")
+        .expect("project")
+        .path;
+    cx.update(|_, cx| {
+        crate::workspace::thread_extras::prefs::edit(
+            move |t| {
+                t.set_project_field(
+                    &dir,
+                    skyelab_core::thread_defaults::ThreadField::PermissionMode,
+                    Some("plan".into()),
+                )
+            },
+            cx,
+        )
+    })
+    .detach();
+    send(
+        &parent,
+        &format!(
+            r#"mcp:start_thread:{{"project_id":{},"prompt":"plan it"}}"#,
+            rig.work_b
+        ),
+        cx,
+    );
+    let (err, text) = wait_result(cx, &store, parent_id, 9);
+    assert!(!err, "{text}");
+    let planned = store
+        .lock()
+        .expect("lock")
+        .list_threads(rig.work_b)
+        .expect("threads")
+        .into_iter()
+        .find(|t| t.title == "plan it")
+        .expect("the second child");
+    assert_eq!(planned.permission_mode, "plan");
 
     // The grant ends with the parent's agent.
     let before = cx.update(|_, cx| cx.global::<Orchestration>().server.active_grants());

@@ -6,6 +6,13 @@ All notable changes to SkyeLab are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **New threads start in Full access**, as in T3 Code: with no default set, nothing asks. To keep the old behavior,
+  pick **Ask** in **Settings → Chat → Default permissions**, which now also offers Full access. Defaults you picked
+  and existing threads keep their mode. Forks, hand-offs and threads started from another machine follow the new
+  default; threads an agent starts stay in Ask (Plan in a Plan project), scheduled tasks keep their own confirm.
+
 ## [0.1.1]
 
 The first published build. 0.1.0 was tagged but never published; everything below is on top of it.

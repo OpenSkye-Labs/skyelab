@@ -1,5 +1,5 @@
-//! The thread's permission mode reaches the agent at launch and while it runs, and is kept on the row. Full
-//! access needs a confirm first.
+//! The thread's permission mode reaches the agent at launch and while it runs, and is kept on the row. A new thread
+//! starts in Full access; switching to it from another mode needs a confirm first.
 
 use super::claude_folded_turns_test::{One, one_view, wait_until};
 use super::thread_model::Record;
@@ -81,8 +81,39 @@ fn mode_is_passed_and_kept_on_the_row(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_new_thread_starts_in_full_access(cx: &mut TestAppContext) {
+    let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    one.view.read_with(cx, |v, _| {
+        assert_eq!(v.mode, Mode::Bypass);
+        assert!(!v.confirm_bypass, "a default asks no confirm");
+    });
+    one.view
+        .update_in(cx, |v, window, cx| v.submit_remote("permit the deploy", window, cx))
+        .expect("started");
+    let args = args(&one, cx);
+    assert!(
+        args.contains("--permission-mode bypassPermissions --allow-dangerously-skip-permissions"),
+        "{args}"
+    );
+    wait_until(cx, "the command to run unasked", |cx| {
+        unknowns(&one, cx)
+            .iter()
+            .any(|v| v["type"] == "fake_answer" && v["reply"] == "bypassed")
+    });
+    one.view.read_with(cx, |v, _| {
+        let asked = v
+            .items
+            .iter()
+            .any(|i| matches!(i, super::thread_model::Item::Approval(_)));
+        assert!(!asked, "nothing asked");
+    });
+    wait_until(cx, "the row to keep it", |cx| row_mode(&one, cx) == "bypass");
+}
+
+#[gpui::test]
 fn full_access_needs_a_confirm(cx: &mut TestAppContext) {
     let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    one.view.update(cx, |v, cx| v.set_mode(Mode::Default, cx)); // leaving Full access needs no confirm
     let mode =
         |cx: &mut VisualTestContext| one.view.read_with(cx, |v, _| (v.mode, v.confirm_bypass));
     one.view.update(cx, |v, cx| v.set_mode(Mode::Bypass, cx));
@@ -127,6 +158,7 @@ fn a_mode_picked_while_starting_reaches_the_agent_and_the_row(cx: &mut TestAppCo
 #[gpui::test]
 fn full_access_on_a_running_claude_waits_for_a_restart(cx: &mut TestAppContext) {
     let (one, cx) = one_view(cx, Provider::Claude, fake(), None);
+    one.view.update(cx, |v, cx| v.set_mode(Mode::Default, cx));
     one.view
         .update_in(cx, |v, window, cx| v.submit_remote("hi", window, cx))
         .expect("started");

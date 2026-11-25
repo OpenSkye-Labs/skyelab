@@ -145,7 +145,7 @@ What's built today:
 
 - **Tool approvals in the thread.** When an agent needs permission for a tool (a command, an edit), the thread shows
   what it wants to run and waits: **Allow once**, **Allow for this thread**, **Allow for this project** (a rule SkyeLab keeps per project and account, shown before it is saved) or **Deny**. Each thread has a
-  permission mode (Ask, Plan, Accept edits, Full access, the last behind a confirm). Phones and other machines viewing
+  permission mode (Ask, Plan, Accept edits, Full access, the default). Phones and other machines viewing
   the thread can answer too. When a turn fails or the agent exits with an error, its stderr shows as an
   **Agent output** row.
 

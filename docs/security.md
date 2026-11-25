@@ -89,7 +89,16 @@
   `reason`, which is how Codex asks to rerun a blocked command outside its sandbox, network or permission fields, a
   newer Codex's field) always waits for you; that holds for project rules too. Like Claude's own thread allows, these
   keep answering until the agent stops, even if the folder was rebound meanwhile (the next send or answer you make
-  ends it). Whether the real Codex reruns an approved command outside its sandbox without asking again is untested. Full access asks before it turns on.
+  ends it). Whether the real Codex reruns an approved command outside its sandbox without asking again is untested.
+- **New threads start in Full access.** As in T3 Code, a new thread with no default set runs with nothing asking:
+  Claude with `bypassPermissions`, Codex with approval `never` and the `danger-full-access` sandbox (it can write
+  outside the folder and use the network). None of the approval guards above apply in it. To make Ask the default,
+  pick **Ask** in **Settings → Chat → Default permissions** (app-wide or per project); a picked default and each
+  thread's saved mode are kept. Switching an existing thread to Full access still asks first. Threads no person
+  picked a mode for stay stricter: a thread an agent starts with `start_thread` runs in Ask (Plan when its project's
+  default is Plan), a scheduled task runs Full access only with its own confirm, and a side chat is always Plan. A
+  thread started from a paired phone or machine gets your new-thread default; such a device can already answer every
+  ask.
 - **Project rules are SkyeLab's, not the repo's.** A repo can't allow itself anything: its `.claude/settings*.json`
   stays ignored. "Allow for this project" saves a rule in SkyeLab's own database, keyed by the project and the account
   id the agent runs under, so it never applies under another account or in another project (rebinding the folder to

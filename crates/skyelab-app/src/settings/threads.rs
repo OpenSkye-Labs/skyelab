@@ -13,8 +13,9 @@ use skyelab_core::thread_defaults::ThreadField;
 use skyelab_core::{DiffSettings, SendShortcut, ThreadSettings};
 use std::rc::Rc;
 
-/// The permission modes a new thread may start in. Full access is confirmed per thread, never a default.
-const MODES: [(Mode, &str); 3] = [
+/// The permission modes a new thread may start in. Unset shows the first: Full access, the default.
+const MODES: [(Mode, &str); 4] = [
+    (Mode::Bypass, "Full access"),
     (Mode::Default, "Ask"),
     (Mode::Plan, "Plan"),
     (Mode::AcceptEdits, "Accept edits"),
@@ -111,7 +112,7 @@ impl Settings {
             setting(
                 true,
                 "Default permissions",
-                "What a new thread's agent may do without asking. Full access is picked per thread, never here.",
+                "What a new thread's agent may do without asking. Pick Ask to have it ask before anything its rules don't allow.",
                 self.field_choice("threads-mode", ThreadField::PermissionMode, modes, cx),
                 cx,
             ),

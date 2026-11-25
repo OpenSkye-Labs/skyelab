@@ -96,8 +96,11 @@ fn a_waiting_row_says_what_it_waits_for(cx: &mut TestAppContext) {
         ("plan", panels::Ask::Plan),
     ] {
         let view = new_thread(&r, cx);
-        view.update_in(cx, |v, window, cx| v.submit_remote(prompt, window, cx))
-            .expect("sent");
+        view.update_in(cx, |v, window, cx| {
+            v.mode = skyelab_agent::Mode::Default; // a new thread's Full access would skip the ask
+            v.submit_remote(prompt, window, cx)
+        })
+        .expect("sent");
         wait_until(cx, prompt, |cx| {
             let id = view.read_with(cx, |v, _| v.thread.as_ref().map(|t| t.id));
             let Some(id) = id else { return false };

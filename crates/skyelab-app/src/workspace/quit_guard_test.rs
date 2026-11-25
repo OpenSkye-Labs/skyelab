@@ -57,7 +57,10 @@ fn quit_asks_only_while_a_thread_waits(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let view = r.ws.read_with(cx, |ws, _| ws.open_threads.last().cloned()).expect("a thread tab");
     // The agent asks to run a command and waits for the answer: a steady "waiting" state.
-    view.update_in(cx, |v, window, cx| v.submit_remote("permit", window, cx))
+    view.update_in(cx, |v, window, cx| {
+        v.mode = skyelab_agent::Mode::Default; // a new thread's Full access would skip the ask
+        v.submit_remote("permit", window, cx)
+    })
         .expect("sent");
     wait_until(cx, "the agent to wait on an approval", |cx| {
         cx.update(|_, cx| blockers(cx).iter().any(|(_, b)| matches!(b, Blocker::Waiting(_))))

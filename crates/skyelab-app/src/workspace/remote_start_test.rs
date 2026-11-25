@@ -51,5 +51,9 @@ fn remote_start_before_projects_load_waits_for_them(cx: &mut TestAppContext) {
         .expect("lock")
         .thread(thread_id)
         .expect("read");
-    assert_eq!(row.expect("row").project_id, project_id);
+    let row = row.expect("row");
+    assert_eq!(row.project_id, project_id);
+    // The user's own new-thread default (nothing set: Full access); a peer that can start a thread can already answer
+    // every ask.
+    assert_eq!(row.permission_mode, "bypass");
 }

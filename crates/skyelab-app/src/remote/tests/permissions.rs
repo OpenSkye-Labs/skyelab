@@ -19,6 +19,14 @@ fn a_remote_client_answers_a_pending_permission(cx: &mut TestAppContext) {
     let client = connect_hello(&f, cx);
     let project_id = f.ws.read_with(cx, |ws, _| ws.project_ids()[0]);
     let mut events = Vec::new();
+    // The user picked Ask as the new-thread default; with Full access (the default) nothing would ask.
+    cx.update(|_, cx| {
+        crate::workspace::thread_extras::prefs::edit(
+            |t| t.permission_mode = Some("default".into()),
+            cx,
+        )
+    })
+    .detach();
     client.send(
         2,
         Call::StartThread {
