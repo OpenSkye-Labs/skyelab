@@ -76,6 +76,8 @@ while IFS= read -r line; do
   [ -n "$tap" ] && call="device_tap {\\\"device_id\\\":\\\"$tap\\\",\\\"x\\\":50,\\\"y\\\":100}"
   [ -n "$project" ] && call="start_thread {\\\"project_id\\\":$project,\\\"prompt\\\":\\\"${child:-Write the release notes}\\\"}"
   if [ -z "$call" ] || [ -z "$cfg" ]; then
+    # As fake-claude.sh: an agent that edits a file each turn, here with the session kept alive between turns.
+    [ -f .fake-agent-edits ] && printf 'turn\n' >> agent-edit.txt
     printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"Done with the delegated task."}]}}'
     done_turn "done"
     continue

@@ -83,6 +83,20 @@ pub(super) fn open_thread_with<'a>(
     Entity<ThreadView>,
     &'a mut VisualTestContext,
 ) {
+    open_thread_on(f, root, "fake-claude.sh", cx)
+}
+
+/// [`open_thread_with`] on fake agent `bin` (a file in tests/fixtures).
+pub(super) fn open_thread_on<'a>(
+    f: &Fixture,
+    root: bool,
+    bin: &str,
+    cx: &'a mut TestAppContext,
+) -> (
+    Entity<Workspace>,
+    Entity<ThreadView>,
+    &'a mut VisualTestContext,
+) {
     cx.executor().allow_parking(); // the fake agent is a real process
     cx.update(|cx| {
         gpui_component::init(cx);
@@ -92,7 +106,9 @@ pub(super) fn open_thread_with<'a>(
     });
     let backend = Backend {
         store: f.store.clone(),
-        claude_bin: Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fake-claude.sh"),
+        claude_bin: Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(bin),
     };
     let (config, folder) = (f.config.clone(), f.project.clone());
     let build = |window: &mut gpui::Window, cx: &mut gpui::Context<Workspace>| {
