@@ -8520,6 +8520,7 @@ dependencies = [
  "skyelab-core",
  "skyelab-daemon",
  "skyelab-devices",
+ "skyelab-env",
  "skyelab-git",
  "skyelab-protocol",
  "skyelab-speech-sys",
@@ -8645,6 +8646,18 @@ dependencies = [
  "skyelab-core",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "skyelab-env"
+version = "0.1.2"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "skyelab-client",
+ "skyelab-daemon",
+ "skyelab-protocol",
+ "skyelab-store",
 ]
 
 [[package]]

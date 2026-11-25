@@ -66,6 +66,8 @@ impl ThreadView {
             .child(
                 h_flex()
                     .id("thread-breadcrumb")
+                    // Windows: the breadcrumb's empty space moves the window; its links occlude it (`thread_link`).
+                    .map(ui::drag_area)
                     .flex_1()
                     .min_w_0()
                     .gap_2()
@@ -198,6 +200,7 @@ fn thread_link(element_id: impl Into<gpui::ElementId>, id: i64, title: SharedStr
         .ghost()
         .xsmall()
         .label(title)
+        .map(ui::no_drag)
         .on_click(move |_, window, cx| window.dispatch_action(Box::new(OpenThread { id }), cx))
 }
 

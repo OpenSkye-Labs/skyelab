@@ -452,6 +452,7 @@ impl Render for Sidebar {
             // Top row: brand mark and name; macOS traffic lights sit at the left.
             .child(
                 div()
+                    .map(ui::drag_area)
                     .px_2()
                     .min_h(ui::TOP_ROW_H)
                     .flex()

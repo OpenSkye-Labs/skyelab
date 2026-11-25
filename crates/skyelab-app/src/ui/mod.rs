@@ -36,6 +36,7 @@ mod toggle;
 #[cfg(test)]
 mod toggle_test;
 mod tooltip;
+pub mod window_controls;
 
 pub use button::{Button, Variant, icon_button};
 pub use choice::{SegmentedControl, Tabs};
@@ -45,11 +46,12 @@ pub use components::{
     header, mono, page_title, row, row_surface, section_title,
 };
 pub use dialog::{dialog_cancel, dialog_footer, open_dialog};
-pub use kbd::Kbd;
+pub use kbd::{Kbd, keys};
 pub use surface::{Card, Divider};
 pub use text_field::TextField;
 pub use toggle::{Checkbox, Switch};
 pub use tooltip::Tooltip;
+pub use window_controls::{WindowControls, drag_area, no_drag};
 
 use gpui::{Hsla, Pixels, Rems, px, rems};
 use gpui_component::Theme;

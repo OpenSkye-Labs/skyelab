@@ -2,6 +2,10 @@
 
 Part of the [user guide](user-guide.md).
 
+On Windows, minimize, maximize and close sit in the top-right corner of the window's top row, where the page's
+own title is; drag the empty part of that row (the SkyeLab name above the sidebar, the page title) to move the window,
+and double-click it to maximize. Shortcut hints read Ctrl, Shift and Enter where macOS shows ⌘, ⇧ and ↩.
+
 ## Several windows
 
 **New Window** (<kbd>⇧⌘N</kbd>, <kbd>Ctrl+Shift+N</kbd> on Linux and Windows, the palette, or the SkyeLab menu on
