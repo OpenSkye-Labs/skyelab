@@ -57,7 +57,8 @@ mod record_tests {
     fn a_poll_keeps_windows_and_only_a_summary_touches_limited() {
         let s = Store::open_in_memory().expect("store");
         let limited = r#"{"RateLimit":{"limited":true,"resets_at":5}}"#.to_owned();
-        s.record_usage("a", &[limited.clone()], 1).expect("summary");
+        s.record_usage("a", std::slice::from_ref(&limited), 1)
+            .expect("summary");
         let five =
             r#"{"RateLimit":{"limited":false,"resets_at":9,"window":"five_hour","used":0.4}}"#;
         let status_only = r#"{"RateLimit":{"limited":false,"window":"five_hour"}}"#;
