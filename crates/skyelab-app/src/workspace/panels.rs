@@ -59,6 +59,7 @@ panel!(super::center::Center, "Center", closable: false, title_bar: false, |_thi
 mod sidebar;
 mod sidebar_card;
 mod sidebar_rows;
+mod sidebar_snooze;
 mod sidebar_views;
 #[cfg(test)]
 pub(crate) use sidebar::FOOTER_BUTTON_IDS;

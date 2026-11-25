@@ -5,7 +5,7 @@ use super::changes_model::Scope;
 use super::thread_items::ItemsView as _;
 use super::thread_model::Item;
 use super::turn_files::turn_of;
-use super::worktree_thread_test::{fixture, open_thread, send, wait_until};
+use super::worktree_thread_test::{fixture, open_thread, open_thread_on, send, wait_until};
 use gpui::TestAppContext;
 
 fn done() -> Item {
@@ -150,4 +150,29 @@ fn turn_files_list_each_turns_checkpoint_diff(cx: &mut TestAppContext) {
             "revealed at the file"
         )
     });
+}
+
+/// Real claude keeps its session between turns: the card shows while it is still up, not only after a reload (QA:
+/// it appeared only after a restart).
+#[gpui::test]
+fn turn_files_show_while_the_session_lives(cx: &mut TestAppContext) {
+    let f = fixture();
+    std::fs::write(f.project.join(".fake-agent-edits"), "").expect("marker");
+    let (_ws, thread, cx) = open_thread_on(&f, false, "fake-claude-delegate.sh", cx);
+    send(cx);
+    wait_until(cx, "the turn's end", |cx| {
+        thread.read_with(cx, |t, _| t.items.iter().any(|i| matches!(i, Item::Done { .. })))
+    });
+    wait_until(cx, "turn 1's files", |cx| {
+        thread.read_with(cx, |t, _| {
+            let done = t.items.iter().position(|i| matches!(i, Item::Done { .. }));
+            done.and_then(|d| t.turn_files(d)).is_some_and(|(_, f)| !f.is_empty())
+        })
+    });
+    assert!(
+        thread.read_with(cx, |t, _| t.session.is_some()),
+        "the agent still runs"
+    );
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("turn-files").is_some(), "the card is drawn");
 }

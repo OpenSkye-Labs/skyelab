@@ -92,7 +92,7 @@ it moves to the **Settled** shelf at the bottom, folded, newest settle first, 25
 the alarm clock **snoozes** it: **In 1 hour**, **Tonight** (18:00, while that's ahead), **Tomorrow** (09:00), **Next
 week** (Monday 09:00) or **Custom…**, where you type `45m`, `3h`, `2d`, `18:30` or `2026-12-01 09:00`. A snoozed
 thread waits in the folded **Snoozed** shelf with how long until it wakes; then it is back in the list marked
-**Woke** until you open it. Each notice has **Undo**. A settled row's hover button un-settles it, and a snoozed row's
+**Woke** until you open it. Each notice has **Undo** for 5 seconds (it stays while the pointer is on it). A settled row's hover button un-settles it, and a snoozed row's
 wakes it now. The row's right-click menu has the same entries, and the palette has **Settle Thread** and **Snooze
 Thread** for the open thread. A thread that starts working shows under Working whatever its shelf, and a settled or
 snoozed thread leaves Pinned while it's shelved. Archived threads can't be settled or snoozed.
@@ -211,7 +211,7 @@ added to the repo's local `info/exclude`, so it never shows up in `git status`.
 The thread details card then has:
 
 - **Changes** opens a diff of everything the agent changed in the worktree, committed or not; **Commit all** counts
-  only the files not committed yet, and says **Nothing to commit** when there are none. It follows the folder live:
+  only the files not committed yet, and says **Nothing to commit** when there are none (**Loading…** until the first read lands). It follows the folder live:
   an edit made in your editor or a terminal, a commit or a branch switch shows up within a second, as do the
   composer's change count and branch (see [live updates](user-guide-git.md#live-updates)). **Refresh** reloads it
   by hand. New files count in the card's **Changes vs** line too.

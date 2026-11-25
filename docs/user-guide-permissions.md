@@ -75,13 +75,15 @@ When a turn fails, or the agent exits with an error, what it wrote to stderr (th
 
 When the agent asks you something (Claude's `AskUserQuestion`, Codex's user-input request), the question docks on top of
 the composer, one at a time, as T3 shows it: its label, **1/2** when there are several (click the label row to fold
-the panel), the question, then its options numbered 1 to 9 (one choice, or a box for each when you can pick several).
+the panel), the question, then its options numbered 1 to 9, one line each with its description beside it (one choice,
+or a box for each when you can pick several). The panel stays compact: past a quarter of the window its options
+scroll, so the thread above it, a plan's **Approve** included, keeps its room.
 When a question docks it takes the keyboard, unless you are typing in the composer: press an option's number
 (1–9) or click it to pick it, and a one-choice question then moves on to the next; <kbd>↑</kbd>/<kbd>↓</kbd> move a
 one-choice pick and <kbd>↩</kbd> is Next or Submit. Typing a letter starts your own answer in the composer, <kbd>Esc</kbd> goes back
 to the composer, and <kbd>⌘⇧A</kbd> (<kbd>Ctrl+Shift+A</kbd> elsewhere) returns to the question. Whatever you type in the composer is that question's own answer and replaces the picks (leave it blank to use
 the selected option). **Next** (<kbd>⌘↩</kbd>) goes to the next question and **Submit** on the last one sends them all;
-× skips the question. **Attach files** under a question adds files to that answer (up to 100 in all; × drops one): the
+× skips the question. The paperclip in the panel's header (**Attach files**) adds files to that answer (up to 100 in all; × drops one): the
 agent gets their paths with your answer and reads them with its own tools. A file alone answers a question. Attaching
 is offered only on the machine that runs the thread. In Plan mode, when the agent is ready it shows a
 **Proposed plan** card: **Approve** lets it start (the thread switches to Ask, so edits still ask first) and **Keep

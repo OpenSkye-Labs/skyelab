@@ -1,7 +1,10 @@
 //! The sidebar's rows: a flat list's thread row (title, reply preview, meta line), the plain row (remote projects and their threads), and the
 //! project scope button.
 
-use super::sidebar::{Ask, RowAccount, RowMarks, RowShelf, ScopeMenu, SidebarItem, SidebarSection};
+use super::sidebar::{
+    Ask, RowAccount, RowMarks, ScopeMenu, SidebarItem, SidebarSection, SnoozeMenu,
+};
+use super::sidebar_snooze::hover_actions;
 use super::*;
 use crate::ui::SkyeIcon;
 use crate::workspace::dispatch;
@@ -28,14 +31,14 @@ pub(super) const THREAD_INDENT: f32 = 36.;
 pub(super) fn sidebar_row(
     item: &SidebarItem,
     marks: Option<&RowMarks>,
-    focus: &FocusHandle,
     indent: bool,
     cards: bool,
+    snooze: &SnoozeMenu,
     now: i64,
     theme: &gpui_component::Theme,
 ) -> AnyElement {
     let row = if item.project.is_some() {
-        thread_row(item, marks, now, theme)
+        thread_row(item, marks, snooze, now, theme)
     } else {
         plain_row(item, marks, indent, now, theme)
     };
@@ -48,7 +51,7 @@ pub(super) fn sidebar_row(
         .iter()
         .map(|(l, a)| (l.clone(), a.boxed_clone()))
         .collect();
-    let (focus, shelf) = (focus.clone(), menu.shelf.clone());
+    let (focus, shelf) = (snooze.focus.clone(), menu.shelf.clone());
     let row = row.context_menu(move |mut menu, window, cx| {
         menu = menu.action_context(focus.clone());
         for (label, action) in &entries {
@@ -68,6 +71,7 @@ pub(super) fn sidebar_row(
 fn thread_row(
     item: &SidebarItem,
     marks: Option<&RowMarks>,
+    snooze: &SnoozeMenu,
     now: i64,
     theme: &gpui_component::Theme,
 ) -> gpui::Stateful<gpui::Div> {
@@ -153,12 +157,20 @@ fn thread_row(
     let muted = theme.muted_foreground;
     let selector = format!("row-{}", item.id);
     let group = SharedString::from(format!("hover-{}", item.id));
-    let actions = marks.shelf.clone().map(|s| hover_actions(s, now, theme));
+    let menu_open = marks
+        .shelf
+        .as_ref()
+        .is_some_and(|s| snooze.open.as_ref().is_some_and(|o| o.0 == s.id));
+    let actions = marks
+        .shelf
+        .clone()
+        .map(|s| hover_actions(s, snooze, now, theme));
     let right = div()
         .relative()
         .text_size(ui::META)
         .child(
             div()
+                .when(menu_open, |d| d.invisible())
                 .when(actions.is_some(), |d| {
                     d.group_hover(group.clone(), |s| s.invisible())
                 })
@@ -178,7 +190,7 @@ fn thread_row(
                 .top(gpui::px(-2.))
                 .rounded(ui::RADIUS_MD)
                 .bg(theme.sidebar)
-                .invisible()
+                .when(!menu_open, |d| d.invisible())
                 .group_hover(group.clone(), |s| s.visible())
                 .child(a.pl_1().rounded(ui::RADIUS_MD).bg(fill))
         }));
@@ -316,51 +328,6 @@ fn group_badge(
                 cx,
             )
         })
-}
-
-/// T3's settle and snooze buttons, shown over the status or time while the row is hovered.
-fn hover_actions(
-    s: RowShelf,
-    now: i64,
-    theme: &gpui_component::Theme,
-) -> gpui::Stateful<gpui::Div> {
-    use super::super::thread_list::{Shelf, ShelveThread, snooze_menu};
-    let (id, host) = (s.id, s.host.clone());
-    let menu_host = host.clone();
-    let button = |name: &str, icon: SkyeIcon, tip: &'static str| {
-        Button::new(SharedString::from(format!("{name}-{id}")))
-            .ghost()
-            .xsmall()
-            .icon(Icon::new(icon).size_3())
-            .tooltip(tip)
-    };
-    let act = |to: Shelf| {
-        let host = host.clone();
-        move |_: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
-            let host = host.clone();
-            dispatch(Box::new(ShelveThread { id, to, host }), window, cx)
-        }
-    };
-    // gpui-component's Button lets a click bubble on to the row, which would open the thread too.
-    let row = h_flex()
-        .id(SharedString::from(format!("shelf-actions-{id}")))
-        .gap_0p5()
-        .text_color(theme.muted_foreground)
-        .on_click(|_, _, cx| cx.stop_propagation());
-    if s.settled {
-        return row.child(
-            button("unsettle", SkyeIcon::Undo2, "Un-settle").on_click(act(Shelf::Unsettle)),
-        );
-    }
-    if snooze::is_asleep(s.snoozed_until, now) {
-        return row
-            .child(button("wake", SkyeIcon::AlarmClockOff, "Wake now").on_click(act(Shelf::Wake)));
-    }
-    row.child(
-        button("snooze", SkyeIcon::AlarmClock, "Snooze")
-            .dropdown_menu(move |menu, _, _| snooze_menu(menu, id, menu_host.clone())),
-    )
-    .child(button("settle", SkyeIcon::Check, "Settle").on_click(act(Shelf::Settle)))
 }
 
 /// A thread a scheduled task started.

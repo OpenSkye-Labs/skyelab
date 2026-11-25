@@ -193,3 +193,48 @@ fn shelves_beat_the_pin_and_undo_puts_a_thread_back_where_it_was(cx: &mut TestAp
     assert_eq!(shelf(&r, "Snoozed", cx), ["alpha"]);
     assert_eq!(r.row(a).expect("row").snoozed_until, Some(later));
 }
+
+/// The notice's own Undo button, clicked: the thread is back in the list and the store.
+#[gpui::test]
+fn clicking_the_notice_undo_unsettles_in_the_store(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let a = r.thread("alpha", cx);
+    r.thread("beta", cx);
+    shelve(a, Shelf::Settle, cx);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let undo = cx.debug_bounds("toast-action").expect("undo drawn");
+    cx.simulate_click(undo.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(r.listed(cx), ["beta", "alpha"]);
+    assert!(
+        r.row(a).expect("row").settled_at.is_none(),
+        "unsettled in the store"
+    );
+}
+
+/// The row's alarm-clock button opens the snooze menu: drawn by the sidebar above its list (a popover inside a list
+/// row never painted), focused, and a pick snoozes the thread. The button's click itself is checked live: a hover-only
+/// overlay takes no simulated click.
+#[gpui::test]
+fn the_row_snooze_menu_opens_and_snoozes(cx: &mut TestAppContext) {
+    let (r, cx) = rig(cx);
+    let a = r.thread("alpha", cx);
+    r.thread("beta", cx);
+    cx.run_until_parked();
+    let at = gpui::point(gpui::px(120.), gpui::px(140.));
+    sidebar(&r, cx).update_in(cx, |s, window, cx| s.open_snooze(a, None, at, window, cx));
+    cx.run_until_parked();
+    let open = sidebar(&r, cx).read_with(cx, |s, _| s.snooze.open.as_ref().map(|o| o.0));
+    assert_eq!(open, Some(a), "the menu is open");
+    // Its first entry ("In 1 hour").
+    cx.simulate_keystrokes("down enter");
+    cx.run_until_parked();
+    assert!(
+        r.row(a).expect("row").snoozed_until.is_some(),
+        "snoozed in the store"
+    );
+    assert_eq!(r.listed(cx), ["beta"]);
+    let open = sidebar(&r, cx).read_with(cx, |s, _| s.snooze.open.is_some());
+    assert!(!open, "closed with the pick");
+}
