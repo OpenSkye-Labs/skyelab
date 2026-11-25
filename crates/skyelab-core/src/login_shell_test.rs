@@ -46,13 +46,13 @@ fn parse_keeps_only_allowlisted_names() {
 #[test]
 fn merge_puts_the_shell_path_first_and_only_fills_missing_vars() {
     let process = vec![
-        (OsString::from("PATH"), OsString::from("/usr/bin:/bin")),
+        (OsString::from("PATH"), paths(&["/usr/bin", "/bin"])),
         ("LANG".into(), "C".into()),
     ];
     let captured = [
         (
             OsString::from("PATH"),
-            OsString::from("/home/u/.local/bin:/usr/bin"),
+            paths(&["/home/u/.local/bin", "/usr/bin"]),
         ),
         ("LANG".into(), "en_US.UTF-8".into()),
         ("JAVA_HOME".into(), "/jdk".into()),
@@ -61,7 +61,7 @@ fn merge_puts_the_shell_path_first_and_only_fills_missing_vars() {
     let get = |k: &str| got.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
     assert_eq!(
         get("PATH"),
-        Some("/home/u/.local/bin:/usr/bin:/bin:/opt/x".into())
+        Some(paths(&["/home/u/.local/bin", "/usr/bin", "/bin", "/opt/x"]))
     );
     assert_eq!(
         get("LANG"),
@@ -156,4 +156,9 @@ fn capture_gives_up_on_a_hanging_shell() {
         .lines()
         .count();
     assert_eq!(runs, 2, "the first try and one slow retry");
+}
+
+/// A PATH value joined with this platform's separator (`:` on Unix, `;` on Windows).
+fn paths(dirs: &[&str]) -> OsString {
+    std::env::join_paths(dirs).expect("test dirs have no separator in them")
 }
