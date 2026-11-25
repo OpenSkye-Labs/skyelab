@@ -48,25 +48,34 @@ pub(super) fn fade_out<E: IntoElement + Styled + 'static>(
 }
 
 /// The hero tile settling from `ZOOM` times its size to `size`: `draw` builds the tile at a given edge length (its
-/// glyph scales with it), inside a box that keeps `size`, so nothing around it moves.
+/// glyph scales with it), inside a box that keeps `size`, so nothing around it moves. `still` (the page fading out)
+/// draws it settled: that copy has a new element path, so an animation there would start the zoom over.
 pub(super) fn hero<E: IntoElement + Styled + 'static>(
     id: impl Into<ElementId>,
     size: Pixels,
+    still: bool,
     draw: impl Fn(Pixels) -> E + 'static,
 ) -> impl IntoElement {
+    let tile = if still {
+        draw(size).into_any_element()
+    } else {
+        gpui::div()
+            .with_animation(
+                id,
+                Animation::new(HERO).with_easing(ease_out),
+                move |el, t| {
+                    let edge = size * (ZOOM + (1. - ZOOM) * t);
+                    el.flex_shrink_0().opacity(0.4 + 0.6 * t).child(draw(edge))
+                },
+            )
+            .into_any_element()
+    };
     gpui::div()
         .size(size)
         .flex()
         .items_center()
         .justify_center()
-        .child(gpui::div().with_animation(
-            id,
-            Animation::new(HERO).with_easing(ease_out),
-            move |el, t| {
-                let edge = size * (ZOOM + (1. - ZOOM) * t);
-                el.flex_shrink_0().opacity(0.4 + 0.6 * t).child(draw(edge))
-            },
-        ))
+        .child(tile)
 }
 
 /// A progress dot springing from `from` to `to` px wide.

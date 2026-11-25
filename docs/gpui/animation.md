@@ -22,11 +22,13 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply. Learned building onboa
 - A width "morph" (the current progress dot) is the animator setting `.w(px(from + (to - from) * t))`, keyed by the
   step shown: the dot that grows and the one that shrinks each get one run per change.
 - A crossfade (Rex's step change, `onboarding/pages.rs::frame`) draws the old page a second time, `absolute().inset_0()`
-  under the new one, fading out, with an `occlude()` layer between them: GPUI has no pointer-events-none, and an
-  element at opacity 0 still takes clicks, so the occluder keeps a click during the fade off the old page while the
+  under the new one, fading out, with a `block_mouse_except_scroll()` layer between them (`occlude()` would also eat
+  the wheel of the scroll area under it): GPUI has no pointer-events-none, and an
+  element at opacity 0 still takes clicks, so the layer keeps a click during the fade off the old page while the
   new one, painted later, stays on top of it. `with_animation` has no done callback either: a `timer` task the length
   of the fade drops the old page and notifies once (one render, then 0), or it would sit there invisible, laid out and
-  clickable forever. Skip the old copy entirely under `reduce_motion`.
+  clickable forever. Skip the old copy entirely under `reduce_motion`. The copy sits under a new parent id, so every
+  `with_animation` inside it starts over at t=0: draw its animated parts at their end state (`motion::hero`'s `still`).
 - GPUI has no element transform or blur (`Transformation` exists only on `svg()`), so a zoom is the animator setting
   the element's size inside a fixed-size box (`motion::hero`): the box keeps layout still while the tile and its glyph
   scale. Put a test's `debug_selector` on the animated element, not on the fixed box, or its bounds never change.

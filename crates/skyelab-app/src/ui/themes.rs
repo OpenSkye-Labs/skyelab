@@ -334,6 +334,8 @@ pub fn swatch(key: &str, dark: bool, cx: &App) -> Option<[Hsla; 3]> {
         .themes()
         .get(name.as_str())?
         .clone();
+    // The user's accent preset too, as `apply` bakes it in, so the current family's tile matches the live theme.
+    let config = Rc::new(adjust(&config, &get(cx).clamped(), dark));
     let mut theme = Theme::global(cx).clone();
     theme.apply_config(&config);
     Some([theme.background, theme.foreground, theme.primary])

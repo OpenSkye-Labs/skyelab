@@ -57,6 +57,7 @@ fn a_step_change_crossfades_in_place_then_drops_the_old_page(cx: &mut TestAppCon
     let moving = cx.debug_bounds("onboarding-page").expect("new page drawn");
     let hero_in = cx.debug_bounds("onboarding-hero").expect("hero drawn");
     assert!(cx.debug_bounds("onboarding-leaving").is_some(), "the old page fades out over it");
+    let old_hero = cx.debug_bounds("onboarding-hero-leaving").expect("old hero drawn");
     settle(cx);
     cx.executor().advance_clock(Duration::from_secs(1));
     cx.run_until_parked();
@@ -66,5 +67,6 @@ fn a_step_change_crossfades_in_place_then_drops_the_old_page(cx: &mut TestAppCon
     let hero = cx.debug_bounds("onboarding-hero").expect("hero drawn");
     let zoom = hero_in.size.width / hero.size.width;
     assert!(zoom > 1.25, "the hero starts zoomed in: {zoom}");
+    assert_eq!(old_hero.size, hero.size, "the old page's hero stays settled while it fades");
     assert_eq!(pending_frames(cx), 0, "idle again");
 }

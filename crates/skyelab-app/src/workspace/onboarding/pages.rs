@@ -50,11 +50,11 @@ impl Onboarding {
     }
 
     /// The whole page: the dots, then the step's column fading in, over the old one fading out after a change. The
-    /// old column sits under a layer that takes the mouse, so a click during the fade never reaches it.
+    /// old column sits under a layer that takes the mouse (the wheel still scrolls), so a click during the fade never reaches it.
     pub(super) fn frame(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let step = self.step;
-        let page = self.column(step, window, cx);
-        let leaving = self.leaving.map(|s| (s, self.column(s, window, cx)));
+        let page = self.column(step, false, window, cx);
+        let leaving = self.leaving.map(|s| (s, self.column(s, true, window, cx)));
         let centered = || {
             v_flex()
                 .w_full()
@@ -95,7 +95,11 @@ impl Onboarding {
                                     ("onboarding-leaving", s as usize),
                                 )
                             }))
-                            .children(self.leaving.map(|_| div().absolute().inset_0().occlude()))
+                            .children(
+                                self.leaving.map(|_| {
+                                    div().absolute().inset_0().block_mouse_except_scroll()
+                                }),
+                            )
                             .child(motion::fade_in(
                                 centered()
                                     .flex_1()
@@ -107,8 +111,14 @@ impl Onboarding {
             )
     }
 
-    /// One step's column: hero, title and line, the panel, then the actions.
-    fn column(&self, step: Step, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    /// One step's column: hero, title and line, the panel, then the actions. `leaving`: the copy fading out.
+    fn column(
+        &self,
+        step: Step,
+        leaving: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let (title, about): (&'static str, SharedString) = match step {
             Step::Welcome => (
                 "Welcome to SkyeLab",
@@ -142,7 +152,7 @@ impl Onboarding {
             .w_full()
             .max_w(px(COLUMN))
             .items_center()
-            .child(hero(step, cx))
+            .child(hero(step, leaving, cx))
             .child(
                 div()
                     .mt_5()
@@ -321,7 +331,7 @@ pub(super) fn caption(text: &'static str, cx: &gpui::App) -> Div {
 }
 
 /// The step's hero: an app-icon-style tile with the step's glyph, zooming in as the step appears.
-fn hero(step: Step, cx: &gpui::App) -> impl IntoElement {
+fn hero(step: Step, still: bool, cx: &gpui::App) -> impl IntoElement {
     let theme = cx.theme();
     let (bg, fg) = (theme.primary, theme.primary_foreground);
     let shade = |by: f32| Hsla {
@@ -333,10 +343,18 @@ fn hero(step: Step, cx: &gpui::App) -> impl IntoElement {
     motion::hero(
         ("onboarding-hero", step as usize),
         px(HERO),
+        still,
         move |edge: Pixels| {
             let glyph = edge * 0.5;
             div()
-                .debug_selector(|| "onboarding-hero".into())
+                .debug_selector(move || {
+                    if still {
+                        "onboarding-hero-leaving"
+                    } else {
+                        "onboarding-hero"
+                    }
+                    .into()
+                })
                 .size(edge)
                 .flex()
                 .items_center()
