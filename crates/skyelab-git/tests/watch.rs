@@ -60,11 +60,24 @@ fn watch(dir: &Path, mode: Mode) -> Watched {
         "the watcher never got ready"
     );
     // Events from setting the repo up (FSEvents can hand over a few from just before the stream) settle first.
-    std::thread::sleep(Duration::from_millis(800));
-    calls.store(0, Ordering::SeqCst);
+    settle(&calls);
     Watched {
         calls,
         _watch: watch,
+    }
+}
+
+/// Waits until a whole second passes with no report, then starts the count from zero. A fixed sleep was too short on a
+/// loaded machine, where earlier events arrive late and land in the next step's count.
+fn settle(calls: &AtomicUsize) {
+    let end = Instant::now() + Duration::from_secs(60);
+    loop {
+        calls.store(0, Ordering::SeqCst);
+        std::thread::sleep(Duration::from_secs(1));
+        if calls.load(Ordering::SeqCst) == 0 {
+            return;
+        }
+        assert!(Instant::now() < end, "reports never stopped");
     }
 }
 
@@ -94,10 +107,9 @@ fn reports_a_file_write() {
         std::fs::write(repo.join("a.txt"), "changed\n").expect("w");
         wait_for_call(&w, &format!("a write in {mode:?}"));
         // And a file in a folder made after the watch began.
-        w.calls.store(0, Ordering::SeqCst);
+        settle(&w.calls);
         std::fs::create_dir_all(repo.join("src/deep")).expect("mkdir");
-        std::thread::sleep(Duration::from_millis(500));
-        w.calls.store(0, Ordering::SeqCst);
+        settle(&w.calls);
         std::fs::write(repo.join("src/deep/new.rs"), "x\n").expect("w");
         wait_for_call(&w, &format!("a write in a new folder in {mode:?}"));
     }
@@ -192,9 +204,7 @@ fn per_dir_falls_back_over_cap() {
     assert_quiet(&w, 3, "a write past the cap");
     std::fs::write(repo.join("top.txt"), "x").expect("w");
     wait_for_call(&w, "a top-level write past the cap");
-    w.calls.store(0, Ordering::SeqCst);
-    std::thread::sleep(Duration::from_secs(3));
-    w.calls.store(0, Ordering::SeqCst);
+    settle(&w.calls);
     git(&repo, &["switch", "-q", "feature"]);
     wait_for_call(&w, "a branch switch past the cap");
 }
@@ -247,11 +257,9 @@ fn a_folder_that_becomes_a_repo_is_watched_from_then_on() {
         };
         wait_for_call(&w, "the folder becoming a repo");
         // From then on it is watched as any repo: a new file is reported.
-        std::thread::sleep(Duration::from_secs(3));
-        w.calls.store(0, Ordering::SeqCst);
+        settle(&w.calls);
         std::fs::create_dir(dir.join("src")).expect("mkdir");
-        std::thread::sleep(Duration::from_secs(1));
-        w.calls.store(0, Ordering::SeqCst);
+        settle(&w.calls);
         std::fs::write(dir.join("src/new.txt"), "x").expect("w");
         wait_for_call(&w, "a write in the new repo");
     }
@@ -286,8 +294,7 @@ fn reports_a_tracked_file_under_an_ignored_path() {
         std::fs::write(repo.join("target/keep.txt"), "changed\n").expect("w");
         wait_for_call(&w, &format!("a tracked file under target/ in {mode:?}"));
         // Its untracked neighbours stay ignored.
-        std::thread::sleep(Duration::from_secs(3));
-        w.calls.store(0, Ordering::SeqCst);
+        settle(&w.calls);
         std::fs::write(repo.join("target/other.o"), "x").expect("w");
         assert_quiet(&w, 3, &format!("an ignored neighbour in {mode:?}"));
     }
