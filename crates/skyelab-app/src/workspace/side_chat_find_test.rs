@@ -1,5 +1,5 @@
 //! Acceptance: mod+F in a side chat opens the find bar in the side chat (not the main thread beside it), counts its
-//! matches, steps with Enter and closes with Esc while the main thread is on screen.
+//! matches, steps with Enter and closes with Esc while the main thread is on screen, also after a click on its dock tab.
 
 use crate::workspace::thread::composer::Submit;
 use crate::workspace::worktree_thread_test::{fixture, open_thread, send, wait_until};
@@ -33,6 +33,23 @@ fn find_in_a_side_chat(cx: &mut gpui::TestAppContext) {
     wait_until(cx, "its answer", |cx| {
         side.read_with(cx, |v, _| v.last_answer().is_some() && !v.turn_running())
     });
+    // A click on its dock tab, the one already shown (the right dock draws last, so its tabs own these selectors):
+    // the tab takes the press, and the keys must still reach the chat.
+    let tab = cx.debug_bounds("dock-tab-1").expect("the side chat's tab");
+    cx.simulate_click(tab.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_keystrokes(&format!("{M}-f"));
+    cx.run_until_parked();
+    assert!(
+        side.read_with(cx, |v, _| v.timeline.find.input.is_some()),
+        "mod+F after a tab click opens the side chat's bar"
+    );
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(
+        side.read_with(cx, |v, _| v.timeline.find.input.is_none()),
+        "Esc closes it"
+    );
     // F6 and the dock focus the pane by its own handle: mod+F must reach the chat in it from there too.
     let pane = ws.read_with(cx, |ws, _| ws.side_chats[0].clone());
     pane.update_in(cx, |p, window, cx| p.focus_handle(cx).focus(window, cx));

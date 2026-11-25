@@ -122,9 +122,9 @@ impl Workspace {
         let undo = std::rc::Rc::new(undo);
         let note = Notification::new()
             .message(text)
-            .action(move |_, _, _| {
+            .action(move |_, _, cx| {
                 let (ws, undo) = (ws.clone(), undo.clone());
-                crate::ui::notice_action("undo", "Undo", move |_, window, cx| {
+                crate::ui::notice_action(cx, "undo", "Undo", move |_, window, cx| {
                     let _ = ws.update(cx, |ws, cx| undo(ws, window, cx));
                 })
             })

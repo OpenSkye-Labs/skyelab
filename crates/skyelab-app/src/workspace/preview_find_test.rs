@@ -93,6 +93,34 @@ fn find_in_a_preview_counts_steps_and_closes(cx: &mut gpui::TestAppContext) {
     );
 }
 
+/// A click on the Preview tab, the one already shown, leaves the keys with the file: the tab takes the press.
+#[gpui::test]
+fn find_in_a_preview_after_a_tab_click(cx: &mut gpui::TestAppContext) {
+    let f = fixture();
+    std::fs::write(f.project.join("notes.txt"), "a needle\n").expect("write");
+    let (ws, thread, cx) = open_thread(&f, cx);
+    let root = f.project.clone();
+    ws.update_in(cx, |ws, window, cx| {
+        ws.open_preview(root, "notes.txt".into(), None, window, cx)
+    });
+    cx.run_until_parked();
+    let p = preview(&ws, cx);
+    thread.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
+    // The right dock draws last, so its tabs own these selectors.
+    let tab = cx.debug_bounds("dock-tab-1").expect("the Preview tab");
+    cx.simulate_click(tab.center(), gpui::Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_keystrokes(&format!("{M}-f"));
+    cx.run_until_parked();
+    assert!(
+        state(&p, cx).0,
+        "mod+F after a tab click opens the preview's bar"
+    );
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!state(&p, cx).0, "Esc closes it");
+}
+
 #[gpui::test]
 fn an_image_preview_has_no_find(cx: &mut gpui::TestAppContext) {
     let f = fixture();
