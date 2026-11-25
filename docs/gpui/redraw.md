@@ -138,6 +138,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   a list made with no overdraw, swapped for the 600 px one at the same anchor on the next render, made that frame
   21-29 ms (28 rows) against 18-23 ms (44 rows) without, plus 11-18 ms for the swap frame (`scripts/perf.sh open`,
   6 runs each, #14). The overdraw rows are cheap next to the visible rows' first layout. Keep each row cheap.
+- `TextSystem::prewarm_fonts` does nothing on macOS (gpui-pre-apple doesn't implement it), and warming CoreText
+  yourself off the main thread (`layout_width` before the window opens) doesn't speed up the first frames either:
+  they wait on each window's own glyph atlas and layout, which only that window can build (#14,
+  [debugging-launch-frames.md](../debugging-launch-frames.md)). Don't add a font warm-up.
 - A dialog or notification lives in gpui-component's `Root`, so every notify inside it (each palette keystroke or
   hover) re-renders `Root` and, through it, the window's main view. `Root`'s child is therefore a tiny shell that
   returns the workspace as `AnyView::cached` (`windows.rs`, `CachedWorkspace`): the workspace renders only on its own
