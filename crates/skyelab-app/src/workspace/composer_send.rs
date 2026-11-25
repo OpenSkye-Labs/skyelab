@@ -119,8 +119,7 @@ impl ThreadView {
                 self.composer.notice =
                     Some("Send or clear your draft first; the agent isn't running.".into());
             } else if let Some(q) = self.composer.queue.take(id) {
-                self.prompt
-                    .update(cx, |p, cx| p.set_value(q.text.clone(), window, cx));
+                self.set_prompt(q.text.clone(), window, cx);
                 self.composer.attachments = q.attachments;
             }
             cx.notify();
@@ -171,8 +170,7 @@ impl ThreadView {
             return;
         }
         if let Some((text, attachments)) = self.composer.restore.take() {
-            self.prompt
-                .update(cx, |p, cx| p.set_value(text, window, cx));
+            self.set_prompt(text, window, cx);
             self.composer.attachments = attachments;
         }
     }

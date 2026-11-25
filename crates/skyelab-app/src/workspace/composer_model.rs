@@ -152,6 +152,17 @@ impl ThreadView {
         super::composer_menu::model_items(&models, provider)
     }
 
+    /// A `model:<provider>/<id>` mention's display name, as the `@` menu showed it.
+    pub(in crate::workspace) fn mention_model_name(&self, provider: &str, id: &str) -> String {
+        match provider {
+            "claude" => CLAUDE_MODELS
+                .iter()
+                .find(|(alias, _)| *alias == id)
+                .map_or_else(|| model_label(id), |(_, label)| (*label).to_owned()),
+            _ => label_for(id, self.listed()),
+        }
+    }
+
     fn listed(&self) -> Option<&[ModelInfo]> {
         Some(
             self.composer

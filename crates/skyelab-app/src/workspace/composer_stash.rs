@@ -299,8 +299,7 @@ impl ThreadView {
         cx: &mut Context<Self>,
     ) {
         let text = appended(&self.prompt.read(cx).value(), &stashed.text);
-        self.prompt
-            .update(cx, |p, cx| p.set_value(text, window, cx));
+        self.set_prompt(text, window, cx);
         // Read back through the same checks as an attached file.
         let files = files.into_iter();
         (self.composer.attachments).extend(files.filter_map(|(n, d)| Attachment::new(n, d).ok()));

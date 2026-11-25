@@ -17,6 +17,11 @@ mod composer_footer;
 mod composer_keys;
 #[path = "composer_machine.rs"]
 mod composer_machine;
+#[path = "composer_mentions.rs"]
+pub(in crate::workspace) mod composer_mentions;
+#[cfg(test)]
+#[path = "composer_mentions_test.rs"]
+mod composer_mentions_test;
 #[path = "composer_menu.rs"]
 mod composer_menu;
 #[cfg(test)]
@@ -96,7 +101,7 @@ use composer_state::{AttachFiles, Menu};
 use gpui::{
     AnyElement, Context, ExternalPaths, FontWeight, IntoElement, SharedString, div, prelude::*, px,
 };
-use gpui_component::{ActiveTheme as _, Icon, Sizable as _, h_flex, input::Textarea, v_flex};
+use gpui_component::{ActiveTheme as _, Icon, h_flex, input::Textarea, v_flex};
 use thread::{SendPrompt, ThreadView};
 
 /// Under this card width the control row goes compact (T3 collapses its chips the same way).
@@ -151,6 +156,7 @@ impl ThreadView {
             Textarea::new(&self.prompt)
                 .appearance(false)
                 .readonly(self.composer.dictation.active())
+                .token(|token, _, cx| composer_mentions::chip(token, cx))
                 .on_paste(move |item, _, cx| {
                     view.update(cx, |this, cx| this.attach_clipboard(item, cx))
                         .unwrap_or(false)
@@ -363,7 +369,7 @@ impl ThreadView {
                 .primary()
                 // 32 px, the same as the Stop circle that takes its place.
                 .medium()
-                .icon(SkyeIcon::Send)
+                .icon(SkyeIcon::ArrowUp)
                 .rounded(round)
                 .tooltip(if running {
                     "Queue for when the agent finishes (⌘↩). ⌘⇧↩ sends it now."
@@ -424,11 +430,11 @@ impl ThreadView {
                             .when(selected, |this| this.bg(theme.foreground.opacity(0.09)))
                             .hover(|this| this.bg(theme.accent))
                             .when(item.model.is_some(), |this| {
-                                this.child(
-                                    Icon::new(SkyeIcon::Bot)
-                                        .xsmall()
-                                        .text_color(theme.muted_foreground),
-                                )
+                                this.child(ui::provider_logo(
+                                    composer_mentions::provider_of(&item.insert),
+                                    px(12.),
+                                    cx,
+                                ))
                             })
                             .child(
                                 div()

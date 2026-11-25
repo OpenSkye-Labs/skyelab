@@ -115,7 +115,6 @@ icons! {
     Remote => "remote",
     Rows3 => "rows3",
     Search => "search",
-    Send => "send",
     Settings => "settings",
     Settings2 => "settings2",
     ShieldOff => "shield-off",

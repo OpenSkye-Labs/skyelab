@@ -244,12 +244,16 @@ impl ThreadView {
 
     /// The prompt changed: open, narrow or close the menu its cursor's word asks for.
     pub(in crate::workspace) fn prompt_changed(&mut self, cx: &mut Context<Self>) {
-        let (text, cursor) = {
+        self.sync_chips(cx);
+        let (text, cursor, chips) = {
             let p = self.prompt.read(cx);
-            (p.value(), p.cursor())
+            (p.value(), p.cursor(), p.tokens().to_vec())
         };
         cx.notify(); // Send turns into Interrupt and back as the prompt empties and fills
-        let Some(t) = composer_menu::trigger(&text, cursor) else {
+        // A chip is a finished mention: the caret right after it opens no menu.
+        let Some(t) = composer_menu::trigger(&text, cursor)
+            .filter(|t| !chips.iter().any(|c| c.range().start == t.start))
+        else {
             self.composer.menu = None;
             return;
         };
