@@ -18,8 +18,8 @@ pub(in crate::workspace) use project_name::name_project;
 impl Workspace {
     /// Lists projects from the store (off the UI thread), selecting `select`, else the current one, else the first.
     pub(super) fn load_projects(&mut self, select: Option<i64>, cx: &mut Context<Self>) {
-        let store = self.backend.store.clone();
-        let task = cx.background_spawn(async move { lock(&store)?.list_projects() });
+        let local = self.local.clone();
+        let task = cx.background_spawn(async move { local.projects() });
         self._load = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
@@ -124,8 +124,8 @@ impl Workspace {
 
     /// Every listed project's threads, for the sidebar's one list. A newer load replaces (cancels) an older one.
     pub(super) fn load_threads(&mut self, cx: &mut Context<Self>) {
-        let store = self.backend.store.clone();
-        let task = cx.background_spawn(async move { lock(&store)?.list_all_threads() });
+        let local = self.local.clone();
+        let task = cx.background_spawn(async move { local.threads() });
         self._threads = Some(cx.spawn(async move |this, cx| {
             let loaded = task.await;
             let _ = this.update(cx, |this, cx| {
