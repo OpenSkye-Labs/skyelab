@@ -4,7 +4,8 @@ Lessons from the sidebar's update pill (`workspace/update_notice.rs`).
 
 - **A layout that depends on a container's width** (the sidebar's update pill: label, short label or icon-only
   circle) reads it from a `canvas(..).absolute().size_full()` child that stores the width in a cell kept by
-  `window.use_keyed_state` and calls `cx.notify(view)` only when the width crosses the line that changes the layout.
+  `window.use_keyed_state` and calls `cx.defer(move |cx| cx.notify(view))` only when the width crosses the line that changes the layout (a
+  plain notify from prepaint, mid-draw, was sometimes lost and the pill stayed collapsed until the next redraw).
   The value is one frame old, so the first frame draws the narrow form; ride a `gpui_base::spring` over a 0..100 px
   "fraction" (not over the width, which moves on every resize drag) so that first expand animates and Reduce
   Motion snaps it.

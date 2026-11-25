@@ -86,8 +86,10 @@ pub fn sync_appearance(window: &mut gpui::Window, cx: &mut gpui::App) {
 /// start while the sidebar is hidden), on Windows gpui-component's `TitleBar` draws the window controls in theme
 /// colors. Linux keeps its server-side decorations.
 pub const TOP_ROW_H: Pixels = HEADER_H;
-/// Room the macOS traffic lights take at the start of the top row.
-pub const TRAFFIC_LIGHTS_W: Pixels = px(76.);
+/// Width of the slim left navigation rail on the far left of the main window.
+pub const RAIL_W: Pixels = px(48.);
+/// Room the macOS traffic lights extend past the 48 px rail (`76 - 48 = 28 px`).
+pub const MAC_TOP_PAD: Pixels = px(76. - 48.);
 
 /// The titlebar every SkyeLab window opens with: transparent (Linux ignores it) so the app's own surfaces reach the top,
 /// traffic lights in [`TOP_ROW_H`]. `app_owns_titlebar_drag` stays false, so AppKit still drags the window from its own

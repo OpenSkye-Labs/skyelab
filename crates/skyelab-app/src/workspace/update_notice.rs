@@ -199,7 +199,8 @@ pub(super) fn pill(view: EntityId, window: &mut Window, cx: &mut App) -> Option<
         move |bounds, _, cx| {
             let old = room.replace(bounds.size.width);
             if expanded(old) != expanded(bounds.size.width) {
-                cx.notify(view);
+                // After this frame: a notify sent while the window draws can be dropped.
+                cx.defer(move |cx| cx.notify(view));
             }
         },
         |_, _, _, _| {},

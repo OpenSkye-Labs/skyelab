@@ -18,7 +18,8 @@ fn side_commands_are_listed() {
     assert_eq!(claude[..2], ["/side", "/btw"], "{claude:?}");
     assert!(claude.contains(&"/compact".to_owned()));
     assert_eq!(labels(Provider::Codex, true), ["/side", "/btw"]);
-    for provider in [Provider::Claude, Provider::Codex] {
+    assert_eq!(labels(Provider::Cursor, true), ["/side", "/btw"]);
+    for provider in [Provider::Claude, Provider::Codex, Provider::Cursor] {
         assert!(
             !labels(provider, false)
                 .iter()

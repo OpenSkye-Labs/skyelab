@@ -147,6 +147,9 @@ pub fn one_shot(
             .arg(out_file.path())
             .arg("-");
         }
+        Provider::Cursor => {
+            cmd.args(["-p", "--output-format", "text", "--mode", "ask"]);
+        }
     }
     cmd.current_dir(&dir);
     let mut run = skyelab_core::process::Captured::spawn(&mut cmd, Some(prompt.as_bytes()))
@@ -170,14 +173,14 @@ pub fn one_shot(
         std::thread::sleep(Duration::from_millis(50));
     };
     let output = run
-        .output(status)
+        .output_capped(status, MAX_OUTPUT)
         .with_context(|| format!("reading the {what} call"))?;
     if !status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
         bail!("the {what} call failed ({status}): {}", err.trim());
     }
     let mut text = match account.provider {
-        Provider::Claude => output.stdout,
+        Provider::Claude | Provider::Cursor => output.stdout,
         Provider::Codex => std::fs::read(out_file.path()).context("reading Codex's answer")?,
     };
     text.truncate(MAX_OUTPUT);

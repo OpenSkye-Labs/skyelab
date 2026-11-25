@@ -34,10 +34,11 @@ impl Workspace {
         let Some(account_id) = account_id else {
             return failed(&view, anyhow::anyhow!("the thread has no account yet"), cx);
         };
-        let (config, claude, codex) = (
+        let (config, claude, codex, cursor) = (
             self.accounts_job(cx),
             self.backend.claude_bin.clone(),
             github::codex_bin(cx),
+            github::cursor_bin(cx),
         );
         let name = server.clone();
         // The folder's binding, read fresh, must still be the thread's account: never sign in under another one.
@@ -49,6 +50,7 @@ impl Workspace {
             let bin = match account.provider {
                 skyelab_core::Provider::Claude => claude,
                 skyelab_core::Provider::Codex => codex,
+                skyelab_core::Provider::Cursor => cursor,
             };
             let mut options =
                 github::agent_login_options(&bin, &github::mcp_login_args(&name), &account)?;

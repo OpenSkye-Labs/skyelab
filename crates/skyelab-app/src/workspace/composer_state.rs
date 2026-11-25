@@ -86,6 +86,8 @@ pub(crate) struct Composer {
     pub picked: bool,
     /// Codex's models, once listed (or why they couldn't be).
     pub codex_models: Option<Result<Vec<ModelInfo>, SharedString>>,
+    /// Cursor's models, once listed (or why they couldn't be).
+    pub cursor_models: Option<Result<Vec<ModelInfo>, SharedString>>,
     /// The model this thread's agent last reported running (its init line).
     pub reported_model: Option<String>,
     /// The pick the run that reported it had (`None` inside: the account's default); `None`: replayed, unknown.
@@ -137,23 +139,45 @@ pub(in crate::workspace) fn shown_prompt(text: &str, attachments: &[Attachment])
     }
 }
 
-/// Why `account`'s agent can't take these files, if it can't: Codex reads images and text, not PDFs.
+/// Why `account`'s agent can't take these files, if it can't: Codex reads images and text, not PDFs;
+/// Cursor CLI reads text attachments only.
 pub(in crate::workspace) fn unfit(account: &Account, attachments: &[Attachment]) -> Option<String> {
-    let pdf = attachments
-        .iter()
-        .find(|a| account.provider == Provider::Codex && a.kind == AttachmentKind::Pdf)?;
-    Some(format!(
-        "Codex can't read PDFs ({}). Remove it, or attach an image or a text file.",
-        pdf.name
-    ))
+    match account.provider {
+        Provider::Claude => None,
+        Provider::Codex => {
+            let pdf = attachments.iter().find(|a| a.kind == AttachmentKind::Pdf)?;
+            Some(format!(
+                "Codex can't read PDFs ({}). Remove it, or attach an image or a text file.",
+                pdf.name
+            ))
+        }
+        Provider::Cursor => {
+            let bad = attachments
+                .iter()
+                .find(|a| matches!(a.kind, AttachmentKind::Pdf | AttachmentKind::Image(_)))?;
+            let what = match bad.kind {
+                AttachmentKind::Pdf => "PDFs",
+                AttachmentKind::Image(_) => "images",
+                AttachmentKind::Text => return None,
+            };
+            Some(format!(
+                "Cursor can't read {what} ({}). Remove it, or attach a text file.",
+                bad.name
+            ))
+        }
+    }
 }
 
-/// A model pick `provider`'s CLI can take: Claude's aliases and `claude-…` ids for Claude, anything else for Codex.
-/// A project default saved under the other provider is dropped, not sent.
+/// A model pick `provider`'s CLI can take: Claude's aliases and `claude-…` ids for Claude, non-Claude ids for Codex,
+/// and any non-empty non-Claude-alias model id for Cursor (which runs full model ids like `claude-4-sonnet`, `composer-1`, `auto`).
 pub(in crate::workspace) fn fits(provider: Provider, model: &str) -> bool {
-    let claude =
-        CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model) || model.starts_with("claude");
-    claude == (provider == Provider::Claude)
+    let claude_alias = CLAUDE_MODELS.iter().any(|(alias, _)| *alias == model);
+    let claude = claude_alias || model.starts_with("claude");
+    match provider {
+        Provider::Claude => claude,
+        Provider::Codex => !claude,
+        Provider::Cursor => !model.is_empty() && !claude_alias,
+    }
 }
 
 impl ThreadView {
@@ -196,6 +220,9 @@ impl ThreadView {
                         && !fits(p, m)
                     {
                         pick = ModelChoice::default();
+                    }
+                    if provider == Some(Provider::Cursor) {
+                        pick.effort = None;
                     }
                     // A new thread: the project's own default, else its remembered pick, else Settings' default.
                     if let (None, Some(p)) = (&this.thread, provider) {
@@ -288,6 +315,7 @@ impl ThreadView {
         let contexts = (kind == MenuKind::Context).then(|| self.context_menu_items());
         if kind == MenuKind::Files {
             self.list_codex_models(cx); // the menu reloads when they land
+            self.list_cursor_models(cx);
         }
         let models = (kind == MenuKind::Files).then(|| self.mention_models());
         let side_commands = !self.is_side_chat();

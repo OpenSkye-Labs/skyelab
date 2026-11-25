@@ -108,58 +108,25 @@ impl Sidebar {
     }
 }
 
-/// The footer's icon row (T3's `SidebarChrome`): 32 px ghost icon buttons with tooltips, and the update pill (it
-/// takes the free space) before Refresh. When the row is too narrow, the left icons clip first, never the pill.
+#[cfg(test)]
+pub(crate) const FOOTER_BUTTON_IDS: &[&str] = &["sidebar-refresh"];
+
+/// The sidebar footer: keeps Refresh accessible while primary navigation lives in the left rail. The update pill
+/// (T3's `SidebarUpdateCapsule`), when there is one, takes the free space before Refresh.
 pub(super) fn footer(update: Option<gpui::AnyElement>) -> impl IntoElement {
-    use crate::workspace::gh_pages::{OpenIssues, OpenPullRequests};
     use crate::workspace::thread_list::RefreshThreads;
-    let button = |id: &'static str, icon: Icon, tip: &'static str, action: Box<dyn Action>| {
-        Button::new(id)
-            .ghost()
-            .icon(icon)
-            .tooltip(tip)
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-    };
     h_flex()
         .flex_shrink_0()
         .px_2()
         .py_2()
         .gap_0p5()
-        .child(
-            h_flex()
-                .min_w_0()
-                .overflow_hidden()
-                .gap_0p5()
-                .child(button(
-                    "sidebar-settings",
-                    Icon::new(SkyeIcon::Settings),
-                    "Settings",
-                    Box::new(crate::workspace::OpenSettings),
-                ))
-                .child(button(
-                    "sidebar-prs",
-                    Icon::new(SkyeIcon::GitPullRequest),
-                    "Pull requests",
-                    Box::new(OpenPullRequests),
-                ))
-                .child(button(
-                    "sidebar-issues",
-                    Icon::new(SkyeIcon::CircleDot),
-                    "Issues",
-                    Box::new(OpenIssues),
-                ))
-                .child(button(
-                    "sidebar-usage",
-                    Icon::new(SkyeIcon::ChartNoAxesColumn),
-                    "Usage",
-                    Box::new(crate::workspace::OpenUsage),
-                )),
-        )
         .child(update.unwrap_or_else(|| div().flex_1().into_any_element()))
-        .child(button(
-            "sidebar-refresh",
-            Icon::new(SkyeIcon::RefreshCw),
-            "Refresh",
-            Box::new(RefreshThreads),
-        ))
+        .child(
+            Button::new("sidebar-refresh")
+                .debug_selector(|| "sidebar-refresh".into())
+                .ghost()
+                .icon(Icon::new(SkyeIcon::RefreshCw))
+                .tooltip("Refresh")
+                .on_click(|_, window, cx| window.dispatch_action(Box::new(RefreshThreads), cx)),
+        )
 }

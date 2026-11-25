@@ -202,6 +202,7 @@ impl Settings {
                     t.claude_effort = fresh.claude_effort.clone();
                     t.codex_model = fresh.codex_model.clone();
                     t.codex_effort = fresh.codex_effort.clone();
+                    t.cursor_model = fresh.cursor_model.clone();
                     t.generate_titles = fresh.generate_titles;
                 },
                 cx,
@@ -233,6 +234,8 @@ impl Settings {
         }
         if self.section == Section::Chat {
             self.codex_model_input
+                .update(cx, |i, cx| i.set_value("", window, cx));
+            self.cursor_model_input
                 .update(cx, |i, cx| i.set_value("", window, cx));
         }
         cx.notify();

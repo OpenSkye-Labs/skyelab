@@ -141,6 +141,26 @@ pub(crate) fn codex_input(text: &str, attachments: &[Attachment]) -> Result<Valu
     Ok(Value::Array(items))
 }
 
+/// Cursor's stdin prompt: plain text plus any attached text files. Cursor CLI does not take inline images or PDFs.
+pub(crate) fn cursor_prompt(text: &str, attachments: &[Attachment]) -> Result<String> {
+    let mut parts = Vec::new();
+    if !text.is_empty() {
+        parts.push(text.to_owned());
+    }
+    for a in attachments {
+        match a.kind {
+            Kind::Text => parts.push(format!(
+                "<attached_file name={}>\n{}\n</attached_file>",
+                json!(a.name),
+                a.text()
+            )),
+            Kind::Image(_) => bail!("Cursor can't read images ({}); attach a text file", a.name),
+            Kind::Pdf => bail!("Cursor can't read PDFs ({}); attach a text file", a.name),
+        }
+    }
+    Ok(parts.join("\n\n"))
+}
+
 /// Refuses a prompt with more than [`MAX_ATTACHMENTS`] files.
 pub(crate) fn check_count(attachments: &[Attachment]) -> Result<()> {
     if attachments.len() > MAX_ATTACHMENTS {

@@ -2,7 +2,7 @@
 
 Once a day at most, when SkyeLab starts (and every hour after that it checks whether a day has passed), it asks
 GitHub for the latest release of SkyeLab. When that release is newer than yours, a small pill appears in the
-sidebar's bottom row, between Usage and Refresh: **Update available**, then **Downloading… 42%**, **Ready to
+sidebar's bottom row, beside Refresh: **Update available**, then **Downloading… 42%**, **Ready to
 restart** or **Update failed** (with **Retry**). A narrow sidebar shortens the label, and a very narrow one shows only
 its icon (hover it for the label). Click the pill for the details and the actions: **Download and install** and
 **Skip this version**, which hides it until a newer one comes out.

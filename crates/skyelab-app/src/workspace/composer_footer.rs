@@ -44,6 +44,8 @@ impl ThreadView {
         if self.composer.queue.is_empty() {
             return None;
         }
+        let can_steer =
+            self.composer_account().map(|a| a.provider) != Some(skyelab_core::Provider::Cursor);
         let theme = cx.theme();
         Some(
             v_flex()
@@ -78,16 +80,18 @@ impl ThreadView {
                                 .text_color(theme.muted_foreground)
                                 .child(Icon::new(SkyeIcon::Clock).xsmall())
                                 .child("Sends when the agent finishes")
-                                .child(
-                                    Button::new(SharedString::from(format!("steer-{id}")))
-                                        .ghost()
-                                        .xsmall()
-                                        .label("Steer")
-                                        .tooltip("Send into the current turn now (⌘⇧↩)")
-                                        .on_click(cx.listener(move |this, _, window, cx| {
-                                            this.steer_queued(id, window, cx)
-                                        })),
-                                )
+                                .when(can_steer, |el| {
+                                    el.child(
+                                        Button::new(SharedString::from(format!("steer-{id}")))
+                                            .ghost()
+                                            .xsmall()
+                                            .label("Steer")
+                                            .tooltip("Send into the current turn now (⌘⇧↩)")
+                                            .on_click(cx.listener(move |this, _, window, cx| {
+                                                this.steer_queued(id, window, cx)
+                                            })),
+                                    )
+                                })
                                 .child(
                                     Button::new(SharedString::from(format!("unqueue-{id}")))
                                         .ghost()

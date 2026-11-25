@@ -22,10 +22,11 @@ fn agents_page_lists_versions_found_dirs_and_log_in(cx: &mut TestAppContext) {
         [
             ("Claude Code", Some("2.1.0 (Claude Code)".into())),
             ("Codex", Some("codex-cli 0.99.0".into())),
+            ("Cursor", Some("cursor-agent 0.99.0".into())),
             ("GitHub CLI", Some("gh version 2.99.0 (fake)".into())),
         ]
     );
-    for name in ["Claude Code", "Codex", "GitHub CLI"] {
+    for name in ["Claude Code", "Codex", "Cursor", "GitHub CLI"] {
         let selector: &'static str = Box::leak(format!("setup-agent-{name}").into_boxed_str());
         assert!(cx.debug_bounds(selector).is_some(), "{name} card drawn");
     }

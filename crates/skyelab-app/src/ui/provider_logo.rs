@@ -9,14 +9,25 @@ const CLAUDE: &str = "brand/claude.svg";
 /// OpenAI publishes the Blossom in black and in white: black on light themes, white on dark ones.
 const OPENAI_BLACK: &str = "brand/openai-black.svg";
 const OPENAI_WHITE: &str = "brand/openai-white.svg";
+/// Cursor publishes its cube mark in dark (#26251E) on light themes and light (#EDECEC) on dark ones.
+const CURSOR_BLACK: &str = "brand/cursor-black.svg";
+const CURSOR_WHITE: &str = "brand/cursor-white.svg";
 
-pub(super) const PATHS: &[&str] = &[CLAUDE, OPENAI_BLACK, OPENAI_WHITE];
+pub(super) const PATHS: &[&str] = &[
+    CLAUDE,
+    OPENAI_BLACK,
+    OPENAI_WHITE,
+    CURSOR_BLACK,
+    CURSOR_WHITE,
+];
 
 pub(super) fn bytes(path: &str) -> Option<&'static [u8]> {
     match path {
         CLAUDE => Some(include_bytes!("../../icons/brand/claude.svg")),
         OPENAI_BLACK => Some(include_bytes!("../../icons/brand/openai-black.svg")),
         OPENAI_WHITE => Some(include_bytes!("../../icons/brand/openai-white.svg")),
+        CURSOR_BLACK => Some(include_bytes!("../../icons/brand/cursor-black.svg")),
+        CURSOR_WHITE => Some(include_bytes!("../../icons/brand/cursor-white.svg")),
         _ => None,
     }
 }
@@ -27,14 +38,16 @@ fn path(provider: Provider, dark: bool) -> &'static str {
         Provider::Claude => CLAUDE,
         Provider::Codex if dark => OPENAI_WHITE,
         Provider::Codex => OPENAI_BLACK,
+        Provider::Cursor if dark => CURSOR_WHITE,
+        Provider::Cursor => CURSOR_BLACK,
     }
 }
 
 /// How much of its file's box each logo fills: OpenAI's file keeps its clear space inside (the Blossom spans 356 of
-/// 716 units), the Claude Spark fills its box.
+/// 716 units); Claude's Spark and Cursor's Cube fill their boxes.
 fn fill(provider: Provider) -> f32 {
     match provider {
-        Provider::Claude => 1.,
+        Provider::Claude | Provider::Cursor => 1.,
         Provider::Codex => 356. / 716.,
     }
 }
@@ -63,6 +76,8 @@ mod tests {
             (CLAUDE, "#D97757"),
             (OPENAI_BLACK, "black"),
             (OPENAI_WHITE, "white"),
+            (CURSOR_BLACK, "#26251E"),
+            (CURSOR_WHITE, "#EDECEC"),
         ];
         for (path, fill) in official {
             let svg = std::str::from_utf8(bytes(path).expect("embedded")).expect("utf-8");
@@ -81,6 +96,8 @@ mod tests {
     fn openai_takes_the_variant_for_the_theme_claude_keeps_its_one() {
         assert_eq!(path(Provider::Codex, true), OPENAI_WHITE);
         assert_eq!(path(Provider::Codex, false), OPENAI_BLACK);
+        assert_eq!(path(Provider::Cursor, true), CURSOR_WHITE);
+        assert_eq!(path(Provider::Cursor, false), CURSOR_BLACK);
         assert_eq!(path(Provider::Claude, true), CLAUDE);
         assert_eq!(path(Provider::Claude, false), CLAUDE);
     }

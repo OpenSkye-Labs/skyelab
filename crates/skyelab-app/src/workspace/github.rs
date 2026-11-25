@@ -26,11 +26,22 @@ pub(crate) fn codex_bin(cx: &App) -> PathBuf {
         .map_or_else(|| "codex".into(), |g| g.0.clone())
 }
 
+/// The `cursor-agent` (or `agent` fallback) that Cursor threads and Cursor logins run: `cursor-agent`, or in debug
+/// builds `SKYELAB_CURSOR_BIN` (a fake).
+pub struct CursorBin(pub PathBuf);
+
+impl gpui::Global for CursorBin {}
+
+pub(crate) fn cursor_bin(cx: &App) -> PathBuf {
+    cx.try_global::<CursorBin>()
+        .map_or_else(|| "cursor-agent".into(), |g| g.0.clone())
+}
+
 /// What logs an account in to its agent CLI.
 pub(crate) fn login_args(provider: skyelab_core::Provider) -> &'static [&'static str] {
     match provider {
         skyelab_core::Provider::Claude => &["auth", "login"],
-        skyelab_core::Provider::Codex => &["login"],
+        skyelab_core::Provider::Codex | skyelab_core::Provider::Cursor => &["login"],
     }
 }
 
@@ -40,14 +51,18 @@ pub(crate) fn mcp_login_args(server: &str) -> [&str; 4] {
     ["mcp", "login", "--", server]
 }
 
-/// A terminal running `<bin> <args>` (`claude auth login`, `codex login`) with `account`'s launch env only, so the
-/// login lands in that account's config dir. Codex refuses a `CODEX_HOME` that doesn't exist, so the dir is made
-/// (private) first.
+/// A terminal running `<bin> <args>` (`claude auth login`, `codex login`, `cursor-agent login`) with `account`'s
+/// launch env only, so the login lands in that account's config dir. The config dir is made (private) first.
 pub(crate) fn agent_login_options(
     bin: &Path,
     args: &[&str],
     account: &skyelab_core::Account,
 ) -> anyhow::Result<SpawnOptions> {
+    let resolved_bin = if account.provider == skyelab_core::Provider::Cursor {
+        skyelab_agent::resolve_cursor_bin(bin).unwrap_or_else(|_| bin.to_path_buf())
+    } else {
+        bin.to_path_buf()
+    };
     let utf8 = |p: &Path| {
         p.to_str()
             .map(str::to_owned)
@@ -67,7 +82,10 @@ pub(crate) fn agent_login_options(
     }
     Ok(SpawnOptions {
         cwd: dirs::home_dir().unwrap_or_else(|| dir.to_owned()),
-        command: Some((utf8(bin)?, args.iter().map(|a| a.to_string()).collect())),
+        command: Some((
+            utf8(&resolved_bin)?,
+            args.iter().map(|a| a.to_string()).collect(),
+        )),
         env,
         cols: 80,
         lines: 24,
