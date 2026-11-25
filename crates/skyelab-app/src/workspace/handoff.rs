@@ -231,11 +231,16 @@ impl ThreadView {
 
     /// The providers this thread can continue in from this window: the others, unless the window shows another
     /// machine (the new thread couldn't open there).
+    /// The providers this thread can continue in: the others that have at least one account here (a provider with
+    /// none could only ever say to add one).
     pub(in crate::workspace) fn handoff_targets(&self) -> Vec<Provider> {
-        self.provider()
+        let mut targets = self
+            .provider()
             .filter(|_| !self.remote_window)
             .map(others)
-            .unwrap_or_default()
+            .unwrap_or_default();
+        targets.retain(|to| self.config.accounts.iter().any(|a| a.provider == *to));
+        targets
     }
 
     /// Asks the workspace to continue this thread in `to`.

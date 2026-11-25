@@ -129,3 +129,12 @@ fn a_long_thread_draws_a_bounded_rail_that_keeps_its_ends_and_the_current_tick()
         "out of range is ignored"
     );
 }
+
+/// T3's rail sits in the gutter left of the chat column: a timeline too narrow for one hides it until hovered.
+#[test]
+fn the_rail_shows_only_with_a_gutter() {
+    use gpui::px;
+    assert!(super::has_gutter(px(1000.)), "a wide timeline has room");
+    assert!(!super::has_gutter(px(760.)), "the column fills it");
+    assert!(!super::has_gutter(px(0.)), "not laid out yet");
+}

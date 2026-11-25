@@ -33,6 +33,22 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
     let src = project_thread(&f, &ws, cx);
     type_and_send(&src, cx);
     wait_done(&src, cx);
+    // Only providers with an account here are offered: the fixture's Claude one, plus a Codex one.
+    assert!(
+        src.read_with(cx, |t, _| t.handoff_targets()).is_empty(),
+        "no other provider has an account"
+    );
+    src.update(cx, |t, cx| {
+        cx.notify(); // the palette entries register as it draws
+        t.config.accounts.push(skyelab_core::Account {
+            id: "oai".into(),
+            label: "OpenAI".into(),
+            provider: Provider::Codex,
+            config_dir: f.project_dir.join(".codex-oai"),
+            gh_config_dir: None,
+            ssh_agent: false,
+        })
+    });
     let offered = |cx: &mut gpui::VisualTestContext| {
         src.update_in(cx, |t, window, cx| t.focus_prompt(window, cx));
         cx.update(|window, cx| {
@@ -43,7 +59,7 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
     };
     assert_eq!(
         src.read_with(cx, |t, _| t.handoff_targets()),
-        vec![Provider::Codex, Provider::Cursor, Provider::Antigravity]
+        vec![Provider::Codex]
     );
     assert!(offered(cx), "offered on this machine");
 
@@ -59,7 +75,7 @@ fn a_remote_window_hides_continue_in(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert_eq!(
         src.read_with(cx, |t, _| t.handoff_targets()),
-        vec![Provider::Codex, Provider::Cursor, Provider::Antigravity],
+        vec![Provider::Codex],
         "back on this machine"
     );
 }

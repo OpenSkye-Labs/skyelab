@@ -81,10 +81,17 @@ fn failed_and_text_only_turns_keep_their_divider() {
         Item::Text("hello".into()),
         done(false),
     ];
-    assert_eq!(
-        fold_head(&plain, 2),
-        None,
-        "nothing to fold: the divider stays"
+    assert_eq!(fold_head(&plain, 2), None, "nothing to fold");
+    // Its "Worked for" line goes above the reply, as a folded turn's does; a failed turn keeps its divider after.
+    let headed = |items: Vec<Item>, done: usize| {
+        let items: crate::workspace::thread_model::Items = items.into();
+        super::timeline_fold::headed(&items, done)
+    };
+    assert!(headed(plain, 2), "a reply turn: the line sits above the reply");
+    assert!(!headed(failed, 2), "a failed turn: the divider stays");
+    assert!(
+        !headed(vec![Item::Prompt("hi".into()), done(false)], 1),
+        "nothing above to head: the divider stays"
     );
 }
 
