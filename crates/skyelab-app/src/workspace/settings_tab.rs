@@ -63,6 +63,7 @@ impl Workspace {
         settings.update(cx, |s, cx| s.show(section, window, cx));
         if section == crate::settings::Section::Usage {
             self.reload_usage(cx);
+            self.poll_usage(cx);
         }
         if section == crate::settings::Section::Scheduled
             && let Some(page) = settings.read(cx).scheduled.clone()
@@ -154,7 +155,8 @@ impl Workspace {
             .and_then(|s| s.read(cx).usage.clone());
         if let Some(page) = page {
             let (store, config) = (self.backend.store.clone(), self.config.clone());
-            page.update(cx, |p, cx| p.reload(store, &config, cx));
+            let errors = self.usage_poll.errors();
+            page.update(cx, |p, cx| p.reload(store, &config, errors, cx));
         }
     }
 
@@ -197,6 +199,7 @@ impl Workspace {
             this.reload_accounts();
             this.push_config(cx);
             this.refresh_logins(cx); // an account added or its folder changed; cached answers aren't asked again
+            this.poll_usage(cx); // Usage picked in the nav
             cx.notify();
             // Every window binds folders from the same file.
             this.each_other_window(cx, |ws, cx| {

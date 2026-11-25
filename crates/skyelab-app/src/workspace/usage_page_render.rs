@@ -186,6 +186,13 @@ fn account_line(
                     .children(a.windows.iter().map(|w| usage_bar(w, now, theme))),
             )
         })
+        .children(a.refresh_error.as_ref().map(|e| {
+            div()
+                .id(SharedString::from(format!("usage-refresh-error-{}", a.id)))
+                .text_size(ui::META)
+                .text_color(theme.muted_foreground)
+                .child(format!("Couldn't refresh limits: {e}"))
+        }))
         .when(no_reading, |el| {
             el.child(
                 div()

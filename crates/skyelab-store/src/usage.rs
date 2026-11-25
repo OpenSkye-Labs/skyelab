@@ -28,6 +28,57 @@ impl Store {
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
+
+    /// Stores readings the account's CLI gave when asked (the usage poll), like the `usage_reading_insert` trigger
+    /// keeps a thread's: a reading with a window and a percentage becomes that window's newest. Only a summary (no
+    /// window) replaces the `""` row, so a poll's plain readings never hide or lift a "Limited" a turn reported.
+    pub fn record_usage(&self, account_id: &str, payloads: &[String], at: i64) -> Result<()> {
+        for p in payloads {
+            self.conn.execute(
+                "INSERT OR REPLACE INTO usage_readings (account_id, window, payload_json, created_at)
+                 SELECT ?1, CASE WHEN json_type(?2, '$.RateLimit.window') = 'text'
+                                 THEN json_extract(?2, '$.RateLimit.window') ELSE '' END, ?2, ?3
+                 WHERE json_valid(?2) AND json_type(?2, '$.RateLimit') = 'object'
+                   AND (json_type(?2, '$.RateLimit.window') IS NULL
+                        OR (json_type(?2, '$.RateLimit.window') = 'text'
+                            AND json_type(?2, '$.RateLimit.used') IN ('integer', 'real')))",
+                rusqlite::params![account_id, p, at],
+            )?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod record_tests {
+    use crate::Store;
+
+    #[test]
+    fn a_poll_keeps_windows_and_only_a_summary_touches_limited() {
+        let s = Store::open_in_memory().expect("store");
+        let limited = r#"{"RateLimit":{"limited":true,"resets_at":5}}"#.to_owned();
+        s.record_usage("a", &[limited.clone()], 1).expect("summary");
+        let five =
+            r#"{"RateLimit":{"limited":false,"resets_at":9,"window":"five_hour","used":0.4}}"#;
+        let status_only = r#"{"RateLimit":{"limited":false,"window":"five_hour"}}"#;
+        s.record_usage(
+            "a",
+            &[five.into(), status_only.into(), "not json".into()],
+            2,
+        )
+        .expect("readings");
+        let mut got = s.usage_readings("a").expect("read");
+        got.sort_by(|x, y| x.window.cmp(&y.window));
+        let got: Vec<_> = got
+            .iter()
+            .map(|r| (r.window.as_str(), r.payload_json.as_str(), r.created_at))
+            .collect();
+        assert_eq!(got, vec![("", limited.as_str(), 1), ("five_hour", five, 2)]);
+        assert!(
+            s.usage_readings("b").expect("read").is_empty(),
+            "per account"
+        );
+    }
 }
 
 /// How many days the Usage page reads: today and the 29 before it.

@@ -60,6 +60,7 @@ mod terminal_tab;
 mod terminals;
 pub(crate) mod usage_page;
 mod usage_page_render;
+mod usage_poll;
 use terminal_launch::{terminal_env, unbound_root};
 mod accounts_file;
 mod add_project;
@@ -207,6 +208,8 @@ pub struct Workspace {
     /// The shown thread's details card, floating over the chat while `details_open` (T3's thread details).
     details: Entity<details_panel::DetailsPanel>,
     details_open: bool,
+    /// Asks the accounts' CLIs for their limits while Usage or the details card is shown.
+    usage_poll: usage_poll::UsagePoll,
     /// The right dock's first tab, "Open a surface".
     surfaces: Entity<surfaces::SurfacesPanel>,
     layout: layout::LayoutStore,
@@ -401,6 +404,7 @@ impl Workspace {
             terminals_empty: Some(terminals_empty),
             details,
             details_open: false,
+            usage_poll: Default::default(),
             surfaces,
             layout: Default::default(),
             _window_bounds: None,
