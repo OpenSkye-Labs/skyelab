@@ -65,7 +65,11 @@ to a default account: no pick, no thread. Remove the project or its binding like
   on the default reported, else the `model` in the account's Claude `settings.json` or Codex `config.toml` (SkyeLab reads only that
   field and never writes there), else Codex's listed default, else **Claude default**. It sets the model and effort for this
   thread: Opus, Sonnet, Haiku or Fable with effort Low to Max for Claude, or the models Codex lists for your account.
-  A pick is kept on the thread and becomes the project's default for new threads. A running Claude agent switches
+  The chip shows the provider's logo, and opens a picker: on the left, the folder's account (it's there to tell you
+  which account runs; the picker never switches account or provider), in the middle a search box and the account's
+  models with a check on the current one, and on the right the effort levels for that model. Type to narrow the list,
+  <kbd>↑</kbd> <kbd>↓</kbd> and <kbd>↩</kbd> to pick, <kbd>⌘1</kbd>–<kbd>⌘9</kbd> (Ctrl elsewhere) to pick the
+  Nth model, <kbd>Esc</kbd> to close. A pick is kept on the thread and becomes the project's default for new threads. A running Claude agent switches
   model from the next message; a new effort applies the next time it starts.
 - **While the agent works**, Send queues the message instead: it shows above the composer with **Sends when the
   agent finishes**, and goes as soon as the turn ends, in order. **Steer** on a queued message, or

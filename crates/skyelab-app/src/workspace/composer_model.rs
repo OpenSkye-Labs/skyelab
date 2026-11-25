@@ -15,7 +15,7 @@ impl ThreadView {
     pub(in crate::workspace) fn pick_model(&mut self, pick: ModelChoice, cx: &mut Context<Self>) {
         self.composer.pick = pick.clone();
         self.composer.picked = true;
-        self.composer.picker_open = false;
+        self.close_picker(cx);
         let (store, thread, project) = (
             self.backend.store.clone(),
             self.thread.as_ref().map(|t| t.id),

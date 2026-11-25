@@ -52,4 +52,5 @@ pub(in crate::workspace) fn bind_keys(cx: &mut App) {
     ]);
     super::composer_draft::bind_keys(cx);
     super::composer_voice::bind_keys(cx);
+    super::composer_picker_keys::bind_keys(cx);
 }

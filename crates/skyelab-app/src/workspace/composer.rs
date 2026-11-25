@@ -29,6 +29,8 @@ mod composer_model;
 mod composer_paste_test;
 #[path = "composer_picker.rs"]
 mod composer_picker;
+#[path = "composer_picker_keys.rs"]
+mod composer_picker_keys;
 #[path = "composer_queue.rs"]
 mod composer_queue;
 #[cfg(test)]
@@ -61,6 +63,9 @@ mod context_chips_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "live_rebind_test.rs"]
 mod live_rebind_test;
+#[cfg(all(test, unix))] // the fake agents are shell scripts
+#[path = "model_picker_keys_test.rs"]
+mod model_picker_keys_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "prompt_stash_test.rs"]
 mod prompt_stash_test;
@@ -112,7 +117,11 @@ impl ThreadView {
         let menu_el = menu.map(|m| self.render_menu(m, cx));
         let stash_menu = self.render_stash_menu(cx);
         let stash_badge = self.render_stash_badge(cx);
-        let picker = self.composer.picker_open.then(|| self.render_picker(cx));
+        let picker = self
+            .composer
+            .picker
+            .is_some()
+            .then(|| self.render_picker(window, cx));
         let attachments = self.render_attachments(cx);
         let contexts = self.render_contexts(cx);
         let controls = self.render_controls(cx);
@@ -253,7 +262,9 @@ impl ThreadView {
                 Button::new("model-picker")
                     .ghost()
                     .small()
-                    .icon(SkyeIcon::Model)
+                    .icon(self.composer_account().map_or(SkyeIcon::Model, |a| {
+                        crate::settings::provider_icon(a.provider)
+                    }))
                     .label(chip)
                     .dropdown_caret(true)
                     .tooltip(if account_default {
@@ -261,7 +272,7 @@ impl ThreadView {
                     } else {
                         "Model and effort"
                     })
-                    .on_click(cx.listener(|this, _, _, cx| this.toggle_picker(cx))),
+                    .on_click(cx.listener(|this, _, window, cx| this.toggle_picker(window, cx))),
             )
             .children(self.render_voice(cx))
             .child(h_flex().pl_1().gap_1().children(self.render_primary(cx)))

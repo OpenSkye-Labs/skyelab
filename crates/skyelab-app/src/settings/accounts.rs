@@ -22,12 +22,17 @@ pub(super) fn slug(name: &str) -> String {
     out.trim_end_matches('-').to_owned()
 }
 
+/// The provider's logo (docs/design/third-party-marks.md).
+pub(crate) fn provider_icon(provider: Provider) -> SkyeIcon {
+    match provider {
+        Provider::Claude => SkyeIcon::Claude,
+        Provider::Codex => SkyeIcon::Codex,
+    }
+}
+
 /// The provider's mark: a 32 px tile tinted with the account's color.
 pub(crate) fn provider_mark(provider: Provider, color: gpui::Hsla) -> gpui::Div {
-    let icon = match provider {
-        Provider::Claude => Icon::new(SkyeIcon::Claude),
-        Provider::Codex => Icon::new(SkyeIcon::Codex),
-    };
+    let icon = Icon::new(provider_icon(provider));
     div()
         .flex_shrink_0()
         .size_8()
