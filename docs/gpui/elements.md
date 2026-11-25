@@ -92,6 +92,12 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A dock's empty state is a panel that stays its first tab (the right dock's "Open a surface", the bottom dock's
   `TerminalsEmpty`), so the dock never goes empty. Letter keys bound in its own key context (`Surfaces`) map straight
   to the workspace's actions and fire only while it has focus.
+- gpui-component 0.11 always draws a dock tab bar's "…" menu, and it always holds Zoom In, disabled unless the panel
+  zooms (`BasePanel::zoomable` and a menu-visible `Panel::zoom_control`; `Toolbar` alone disables it too). A disabled
+  item looks enabled and a click on it keeps the menu open, so every dock panel keeps the defaults (zoomable,
+  `PanelControl::Menu`, or `Both` for a toolbar button). A zoomed group fills the window, so on macOS `CenterTabs` pads
+  its bar past the traffic lights. Panel controls in the bar go in `Panel::title_suffix` (it takes any element);
+  `toolbar_buttons` wants gpui-component's banned `Button`.
 - `Panel::on_removed` fires only when a panel leaves the dock for good (its tab closed, `remove_panel`), not when it
   moves between tab groups, so it is where a closed tab records how to come back (`workspace/reopen.rs`). It gets the
   `Window`, so per-window state is keyed by `window.window_handle()`.
@@ -197,8 +203,3 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
   `img(path)`.** `img` with an embedded path loads through the app's `AssetSource` and keeps the file's own fills. Provider
   logos go through `ui::provider_logo` for that reason (docs/design/third-party-marks.md). Never `img()` an SVG from
   outside the app's own assets (usvg follows `<image href>`).
-- **A popover's search field holds the focus after the popover is gone** unless closing hands it back: record where
-  the focus goes (the composer's prompt, not whatever had it, since a click on the trigger button may own it) and
-  restore it in a `cx.defer` only while the hidden field is still focused (`composer_picker_keys::close_picker`).
-- **Reset a list highlight on the field's `InputEvent::Change`, not on `cx.observe`**: an `InputState` notifies on focus
-  and on every cursor blink, so an observer resets the highlight all the time.

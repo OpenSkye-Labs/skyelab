@@ -22,6 +22,7 @@ impl Workspace {
                 crate::workspace::dispatch(Box::new(OpenSettings), window, cx)
             });
         let remote = self.is_remote();
+        let devices_shown = self.devices_shown(cx);
         // Debug mode on: a chip that shows or hides the overlay (docs/debugging.md).
         let debug = skyelab_core::debug::enabled().then(|| {
             Button::new("status-debug")
@@ -61,7 +62,13 @@ impl Workspace {
                     .ghost()
                     .xsmall()
                     .label("Devices")
-                    .tooltip("iOS Simulators and Android emulators")
+                    .toggled(devices_shown)
+                    .selected(devices_shown)
+                    .tooltip_with_action(
+                        "iOS Simulators and Android emulators",
+                        &OpenDevices,
+                        Some(super::CONTEXT),
+                    )
                     .on_click(|_, window, cx| {
                         crate::workspace::dispatch(Box::new(OpenDevices), window, cx)
                     }),

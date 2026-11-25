@@ -1,10 +1,10 @@
 //! The workspace's dock panels and the dock traits each one needs.
 
 use crate::ui;
-use crate::ui::{Button, Kbd};
+use crate::ui::Button;
 use gpui::{
-    Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, Keystroke,
-    SharedString, Window, div, prelude::*,
+    Action, App, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement, SharedString,
+    Window, div, prelude::*,
 };
 use gpui_component::{
     ActiveTheme as _, Icon,
@@ -30,9 +30,6 @@ macro_rules! panel {
             fn closable(&self, _: &App) -> bool {
                 $closable
             }
-            fn zoomable(&self, _: &App) -> bool {
-                false
-            }
             fn on_removed(&mut self, $rwindow: &mut Window, $rcx: &mut Context<Self>) {
                 let $rthis = &*self;
                 $removed
@@ -42,9 +39,6 @@ macro_rules! panel {
             fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
                 let $this = &*self;
                 $title
-            }
-            fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
-                None
             }
             fn title_bar(&self, _: &App) -> bool {
                 $title_bar
@@ -209,18 +203,28 @@ impl Render for TerminalsEmpty {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _render = crate::debug_renders::count("TerminalsEmpty");
         let theme = cx.theme();
-        h_flex()
+        // T3's empty drawer: a line and a New terminal button (with its key).
+        v_flex()
             .id("terminals-empty")
             .track_focus(&self.focus)
             .size_full()
+            .items_center()
             .justify_center()
-            .gap_2()
+            .gap_3()
             .bg(theme.background)
             .text_size(ui::BODY)
             .text_color(theme.muted_foreground)
-            .child("No terminal running. Press")
-            .children(Keystroke::parse(super::NEW_TERMINAL_KEY).ok().map(Kbd::new))
-            .child("to open one.")
+            .child("No terminal running.")
+            .child(
+                Button::new("terminals-empty-new")
+                    .outline()
+                    .xsmall()
+                    .label("New terminal")
+                    .key_hint(&super::NewTerminal, Some(super::CONTEXT))
+                    .on_click(|_, window, cx| {
+                        crate::workspace::dispatch(Box::new(super::NewTerminal), window, cx)
+                    }),
+            )
     }
 }
 
@@ -255,9 +259,6 @@ impl BasePanel for BrowserPanel {
     fn panel_name(&self) -> &'static str {
         "Browser"
     }
-    fn zoomable(&self, _: &App) -> bool {
-        false
-    }
     fn set_active(&mut self, active: bool, _: &mut Window, cx: &mut Context<Self>) {
         self.browser.update(cx, |b, cx| b.set_visible(active, cx));
     }
@@ -273,9 +274,6 @@ impl BasePanel for BrowserPanel {
 impl Panel for BrowserPanel {
     fn title(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.tab_title(cx)
-    }
-    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
-        None
     }
 }
 

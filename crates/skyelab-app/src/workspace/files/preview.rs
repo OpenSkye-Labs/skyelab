@@ -325,9 +325,6 @@ impl BasePanel for PreviewPanel {
     fn panel_name(&self) -> &'static str {
         "FilePreview"
     }
-    fn zoomable(&self, _: &App) -> bool {
-        false
-    }
     /// Not while edits are unsaved: no ×, and the tab's Close asks first (`close_panel`).
     fn closable(&self, _: &App) -> bool {
         !self.edit.dirty
@@ -347,9 +344,6 @@ impl BasePanel for PreviewPanel {
 impl Panel for PreviewPanel {
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         self.title_text()
-    }
-    fn zoom_control(&self, _: &App) -> Option<gpui_component::dock::PanelControl> {
-        None
     }
 }
 

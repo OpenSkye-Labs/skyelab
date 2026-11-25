@@ -18,7 +18,7 @@ fn device(id: &str, platform: Platform, state: DeviceState, kind: DeviceKind) ->
 
 /// No Xcode; two Android devices, one booting. Shutdown fails; every call is recorded.
 #[derive(Default)]
-struct Fake {
+pub(super) struct Fake {
     calls: Mutex<Vec<String>>,
 }
 
@@ -84,7 +84,7 @@ fn setup(cx: &mut TestAppContext) {
 }
 
 /// A workspace whose device source is `fake`, with the Devices tab opened by its key.
-fn open<S: DeviceSource>(
+pub(super) fn open<S: DeviceSource>(
     cx: &mut TestAppContext,
     fake: Arc<S>,
 ) -> (

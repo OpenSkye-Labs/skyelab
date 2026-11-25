@@ -30,6 +30,8 @@ pub(super) fn bind_keys(cx: &mut App) {
         KeyBinding::new("p", OpenThreadPr, c),
         KeyBinding::new("m", OpenDevices, c),
         KeyBinding::new("s", OpenSideChat, c),
+        // The picker is the right panel's way in: Esc puts it away, as on Devices.
+        KeyBinding::new("escape", super::layout::HideRightPanel, c),
     ]);
 }
 
@@ -100,8 +102,9 @@ impl Panel for SurfacesPanel {
     fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         Icon::new(SkyeIcon::Plus).size_3p5()
     }
+    // The expand button, and a working Zoom item in "…" (a menu-less control leaves that item disabled).
     fn zoom_control(&self, _: &App) -> Option<PanelControl> {
-        Some(PanelControl::Toolbar)
+        Some(PanelControl::Both)
     }
 }
 

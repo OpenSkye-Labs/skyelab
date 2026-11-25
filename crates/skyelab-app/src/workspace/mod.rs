@@ -39,6 +39,7 @@ mod import_sessions;
 mod keymap_notice;
 mod keys;
 pub(crate) mod layout;
+mod layout_close;
 mod left_rail;
 pub(crate) mod login_status;
 #[cfg(all(test, unix))] // the fake claude is a shell script

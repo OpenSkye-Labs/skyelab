@@ -33,3 +33,5 @@ either way.
 Opening SkyeLab again while it runs brings the running one forward (or opens a window in it) instead of starting a
 second copy, which would run scheduled tasks and resume threads twice. A build from source keeps its own data
 (`skyelab-dev`), so it runs next to the installed app with its own threads.
+
+<kbd>⌘W</kbd> (<kbd>Ctrl+W</kbd> on Linux and Windows) closes the right panel's active tab, as in T3 Code; in a focused terminal it closes that terminal instead (<kbd>Ctrl+Shift+W</kbd> off macOS). It never closes the window: on macOS use File → Close Window or the window's close button.

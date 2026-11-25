@@ -114,6 +114,7 @@ icons! {
     Quote => "quote",
     RefreshCw => "refresh-cw",
     Remote => "remote",
+    Rows2 => "rows2",
     Rows3 => "rows3",
     Search => "search",
     Settings => "settings",

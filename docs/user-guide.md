@@ -116,8 +116,8 @@ and **Stop** stops them (a subagent stops with the turn that runs it). Tools ope
 thread: **Changes**, browsers and **Devices**. The right panel's first tab (**+**) is **Open a surface**: Browser
 (<kbd>B</kbd>), Terminal (<kbd>T</kbd>), Files (<kbd>F</kbd>), Diff (<kbd>D</kbd>), Pull request (<kbd>P</kbd>),
 Linked items (<kbd>L</kbd>), Device (<kbd>M</kbd>) and Side chat (<kbd>S</kbd>). Press the letter while the panel has
-focus, or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
-The expand button at the panel's top right fills the window with it. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
+focus (<kbd>Esc</kbd> hides the panel), or click the row; a surface the shown thread can't have (no pull request linked, no thread open) is greyed out.
+The expand button at the panel's top right fills the window with it; press it again to put it back. Every right-panel and terminal tab also has **Zoom In** / **Zoom Out** in its **…** menu. **Reopen Closed View** (<kbd>⇧⌘T</kbd>) brings
 back the tab you closed last in this window: a browser tab on its page, the file preview on its file, or a Changes
 tab while its thread is open. Terminals, side chats and agents' browser tabs don't come back.
 
@@ -131,10 +131,8 @@ right panel leaves it no room beside the conversation, it covers the chat and a 
 and Windows, outside text fields), and so do a mouse's back and forward buttons.
 
 The page's top row shows where you are (project / thread) and its actions, and at its right end four buttons show
-and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). These buttons work wherever the focus is, a terminal included.
-<kbd>⌘W</kbd> (<kbd>Ctrl+W</kbd> on Linux and Windows) closes the right panel's active tab, as in T3 Code; in a focused
-terminal it closes that terminal instead (<kbd>Ctrl+Shift+W</kbd> off macOS). It never closes the window: on macOS use
-File → Close Window or the window's close button. Drag
+and hide the thread details card (<kbd>⇧⌘B</kbd>), the sidebar (<kbd>⌘B</kbd>), the terminal drawer (<kbd>⌘J</kbd>) and the right panel (<kbd>⌥⌘R</kbd>). These buttons work wherever the focus is, a terminal included. The terminal drawer's buttons: [user-guide-terminal.md](user-guide-terminal.md).
+Drag
 a panel's edge to resize it. Drag the sidebar's edge almost to the window's left edge and it fades; let go there and
 it hides (anywhere else the drag only resizes it, down to its minimum width). A hidden sidebar comes back with
 <kbd>⌘B</kbd> at the width it had, or from the thin handle that shows when you point at the middle of the window's
@@ -231,7 +229,7 @@ Sharing this machine over Tailscale, device approval and the environment switche
 
 ## Device hub
 
-Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar. It
+Open it with <kbd>⇧⌘D</kbd> (<kbd>Ctrl+Alt+D</kbd> on Linux and Windows), or **Devices** in the status bar, pressed while the tab shows. The key or button again, or <kbd>Esc</kbd> in the tab, hides it. It
 lists your iOS Simulators (macOS with Xcode) and Android emulators and devices (needs the Android SDK: SkyeLab looks in
 `ANDROID_HOME`, `ANDROID_SDK_ROOT`, Android Studio's default folder, then `PATH`). **Boot** starts a device. A booted one has **Shutdown**,
 **Screenshot**, **Open URL…** and **Install app…**. **Refresh** reloads the list.
