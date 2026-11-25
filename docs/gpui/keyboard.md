@@ -31,6 +31,10 @@ Part of [docs/gpui.md](../gpui.md); the same rules apply.
 - A read-only gpui-component text field drops ⌘↩ instead of emitting `InputEvent::PressEnter`, so a submit hung on
   that event stops working while it is read-only: bind the send action in a key context set only then
   (`ComposerDictation > Input`, `composer_voice.rs`).
+- A textarea with `submit_on_enter` handles a plain Enter by calling `cx.propagate()`, so if nothing above it handles
+  `input::Enter` the keystroke falls through to text input and still types a new line. Put a no-op
+  `.on_action(|_: &input::Enter, ..| {})` on an ancestor (the composer card, `composer.rs`), and update
+  `set_submit_on_enter` on every Change: the field has no getter, and the composer's send shortcut depends on the text.
 - A popup the workspace draws (even through `deferred`) still has the Workspace on its key dispatch path, and key
   bindings run before any element's `on_key_down`. So the workspace's `escape` → `FocusComposer` takes Escape before an
   open menu's own handler sees it, whenever a composer is on screen. Close such a popup from the bound action

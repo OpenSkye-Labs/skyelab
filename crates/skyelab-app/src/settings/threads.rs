@@ -10,7 +10,8 @@ use gpui::{AnyElement, Context, div, prelude::*};
 use gpui_component::{h_flex, v_flex};
 use skyelab_agent::{CLAUDE_EFFORTS, CLAUDE_MODELS, Mode};
 use skyelab_core::thread_defaults::ThreadField;
-use skyelab_core::{DiffSettings, ThreadSettings};
+use skyelab_core::{DiffSettings, SendShortcut, ThreadSettings};
+use std::rc::Rc;
 
 /// The permission modes a new thread may start in. Full access is confirmed per thread, never a default.
 const MODES: [(Mode, &str); 3] = [
@@ -169,6 +170,13 @@ impl Settings {
                 })),
             cx,
         )];
+        let composer = [setting(
+            true,
+            "Send shortcut",
+            "Choose when Enter sends a prompt or inserts a new line. Shift+Enter always inserts one.",
+            self.send_shortcut_choice(t.send_shortcut, cx),
+            cx,
+        )];
         v_flex()
             .gap_8()
             .child(section(
@@ -190,6 +198,12 @@ impl Settings {
             // App-wide only: a project picked shows just what it can override.
             .when(self.scope.is_none(), |d| {
                 d.child(section(
+                    "Composer",
+                    "How the prompt box sends.",
+                    composer,
+                    cx,
+                ))
+                .child(section(
                     "Titles",
                     "How threads get their names.",
                     titles,
@@ -198,6 +212,37 @@ impl Settings {
                 .child(self.render_visual_replies(cx))
             })
             .into_any_element()
+    }
+
+    /// Settings → Chat's send shortcut menu (T3's three choices).
+    fn send_shortcut_choice(&self, now: SendShortcut, cx: &Context<Self>) -> AnyElement {
+        let m = if cfg!(target_os = "macos") {
+            "⌘"
+        } else {
+            "Ctrl"
+        };
+        let choices = [
+            (SendShortcut::Enter, "Enter".to_owned()),
+            (
+                SendShortcut::ModEnterMultiline,
+                format!("{m} + Enter for multiline prompts"),
+            ),
+            (SendShortcut::ModEnter, format!("{m} + Enter always")),
+        ];
+        let key = |v: SendShortcut| Some(format!("{v:?}"));
+        let label = choices
+            .iter()
+            .find(|(v, _)| *v == now)
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
+        let options = choices.iter().map(|(v, l)| (key(*v), l.clone())).collect();
+        let pick: super::project_scope::Pick = Rc::new(move |this, picked, cx| {
+            if let Some((v, _)) = choices.iter().find(|(v, _)| key(*v) == picked) {
+                let v = *v;
+                this.set_threads(move |t| t.send_shortcut = v, cx);
+            }
+        });
+        self.dropdown("chat-send-shortcut", label, key(now), options, pick, cx)
     }
 
     pub(super) fn render_diffs(&self, cx: &mut Context<Self>) -> AnyElement {

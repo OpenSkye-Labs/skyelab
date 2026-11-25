@@ -31,8 +31,8 @@ pub mod scratch;
 pub mod snooze;
 pub use app_settings::{
     AppSettings, AppearanceSettings, ApprovedDevice, ColorMode, DiffSettings,
-    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, SidebarView, TerminalSettings, ThreadSettings,
-    VisualReplySettings, WindowLayout,
+    MAX_RECENT_ENVIRONMENTS, ScheduledSettings, SendShortcut, SidebarView, TerminalSettings,
+    ThreadSettings, VisualReplySettings, WindowLayout,
 };
 mod repo_hooks;
 pub mod terminal_context;

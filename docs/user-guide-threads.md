@@ -32,6 +32,8 @@ earlier prompt aren't brought back.
 
 A thread's own choice always wins. They live in three Settings sections:
 
+- **Chat → Send shortcut**: when Enter sends a prompt. **Enter** (the default), **⌘ + Enter for multiline prompts** or
+  **⌘ + Enter always**. <kbd>⇧↩</kbd> always adds a line and <kbd>⌘↩</kbd> always sends.
 - **Chat → Generate thread titles**: on by default.
 - **Chat → Visual replies**: the https hosts an agent's page may load scripts, styles and fonts from
   ([visual replies](user-guide-timeline.md)).

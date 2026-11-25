@@ -50,7 +50,9 @@ mod session;
 mod teardown;
 #[path = "thread_window.rs"]
 mod window_owner;
-pub(in crate::workspace) use window_owner::{PLACEHOLDER, new_list};
+pub(in crate::workspace) use window_owner::{
+    PLACEHOLDER, enter_sends, follow_send_shortcut, new_list,
+};
 
 #[path = "thread_context.rs"]
 pub(super) mod context_meter;

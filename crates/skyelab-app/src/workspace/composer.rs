@@ -67,6 +67,9 @@ mod prompt_stash_test;
 #[cfg(all(test, unix))] // the fake agents are shell scripts
 #[path = "quote_selection_test.rs"]
 mod quote_selection_test;
+#[cfg(all(test, unix))] // the fake agent is a shell script
+#[path = "send_shortcut_test.rs"]
+mod send_shortcut_test;
 #[cfg(test)]
 #[path = "side_commands_test.rs"]
 mod side_commands_test;
@@ -158,6 +161,8 @@ impl ThreadView {
         let theme = cx.theme();
         let card = v_flex()
             .id("composer-card")
+            // A submitting Enter propagates out of the textarea; stopping it here keeps it from being typed as a new line.
+            .on_action(|_: &gpui_component::input::Enter, _, _| {})
             .relative()
             .w_full()
             .rounded(ui::RADIUS_XL)
@@ -347,10 +352,21 @@ impl ThreadView {
                 .medium()
                 .icon(SkyeIcon::Send)
                 .rounded(round)
-                .tooltip(if running {
-                    "Queue for when the agent finishes (⌘↩). ⌘⇧↩ sends it now."
-                } else {
-                    "Send (⌘↩)"
+                .tooltip({
+                    // The send key the Send shortcut setting gives an empty prompt.
+                    let key = if crate::workspace::thread_extras::prefs::get(cx)
+                        .send_shortcut
+                        .enter_sends("")
+                    {
+                        "↩"
+                    } else {
+                        "⌘↩"
+                    };
+                    if running {
+                        format!("Queue for when the agent finishes ({key}). ⌘⇧↩ sends it now.")
+                    } else {
+                        format!("Send ({key})")
+                    }
                 })
                 .disabled(self.read_only || self.starting)
                 .on_click(
