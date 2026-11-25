@@ -7,7 +7,7 @@ use super::panels::Ask;
 use super::windows::{Windows, window_handles};
 use crate::ui::{Button, Checkbox};
 use gpui::{AnyWindowHandle, App, Global, SharedString, Window, prelude::*};
-use gpui_component::{ActiveTheme as _, WindowExt as _, dialog::DialogFooter, v_flex};
+use gpui_component::{ActiveTheme as _, WindowExt as _, v_flex};
 use skyelab_core::AppSettings;
 use std::cell::Cell;
 use std::path::PathBuf;
@@ -299,7 +299,7 @@ fn open(items: Vec<(SharedString, Blocker)>, window: &mut Window, cx: &mut App) 
                     ),
             )
             .footer(
-                DialogFooter::new()
+                crate::ui::dialog_footer()
                     .child(
                         Button::new("quit-cancel")
                             .outline()

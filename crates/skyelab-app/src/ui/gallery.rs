@@ -2,21 +2,19 @@
 //! from (docs/design/components.md). Debug builds, or Developer mode on: palette → "Open Ui Gallery" opens it in its
 //! own window.
 
+#[path = "gallery_sections.rs"]
+mod sections;
+use sections::{badges, buttons, command_rows, section, toasts};
+
 use super::{
-    AccountBadge, Button, Card, Checkbox, CommandRow, Divider, EmptyState, Kbd, Pill, SECTION,
-    SectionHeader, SegmentedControl, Size, SkyeIcon, StatusDot, Switch, Tabs, TextField, Variant,
-    dialog_cancel, dialog_footer, icon_button,
+    Button, Card, Checkbox, Divider, EmptyState, SECTION, SegmentedControl, Size, SkyeIcon, Switch,
+    Tabs, TextField, dialog_cancel, dialog_footer,
 };
 use gpui::{
     App, AppContext as _, Context, Entity, FontWeight, IntoElement, ParentElement as _, Render,
-    SharedString, Styled as _, Window, actions, div, prelude::*, px,
+    Styled as _, Window, actions, div, prelude::*, px,
 };
-use gpui_component::{
-    ActiveTheme as _, WindowExt as _, h_flex,
-    input::InputState,
-    menu::{DropdownMenu as _, PopupMenuItem},
-    v_flex,
-};
+use gpui_component::{ActiveTheme as _, WindowExt as _, h_flex, input::InputState, v_flex};
 
 actions!(skyelab, [OpenUiGallery]);
 
@@ -56,9 +54,13 @@ pub struct UiGallery {
     field: Entity<InputState>,
     search: Entity<InputState>,
     port: Entity<InputState>,
+    invalid: Entity<InputState>,
     locked: Entity<InputState>,
     /// The pointer is over the loading button: only then does its spinner turn, so an open gallery idles.
     spinning: bool,
+    /// Counter bumped by "Replay row appear" so `appear_row` runs on demand (0 idle frames when untouched).
+    appear_seq: u64,
+    appear_at: Option<std::time::Instant>,
 }
 
 impl UiGallery {
@@ -71,12 +73,15 @@ impl UiGallery {
             field: cx.new(|cx| InputState::new(window, cx).placeholder("Branch name")),
             search: cx.new(|cx| InputState::new(window, cx).placeholder("Search")),
             port: cx.new(|cx| InputState::new(window, cx).default_value("5173")),
+            invalid: cx.new(|cx| InputState::new(window, cx).default_value("not a host")),
             locked: cx.new(|cx| InputState::new(window, cx).placeholder("Disabled")),
             spinning: false,
+            appear_seq: 0,
+            appear_at: None,
         }
     }
 
-    fn open_dialog(window: &mut Window, cx: &mut App) {
+    pub(super) fn open_dialog(window: &mut Window, cx: &mut App) {
         crate::ui::open_dialog(window, cx, |dialog, _, _| {
             dialog
                 .w(px(420.))
@@ -95,255 +100,6 @@ impl UiGallery {
                 )
         });
     }
-}
-
-const VARIANTS: [(Variant, &str); 6] = [
-    (Variant::Primary, "Primary"),
-    (Variant::Secondary, "Secondary"),
-    (Variant::Ghost, "Ghost"),
-    (Variant::Outline, "Outline"),
-    (Variant::Danger, "Danger"),
-    (Variant::Warning, "Warning"),
-];
-
-const SIZES: [(Size, &str); 3] = [(Size::Xs, "xs"), (Size::Sm, "sm"), (Size::Md, "md")];
-
-/// Every toast kind as drawn, and a button that shows a live one (its fade in, its autohide).
-fn toasts(cx: &App) -> impl IntoElement {
-    use super::toast::{Handler, Toast, card};
-    let none: Handler = std::rc::Rc::new(|_, _| {});
-    let samples = [
-        Toast::new("Thread archived.").action("Undo", |_, _| {}),
-        Toast::info("Imported 3 sessions."),
-        Toast::success("Fix the flaky test").title("Thread completed"),
-        Toast::warning("Scheduled task \"Nightly\" is paused: no account."),
-        Toast::error("Couldn't start a scratch thread: no account bound."),
-    ];
-    v_flex()
-        .gap_2()
-        .items_start()
-        .children(
-            samples
-                .iter()
-                .enumerate()
-                .map(|(i, t)| card(1000 + i as u64, t, none.clone(), cx)),
-        )
-        .child(
-            Button::new("gallery-show-toast")
-                .label("Show toast")
-                .on_click(|_, window, cx| {
-                    super::toast::push(
-                        window,
-                        Toast::success("Debug state written.").title("Saved"),
-                        cx,
-                    )
-                }),
-        )
-}
-
-/// A titled block of the page.
-fn section(title: &'static str, body: impl IntoElement) -> impl IntoElement {
-    v_flex()
-        .gap_2()
-        .child(SectionHeader::new(title))
-        .child(body)
-}
-
-fn caption(text: impl Into<SharedString>, cx: &App) -> impl IntoElement {
-    div()
-        .w(px(84.))
-        .flex_shrink_0()
-        .text_size(super::META)
-        .text_color(cx.theme().muted_foreground)
-        .child(text.into())
-}
-
-fn buttons(loading: impl IntoElement, cx: &App) -> impl IntoElement {
-    let grid = VARIANTS.iter().map(|&(v, name)| {
-        h_flex()
-            .gap_3()
-            .child(caption(name, cx))
-            .children(SIZES.iter().map(move |&(s, sn)| {
-                Button::new(SharedString::from(format!("g-{name}-{sn}")))
-                    .variant(v)
-                    .with_size(s)
-                    .label(name)
-            }))
-            .child(
-                Button::new(SharedString::from(format!("g-{name}-icon")))
-                    .variant(v)
-                    .icon(SkyeIcon::Plus)
-                    .label("New thread"),
-            )
-            .child(
-                Button::new(SharedString::from(format!("g-{name}-end")))
-                    .variant(v)
-                    .label("Open")
-                    .icon_end(SkyeIcon::ExternalLink),
-            )
-            .child(
-                Button::new(SharedString::from(format!("g-{name}-sq")))
-                    .variant(v)
-                    .icon(SkyeIcon::Settings)
-                    .tooltip("Icon only"),
-            )
-            .child(
-                Button::new(SharedString::from(format!("g-{name}-dis")))
-                    .variant(v)
-                    .label("Disabled")
-                    .disabled(true),
-            )
-    });
-    let states = h_flex()
-        .gap_3()
-        .flex_wrap()
-        .child(caption("States", cx))
-        .child(Button::new("g-save").primary().label("Save"))
-        .child(Button::new("g-later").secondary().label("Later"))
-        .child(loading)
-        .child(
-            Button::new("g-selected")
-                .ghost()
-                .icon(SkyeIcon::PanelLeft)
-                .label("Selected")
-                .selected(true),
-        )
-        .child(
-            Button::new("g-key")
-                .outline()
-                .label("Command palette")
-                .key_hint(&crate::palette::OpenCommandPalette, Some("Workspace")),
-        )
-        .child(
-            Button::new("g-caret")
-                .ghost()
-                .icon(SkyeIcon::Model)
-                .label("Opus")
-                .dropdown_caret(true)
-                .dropdown_menu(|menu, _, _| {
-                    menu.item(PopupMenuItem::new("Opus").checked(true))
-                        .item(PopupMenuItem::new("Sonnet"))
-                        .separator()
-                        .item(PopupMenuItem::new("Account default"))
-                }),
-        )
-        .child(
-            icon_button("g-iconbtn-xs", SkyeIcon::Copy)
-                .xsmall()
-                .tooltip("Copy (xs)"),
-        )
-        .child(icon_button("g-iconbtn-sm", SkyeIcon::Copy).tooltip("Copy (sm)"))
-        .child(
-            icon_button("g-iconbtn-md", SkyeIcon::Copy)
-                .medium()
-                .tooltip("Copy (md)"),
-        )
-        .child(
-            Button::new("g-tip-action")
-                .ghost()
-                .icon(SkyeIcon::Search)
-                .tooltip_with_action(
-                    "Command palette",
-                    &crate::palette::OpenCommandPalette,
-                    Some("Workspace"),
-                ),
-        )
-        .child(
-            Button::new("g-dialog")
-                .outline()
-                .label("Open dialog")
-                .on_click(|_, window, cx| UiGallery::open_dialog(window, cx)),
-        );
-    v_flex().gap_2().children(grid).child(states)
-}
-
-fn badges(cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    h_flex()
-        .gap_3()
-        .flex_wrap()
-        .child(Pill::new("Neutral"))
-        .child(Pill::new("Running").color(theme.info))
-        .child(Pill::new("Merged").color(theme.success))
-        .child(Pill::new("Limited").color(theme.warning))
-        .child(Pill::new("Failed").color(theme.danger))
-        .child(Pill::new("Worktree").icon(SkyeIcon::GitBranch))
-        .child(
-            Pill::new("PR #12")
-                .icon(SkyeIcon::GitPullRequest)
-                .color(theme.success),
-        )
-        .child(StatusDot::new(theme.info))
-        .child(
-            AccountBadge::new("work", "Work")
-                .provider(skyelab_core::Provider::Claude)
-                .chip(),
-        )
-        .child(AccountBadge::new("home", "Home"))
-        .child(AccountBadge::unbound().chip())
-        // Provider logos: the brands' own files in their own colors; the account's color is the tile's dot.
-        .child(super::provider_logo(
-            skyelab_core::Provider::Claude,
-            px(16.),
-            cx,
-        ))
-        .child(super::provider_logo(
-            skyelab_core::Provider::Codex,
-            px(16.),
-            cx,
-        ))
-        .child(crate::settings::provider_mark(
-            skyelab_core::Provider::Claude,
-            super::account_color_in(cx, "work"),
-            cx,
-        ))
-        .child(crate::settings::provider_mark(
-            skyelab_core::Provider::Codex,
-            super::account_color_in(cx, "home"),
-            cx,
-        ))
-        .child(Kbd::new(
-            gpui::Keystroke::parse("cmd-k").expect("a plain key parses"),
-        ))
-        .child(Kbd::new(
-            gpui::Keystroke::parse("cmd-shift-p").expect("a plain key parses"),
-        ))
-}
-
-/// The palette's rows: plain, a bold part and a shortcut, a subtitle, a toggle, a submenu; the second one selected.
-fn command_rows(cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    let key = |k: &'static str| Kbd::new(gpui::Keystroke::parse(k).expect("a plain key parses"));
-    let rows = [
-        CommandRow::new(SkyeIcon::NewThread, "New thread in skyelab")
-            .strong(crate::palette::match_ranges(
-                "",
-                "New thread in skyelab",
-                Some(14..21),
-            ))
-            .shortcut(Some(key("cmd-n"))),
-        CommandRow::new(SkyeIcon::NewThread, "New thread in…").submenu(true),
-        CommandRow::new(SkyeIcon::Copy, "Copy thread")
-            .subtitle(Some("Fix the flaky login test".into())),
-        CommandRow::new(SkyeIcon::Remote, "Toggle Sharing on Tailnet").checked(Some(true)),
-        CommandRow::new(SkyeIcon::Settings, "Open Settings")
-            .strong(crate::palette::match_ranges("set", "Open Settings", None))
-            .shortcut(Some(key("cmd-,"))),
-    ];
-    div()
-        .w(px(520.))
-        .flex()
-        .flex_col()
-        .children(rows.into_iter().enumerate().map(|(i, row)| {
-            div()
-                .px_2()
-                .py_1p5()
-                .rounded(super::RADIUS_MD)
-                .when(i == 1, |d| {
-                    d.bg(theme.accent).text_color(theme.accent_foreground)
-                })
-                .child(row)
-        }))
 }
 
 impl Render for UiGallery {
@@ -467,6 +223,7 @@ impl Render for UiGallery {
                     .xsmall()
                     .suffix(div().text_color(theme.muted_foreground).child("port")),
             )
+            .child(TextField::new(&self.invalid).small().invalid(true))
             .child(TextField::new(&self.locked).small().disabled(true));
         let surfaces = h_flex()
             .gap_4()
@@ -508,6 +265,48 @@ impl Render for UiGallery {
                             .child("Right"),
                     ),
             );
+        let sample_row = div()
+            .px_3()
+            .py_2()
+            .rounded(super::RADIUS_MD)
+            .border_1()
+            .border_color(theme.border)
+            .bg(theme.muted)
+            .text_size(super::META)
+            .child(format!(
+                "Row appearance #{} (100 ms ease-out quad, 4 px relative rise)",
+                self.appear_seq
+            ))
+            .into_any_element();
+        let motion_box = v_flex()
+            .gap_3()
+            .items_start()
+            .child(
+                h_flex()
+                    .gap_3()
+                    .child(
+                        Button::new("g-replay-row")
+                            .outline()
+                            .small()
+                            .label("Replay row appear")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.appear_seq += 1;
+                                this.appear_at = Some(std::time::Instant::now());
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Switch::new("g-reduce-motion")
+                            .label("Reduce motion")
+                            .checked(cx.reduce_motion())
+                            .on_click(|on: &bool, _, cx| cx.set_reduce_motion(*on)),
+                    ),
+            )
+            .child(super::motion::appear_since(
+                sample_row,
+                self.appear_at,
+                ("g-appear-row", self.appear_seq),
+            ));
         let title = div()
             .text_size(SECTION)
             .font_weight(FontWeight::SEMIBOLD)
@@ -534,6 +333,7 @@ impl Render for UiGallery {
                     .child(section("Segmented control and tabs", choices))
                     .child(section("Text field", fields))
                     .child(section("Card, divider, empty state", surfaces))
+                    .child(section("Motion", motion_box))
                     .child(section("Toasts", toasts(cx))),
             )
             .children(super::toast::layer(window, cx))

@@ -6,8 +6,8 @@ use super::thread::ThreadView;
 use super::thread_model::Record;
 use crate::ui;
 use gpui::{
-    AnyElement, App, Context, EventEmitter, FocusHandle, Focusable, FontWeight, IntoElement,
-    Render, Subscription, WeakEntity, Window, div, prelude::*,
+    AnimationExt as _, AnyElement, App, Context, EventEmitter, FocusHandle, Focusable, FontWeight,
+    IntoElement, Render, Subscription, WeakEntity, Window, div, prelude::*,
 };
 use gpui_component::{ActiveTheme as _, Theme, h_flex, v_flex};
 use skyelab_agent::Event;
@@ -261,6 +261,8 @@ impl Render for DetailsPanel {
                 .into_any_element(),
         };
         // The layer is the whole height under the header; the card takes what its content needs and scrolls past that.
+        let dark = theme.is_dark();
+        let border = if dark { theme.input } else { theme.border };
         v_flex().size_full().child(
             div()
                 .id("details-panel")
@@ -272,13 +274,20 @@ impl Render for DetailsPanel {
                 .p_1p5()
                 .rounded(ui::RADIUS_XL)
                 .border_1()
-                .border_color(theme.border)
+                .border_color(border)
                 .bg(theme.popover)
-                .shadow_lg()
                 .on_mouse_down_out(cx.listener(|_, e: &gpui::MouseDownEvent, _, cx| {
                     cx.emit(OutsidePress(e.position))
                 }))
-                .child(content),
+                .child(content)
+                .with_animation(
+                    "details-card-in",
+                    gpui::Animation::new(ui::motion::FADE).with_easing(ui::motion::ease_out_quad),
+                    move |el, t| {
+                        el.opacity(t)
+                            .shadow(ui::motion::overlay_shadow(t * t * t, dark))
+                    },
+                ),
         )
     }
 }

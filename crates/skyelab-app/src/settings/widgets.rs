@@ -5,12 +5,12 @@
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::{Button, Tooltip};
-use gpui::{AnyElement, App, ClipboardItem, SharedString, div, prelude::*, rems};
+use gpui::{AnyElement, App, ClipboardItem, SharedString, div, prelude::*};
 use gpui_component::{ActiveTheme as _, h_flex, v_flex};
 use std::path::Path;
 
 /// A row description's size: 13 px at the default text size.
-pub(super) const DESC: gpui::Rems = rems(13. / 14.);
+pub(super) const DESC: gpui::Rems = ui::SUBTEXT;
 
 /// A section's heading: semibold title, then a muted line saying what it is for.
 pub(super) fn heading(title: &str, about: &str, cx: &App) -> gpui::Div {

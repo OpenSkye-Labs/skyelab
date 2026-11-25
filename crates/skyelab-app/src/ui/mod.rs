@@ -109,15 +109,21 @@ pub const RADIUS: Pixels = px(8.);
 pub const RADIUS_LG: Pixels = px(12.);
 pub const RADIUS_XL: Pixels = px(16.);
 
-/// Type scale (§2): `META` for times, paths, labels and section captions, `BODY` for rows and prose, `CODE` for mono, `SECTION` for a settings section title, `PAGE` for a page title.
-/// Weights: titles semibold, labels and selected rows medium. In rems of the theme's font size
-/// (gpui-component's `Root` sets the rem to it), so Settings → Appearance's text size scales every view; at the
-/// default 14 they are 12, 14, 13, 16 and 20 px.
+/// Type scale (§2): `MICRO` for counters and compact badges, `META` for times, paths, labels and section captions,
+/// `SUBTEXT` for control labels and settings descriptions, `CODE` for mono, `BODY` for rows and prose, `SECTION` for a
+/// settings section title, `PAGE` for a page title, `HERO` for onboarding headings, `DISPLAY` for large totals.
+/// Weights: titles semibold, labels and selected rows medium. In rems of the theme's font size (gpui-component's `Root`
+/// sets the rem to it), so Settings → Appearance's text size scales every view; at the default 14 they are 11, 12, 13,
+/// 13, 14, 16, 20, 26 and 30 px.
+pub const MICRO: Rems = rems(11. / 14.);
 pub const META: Rems = rems(12. / 14.);
+pub const SUBTEXT: Rems = rems(13. / 14.);
 pub const BODY: Rems = rems(1.);
 pub const CODE: Rems = rems(13. / 14.);
 pub const SECTION: Rems = rems(16. / 14.);
 pub const PAGE: Rems = rems(20. / 14.);
+pub const HERO: Rems = rems(26. / 14.);
+pub const DISPLAY: Rems = rems(30. / 14.);
 
 /// Control sizes (§6, T3's button `xs` / `sm` / default): the height of a button, text field, segmented control or
 /// icon button (square), with its icon size, text size, side padding and gap. One place to resize every control.
@@ -152,7 +158,7 @@ impl Size {
     pub fn text(self) -> Rems {
         match self {
             Self::Xs => META,
-            Self::Sm | Self::Md => CODE,
+            Self::Sm | Self::Md => SUBTEXT,
         }
     }
 
@@ -269,14 +275,14 @@ pub fn account_color_in(cx: &gpui::App, id: &str) -> Hsla {
 }
 
 /// A status color used as text. In light themes the 500-weight status colors are too light to read on the canvas
-/// (amber is about 2:1), so text takes them 40% toward the foreground, like T3's `-foreground` 700 shades; dots and
+/// (amber is about 2:1), so text takes them 45% toward the foreground, like T3's `-foreground` 700 shades; dots and
 /// icons keep the plain color. Dark themes read fine as is.
 pub fn ink(theme: &Theme, color: Hsla) -> Hsla {
     use gpui_component::Colorize as _;
     if theme.is_dark() {
         color
     } else {
-        color.mix_oklab(theme.foreground, 0.6)
+        color.mix_oklab(theme.foreground, 0.55)
     }
 }
 

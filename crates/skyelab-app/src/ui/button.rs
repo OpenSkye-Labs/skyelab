@@ -368,7 +368,14 @@ impl RenderOnce for Button {
             .key_hint
             .as_ref()
             .and_then(|(a, ctx)| Kbd::for_action(a.as_ref(), ctx.as_deref(), window));
-        let (hover, active, ring) = (c.hover, c.active, theme.ring);
+        let (hover, active) = (c.hover, c.active);
+        // Primary and Danger fills match or clash with `theme.ring`, so their inset focus ring uses their high-contrast
+        // foreground color while neutral variants use `theme.ring`.
+        let focus_ring = match self.variant {
+            Variant::Primary => theme.primary_foreground,
+            Variant::Danger => theme.danger_foreground,
+            _ => theme.ring,
+        };
 
         let mut base = self.base;
         // The caller's own style (`.w_full()`, `.rounded(..)`) goes on last, so it wins over ours.
@@ -397,7 +404,7 @@ impl RenderOnce for Button {
             .when(interactive && !self.selected, |b| {
                 b.hover(move |s| s.bg(hover)).active(move |s| s.bg(active))
             })
-            .focus_visible(move |s| s.border_color(ring))
+            .focus_visible(move |s| s.border_2().border_color(focus_ring))
             .when(self.disabled, |b| b.opacity(DISABLED_OPACITY))
             .when(self.loading && !self.disabled, |b| b.opacity(0.8))
             .selected(self.selected)
@@ -418,14 +425,10 @@ impl RenderOnce for Button {
             });
         base.style().refine(&caller);
 
-        let lead = if self.loading && !self.spin {
+        let lead = if self.loading && (!self.spin || cx.reduce_motion()) {
             Some(
-                Self::icon_el(
-                    Icon::new(gpui_component::IconName::Loader),
-                    size.icon(),
-                    c.icon,
-                )
-                .into_any_element(),
+                Self::icon_el(Icon::new(SkyeIcon::LoaderCircle), size.icon(), c.icon)
+                    .into_any_element(),
             )
         } else if self.loading {
             Some(

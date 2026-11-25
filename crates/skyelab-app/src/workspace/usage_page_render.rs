@@ -36,7 +36,7 @@ fn turns(n: u64) -> String {
     }
 }
 
-/// A segmented toggle (T3's `ToggleGroup variant="segmented"`): a muted track, the chosen segment lifted.
+/// A segmented toggle (T3's `ToggleGroup variant="segmented"`): thin typed adapter over [`ui::SegmentedControl`].
 pub(super) fn segments<T: Copy + PartialEq + 'static, V: 'static>(
     id: &'static str,
     items: &[(T, &'static str)],
@@ -44,39 +44,15 @@ pub(super) fn segments<T: Copy + PartialEq + 'static, V: 'static>(
     pick: impl Fn(&mut V, T, &mut Context<V>) + Copy + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let theme = cx.theme();
-    h_flex()
-        .id(id)
-        .p_0p5()
-        .gap_0p5()
-        .rounded(ui::RADIUS)
-        .bg(theme.muted)
-        .border_1()
-        .border_color(theme.border)
-        .children(items.iter().map(|&(v, label)| {
-            let chosen = v == on;
-            div()
-                .id(SharedString::from(format!("{id}-{label}")))
-                .h(px(24.))
-                .px_2p5()
-                .flex()
-                .items_center()
-                .rounded(ui::RADIUS_MD)
-                .text_size(ui::META)
-                .font_weight(FontWeight::MEDIUM)
-                .cursor_pointer()
-                .when(chosen, |el| {
-                    el.bg(theme.background)
-                        .text_color(theme.foreground)
-                        .border_1()
-                        .border_color(theme.border)
-                })
-                .when(!chosen, |el| {
-                    el.text_color(theme.muted_foreground)
-                        .hover(|el| el.text_color(theme.foreground))
-                })
-                .child(label)
-                .on_click(cx.listener(move |this, _, _, cx| pick(this, v, cx)))
+    let values: Vec<T> = items.iter().map(|&(v, _)| v).collect();
+    let selected = values.iter().position(|&v| v == on);
+    ui::SegmentedControl::new(id)
+        .items(items.iter().map(|&(_, label)| label))
+        .selected(selected)
+        .on_click(cx.listener(move |this, &ix: &usize, _, cx| {
+            if let Some(&v) = values.get(ix) {
+                pick(this, v, cx);
+            }
         }))
         .into_any_element()
 }
@@ -123,7 +99,7 @@ fn account_line(
                         .child(
                             div()
                                 .flex_shrink_0()
-                                .text_size(px(11.))
+                                .text_size(ui::MICRO)
                                 .text_color(theme.muted_foreground)
                                 .child(format!(
                                     "{} · {}",
@@ -243,7 +219,7 @@ fn chart(view: &UsageView, colors: &[Hsla], theme: &Theme) -> AnyElement {
         .child(
             h_flex()
                 .justify_between()
-                .text_size(px(11.))
+                .text_size(ui::MICRO)
                 .text_color(theme.muted_foreground)
                 .child(format!("{} days ago", DAYS - 1))
                 .child("Today"),
@@ -313,7 +289,7 @@ impl Render for UsagePage {
                     .child(
                         div()
                             .id("usage-total")
-                            .text_size(px(30.))
+                            .text_size(ui::DISPLAY)
                             .font_weight(FontWeight::SEMIBOLD)
                             .child(value(metric, &view.total)),
                     )

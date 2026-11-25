@@ -57,7 +57,8 @@ things that switch, get selected or go away change at once.
 | Tab new / switch / close, settings page, hover, focus | none | 0 | — | already instant |
 | Toast | fade in, no slide; leaves at once | 150 ms | ease-out quad | `ui::toast` (our own layer; gpui-component's is banned) |
 | New list row | fade + ~0.97 scale | 80–100 ms | — | `motion::appear_row` (new thread in the sidebar, new timeline rows) |
-| Menus, popovers | native (system) | — | — | already instant: gpui-component's `PopupMenu`, `DropdownMenu`, context menu, `Popover` and `HoverCard` have no motion. Only its `Select` / input completion / date picker list (`popover::dropdown_popup`) fades + slides 8 px over 150 ms, private constants, no option: SkyeLab has one `Select` (Settings → Bindings) |
+| Menus, popovers | native (system) | — | — | already instant: gpui-component's `PopupMenu`, `DropdownMenu`, context menu, and `HoverCard` have no motion; `Select` is banned in clippy in favor of `ui::Button::dropdown_menu`. Floating overlays (`settings_modal`, `details_card`, `env_menu`) fade in over `FADE` / `FADE_FAST` with a `t³` shadow ramp (`motion::overlay_shadow`) and dismiss at once. |
+| Switch thumb | critically damped spring | ~150 ms to rest | `SPRING_PX` | `ui::Switch` (`ui/toggle.rs`) drives thumb `.ml(...)` via `gpui_base::spring`; 0 idle frames, snaps under `reduce_motion` |
 
 - Put the values into gpui-component's `Theme::motion` (`MotionTokens`) once at `install_theme`; `Theme::change` and
   a family switch keep the field (`motion_test.rs`), so its dialogs, dock tab bars and resize handles follow them.
@@ -91,7 +92,11 @@ things that switch, get selected or go away change at once.
   first draw 3× the fade before they just show.
 - No transform, so a "grow" that must not reflow keeps the final layout and hides the difference: a new terminal pane
   has its final size (the grid resizes once) and four background-colored bars of `relative()` width cover its edges
-  and shrink to 0; a new row grows by horizontal margin only, so its height and the list never move.
+  and shrink to 0; a new list row (`motion::appear_row`) uses `.relative().top(px(4. * (1. - t)))` + `.opacity(t)` so
+  neither its width (line wrapping on multi-line messages) nor the list's height ever moves mid-fade.
+- Reduce Motion works across platforms: macOS reads `defaults read com.apple.universalaccess reduceMotion`, Linux reads
+  `gsettings get org.gnome.desktop.interface enable-animations`, and Settings → Appearance → Motion (`MotionMode::Reduced`)
+  lets any platform turn animations and loading spinners off immediately (`ui::motion::apply_reduce_motion`).
 - A drag that base owns (a dock's resize handle, whose state is crate-private in gpui-component) can still be watched
   from the skin: paint a `canvas` over the dock that registers **capture-phase** window mouse listeners (the handle
   calls `stop_propagation` in bubble), arm on a press inside the handle's hit area (5 px at the edge), and act on the

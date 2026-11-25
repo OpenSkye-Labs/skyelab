@@ -156,7 +156,7 @@ impl Onboarding {
             .child(
                 div()
                     .mt_5()
-                    .text_size(px(26.))
+                    .text_size(ui::HERO)
                     .font_weight(FontWeight::BOLD)
                     .text_center()
                     .child(title),

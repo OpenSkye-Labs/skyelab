@@ -6,7 +6,11 @@ use super::*;
 use crate::ui;
 use crate::ui::SkyeIcon;
 use crate::ui::TextField;
-use gpui_component::{Icon, h_flex, v_flex};
+use gpui_component::{
+    Icon, h_flex,
+    menu::{DropdownMenu as _, PopupMenuItem},
+    v_flex,
+};
 
 /// Why a stale binding stops agents, in one sentence.
 fn stale_reason(confirmed: bool, resolves: bool) -> &'static str {
@@ -178,41 +182,68 @@ impl Settings {
                 ))
                 .into_any_element()
         });
+        let choices = account_ids(&self.config);
+        let picked = self.binding_account.clone();
+        let account_label = picked
+            .as_ref()
+            .and_then(|id| choices.iter().find(|c| &c.id == id))
+            .map(|c| c.label.clone())
+            .unwrap_or_else(|| SharedString::from("Account"));
+        let view = cx.entity().downgrade();
         let theme = cx.theme();
-        let add =
-            h_flex()
-                .px_4()
-                .py_3()
-                .gap_2()
-                .border_t_1()
-                .border_color(theme.border)
-                .child(
-                    div()
-                        .text_size(ui::META)
-                        .text_color(theme.muted_foreground)
-                        .child("Bind a folder to"),
-                )
-                .child(
-                    div().w_48().child(
-                        Select::new(&self.account_select)
-                            .id("binding-account")
-                            .small()
-                            .placeholder("Account")
-                            .accessibility_label("Account for new binding"),
-                    ),
-                )
-                .child(div().flex_1())
-                .child(
-                    Button::new("bind-folder")
-                        .label("Choose folder…")
-                        .icon(SkyeIcon::FolderOpen)
-                        .small()
-                        .primary()
-                        .on_click(cx.listener(|this, _, window, cx| {
+        let add = h_flex()
+            .px_4()
+            .py_3()
+            .gap_2()
+            .border_t_1()
+            .border_color(theme.border)
+            .child(
+                div()
+                    .text_size(ui::META)
+                    .text_color(theme.muted_foreground)
+                    .child("Bind a folder to"),
+            )
+            .child(
+                Button::new("binding-account")
+                    .outline()
+                    .small()
+                    .label(account_label)
+                    .tooltip("Account for new binding")
+                    .disabled(choices.is_empty())
+                    .dropdown_caret(true)
+                    .dropdown_menu(move |mut menu, _, _| {
+                        for choice in choices.clone() {
+                            let view = view.clone();
+                            let on = picked.as_ref() == Some(&choice.id);
+                            let id = choice.id.clone();
+                            menu =
+                                menu.item(PopupMenuItem::new(choice.label).checked(on).on_click(
+                                    move |_, _, cx| {
+                                        let id = id.clone();
+                                        let _ = view.update(cx, |this, cx| {
+                                            this.binding_account = Some(id);
+                                            cx.notify();
+                                        });
+                                    },
+                                ));
+                        }
+                        menu
+                    }),
+            )
+            .child(div().flex_1())
+            .child(
+                Button::new("bind-folder")
+                    .label("Choose folder…")
+                    .icon(SkyeIcon::FolderOpen)
+                    .small()
+                    .primary()
+                    .on_click(
+                        cx.listener(|this, _, window, cx| {
                             this.bind_folder(&BindFolder, window, cx)
-                        })),
-                )
-                .into_any_element();
+                        }),
+                    ),
+            )
+            .into_any_element();
         section(
             "Folder bindings",
             "Every folder under a binding runs on that account. The deepest binding wins; nothing falls back to a default.",

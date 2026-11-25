@@ -117,13 +117,10 @@ impl RenderOnce for CommandRow {
                             .line_height(px(20.))
                             .child(title),
                     )
-                    .children(self.subtitle.map(|s| {
-                        div()
-                            .truncate()
-                            .text_size(META)
-                            .text_color(muted.opacity(0.85))
-                            .child(s)
-                    })),
+                    .children(
+                        self.subtitle
+                            .map(|s| div().truncate().text_size(META).text_color(muted).child(s)),
+                    ),
             )
             .child(
                 h_flex()

@@ -114,6 +114,15 @@ pub enum ColorMode {
     Dark,
 }
 
+/// Whether animations follow the OS Reduce Motion setting or stay reduced.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MotionMode {
+    #[default]
+    System,
+    Reduced,
+}
+
 /// Settings → Appearance. Names are the app's theme and accent keys; an unknown one falls back to the default.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -125,6 +134,8 @@ pub struct AppearanceSettings {
     pub accent: Option<String>,
     /// Tighter rows and cards.
     pub compact: bool,
+    /// Motion preference: follow the system or reduce motion everywhere.
+    pub motion: MotionMode,
     /// Interface text size in points.
     pub ui_font_size: u8,
     /// Code and terminal text size in points.
@@ -154,6 +165,7 @@ impl Default for AppearanceSettings {
             theme: "skyelab".into(),
             accent: None,
             compact: false,
+            motion: MotionMode::System,
             ui_font_size: 14,
             code_font_size: 13,
         }

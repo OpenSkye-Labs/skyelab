@@ -22,6 +22,7 @@ pub struct TextField {
     suffix: Option<AnyElement>,
     cleanable: bool,
     disabled: bool,
+    invalid: bool,
 }
 
 impl TextField {
@@ -33,6 +34,7 @@ impl TextField {
             suffix: None,
             cleanable: false,
             disabled: false,
+            invalid: false,
         }
     }
 
@@ -69,6 +71,12 @@ impl TextField {
         self.disabled = disabled;
         self
     }
+
+    /// Marks the field as containing an invalid value (border switches to `theme.danger`).
+    pub fn invalid(mut self, invalid: bool) -> Self {
+        self.invalid = invalid;
+        self
+    }
 }
 
 impl RenderOnce for TextField {
@@ -76,6 +84,13 @@ impl RenderOnce for TextField {
         let focused = self.state.read(cx).focus_handle(cx).is_focused(window);
         let theme = cx.theme();
         let size = self.size;
+        let border = if self.invalid {
+            theme.danger
+        } else if focused {
+            theme.ring
+        } else {
+            theme.input
+        };
         let input = Input::new(&self.state)
             .appearance(false)
             .cleanable(self.cleanable)
@@ -94,7 +109,7 @@ impl RenderOnce for TextField {
             .px(size.pad_x() - gpui::px(1.))
             .rounded(size.radius())
             .border_1()
-            .border_color(if focused { theme.ring } else { theme.input })
+            .border_color(border)
             .bg(if theme.is_dark() {
                 theme.input.opacity(0.32)
             } else {

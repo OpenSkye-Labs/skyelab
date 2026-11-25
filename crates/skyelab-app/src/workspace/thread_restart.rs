@@ -35,7 +35,7 @@ impl ThreadView {
                 .title("Restart agent session")
                 .child("The agent is working. Restarting stops this turn; your next message resumes the session.")
                 .footer(
-                    gpui_component::dialog::DialogFooter::new()
+                    crate::ui::dialog_footer()
                         .child(crate::ui::dialog_cancel("restart-cancel"))
                         .child(
                             Button::new("restart-confirm")

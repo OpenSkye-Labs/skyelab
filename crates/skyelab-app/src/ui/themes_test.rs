@@ -67,6 +67,7 @@ fn switching_applies_family_mode_accent_sizes_and_density(cx: &mut TestAppContex
             compact: true,
             ui_font_size: 16,
             code_font_size: 15,
+            ..Default::default()
         };
         themes::set(s, cx).detach();
     });

@@ -275,7 +275,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        use gpui_component::{WindowExt as _, dialog::DialogFooter};
+        use gpui_component::WindowExt as _;
         let id = a.id;
         let others = self.compare_others(id, cx);
         if others.iter().any(|&o| self.working(o, cx)) {
@@ -311,7 +311,7 @@ impl Workspace {
                 .title("Keep this one")
                 .child(body.clone())
                 .footer(
-                    DialogFooter::new()
+                    crate::ui::dialog_footer()
                         .child(crate::ui::dialog_cancel("keep-cancel"))
                         .child(
                             Button::new("keep-leave")

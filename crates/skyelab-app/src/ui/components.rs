@@ -1,7 +1,7 @@
 //! The small shared pieces, each after its T3 Code counterpart (docs/design/t3-reference.md §6, §7):
 //! badges, pills, dots, section headers, empty states, rows, headers, key hints, settings groups.
 
-use super::{BODY, HEADER_H, META, PAGE, RADIUS_LG, RADIUS_MD, RADIUS_SM, ROW_H, SECTION};
+use super::{BODY, HEADER_H, META, PAGE, RADIUS_MD, RADIUS_SM, ROW_H, SECTION};
 use gpui::{
     AnyElement, App, Div, ElementId, FontWeight, Hsla, IntoElement, SharedString, Stateful, Window,
     div, prelude::*, px,
@@ -397,14 +397,9 @@ pub fn section_title(text: impl Into<SharedString>, theme: &Theme) -> Div {
 }
 
 /// T3's settings card: rounded 12, a hairline border on the muted fill, rows divided by hairlines (give each row
-/// `group_row`).
-pub fn group(theme: &Theme) -> Div {
-    v_flex()
-        .rounded(RADIUS_LG)
-        .border_1()
-        .border_color(theme.border)
-        .bg(theme.muted)
-        .overflow_hidden()
+/// `group_row`). Backed by [`super::Card::flush`] so card chrome lives in one place.
+pub fn group(_theme: &Theme) -> super::Card {
+    super::Card::new().flush()
 }
 
 /// One row of a [`group`]: `px-4 py-3.5` (`py-2.5` when compact), a hairline above all but the first.
